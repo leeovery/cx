@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(migrate)",
+      "Bash(cat:*)",
+      "Skill(technical-discussion)"
+    ]
+  }
+}
