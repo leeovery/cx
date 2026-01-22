@@ -162,3 +162,21 @@ When running inside Zellij, ZW enters **utility mode** with restricted operation
 - View other sessions (read-only)
 - Kill other sessions
 - Show current session info
+
+## Project Memory
+
+### Remembered Directories
+
+ZW maintains a list of directories where the user has previously started sessions. This enables quick access to frequently used project directories when starting new sessions.
+
+### How Directories are Added
+
+When a user navigates to a new directory via the file browser and starts a session there, that directory is added to the remembered list.
+
+### Storage
+
+Remembered directories are stored in `~/.config/zw/projects.json`.
+
+### Usage in TUI
+
+When selecting "new in project...", remembered directories appear first in the project picker, allowing quick selection before browsing to new locations.
