@@ -35,3 +35,20 @@ A single command (`zw`) that:
 2. **Mobile-friendly** - Clean, minimal interface vs. Zellij's dense built-in manager
 3. **Project memory** - Quick-start new sessions in remembered directories
 4. **One command** - `zw` does everything vs. `zellij ls` + `zellij attach <name>`
+
+## Core Model
+
+### Sessions as Workspaces
+
+ZW treats Zellij sessions as **workspaces**. A workspace may span multiple directories - Zellij allows multiple panes in a session, each potentially in different directories.
+
+### Sessions and Projects are Separate Concerns
+
+- **Sessions** = Live data queried from Zellij (`zellij ls`)
+- **Projects** = ZW's memory of directories used to start new sessions
+
+ZW does not track which project a session belongs to. Select a session → attach. Select a project → start a new session there.
+
+### No Directory Change Before Attach
+
+When attaching to an existing session, ZW does not change directories. Zellij restores shell state on reattach - each pane resumes exactly where it was.
