@@ -266,7 +266,114 @@ From **project-centric** (original cx-design.md) to **workspace-centric**:
 
 ### Open Questions
 
-- [ ] Is this enough value over aliases + `zellij ls | fzf`?
-- [ ] Session naming convention - still `{name}-{NN}` or free-form?
-- [ ] Should CX manage layouts for new sessions?
+- [x] Is this enough value over aliases + `zellij ls | fzf`?
+- [x] Session naming convention - still `{name}-{NN}` or free-form?
+- [x] Should CX manage layouts for new sessions?
+- [ ] Can CX detect it's running inside a Zellij session?
+- [ ] What operations should work from inside vs outside Zellij?
+
+---
+
+## Is CX worth building?
+
+### Decision
+
+**Yes.** Reasons:
+- Personal project, fun to build in Go
+- Could expand for other uses later
+- Streamlines workflow, reduces cognitive load
+- Not trying to sell it - scratching own itch
+
+---
+
+## Session naming convention
+
+### The Problem
+
+Original design: `{project}-{NN}`. But if workspaces aren't tied to projects, how should naming work?
+
+### Decision
+
+**Free-form with smart defaults:**
+
+1. **Default** = directory basename (e.g., starting in `~/Code/myapp` suggests "myapp")
+2. **Always prompt** before starting, even for previously saved projects
+3. **Rename later** supported - workspaces evolve (start as "project-a", becomes "comparison-testing")
+
+**Why always prompt:** User might start session in Project B directory but want to call it "testing-workflow" or something contextual.
+
+**Example flow:**
+```
+Selected: ~/Code/myapp
+
+Workspace name: [myapp] _
+  (Enter to accept, or type a custom name)
+
+Layout: [default] ▾
+  • default (single pane)
+  • claude (single pane + Claude)
+  • split (two panes)
+```
+
+---
+
+## Layouts for new sessions
+
+### The Problem
+
+When starting a new session, what layout should be used?
+
+### Decision
+
+**Default + optional saved layouts:**
+
+1. **Default** = single pane in the chosen directory (just wraps shell in Zellij)
+2. **Saved layouts** = user can pick from predefined layouts
+3. **Layout picker** shown at session start (can be skipped with Enter for default)
+
+**Example layouts:**
+- `default` - single pane
+- `claude` - single pane, runs `claude` command
+- `split` - two horizontal panes
+- `dev` - custom layout for specific workflow
+
+**Where layouts live:** `~/.config/cx/layouts/` (KDL files, same format as Zellij)
+
+**Future nice-to-have:** "Save current layout" from inside a session.
+
+---
+
+## Running CX from inside Zellij
+
+### The Problem
+
+If user is already inside a Zellij session and runs `cx`, what should happen? Can CX detect this?
+
+### Research Needed
+
+Zellij sets environment variables inside sessions:
+- `ZELLIJ` = `0` (when inside a session)
+- `ZELLIJ_SESSION_NAME` = current session name
+
+So CX *can* detect it's running inside Zellij.
+
+### Options
+
+**If inside Zellij, CX could:**
+
+1. **Refuse** - "Already in a Zellij session. Use Zellij's session manager instead."
+2. **Limited mode** - Show sessions but warn about nesting
+3. **Smart mode** - Offer different actions:
+   - Rename current session
+   - Switch to different session (via Zellij's internal mechanism?)
+   - Kill other sessions
+   - Just show info (read-only)
+
+### Decision
+
+*Pending - need to explore what's useful here...*
+
+---
+
+## Remaining Questions
 
