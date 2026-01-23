@@ -181,6 +181,14 @@ Remembered directories are stored in `~/.config/zw/projects.json`.
 
 When selecting "new in project...", remembered directories appear first in the project picker, allowing quick selection before browsing to new locations.
 
+### Stale Project Cleanup
+
+**Automatic**: If a remembered directory no longer exists on disk, ZW removes it from the project list automatically when encountered.
+
+**Manual**: While navigating the project list, users can manually remove a project from the remembered list via keyboard shortcut.
+
+**Via `zw clean`**: The clean command also detects missing or renamed directories and offers to remove them from the project list.
+
 ## File Browser
 
 ### Purpose
