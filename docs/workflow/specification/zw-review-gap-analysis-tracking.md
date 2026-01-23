@@ -60,10 +60,10 @@ The spec mentions "EXITED" sessions in the TUI but doesn't explain how ZW discov
 Source material mentioned: `~/.cache/zellij/<version>/session_info/<session-name>/session-layout.kdl`
 
 **Proposed Addition**:
-(To be discussed)
+Added "Session Discovery" subsection to Zellij Integration.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: zellij list-sessions includes exited sessions (labeled EXITED). Must strip ANSI color codes when parsing.
 
 ---
 

@@ -315,6 +315,14 @@ ZW queries Zellij for its configuration directory to locate available layouts. L
 
 **No layouts available**: If no custom layouts exist, ZW skips the layout picker and creates sessions with Zellij's default (single pane). The new session flow shows "No custom layouts available."
 
+### Session Discovery
+
+ZW uses `zellij list-sessions` to discover both running and exited sessions. The output includes:
+- Running sessions
+- Exited sessions (labeled as "EXITED") - these are resurrectable
+
+**Parsing note**: The command outputs with ANSI color codes. ZW must strip escape sequences when parsing the output.
+
 ## Dependencies
 
 Prerequisites that must exist before implementation can begin:
