@@ -282,6 +282,21 @@ Zellij is a required dependency. The Homebrew formula declares Zellij as a depen
 
 If Zellij is somehow missing at runtime, ZW displays: "ZW requires Zellij. Install with: brew install zellij"
 
+## Zellij Integration
+
+### Session Operations
+
+ZW uses these Zellij CLI commands:
+
+| Operation | Command |
+|-----------|---------|
+| Create/attach session | `zellij attach -c <session-name>` (creates if doesn't exist) |
+| Attach to existing | `zellij attach <session-name>` |
+| List sessions | `zellij list-sessions` |
+| Kill session | `zellij kill-session <session-name>` |
+| Delete exited session | `zellij delete-session <session-name>` |
+| Query tab names | `zellij --session <name> action query-tab-names` |
+
 ## Dependencies
 
 Prerequisites that must exist before implementation can begin:
