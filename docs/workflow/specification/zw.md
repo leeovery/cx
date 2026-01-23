@@ -146,6 +146,12 @@ Session renaming is supported. Workspaces evolve - a session started as "project
 
 ## Running Inside Zellij
 
+### Environment Variables
+
+Zellij sets these variables when inside a session:
+- `ZELLIJ` - Indicates running inside Zellij
+- `ZELLIJ_SESSION_NAME` - The current session's name (useful for utility mode operations like renaming or showing current session info)
+
 ### Detection
 
 ZW detects if it's running inside an existing Zellij session via the `ZELLIJ` environment variable (set by Zellij when inside a session).
