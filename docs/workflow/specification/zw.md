@@ -53,6 +53,15 @@ ZW does not track which project a session belongs to. Select a session → attac
 
 When attaching to an existing session, ZW does not change directories. Zellij restores shell state on reattach - each pane resumes exactly where it was.
 
+### Directory Change for New Sessions
+
+When starting a **new** session, ZW changes to the selected project directory before creating the session. The sequence is:
+
+1. cd to project directory
+2. Run `zellij attach -c <session-name>` (with optional layout flag)
+
+This ensures the new session's default pane opens in the project directory.
+
 ## TUI Design
 
 ### Technology
