@@ -151,7 +151,11 @@ Layout: [default] ▾
 
 ### Renaming
 
-Session renaming is supported. Workspaces evolve - a session started as "project-a" may become "comparison-testing".
+Session renaming is available in **utility mode** (when ZW runs inside Zellij). The current session can be renamed using `zellij action rename-session <new-name>`.
+
+**External renaming**: May be possible via `zellij --session <name> action rename-session <new-name>` from outside Zellij - to be verified during implementation.
+
+**Note**: After renaming, the `ZELLIJ_SESSION_NAME` environment variable is not updated for existing panes (only new panes).
 
 ## Running Inside Zellij
 
@@ -330,6 +334,7 @@ ZW uses these Zellij CLI commands:
 | Kill session | `zellij kill-session <session-name>` |
 | Delete exited session | `zellij delete-session <session-name>` |
 | Query tab names | `zellij --session <name> action query-tab-names` |
+| Rename session | `zellij action rename-session <new-name>` (from inside session) |
 
 ### Layout Discovery
 

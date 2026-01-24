@@ -94,16 +94,11 @@ Added "projects.json Structure" subsection with full schema.
 **Category**: Insufficient Detail
 **Affects**: Session Naming section, Zellij Integration section
 
-**Details**:
-Spec says "Session renaming is supported" but doesn't specify:
-- What Zellij command renames a session?
-- What's the UI flow? In-place edit? Modal prompt?
-
 **Proposed Addition**:
-(To be discussed)
+Updated Renaming subsection and added rename command to Session Operations table.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Conservative approach - utility mode confirmed, external renaming marked for verification during implementation.
 
 ---
 
