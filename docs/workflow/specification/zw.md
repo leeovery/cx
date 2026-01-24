@@ -1,8 +1,8 @@
 # Specification: ZW (Zellij Workspaces)
 
-**Status**: Building specification
+**Status**: Complete
 **Type**: feature
-**Last Updated**: 2026-01-22
+**Last Updated**: 2026-01-24
 
 ---
 
