@@ -112,10 +112,10 @@ Updated Renaming subsection and added rename command to Session Operations table
 Original cx-design discussion mentioned "with confirmation" for killing sessions. The spec's keyboard shortcuts say K kills but doesn't mention confirmation. Should there be one?
 
 **Proposed Addition**:
-(To be discussed)
+Added kill confirmation note after keyboard shortcuts table.
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Always confirm with "Kill session 'myapp'? (y/n)" prompt.
 
 ---
 

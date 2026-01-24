@@ -114,6 +114,8 @@ Full-screen picker optimized for small screens (mobile SSH use case).
 | `K` | Kill selected session |
 | `q` / `Esc` | Quit |
 
+**Kill confirmation**: Pressing `K` prompts for confirmation before killing the selected session: "Kill session 'myapp'? (y/n)"
+
 ### Session Info Display
 
 For running sessions, ZW can query tab names via:
