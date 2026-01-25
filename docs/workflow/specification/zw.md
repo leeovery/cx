@@ -1,10 +1,11 @@
-# Specification: ZW (Zellij Workspaces)
-
-**Status**: Complete
-**Type**: feature
-**Last Updated**: 2026-01-24
-
 ---
+topic: zw
+status: concluded
+type: feature
+date: 2026-01-24
+---
+
+# Specification: ZW (Zellij Workspaces)
 
 ## Overview
 
@@ -113,6 +114,7 @@ Full-screen picker optimized for small screens (mobile SSH use case).
 | `n` | Jump to "new session" option |
 | `K` | Kill selected session |
 | `q` / `Esc` | Quit |
+| Typing | Fuzzy filter the list |
 
 **Kill confirmation**: Pressing `K` prompts for confirmation before killing the selected session: "Kill session 'myapp'? (y/n)"
 
@@ -287,6 +289,8 @@ Specific configuration options will be determined during implementation based on
 | `zw <path>` | Start new session in specified directory (opens naming prompt) |
 | `zw <alias>` | Start new session for project with matching alias (opens naming prompt) |
 | `zw clean` | Remove exited/dead sessions (non-interactive) |
+| `zw list` | Output running session names, one per line (for scripting/fzf) |
+| `zw attach <name>` | Attach to session by exact name |
 | `zw version` | Show version information |
 | `zw help` | Show usage information |
 
@@ -295,6 +299,22 @@ Specific configuration options will be determined during implementation based on
 ### Design Philosophy
 
 Most operations happen through the TUI. The CLI subcommands are minimal, providing only non-interactive utilities and standard help/version flags.
+
+### Scripting & fzf Integration
+
+`zw list` outputs session names one per line for piping to external tools:
+
+```bash
+# Quick attach with fzf
+zw attach $(zw list | fzf)
+
+# Scripting
+for session in $(zw list); do
+  echo "Session: $session"
+done
+```
+
+This provides an alternative to the TUI for power users who prefer external pickers or scripting.
 
 ## Distribution
 

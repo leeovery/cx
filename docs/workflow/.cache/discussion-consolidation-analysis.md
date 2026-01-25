@@ -1,8 +1,9 @@
 ---
-checksum: 8af28045b8037682adc299fcaef7498e
-generated: 2026-01-22T19:26:11Z
+checksum: 0a01251b5552b61085c51b43b502c6ca
+generated: 2026-01-25T16:47:00Z
 discussion_files:
   - cx-design.md
+  - fzf-output-mode.md
   - zellij-multi-directory.md
 ---
 
@@ -10,11 +11,12 @@ discussion_files:
 
 ## Recommended Groupings
 
-### zw (Zellij Workspaces)
-- **cx-design**: Original comprehensive design for the tool (then named "CX") covering TUI, session management, project naming, configuration, Zellij integration, and distribution. Contains foundational decisions that still apply.
-- **zellij-multi-directory**: Pivotal refinement that shifts from project-centric to workspace-centric model. Renames tool to ZW, removes session→project mapping, introduces user-chosen session names, and adds inside-Zellij utility mode.
+### zw
+- **cx-design**: Original CX design - TUI, session management, data storage, Zellij integration, configuration, CLI, distribution. Foundation for the tool.
+- **zellij-multi-directory**: Pivots from project-centric to workspace-centric model. Renames CX → ZW. Supersedes key assumptions from cx-design but retains TUI, distribution, file browser design.
+- **fzf-output-mode**: Adds `zw list` and `zw attach <name>` commands for fzf/scripting integration. Feature addition to existing ZW spec.
 
-**Coupling**: These discuss the same tool at different points in its design evolution. The second discussion explicitly references the first, identifies what "carries forward" and what "changes". They are inseparable - the specification must reconcile both to capture the final design.
+**Coupling**: All three discussions are about the same tool (ZW, formerly CX). cx-design and zellij-multi-directory are tightly coupled - the latter explicitly pivots and supersedes parts of the former. fzf-output-mode is a feature addition that references the ZW specification directly and proposes CLI command additions.
 
 ## Independent Discussions
 
@@ -22,22 +24,10 @@ discussion_files:
 
 ## Analysis Notes
 
-The zellij-multi-directory discussion provides a clear reconciliation guide:
+An existing "zw" specification (concluded) already exists. These three discussions represent the source material and subsequent refinements that should be incorporated:
 
-**Carries forward from cx-design:**
-- Go + Bubbletea TUI
-- Flat config format
-- Homebrew distribution via `leeovery/tools` tap
-- File browser for new project discovery
-- Keyboard shortcuts (N, K, Enter, etc.)
-- `cx clean` subcommand (now `zw clean`)
+1. **cx-design** - foundational design decisions
+2. **zellij-multi-directory** - model pivot (session = workspace, not project)
+3. **fzf-output-mode** - CLI additions for scripting
 
-**Superseded by zellij-multi-directory:**
-- sessions.json mapping file → removed
-- Automatic Claude execution → removed
-- Session naming `{project}-{NN}` → user-chosen free-form
-- TUI organized by projects → organized by sessions
-- "cd before attach" → not needed (Zellij restores)
-- Name "CX" → renamed to "ZW"
-
-**User context**: The user confirmed that zellij-multi-directory overrides/changes behavior from the original, but valuable information from cx-design still needs inclusion. The specification skill should help reconcile what's current vs. superseded.
+The zellij-multi-directory discussion explicitly states it supersedes parts of cx-design, so the specification should reflect the evolved workspace-centric model while preserving unchanged decisions (distribution, file browser, etc.).
