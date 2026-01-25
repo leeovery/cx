@@ -105,6 +105,12 @@ Full-screen picker optimized for small screens (mobile SSH use case).
 3. **New session option** - `[n] new in project...`
    - Opens project picker to start a new session
 
+### Sorting
+
+**Sessions**: Displayed in the order returned by `zellij list-sessions`. No additional sorting applied.
+
+**Projects**: Sorted by `last_used` timestamp, most recent first.
+
 ### Keyboard Shortcuts
 
 | Key | Action |
@@ -126,6 +132,34 @@ zellij --session <name> action query-tab-names
 ```
 
 This allows showing tab count or tab names inline without entering the session.
+
+### Empty States
+
+**No sessions (running or exited):**
+```
+┌─────────────────────────────────────┐
+│                                     │
+│           SESSIONS                  │
+│                                     │
+│       No active sessions            │
+│                                     │
+│    ─────────────────────────────    │
+│    [n] new in project...            │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+**No remembered projects (when opening project picker):**
+```
+Select a project:
+
+  No saved projects yet.
+
+  ─────────────────────────────
+  [/] browse for directory...
+```
+
+The file browser is always available to start sessions in new directories.
 
 ## Session Naming
 
@@ -186,6 +220,40 @@ When running inside Zellij, ZW enters **utility mode** with restricted operation
 - Kill other sessions
 - Show current session info
 
+### Utility Mode TUI
+
+When running inside Zellij, the TUI displays with modifications:
+
+```
+┌─────────────────────────────────────┐
+│                                     │
+│      UTILITY MODE (in: cx-03)       │
+│                                     │
+│           SESSIONS                  │
+│                                     │
+│       api-work       2 tabs         │
+│       client-proj                   │
+│                                     │
+│    ─────────────────────────────    │
+│    [r] rename current session       │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+**Visual differences:**
+- Header shows "UTILITY MODE" with current session name
+- Current session is not listed (you're already in it)
+- `Enter` on a session shows info instead of attaching
+- `[n] new in project...` is hidden (can't start nested sessions)
+- `[r] rename current session` option added
+
+**Keyboard shortcuts in utility mode:**
+| Key | Action |
+|-----|--------|
+| `r` | Rename current session (prompts for new name) |
+| `K` | Kill selected session (other sessions only) |
+| `q` / `Esc` | Exit ZW |
+
 ## Project Memory
 
 ### Remembered Directories
@@ -226,8 +294,12 @@ From the project picker (when creating a new session):
 
 ### Behavior
 
-- Navigate directories using arrow keys
-- Select a directory to start a new session there
+- **Starting directory**: Current working directory
+- **Navigation**: Arrow keys to move through directory listing
+- **Enter directory**: `Enter` or `→` descends into highlighted directory
+- **Go up**: `Backspace` or `←` goes to parent directory
+- **Select current directory**: `Enter` on `.` (current dir indicator) or dedicated shortcut (e.g., `Space`)
+- **Cancel**: `Esc` returns to project picker without selection
 - The selected directory is automatically added to remembered projects
 
 ## Configuration & Storage
@@ -295,6 +367,15 @@ Specific configuration options will be determined during implementation based on
 | `zw help` | Show usage information |
 
 **Quick-start shortcuts**: `zw .`, `zw <path>`, and `zw <alias>` all open the same naming/layout flow as selecting a directory via the project picker - they just skip navigation. The selected directory is added to remembered projects if not already present.
+
+### Argument Resolution
+
+When `zw` receives a positional argument (e.g., `zw myapp`):
+
+1. **Path detection**: If the argument contains `/` or starts with `.`, treat it as a path
+2. **Alias lookup**: Otherwise, check if it matches a project alias in `projects.json`
+3. **Fallback to path**: If no alias match, treat as a relative path
+4. **Validation**: If the resolved path doesn't exist, display error: "No project alias or directory found: {arg}"
 
 ### Design Philosophy
 
