@@ -1,7 +1,7 @@
 {
   "plugins": {
     "@leeovery/claude-technical-workflows": {
-      "version": "2.0.41",
+      "version": "2.0.44",
       "files": [
         "skills/technical-discussion",
         "skills/technical-implementation",
@@ -14,9 +14,12 @@
         "commands/start-feature.md",
         "commands/workflow",
         "agents/chain-verifier.md",
+        "scripts/discovery-for-discussion.sh",
+        "scripts/discovery-for-implementation-and-review.sh",
+        "scripts/discovery-for-planning.sh",
+        "scripts/discovery-for-specification.sh",
         "scripts/migrate.sh",
-        "scripts/migrations",
-        "scripts/specification-discovery.sh"
+        "scripts/migrations"
       ]
     }
   }
