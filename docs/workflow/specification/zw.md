@@ -175,21 +175,37 @@ The file browser is always available to start sessions in new directories.
 
 ## Session Naming
 
-### Free-Form with Smart Defaults
+### Auto-Generated from Project Name
 
-Session names are user-chosen, not auto-generated.
+Session names are auto-generated using the project name plus a short random suffix:
 
-**Default**: Directory basename (e.g., starting in `~/Code/myapp` suggests "myapp")
+```
+{project-name}-{nanoid}
+```
 
-**Always prompt**: Even for previously saved projects, ZW prompts for the session name. Users may want a contextual name (e.g., "testing-workflow") rather than the project name.
+**Example**: Project "zw" produces sessions like `zw-x7k2m9`, `zw-a3b8p1`.
+
+The suffix is a 6-character nanoid, ensuring uniqueness without user input. Users are never prompted for a session name.
+
+### Renaming
+
+Session renaming is available in **utility mode** (when ZW runs inside Zellij). The current session can be renamed using `zellij action rename-session <new-name>`.
+
+**External renaming**: May be possible via `zellij --session <name> action rename-session <new-name>` from outside Zellij — to be verified during implementation.
+
+**Note**: After renaming, the `ZELLIJ_SESSION_NAME` environment variable is not updated for existing panes (only new panes).
 
 ### New Session Flow
 
+**New project (directory not in projects.json):**
 ```
 Selected: ~/Code/myapp
 
-Workspace name: [myapp] _
+Project name: [myapp] _
   (Enter to accept, or type a custom name)
+
+Aliases (optional): _
+  (Comma-separated, e.g. "app, ma". Enter to skip)
 
 Layout: [default] ▾
   • default (single pane)
@@ -197,15 +213,17 @@ Layout: [default] ▾
   • split-view
 ```
 
+**Saved project:**
+```
+Layout: [default] ▾
+  • default (single pane)
+  • dev-setup
+  • split-view
+```
+
+The session is created automatically with an auto-generated name (e.g., `myapp-x7k2m9`).
+
 **Layout selection**: ZW presents existing Zellij layouts for the user to choose from. ZW does not create or manage layouts - that's handled by Zellij itself. If no custom layouts exist, ZW starts sessions with Zellij's default (single pane).
-
-### Renaming
-
-Session renaming is available in **utility mode** (when ZW runs inside Zellij). The current session can be renamed using `zellij action rename-session <new-name>`.
-
-**External renaming**: May be possible via `zellij --session <name> action rename-session <new-name>` from outside Zellij - to be verified during implementation.
-
-**Note**: After renaming, the `ZELLIJ_SESSION_NAME` environment variable is not updated for existing panes (only new panes).
 
 ## Running Inside Zellij
 
@@ -275,6 +293,27 @@ ZW maintains a list of directories where the user has previously started session
 ### How Directories are Added
 
 When a user navigates to a new directory via the file browser and starts a session there, that directory is added to the remembered list.
+
+### Project Naming
+
+When a user starts a session in a **new directory** (not yet in `projects.json`), ZW presents a naming screen before proceeding to session creation:
+
+- **Project name**: Text input, defaults to directory basename (after git root resolution)
+- **Aliases**: Optional, user can add one or more short identifiers for quick access via `zw <alias>`
+
+This is a dedicated screen within the TUI.
+
+**Saved projects**: When starting a session in a directory already in `projects.json`, ZW skips the project naming screen and proceeds directly to session creation.
+
+**Project names are independent of Zellij session names.** A project may have many sessions — each session's name is auto-generated from the project name (see Session Naming). The project name is a ZW display concept; it does not propagate to Zellij directly.
+
+### Project Management
+
+For saved projects, users can manage project details from the project picker via keyboard shortcut:
+- **Rename** the project display name
+- **Add or remove aliases**
+
+These changes update `projects.json` only and do not affect any existing Zellij session names.
 
 ### Storage
 
@@ -369,9 +408,9 @@ Specific configuration options will be determined during implementation based on
 | Command | Description |
 |---------|-------------|
 | `zw` | Launch the main TUI picker |
-| `zw .` | Start new session in current directory (opens naming prompt) |
-| `zw <path>` | Start new session in specified directory (opens naming prompt) |
-| `zw <alias>` | Start new session for project with matching alias (opens naming prompt) |
+| `zw .` | Start new session in current directory |
+| `zw <path>` | Start new session in specified directory |
+| `zw <alias>` | Start new session for project with matching alias |
 | `zw clean` | Remove exited/dead sessions (non-interactive) |
 | `zw list` | Output running session names, one per line (for scripting/fzf) |
 | `zw attach <name>` | Attach to session by exact name |
