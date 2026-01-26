@@ -3,6 +3,7 @@ topic: zw
 status: concluded
 type: feature
 date: 2026-01-26
+sources: []
 ---
 
 # Specification: ZW (Zellij Workspaces)
