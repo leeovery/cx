@@ -477,6 +477,8 @@ Specific configuration options will be determined during implementation based on
 
 **Quick-start shortcuts**: `zw .`, `zw <path>`, and `zw <alias>` all open the same naming/layout flow as selecting a directory via the project picker - they just skip navigation. The selected directory is added to remembered projects if not already present.
 
+**Attach errors**: If `zw attach <name>` doesn't match any running or exited session, ZW displays: "No session found: {name}" and exits with a non-zero status code.
+
 ### Argument Resolution
 
 When `zw` receives a positional argument (e.g., `zw myapp`):

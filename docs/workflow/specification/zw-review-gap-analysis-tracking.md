@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 created: 2026-01-31
 phase: Gap Analysis
 topic: ZW
@@ -109,5 +109,5 @@ The project picker is a core screen but its full interaction model is sparse:
 **Details**:
 What happens when `zw attach <name>` is called with a name that doesn't match any session? Error message format?
 
-**Proposed Addition**: (pending discussion)
-**Resolution**: Pending
+**Proposed Addition**: Error message and non-zero exit code for unmatched session name.
+**Resolution**: Approved
