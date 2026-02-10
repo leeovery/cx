@@ -27,7 +27,7 @@ This discussion identifies what changes, what stays, and resolves the tmux-speci
 - [x] What happens to exited/resurrectable sessions (Zellij-native feature)?
 - [x] How should the layout system work with tmux?
 - [x] Should the tool be renamed (ZW = "Zellij Workspaces")?
-- [ ] How does utility mode work with tmux?
+- [x] How does utility mode work with tmux?
 - [ ] What session metadata can we display from outside tmux?
 - [ ] How does process handoff (exec) work with tmux?
 - [ ] What changes for the runtime dependency?
@@ -171,5 +171,55 @@ User wanted something that acknowledges tmux without hiding it. Considered keybo
 - 3 chars is fine — user will alias to a single char if needed
 
 **Spec impact:** Global find-replace of `zw` → `mux` throughout. All CLI commands become `mux`, `mux .`, `mux list`, `mux attach`, etc.
+
+---
+
+## How does utility mode work with tmux?
+
+### Context
+
+The Zellij spec had a restricted "utility mode" when running inside Zellij (detected via `ZELLIJ` env var). Attaching and creating sessions were blocked to prevent nesting. Only rename, view, and kill were allowed.
+
+### Journey
+
+tmux sets the `TMUX` env var inside sessions — same detection mechanism.
+
+But tmux has `switch-client` (verified, alias: `switchc`):
+```
+tmux switch-client -t <session-name>
+```
+
+This switches the current client to a different session **without nesting**. It also supports `-l` for switching to the last session.
+
+Furthermore, new sessions can be created detached (`new-session -d -s <name> -c <dir>`) and then switched to via `switch-client`. This means there's no technical reason to block *any* operation from inside tmux.
+
+### Decision
+
+**Utility mode becomes a full session picker that switches instead of attaching.** No restrictions needed.
+
+**Detection**: Check `TMUX` env var. If set, mux is running inside tmux.
+
+**Behaviour when inside tmux:**
+- `Enter` on a session → `tmux switch-client -t <name>` (instead of `exec tmux attach`)
+- `[n] new in project...` → creates session detached (`new-session -d`), then `switch-client` to it
+- Kill, rename — all work as normal (rename even works from outside now)
+- Current session excluded from list (you're already in it)
+- Header shows current session name for context
+
+**Behaviour when outside tmux:**
+- `Enter` on a session → `exec tmux attach-session -t <name>`
+- `[n] new in project...` → `exec tmux new-session -A -s <name> -c <dir>`
+
+**CLI commands inside tmux:**
+- `mux .`, `mux <path>`, `mux <alias>` → create detached + switch-client (instead of blocking)
+- `mux attach <name>` → switch-client (instead of blocking)
+
+This is strictly better than the Zellij spec — the full TUI works from everywhere, just with different underlying operations.
+
+**Spec impact:**
+- Remove "Utility Mode" as a separate concept with restricted operations
+- Replace with: "inside tmux" detection that changes attach → switch-client
+- Remove the separate utility mode TUI mockup
+- The TUI is the same everywhere, just the action differs
 
 ---
