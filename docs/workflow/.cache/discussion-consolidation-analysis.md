@@ -1,36 +1,33 @@
 ---
-checksum: b5db48fcbf683830fe06065ce9e1b618
-generated: 2026-01-26T16:05:00Z
+checksum: 9a066926c69722116624c2476e469db9
+generated: 2026-02-10T14:50:00Z
 discussion_files:
   - cx-design.md
   - fzf-output-mode.md
   - git-root-and-completions.md
   - zellij-multi-directory.md
+  - zellij-to-tmux-migration.md
 ---
 
 # Discussion Consolidation Analysis
 
 ## Recommended Groupings
 
-### zw
-- **cx-design**: Original CX design - TUI, session management, data storage, Zellij integration, configuration, CLI, distribution. Foundation for the tool.
-- **zellij-multi-directory**: Pivots from project-centric to workspace-centric model. Renames CX → ZW. Supersedes key assumptions from cx-design but retains TUI, distribution, file browser design.
-- **fzf-output-mode**: Adds `zw list` and `zw attach <name>` commands for fzf/scripting integration. Feature addition to existing ZW spec.
-- **git-root-and-completions**: Adds git root auto-resolution for directory selection and `zw completion` subcommand. Two minor amendments to the existing ZW spec.
+### mux (formerly zw)
+- **cx-design**: Original tool design — TUI, CLI structure, session management, project naming, distribution
+- **zellij-multi-directory**: Model pivot from project-centric to workspace-centric, renamed CX → ZW
+- **fzf-output-mode**: Added `list` and `attach` subcommands for scripting/fzf integration
+- **git-root-and-completions**: Git root auto-resolution for new sessions, shell completion subcommand
+- **zellij-to-tmux-migration**: Migrates from Zellij to tmux, renames ZW → mux, drops layouts and exited sessions, replaces utility mode with switch-client
 
-**Coupling**: All four discussions are about the same tool (ZW, formerly CX). cx-design and zellij-multi-directory are tightly coupled - the latter explicitly pivots and supersedes parts of the former. fzf-output-mode and git-root-and-completions are feature additions that reference the ZW specification directly and propose CLI/behavior amendments.
+**Coupling**: All 5 discussions define the same tool at different stages of its evolution. The tmux migration discussion explicitly references and modifies decisions from all other 4 discussions. Inseparable.
 
 ## Independent Discussions
 
-(none)
+None.
 
 ## Analysis Notes
 
-An existing "zw" specification (concluded) already exists. All four discussions represent the source material and subsequent refinements:
+**Naming conflict**: The anchored specification name is `zw`, but the zellij-to-tmux-migration discussion renames the tool from ZW to `mux`. The specification name should change to `mux` to match the new tool identity. The existing `zw.md` spec will need to be superseded by `mux.md`.
 
-1. **cx-design** - foundational design decisions
-2. **zellij-multi-directory** - model pivot (session = workspace, not project)
-3. **fzf-output-mode** - CLI additions for scripting
-4. **git-root-and-completions** - git root detection + shell completions
-
-The zw specification was previously built from discussions 1-3. Discussion 4 is new and needs to be incorporated. The specification should be updated to include git root resolution in directory handling and `zw completion` in the CLI commands table.
+User confirmed: tmux migration discussion belongs in the existing grouped spec.
