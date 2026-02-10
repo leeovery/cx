@@ -1,6 +1,6 @@
 ---
 topic: zellij-to-tmux-migration
-status: in-progress
+status: concluded
 date: 2026-02-10
 ---
 
