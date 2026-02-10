@@ -1,6 +1,7 @@
 ---
 name: technical-research
 description: "Explore ideas, validate concepts, and research broadly across technical, business, and market domains. Use when: (1) User has a new idea to explore, (2) Need to research a topic deeply, (3) Validating feasibility - technical, business, or market, (4) Learning and exploration without necessarily building anything, (5) User says 'research this' or 'explore this idea', (6) Brain dumping early thoughts before formal discussion. Creates research documents in docs/workflow/research/ that may feed into discussion or specification."
+user-invocable: false
 ---
 
 # Technical Research
@@ -28,6 +29,21 @@ Either way: Explore feasibility (technical, business, market), validate assumpti
 - **Topic is vague or could go many directions?**
   > "You mentioned {topic}. That could cover a lot of ground — is there a specific angle you'd like to start with, or should I explore broadly?"
 
+---
+
+## Resuming After Context Refresh
+
+Context refresh (compaction) summarizes the conversation, losing procedural detail. When you detect a context refresh has occurred — the conversation feels abruptly shorter, you lack memory of recent steps, or a summary precedes this message — follow this recovery protocol:
+
+1. **Re-read this skill file completely.** Do not rely on your summary of it. The full process, steps, and rules must be reloaded.
+2. **Read all tracking and state files** for the current topic — plan index files, review tracking files, implementation tracking files, or any working documents this skill creates. These are your source of truth for progress.
+3. **Check git state.** Run `git status` and `git log --oneline -10` to see recent commits. Commit messages follow a conventional pattern that reveals what was completed.
+4. **Announce your position** to the user before continuing: what step you believe you're at, what's been completed, and what comes next. Wait for confirmation.
+
+Do not guess at progress or continue from memory. The files on disk and git history are authoritative — your recollection is not.
+
+---
+
 ## Your Expertise
 
 You bring knowledge across the full landscape:
@@ -48,6 +64,59 @@ Don't constrain yourself. Research goes wherever it needs to go.
 **Learning is valid**: Not everything leads to building something. Understanding has value on its own.
 
 **Be honest**: If something seems flawed or risky, say so. Challenge assumptions.
+
+**Explore, don't decide**: Your job is to surface options, tradeoffs, and understanding — not to pick winners. Synthesis is welcome ("the tradeoffs are X, Y, Z"), conclusions are not ("therefore we should do Y"). Decisions belong in the discussion phase.
+
+## Convergence Awareness
+
+Research threads naturally converge. As you explore a topic, options narrow, tradeoffs clarify, and opinions start forming. This is healthy — but it's also a signal.
+
+### Recognizing convergence
+
+Watch for these signs that a thread is moving from exploration toward decision-making:
+
+- "We should..." or "The best approach is..." language (from you or the user)
+- Options narrowing to a clear frontrunner with well-understood tradeoffs
+- The same conclusion being reached from multiple angles
+- Discussion shifting from "what are the options?" to "which option?"
+- You or the user starting to advocate for a particular approach
+
+### What to do
+
+When you notice convergence, **flag it and give the user options**:
+
+> This thread seems to be converging — we've explored {topic} enough that the tradeoffs are clear and it's approaching decision territory.
+>
+> · · ·
+>
+> - **`p`/`park`** — Mark as discussion-ready and move to another topic
+> - **`k`/`keep`** — Keep digging, there's more to understand
+> - Comment — your call
+
+**Never decide for the user.** Even if the answer seems obvious, flag it and ask.
+
+### If the user parks it
+
+Document the convergence point in the research file using this marker:
+
+```markdown
+> **Discussion-ready**: {Brief summary of what was explored and why it's ready for decision-making. Key tradeoffs or options identified.}
+```
+
+Then continue with whatever's next — another topic, a different angle, or wrapping up the session.
+
+### If the user keeps digging
+
+Continue exploring. The convergence signal isn't a stop sign — it's an awareness check. The user might want to stress-test the emerging conclusion, explore edge cases, or understand the problem more deeply before moving on. That's valid research work.
+
+### Synthesis vs decision
+
+This distinction matters:
+
+- **Synthesis** (research): "There are three viable approaches. A is simplest but limited. B scales better but costs more. C is future-proof but complex."
+- **Decision** (discussion): "We should go with B because scaling matters more than simplicity for this project."
+
+Synthesis is your job. Decisions are not. Present the landscape, don't pick the destination.
 
 ## Questioning
 

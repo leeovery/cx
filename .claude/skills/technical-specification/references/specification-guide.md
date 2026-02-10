@@ -78,6 +78,8 @@ Present your understanding to the user **in the format it would appear in the sp
 
 Then present two explicit choices:
 
+> · · ·
+>
 > **To proceed:**
 > - **`y`/`yes`** — Approved. I'll add the above to the specification **verbatim** (exactly as shown, no modifications).
 > - **Or tell me what to change.**
@@ -294,12 +296,6 @@ Ask: **"Is there a standalone thing to build, or does this inform how we build o
 **Commit frequently**: Commit at natural breaks and before any context refresh. Context refresh = lost work.
 
 **Trust nothing without validation**: Synthesize and present, but never assume source material is correct.
-
-## After Context Refresh
-
-Read the specification. It contains validated, approved content. Trust it - you built it together with the user.
-
-If working notes exist, they show where you left off.
 
 ## Dependencies Section
 
@@ -522,6 +518,8 @@ For each item, follow the **same workflow as the main specification process**:
    >
    > [content exactly as it would appear]
    >
+   > · · ·
+   >
    > **To proceed:**
    > - **`y`/`yes`** — Approved. I'll add the above to the specification **verbatim**.
    > - **Or tell me what to change.**
@@ -651,6 +649,8 @@ For each item:
    > "Here's what I'll add to the specification:
    >
    > [content exactly as it would appear]
+   >
+   > · · ·
    >
    > **To proceed:**
    > - **`y`/`yes`** — Approved. I'll add the above to the specification **verbatim**.

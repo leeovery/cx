@@ -6,7 +6,7 @@
 
 ## The Cycle
 
-RED → GREEN → REFACTOR → COMMIT
+RED → GREEN → REFACTOR → LINT
 
 Repeat for each task. **Never skip steps. Never reorder.**
 
@@ -64,9 +64,20 @@ If you think "I should also handle X" - STOP. Write a test for X first.
 
 Run tests after. If they fail, undo the refactor.
 
-## COMMIT: After Every Green
+## LINT: After Refactor
 
-Commit with descriptive message referencing the task. This is non-negotiable - it creates recovery points.
+If linter commands are configured (passed by the orchestrator):
+1. Run each linter command
+2. If issues found: fix them
+3. Re-run linter to confirm clean
+4. Re-run tests to confirm no regressions
+5. If a linter fix breaks tests: revert the fix and note it in your report
+
+If no linters configured, skip this step.
+
+## COMMIT: Orchestrator Responsibility
+
+The executor agent does NOT commit. Your responsibility ends at GREEN — all tests passing. The orchestrator commits after review approval, one commit per approved task covering code, tests, tracking, and plan progress.
 
 ## When Tests CAN Change
 

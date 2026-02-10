@@ -1,6 +1,7 @@
 ---
 name: technical-planning
 description: "Transform specifications into actionable implementation plans with phases, tasks, and acceptance criteria. Use when: (1) User asks to create/write an implementation plan, (2) User asks to plan implementation from a specification, (3) Converting specifications from docs/workflow/specification/{topic}.md into implementation plans, (4) User says 'plan this' or 'create a plan', (5) Need to structure how to build something with phases and concrete steps. Creates plans in docs/workflow/planning/{topic}.md that can be executed via strict TDD."
+user-invocable: false
 ---
 
 # Technical Planning
@@ -35,6 +36,19 @@ Either way: Transform specifications into actionable phases, tasks, and acceptan
 
 ---
 
+## Resuming After Context Refresh
+
+Context refresh (compaction) summarizes the conversation, losing procedural detail. When you detect a context refresh has occurred — the conversation feels abruptly shorter, you lack memory of recent steps, or a summary precedes this message — follow this recovery protocol:
+
+1. **Re-read this skill file completely.** Do not rely on your summary of it. The full process, steps, and rules must be reloaded.
+2. **Read all tracking and state files** for the current topic — plan index files, review tracking files, implementation tracking files, or any working documents this skill creates. These are your source of truth for progress.
+3. **Check git state.** Run `git status` and `git log --oneline -10` to see recent commits. Commit messages follow a conventional pattern that reveals what was completed.
+4. **Announce your position** to the user before continuing: what step you believe you're at, what's been completed, and what comes next. Wait for confirmation.
+
+Do not guess at progress or continue from memory. The files on disk and git history are authoritative — your recollection is not.
+
+---
+
 ## The Process
 
 This process constructs a plan from a specification. A plan consists of:
@@ -66,8 +80,10 @@ Load **[spec-change-detection.md](references/spec-change-detection.md)** to chec
 >
 > {spec change summary from spec-change-detection.md}
 >
-> - **`continue`** — Walk through the plan from the start. You can review, amend, or navigate at any point — including straight to the leading edge.
-> - **`restart`** — Erase all planning work for this topic and start fresh. This deletes the Plan Index File and any Authored Tasks. Other topics are unaffected."
+> · · ·
+>
+> - **`c`/`continue`** — Walk through the plan from the start. You can review, amend, or navigate at any point — including straight to the leading edge.
+> - **`r`/`restart`** — Erase all planning work for this topic and start fresh. This deletes the Plan Index File and any Authored Tasks. Other topics are unaffected."
 
 **STOP.** Wait for user response.
 
@@ -79,8 +95,8 @@ If the specification changed, update `spec_commit` in the Plan Index File frontm
 
 #### If `restart`
 
-1. Read **[output-formats.md](references/output-formats.md)**, find the entry matching the `format:` field in the Plan Index File, and load the linked adapter
-2. Follow the adapter's cleanup instructions to remove Authored Tasks for this topic
+1. Read **[output-formats.md](references/output-formats.md)**, find the entry matching the `format:` field in the Plan Index File, and load the format's **[authoring.md](references/output-formats/{format}/authoring.md)**
+2. Follow the authoring file's cleanup instructions to remove Authored Tasks for this topic
 3. Delete the Plan Index File
 4. Commit: `planning({topic}): restart planning`
 
@@ -92,7 +108,7 @@ If the specification changed, update `spec_commit` in the Plan Index File frontm
 
 #### If Plan Index File already exists
 
-Read **[output-formats.md](references/output-formats.md)**, find the entry matching the `format:` field, and load the linked adapter.
+Read **[output-formats.md](references/output-formats.md)**, find the entry matching the `format:` field, and load the format's **[about.md](references/output-formats/{format}/about.md)** and **[authoring.md](references/output-formats/{format}/authoring.md)**.
 
 → Proceed to **Step 2**.
 
@@ -105,8 +121,11 @@ First, choose the Output Format.
 Present the recommendation:
 
 > "Existing plans use **{format}**. Use the same format for consistency?
-> - **yes** — use {format}
-> - **no** — see all available formats"
+>
+> · · ·
+>
+> - **`y`/`yes`** — Use {format}
+> - **`n`/`no`** — See all available formats"
 
 **STOP.** Wait for user choice. If declined, fall through to the full list below.
 
@@ -118,7 +137,7 @@ Present the formats from **[output-formats.md](references/output-formats.md)** t
 
 Once selected:
 
-1. Read **[output-formats.md](references/output-formats.md)**, find the chosen format entry, and load the linked adapter
+1. Read **[output-formats.md](references/output-formats.md)**, find the chosen format entry, and load the format's **[about.md](references/output-formats/{format}/about.md)** and **[authoring.md](references/output-formats/{format}/authoring.md)**
 2. Capture the current git commit hash: `git rev-parse HEAD`
 3. Create the Plan Index File at `docs/workflow/planning/{topic}.md` with the following frontmatter and title:
 
@@ -133,6 +152,7 @@ cross_cutting_specs:              # Omit if none
 spec_commit: {output of git rev-parse HEAD}
 created: YYYY-MM-DD  # Use today's actual date
 updated: YYYY-MM-DD  # Use today's actual date
+external_dependencies: []
 planning:
   phase: 1
   task: ~
@@ -171,23 +191,31 @@ Load **[steps/plan-construction.md](references/steps/plan-construction.md)** and
 
 ---
 
-## Step 5: Resolve External Dependencies
+## Step 5: Analyze Task Graph
 
-Load **[steps/resolve-dependencies.md](references/steps/resolve-dependencies.md)** and follow its instructions as written.
+Load **[steps/analyze-task-graph.md](references/steps/analyze-task-graph.md)** and follow its instructions as written.
 
 → Proceed to **Step 6**.
 
 ---
 
-## Step 6: Plan Review
+## Step 6: Resolve External Dependencies
 
-Load **[steps/plan-review.md](references/steps/plan-review.md)** and follow its instructions as written.
+Load **[steps/resolve-dependencies.md](references/steps/resolve-dependencies.md)** and follow its instructions as written.
 
 → Proceed to **Step 7**.
 
 ---
 
-## Step 7: Conclude the Plan
+## Step 7: Plan Review
+
+Load **[steps/plan-review.md](references/steps/plan-review.md)** and follow its instructions as written.
+
+→ Proceed to **Step 8**.
+
+---
+
+## Step 8: Conclude the Plan
 
 After the review is complete:
 

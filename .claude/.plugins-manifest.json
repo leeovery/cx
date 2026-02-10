@@ -1,28 +1,37 @@
 {
   "plugins": {
     "@leeovery/claude-technical-workflows": {
-      "version": "2.0.51",
+      "version": "2.1.16",
       "files": [
+        "skills/link-dependencies",
+        "skills/migrate",
+        "skills/start-discussion",
+        "skills/start-feature",
+        "skills/start-implementation",
+        "skills/start-planning",
+        "skills/start-research",
+        "skills/start-review",
+        "skills/start-specification",
+        "skills/status",
         "skills/technical-discussion",
         "skills/technical-implementation",
         "skills/technical-planning",
         "skills/technical-research",
         "skills/technical-review",
         "skills/technical-specification",
-        "commands/link-dependencies.md",
-        "commands/migrate.md",
-        "commands/start-feature.md",
-        "commands/workflow",
-        "agents/chain-verifier.md",
+        "skills/view-plan",
+        "agents/implementation-analysis-architecture.md",
+        "agents/implementation-analysis-duplication.md",
+        "agents/implementation-analysis-standards.md",
+        "agents/implementation-analysis-synthesizer.md",
+        "agents/implementation-analysis-task-writer.md",
+        "agents/implementation-task-executor.md",
+        "agents/implementation-task-reviewer.md",
+        "agents/planning-dependency-grapher.md",
         "agents/planning-phase-designer.md",
         "agents/planning-task-author.md",
         "agents/planning-task-designer.md",
-        "scripts/discovery-for-discussion.sh",
-        "scripts/discovery-for-implementation-and-review.sh",
-        "scripts/discovery-for-planning.sh",
-        "scripts/discovery-for-specification.sh",
-        "scripts/migrate.sh",
-        "scripts/migrations"
+        "agents/review-task-verifier.md"
       ]
     }
   }
