@@ -24,7 +24,7 @@ This discussion identifies what changes, what stays, and resolves the tmux-speci
 ## Questions
 
 - [x] What are the tmux equivalents for all Zellij session operations?
-- [ ] What happens to exited/resurrectable sessions (Zellij-native feature)?
+- [x] What happens to exited/resurrectable sessions (Zellij-native feature)?
 - [ ] How should the layout system work with tmux?
 - [ ] Should the tool be renamed (ZW = "Zellij Workspaces")?
 - [ ] How does utility mode work with tmux?
@@ -68,5 +68,35 @@ Verified against `man tmux` on the target system (tmux 3.6a):
 - tmux `list-sessions` output is structured, no ANSI codes to strip
 
 **Directory change for new sessions**: The spec's current model (cd to dir, then create) simplifies to just passing `-c <resolved-dir>` on `new-session`. No directory change needed in ZW's process. Git root resolution still applies — resolve first, then pass to `-c`.
+
+---
+
+## What happens to exited/resurrectable sessions?
+
+### Context
+
+The Zellij spec had an "EXITED" section in the TUI showing dead-but-resurrectable sessions. Zellij natively persists session state after exit and allows individual session resurrection. tmux doesn't — sessions are alive or gone.
+
+### Journey
+
+Initially explored whether tmux-resurrect (installed on target system with tmux-continuum auto-saving every 10 min) could fill this gap. Research found:
+
+- Resurrect stores snapshots at `~/.local/share/tmux/resurrect/` as tab-delimited text files
+- The `last` symlink points to the most recent save
+- Files contain session names, window info, working directories, running commands
+- Detection is possible via directory existence or `tmux list-keys | grep resurrect`
+
+However, resurrect's restore is **all-or-nothing** — it restores the entire saved state, not individual sessions. This is fundamentally different from Zellij's model where exited sessions are individually addressable objects.
+
+**Key realisation**: Resurrect is disaster recovery (machine crash, tmux server dies), not a session management workflow. Users don't interact with dead sessions — they either have running sessions or they don't. The "exited sessions" concept was a Zellij-specific feature that doesn't map to tmux's model.
+
+### Decision
+
+**Drop the EXITED section entirely.**
+
+- TUI shows only running sessions + new session option
+- No resurrect integration — it's outside ZW's scope
+- `zw clean` simplifies to only cleaning stale projects (directories that no longer exist on disk) — no "delete exited sessions" operation
+- `zellij delete-session` has no tmux equivalent and is removed from the command mapping
 
 ---
