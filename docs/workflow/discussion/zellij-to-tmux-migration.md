@@ -25,7 +25,7 @@ This discussion identifies what changes, what stays, and resolves the tmux-speci
 
 - [x] What are the tmux equivalents for all Zellij session operations?
 - [x] What happens to exited/resurrectable sessions (Zellij-native feature)?
-- [ ] How should the layout system work with tmux?
+- [x] How should the layout system work with tmux?
 - [ ] Should the tool be renamed (ZW = "Zellij Workspaces")?
 - [ ] How does utility mode work with tmux?
 - [ ] What session metadata can we display from outside tmux?
@@ -98,5 +98,37 @@ However, resurrect's restore is **all-or-nothing** — it restores the entire sa
 - No resurrect integration — it's outside ZW's scope
 - `zw clean` simplifies to only cleaning stale projects (directories that no longer exist on disk) — no "delete exited sessions" operation
 - `zellij delete-session` has no tmux equivalent and is removed from the command mapping
+
+---
+
+## How should the layout system work with tmux?
+
+### Context
+
+The Zellij spec included a layout picker during new session creation — users could choose from `.kdl` layout files. tmux has no equivalent single-file layout format.
+
+### Options Considered
+
+**A. Drop layout selection entirely** — always create single-window sessions. Users split/arrange after attaching. Simplest path.
+
+**B. tmux built-in layout strings** — `even-horizontal`, `main-vertical`, etc. Limited to pane arrangements, no commands per pane.
+
+**C. Shell scripts as layouts** — small scripts that create windows/panes. How tmuxinator/smug work conceptually. Flexible but adds complexity.
+
+**D. Structured layout config** — YAML/TOML files defining windows and panes. Essentially reimplementing tmuxinator inside ZW.
+
+### Decision
+
+**A — Drop layouts completely.** Not "defer to later" — not needed.
+
+The core use case is SSH from phone → pick session → get working. Fastest path to a session is the most valuable thing. Layout selection was already optional in the Zellij spec (skipped when no custom layouts existed).
+
+This simplifies the new session flow significantly. When starting a session in a saved project with no other prompts needed, session creation is immediate — no layout picker step.
+
+**Spec impact:**
+- Remove Layout Discovery section
+- Remove layout picker from new session flow
+- Remove `--layout` flag from session creation command
+- New session flow for saved projects becomes: select project → session created immediately
 
 ---
