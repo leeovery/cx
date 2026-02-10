@@ -216,6 +216,8 @@ Session names are auto-generated using the project name plus a short random suff
 
 The suffix is a 6-character nanoid, ensuring uniqueness without user input. Users are never prompted for a session name.
 
+**Name sanitization**: tmux session names cannot contain periods (`.`) or colons (`:`). When generating a session name from a project name, mux replaces these characters with hyphens (`-`). For example, project "my.app" produces sessions like `my-app-x7k2m9`.
+
 ### Renaming
 
 Session renaming is available both inside and outside tmux:
@@ -338,7 +340,7 @@ The project picker is a full-screen list shown when selecting `[n] new in projec
 |-----|--------|
 | `↑` / `↓` or `j` / `k` | Navigate project list |
 | `Enter` | Select project (proceeds to naming flow for new projects, or creates session immediately for saved projects) or open file browser if on browse option |
-| `/` | Enter filter mode (same behavior as main session list) |
+| `/` | Enter filter mode (fuzzy-matches against project name and aliases) |
 | `e` | Edit selected project (rename, manage aliases) |
 | `x` | Remove selected project from remembered list (with confirmation) |
 | `Esc` | Return to main session list |
@@ -562,6 +564,8 @@ Available metadata per session:
 - `#{session_windows}` — window count
 - `#{session_attached}` — number of attached clients (0 = detached, 1+ = attached)
 - `#{session_created}` — creation timestamp (unix epoch)
+
+**No server running**: When no tmux server is running (no sessions exist), `tmux list-sessions` exits with a non-zero status and outputs an error. mux treats this as zero sessions — it shows the "No active sessions" empty state. This is not a fatal error.
 
 ## Dependencies
 
