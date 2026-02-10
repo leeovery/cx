@@ -133,11 +133,14 @@ Full-screen picker optimized for small screens (mobile SSH use case).
 | `↑` / `↓` or `j` / `k` | Navigate list |
 | `Enter` | Select (attach to session or open project picker) |
 | `n` | Jump to "new session" option |
+| `R` | Rename selected session (prompts for new name) |
 | `K` | Kill selected session |
 | `/` | Enter filter mode |
 | `q` / `Esc` | Quit |
 
 **Kill confirmation**: Pressing `K` prompts for confirmation before killing the selected session: "Kill session 'myapp'? (y/n)"
+
+**Rename prompt**: Pressing `R` shows an inline text input pre-filled with the current session name. `Enter` confirms, `Esc` cancels.
 
 ### Filter Mode
 
@@ -469,6 +472,8 @@ done
 ```
 
 This provides an alternative to the TUI for power users who prefer external pickers or scripting.
+
+**Inside tmux**: `mux list` includes all sessions (including the current one). The TUI excludes the current session for UX reasons, but the CLI output is always complete — callers can filter as needed.
 
 ### Shell Completions
 
