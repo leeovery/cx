@@ -190,6 +190,21 @@ tmux list-windows -t <name> -F '#{window_index}|#{window_name}|#{window_panes}'
 └─────────────────────────────────────┘
 ```
 
+**No other sessions (inside tmux):**
+```
+┌─────────────────────────────────────┐
+│  Current: my-project-x7k2m9        │
+│                                     │
+│           SESSIONS                  │
+│                                     │
+│       No other sessions             │
+│                                     │
+│    ─────────────────────────────    │
+│    [n] new in project...            │
+│                                     │
+└─────────────────────────────────────┘
+```
+
 **No remembered projects (when opening project picker):**
 ```
 Select a project:
@@ -349,7 +364,7 @@ The project picker is a full-screen list shown when selecting `[n] new in projec
 
 ### Stale Project Cleanup
 
-**Automatic**: If a remembered directory no longer exists on disk, mux removes it from the project list automatically when encountered.
+**Automatic**: When the project picker is displayed, mux checks each remembered directory. If a directory no longer exists on disk, the project is silently removed from the list before display.
 
 **Manual**: While navigating the project list, users can manually remove a project from the remembered list via the `x` keyboard shortcut.
 
@@ -413,6 +428,8 @@ All mux data is stored in `~/.config/mux/`.
 | `last_used` | Yes | ISO timestamp, used for sorting by recency |
 
 **Aliases**: Must be unique across all projects. Enables quick session start: `mux app` opens the project picker for that project directly.
+
+**`last_used` updates**: The timestamp is updated every time a new session is started in the project's directory, regardless of entry point. This keeps the project picker sorted by actual usage.
 
 ### Configuration Options
 
