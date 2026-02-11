@@ -374,7 +374,7 @@ From the project picker (when creating a new session):
 - **Enter directory**: `Enter` or `→` descends into highlighted directory
 - **Go up**: `Backspace` or `←` goes to parent directory
 - **Select current directory**: `Enter` on `.` (current dir indicator) or dedicated shortcut (e.g., `Space`)
-- **Cancel**: `Esc` returns to project picker without selection
+- **Filtering**: Typing narrows the directory listing at the current level by fuzzy match. `Backspace` removes the last filter character; when the filter is empty, `Backspace` reverts to its navigation role (go to parent directory). `Esc` clears the filter (if active) or cancels the browser (if no filter).
 - The selected directory is automatically added to remembered projects
 
 ## Configuration & Storage
@@ -476,6 +476,8 @@ done
 This provides an alternative to the TUI for power users who prefer external pickers or scripting.
 
 **Inside tmux**: `mux list` includes all sessions (including the current one). The TUI excludes the current session for UX reasons, but the CLI output is always complete — callers can filter as needed.
+
+**No sessions**: When no sessions are running (or no tmux server exists), `mux list` outputs nothing (empty stdout) and exits with code 0. This matches standard Unix conventions for list commands and keeps pipelines clean.
 
 ### Shell Completions
 
