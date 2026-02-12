@@ -15,10 +15,10 @@ sources:
   - name: zellij-to-tmux-migration
     status: incorporated
   - name: x-xctl-split
-    status: pending
+    status: incorporated
 ---
 
-# Specification: mux
+# Specification: Portal
 
 ## Overview
 
@@ -409,7 +409,7 @@ From the project picker (when creating a new session):
 
 ### Location
 
-All mux data is stored in `~/.config/mux/`.
+All Portal data is stored in `~/.config/portal/`.
 
 ### Files
 
@@ -437,10 +437,10 @@ All mux data is stored in `~/.config/mux/`.
 |-------|----------|-------------|
 | `path` | Yes | Absolute path to project directory |
 | `name` | Yes | Display name (defaults to directory basename, can be customized) |
-| `aliases` | No | Array of short identifiers for quick access via `mux <alias>` |
+| `aliases` | No | Array of short identifiers for quick access via `x <alias>` |
 | `last_used` | Yes | ISO timestamp, used for sorting by recency |
 
-**Aliases**: Must be unique across all projects. Enables quick session start: `mux app` opens the project picker for that project directly.
+**Aliases**: Must be unique across all projects. Enables quick session start: `x app` resolves the alias and starts a session immediately.
 
 **`last_used` updates**: The timestamp is updated every time a new session is started in the project's directory, regardless of entry point. This keeps the project picker sorted by actual usage.
 
@@ -585,7 +585,7 @@ Distributed via Homebrew tap.
 
 ```bash
 brew tap leeovery/tools
-brew install mux
+brew install portal
 ```
 
 **Future exploration**: Publishing to Homebrew core (without requiring a personal tap) — to be explored post-implementation.
@@ -605,13 +605,13 @@ brew install mux
 
 tmux is a required dependency. The Homebrew formula declares tmux as a dependency, ensuring it's installed automatically.
 
-If tmux is somehow missing at runtime, mux displays: "mux requires tmux. Install with: brew install tmux"
+If tmux is somehow missing at runtime, Portal displays: "Portal requires tmux. Install with: brew install tmux"
 
 ## tmux Integration
 
 ### Session Operations
 
-mux uses these tmux commands (verified against tmux 3.6a):
+Portal uses these tmux commands (verified against tmux 3.6a):
 
 | Operation | Command |
 |-----------|---------|
@@ -628,13 +628,13 @@ mux uses these tmux commands (verified against tmux 3.6a):
 
 ### Process Handoff
 
-When launching tmux from outside (bare shell), mux uses `exec` to replace its own process with tmux. mux's job is complete once the user selects a session — there are no post-attach actions. This avoids terminal state management and is the standard pattern for session pickers.
+When launching tmux from outside (bare shell), Portal uses `exec` to replace its own process with tmux. Portal's job is complete once the user selects a session — there are no post-attach actions. This avoids terminal state management and is the standard pattern for session pickers.
 
-When running inside tmux, no `exec` is needed — `switch-client` is a tmux command sent to the server, not a process replacement. mux exits normally after issuing the tmux commands.
+When running inside tmux, no `exec` is needed — `switch-client` is a tmux command sent to the server, not a process replacement. Portal exits normally after issuing the tmux commands.
 
 ### Session Discovery
 
-mux uses `tmux list-sessions` with format strings to discover running sessions. The `-F` flag provides structured, parseable output with no ANSI escape codes to strip.
+Portal uses `tmux list-sessions` with format strings to discover running sessions. The `-F` flag provides structured, parseable output with no ANSI escape codes to strip.
 
 Available metadata per session:
 - `#{session_name}` — session name
@@ -642,7 +642,7 @@ Available metadata per session:
 - `#{session_attached}` — number of attached clients (0 = detached, 1+ = attached)
 - `#{session_created}` — creation timestamp (unix epoch)
 
-**No server running**: When no tmux server is running (no sessions exist), `tmux list-sessions` exits with a non-zero status and outputs an error. mux treats this as zero sessions — it shows the "No active sessions" empty state. This is not a fatal error.
+**No server running**: When no tmux server is running (no sessions exist), `tmux list-sessions` exits with a non-zero status and outputs an error. Portal treats this as zero sessions — it shows the "No active sessions" empty state. This is not a fatal error.
 
 ## Dependencies
 
@@ -650,15 +650,15 @@ Prerequisites that must exist before implementation can begin:
 
 ### Required
 
-None. mux is a standalone tool with no blocking dependencies on other systems.
+None. Portal is a standalone tool with no blocking dependencies on other systems.
 
 ### Runtime Dependencies
 
 | Dependency | Purpose |
 |------------|---------|
-| **tmux** | mux wraps tmux — all session operations require tmux to be installed |
+| **tmux** | Portal wraps tmux — all session operations require tmux to be installed |
 
-**Note**: tmux is a runtime dependency (must be present when mux runs), not a build-time dependency. mux can be built and tested independently; tmux is declared as a Homebrew dependency for installation.
+**Note**: tmux is a runtime dependency (must be present when Portal runs), not a build-time dependency. Portal can be built and tested independently; tmux is declared as a Homebrew dependency for installation.
 
 ### Build Dependencies
 
