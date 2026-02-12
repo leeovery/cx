@@ -1,33 +1,33 @@
 ---
-checksum: 9a066926c69722116624c2476e469db9
-generated: 2026-02-10T14:50:00Z
+checksum: ba0e5851f4a5873466fd3c810fd7766b
+generated: 2026-02-12T12:10:00Z
 discussion_files:
   - cx-design.md
+  - zellij-multi-directory.md
   - fzf-output-mode.md
   - git-root-and-completions.md
-  - zellij-multi-directory.md
   - zellij-to-tmux-migration.md
+  - x-xctl-split.md
 ---
 
 # Discussion Consolidation Analysis
 
 ## Recommended Groupings
 
-### mux (formerly zw)
-- **cx-design**: Original tool design — TUI, CLI structure, session management, project naming, distribution
-- **zellij-multi-directory**: Model pivot from project-centric to workspace-centric, renamed CX → ZW
-- **fzf-output-mode**: Added `list` and `attach` subcommands for scripting/fzf integration
-- **git-root-and-completions**: Git root auto-resolution for new sessions, shell completion subcommand
-- **zellij-to-tmux-migration**: Migrates from Zellij to tmux, renames ZW → mux, drops layouts and exited sessions, replaces utility mode with switch-client
+### Mux
+- **cx-design**: Original tool design — TUI, session management, project memory, distribution
+- **zellij-multi-directory**: Model pivot from project-centric to workspace-centric; renamed CX → ZW
+- **fzf-output-mode**: Added `list` and `attach` subcommands for scripting/fzf piping
+- **git-root-and-completions**: Git root resolution for directory inputs; shell completions subcommand
+- **zellij-to-tmux-migration**: Migrated multiplexer from Zellij to tmux; renamed ZW → mux; simplified (dropped layouts, exited sessions, restricted utility mode)
+- **x-xctl-split**: Renamed mux → Portal; single binary + shell integration (zoxide pattern); split CLI into `x` (launcher) and `xctl` (control plane); added zoxide resolution and TTY-aware output
 
-**Coupling**: All 5 discussions define the same tool at different stages of its evolution. The tmux migration discussion explicitly references and modifies decisions from all other 4 discussions. Inseparable.
+**Coupling**: All six discussions describe the same tool's evolution. Each builds directly on the previous. Data structures, TUI design, CLI surface, session model, and distribution are shared across all.
 
 ## Independent Discussions
 
-None.
+(none)
 
 ## Analysis Notes
 
-**Naming conflict**: The anchored specification name is `zw`, but the zellij-to-tmux-migration discussion renames the tool from ZW to `mux`. The specification name should change to `mux` to match the new tool identity. The existing `zw.md` spec will need to be superseded by `mux.md`.
-
-User confirmed: tmux migration discussion belongs in the existing grouped spec.
+**Naming conflict**: The anchored spec name is `mux`, but the latest discussion (`x-xctl-split`) renames the tool to Portal with binary `portal`. The spec will need renaming from `mux` to `portal` when updated.

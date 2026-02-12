@@ -1,8 +1,8 @@
 ---
 topic: mux
-status: concluded
+status: in-progress
 type: feature
-date: 2026-02-10
+date: 2026-02-12
 sources:
   - name: cx-design
     status: incorporated
@@ -14,15 +14,38 @@ sources:
     status: incorporated
   - name: zellij-to-tmux-migration
     status: incorporated
+  - name: x-xctl-split
+    status: pending
 ---
 
 # Specification: mux
 
 ## Overview
 
-### What is mux
+### What is Portal
 
-mux is a Go CLI that provides an interactive session picker for tmux. It runs at bare shell (before entering tmux) and offers a mobile-friendly TUI for managing tmux sessions.
+Portal is a Go CLI that provides an interactive session picker for tmux. It runs at bare shell (before entering tmux) and offers a mobile-friendly TUI for managing tmux sessions.
+
+### Architecture
+
+Portal is a **single binary** (`portal`) with **shell integration** (the zoxide/starship pattern). Users add one line to their shell config:
+
+```
+eval "$(portal init zsh)"
+```
+
+This emits two shell functions:
+- **`x`** — The interactive launcher. Gets you into a tmux session.
+- **`xctl`** — The control plane. Session management, aliases, housekeeping.
+
+Command names are configurable via `--cmd`:
+```
+eval "$(portal init zsh --cmd p)"  # creates p() and pctl()
+```
+
+Under the hood:
+- `x` routes to `portal open`
+- `xctl` passes through to `portal` directly (e.g., `xctl list` = `portal list`)
 
 ### The Problem
 
@@ -35,7 +58,7 @@ tmux's built-in session management is command-line only (`tmux ls`, `tmux attach
 
 ### The Solution
 
-A single command (`mux`) that:
+A single command (`x`) that:
 1. Shows existing running sessions
 2. Allows quick attachment with arrow keys + Enter
 3. Remembers project directories for starting new sessions
@@ -46,44 +69,44 @@ A single command (`mux`) that:
 1. **Interactive picker at bare shell** - An interactive session picker that works outside tmux
 2. **Mobile-friendly** - Clean, minimal interface optimized for small screens
 3. **Project memory** - Quick-start new sessions in remembered directories
-4. **One command** - `mux` does everything vs. `tmux ls` + `tmux attach -t <name>`
+4. **One command** - `x` does everything vs. `tmux ls` + `tmux attach -t <name>`
 
 ## Core Model
 
 ### Sessions as Workspaces
 
-mux treats tmux sessions as **workspaces**. A workspace may span multiple directories — tmux allows multiple windows and panes in a session, each potentially in different directories.
+Portal treats tmux sessions as **workspaces**. A workspace may span multiple directories — tmux allows multiple windows and panes in a session, each potentially in different directories.
 
 ### Sessions and Projects are Separate Concerns
 
 - **Sessions** = Live data queried from tmux (`tmux list-sessions`)
-- **Projects** = mux's memory of directories used to start new sessions
+- **Projects** = Portal's memory of directories used to start new sessions
 
-mux does not track which project a session belongs to. Select a session → attach. Select a project → start a new session there.
+Portal does not track which project a session belongs to. Select a session → attach. Select a project → start a new session there.
 
 ### No Directory Change Before Attach
 
-When attaching to an existing session, mux does not change directories. tmux restores shell state on reattach — each pane resumes exactly where it was.
+When attaching to an existing session, Portal does not change directories. tmux restores shell state on reattach — each pane resumes exactly where it was.
 
 ### Directory Change for New Sessions
 
-When starting a **new** session, mux passes the resolved directory to tmux via the `-c` flag. The sequence is:
+When starting a **new** session, Portal passes the resolved directory to tmux via the `-c` flag. The sequence is:
 
 1. Resolve directory to git root (if inside a git repository)
 2. Run `tmux new-session -A -s <session-name> -c <resolved-dir>`
 
-tmux's `-c` flag sets the working directory at session creation — no `cd` needed in mux's process.
+tmux's `-c` flag sets the working directory at session creation — no `cd` needed in Portal's process.
 
 ### Git Root Resolution
 
-When a directory is selected for a new session (via `mux .`, `mux <path>`, or the file browser), mux resolves it to the git repository root before proceeding.
+When a directory is selected for a new session (via `x .`, `x <path>`, or the file browser), Portal resolves it to the git repository root before proceeding.
 
 **Implementation**: Run `git -C <selected-dir> rev-parse --show-toplevel`. If it succeeds, use the output as the directory. If it fails (exit code 128 — not a git repo), use the original directory as-is.
 
 **Behavior**:
 - Resolution is automatic and silent — no prompt or confirmation
 - Non-git directories are used unchanged, with no warning
-- One resolution function applied uniformly at all three entry points (`mux .`, `mux <path>`, file browser)
+- One resolution function applied uniformly at all three entry points (`x .`, `x <path>`, file browser)
 
 ## TUI Design
 
@@ -227,11 +250,11 @@ Session names are auto-generated using the project name plus a short random suff
 {project-name}-{nanoid}
 ```
 
-**Example**: Project "mux" produces sessions like `mux-x7k2m9`, `mux-a3b8p1`.
+**Example**: Project "portal" produces sessions like `portal-x7k2m9`, `portal-a3b8p1`.
 
 The suffix is a 6-character nanoid, ensuring uniqueness without user input. Users are never prompted for a session name.
 
-**Name sanitization**: tmux session names cannot contain periods (`.`) or colons (`:`). When generating a session name from a project name, mux replaces these characters with hyphens (`-`). For example, project "my.app" produces sessions like `my-app-x7k2m9`.
+**Name sanitization**: tmux session names cannot contain periods (`.`) or colons (`:`). When generating a session name from a project name, Portal replaces these characters with hyphens (`-`). For example, project "my.app" produces sessions like `my-app-x7k2m9`.
 
 ### Renaming
 
@@ -245,28 +268,13 @@ tmux's `rename-session` works from outside the session (unlike Zellij, which req
 
 ### New Session Flow
 
-**New project (directory not in projects.json):**
-```
-Selected: ~/Code/myapp
-
-Project name: [myapp] _
-  (Enter to accept, or type a custom name)
-
-Aliases (optional): _
-  (Comma-separated, e.g. "app, ma". Enter to skip)
-```
-
-The session is created immediately after naming — no layout selection step.
-
-**Saved project:**
-
-Session creation is immediate upon project selection — no prompts. The session name is auto-generated from the project name.
+Session creation is always immediate — no prompts. The session name is auto-generated from the project name (directory basename after git root resolution for new projects, stored name for saved projects).
 
 ## Running Inside tmux
 
 ### Detection
 
-mux detects if it's running inside an existing tmux session via the `TMUX` environment variable (set by tmux when inside a session).
+Portal detects if it's running inside an existing tmux session via the `TMUX` environment variable (set by tmux when inside a session).
 
 ### Behavior Inside tmux
 
@@ -295,37 +303,34 @@ tmux's `switch-client` switches the current client to a different session withou
 
 CLI commands also use switch-client instead of attach:
 
-- `mux .`, `mux <path>`, `mux <alias>` → create session detached, then switch-client
-- `mux attach <name>` → switch-client to the named session
+- `x .`, `x <path>`, `x <query>` → create session detached, then switch-client
+- `xctl attach <name>` → switch-client to the named session
 
 ## Project Memory
 
 ### Remembered Directories
 
-mux maintains a list of directories where the user has previously started sessions. This enables quick access to frequently used project directories when starting new sessions.
+Portal maintains a list of directories where the user has previously started sessions. This enables quick access to frequently used project directories when starting new sessions.
 
 ### How Directories are Added
 
 A directory is added to the remembered list when a new session is started there, regardless of entry point:
 - File browser selection
-- `mux .` (current directory)
-- `mux <path>` (specified directory)
-- `mux <alias>` (alias resolves to a directory already in `projects.json`, so no addition needed)
+- `x .` (current directory)
+- `x <path>` (specified directory)
+- `x <query>` (alias/zoxide resolves to a directory already in `projects.json`, so no addition needed)
 
-If the directory is not already in `projects.json`, it is added automatically.
+If the directory is not already in `projects.json`, it is added automatically. The project name defaults to the directory basename (after git root resolution). No prompts are shown — session creation is always immediate.
 
 ### Project Naming
 
-When a user starts a session in a **new directory** (not yet in `projects.json`), mux presents a naming screen before proceeding to session creation:
+Project names default to the directory basename (after git root resolution). There is no naming prompt during session creation.
 
-- **Project name**: Text input, defaults to directory basename (after git root resolution)
-- **Aliases**: Optional, user can add one or more short identifiers for quick access via `mux <alias>`
+To rename a project or add aliases after the fact:
+- **TUI**: Use the project picker's edit mode (`e` shortcut)
+- **CLI**: Use `xctl alias set <name> <path>` for aliases
 
-This is a dedicated screen within the TUI.
-
-**Saved projects**: When starting a session in a directory already in `projects.json`, mux skips the project naming screen and proceeds directly to session creation.
-
-**Project names are independent of tmux session names.** A project may have many sessions — each session's name is auto-generated from the project name (see Session Naming). The project name is a mux display concept; it does not propagate to tmux directly.
+**Project names are independent of tmux session names.** A project may have many sessions — each session's name is auto-generated from the project name (see Session Naming). The project name is a Portal display concept; it does not propagate to tmux directly.
 
 ### Project Management
 
@@ -335,9 +340,17 @@ For saved projects, users can manage project details from the project picker via
 
 These changes update `projects.json` only and do not affect any existing tmux session names.
 
+**Alias management via CLI**: Aliases can also be managed non-interactively:
+
+```bash
+xctl alias set m2api ~/Code/mac2/api
+xctl alias rm m2api
+xctl alias list
+```
+
 ### Storage
 
-Remembered directories are stored in `~/.config/mux/projects.json`.
+Remembered directories are stored in `~/.config/portal/projects.json`.
 
 ### Usage in TUI
 
@@ -354,7 +367,7 @@ The project picker is a full-screen list shown when selecting `[n] new in projec
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` or `j` / `k` | Navigate project list |
-| `Enter` | Select project (proceeds to naming flow for new projects, or creates session immediately for saved projects) or open file browser if on browse option |
+| `Enter` | Select project → creates session immediately |
 | `/` | Enter filter mode (fuzzy-matches against project name and aliases) |
 | `e` | Edit selected project (rename, manage aliases) |
 | `x` | Remove selected project from remembered list (with confirmation) |
@@ -364,11 +377,11 @@ The project picker is a full-screen list shown when selecting `[n] new in projec
 
 ### Stale Project Cleanup
 
-**Automatic**: When the project picker is displayed, mux checks each remembered directory. If a directory no longer exists on disk, the project is silently removed from the list before display.
+**Automatic**: When the project picker is displayed, Portal checks each remembered directory. If a directory no longer exists on disk, the project is silently removed from the list before display.
 
 **Manual**: While navigating the project list, users can manually remove a project from the remembered list via the `x` keyboard shortcut.
 
-**Via `mux clean`**: Removes projects whose directories no longer exist on disk. Prints each action taken (e.g., "Removed stale project: myapp (/Users/lee/Code/myapp)"). Non-interactive — no confirmation prompts.
+**Via `xctl clean`**: Removes projects whose directories no longer exist on disk. Prints each action taken (e.g., "Removed stale project: myapp (/Users/lee/Code/myapp)"). Non-interactive — no confirmation prompts.
 
 ## File Browser
 
@@ -444,75 +457,120 @@ Specific configuration options will be determined during implementation based on
 
 ## CLI Interface
 
-### Commands
+### Shell Functions
+
+`portal init` emits these shell functions (default names shown):
+
+```bash
+# emitted by: eval "$(portal init zsh)"
+function x() { portal open "$@" }
+function xctl() { portal "$@" }
+```
+
+### x — The Launcher
+
+`x` does one thing: get you into a tmux session. No subcommands, no verbs — just a destination (or no args for the TUI).
+
+| Input | Behavior |
+|-------|----------|
+| `x` | Opens TUI picker |
+| `x .` | New session in current directory |
+| `x <path>` | New session at resolved path |
+| `x <query>` | Resolve via alias → zoxide → TUI fallback |
+
+**Quick-start shortcuts**: `x .`, `x <path>`, and `x <alias>` all open the same naming flow as selecting a directory via the project picker — they just skip navigation. The selected directory is added to remembered projects if not already present. For saved projects, session creation is immediate (no prompts).
+
+### Query Resolution
+
+When `x` receives a positional argument (e.g., `x myapp`):
+
+1. **Existing path**: If the argument is an absolute path, relative path, or starts with `~` — use directly
+2. **Alias match**: Check if it matches a project alias in `projects.json` — resolve to configured path
+3. **Zoxide query**: Run `zoxide query <terms>` — use the best frecency match
+4. **No match**: Fall back to TUI with the query pre-filled as the filter
+
+Zoxide is an **optional soft dependency**. If not installed, step 3 is skipped silently. Aliases and TUI fallback still work.
+
+**Path detection heuristic**: An argument containing `/` or starting with `.` or `~` is treated as a path (step 1). Everything else enters the alias → zoxide → fallback chain.
+
+### xctl — The Control Plane
+
+`xctl` provides session management and housekeeping commands. It passes through directly to `portal` (e.g., `xctl list` = `portal list`).
 
 | Command | Description |
 |---------|-------------|
-| `mux` | Launch the main TUI picker |
-| `mux .` | Start new session in current directory |
-| `mux <path>` | Start new session in specified directory |
-| `mux <alias>` | Start new session for project with matching alias |
-| `mux clean` | Remove stale projects (directories that no longer exist on disk), non-interactive |
-| `mux list` | Output running session names, one per line (for scripting/fzf) |
-| `mux attach <name>` | Attach to session by exact name |
-| `mux completion <shell>` | Output shell completion script (bash, zsh, fish) |
-| `mux version` | Show version information |
-| `mux help` | Show usage information |
+| `xctl list` | List sessions (TTY-aware output — see below) |
+| `xctl attach <name>` | Attach to session by exact name |
+| `xctl kill <name>` | Kill a session |
+| `xctl clean` | Remove stale projects (directories that no longer exist on disk), non-interactive |
+| `xctl alias set <name> <path>` | Set a project alias |
+| `xctl alias rm <name>` | Remove a project alias |
+| `xctl alias list` | List all aliases |
 
-**Quick-start shortcuts**: `mux .`, `mux <path>`, and `mux <alias>` all open the same naming flow as selecting a directory via the project picker — they just skip navigation. The selected directory is added to remembered projects if not already present. For saved projects, session creation is immediate (no prompts).
+**Attach errors**: If `xctl attach <name>` doesn't match any running session, Portal displays: "No session found: {name}" and exits with a non-zero status code.
 
-**Attach errors**: If `mux attach <name>` doesn't match any running session, mux displays: "No session found: {name}" and exits with a non-zero status code.
+### portal — Direct Commands
 
-### Argument Resolution
+These are accessed via the `portal` binary directly (or via `xctl` since it passes through):
 
-When `mux` receives a positional argument (e.g., `mux myapp`):
+| Command | Description |
+|---------|-------------|
+| `portal init <shell>` | Output shell integration script (bash, zsh, fish) |
+| `portal init <shell> --cmd <name>` | Output shell integration with custom command names |
+| `portal version` | Show version information |
+| `portal help` | Show usage information |
 
-1. **Path detection**: If the argument contains `/` or starts with `.`, treat it as a path
-2. **Alias lookup**: Otherwise, check if it matches a project alias in `projects.json`
-3. **Fallback to path**: If no alias match, treat as a relative path
-4. **Validation**: If the resolved path doesn't exist, display error: "No project alias or directory found: {arg}"
+**Supported shells for `portal init`**: bash, zsh, fish only. No powershell — Portal wraps tmux, which doesn't run on Windows.
 
-### Design Philosophy
+### xctl list — TTY-Aware Output
 
-Most operations happen through the TUI. The CLI subcommands are minimal, providing only non-interactive utilities and standard help/version flags.
+`xctl list` adapts its output based on whether stdout is a terminal:
+
+**Interactive (stdout is TTY):**
+```
+flowx-dev    attached    3 panes    ~/work/flowx
+claude-lab   detached    1 pane     ~/work/claude
+```
+
+**Piped (stdout is not TTY):**
+```
+flowx-dev
+claude-lab
+```
+
+**Override flags:**
+- `xctl list --short` — Names only, even in a terminal
+- `xctl list --long` — Full details, even when piped
+
+**Inside tmux**: `xctl list` includes all sessions (including the current one). The TUI excludes the current session for UX reasons, but the CLI output is always complete — callers can filter as needed.
+
+**No sessions**: When no sessions are running (or no tmux server exists), `xctl list` outputs nothing (empty stdout) and exits with code 0.
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Not found / no match |
+| 2 | Invalid usage |
 
 ### Scripting & fzf Integration
 
-`mux list` outputs session names one per line for piping to external tools:
+`xctl list` outputs session names when piped, enabling external tool integration:
 
 ```bash
 # Quick attach with fzf
-mux attach $(mux list | fzf)
+xctl attach $(xctl list | fzf)
 
 # Scripting
-for session in $(mux list); do
+for session in $(xctl list); do
   echo "Session: $session"
 done
 ```
 
-This provides an alternative to the TUI for power users who prefer external pickers or scripting.
+### Design Philosophy
 
-**Inside tmux**: `mux list` includes all sessions (including the current one). The TUI excludes the current session for UX reasons, but the CLI output is always complete — callers can filter as needed.
-
-**No sessions**: When no sessions are running (or no tmux server exists), `mux list` outputs nothing (empty stdout) and exits with code 0. This matches standard Unix conventions for list commands and keeps pipelines clean.
-
-### Shell Completions
-
-mux provides shell completion scripts via Cobra's built-in generators.
-
-```
-mux completion bash
-mux completion zsh
-mux completion fish
-```
-
-Each outputs the completion script to stdout. Users source it in their shell config:
-
-```bash
-source <(mux completion zsh)
-```
-
-**Supported shells**: bash, zsh, fish only. No powershell — mux wraps tmux, which doesn't run on Windows.
+Most operations happen through the TUI via `x`. The `xctl` commands provide non-interactive utilities for scripting, automation, and quick management.
 
 ## Distribution
 
