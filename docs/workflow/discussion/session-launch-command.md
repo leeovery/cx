@@ -1,6 +1,6 @@
 ---
 topic: session-launch-command
-status: in-progress
+status: concluded
 date: 2026-02-12
 ---
 
