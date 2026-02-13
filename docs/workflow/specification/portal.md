@@ -1,8 +1,8 @@
 ---
 topic: portal
-status: concluded
+status: in-progress
 type: feature
-date: 2026-02-12
+date: 2026-02-13
 sources:
   - name: cx-design
     status: incorporated
@@ -15,6 +15,8 @@ sources:
   - name: zellij-to-tmux-migration
     status: incorporated
   - name: x-xctl-split
+    status: incorporated
+  - name: session-launch-command
     status: incorporated
 ---
 
@@ -491,6 +493,20 @@ function xctl() { portal "$@" }
 | `x .` | New session in current directory |
 | `x <path>` | New session at resolved path |
 | `x <query>` | Resolve via alias → zoxide → TUI fallback |
+| `x -e <cmd> [destination]` | Resolve destination, start session, execute `<cmd>` |
+| `x [destination] -- <cmd> [args...]` | Resolve destination, start session, execute `<cmd>` with args |
+
+**Command execution** (`-e` / `--`): When launching a new session, an optional command can be passed to execute inside the session after creation. Two syntaxes are supported:
+
+- **`-e` / `--exec`**: For simple commands and clean aliasing. `x -e claude myproject`
+- **`--` (double-dash)**: For compound commands with their own flags, no quoting needed. `x myproject -- claude --resume --model opus`
+
+Both are mutually exclusive — providing both is an error. Both resolve to the same internal command slice early in CLI parsing.
+
+**Command is orthogonal to project resolution.** The exec command applies regardless of how the project was chosen — direct path, alias, zoxide, or TUI selection. Examples:
+- `x -e claude` → TUI opens, pick project, then claude runs
+- `x -e claude myproject` → resolves myproject, then claude runs
+- `x -e claude .` → current directory, then claude runs
 
 **Quick-start shortcuts**: `x .`, `x <path>`, and `x <alias>` skip the project picker — the directory is resolved, registered if new, and a session starts immediately.
 
@@ -646,6 +662,18 @@ Portal uses these tmux commands (verified against tmux 3.6a):
 When launching tmux from outside (bare shell), Portal uses `exec` to replace its own process with tmux. Portal's job is complete once the user selects a session — there are no post-attach actions. This avoids terminal state management and is the standard pattern for session pickers.
 
 When running inside tmux, no `exec` is needed — `switch-client` is a tmux command sent to the server, not a process replacement. Portal exits normally after issuing the tmux commands.
+
+### Command Execution in Sessions
+
+When a command is specified via `-e` or `--`, Portal passes it to the session's shell to execute. The command **runs then drops to shell** — when the command exits, the user lands in their shell at the project directory. The session stays alive.
+
+This is the safe default: if the command crashes or is interrupted (Ctrl+C), the tmux session survives and the user retains a shell in the correct directory.
+
+Users wanting exec-and-die behavior can pass `exec` as part of the command itself: `x myproject -- exec claude`.
+
+**Implementation**: The command is run via the shell (e.g., `zsh -ic '<cmd>; exec zsh'`), ensuring the session's shell process persists after the command completes.
+
+**No command specified**: When no `-e` or `--` is provided, the session starts with a plain shell in the project directory — the current behavior.
 
 ### Session Discovery
 
