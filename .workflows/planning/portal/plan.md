@@ -13,8 +13,8 @@ task_list_gate_mode: auto
 author_gate_mode: auto
 finding_gate_mode: gated
 planning:
-  phase: 4
-  task: 1
+  phase: 5
+  task: ~
 ---
 
 # Plan: Portal
@@ -112,7 +112,7 @@ approved_at: 2026-02-22
 
 ### Phase 4: Query Resolution, Aliases, and Shell Integration
 status: approved
-ext_id:
+ext_id: tick-0c342f
 approved_at: 2026-02-22
 
 **Goal**: Implement the alias system (storage, CRUD commands), zoxide integration, the full query resolution chain (path detection -> alias -> zoxide -> TUI fallback), and the `portal init` command that emits shell functions and tab completions.
@@ -134,15 +134,15 @@ approved_at: 2026-02-22
 #### Tasks
 | ID | Name | Edge Cases | Status | Ext ID |
 |----|------|------------|--------|--------|
-| portal-4-1 | Alias Store | file does not exist yet, empty file, duplicate keys in file, config directory does not exist | pending | |
-| portal-4-2 | Alias Set Command with Path Normalisation | tilde expansion, relative path, overwrite existing alias | pending | |
-| portal-4-3 | Alias Remove and List Commands | remove non-existent alias, list with no aliases | pending | |
-| portal-4-4 | Zoxide Query Integration | zoxide not installed, zoxide returns no match | pending | |
-| portal-4-5 | Query Resolution Chain | query matches both alias and zoxide, resolved directory does not exist, path-like query | pending | |
-| portal-4-6 | Shell Init for Zsh | none | pending | |
-| portal-4-7 | Shell Init Custom Command Names | cmd name conflicts with shell builtins | pending | |
-| portal-4-8 | Shell Init for Bash and Fish | unsupported shell name passed to init | pending | |
-| portal-4-9 | File Browser Alias Shortcut | empty alias name entered, alias name already exists | pending | |
+| portal-4-1 | Alias Store | file does not exist yet, empty file, duplicate keys in file, config directory does not exist | authored | tick-5533b4 |
+| portal-4-2 | Alias Set Command with Path Normalisation | tilde expansion, relative path, overwrite existing alias | authored | tick-a2e7bd |
+| portal-4-3 | Alias Remove and List Commands | remove non-existent alias, list with no aliases | authored | tick-26cdeb |
+| portal-4-4 | Zoxide Query Integration | zoxide not installed, zoxide returns no match | authored | tick-b3b992 |
+| portal-4-5 | Query Resolution Chain | query matches both alias and zoxide, resolved directory does not exist, path-like query | authored | tick-fe7c90 |
+| portal-4-6 | Shell Init for Zsh | none | authored | tick-83fe89 |
+| portal-4-7 | Shell Init Custom Command Names | cmd name conflicts with shell builtins | authored | tick-457428 |
+| portal-4-8 | Shell Init for Bash and Fish | unsupported shell name passed to init | authored | tick-19ad25 |
+| portal-4-9 | File Browser Alias Shortcut | empty alias name entered, alias name already exists | authored | tick-b92526 |
 
 ### Phase 5: Inside-tmux Mode, Session Management, and Filter Mode
 status: approved
