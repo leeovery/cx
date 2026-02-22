@@ -14,7 +14,7 @@ author_gate_mode: auto
 finding_gate_mode: gated
 planning:
   phase: 4
-  task: ~
+  task: 1
 ---
 
 # Plan: Portal
@@ -130,6 +130,19 @@ approved_at: 2026-02-22
 - [ ] `portal open <query>` resolves via: path detection (contains `/`, starts with `.` or `~`) -> alias match -> zoxide query -> TUI fallback with query as pre-filled filter
 - [ ] Zoxide is optional soft dependency -- skipped silently if not installed
 - [ ] File browser `a` shortcut prompts for alias name and saves to aliases file (directory git-root-resolved, no session started)
+
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| portal-4-1 | Alias Store | file does not exist yet, empty file, duplicate keys in file, config directory does not exist | pending | |
+| portal-4-2 | Alias Set Command with Path Normalisation | tilde expansion, relative path, overwrite existing alias | pending | |
+| portal-4-3 | Alias Remove and List Commands | remove non-existent alias, list with no aliases | pending | |
+| portal-4-4 | Zoxide Query Integration | zoxide not installed, zoxide returns no match | pending | |
+| portal-4-5 | Query Resolution Chain | query matches both alias and zoxide, resolved directory does not exist, path-like query | pending | |
+| portal-4-6 | Shell Init for Zsh | none | pending | |
+| portal-4-7 | Shell Init Custom Command Names | cmd name conflicts with shell builtins | pending | |
+| portal-4-8 | Shell Init for Bash and Fish | unsupported shell name passed to init | pending | |
+| portal-4-9 | File Browser Alias Shortcut | empty alias name entered, alias name already exists | pending | |
 
 ### Phase 5: Inside-tmux Mode, Session Management, and Filter Mode
 status: approved
