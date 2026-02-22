@@ -14,7 +14,7 @@ author_gate_mode: auto
 finding_gate_mode: gated
 planning:
   phase: 6
-  task: ~
+  task: 1
 ---
 
 # Plan: Portal
@@ -206,3 +206,16 @@ approved_at: 2026-02-22
 - [ ] GitHub Actions workflow triggers GoReleaser on version tag push
 - [ ] Homebrew formula in `leeovery/homebrew-tools` auto-updated by GoReleaser
 - [ ] tmux runtime dependency check at startup: missing tmux displays "Portal requires tmux. Install with: brew install tmux" and exits
+
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| portal-6-1 | Command Flag Parsing (-e and --) | -e with empty string, -- with no arguments, both -e and -- provided | pending | |
+| portal-6-2 | Command-Aware Session Creation | command containing single quotes, $SHELL not set, special shell characters | pending | |
+| portal-6-3 | Command-Pending TUI Mode | no saved projects, query pre-filled as filter, long command in banner | pending | |
+| portal-6-4 | Project Picker Edit Mode | no aliases, multiple aliases, alias collision, empty project name | pending | |
+| portal-6-5 | Project Picker Remove with Confirmation | removing last project, rapid key presses, project has aliases | pending | |
+| portal-6-6 | tmux Runtime Dependency Check | tmux not executable, broken symlink | pending | |
+| portal-6-7 | Version Command | version not set at build time | pending | |
+| portal-6-8 | GoReleaser Configuration | none | pending | |
+| portal-6-9 | GitHub Actions Release Workflow | tag without v prefix, workflow permissions | pending | |
