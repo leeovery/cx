@@ -13,8 +13,8 @@ task_list_gate_mode: auto
 author_gate_mode: auto
 finding_gate_mode: gated
 planning:
-  phase: 2
-  task: 1
+  phase: 3
+  task: ~
 ---
 
 # Plan: Portal
@@ -50,7 +50,7 @@ approved_at: 2026-02-22
 
 ### Phase 2: New Session from Directory -- Project Memory and Session Creation
 status: approved
-ext_id:
+ext_id: tick-a8f83d
 approved_at: 2026-02-22
 
 **Goal**: Add the ability to create new tmux sessions from a directory, with git root resolution, auto-generated session naming (nanoid suffix), project memory persistence (projects.json), and the project picker TUI view.
@@ -70,13 +70,13 @@ approved_at: 2026-02-22
 #### Tasks
 | ID | Name | Edge Cases | Status | Ext ID |
 |----|------|------------|--------|--------|
-| portal-2-1 | Git Root Resolution | non-git directory, git not installed, symlinked paths | pending | |
-| portal-2-2 | Session Name Generation | project name with dots and colons, collision with existing tmux session, empty project name | pending | |
-| portal-2-3 | Project Store (projects.json) | file does not exist yet, malformed JSON, config directory does not exist | pending | |
-| portal-2-4 | Stale Project Cleanup | all projects stale, permission denied on stat, empty project list | pending | |
-| portal-2-5 | Session Creation from Project | tmux server not running (first session), directory removed between selection and creation | pending | |
-| portal-2-6 | Project Picker TUI View | no saved projects (empty state), single project, long project names | pending | |
-| portal-2-7 | Main TUI New in Project Integration | no sessions and no projects (both empty states), returning from project picker to session list | pending | |
+| portal-2-1 | Git Root Resolution | non-git directory, git not installed, symlinked paths | authored | tick-2bb2d0 |
+| portal-2-2 | Session Name Generation | project name with dots and colons, collision with existing tmux session, empty project name | authored | tick-4ebf36 |
+| portal-2-3 | Project Store (projects.json) | file does not exist yet, malformed JSON, config directory does not exist | authored | tick-248cf4 |
+| portal-2-4 | Stale Project Cleanup | all projects stale, permission denied on stat, empty project list | authored | tick-275824 |
+| portal-2-5 | Session Creation from Project | tmux server not running (first session), directory removed between selection and creation | authored | tick-f924e3 |
+| portal-2-6 | Project Picker TUI View | no saved projects (empty state), single project, long project names | authored | tick-4c54e1 |
+| portal-2-7 | Main TUI New in Project Integration | no sessions and no projects (both empty states), returning from project picker to session list | authored | tick-444a76 |
 
 ### Phase 3: File Browser and CLI Quick-Start
 status: approved
