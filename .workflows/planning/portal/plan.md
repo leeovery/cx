@@ -3,25 +3,25 @@ topic: portal
 status: planning
 format: tick
 work_type: greenfield
-ext_id:
+ext_id: tick-77cbba
 specification: ../../specification/portal/specification.md
 spec_commit: 5766a886dfaefb8ee771bc97fb31a55f9af5665a
 created: 2026-02-22
 updated: 2026-02-22
 external_dependencies: []
 task_list_gate_mode: auto
-author_gate_mode: gated
+author_gate_mode: auto
 finding_gate_mode: gated
 planning:
-  phase: 1
-  task: 1
+  phase: 2
+  task: ~
 ---
 
 # Plan: Portal
 
 ### Phase 1: Walking Skeleton -- Session List and Attach
 status: approved
-ext_id:
+ext_id: tick-57d5a4
 approved_at: 2026-02-22
 
 **Goal**: Establish the Go project with Cobra CLI, tmux integration layer, and Bubble Tea TUI that lists live tmux sessions and attaches to a selected one. One complete end-to-end flow proving the architecture.
@@ -40,13 +40,13 @@ approved_at: 2026-02-22
 #### Tasks
 | ID | Name | Edge Cases | Status | Ext ID |
 |----|------|------------|--------|--------|
-| portal-1-1 | Go Module and Cobra Root Command | none | pending | |
-| portal-1-2 | tmux Session Listing and Parsing | no tmux server running, empty session list | pending | |
-| portal-1-3 | Session List TUI Model | single session in list, long session names | pending | |
-| portal-1-4 | Keyboard Navigation | single-item list navigation | pending | |
-| portal-1-5 | Quit Handling | none | pending | |
-| portal-1-6 | Attach on Enter | none | pending | |
-| portal-1-7 | Empty State Display | tmux server disappears between list and display | pending | |
+| portal-1-1 | Go Module and Cobra Root Command | none | authored | tick-fc2921 |
+| portal-1-2 | tmux Session Listing and Parsing | no tmux server running, empty session list | authored | tick-442b28 |
+| portal-1-3 | Session List TUI Model | single session in list, long session names | authored | tick-afcc27 |
+| portal-1-4 | Keyboard Navigation | single-item list navigation | authored | tick-27a6f2 |
+| portal-1-5 | Quit Handling | none | authored | tick-0f5439 |
+| portal-1-6 | Attach on Enter | none | authored | tick-9776d9 |
+| portal-1-7 | Empty State Display | tmux server disappears between list and display | authored | tick-e70af4 |
 
 ### Phase 2: New Session from Directory -- Project Memory and Session Creation
 status: approved
