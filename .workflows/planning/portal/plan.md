@@ -14,7 +14,7 @@ author_gate_mode: auto
 finding_gate_mode: gated
 planning:
   phase: 3
-  task: ~
+  task: 1
 ---
 
 # Plan: Portal
@@ -98,6 +98,17 @@ approved_at: 2026-02-22
 - [ ] `portal open .` creates session in cwd (git root resolved) without launching TUI
 - [ ] `portal open <path>` creates session at resolved path without launching TUI
 - [ ] Non-existent directory prints "Directory not found: {path}" and exits with code 1
+
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| portal-3-1 | Directory Listing Model | empty directory, permission denied on readdir, symlinked directories | pending | |
+| portal-3-2 | File Browser TUI -- Core Navigation | root directory (no parent), single subdirectory, deeply nested path | pending | |
+| portal-3-3 | File Browser Inline Filter | filter matches nothing, filter then navigate to child resets filter, all characters deleted | pending | |
+| portal-3-4 | File Browser Hidden Directory Toggle and Selection | directory has only hidden subdirectories, selected directory removed between browse and select | pending | |
+| portal-3-5 | File Browser Integration with Project Picker | returning from browser without selection, browse from empty project list | pending | |
+| portal-3-6 | CLI Quick-Start Path Resolution | non-existent directory, path is a file not a directory, relative path resolution, tilde expansion | pending | |
+| portal-3-7 | CLI Quick-Start Session Creation | cwd is inside git repo subdirectory, project already in projects.json | pending | |
 
 ### Phase 4: Query Resolution, Aliases, and Shell Integration
 status: approved
