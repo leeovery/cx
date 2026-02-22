@@ -67,6 +67,17 @@ approved_at: 2026-02-22
 - [ ] Stale project cleanup runs automatically when project picker is displayed
 - [ ] Empty state ("No saved projects yet.") displays when no projects remembered, with browse option still visible
 
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| portal-2-1 | Git Root Resolution | non-git directory, git not installed, symlinked paths | pending | |
+| portal-2-2 | Session Name Generation | project name with dots and colons, collision with existing tmux session, empty project name | pending | |
+| portal-2-3 | Project Store (projects.json) | file does not exist yet, malformed JSON, config directory does not exist | pending | |
+| portal-2-4 | Stale Project Cleanup | all projects stale, permission denied on stat, empty project list | pending | |
+| portal-2-5 | Session Creation from Project | tmux server not running (first session), directory removed between selection and creation | pending | |
+| portal-2-6 | Project Picker TUI View | no saved projects (empty state), single project, long project names | pending | |
+| portal-2-7 | Main TUI New in Project Integration | no sessions and no projects (both empty states), returning from project picker to session list | pending | |
+
 ### Phase 3: File Browser and CLI Quick-Start
 status: approved
 ext_id:
