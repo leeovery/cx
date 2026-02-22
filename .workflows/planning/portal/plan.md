@@ -9,12 +9,12 @@ spec_commit: 5766a886dfaefb8ee771bc97fb31a55f9af5665a
 created: 2026-02-22
 updated: 2026-02-22
 external_dependencies: []
-task_list_gate_mode: gated
+task_list_gate_mode: auto
 author_gate_mode: gated
 finding_gate_mode: gated
 planning:
   phase: 1
-  task: ~
+  task: 1
 ---
 
 # Plan: Portal
