@@ -13,8 +13,8 @@ task_list_gate_mode: auto
 author_gate_mode: auto
 finding_gate_mode: gated
 planning:
-  phase: 5
-  task: 1
+  phase: 6
+  task: ~
 ---
 
 # Plan: Portal
@@ -146,7 +146,7 @@ approved_at: 2026-02-22
 
 ### Phase 5: Inside-tmux Mode, Session Management, and Filter Mode
 status: approved
-ext_id:
+ext_id: tick-d5a1e0
 approved_at: 2026-02-22
 
 **Goal**: Implement inside-tmux detection with switch-client behaviour, TUI session management actions (kill with confirmation, rename with inline input), filter mode for fuzzy-searching the session list, and the xctl management commands (`list`, `attach`, `kill`, `clean`).
@@ -171,18 +171,18 @@ approved_at: 2026-02-22
 #### Tasks
 | ID | Name | Edge Cases | Status | Ext ID |
 |----|------|------------|--------|--------|
-| portal-5-1 | Inside-tmux Detection and Switch-Client | TMUX env var set but empty, TMUX var points to dead session | pending | |
-| portal-5-2 | Inside-tmux Session List Exclusion and Header | only one session running (current), current session name very long | pending | |
-| portal-5-3 | Inside-tmux New Session Creation | session name collision during detached creation | pending | |
-| portal-5-4 | Inside-tmux CLI Command Routing | TMUX set but session killed before switch | pending | |
-| portal-5-5 | Kill Session with Confirmation | killing last session, killing current session (inside tmux) | pending | |
-| portal-5-6 | Rename Session with Inline Input | invalid characters in name, collision with existing session | pending | |
-| portal-5-7 | Filter Mode Activation and Fuzzy Matching | no sessions match filter, single character filter | pending | |
-| portal-5-8 | Filter Mode Exit Behaviour | rapid Backspace presses, filter active with no matches | pending | |
-| portal-5-9 | List Command with TTY-Aware Output | no sessions running, piped to another command | pending | |
-| portal-5-10 | Attach Command | partial name match, ambiguous name, session killed between lookup and attach | pending | |
-| portal-5-11 | Kill Command | killing current session inside tmux, session name not found | pending | |
-| portal-5-12 | Clean Command | no stale projects, all projects stale, permission errors | pending | |
+| portal-5-1 | Inside-tmux Detection and Switch-Client | TMUX env var set but empty, TMUX var points to dead session | authored | tick-e1b2c3 |
+| portal-5-2 | Inside-tmux Session List Exclusion and Header | only one session running (current), current session name very long | authored | tick-f4d5e6 |
+| portal-5-3 | Inside-tmux New Session Creation | session name collision during detached creation | authored | tick-a7b8c9 |
+| portal-5-4 | Inside-tmux CLI Command Routing | TMUX set but session killed before switch | authored | tick-d1e2f3 |
+| portal-5-5 | Kill Session with Confirmation | killing last session, killing current session (inside tmux) | authored | tick-b4c5d6 |
+| portal-5-6 | Rename Session with Inline Input | invalid characters in name, collision with existing session | authored | tick-e7f8a9 |
+| portal-5-7 | Filter Mode Activation and Fuzzy Matching | no sessions match filter, single character filter | authored | tick-c1d2e3 |
+| portal-5-8 | Filter Mode Exit Behaviour | rapid Backspace presses, filter active with no matches | authored | tick-f4a5b6 |
+| portal-5-9 | List Command with TTY-Aware Output | no sessions running, piped to another command | authored | tick-d7e8f9 |
+| portal-5-10 | Attach Command | partial name match, ambiguous name, session killed between lookup and attach | authored | tick-a1b2c4 |
+| portal-5-11 | Kill Command | killing current session inside tmux, session name not found | authored | tick-e3f4d5 |
+| portal-5-12 | Clean Command | no stale projects, all projects stale, permission errors | authored | tick-b6c7a8 |
 
 ### Phase 6: Command Execution, Project Editing, and Distribution
 status: approved
