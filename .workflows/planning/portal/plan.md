@@ -14,7 +14,7 @@ author_gate_mode: auto
 finding_gate_mode: gated
 planning:
   phase: 2
-  task: ~
+  task: 1
 ---
 
 # Plan: Portal
