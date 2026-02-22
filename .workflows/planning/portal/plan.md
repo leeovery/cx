@@ -14,7 +14,7 @@ author_gate_mode: auto
 finding_gate_mode: gated
 planning:
   phase: 5
-  task: ~
+  task: 1
 ---
 
 # Plan: Portal
@@ -167,6 +167,22 @@ approved_at: 2026-02-22
 - [ ] `portal attach <name>` attaches (or switch-client inside tmux); "No session found: {name}" with exit 1 if not found
 - [ ] `portal kill <name>` kills session; "No session found: {name}" with exit 1 if not found
 - [ ] `portal clean` removes stale projects non-interactively, printing each removal
+
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| portal-5-1 | Inside-tmux Detection and Switch-Client | TMUX env var set but empty, TMUX var points to dead session | pending | |
+| portal-5-2 | Inside-tmux Session List Exclusion and Header | only one session running (current), current session name very long | pending | |
+| portal-5-3 | Inside-tmux New Session Creation | session name collision during detached creation | pending | |
+| portal-5-4 | Inside-tmux CLI Command Routing | TMUX set but session killed before switch | pending | |
+| portal-5-5 | Kill Session with Confirmation | killing last session, killing current session (inside tmux) | pending | |
+| portal-5-6 | Rename Session with Inline Input | invalid characters in name, collision with existing session | pending | |
+| portal-5-7 | Filter Mode Activation and Fuzzy Matching | no sessions match filter, single character filter | pending | |
+| portal-5-8 | Filter Mode Exit Behaviour | rapid Backspace presses, filter active with no matches | pending | |
+| portal-5-9 | List Command with TTY-Aware Output | no sessions running, piped to another command | pending | |
+| portal-5-10 | Attach Command | partial name match, ambiguous name, session killed between lookup and attach | pending | |
+| portal-5-11 | Kill Command | killing current session inside tmux, session name not found | pending | |
+| portal-5-12 | Clean Command | no stale projects, all projects stale, permission errors | pending | |
 
 ### Phase 6: Command Execution, Project Editing, and Distribution
 status: approved
