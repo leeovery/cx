@@ -70,6 +70,49 @@ func TestNonTmuxCommandsWorkWithoutTmux(t *testing.T) {
 	}
 }
 
+func TestRootCommandExecutesWithoutError(t *testing.T) {
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{})
+	err := rootCmd.Execute()
+
+	if err != nil {
+		t.Fatalf("root command returned error: %v", err)
+	}
+}
+
+func TestOpenSubcommandIsRegistered(t *testing.T) {
+	found := false
+	for _, c := range rootCmd.Commands() {
+		if c.Name() == "open" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("open subcommand is not registered on root command")
+	}
+}
+
+func TestOpenSubcommandExecutesWithoutError(t *testing.T) {
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"open"})
+	err := rootCmd.Execute()
+
+	if err != nil {
+		t.Fatalf("open subcommand returned error: %v", err)
+	}
+
+	output := buf.String()
+	want := "open: not yet implemented\n"
+	if output != want {
+		t.Errorf("open output = %q, want %q", output, want)
+	}
+}
+
 func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
 	// Ensure tmux is actually available for this test
 	originalPath := os.Getenv("PATH")
