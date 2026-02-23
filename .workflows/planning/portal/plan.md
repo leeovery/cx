@@ -1,6 +1,6 @@
 ---
 topic: portal
-status: planning
+status: concluded
 format: tick
 work_type: greenfield
 ext_id: tick-77cbba
