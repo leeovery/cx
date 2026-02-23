@@ -95,24 +95,6 @@ func TestOpenSubcommandIsRegistered(t *testing.T) {
 	}
 }
 
-func TestOpenSubcommandExecutesWithoutError(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	rootCmd.SetArgs([]string{"open"})
-	err := rootCmd.Execute()
-
-	if err != nil {
-		t.Fatalf("open subcommand returned error: %v", err)
-	}
-
-	output := buf.String()
-	want := "open: not yet implemented\n"
-	if output != want {
-		t.Errorf("open output = %q, want %q", output, want)
-	}
-}
-
 func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
 	// Ensure tmux is actually available for this test
 	originalPath := os.Getenv("PATH")
@@ -124,7 +106,7 @@ func TestTmuxDependentCommandsSucceedWithTmux(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "portal open succeeds with tmux", args: []string{"open"}},
+		// open is excluded: it launches a full-screen TUI requiring a TTY
 		{name: "portal list succeeds with tmux", args: []string{"list"}},
 	}
 

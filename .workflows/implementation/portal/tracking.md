@@ -4,7 +4,7 @@ plan: ../../planning/portal/plan.md
 format: tick
 status: in-progress
 task_gate_mode: auto
-fix_gate_mode: gated
+fix_gate_mode: auto
 analysis_gate_mode: gated
 fix_attempts: 0
 linters:
@@ -20,6 +20,7 @@ completed_tasks:
   - tick-a4b5c6
   - tick-fc2921
   - tick-442b28
+  - tick-afcc27
 started: 2026-02-23
 updated: 2026-02-23
 completed: ~
