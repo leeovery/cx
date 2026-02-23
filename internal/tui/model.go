@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/leeovery/portal/internal/project"
@@ -42,6 +43,11 @@ type SessionCreator interface {
 	CreateFromDir(dir string) (string, error)
 }
 
+// SessionRenamer defines the interface for renaming tmux sessions.
+type SessionRenamer interface {
+	RenameSession(oldName, newName string) error
+}
+
 // DirLister abstracts directory listing for testability.
 type DirLister = ui.DirLister
 
@@ -69,6 +75,7 @@ type Model struct {
 	loaded          bool
 	sessionLister   SessionLister
 	sessionKiller   SessionKiller
+	sessionRenamer  SessionRenamer
 	projectStore    ProjectStore
 	sessionCreator  SessionCreator
 	dirLister       DirLister
@@ -81,6 +88,9 @@ type Model struct {
 	currentSession  string
 	confirmKill     bool
 	pendingKillName string
+	renameMode      bool
+	renameInput     textinput.Model
+	renameTarget    string
 }
 
 // Selected returns the name of the session chosen by the user, or empty if
@@ -122,6 +132,15 @@ func NewWithKiller(lister SessionLister, killer SessionKiller) Model {
 	return Model{
 		sessionLister: lister,
 		sessionKiller: killer,
+	}
+}
+
+// NewWithRenamer creates a Model with session listing, killing, and renaming support.
+func NewWithRenamer(lister SessionLister, killer SessionKiller, renamer SessionRenamer) Model {
+	return Model{
+		sessionLister:  lister,
+		sessionKiller:  killer,
+		sessionRenamer: renamer,
 	}
 }
 
@@ -255,6 +274,11 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateConfirmKill(msg)
 	}
 
+	// Handle rename mode
+	if m.renameMode {
+		return m.updateRename(msg)
+	}
+
 	switch msg := msg.(type) {
 	case SessionsMsg:
 		if msg.Err != nil {
@@ -286,6 +310,8 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case msg.Type == tea.KeyRunes && string(msg.Runes) == "K":
 			return m.handleKillKey()
+		case msg.Type == tea.KeyRunes && string(msg.Runes) == "R":
+			return m.handleRenameKey()
 		case msg.Type == tea.KeyRunes && string(msg.Runes) == "n":
 			// Jump to the "new in project" option
 			m.cursor = len(m.sessions)
@@ -344,6 +370,61 @@ func (m Model) killAndRefresh(name string) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.sessionKiller.KillSession(name); err != nil {
 			return SessionsMsg{Err: fmt.Errorf("failed to kill session '%s': %w", name, err)}
+		}
+		sessions, err := m.sessionLister.ListSessions()
+		return SessionsMsg{Sessions: sessions, Err: err}
+	}
+}
+
+func (m Model) handleRenameKey() (tea.Model, tea.Cmd) {
+	// No-op if cursor is on the [n] new in project option
+	if m.cursor >= len(m.sessions) {
+		return m, nil
+	}
+	// No-op if no session renamer configured
+	if m.sessionRenamer == nil {
+		return m, nil
+	}
+	m.renameMode = true
+	m.renameTarget = m.sessions[m.cursor].Name
+	ti := textinput.New()
+	ti.Prompt = "Rename: "
+	ti.SetValue(m.renameTarget)
+	ti.Focus()
+	m.renameInput = ti
+	return m, nil
+}
+
+func (m Model) updateRename(msg tea.Msg) (tea.Model, tea.Cmd) {
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if ok {
+		switch keyMsg.Type {
+		case tea.KeyEnter:
+			newName := strings.TrimSpace(m.renameInput.Value())
+			if newName == "" {
+				return m, nil
+			}
+			oldName := m.renameTarget
+			m.renameMode = false
+			m.renameTarget = ""
+			return m, m.renameAndRefresh(oldName, newName)
+		case tea.KeyEsc:
+			m.renameMode = false
+			m.renameTarget = ""
+			return m, nil
+		}
+	}
+
+	// Delegate to textinput for all other messages
+	var cmd tea.Cmd
+	m.renameInput, cmd = m.renameInput.Update(msg)
+	return m, cmd
+}
+
+func (m Model) renameAndRefresh(oldName, newName string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.sessionRenamer.RenameSession(oldName, newName); err != nil {
+			return SessionsMsg{Err: fmt.Errorf("failed to rename session '%s': %w", oldName, err)}
 		}
 		sessions, err := m.sessionLister.ListSessions()
 		return SessionsMsg{Sessions: sessions, Err: err}
@@ -441,6 +522,11 @@ func (m Model) viewSessionList() string {
 	if m.confirmKill {
 		b.WriteString("\n\n")
 		fmt.Fprintf(&b, "Kill session '%s'? (y/n)", m.pendingKillName)
+	}
+
+	if m.renameMode {
+		b.WriteString("\n\n")
+		b.WriteString(m.renameInput.View())
 	}
 
 	return b.String()

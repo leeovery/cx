@@ -123,6 +123,15 @@ func (c *Client) KillSession(name string) error {
 	return nil
 }
 
+// RenameSession renames a tmux session from oldName to newName.
+func (c *Client) RenameSession(oldName, newName string) error {
+	_, err := c.cmd.Run("rename-session", "-t", oldName, newName)
+	if err != nil {
+		return fmt.Errorf("failed to rename tmux session %q to %q: %w", oldName, newName, err)
+	}
+	return nil
+}
+
 // SwitchClient switches the current tmux client to the named session.
 // Used when Portal is running inside an existing tmux session.
 func (c *Client) SwitchClient(name string) error {

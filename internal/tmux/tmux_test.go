@@ -300,3 +300,36 @@ func TestSwitchClient(t *testing.T) {
 		}
 	})
 }
+
+func TestRenameSession(t *testing.T) {
+	t.Run("runs rename-session with old and new name", func(t *testing.T) {
+		mock := &MockCommander{}
+		client := tmux.NewClient(mock)
+
+		err := client.RenameSession("old-name", "new-name")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(mock.Calls) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		}
+		wantArgs := "rename-session -t old-name new-name"
+		gotArgs := strings.Join(mock.Calls[0], " ")
+		if gotArgs != wantArgs {
+			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
+		}
+	})
+
+	t.Run("returns error when tmux command fails", func(t *testing.T) {
+		mock := &MockCommander{Err: fmt.Errorf("session not found")}
+		client := tmux.NewClient(mock)
+
+		err := client.RenameSession("old-name", "new-name")
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
