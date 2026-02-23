@@ -24,23 +24,49 @@ type BrowserDirSelectErrMsg struct {
 	Err  error
 }
 
+// BrowserAliasSavedMsg is emitted when an alias has been saved from the file browser.
+type BrowserAliasSavedMsg struct {
+	Name string
+	Path string
+}
+
+// BrowserAliasSaveErrMsg is emitted when alias saving fails.
+type BrowserAliasSaveErrMsg struct {
+	Err error
+}
+
 // DirLister abstracts directory listing for testability.
 type DirLister interface {
 	ListDirectories(path string, showHidden bool) ([]browser.DirEntry, error)
 }
+
+// AliasSaver abstracts alias persistence for the file browser.
+type AliasSaver interface {
+	Load() (map[string]string, error)
+	Set(name, path string)
+	Save() error
+}
+
+// GitRootResolver resolves a directory to its git repository root.
+// Returns the original directory if not in a git repo.
+type GitRootResolver func(dir string) (string, error)
 
 // PathChecker verifies a directory path exists on disk.
 type PathChecker func(path string) error
 
 // FileBrowserModel is the Bubble Tea model for the file browser view.
 type FileBrowserModel struct {
-	path       string
-	entries    []browser.DirEntry
-	cursor     int
-	lister     DirLister
-	checkPath  PathChecker
-	filterText string
-	showHidden bool
+	path        string
+	entries     []browser.DirEntry
+	cursor      int
+	lister      DirLister
+	checkPath   PathChecker
+	filterText  string
+	showHidden  bool
+	aliasStore  AliasSaver
+	resolveGit  GitRootResolver
+	aliasPrompt bool
+	aliasInput  string
 }
 
 // defaultPathChecker uses os.Stat to verify a directory exists.
@@ -66,6 +92,19 @@ func NewFileBrowserWithChecker(startPath string, lister DirLister, checker PathC
 		path:      startPath,
 		lister:    lister,
 		checkPath: checker,
+	}
+	m.loadEntries()
+	return m
+}
+
+// NewFileBrowserWithAlias creates a FileBrowserModel with alias and git root resolution support.
+func NewFileBrowserWithAlias(startPath string, lister DirLister, checker PathChecker, aliasStore AliasSaver, resolveGit GitRootResolver) FileBrowserModel {
+	m := FileBrowserModel{
+		path:       startPath,
+		lister:     lister,
+		checkPath:  checker,
+		aliasStore: aliasStore,
+		resolveGit: resolveGit,
 	}
 	m.loadEntries()
 	return m
@@ -110,9 +149,25 @@ func (m FileBrowserModel) Init() tea.Cmd {
 func (m FileBrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.aliasPrompt {
+			return m.handleAliasKey(msg)
+		}
 		return m.handleKey(msg)
 	}
 	return m, nil
+}
+
+// highlightedDir returns the full path of the directory under the cursor.
+func (m FileBrowserModel) highlightedDir() string {
+	if m.cursor == 0 {
+		return m.path
+	}
+	filtered := m.filteredEntries()
+	entryIdx := m.cursor - 1
+	if entryIdx >= len(filtered) {
+		return m.path
+	}
+	return filepath.Join(m.path, filtered[entryIdx].Name)
 }
 
 func (m FileBrowserModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -161,11 +216,75 @@ func (m FileBrowserModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loadEntries()
 			return m, nil
 		}
+		if m.filterText == "" && string(msg.Runes) == "a" && m.aliasStore != nil {
+			m.aliasPrompt = true
+			m.aliasInput = ""
+			return m, nil
+		}
 		m.filterText += string(msg.Runes)
 		m.cursor = 0
 	}
 
 	return m, nil
+}
+
+// handleAliasKey processes key input while the alias prompt is active.
+func (m FileBrowserModel) handleAliasKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.aliasPrompt = false
+		m.aliasInput = ""
+		return m, nil
+
+	case tea.KeyEnter:
+		return m.handleAliasSave()
+
+	case tea.KeyBackspace:
+		if len(m.aliasInput) > 0 {
+			m.aliasInput = m.aliasInput[:len(m.aliasInput)-1]
+		}
+		return m, nil
+
+	case tea.KeyRunes:
+		m.aliasInput += string(msg.Runes)
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleAliasSave resolves the highlighted directory, saves the alias, and emits BrowserAliasSavedMsg.
+func (m FileBrowserModel) handleAliasSave() (tea.Model, tea.Cmd) {
+	name := strings.TrimSpace(m.aliasInput)
+	if name == "" {
+		m.aliasPrompt = false
+		m.aliasInput = ""
+		return m, nil
+	}
+
+	dir := m.highlightedDir()
+	store := m.aliasStore
+	resolver := m.resolveGit
+
+	m.aliasPrompt = false
+	m.aliasInput = ""
+
+	return m, func() tea.Msg {
+		resolved, err := resolver(dir)
+		if err != nil {
+			return BrowserAliasSaveErrMsg{Err: fmt.Errorf("failed to resolve git root: %w", err)}
+		}
+
+		if _, err := store.Load(); err != nil {
+			return BrowserAliasSaveErrMsg{Err: fmt.Errorf("failed to load aliases: %w", err)}
+		}
+		store.Set(name, resolved)
+		if err := store.Save(); err != nil {
+			return BrowserAliasSaveErrMsg{Err: fmt.Errorf("failed to save alias: %w", err)}
+		}
+
+		return BrowserAliasSavedMsg{Name: name, Path: resolved}
+	}
 }
 
 // handleSelectCurrentDir emits a selection message for the current directory.
@@ -241,6 +360,10 @@ func (m FileBrowserModel) View() string {
 			cursor = "> "
 		}
 		fmt.Fprintf(&b, "%s%s\n", cursor, entry.Name)
+	}
+
+	if m.aliasPrompt {
+		fmt.Fprintf(&b, "\nalias: %s", m.aliasInput)
 	}
 
 	return b.String()

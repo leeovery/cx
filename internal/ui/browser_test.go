@@ -705,3 +705,236 @@ func TestFileBrowser_AllFilterCharsDeletedRestoresFullListing(t *testing.T) {
 		t.Errorf("should still be in /home/user/code, not parent:\n%s", view)
 	}
 }
+
+// mockAliasSaver implements ui.AliasSaver for testing.
+type mockAliasSaver struct {
+	aliases map[string]string
+	saveErr error
+	loaded  bool
+}
+
+func newMockAliasSaver() *mockAliasSaver {
+	return &mockAliasSaver{aliases: make(map[string]string)}
+}
+
+func (m *mockAliasSaver) Load() (map[string]string, error) {
+	m.loaded = true
+	return m.aliases, nil
+}
+
+func (m *mockAliasSaver) Set(name, path string) {
+	m.aliases[name] = path
+}
+
+func (m *mockAliasSaver) Save() error {
+	return m.saveErr
+}
+
+// mockGitResolver returns a fixed resolved path for testing.
+func mockGitResolver(resolved string) ui.GitRootResolver {
+	return func(dir string) (string, error) {
+		return resolved, nil
+	}
+}
+
+// identityGitResolver returns the directory as-is (no git root found).
+func identityGitResolver(dir string) (string, error) {
+	return dir, nil
+}
+
+// newAliasBrowser creates a FileBrowserModel with alias support for testing.
+func newAliasBrowser(startPath string, entries map[string][]browser.DirEntry, saver *mockAliasSaver, resolver ui.GitRootResolver) ui.FileBrowserModel {
+	return ui.NewFileBrowserWithAlias(startPath, &mockDirLister{entries: entries}, alwaysValidPath, saver, resolver)
+}
+
+func TestFileBrowser_AKeyEntersAliasPrompt(t *testing.T) {
+	saver := newMockAliasSaver()
+	m := newAliasBrowser("/home/user/code", standardEntries(), saver, identityGitResolver)
+
+	var model tea.Model = m
+	model = sendBrowserKeys(model, keyRune('a'))
+
+	view := model.View()
+	if !strings.Contains(view, "alias:") {
+		t.Errorf("expected alias prompt in view after pressing 'a':\n%s", view)
+	}
+}
+
+func TestFileBrowser_AliasPromptEnterSavesWithGitResolvedPath(t *testing.T) {
+	saver := newMockAliasSaver()
+	resolver := mockGitResolver("/home/user/code")
+	m := newAliasBrowser("/home/user/code", standardEntries(), saver, resolver)
+
+	// Move cursor to alpha (index 1), press 'a' to enter alias prompt
+	var model tea.Model = m
+	model = sendBrowserKeys(model, keyDown(), keyRune('a'))
+
+	// Type alias name "myalias"
+	model = sendBrowserKeys(model, keyRune('m'), keyRune('y'), keyRune('a'), keyRune('l'), keyRune('i'), keyRune('a'), keyRune('s'))
+
+	// Press Enter to confirm
+	_, cmd := model.Update(keyEnter())
+
+	if cmd == nil {
+		t.Fatal("expected command from Enter in alias prompt, got nil")
+	}
+
+	msg := cmd()
+	saved, ok := msg.(ui.BrowserAliasSavedMsg)
+	if !ok {
+		t.Fatalf("expected BrowserAliasSavedMsg, got %T", msg)
+	}
+	if saved.Name != "myalias" {
+		t.Errorf("expected alias name %q, got %q", "myalias", saved.Name)
+	}
+	if saved.Path != "/home/user/code" {
+		t.Errorf("expected path %q, got %q", "/home/user/code", saved.Path)
+	}
+
+	// Verify alias was saved
+	if saver.aliases["myalias"] != "/home/user/code" {
+		t.Errorf("expected alias 'myalias' to be saved with path %q, got %q", "/home/user/code", saver.aliases["myalias"])
+	}
+}
+
+func TestFileBrowser_AliasPromptEscCancels(t *testing.T) {
+	saver := newMockAliasSaver()
+	m := newAliasBrowser("/home/user/code", standardEntries(), saver, identityGitResolver)
+
+	var model tea.Model = m
+	// Press 'a' to enter alias prompt, type some chars, then Esc to cancel
+	model = sendBrowserKeys(model, keyRune('a'), keyRune('t'), keyRune('e'), keyRune('s'), keyRune('t'))
+	model = sendBrowserKeys(model, keyEsc())
+
+	view := model.View()
+	// Should be back in normal browser mode (no alias prompt)
+	if strings.Contains(view, "alias:") {
+		t.Errorf("alias prompt should be cancelled after Esc:\n%s", view)
+	}
+
+	// No alias should have been saved
+	if len(saver.aliases) != 0 {
+		t.Errorf("no alias should be saved after Esc, got %v", saver.aliases)
+	}
+}
+
+func TestFileBrowser_EmptyAliasNameNotSaved(t *testing.T) {
+	saver := newMockAliasSaver()
+	m := newAliasBrowser("/home/user/code", standardEntries(), saver, identityGitResolver)
+
+	var model tea.Model = m
+	// Press 'a' to enter alias prompt, then Enter immediately (empty name)
+	model = sendBrowserKeys(model, keyRune('a'))
+	model, _ = model.Update(keyEnter())
+
+	// No alias should be saved
+	if len(saver.aliases) != 0 {
+		t.Errorf("no alias should be saved for empty name, got %v", saver.aliases)
+	}
+
+	// Should return to normal browser mode
+	view := model.View()
+	if strings.Contains(view, "alias:") {
+		t.Errorf("should return to browser after empty alias name:\n%s", view)
+	}
+}
+
+func TestFileBrowser_ExistingAliasNameOverwrites(t *testing.T) {
+	saver := newMockAliasSaver()
+	saver.aliases["proj"] = "/old/path"
+	resolver := mockGitResolver("/new/path")
+	m := newAliasBrowser("/new/path", standardEntries(), saver, resolver)
+
+	var model tea.Model = m
+	// Press 'a', type "proj", Enter
+	model = sendBrowserKeys(model, keyRune('a'), keyRune('p'), keyRune('r'), keyRune('o'), keyRune('j'))
+	_, cmd := model.Update(keyEnter())
+
+	if cmd != nil {
+		cmd()
+	}
+
+	if saver.aliases["proj"] != "/new/path" {
+		t.Errorf("expected alias 'proj' overwritten to %q, got %q", "/new/path", saver.aliases["proj"])
+	}
+}
+
+func TestFileBrowser_NoSessionStartedAfterAliasCreation(t *testing.T) {
+	saver := newMockAliasSaver()
+	m := newAliasBrowser("/home/user/code", standardEntries(), saver, identityGitResolver)
+
+	var model tea.Model = m
+	// Press 'a', type "test", Enter
+	model = sendBrowserKeys(model, keyRune('a'), keyRune('t'), keyRune('e'), keyRune('s'), keyRune('t'))
+	_, cmd := model.Update(keyEnter())
+
+	if cmd == nil {
+		t.Fatal("expected command from alias save, got nil")
+	}
+
+	msg := cmd()
+	// Should be BrowserAliasSavedMsg, NOT BrowserDirSelectedMsg
+	if _, ok := msg.(ui.BrowserDirSelectedMsg); ok {
+		t.Error("alias creation should not emit BrowserDirSelectedMsg (no session)")
+	}
+	if _, ok := msg.(ui.BrowserAliasSavedMsg); !ok {
+		t.Fatalf("expected BrowserAliasSavedMsg, got %T", msg)
+	}
+}
+
+func TestFileBrowser_AliasResolvesHighlightedDirToGitRoot(t *testing.T) {
+	saver := newMockAliasSaver()
+	// Git resolver returns a different path (the git root)
+	resolver := mockGitResolver("/home/user/project-root")
+	entries := map[string][]browser.DirEntry{
+		"/home/user/project-root/src": {
+			{Name: "lib"},
+		},
+	}
+	m := newAliasBrowser("/home/user/project-root/src", entries, saver, resolver)
+
+	// Cursor on "." (index 0), press 'a', type alias, Enter
+	var model tea.Model = m
+	model = sendBrowserKeys(model, keyRune('a'), keyRune('p'), keyRune('r'), keyRune('j'))
+	_, cmd := model.Update(keyEnter())
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+	msg := cmd()
+	saved, ok := msg.(ui.BrowserAliasSavedMsg)
+	if !ok {
+		t.Fatalf("expected BrowserAliasSavedMsg, got %T", msg)
+	}
+	// Path should be git-root-resolved, not the original browser path
+	if saved.Path != "/home/user/project-root" {
+		t.Errorf("expected git-root-resolved path %q, got %q", "/home/user/project-root", saved.Path)
+	}
+	if saver.aliases["prj"] != "/home/user/project-root" {
+		t.Errorf("expected alias stored with git root path, got %q", saver.aliases["prj"])
+	}
+}
+
+func TestFileBrowser_AliasOnSubdirectoryResolvesCorrectPath(t *testing.T) {
+	saver := newMockAliasSaver()
+	resolver := mockGitResolver("/home/user/code/alpha")
+	m := newAliasBrowser("/home/user/code", standardEntries(), saver, resolver)
+
+	// Move cursor to "alpha" (index 1), press 'a', type alias, Enter
+	var model tea.Model = m
+	model = sendBrowserKeys(model, keyDown(), keyRune('a'), keyRune('m'), keyRune('y'))
+	_, cmd := model.Update(keyEnter())
+
+	if cmd == nil {
+		t.Fatal("expected command, got nil")
+	}
+	msg := cmd()
+	saved, ok := msg.(ui.BrowserAliasSavedMsg)
+	if !ok {
+		t.Fatalf("expected BrowserAliasSavedMsg, got %T", msg)
+	}
+	// The highlighted dir is /home/user/code/alpha, git-resolved to /home/user/code/alpha
+	if saved.Path != "/home/user/code/alpha" {
+		t.Errorf("expected path %q, got %q", "/home/user/code/alpha", saved.Path)
+	}
+}
