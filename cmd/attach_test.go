@@ -89,6 +89,35 @@ func TestAttachCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("exact name match only rejects partial name", func(t *testing.T) {
+		connector := &mockSessionConnector{}
+		validator := &mockSessionValidator{sessions: map[string]bool{"my-session-abc123": true}}
+		attachDeps = &AttachDeps{
+			Connector: connector,
+			Validator: validator,
+		}
+		t.Cleanup(func() { attachDeps = nil })
+
+		resetRootCmd()
+		rootCmd.SetArgs([]string{"attach", "my-session"})
+
+		err := rootCmd.Execute()
+
+		if err == nil {
+			t.Fatal("expected error for partial name, got nil")
+		}
+
+		want := "No session found: my-session"
+		if err.Error() != want {
+			t.Errorf("error = %q, want %q", err.Error(), want)
+		}
+
+		// Verify Connect was NOT called for partial match
+		if connector.connectedTo != "" {
+			t.Errorf("Connect should not be called for partial name match, but was called with %q", connector.connectedTo)
+		}
+	})
+
 	t.Run("non-existent session returns not found error", func(t *testing.T) {
 		connector := &mockSessionConnector{}
 		validator := &mockSessionValidator{sessions: map[string]bool{}}
