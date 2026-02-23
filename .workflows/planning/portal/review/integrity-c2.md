@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 created: 2026-02-23
 cycle: 2
 phase: Plan Integrity Review
@@ -86,8 +86,8 @@ Task portal-2-5 is missing the required **Outcome** field. Cycle 1 fixed the mis
 **Spec Reference**: .workflows/specification/portal/specification.md -- New Session Flow, How Directories are Added
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to tick-f924e3
 
 ---
 
@@ -191,8 +191,8 @@ Task portal-2-6 is missing the required **Outcome** field. This was missed in cy
 **Spec Reference**: .workflows/specification/portal/specification.md -- Project Picker Interaction, Empty States
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to tick-4c54e1
 
 ---
 
@@ -278,7 +278,7 @@ Task portal-2-7 is missing the required **Outcome** field. This completes the se
 **Spec Reference**: .workflows/specification/portal/specification.md -- TUI Design, Keyboard Shortcuts
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to tick-444a76
 
 ---
