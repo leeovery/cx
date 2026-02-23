@@ -60,6 +60,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.sessions = msg.Sessions
 		m.cursor = 0
+	case tea.KeyMsg:
+		switch {
+		case msg.Type == tea.KeyDown || (msg.Type == tea.KeyRunes && string(msg.Runes) == "j"):
+			if m.cursor < len(m.sessions)-1 {
+				m.cursor++
+			}
+		case msg.Type == tea.KeyUp || (msg.Type == tea.KeyRunes && string(msg.Runes) == "k"):
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		}
 	}
 	return m, nil
 }

@@ -293,3 +293,135 @@ func TestUpdate(t *testing.T) {
 		}
 	})
 }
+
+// cursorLine returns the index of the line containing the cursor indicator ">".
+// Returns -1 if no cursor found.
+func cursorLine(view string) int {
+	for i, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, ">") {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestKeyboardNavigation(t *testing.T) {
+	threeSessions := []tmux.Session{
+		{Name: "alpha", Windows: 1, Attached: false},
+		{Name: "bravo", Windows: 2, Attached: false},
+		{Name: "charlie", Windows: 3, Attached: false},
+	}
+
+	tests := []struct {
+		name           string
+		sessions       []tmux.Session
+		keys           []tea.Msg
+		wantCursorLine int
+	}{
+		{
+			name:     "down arrow moves cursor down",
+			sessions: threeSessions,
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyDown},
+			},
+			wantCursorLine: 1,
+		},
+		{
+			name:     "j key moves cursor down",
+			sessions: threeSessions,
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}},
+			},
+			wantCursorLine: 1,
+		},
+		{
+			name:     "up arrow moves cursor up",
+			sessions: threeSessions,
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyDown},
+				tea.KeyMsg{Type: tea.KeyUp},
+			},
+			wantCursorLine: 0,
+		},
+		{
+			name:     "k key moves cursor up",
+			sessions: threeSessions,
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyDown},
+				tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}},
+			},
+			wantCursorLine: 0,
+		},
+		{
+			name:     "cursor does not go below last item",
+			sessions: threeSessions,
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyDown},
+				tea.KeyMsg{Type: tea.KeyDown},
+				tea.KeyMsg{Type: tea.KeyDown},
+				tea.KeyMsg{Type: tea.KeyDown},
+			},
+			wantCursorLine: 2,
+		},
+		{
+			name:     "cursor does not go above first item",
+			sessions: threeSessions,
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyUp},
+				tea.KeyMsg{Type: tea.KeyUp},
+			},
+			wantCursorLine: 0,
+		},
+		{
+			name: "navigation is no-op with single session",
+			sessions: []tmux.Session{
+				{Name: "solo", Windows: 1, Attached: false},
+			},
+			keys: []tea.Msg{
+				tea.KeyMsg{Type: tea.KeyDown},
+				tea.KeyMsg{Type: tea.KeyUp},
+				tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}},
+				tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}},
+			},
+			wantCursorLine: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var m tea.Model = tui.NewModelWithSessions(tt.sessions)
+			for _, key := range tt.keys {
+				m, _ = m.Update(key)
+			}
+			view := m.View()
+			got := cursorLine(view)
+			if got != tt.wantCursorLine {
+				t.Errorf("cursor on line %d, want %d\nview:\n%s", got, tt.wantCursorLine, view)
+			}
+		})
+	}
+
+	t.Run("view highlights correct row after navigation", func(t *testing.T) {
+		var m tea.Model = tui.NewModelWithSessions(threeSessions)
+		// Move cursor to "bravo" (index 1)
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+		view := m.View()
+
+		lines := strings.Split(view, "\n")
+		if len(lines) < 3 {
+			t.Fatalf("expected 3 lines, got %d", len(lines))
+		}
+		// alpha should NOT have cursor
+		if strings.Contains(lines[0], ">") {
+			t.Errorf("alpha line should not have cursor: %q", lines[0])
+		}
+		// bravo SHOULD have cursor
+		if !strings.Contains(lines[1], ">") {
+			t.Errorf("bravo line should have cursor: %q", lines[1])
+		}
+		// charlie should NOT have cursor
+		if strings.Contains(lines[2], ">") {
+			t.Errorf("charlie line should not have cursor: %q", lines[2])
+		}
+	})
+}
