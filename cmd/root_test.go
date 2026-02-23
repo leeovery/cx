@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -49,15 +50,28 @@ func TestNonTmuxCommandsWorkWithoutTmux(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
+		env  map[string]string
 	}{
 		{name: "portal version works without tmux", args: []string{"version"}},
 		{name: "portal init works without tmux", args: []string{"init", "zsh"}},
 		{name: "portal help works without tmux", args: []string{"help"}},
+		{
+			name: "portal alias set works without tmux",
+			args: []string{"alias", "set", "proj", "/some/path"},
+			env:  map[string]string{"PORTAL_ALIASES_FILE": "TEMPDIR/aliases"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("PATH", "/nonexistent/path")
+
+			for k, v := range tt.env {
+				if v == "TEMPDIR/aliases" {
+					v = filepath.Join(t.TempDir(), "aliases")
+				}
+				t.Setenv(k, v)
+			}
 
 			resetRootCmd()
 			rootCmd.SetArgs(tt.args)

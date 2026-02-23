@@ -40,6 +40,19 @@ func ResolvePath(arg string) (string, error) {
 	return abs, nil
 }
 
+// NormalisePath expands tilde and resolves relative paths to absolute.
+// Unlike ResolvePath, it does not validate that the path exists on disk.
+func NormalisePath(path string) string {
+	expanded := expandTilde(path)
+
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		return expanded
+	}
+
+	return abs
+}
+
 // expandTilde replaces a leading ~ with the user's home directory.
 func expandTilde(path string) string {
 	if path == "~" {

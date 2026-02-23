@@ -199,3 +199,70 @@ func TestResolvePath(t *testing.T) {
 		}
 	})
 }
+
+func TestNormalisePath(t *testing.T) {
+	t.Run("returns absolute path unchanged", func(t *testing.T) {
+		got := resolver.NormalisePath("/Users/lee/Code/mac2/api")
+		if got != "/Users/lee/Code/mac2/api" {
+			t.Errorf("NormalisePath(%q) = %q, want %q", "/Users/lee/Code/mac2/api", got, "/Users/lee/Code/mac2/api")
+		}
+	})
+
+	t.Run("expands tilde to home directory", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("failed to get home dir: %v", err)
+		}
+
+		got := resolver.NormalisePath("~/Code/mac2/api")
+		want := filepath.Join(home, "Code/mac2/api")
+		if got != want {
+			t.Errorf("NormalisePath(%q) = %q, want %q", "~/Code/mac2/api", got, want)
+		}
+	})
+
+	t.Run("expands bare tilde to home directory", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("failed to get home dir: %v", err)
+		}
+
+		got := resolver.NormalisePath("~")
+		if got != home {
+			t.Errorf("NormalisePath(%q) = %q, want %q", "~", got, home)
+		}
+	})
+
+	t.Run("resolves relative path to absolute", func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("failed to get cwd: %v", err)
+		}
+
+		got := resolver.NormalisePath("subdir/project")
+		want := filepath.Join(cwd, "subdir/project")
+		if got != want {
+			t.Errorf("NormalisePath(%q) = %q, want %q", "subdir/project", got, want)
+		}
+	})
+
+	t.Run("resolves dot-relative path to absolute", func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("failed to get cwd: %v", err)
+		}
+
+		got := resolver.NormalisePath("./myproject")
+		want := filepath.Join(cwd, "myproject")
+		if got != want {
+			t.Errorf("NormalisePath(%q) = %q, want %q", "./myproject", got, want)
+		}
+	})
+
+	t.Run("always returns absolute path", func(t *testing.T) {
+		got := resolver.NormalisePath("relative")
+		if !filepath.IsAbs(got) {
+			t.Errorf("NormalisePath(%q) = %q, expected absolute path", "relative", got)
+		}
+	})
+}

@@ -7,18 +7,22 @@ import (
 )
 
 // skipTmuxCheck contains command names that do not require tmux.
+// If any command in the parent chain matches, the tmux check is skipped.
 var skipTmuxCheck = map[string]bool{
 	"version": true,
 	"init":    true,
 	"help":    true,
+	"alias":   true,
 }
 
 var rootCmd = &cobra.Command{
 	Use:   "portal",
 	Short: "An interactive session picker for tmux",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if skipTmuxCheck[cmd.Name()] {
-			return nil
+		for c := cmd; c != nil; c = c.Parent() {
+			if skipTmuxCheck[c.Name()] {
+				return nil
+			}
 		}
 		return tmux.CheckTmuxAvailable()
 	},
