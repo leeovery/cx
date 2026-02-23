@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/leeovery/portal/internal/browser"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
@@ -870,6 +871,243 @@ func (m *mockSessionCreator) CreateFromDir(dir string) (string, error) {
 		return "", m.err
 	}
 	return m.sessionName, nil
+}
+
+// mockDirLister implements ui.DirLister for tui testing.
+type mockDirLister struct {
+	entries map[string][]browser.DirEntry
+}
+
+func (m *mockDirLister) ListDirectories(path string, showHidden bool) ([]browser.DirEntry, error) {
+	if entries, ok := m.entries[path]; ok {
+		return entries, nil
+	}
+	return []browser.DirEntry{}, nil
+}
+
+func TestFileBrowserIntegration(t *testing.T) {
+	t.Run("browse option opens file browser", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 1, Attached: false},
+		}
+		store := &mockProjectStore{
+			projects: []project.Project{
+				{Path: "/code/myapp", Name: "myapp"},
+			},
+		}
+		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
+		lister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{
+				"/home/user": {{Name: "code"}, {Name: "docs"}},
+			},
+		}
+
+		m := tui.NewWithAllDeps(
+			&mockSessionLister{sessions: sessions},
+			store,
+			creator,
+			lister,
+			"/home/user",
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Navigate to project picker
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model, _ = model.Update(ui.ProjectsLoadedMsg{Projects: store.projects})
+
+		// Trigger browse selection
+		model, _ = model.Update(ui.BrowseSelectedMsg{})
+
+		view := model.View()
+		// File browser should show the starting directory path
+		if !strings.Contains(view, "/home/user") {
+			t.Errorf("expected file browser view with starting path, got:\n%s", view)
+		}
+		// Should show directory entries
+		if !strings.Contains(view, "code") {
+			t.Errorf("expected file browser to show directory entries, got:\n%s", view)
+		}
+		// Should NOT show project picker
+		if strings.Contains(view, "Select a project") {
+			t.Errorf("should not show project picker when file browser is open:\n%s", view)
+		}
+	})
+
+	t.Run("selection creates session with browsed path", func(t *testing.T) {
+		sessions := []tmux.Session{}
+		store := &mockProjectStore{projects: []project.Project{}}
+		creator := &mockSessionCreator{sessionName: "code-abc123"}
+		lister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{},
+		}
+
+		m := tui.NewWithAllDeps(
+			&mockSessionLister{sessions: sessions},
+			store,
+			creator,
+			lister,
+			"/home/user",
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Simulate browse flow: project picker -> file browser -> directory selected
+		model, _ = model.Update(ui.BrowseSelectedMsg{})
+
+		// File browser emits BrowserDirSelectedMsg
+		_, cmd := model.Update(ui.BrowserDirSelectedMsg{Path: "/home/user/code"})
+		if cmd == nil {
+			t.Fatal("expected command from directory selection, got nil")
+		}
+
+		msg := cmd()
+		createdMsg, ok := msg.(tui.SessionCreatedMsg)
+		if !ok {
+			t.Fatalf("expected SessionCreatedMsg, got %T", msg)
+		}
+		if createdMsg.SessionName != "code-abc123" {
+			t.Errorf("expected session name %q, got %q", "code-abc123", createdMsg.SessionName)
+		}
+		if creator.createdDir != "/home/user/code" {
+			t.Errorf("expected CreateFromDir called with %q, got %q", "/home/user/code", creator.createdDir)
+		}
+	})
+
+	t.Run("selection registers project in store via session creator", func(t *testing.T) {
+		sessions := []tmux.Session{}
+		store := &mockProjectStore{projects: []project.Project{}}
+		creator := &mockSessionCreator{sessionName: "myproj-abc123"}
+		lister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{},
+		}
+
+		m := tui.NewWithAllDeps(
+			&mockSessionLister{sessions: sessions},
+			store,
+			creator,
+			lister,
+			"/home/user",
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+		model, _ = model.Update(ui.BrowseSelectedMsg{})
+
+		// File browser selects directory
+		_, cmd := model.Update(ui.BrowserDirSelectedMsg{Path: "/home/user/myproj"})
+		if cmd == nil {
+			t.Fatal("expected command from directory selection, got nil")
+		}
+
+		// Execute the command to trigger session creation
+		cmd()
+
+		// SessionCreator.CreateFromDir handles git resolution, project registration, and session creation.
+		// Verify it was called with the browsed path.
+		if creator.createdDir != "/home/user/myproj" {
+			t.Errorf("expected CreateFromDir with %q, got %q", "/home/user/myproj", creator.createdDir)
+		}
+	})
+
+	t.Run("cancel in file browser returns to project picker", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 1, Attached: false},
+		}
+		store := &mockProjectStore{
+			projects: []project.Project{
+				{Path: "/code/myapp", Name: "myapp"},
+			},
+		}
+		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
+		lister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{
+				"/home/user": {{Name: "code"}},
+			},
+		}
+
+		m := tui.NewWithAllDeps(
+			&mockSessionLister{sessions: sessions},
+			store,
+			creator,
+			lister,
+			"/home/user",
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Navigate to project picker
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model, _ = model.Update(ui.ProjectsLoadedMsg{Projects: store.projects})
+
+		// Open file browser
+		model, _ = model.Update(ui.BrowseSelectedMsg{})
+
+		// Cancel the file browser
+		model, _ = model.Update(ui.BrowserCancelMsg{})
+
+		view := model.View()
+		// Should be back in project picker
+		if !strings.Contains(view, "Select a project") {
+			t.Errorf("expected project picker after cancel, got:\n%s", view)
+		}
+		if !strings.Contains(view, "myapp") {
+			t.Errorf("expected project 'myapp' in picker, got:\n%s", view)
+		}
+	})
+
+	t.Run("browse works from empty project list", func(t *testing.T) {
+		sessions := []tmux.Session{}
+		store := &mockProjectStore{projects: []project.Project{}}
+		creator := &mockSessionCreator{sessionName: "docs-abc123"}
+		lister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{
+				"/home/user": {{Name: "docs"}},
+			},
+		}
+
+		m := tui.NewWithAllDeps(
+			&mockSessionLister{sessions: sessions},
+			store,
+			creator,
+			lister,
+			"/home/user",
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Navigate to project picker (empty)
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model, _ = model.Update(ui.ProjectsLoadedMsg{Projects: []project.Project{}})
+
+		// In empty project list, cursor is on browse option. Trigger browse.
+		model, _ = model.Update(ui.BrowseSelectedMsg{})
+
+		view := model.View()
+		// Should be in file browser
+		if !strings.Contains(view, "/home/user") {
+			t.Errorf("expected file browser with starting path, got:\n%s", view)
+		}
+		if !strings.Contains(view, "docs") {
+			t.Errorf("expected file browser to show entries, got:\n%s", view)
+		}
+
+		// Selecting a directory should create a session
+		_, cmd := model.Update(ui.BrowserDirSelectedMsg{Path: "/home/user/docs"})
+		if cmd == nil {
+			t.Fatal("expected command from directory selection, got nil")
+		}
+		msg := cmd()
+		createdMsg, ok := msg.(tui.SessionCreatedMsg)
+		if !ok {
+			t.Fatalf("expected SessionCreatedMsg, got %T", msg)
+		}
+		if createdMsg.SessionName != "docs-abc123" {
+			t.Errorf("expected session name %q, got %q", "docs-abc123", createdMsg.SessionName)
+		}
+	})
 }
 
 func TestEmptyState(t *testing.T) {

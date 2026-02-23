@@ -18,6 +18,7 @@ type viewState int
 const (
 	viewSessionList  viewState = iota
 	viewProjectPicker
+	viewFileBrowser
 )
 
 // SessionLister defines the interface for listing tmux sessions.
@@ -35,6 +36,9 @@ type ProjectStore interface {
 type SessionCreator interface {
 	CreateFromDir(dir string) (string, error)
 }
+
+// DirLister abstracts directory listing for testability.
+type DirLister = ui.DirLister
 
 // SessionsMsg carries the result of fetching tmux sessions.
 type SessionsMsg struct {
@@ -61,8 +65,11 @@ type Model struct {
 	sessionLister  SessionLister
 	projectStore   ProjectStore
 	sessionCreator SessionCreator
+	dirLister      DirLister
+	startPath      string
 	view           viewState
 	projectPicker  ui.ProjectPickerModel
+	fileBrowser    ui.FileBrowserModel
 }
 
 // Selected returns the name of the session chosen by the user, or empty if
@@ -84,6 +91,17 @@ func NewWithDeps(lister SessionLister, store ProjectStore, creator SessionCreato
 		sessionLister:  lister,
 		projectStore:   store,
 		sessionCreator: creator,
+	}
+}
+
+// NewWithAllDeps creates a Model with all dependencies including the file browser.
+func NewWithAllDeps(lister SessionLister, store ProjectStore, creator SessionCreator, dirLister DirLister, startPath string) Model {
+	return Model{
+		sessionLister:  lister,
+		projectStore:   store,
+		sessionCreator: creator,
+		dirLister:      dirLister,
+		startPath:      startPath,
 	}
 }
 
@@ -112,13 +130,22 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle project picker messages regardless of view state
+	// Handle cross-view messages regardless of view state
 	switch msg := msg.(type) {
 	case ui.BackMsg:
 		m.view = viewSessionList
 		return m, nil
 	case ui.ProjectSelectedMsg:
 		return m, m.createSession(msg.Path)
+	case ui.BrowseSelectedMsg:
+		m.fileBrowser = ui.NewFileBrowser(m.startPath, m.dirLister)
+		m.view = viewFileBrowser
+		return m, nil
+	case ui.BrowserDirSelectedMsg:
+		return m, m.createSession(msg.Path)
+	case ui.BrowserCancelMsg:
+		m.view = viewProjectPicker
+		return m, nil
 	case SessionCreatedMsg:
 		m.selected = msg.SessionName
 		return m, tea.Quit
@@ -132,6 +159,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.view {
 	case viewProjectPicker:
 		return m.updateProjectPicker(msg)
+	case viewFileBrowser:
+		return m.updateFileBrowser(msg)
 	default:
 		return m.updateSessionList(msg)
 	}
@@ -152,6 +181,14 @@ func (m Model) updateProjectPicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 	picker, ok := updated.(ui.ProjectPickerModel)
 	if ok {
 		m.projectPicker = picker
+	}
+	return m, cmd
+}
+
+func (m Model) updateFileBrowser(msg tea.Msg) (tea.Model, tea.Cmd) {
+	updated, cmd := m.fileBrowser.Update(msg)
+	if fb, ok := updated.(ui.FileBrowserModel); ok {
+		m.fileBrowser = fb
 	}
 	return m, cmd
 }
@@ -230,6 +267,8 @@ func (m Model) View() string {
 	switch m.view {
 	case viewProjectPicker:
 		return m.projectPicker.View()
+	case viewFileBrowser:
+		return m.fileBrowser.View()
 	default:
 		return m.viewSessionList()
 	}
