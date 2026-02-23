@@ -27,11 +27,13 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("unsupported shell: %s (supported: bash, zsh, fish)", shell)
 		}
 
+		cmdName, _ := cmd.Flags().GetString("cmd")
+
 		w := cmd.OutOrStdout()
 
 		switch shell {
 		case "zsh":
-			return emitZshInit(w)
+			return emitZshInit(w, cmdName)
 		default:
 			return fmt.Errorf("unsupported shell: %s (supported: bash, zsh, fish)", shell)
 		}
@@ -40,16 +42,21 @@ var initCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+	initCmd.Flags().String("cmd", "x", "Custom name for shell functions (e.g., --cmd p creates p() and pctl())")
 }
 
 // emitZshInit writes the zsh shell integration script to w.
 // It emits shell functions, Cobra-generated completions, and compdef wiring.
-func emitZshInit(w io.Writer) error {
+// The cmdName parameter controls the function names: cmdName becomes the launcher
+// and cmdName+"ctl" becomes the control plane function.
+func emitZshInit(w io.Writer, cmdName string) error {
+	ctlName := cmdName + "ctl"
+
 	// Shell functions
-	if _, err := fmt.Fprintln(w, `function x() { portal open "$@" }`); err != nil {
+	if _, err := fmt.Fprintf(w, "function %s() { portal open \"$@\" }\n", cmdName); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, `function xctl() { portal "$@" }`); err != nil {
+	if _, err := fmt.Fprintf(w, "function %s() { portal \"$@\" }\n", ctlName); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
@@ -65,10 +72,10 @@ func emitZshInit(w io.Writer) error {
 	}
 
 	// Wire completions to shell function names
-	if _, err := fmt.Fprintln(w, "compdef _portal x"); err != nil {
+	if _, err := fmt.Fprintf(w, "compdef _portal %s\n", cmdName); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, "compdef _portal xctl"); err != nil {
+	if _, err := fmt.Fprintf(w, "compdef _portal %s\n", ctlName); err != nil {
 		return err
 	}
 

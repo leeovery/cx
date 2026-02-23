@@ -7,11 +7,12 @@ import (
 	"testing"
 )
 
-// resetRootCmd resets the root command's output streams for testing.
+// resetRootCmd resets the root command's output streams and subcommand flags for testing.
 func resetRootCmd() {
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
+	_ = initCmd.Flags().Set("cmd", "x") // reset to default; value is always valid
 }
 
 func TestTmuxDependentCommandsFailWithoutTmux(t *testing.T) {

@@ -102,3 +102,75 @@ func TestInitZsh_RequiresShellArgument(t *testing.T) {
 		t.Fatal("expected error for missing shell argument, got nil")
 	}
 }
+
+func TestInitZsh_CmdFlag(t *testing.T) {
+	tests := []struct {
+		name      string
+		args      []string
+		wantInOut []string
+	}{
+		{
+			name: "cmd flag changes launcher function name",
+			args: []string{"init", "zsh", "--cmd", "p"},
+			wantInOut: []string{
+				`function p() { portal open "$@" }`,
+			},
+		},
+		{
+			name: "cmd flag appends ctl suffix for control function",
+			args: []string{"init", "zsh", "--cmd", "p"},
+			wantInOut: []string{
+				`function pctl() { portal "$@" }`,
+			},
+		},
+		{
+			name: "cmd flag wires completions to custom names",
+			args: []string{"init", "zsh", "--cmd", "p"},
+			wantInOut: []string{
+				"compdef _portal p",
+				"compdef _portal pctl",
+			},
+		},
+		{
+			name: "default without cmd flag uses x and xctl",
+			args: []string{"init", "zsh"},
+			wantInOut: []string{
+				`function x() { portal open "$@" }`,
+				`function xctl() { portal "$@" }`,
+				"compdef _portal x",
+				"compdef _portal xctl",
+			},
+		},
+		{
+			name: "cmd flag with different name",
+			args: []string{"init", "zsh", "--cmd", "portal"},
+			wantInOut: []string{
+				`function portal() { portal open "$@" }`,
+				`function portalctl() { portal "$@" }`,
+				"compdef _portal portal",
+				"compdef _portal portalctl",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			resetRootCmd()
+			rootCmd.SetOut(buf)
+			rootCmd.SetArgs(tt.args)
+
+			err := rootCmd.Execute()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			output := buf.String()
+			for _, want := range tt.wantInOut {
+				if !strings.Contains(output, want) {
+					t.Errorf("output does not contain %q\ngot:\n%s", want, output)
+				}
+			}
+		})
+	}
+}
