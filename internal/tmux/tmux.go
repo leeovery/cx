@@ -42,6 +42,22 @@ func NewClient(cmd Commander) *Client {
 	return &Client{cmd: cmd}
 }
 
+// HasSession reports whether a tmux session with the given name exists.
+// Returns false when the session does not exist or no tmux server is running.
+func (c *Client) HasSession(name string) bool {
+	_, err := c.cmd.Run("has-session", "-t", name)
+	return err == nil
+}
+
+// NewSession creates a new detached tmux session with the given name and start directory.
+func (c *Client) NewSession(name, dir string) error {
+	_, err := c.cmd.Run("new-session", "-d", "-s", name, "-c", dir)
+	if err != nil {
+		return fmt.Errorf("failed to create tmux session %q: %w", name, err)
+	}
+	return nil
+}
+
 // ListSessions queries tmux for running sessions and returns them as structured data.
 // Returns an empty slice and nil error when no tmux server is running.
 func (c *Client) ListSessions() ([]Session, error) {

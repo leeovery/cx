@@ -2,6 +2,7 @@ package tmux_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/tmux"
@@ -11,10 +12,18 @@ import (
 type MockCommander struct {
 	Output string
 	Err    error
+	// Calls records all invocations as joined arg strings.
+	Calls [][]string
+	// RunFunc, when set, is called instead of returning Output/Err.
+	RunFunc func(args ...string) (string, error)
 }
 
-// Run returns the configured output and error.
+// Run returns the configured output and error, or delegates to RunFunc.
 func (m *MockCommander) Run(args ...string) (string, error) {
+	m.Calls = append(m.Calls, args)
+	if m.RunFunc != nil {
+		return m.RunFunc(args...)
+	}
 	return m.Output, m.Err
 }
 
@@ -111,4 +120,81 @@ func TestListSessions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHasSession(t *testing.T) {
+	t.Run("returns true when session exists", func(t *testing.T) {
+		mock := &MockCommander{}
+		client := tmux.NewClient(mock)
+
+		got := client.HasSession("my-session")
+
+		if !got {
+			t.Error("HasSession() = false, want true")
+		}
+
+		if len(mock.Calls) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		}
+		wantArgs := "has-session -t my-session"
+		gotArgs := strings.Join(mock.Calls[0], " ")
+		if gotArgs != wantArgs {
+			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
+		}
+	})
+
+	t.Run("returns false when session does not exist", func(t *testing.T) {
+		mock := &MockCommander{Err: fmt.Errorf("exit status 1")}
+		client := tmux.NewClient(mock)
+
+		got := client.HasSession("nonexistent")
+
+		if got {
+			t.Error("HasSession() = true, want false")
+		}
+	})
+
+	t.Run("returns false when no tmux server running", func(t *testing.T) {
+		mock := &MockCommander{Err: fmt.Errorf("no server running on /tmp/tmux-501/default")}
+		client := tmux.NewClient(mock)
+
+		got := client.HasSession("any-session")
+
+		if got {
+			t.Error("HasSession() = true, want false")
+		}
+	})
+}
+
+func TestNewSession(t *testing.T) {
+	t.Run("creates session with name and directory", func(t *testing.T) {
+		mock := &MockCommander{}
+		client := tmux.NewClient(mock)
+
+		err := client.NewSession("my-session", "/home/user/project")
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(mock.Calls) != 1 {
+			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
+		}
+		wantArgs := "new-session -d -s my-session -c /home/user/project"
+		gotArgs := strings.Join(mock.Calls[0], " ")
+		if gotArgs != wantArgs {
+			t.Errorf("called with %q, want %q", gotArgs, wantArgs)
+		}
+	})
+
+	t.Run("returns error when tmux command fails", func(t *testing.T) {
+		mock := &MockCommander{Err: fmt.Errorf("tmux error")}
+		client := tmux.NewClient(mock)
+
+		err := client.NewSession("my-session", "/some/dir")
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }
