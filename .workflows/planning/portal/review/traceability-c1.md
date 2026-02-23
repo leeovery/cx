@@ -57,8 +57,8 @@ Updated portal-2-6 (tick-4c54e1) tests -- add:
 - esc clears filter and exits filter mode
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to tick-4c54e1
 
 ---
 
