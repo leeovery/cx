@@ -11,10 +11,14 @@ import (
 type MockCommandRunner struct {
 	Output string
 	Err    error
+	OnRun  func(name string, args ...string)
 }
 
-// Run returns the configured output and error.
+// Run returns the configured output and error, optionally calling OnRun for argument capture.
 func (m *MockCommandRunner) Run(name string, args ...string) (string, error) {
+	if m.OnRun != nil {
+		m.OnRun(name, args...)
+	}
 	return m.Output, m.Err
 }
 
