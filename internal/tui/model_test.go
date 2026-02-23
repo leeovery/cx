@@ -2445,4 +2445,165 @@ func TestFilterMode(t *testing.T) {
 			t.Errorf("bravo should be visible after exiting filter, got:\n%s", view)
 		}
 	})
+
+	t.Run("q in filter mode types q instead of quitting", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "quickfix", Windows: 1, Attached: false},
+		}
+		var m tea.Model = tui.NewModelWithSessions(sessions)
+
+		// Enter filter mode
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+
+		// Type 'q' — should be treated as filter input, not quit
+		var cmd tea.Cmd
+		m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+
+		if cmd != nil {
+			msg := cmd()
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Fatal("q in filter mode should not quit")
+			}
+		}
+
+		view := m.View()
+		if !strings.Contains(view, "filter: q") {
+			t.Errorf("expected 'filter: q' in view, got:\n%s", view)
+		}
+	})
+
+	t.Run("rapid backspace presses drain filter then exit mode", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+			{Name: "bravo", Windows: 2, Attached: false},
+		}
+		var m tea.Model = tui.NewModelWithSessions(sessions)
+
+		// Enter filter mode and type "abc"
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+
+		// Backspace 3 times drains the filter text
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace}) // "ab"
+		view := m.View()
+		if !strings.Contains(view, "filter: ab") {
+			t.Errorf("expected 'filter: ab' after first backspace, got:\n%s", view)
+		}
+
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace}) // "a"
+		view = m.View()
+		if !strings.Contains(view, "filter: a") {
+			t.Errorf("expected 'filter: a' after second backspace, got:\n%s", view)
+		}
+
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace}) // ""
+		view = m.View()
+		if !strings.Contains(view, "filter: ") {
+			t.Errorf("expected empty filter after third backspace, got:\n%s", view)
+		}
+
+		// One more backspace exits filter mode
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+		view = m.View()
+		if strings.Contains(view, "filter:") {
+			t.Errorf("fourth backspace should exit filter mode, got:\n%s", view)
+		}
+		// Full session list restored
+		if !strings.Contains(view, "alpha") {
+			t.Errorf("alpha should be visible after exiting filter, got:\n%s", view)
+		}
+		if !strings.Contains(view, "bravo") {
+			t.Errorf("bravo should be visible after exiting filter, got:\n%s", view)
+		}
+	})
+
+	t.Run("full session list restored after exit", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+			{Name: "bravo", Windows: 2, Attached: false},
+			{Name: "charlie", Windows: 3, Attached: false},
+		}
+		var m tea.Model = tui.NewModelWithSessions(sessions)
+
+		// Enter filter mode, type "br" (only bravo visible)
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+
+		view := m.View()
+		if strings.Contains(view, "alpha") || strings.Contains(view, "charlie") {
+			t.Errorf("only bravo should be visible with filter 'br', got:\n%s", view)
+		}
+
+		// Exit via Esc
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		view = m.View()
+		for _, name := range []string{"alpha", "bravo", "charlie"} {
+			if !strings.Contains(view, name) {
+				t.Errorf("session %q should be visible after exiting filter mode, got:\n%s", name, view)
+			}
+		}
+	})
+
+	t.Run("shortcut keys functional after filter mode exit", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+			{Name: "bravo", Windows: 2, Attached: false},
+		}
+		var m tea.Model = tui.NewModelWithSessions(sessions)
+
+		// Enter filter mode and type something
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+
+		// Exit via Esc
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+		// 'q' should now quit (shortcut restored)
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		if cmd == nil {
+			t.Fatal("q after exiting filter mode should trigger quit command")
+		}
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); !ok {
+			t.Fatalf("expected tea.QuitMsg after q, got %T", msg)
+		}
+	})
+
+	t.Run("esc with active filter clears and exits in one action", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+			{Name: "bravo", Windows: 2, Attached: false},
+			{Name: "charlie", Windows: 3, Attached: false},
+		}
+		var m tea.Model = tui.NewModelWithSessions(sessions)
+
+		// Enter filter mode and build up a filter
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+
+		// Verify filter is active and narrowing results
+		view := m.View()
+		if !strings.Contains(view, "filter: ch") {
+			t.Errorf("expected active filter 'ch', got:\n%s", view)
+		}
+
+		// Single Esc should clear filter text AND exit filter mode
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		view = m.View()
+
+		// Filter prompt should be gone
+		if strings.Contains(view, "filter:") {
+			t.Errorf("Esc should exit filter mode entirely, got:\n%s", view)
+		}
+		// All sessions restored
+		for _, name := range []string{"alpha", "bravo", "charlie"} {
+			if !strings.Contains(view, name) {
+				t.Errorf("session %q should be visible after Esc, got:\n%s", name, view)
+			}
+		}
+	})
 }
