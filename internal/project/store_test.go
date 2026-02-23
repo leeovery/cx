@@ -325,3 +325,191 @@ func TestRemove(t *testing.T) {
 		}
 	})
 }
+
+func TestCleanStale(t *testing.T) {
+	t.Run("removes project with non-existent directory", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "projects.json")
+
+		// existingDir is a real directory; staleDir does not exist
+		existingDir := t.TempDir()
+		staleDir := filepath.Join(dir, "gone")
+
+		content := `{"projects":[
+			{"path":"` + existingDir + `","name":"exists","last_used":"2026-01-01T00:00:00Z"},
+			{"path":"` + staleDir + `","name":"stale","last_used":"2026-02-01T00:00:00Z"}
+		]}`
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		store := project.NewStore(filePath)
+
+		removed, err := store.CleanStale()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if removed != 1 {
+			t.Errorf("removed = %d, want 1", removed)
+		}
+
+		projects, err := store.Load()
+		if err != nil {
+			t.Fatalf("failed to load: %v", err)
+		}
+
+		if len(projects) != 1 {
+			t.Fatalf("got %d projects, want 1", len(projects))
+		}
+
+		if projects[0].Path != existingDir {
+			t.Errorf("remaining project Path = %q, want %q", projects[0].Path, existingDir)
+		}
+	})
+
+	t.Run("retains project with existing directory", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "projects.json")
+
+		existingDir := t.TempDir()
+
+		content := `{"projects":[
+			{"path":"` + existingDir + `","name":"exists","last_used":"2026-01-01T00:00:00Z"}
+		]}`
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		store := project.NewStore(filePath)
+
+		removed, err := store.CleanStale()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if removed != 0 {
+			t.Errorf("removed = %d, want 0", removed)
+		}
+
+		projects, err := store.Load()
+		if err != nil {
+			t.Fatalf("failed to load: %v", err)
+		}
+
+		if len(projects) != 1 {
+			t.Fatalf("got %d projects, want 1", len(projects))
+		}
+
+		if projects[0].Path != existingDir {
+			t.Errorf("project Path = %q, want %q", projects[0].Path, existingDir)
+		}
+	})
+
+	t.Run("retains project with permission denied", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "projects.json")
+
+		// Create a parent dir, then a child inside it, then remove perms on parent
+		parentDir := filepath.Join(dir, "restricted")
+		childDir := filepath.Join(parentDir, "child")
+		if err := os.MkdirAll(childDir, 0o755); err != nil {
+			t.Fatalf("failed to create child dir: %v", err)
+		}
+		// Remove execute permission on parent so stat on child returns permission denied
+		if err := os.Chmod(parentDir, 0o000); err != nil {
+			t.Fatalf("failed to chmod: %v", err)
+		}
+		t.Cleanup(func() {
+			_ = os.Chmod(parentDir, 0o755)
+		})
+
+		content := `{"projects":[
+			{"path":"` + childDir + `","name":"restricted","last_used":"2026-01-01T00:00:00Z"}
+		]}`
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		store := project.NewStore(filePath)
+
+		removed, err := store.CleanStale()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if removed != 0 {
+			t.Errorf("removed = %d, want 0", removed)
+		}
+
+		projects, err := store.Load()
+		if err != nil {
+			t.Fatalf("failed to load: %v", err)
+		}
+
+		if len(projects) != 1 {
+			t.Fatalf("got %d projects, want 1", len(projects))
+		}
+
+		if projects[0].Name != "restricted" {
+			t.Errorf("project Name = %q, want %q", projects[0].Name, "restricted")
+		}
+	})
+
+	t.Run("returns zero on empty list", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "projects.json")
+		store := project.NewStore(filePath)
+
+		removed, err := store.CleanStale()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if removed != 0 {
+			t.Errorf("removed = %d, want 0", removed)
+		}
+	})
+
+	t.Run("removes multiple stale in single call", func(t *testing.T) {
+		dir := t.TempDir()
+		filePath := filepath.Join(dir, "projects.json")
+
+		existingDir := t.TempDir()
+		staleDir1 := filepath.Join(dir, "gone1")
+		staleDir2 := filepath.Join(dir, "gone2")
+
+		content := `{"projects":[
+			{"path":"` + existingDir + `","name":"exists","last_used":"2026-01-01T00:00:00Z"},
+			{"path":"` + staleDir1 + `","name":"stale1","last_used":"2026-02-01T00:00:00Z"},
+			{"path":"` + staleDir2 + `","name":"stale2","last_used":"2026-03-01T00:00:00Z"}
+		]}`
+		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		store := project.NewStore(filePath)
+
+		removed, err := store.CleanStale()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if removed != 2 {
+			t.Errorf("removed = %d, want 2", removed)
+		}
+
+		projects, err := store.Load()
+		if err != nil {
+			t.Fatalf("failed to load: %v", err)
+		}
+
+		if len(projects) != 1 {
+			t.Fatalf("got %d projects, want 1", len(projects))
+		}
+
+		if projects[0].Path != existingDir {
+			t.Errorf("remaining project Path = %q, want %q", projects[0].Path, existingDir)
+		}
+	})
+}

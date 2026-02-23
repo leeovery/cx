@@ -137,6 +137,40 @@ func (s *Store) List() ([]Project, error) {
 	return projects, nil
 }
 
+// CleanStale removes projects whose directories no longer exist on disk.
+// Projects with permission errors are retained. Returns the count of removed
+// entries. The file is only saved if at least one project was removed.
+func (s *Store) CleanStale() (int, error) {
+	projects, err := s.Load()
+	if err != nil {
+		return 0, fmt.Errorf("failed to load projects: %w", err)
+	}
+
+	var kept []Project
+	removed := 0
+
+	for _, p := range projects {
+		_, statErr := os.Stat(p.Path)
+		switch {
+		case statErr == nil:
+			kept = append(kept, p)
+		case errors.Is(statErr, os.ErrNotExist):
+			removed++
+		default:
+			// Permission denied or other errors: retain the project
+			kept = append(kept, p)
+		}
+	}
+
+	if removed > 0 {
+		if err := s.Save(kept); err != nil {
+			return 0, fmt.Errorf("failed to save after cleaning stale projects: %w", err)
+		}
+	}
+
+	return removed, nil
+}
+
 // Remove deletes the project with the given path. It is a no-op if the path
 // is not found.
 func (s *Store) Remove(path string) error {
