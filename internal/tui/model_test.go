@@ -499,3 +499,117 @@ func TestQuitHandling(t *testing.T) {
 		})
 	}
 }
+
+func TestEnterSelection(t *testing.T) {
+	t.Run("enter with no sessions is a no-op", func(t *testing.T) {
+		m := tui.NewModelWithSessions(nil)
+
+		updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+		// Should not trigger quit
+		if cmd != nil {
+			msg := cmd()
+			if _, ok := msg.(tea.QuitMsg); ok {
+				t.Error("enter with no sessions should not trigger quit")
+			}
+		}
+
+		// Selected should remain empty
+		model, ok := updated.(tui.Model)
+		if !ok {
+			t.Fatalf("expected tui.Model, got %T", updated)
+		}
+		if model.Selected() != "" {
+			t.Errorf("expected empty selected, got %q", model.Selected())
+		}
+	})
+
+	t.Run("enter sets selected session and triggers quit", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 3, Attached: true},
+			{Name: "work", Windows: 1, Attached: false},
+		}
+		m := tui.NewModelWithSessions(sessions)
+
+		updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+		// Should trigger quit
+		if cmd == nil {
+			t.Fatal("expected quit command, got nil")
+		}
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); !ok {
+			t.Fatalf("expected tea.QuitMsg, got %T", msg)
+		}
+
+		// Should set selected to the first session (cursor at 0)
+		model, ok := updated.(tui.Model)
+		if !ok {
+			t.Fatalf("expected tui.Model, got %T", updated)
+		}
+		if model.Selected() != "dev" {
+			t.Errorf("expected selected %q, got %q", "dev", model.Selected())
+		}
+	})
+
+	t.Run("quit without selecting leaves selected empty", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 3, Attached: true},
+			{Name: "work", Windows: 1, Attached: false},
+		}
+
+		quitKeys := []tea.KeyMsg{
+			{Type: tea.KeyRunes, Runes: []rune{'q'}},
+			{Type: tea.KeyEsc},
+			{Type: tea.KeyCtrlC},
+		}
+
+		for _, key := range quitKeys {
+			m := tui.NewModelWithSessions(sessions)
+			updated, _ := m.Update(key)
+
+			model, ok := updated.(tui.Model)
+			if !ok {
+				t.Fatalf("expected tui.Model, got %T", updated)
+			}
+			if model.Selected() != "" {
+				t.Errorf("quit via %v should leave selected empty, got %q", key, model.Selected())
+			}
+		}
+	})
+
+	t.Run("selected returns correct session after navigation and enter", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+			{Name: "bravo", Windows: 2, Attached: false},
+			{Name: "charlie", Windows: 3, Attached: false},
+		}
+
+		var m tea.Model = tui.NewModelWithSessions(sessions)
+
+		// Navigate down twice to "charlie"
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+
+		// Press Enter
+		updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+		// Should trigger quit
+		if cmd == nil {
+			t.Fatal("expected quit command, got nil")
+		}
+		msg := cmd()
+		if _, ok := msg.(tea.QuitMsg); !ok {
+			t.Fatalf("expected tea.QuitMsg, got %T", msg)
+		}
+
+		// Should have selected "charlie"
+		model, ok := updated.(tui.Model)
+		if !ok {
+			t.Fatalf("expected tui.Model, got %T", updated)
+		}
+		if model.Selected() != "charlie" {
+			t.Errorf("expected selected %q, got %q", "charlie", model.Selected())
+		}
+	})
+}

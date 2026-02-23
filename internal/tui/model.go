@@ -25,7 +25,14 @@ type SessionsMsg struct {
 type Model struct {
 	sessions      []tmux.Session
 	cursor        int
+	selected      string
 	sessionLister SessionLister
+}
+
+// Selected returns the name of the session chosen by the user, or empty if
+// the user quit without selecting.
+func (m Model) Selected() string {
+	return m.selected
 }
 
 // New creates a Model that fetches sessions from the given SessionLister.
@@ -73,6 +80,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.Type == tea.KeyUp || (msg.Type == tea.KeyRunes && string(msg.Runes) == "k"):
 			if m.cursor > 0 {
 				m.cursor--
+			}
+		case msg.Type == tea.KeyEnter:
+			if len(m.sessions) > 0 {
+				m.selected = m.sessions[m.cursor].Name
+				return m, tea.Quit
 			}
 		}
 	}
