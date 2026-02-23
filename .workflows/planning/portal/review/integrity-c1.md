@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 created: 2026-02-23
 cycle: 1
 phase: Plan Integrity Review
@@ -83,8 +83,8 @@ Task portal-2-2 (Session Name Generation) is missing the required **Outcome** fi
 **Spec Reference**: .workflows/specification/portal/specification.md -- Session Naming section
 ```
 
-**Resolution**: Pending
-**Notes**: Also added the missing "empty project name" edge case that was listed in the plan's task table but not covered in the task's tests. Added Edge Cases section.
+**Resolution**: Fixed
+**Notes**: Applied to tick-4ebf36. Also added the missing "empty project name" edge case.
 
 ---
 
@@ -166,8 +166,8 @@ Task portal-2-3 (Project Store) is missing the required **Outcome** field.
 **Spec Reference**: .workflows/specification/portal/specification.md -- Configuration & Storage, projects.json Structure
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to tick-248cf4
 
 ---
 
@@ -243,8 +243,8 @@ Task portal-2-4 (Stale Project Cleanup) is missing the required **Outcome** fiel
 **Spec Reference**: .workflows/specification/portal/specification.md -- Stale Project Cleanup section
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to tick-275824
 
 ---
 
@@ -288,8 +288,8 @@ Task portal-1-6 (Attach on Enter) includes "If LookPath fails, print 'Portal req
 - Add tests in internal/tui/model_test.go
 ```
 
-**Resolution**: Pending
-**Notes**: The LookPath call is still needed to get the absolute path for syscall.Exec, but the user-facing "Portal requires tmux" message belongs to the centralised check in task 6-6.
+**Resolution**: Fixed
+**Notes**: Applied to tick-9776d9. LookPath still needed for path, user-facing message moved to task 6-6.
 
 ---
 
@@ -313,8 +313,8 @@ Task portal-1-4 says "navigation is no-op with single session" in tests. This is
 **Outcome**: Arrow keys and j/k move cursor through session list. Cursor clamps at boundaries (does not wrap). View reflects cursor position after each keypress.
 ```
 
-**Resolution**: Pending
-**Notes**: The Do section and acceptance criteria both describe clamping behaviour, so the Outcome is the only inconsistency.
+**Resolution**: Fixed
+**Notes**: Applied to tick-27a6f2. Changed "wraps" to "clamps" in Outcome.
 
 ---
 
@@ -334,8 +334,8 @@ N/A -- observation only.
 **Proposed**:
 N/A -- no change proposed. Keeping as two tasks is acceptable since both have meaningful test sets.
 
-**Resolution**: Pending
-**Notes**: This is an observation, not a required change. The two tasks work fine as-is given natural ordering.
+**Resolution**: Acknowledged
+**Notes**: Observation only. No change needed - tasks work fine given natural ordering.
 
 ---
 
@@ -378,8 +378,8 @@ Task portal-2-6 (Project Picker TUI View) includes filter mode via `/` key with 
 - [ ] `/` activates filter mode in project picker; fuzzy-matches against project names; browse option always visible
 ```
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Fixed
+**Notes**: Applied to plan.md - added filter mode to Phase 2 acceptance criteria.
 
 ---
 
@@ -407,8 +407,8 @@ Phase 6 acceptance includes "Homebrew formula in `leeovery/homebrew-tools` auto-
 - Set HOMEBREW_TAP_GITHUB_TOKEN env var on the GoReleaser step (sourced from repo secret HOMEBREW_TAP_TOKEN) for cross-repo Homebrew tap push (GoReleaser reads this env var to authenticate when pushing the formula update)
 ```
 
-**Resolution**: Pending
-**Notes**: GoReleaser uses the env var name HOMEBREW_TAP_GITHUB_TOKEN by convention. The task should name this precisely so the implementer does not have to look up GoReleaser docs.
+**Resolution**: Fixed
+**Notes**: Applied to tick-c4d5e6. Added exact env var name HOMEBREW_TAP_GITHUB_TOKEN.
 
 ---
 
@@ -428,8 +428,8 @@ N/A -- all tasks at priority 2.
 **Proposed**:
 N/A -- no change required. Natural ordering produces correct execution sequence. Flagged for awareness only.
 
-**Resolution**: Pending
-**Notes**: No action needed. The plan executes correctly with uniform priority because creation order matches intended execution order within each phase.
+**Resolution**: Acknowledged
+**Notes**: Observation only. Natural ordering produces correct execution - no change needed.
 
 ---
 
@@ -451,7 +451,7 @@ Task tick-a4b5c6 (tmux Runtime Dependency Check) at priority 2, positioned 6th i
 **Proposed**:
 Change priority of tick-a4b5c6 to 1 so it executes before other Phase 6 tasks. This ensures the centralised tmux check is in place before implementing command execution and TUI mode features that depend on tmux.
 
-**Resolution**: Pending
-**Notes**: Alternatively, this task could be moved to Phase 1 after the initial project setup, but that would require restructuring. Raising priority within Phase 6 is the minimal change.
+**Resolution**: Fixed
+**Notes**: Changed tick-a4b5c6 priority from 2 to 1. tmux check now executes first in Phase 6.
 
 ---

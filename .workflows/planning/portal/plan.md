@@ -67,6 +67,7 @@ approved_at: 2026-02-22
 - [ ] projects.json created/updated at ~/.config/portal/ with path, name, last_used fields
 - [ ] Stale project cleanup runs automatically when project picker is displayed
 - [ ] Empty state ("No saved projects yet.") displays when no projects remembered, with browse option still visible
+- [ ] `/` activates filter mode in project picker; fuzzy-matches against project names; browse option always visible
 
 #### Tasks
 | ID | Name | Edge Cases | Status | Ext ID |
