@@ -350,8 +350,11 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if removed != 1 {
-			t.Errorf("removed = %d, want 1", removed)
+		if len(removed) != 1 {
+			t.Fatalf("len(removed) = %d, want 1", len(removed))
+		}
+		if removed[0].Path != staleDir {
+			t.Errorf("removed[0].Path = %q, want %q", removed[0].Path, staleDir)
 		}
 
 		projects, err := store.Load()
@@ -388,8 +391,8 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if removed != 0 {
-			t.Errorf("removed = %d, want 0", removed)
+		if len(removed) != 0 {
+			t.Errorf("len(removed) = %d, want 0", len(removed))
 		}
 
 		projects, err := store.Load()
@@ -438,8 +441,8 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if removed != 0 {
-			t.Errorf("removed = %d, want 0", removed)
+		if len(removed) != 0 {
+			t.Errorf("len(removed) = %d, want 0", len(removed))
 		}
 
 		projects, err := store.Load()
@@ -456,7 +459,7 @@ func TestCleanStale(t *testing.T) {
 		}
 	})
 
-	t.Run("returns zero on empty list", func(t *testing.T) {
+	t.Run("returns empty slice on empty list", func(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "projects.json")
 		store := project.NewStore(filePath)
@@ -466,8 +469,8 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if removed != 0 {
-			t.Errorf("removed = %d, want 0", removed)
+		if len(removed) != 0 {
+			t.Errorf("len(removed) = %d, want 0", len(removed))
 		}
 	})
 
@@ -495,8 +498,8 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if removed != 2 {
-			t.Errorf("removed = %d, want 2", removed)
+		if len(removed) != 2 {
+			t.Fatalf("len(removed) = %d, want 2", len(removed))
 		}
 
 		projects, err := store.Load()

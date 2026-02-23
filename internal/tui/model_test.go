@@ -869,8 +869,8 @@ func (m *mockProjectStore) List() ([]project.Project, error) {
 	return m.projects, m.listErr
 }
 
-func (m *mockProjectStore) CleanStale() (int, error) {
-	return 0, nil
+func (m *mockProjectStore) CleanStale() ([]project.Project, error) {
+	return nil, nil
 }
 
 // mockSessionCreator implements tui.SessionCreator for testing.

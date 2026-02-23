@@ -12,7 +12,7 @@ import (
 // ProjectStore defines the interface for loading and cleaning projects.
 type ProjectStore interface {
 	List() ([]project.Project, error)
-	CleanStale() (int, error)
+	CleanStale() ([]project.Project, error)
 }
 
 // ProjectsLoadedMsg carries the result of loading projects from the store.

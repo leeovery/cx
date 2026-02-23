@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -63,6 +64,11 @@ func TestNonTmuxCommandsWorkWithoutTmux(t *testing.T) {
 			args: []string{"alias", "set", "proj", "/some/path"},
 			env:  map[string]string{"PORTAL_ALIASES_FILE": "TEMPDIR/aliases"},
 		},
+		{
+			name: "portal clean works without tmux",
+			args: []string{"clean"},
+			env:  map[string]string{"PORTAL_PROJECTS_FILE": "TEMPDIR/projects.json"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -70,8 +76,8 @@ func TestNonTmuxCommandsWorkWithoutTmux(t *testing.T) {
 			t.Setenv("PATH", "/nonexistent/path")
 
 			for k, v := range tt.env {
-				if v == "TEMPDIR/aliases" {
-					v = filepath.Join(t.TempDir(), "aliases")
+				if strings.HasPrefix(v, "TEMPDIR/") {
+					v = filepath.Join(t.TempDir(), strings.TrimPrefix(v, "TEMPDIR/"))
 				}
 				t.Setenv(k, v)
 			}

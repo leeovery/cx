@@ -13,6 +13,7 @@ var skipTmuxCheck = map[string]bool{
 	"init":    true,
 	"help":    true,
 	"alias":   true,
+	"clean":   true,
 }
 
 var rootCmd = &cobra.Command{

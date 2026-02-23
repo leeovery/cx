@@ -21,9 +21,9 @@ func (m *mockProjectStore) List() ([]project.Project, error) {
 	return m.projects, m.listErr
 }
 
-func (m *mockProjectStore) CleanStale() (int, error) {
+func (m *mockProjectStore) CleanStale() ([]project.Project, error) {
 	m.cleanCalled = true
-	return 0, nil
+	return nil, nil
 }
 
 func projectsLoaded(projects []project.Project) ui.ProjectsLoadedMsg {
