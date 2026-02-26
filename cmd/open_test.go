@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/resolver"
+	"github.com/leeovery/portal/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -213,11 +214,11 @@ func (m *mockSessionCreator) CreateFromDir(dir string, command []string) (string
 type mockQuickStarter struct {
 	ranPath    string
 	ranCommand []string
-	result     *quickStartResult
+	result     *session.QuickStartResult
 	err        error
 }
 
-func (m *mockQuickStarter) Run(path string, command []string) (*quickStartResult, error) {
+func (m *mockQuickStarter) Run(path string, command []string) (*session.QuickStartResult, error) {
 	m.ranPath = path
 	m.ranCommand = command
 	return m.result, m.err
@@ -279,7 +280,7 @@ func TestPathOpener(t *testing.T) {
 		creator := &mockSessionCreator{}
 		switcher := &mockSwitchClient{}
 		qs := &mockQuickStarter{
-			result: &quickStartResult{
+			result: &session.QuickStartResult{
 				SessionName: "myproject-abc123",
 				Dir:         "/home/user/project",
 				ExecArgs:    []string{"tmux", "new-session", "-A", "-s", "myproject-abc123", "-c", "/home/user/project"},
@@ -424,7 +425,7 @@ func TestPathOpener(t *testing.T) {
 
 	t.Run("outside tmux passes command to quickstart", func(t *testing.T) {
 		qs := &mockQuickStarter{
-			result: &quickStartResult{
+			result: &session.QuickStartResult{
 				SessionName: "myproject-abc123",
 				Dir:         "/home/user/project",
 				ExecArgs:    []string{"tmux", "new-session", "-A", "-s", "myproject-abc123", "-c", "/home/user/project", "/bin/zsh -ic 'claude --resume; exec /bin/zsh'"},

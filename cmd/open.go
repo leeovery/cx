@@ -158,16 +158,9 @@ type sessionCreatorIface interface {
 	CreateFromDir(dir string, command []string) (string, error)
 }
 
-// quickStartResult contains the result of a quick-start session creation.
-type quickStartResult struct {
-	SessionName string
-	Dir         string
-	ExecArgs    []string
-}
-
 // quickStarter runs the quick-start pipeline and returns exec args.
 type quickStarter interface {
-	Run(path string, command []string) (*quickStartResult, error)
+	Run(path string, command []string) (*session.QuickStartResult, error)
 }
 
 // execer abstracts process replacement for testability.
@@ -188,17 +181,9 @@ type quickStartAdapter struct {
 	qs *session.QuickStart
 }
 
-// Run runs the quick-start pipeline and converts the result.
-func (a *quickStartAdapter) Run(path string, command []string) (*quickStartResult, error) {
-	result, err := a.qs.Run(path, command)
-	if err != nil {
-		return nil, err
-	}
-	return &quickStartResult{
-		SessionName: result.SessionName,
-		Dir:         result.Dir,
-		ExecArgs:    result.ExecArgs,
-	}, nil
+// Run delegates to the underlying QuickStart pipeline.
+func (a *quickStartAdapter) Run(path string, command []string) (*session.QuickStartResult, error) {
+	return a.qs.Run(path, command)
 }
 
 // PathOpener handles creating a new tmux session from a resolved path.
