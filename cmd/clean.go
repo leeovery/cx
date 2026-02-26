@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/leeovery/portal/internal/project"
 	"github.com/spf13/cobra"
@@ -50,16 +48,7 @@ func loadProjectStore() (*project.Store, error) {
 // Uses PORTAL_PROJECTS_FILE env var if set (for testing), otherwise
 // defaults to ~/.config/portal/projects.json.
 func projectsFilePath() (string, error) {
-	if envPath := os.Getenv("PORTAL_PROJECTS_FILE"); envPath != "" {
-		return envPath, nil
-	}
-
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to determine config directory: %w", err)
-	}
-
-	return filepath.Join(configDir, "portal", "projects.json"), nil
+	return configFilePath("PORTAL_PROJECTS_FILE", "projects.json")
 }
 
 func init() {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -245,11 +244,11 @@ func (po *PathOpener) Open(resolvedPath string, command []string) error {
 func openPath(resolvedPath string) error {
 	client := tmux.NewClient(&tmux.RealCommander{})
 	gitResolver := &resolverAdapter{}
-	configDir, err := os.UserConfigDir()
+	projectsPath, err := projectsFilePath()
 	if err != nil {
-		return fmt.Errorf("failed to determine config directory: %w", err)
+		return err
 	}
-	store := project.NewStore(filepath.Join(configDir, "portal", "projects.json"))
+	store := project.NewStore(projectsPath)
 	gen := session.NewNanoIDGenerator()
 
 	insideTmux := tmux.InsideTmux()

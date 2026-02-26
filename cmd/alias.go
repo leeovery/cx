@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/leeovery/portal/internal/alias"
 	"github.com/leeovery/portal/internal/resolver"
@@ -101,16 +99,7 @@ func loadAliasStore() (*alias.Store, error) {
 // Uses PORTAL_ALIASES_FILE env var if set (for testing), otherwise
 // defaults to ~/.config/portal/aliases.
 func aliasFilePath() (string, error) {
-	if envPath := os.Getenv("PORTAL_ALIASES_FILE"); envPath != "" {
-		return envPath, nil
-	}
-
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to determine config directory: %w", err)
-	}
-
-	return filepath.Join(configDir, "portal", "aliases"), nil
+	return configFilePath("PORTAL_ALIASES_FILE", "aliases")
 }
 
 func init() {
