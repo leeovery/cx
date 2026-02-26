@@ -1266,6 +1266,102 @@ func TestInitialFilter(t *testing.T) {
 			t.Errorf("InitialFilter() = %q, want empty", m.InitialFilter())
 		}
 	})
+
+	t.Run("SessionsMsg activates filter mode when initial filter set", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "myapp-dev", Windows: 1, Attached: false},
+			{Name: "other", Windows: 2, Attached: false},
+			{Name: "myapp-prod", Windows: 3, Attached: false},
+		}
+		m := tui.New(&mockSessionLister{sessions: sessions})
+		m = m.WithInitialFilter("myapp")
+
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		view := model.View()
+		// Should be in filter mode with filter text pre-filled
+		if !strings.Contains(view, "filter: myapp") {
+			t.Errorf("expected 'filter: myapp' in view, got:\n%s", view)
+		}
+		// Should show matching sessions
+		if !strings.Contains(view, "myapp-dev") {
+			t.Errorf("expected 'myapp-dev' in filtered view, got:\n%s", view)
+		}
+		if !strings.Contains(view, "myapp-prod") {
+			t.Errorf("expected 'myapp-prod' in filtered view, got:\n%s", view)
+		}
+		// Should not show non-matching sessions
+		if strings.Contains(view, "other") {
+			t.Errorf("'other' should be filtered out, got:\n%s", view)
+		}
+		// Should show new in project option
+		if !strings.Contains(view, "[n] new in project...") {
+			t.Errorf("expected '[n] new in project...' in view, got:\n%s", view)
+		}
+	})
+
+	t.Run("initial filter consumed on first load only", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "myapp-dev", Windows: 1, Attached: false},
+			{Name: "other", Windows: 2, Attached: false},
+		}
+		m := tui.New(&mockSessionLister{sessions: sessions})
+		m = m.WithInitialFilter("myapp")
+
+		var model tea.Model = m
+		// First SessionsMsg — activates filter mode
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Exit filter mode with Esc
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+		// Second SessionsMsg — should NOT re-activate filter mode
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		view := model.View()
+		if strings.Contains(view, "filter:") {
+			t.Errorf("second SessionsMsg should not re-activate filter mode, got:\n%s", view)
+		}
+		// All sessions should be visible (no filter applied)
+		if !strings.Contains(view, "myapp-dev") {
+			t.Errorf("expected 'myapp-dev' visible after filter consumed, got:\n%s", view)
+		}
+		if !strings.Contains(view, "other") {
+			t.Errorf("expected 'other' visible after filter consumed, got:\n%s", view)
+		}
+	})
+
+	t.Run("command-pending mode preserved with initial filter", func(t *testing.T) {
+		store := &mockProjectStore{
+			projects: []project.Project{
+				{Path: "/code/myapp", Name: "myapp"},
+				{Path: "/code/other", Name: "other"},
+			},
+		}
+		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
+
+		m := tui.New(
+			&mockSessionLister{sessions: []tmux.Session{}},
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+		).WithCommand([]string{"claude"}).WithInitialFilter("myapp")
+
+		var model tea.Model = m
+		cmd := m.Init()
+		msg := cmd()
+		model, _ = model.Update(msg)
+
+		view := model.View()
+		// Should show command header (command-pending mode)
+		if !strings.Contains(view, "Command: claude") {
+			t.Errorf("expected command-pending mode header, got:\n%s", view)
+		}
+		// Should show filter text pre-filled in project picker
+		if !strings.Contains(view, "filter: myapp") {
+			t.Errorf("expected pre-filled filter 'myapp' in project picker, got:\n%s", view)
+		}
+	})
 }
 
 func TestEmptyState(t *testing.T) {

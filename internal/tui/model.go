@@ -329,6 +329,11 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 		}
 		m.loaded = true
+		if m.initialFilter != "" {
+			m.filterMode = true
+			m.filterText = m.initialFilter
+			m.initialFilter = ""
+		}
 
 	case ui.ProjectsLoadedMsg:
 		// Forward to project picker if we're transitioning
