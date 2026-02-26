@@ -144,50 +144,55 @@ func (m Model) WithInsideTmux(currentSession string) Model {
 	return m
 }
 
+// Option configures an optional dependency on Model.
+type Option func(*Model)
+
+// WithKiller sets the session killer dependency.
+func WithKiller(k SessionKiller) Option {
+	return func(m *Model) {
+		m.sessionKiller = k
+	}
+}
+
+// WithRenamer sets the session renamer dependency.
+func WithRenamer(r SessionRenamer) Option {
+	return func(m *Model) {
+		m.sessionRenamer = r
+	}
+}
+
+// WithProjectStore sets the project store dependency.
+func WithProjectStore(s ProjectStore) Option {
+	return func(m *Model) {
+		m.projectStore = s
+	}
+}
+
+// WithSessionCreator sets the session creator dependency.
+func WithSessionCreator(c SessionCreator) Option {
+	return func(m *Model) {
+		m.sessionCreator = c
+	}
+}
+
+// WithDirLister sets the directory lister and starting path for the file browser.
+func WithDirLister(d DirLister, startPath string) Option {
+	return func(m *Model) {
+		m.dirLister = d
+		m.startPath = startPath
+	}
+}
+
 // New creates a Model that fetches sessions from the given SessionLister.
-func New(lister SessionLister) Model {
-	return Model{
+// Optional dependencies are configured via functional options.
+func New(lister SessionLister, opts ...Option) Model {
+	m := Model{
 		sessionLister: lister,
 	}
-}
-
-// NewWithKiller creates a Model with session listing and killing support.
-func NewWithKiller(lister SessionLister, killer SessionKiller) Model {
-	return Model{
-		sessionLister: lister,
-		sessionKiller: killer,
+	for _, opt := range opts {
+		opt(&m)
 	}
-}
-
-// NewWithRenamer creates a Model with session listing, killing, and renaming support.
-func NewWithRenamer(lister SessionLister, killer SessionKiller, renamer SessionRenamer) Model {
-	return Model{
-		sessionLister:  lister,
-		sessionKiller:  killer,
-		sessionRenamer: renamer,
-	}
-}
-
-// NewWithDeps creates a Model with all dependencies for full functionality.
-func NewWithDeps(lister SessionLister, killer SessionKiller, store ProjectStore, creator SessionCreator) Model {
-	return Model{
-		sessionLister:  lister,
-		sessionKiller:  killer,
-		projectStore:   store,
-		sessionCreator: creator,
-	}
-}
-
-// NewWithAllDeps creates a Model with all dependencies including the file browser.
-func NewWithAllDeps(lister SessionLister, killer SessionKiller, store ProjectStore, creator SessionCreator, dirLister DirLister, startPath string) Model {
-	return Model{
-		sessionLister:  lister,
-		sessionKiller:  killer,
-		projectStore:   store,
-		sessionCreator: creator,
-		dirLister:      dirLister,
-		startPath:      startPath,
-	}
+	return m
 }
 
 // NewModelWithSessions creates a Model pre-populated with sessions, for testing.

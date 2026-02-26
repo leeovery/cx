@@ -688,11 +688,10 @@ func TestNewInProjectOption(t *testing.T) {
 		}
 		creator := &mockSessionCreator{}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		)
 		// Load sessions
 		var model tea.Model = m
@@ -724,11 +723,10 @@ func TestNewInProjectOption(t *testing.T) {
 		}
 		creator := &mockSessionCreator{}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -763,11 +761,10 @@ func TestNewInProjectOption(t *testing.T) {
 			sessionName: "myapp-abc123",
 		}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -810,11 +807,10 @@ func TestNewInProjectOption(t *testing.T) {
 			sessionName: "myapp-abc123",
 		}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude", "--resume"})
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -858,11 +854,10 @@ func TestNewInProjectOption(t *testing.T) {
 			sessionName: "myapp-abc123",
 		}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -905,11 +900,10 @@ func TestNewInProjectOption(t *testing.T) {
 		}
 		creator := &mockSessionCreator{}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: []tmux.Session{}})
@@ -1013,13 +1007,11 @@ func TestFileBrowserIntegration(t *testing.T) {
 			},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -1055,13 +1047,11 @@ func TestFileBrowserIntegration(t *testing.T) {
 			entries: map[string][]browser.DirEntry{},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -1096,13 +1086,11 @@ func TestFileBrowserIntegration(t *testing.T) {
 			entries: map[string][]browser.DirEntry{},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -1132,13 +1120,11 @@ func TestFileBrowserIntegration(t *testing.T) {
 			entries: map[string][]browser.DirEntry{},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		).WithCommand([]string{"vim", "."})
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -1181,13 +1167,11 @@ func TestFileBrowserIntegration(t *testing.T) {
 			},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -1223,13 +1207,11 @@ func TestFileBrowserIntegration(t *testing.T) {
 			},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: sessions},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		)
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
@@ -1542,7 +1524,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1562,7 +1544,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1599,7 +1581,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1627,7 +1609,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1657,7 +1639,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1693,7 +1675,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1732,7 +1714,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1755,7 +1737,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{err: fmt.Errorf("session not found")}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1788,7 +1770,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{err: fmt.Errorf("session not found")}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1814,7 +1796,7 @@ func TestKillSession(t *testing.T) {
 		}
 		killer := &mockSessionKiller{}
 		lister := &mockSessionLister{sessions: sessions}
-		m := tui.NewWithKiller(lister, killer)
+		m := tui.New(lister, tui.WithKiller(killer))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1844,7 +1826,7 @@ func TestKillSession(t *testing.T) {
 		store := &mockProjectStore{projects: []project.Project{}}
 		creator := &mockSessionCreator{}
 
-		m := tui.NewWithDeps(lister, killer, store, creator)
+		m := tui.New(lister, tui.WithKiller(killer), tui.WithProjectStore(store), tui.WithSessionCreator(creator))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1866,7 +1848,7 @@ func TestKillSession(t *testing.T) {
 		creator := &mockSessionCreator{}
 		dirLister := &mockDirLister{entries: map[string][]browser.DirEntry{}}
 
-		m := tui.NewWithAllDeps(lister, killer, store, creator, dirLister, "/home/user")
+		m := tui.New(lister, tui.WithKiller(killer), tui.WithProjectStore(store), tui.WithSessionCreator(creator), tui.WithDirLister(dirLister, "/home/user"))
 		var model tea.Model = m
 		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
 
@@ -1894,7 +1876,7 @@ func (m *mockSessionRenamer) RenameSession(oldName, newName string) error {
 
 // newModelWithRenamer creates a model with lister, killer, and renamer for rename tests.
 func newModelWithRenamer(lister *mockSessionLister, killer *mockSessionKiller, renamer *mockSessionRenamer) tui.Model {
-	return tui.NewWithRenamer(lister, killer, renamer)
+	return tui.New(lister, tui.WithKiller(killer), tui.WithRenamer(renamer))
 }
 
 func TestRenameSession(t *testing.T) {
@@ -2755,11 +2737,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude"})
 
 		// Init should load projects (not sessions)
@@ -2803,11 +2784,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude"})
 
 		var model tea.Model = m
@@ -2829,11 +2809,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude", "--resume", "--model", "opus"})
 
 		var model tea.Model = m
@@ -2855,13 +2834,12 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{
 				{Name: "existing", Windows: 2, Attached: false},
 			}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude"})
 
 		var model tea.Model = m
@@ -2884,11 +2862,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude", "--resume"})
 
 		var model tea.Model = m
@@ -2923,11 +2900,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude"})
 
 		var model tea.Model = m
@@ -2963,11 +2939,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude"}).WithInitialFilter("myapp")
 
 		var model tea.Model = m
@@ -2993,13 +2968,11 @@ func TestCommandPendingMode(t *testing.T) {
 			},
 		}
 
-		m := tui.NewWithAllDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
-			lister,
-			"/home/user",
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(lister, "/home/user"),
 		).WithCommand([]string{"vim", "."})
 
 		var model tea.Model = m
@@ -3066,11 +3039,10 @@ func TestCommandPendingMode(t *testing.T) {
 		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
 
 		longCmd := "some-very-long-command-name --with-many-flags --verbose --output=/tmp/really-long-path"
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{longCmd})
 
 		var model tea.Model = m
@@ -3091,11 +3063,10 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		creator := &mockSessionCreator{sessionName: "code-abc123"}
 
-		m := tui.NewWithDeps(
+		m := tui.New(
 			&mockSessionLister{sessions: []tmux.Session{}},
-			nil,
-			store,
-			creator,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
 		).WithCommand([]string{"claude"})
 
 		var model tea.Model = m
@@ -3112,6 +3083,174 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 		if !strings.Contains(view, "No saved projects yet.") {
 			t.Errorf("expected empty projects message, got:\n%s", view)
+		}
+	})
+}
+
+func TestNewWithFunctionalOptions(t *testing.T) {
+	t.Run("New with no options creates model with lister only", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 1, Attached: false},
+		}
+		lister := &mockSessionLister{sessions: sessions}
+		m := tui.New(lister)
+
+		cmd := m.Init()
+		if cmd == nil {
+			t.Fatal("Init() returned nil command")
+		}
+		msg := cmd()
+		sessionsMsg, ok := msg.(tui.SessionsMsg)
+		if !ok {
+			t.Fatalf("expected SessionsMsg, got %T", msg)
+		}
+		if len(sessionsMsg.Sessions) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(sessionsMsg.Sessions))
+		}
+	})
+
+	t.Run("WithKiller enables kill functionality", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+		}
+		killer := &mockSessionKiller{}
+		lister := &mockSessionLister{sessions: sessions}
+		m := tui.New(lister, tui.WithKiller(killer))
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Press K — should enter confirmation mode
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'K'}})
+		view := model.View()
+		if !strings.Contains(view, "Kill session 'alpha'? (y/n)") {
+			t.Errorf("expected confirmation prompt, got:\n%s", view)
+		}
+	})
+
+	t.Run("WithRenamer enables rename functionality", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+		}
+		renamer := &mockSessionRenamer{}
+		lister := &mockSessionLister{sessions: sessions}
+		m := tui.New(lister, tui.WithRenamer(renamer))
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Press R — should enter rename mode
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'R'}})
+		view := model.View()
+		if !strings.Contains(view, "Rename:") {
+			t.Errorf("expected rename prompt, got:\n%s", view)
+		}
+	})
+
+	t.Run("WithProjectStore and WithSessionCreator enable project picker", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 1, Attached: false},
+		}
+		store := &mockProjectStore{
+			projects: []project.Project{
+				{Path: "/code/myapp", Name: "myapp"},
+			},
+		}
+		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
+		lister := &mockSessionLister{sessions: sessions}
+
+		m := tui.New(lister,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Navigate to project picker
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model, _ = model.Update(ui.ProjectsLoadedMsg{Projects: store.projects})
+
+		view := model.View()
+		if !strings.Contains(view, "Select a project") {
+			t.Errorf("expected project picker view, got:\n%s", view)
+		}
+	})
+
+	t.Run("WithDirLister enables file browser", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "dev", Windows: 1, Attached: false},
+		}
+		store := &mockProjectStore{
+			projects: []project.Project{
+				{Path: "/code/myapp", Name: "myapp"},
+			},
+		}
+		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
+		dirLister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{
+				"/home/user": {{Name: "code"}, {Name: "docs"}},
+			},
+		}
+		lister := &mockSessionLister{sessions: sessions}
+
+		m := tui.New(lister,
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(dirLister, "/home/user"),
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Navigate to project picker
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model, _ = model.Update(ui.ProjectsLoadedMsg{Projects: store.projects})
+
+		// Trigger browse
+		model, _ = model.Update(ui.BrowseSelectedMsg{})
+
+		view := model.View()
+		if !strings.Contains(view, "/home/user") {
+			t.Errorf("expected file browser with starting path, got:\n%s", view)
+		}
+		if !strings.Contains(view, "code") {
+			t.Errorf("expected file browser to show entries, got:\n%s", view)
+		}
+	})
+
+	t.Run("all options combined", func(t *testing.T) {
+		sessions := []tmux.Session{
+			{Name: "alpha", Windows: 1, Attached: false},
+		}
+		killer := &mockSessionKiller{}
+		renamer := &mockSessionRenamer{}
+		store := &mockProjectStore{
+			projects: []project.Project{
+				{Path: "/code/myapp", Name: "myapp"},
+			},
+		}
+		creator := &mockSessionCreator{sessionName: "myapp-abc123"}
+		dirLister := &mockDirLister{
+			entries: map[string][]browser.DirEntry{
+				"/home/user": {{Name: "code"}},
+			},
+		}
+		lister := &mockSessionLister{sessions: sessions}
+
+		m := tui.New(lister,
+			tui.WithKiller(killer),
+			tui.WithRenamer(renamer),
+			tui.WithProjectStore(store),
+			tui.WithSessionCreator(creator),
+			tui.WithDirLister(dirLister, "/home/user"),
+		)
+		var model tea.Model = m
+		model, _ = model.Update(tui.SessionsMsg{Sessions: sessions})
+
+		// Verify kill works
+		model, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'K'}})
+		view := model.View()
+		if !strings.Contains(view, "Kill session 'alpha'? (y/n)") {
+			t.Errorf("expected kill confirmation, got:\n%s", view)
 		}
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/leeovery/portal/internal/browser"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/session"
@@ -280,10 +281,37 @@ func (r *resolverAdapter) Resolve(dir string) (string, error) {
 	return resolver.ResolveGitRoot(dir, &resolver.RealCommandRunner{})
 }
 
+// osDirLister adapts browser.ListDirectories to the tui.DirLister interface.
+type osDirLister struct{}
+
+// ListDirectories lists directory entries at the given path.
+func (o *osDirLister) ListDirectories(path string, showHidden bool) ([]browser.DirEntry, error) {
+	return browser.ListDirectories(path, showHidden)
+}
+
 // openTUI launches the interactive session picker with an optional initial filter.
 func openTUI(initialFilter string) error {
 	client := tmux.NewClient(&tmux.RealCommander{})
-	m := tui.NewWithKiller(client, client)
+	gitResolver := &resolverAdapter{}
+	gen := session.NewNanoIDGenerator()
+
+	store, err := loadProjectStore()
+	if err != nil {
+		return err
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to determine working directory: %w", err)
+	}
+
+	m := tui.New(client,
+		tui.WithKiller(client),
+		tui.WithRenamer(client),
+		tui.WithProjectStore(store),
+		tui.WithSessionCreator(session.NewSessionCreator(gitResolver, store, client, gen)),
+		tui.WithDirLister(&osDirLister{}, cwd),
+	)
 	if len(parsedCommand) > 0 {
 		m = m.WithCommand(parsedCommand)
 	}
