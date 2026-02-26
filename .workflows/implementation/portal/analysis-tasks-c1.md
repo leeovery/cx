@@ -6,7 +6,7 @@ total_proposed: 6
 # Analysis Tasks: Portal (Cycle 1)
 
 ## Task 1: Wire all dependencies into openTUI and adopt functional options for tui.Model
-status: pending
+status: approved
 severity: high
 sources: standards, architecture
 
@@ -41,7 +41,7 @@ sources: standards, architecture
 - Integration test or manual verification that `portal open` TUI can create a new session from a project
 
 ## Task 2: Extract shared session-creation pipeline from SessionCreator and QuickStart
-status: pending
+status: approved
 severity: high
 sources: duplication, architecture
 
@@ -68,7 +68,7 @@ sources: duplication, architecture
 - Unit test for the extracted prepareSession function covering git resolution, name generation, project upsert, and shell command building
 
 ## Task 3: Fix GoReleaser config to use brews instead of homebrew_casks
-status: pending
+status: approved
 severity: medium
 sources: standards, architecture
 
@@ -92,7 +92,7 @@ sources: standards, architecture
 - Run `goreleaser check` to validate config syntax
 
 ## Task 4: Extract fuzzyMatch into shared internal package
-status: pending
+status: approved
 severity: medium
 sources: duplication, architecture
 
@@ -118,7 +118,7 @@ sources: duplication, architecture
 - Unit tests in `internal/fuzzy/match_test.go` for empty input, exact match, subsequence match, no match, case sensitivity
 
 ## Task 5: Extract config file path helper to eliminate duplication
-status: pending
+status: approved
 severity: medium
 sources: duplication
 
@@ -145,7 +145,7 @@ sources: duplication
 - Unit test for `configFilePath` with env var set, env var unset
 
 ## Task 6: Pass parsedCommand as parameter instead of package-level variable
-status: pending
+status: approved
 severity: medium
 sources: standards, architecture
 

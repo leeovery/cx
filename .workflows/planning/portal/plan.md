@@ -221,3 +221,19 @@ approved_at: 2026-02-22
 | portal-6-7 | Version Command | version not set at build time | authored | tick-d7e8f0 |
 | portal-6-8 | GoReleaser Configuration | none | authored | tick-f1a2b3 |
 | portal-6-9 | GitHub Actions Release Workflow | tag without v prefix, workflow permissions | authored | tick-c4d5e6 |
+
+### Phase 7: Analysis (Cycle 1)
+status: approved
+ext_id: tick-98bd31
+
+**Goal**: Address findings from Analysis (Cycle 1).
+
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| portal-7-1 | Wire all dependencies into openTUI and adopt functional options for tui.Model | none | authored | tick-feb4e0 |
+| portal-7-2 | Extract shared session-creation pipeline from SessionCreator and QuickStart | none | authored | tick-7943e4 |
+| portal-7-3 | Fix GoReleaser config to use brews instead of homebrew_casks | none | authored | tick-4aedcc |
+| portal-7-4 | Extract fuzzyMatch into shared internal package | none | authored | tick-ae743d |
+| portal-7-5 | Extract config file path helper to eliminate duplication | none | authored | tick-218aad |
+| portal-7-6 | Pass parsedCommand as parameter instead of package-level variable | none | authored | tick-4a035c |
