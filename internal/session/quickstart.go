@@ -1,10 +1,5 @@
 package session
 
-import (
-	"fmt"
-	"path/filepath"
-)
-
 // SessionChecker reports whether a tmux session exists by name.
 type SessionChecker interface {
 	HasSession(name string) bool
@@ -49,35 +44,19 @@ func NewQuickStart(git GitResolver, store ProjectStore, checker SessionChecker, 
 // and returns the result with exec args for atomic tmux create-or-attach handoff.
 // When command is non-nil and non-empty, a shell-command is appended to exec args.
 func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, error) {
-	resolvedDir, err := qs.git.Resolve(path)
+	prepared, err := PrepareSession(path, command, qs.git, qs.store, qs.checker, qs.gen, qs.shell)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve directory: %w", err)
+		return nil, err
 	}
 
-	projectName := filepath.Base(resolvedDir)
-
-	exists := func(name string) bool {
-		return qs.checker.HasSession(name)
-	}
-
-	sessionName, err := GenerateSessionName(projectName, qs.gen, exists)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate session name: %w", err)
-	}
-
-	if err := qs.store.Upsert(resolvedDir, projectName); err != nil {
-		return nil, fmt.Errorf("failed to upsert project: %w", err)
-	}
-
-	execArgs := []string{"tmux", "new-session", "-A", "-s", sessionName, "-c", resolvedDir}
-	shellCmd := BuildShellCommand(command, qs.shell)
-	if shellCmd != "" {
-		execArgs = append(execArgs, shellCmd)
+	execArgs := []string{"tmux", "new-session", "-A", "-s", prepared.SessionName, "-c", prepared.ResolvedDir}
+	if prepared.ShellCmd != "" {
+		execArgs = append(execArgs, prepared.ShellCmd)
 	}
 
 	return &QuickStartResult{
-		SessionName: sessionName,
-		Dir:         resolvedDir,
+		SessionName: prepared.SessionName,
+		Dir:         prepared.ResolvedDir,
 		ExecArgs:    execArgs,
 	}, nil
 }

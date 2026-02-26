@@ -3,7 +3,6 @@ package session
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -71,31 +70,14 @@ func NewSessionCreator(git GitResolver, store ProjectStore, tmux TmuxClient, gen
 // When command is non-nil and non-empty, constructs a shell-command for tmux.
 // Returns the generated session name.
 func (sc *SessionCreator) CreateFromDir(dir string, command []string) (string, error) {
-	resolvedDir, err := sc.git.Resolve(dir)
+	prepared, err := PrepareSession(dir, command, sc.git, sc.store, sc.tmux, sc.gen, sc.shell)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve directory: %w", err)
+		return "", err
 	}
 
-	projectName := filepath.Base(resolvedDir)
-
-	exists := func(name string) bool {
-		return sc.tmux.HasSession(name)
-	}
-
-	sessionName, err := GenerateSessionName(projectName, sc.gen, exists)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate session name: %w", err)
-	}
-
-	if err := sc.store.Upsert(resolvedDir, projectName); err != nil {
-		return "", fmt.Errorf("failed to upsert project: %w", err)
-	}
-
-	shellCmd := BuildShellCommand(command, sc.shell)
-
-	if err := sc.tmux.NewSession(sessionName, resolvedDir, shellCmd); err != nil {
+	if err := sc.tmux.NewSession(prepared.SessionName, prepared.ResolvedDir, prepared.ShellCmd); err != nil {
 		return "", fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	return sessionName, nil
+	return prepared.SessionName, nil
 }
