@@ -8,7 +8,7 @@ review_cycle: 0
 finding_gate_mode: gated
 sources:
   - name: tui-session-picker
-    status: pending
+    status: incorporated
 ---
 
 # Specification: TUI Session Picker
