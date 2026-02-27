@@ -33,9 +33,9 @@ The original proposal (from `tui-session-picker-ux.md`) was to merge sessions an
 - [x] How should page switching and keybindings work?
 - [x] How should filter (`/`) work?
 - [x] What happens to command-pending mode (`portal open -e cmd`)?
-- [ ] How should empty states be handled (no sessions, no projects, both empty)?
-- [ ] What's the right approach for the `[b] browse for directory...` item?
-- [ ] How should the `n` key auto-execute behavior work?
+- [x] How should empty states be handled (no sessions, no projects, both empty)?
+- [x] What's the right approach for the `[b] browse for directory...` item?
+- [x] How should the `n` key auto-execute behavior work?
 - [ ] Should we adopt `bubbles/list` and other bubbles components?
 
 ---
@@ -157,5 +157,40 @@ Help bar in command-pending mode:
 `[enter] run here  [b] browse  [/] filter  [q] quit`
 
 Selecting a project creates a session with the command and attaches. `q`/`Esc` cancels entirely.
+
+---
+
+## How should empty states be handled?
+
+### Decision
+
+**Default page based on what exists:**
+- Sessions exist → default to Sessions page
+- No sessions, projects exist → default to Projects page
+- Both empty → default to Projects page (useful action is `b` to browse)
+
+Empty pages are always reachable via `p`/`s` — show the `bubbles/list` built-in empty message ("No sessions running" / "No saved projects"). Consistent navigation regardless of state.
+
+---
+
+## What's the right approach for browse?
+
+### Options Considered
+
+**Option A — List item.** "Browse for directory..." as the last item in the projects list. Custom delegate renders it differently. But it's an action, not a project — filtering might hide it.
+
+**Option B — Keybinding only.** `b` opens the file browser from anywhere on the Projects page. Not a list item — shown in the help bar. Always accessible regardless of filter state.
+
+### Decision
+
+**Keybinding only (Option B).** `b` opens the file browser as a separate sub-view. Always accessible, not polluted by filtering, cleaner list. File browser sub-view remains as-is — `Esc` returns to Projects page.
+
+---
+
+## How should the `n` key auto-execute behavior work?
+
+### Decision
+
+**`n` immediately creates a session in cwd and attaches.** No confirmation, no cursor movement — same as `portal open .` / `x .`. Works from both pages (cwd doesn't change based on page). Works in command-pending mode (creates session in cwd with the pending command). No spinner — session creation is near-instant.
 
 ---
