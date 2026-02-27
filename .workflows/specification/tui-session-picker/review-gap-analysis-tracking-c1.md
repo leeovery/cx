@@ -24,8 +24,8 @@ Kill, rename, and delete all specify what happens on confirm (e.g., "On confirm:
 Add to the Edit section under Projects Page:
 > - On confirm: save changes to project config, refresh list
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added on-confirm behavior for consistency with other modal actions.
 
 ---
 

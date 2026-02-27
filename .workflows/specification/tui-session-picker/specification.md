@@ -71,6 +71,7 @@ A full `bubbles/list.Model` displaying all saved projects.
 
 **Edit:**
 - `e` triggers a modal overlay with the project's name field, alias list, and full edit controls
+- On confirm: save changes to project config, refresh list
 
 **Delete:**
 - `d` triggers a modal overlay — delete confirmation for the selected project
