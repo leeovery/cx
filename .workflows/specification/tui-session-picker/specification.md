@@ -117,6 +117,15 @@ When `portal open -e cmd` is used, the TUI enters command-pending mode.
 - `b` — opens file browser (same as normal mode)
 - `q`/`Esc` — cancels entirely (exits TUI without creating a session)
 
+### Filter & Initial Filter
+
+**Independent filters per page.** Each `bubbles/list` manages its own filter state. Filtering sessions doesn't affect projects and vice versa. Switching pages doesn't carry filter text across. This is the default `bubbles/list` behavior — no extra work needed.
+
+**Initial filter (`--filter` flag):**
+- Applied to the default page during initialization
+- Call `SetFilterText()` and `SetFilterState(list.FilterApplied)` on whichever page is the default (sessions if they exist, otherwise projects)
+- Same behavior as the current implementation, using `bubbles/list` API
+
 ### Page Navigation & Defaults
 
 **Page switching:**
