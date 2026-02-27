@@ -31,6 +31,23 @@ The TUI is rebuilt as a **two-page architecture** using `charmbracelet/bubbles/l
 - Hand-rolled `strings.Builder` rendering is replaced by `bubbles/list` delegates and lipgloss styling.
 - Any code, tests, or message types that exist solely to support the old `ProjectPickerModel` should be removed rather than left as dead code.
 
+### Page Navigation & Defaults
+
+**Page switching:**
+- `p` — go to Projects page (shown in Sessions help bar)
+- `s` — go to Sessions page (shown in Projects help bar)
+- `x` — toggle between pages (undocumented power-user shortcut)
+- All keybindings are lowercase
+
+**Default page on launch:**
+- Sessions exist → default to Sessions page
+- No sessions, projects exist → default to Projects page
+- Both empty → default to Projects page (useful action is `b` to browse)
+
+**Empty page behavior:**
+- Empty pages are always reachable via `p`/`s` — navigation is consistent regardless of state
+- Empty pages display the `bubbles/list` built-in empty message ("No sessions running" / "No saved projects")
+
 ---
 
 ## Working Notes
