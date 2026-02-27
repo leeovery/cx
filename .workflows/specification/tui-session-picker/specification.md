@@ -83,6 +83,23 @@ A full `bubbles/list.Model` displaying all saved projects.
 - On directory selection: browser emits `BrowserDirSelectedMsg{Path}` → parent creates session and exits TUI
 - On cancel: `BrowserCancelMsg` → return to Projects page
 
+### Modal System
+
+All action prompts use a **single reusable modal overlay pattern**. Bubble Tea doesn't have built-in modals — `lipgloss.Place()` positions styled content over the list output in `View()`.
+
+**Behavior:**
+- Action triggers modal → list stays visible but inactive behind it
+- All key input routes to the modal while it's active
+- `Esc` always dismisses the modal and returns to the list
+
+**Modal types:**
+- **Kill confirmation** — small modal: "Kill {name}? (y/n)"
+- **Rename** — small modal with `bubbles/textinput` pre-populated with the current session name
+- **Project edit** — larger modal with name field, alias list, full edit controls
+- **Delete confirmation** — small modal: delete project confirmation (y/n)
+
+**Why modals over inline rendering:** The delegate-level approach (rendering confirmation/input inline in the highlighted list item) requires delegates to know about multiple modal states. Modals unify all action prompts into one consistent UX pattern.
+
 ### Page Navigation & Defaults
 
 **Page switching:**
