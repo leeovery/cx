@@ -135,6 +135,17 @@ When `portal open -e cmd` is used, the TUI enters command-pending mode.
 - Works in command-pending mode (creates session in cwd with the pending command)
 - No spinner — session creation is near-instant
 
+### `Esc` Key — Progressive Back/Dismiss
+
+`Esc` acts as a progressive "back" key, unwinding one layer of context at a time:
+
+1. **Modal active** → dismiss modal, return to list
+2. **Filter active** → clear filter (`bubbles/list` handles this)
+3. **File browser active** → return to Projects page
+4. **Sessions or Projects page (nothing active)** → exit TUI
+
+This applies consistently across normal and command-pending modes.
+
 ### Page Navigation & Defaults
 
 **Page switching:**
