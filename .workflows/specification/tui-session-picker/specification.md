@@ -57,6 +57,32 @@ A full `bubbles/list.Model` displaying all active tmux sessions.
 **Attach:**
 - `enter` attaches to the selected session and exits the TUI
 
+### Projects Page
+
+A full `bubbles/list.Model` displaying all saved projects.
+
+**Help bar keybindings:**
+`[enter] new session  [e] edit  [d] delete  [s] sessions  [b] browse  [/] filter  [q] quit`
+
+**Item display:** Each project item is rendered via a custom `ItemDelegate`. Projects show the project name and path.
+
+**New session:**
+- `enter` creates a new session in the selected project's directory and attaches
+
+**Edit:**
+- `e` triggers a modal overlay with the project's name field, alias list, and full edit controls
+
+**Delete:**
+- `d` triggers a modal overlay — delete confirmation for the selected project
+- On confirm: remove project from config, refresh list
+
+**Browse:**
+- `b` opens the custom file browser as a separate sub-view from anywhere on the Projects page
+- Not a list item — always accessible regardless of filter state, shown in help bar
+- File browser sub-view remains as-is — `Esc` returns to Projects page
+- On directory selection: browser emits `BrowserDirSelectedMsg{Path}` → parent creates session and exits TUI
+- On cancel: `BrowserCancelMsg` → return to Projects page
+
 ### Page Navigation & Defaults
 
 **Page switching:**
