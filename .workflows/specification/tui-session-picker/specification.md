@@ -115,7 +115,7 @@ When `portal open -e cmd` is used, the TUI enters command-pending mode.
 **Actions:**
 - `enter` — creates a session in the selected project's directory with the pending command, then attaches
 - `b` — opens file browser (same as normal mode)
-- `q`/`Esc` — cancels entirely (exits TUI without creating a session)
+- `q`/`Esc` — cancels entirely (exits TUI without creating a session). When a filter is active, `Esc` first clears the filter (`bubbles/list` consumes it); a second `Esc` exits.
 
 ### Filter & Initial Filter
 
