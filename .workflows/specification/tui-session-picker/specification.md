@@ -31,6 +31,32 @@ The TUI is rebuilt as a **two-page architecture** using `charmbracelet/bubbles/l
 - Hand-rolled `strings.Builder` rendering is replaced by `bubbles/list` delegates and lipgloss styling.
 - Any code, tests, or message types that exist solely to support the old `ProjectPickerModel` should be removed rather than left as dead code.
 
+### Sessions Page
+
+A full `bubbles/list.Model` displaying all active tmux sessions.
+
+**Help bar keybindings:**
+`[enter] attach  [r] rename  [k] kill  [p] projects  [n] new here  [/] filter  [q] quit`
+
+**Item display:** Each session item is rendered via a custom `ItemDelegate`. Sessions show the session name, window count, and attached badge.
+
+**Inside-tmux mode:**
+- The current session is **excluded** from the items list — filtered out before calling `SetItems()`
+- The current session is displayed in the **list title**: `Sessions (current: {session-name})`
+
+**Kill confirmation:**
+- `k` triggers a modal overlay — "Kill {name}? (y/n)"
+- On confirm: kill session via tmux, fetch fresh session list, call `SetItems()` on the list
+- `bubbles/list` handles cursor repositioning automatically after item removal
+- If killed session was the last one, the list shows its empty state
+
+**Rename:**
+- `r` triggers a modal overlay with a `textinput` pre-populated with the current session name
+- On confirm: rename session via tmux, refresh list
+
+**Attach:**
+- `enter` attaches to the selected session and exits the TUI
+
 ### Page Navigation & Defaults
 
 **Page switching:**
