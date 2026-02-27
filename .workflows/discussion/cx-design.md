@@ -1,6 +1,7 @@
 ---
 topic: cx-design
 status: concluded
+work_type: greenfield
 date: 2026-01-22
 ---
 
@@ -482,4 +483,3 @@ A Go CLI for managing Claude Code sessions with Zellij. Single entry point (`cx`
 ### Next steps
 
 Ready for specification and planning phases.
-

@@ -1,6 +1,7 @@
 ---
 topic: zellij-to-tmux-migration
 status: concluded
+work_type: greenfield
 date: 2026-02-10
 ---
 

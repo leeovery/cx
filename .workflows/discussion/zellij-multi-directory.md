@@ -1,6 +1,7 @@
 ---
 topic: zellij-multi-directory
 status: concluded
+work_type: greenfield
 date: 2026-01-22
 ---
 
@@ -505,4 +506,3 @@ This discussion identified a fundamental model change for CX:
 2. **Reconcile with cx-design.md** - Mark superseded sections
 3. **Rename repository** - `cx` → `zw`
 4. **Implementation planning** - New plan reflecting the simpler model
-

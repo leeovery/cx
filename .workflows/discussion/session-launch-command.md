@@ -1,6 +1,7 @@
 ---
 topic: session-launch-command
 status: concluded
+work_type: greenfield
 date: 2026-02-12
 ---
 

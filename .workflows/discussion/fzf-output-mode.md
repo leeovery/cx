@@ -1,6 +1,7 @@
 ---
 topic: fzf-output-mode
 status: concluded
+work_type: greenfield
 date: 2026-01-25
 ---
 
@@ -171,4 +172,3 @@ done
 Add to CLI Commands section:
 - `zw list` — List running session names (for scripting/fzf)
 - `zw attach <name>` — Attach to session by name
-

@@ -1,6 +1,7 @@
 ---
 topic: git-root-and-completions
 status: concluded
+work_type: greenfield
 date: 2026-01-26
 ---
 

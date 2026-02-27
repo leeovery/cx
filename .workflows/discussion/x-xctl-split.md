@@ -1,6 +1,7 @@
 ---
 topic: x-xctl-split
 status: concluded
+work_type: greenfield
 date: 2026-02-11
 ---
 

@@ -3,6 +3,7 @@ topic: zw
 status: superseded
 superseded_by: portal
 type: feature
+work_type: greenfield
 date: 2026-01-31
 sources:
   - name: cx-design
