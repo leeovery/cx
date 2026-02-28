@@ -133,7 +133,7 @@ The spec's command-pending help bar excludes `e` (edit) and `d` (delete) compare
 - "normal mode retains s, x, e, and d keybindings"
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
