@@ -44,6 +44,19 @@ ext_id:
 - [ ] Help bar displays context-appropriate keybindings
 - [ ] Old `viewState` enum, hand-rolled session rendering, and manual cursor/filter logic are removed from the model
 
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| tui-session-picker-1-1 | Session List Item and Custom ItemDelegate | singular window pluralization, long session names, attached vs detached display | pending | |
+| tui-session-picker-1-2 | Sessions Page with bubbles/list Core | empty session list shows list empty state, SessionsMsg error triggers quit, inside-tmux with only current session | pending | |
+| tui-session-picker-1-3 | Modal Overlay System and Kill Confirmation | kill last remaining session shows empty state, kill error triggers refresh | pending | |
+| tui-session-picker-1-4 | Rename Modal with TextInput | empty rename input rejected, rename to same name, rename error | pending | |
+| tui-session-picker-1-5 | N-Key New Session in CWD | session creation error, no session creator configured | pending | |
+| tui-session-picker-1-6 | Built-in Filtering and Initial Filter | initial filter with no matches, empty initial filter is no-op | pending | |
+| tui-session-picker-1-7 | Page-Switching Skeleton and Help Bar | switching to empty stub page, switching back preserves list state | pending | |
+| tui-session-picker-1-8 | Esc Progressive Back Behavior | Esc during rename modal vs kill modal, Esc with filter active but no modal | pending | |
+| tui-session-picker-1-9 | Remove Old Hand-Rolled Session Code | none | pending | |
+
 ### Phase 2: Projects Page with bubbles/list
 status: approved
 approved_at: 2026-02-28
