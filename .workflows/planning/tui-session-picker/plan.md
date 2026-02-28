@@ -3,18 +3,18 @@ topic: tui-session-picker
 status: planning
 format: tick
 work_type: feature
-ext_id:
+ext_id: tick-dd35bb
 specification: ../specification/tui-session-picker/specification.md
 spec_commit: ed0a774efcfa406e84785f233fcc45d27d516848
 created: 2026-02-28
 updated: 2026-02-28
 external_dependencies: []
 task_list_gate_mode: gated
-author_gate_mode: gated
+author_gate_mode: auto
 finding_gate_mode: gated
 planning:
   phase: 1
-  task: 1
+  task: 2
 ---
 
 # Plan: TUI Session Picker
@@ -22,7 +22,7 @@ planning:
 ### Phase 1: Sessions Page with bubbles/list
 status: approved
 approved_at: 2026-02-28
-ext_id:
+ext_id: tick-f20382
 
 **Goal**: Replace the hand-rolled session list with a `bubbles/list`-based Sessions page, establishing the page architecture, modal overlay system, custom item delegate pattern, and all session-level actions (attach, kill, rename, filter, n-key). This phase also sets up the page-switching skeleton so Phase 2 can plug in the Projects page.
 
@@ -47,7 +47,7 @@ ext_id:
 #### Tasks
 | ID | Name | Edge Cases | Status | Ext ID |
 |----|------|------------|--------|--------|
-| tui-session-picker-1-1 | Session List Item and Custom ItemDelegate | singular window pluralization, long session names, attached vs detached display | pending | |
+| tui-session-picker-1-1 | Session List Item and Custom ItemDelegate | singular window pluralization, long session names, attached vs detached display | authored | tick-5d021f |
 | tui-session-picker-1-2 | Sessions Page with bubbles/list Core | empty session list shows list empty state, SessionsMsg error triggers quit, inside-tmux with only current session | pending | |
 | tui-session-picker-1-3 | Modal Overlay System and Kill Confirmation | kill last remaining session shows empty state, kill error triggers refresh | pending | |
 | tui-session-picker-1-4 | Rename Modal with TextInput | empty rename input rejected, rename to same name, rename error | pending | |
