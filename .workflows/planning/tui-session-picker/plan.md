@@ -80,6 +80,17 @@ ext_id:
 - [ ] Empty projects page displays `bubbles/list` built-in empty message ("No saved projects")
 - [ ] Independent filter state per page (switching pages does not carry filter text)
 
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| tui-session-picker-2-1 | Project List Item and Custom ItemDelegate | long project paths, projects with identical names | pending | |
+| tui-session-picker-2-2 | Projects Page with bubbles/list Core | empty project list shows built-in empty message, project load error, session creation error | pending | |
+| tui-session-picker-2-3 | Delete Confirmation Modal for Projects | delete last remaining project shows empty state, delete while filter active | pending | |
+| tui-session-picker-2-4 | Project Edit Modal | empty name rejected, alias collision, alias removal, no editor configured | pending | |
+| tui-session-picker-2-5 | File Browser Integration from Projects Page | browser cancel returns to Projects page, Esc in browser returns to Projects page | pending | |
+| tui-session-picker-2-6 | Two-Way Page Navigation and Independent Filters | switching pages does not carry filter text, navigating to empty page shows empty message | pending | |
+| tui-session-picker-2-7 | Remove Old ProjectPickerModel | none | pending | |
+
 ### Phase 3: Command-Pending Mode and Launch Defaults
 status: approved
 approved_at: 2026-02-28
