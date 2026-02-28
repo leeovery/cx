@@ -113,3 +113,15 @@ ext_id:
 - [ ] Empty pages remain reachable via `p`/`s` navigation regardless of content state
 - [ ] Initial filter (`--filter` flag) applied to whichever page is the default
 - [ ] `cmd/open.go` wiring updated to pass command and filter to the new model API
+
+#### Tasks
+| ID | Name | Edge Cases | Status | Ext ID |
+|----|------|------------|--------|--------|
+| tui-session-picker-3-1 | Default Page Selection on Launch | both pages empty defaults to Projects, sessions exist but all filtered by inside-tmux | pending | |
+| tui-session-picker-3-2 | Command-Pending Mode Core | pressing s/x does nothing, page-switch keys absent from help bar | pending | |
+| tui-session-picker-3-3 | Command-Pending Status Line and Help Bar | long command text, multi-word commands | pending | |
+| tui-session-picker-3-4 | Command-Pending Enter Creates Session with Command | session creation error, empty project list | pending | |
+| tui-session-picker-3-5 | Command-Pending Browse and N-Key with Command | browser cancel returns to locked Projects page, n-key in cwd with command | pending | |
+| tui-session-picker-3-6 | Command-Pending Esc and Quit Behavior | Esc with filter active needs two presses, Esc with modal active dismisses modal first | pending | |
+| tui-session-picker-3-7 | Initial Filter Applied to Default Page | initial filter with no matches, empty initial filter is no-op, filter applied to Projects when no sessions | pending | |
+| tui-session-picker-3-8 | Wire cmd/open.go to New Model API | no command no filter passthrough, command with filter combined | pending | |
