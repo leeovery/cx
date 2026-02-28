@@ -64,7 +64,7 @@ This also contradicts Task 1-8 (Esc Progressive Back Behavior) which correctly s
 - "Esc on Projects page in normal mode with nothing active exits TUI"
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
