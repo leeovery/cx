@@ -1,9 +1,9 @@
 ---
 topic: tui-session-picker
-status: in-progress
+status: concluded
 type: feature
 work_type: feature
-date: 2026-02-27
+date: 2026-02-28
 review_cycle: 2
 finding_gate_mode: gated
 sources:
