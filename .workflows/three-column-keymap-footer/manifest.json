@@ -82,7 +82,20 @@
             3
           ],
           "analysis_cycle_total": 3,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     }

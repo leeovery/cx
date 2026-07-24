@@ -24,7 +24,14 @@
           "review_cycle": 5,
           "finding_gate_mode": "auto",
           "construction_gate_mode": "auto",
-          "date": "2026-07-23"
+          "date": "2026-07-23",
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c4": "complete",
+            "review-input-tracking-c2": "complete",
+            "review-input-tracking-c3": "complete",
+            "review-input-tracking-c4": "complete"
+          }
         }
       }
     },
@@ -50,7 +57,11 @@
             "remote-trigger-spawns-on-local-terminal-3": "tick-427911",
             "remote-trigger-spawns-on-local-terminal-3-1": "tick-cf1d11"
           },
-          "external_id": "tick-1655ae"
+          "external_id": "tick-1655ae",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-traceability-tracking-c1": "complete"
+          }
         }
       }
     },
@@ -107,7 +118,19 @@
             1,
             2,
             3
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     },

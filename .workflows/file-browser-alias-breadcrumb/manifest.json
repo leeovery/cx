@@ -24,6 +24,11 @@
             "file-browser-alias-breadcrumb": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -55,7 +60,11 @@
             "file-browser-alias-breadcrumb-3-2": "tick-916c1b",
             "file-browser-alias-breadcrumb-3-3": "tick-84ff49"
           },
-          "external_id": "tick-95054b"
+          "external_id": "tick-95054b",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-traceability-tracking-c1": "complete"
+          }
         }
       }
     },

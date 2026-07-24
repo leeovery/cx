@@ -23,6 +23,11 @@
             "killed-sessions-resurrect-on-restart": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-input-tracking-c1": "complete",
+            "review-input-tracking-c2": "complete"
           }
         }
       }
@@ -91,7 +96,15 @@
             "killed-sessions-resurrect-on-restart-10-1": "tick-863b70",
             "killed-sessions-resurrect-on-restart-10-2": "tick-134a6c"
           },
-          "external_id": "tick-5782dd"
+          "external_id": "tick-5782dd",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -175,7 +188,58 @@
             10
           ],
           "analysis_cycle_total": 8,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c5": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c6": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c7": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            }
+          }
         }
       }
     },

@@ -23,6 +23,10 @@
             "killed-session-resurrects-within-tick-window": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete"
           }
         }
       }
@@ -61,7 +65,13 @@
             "killed-session-resurrects-within-tick-window-3-2": "tick-8ca2f1",
             "killed-session-resurrects-within-tick-window-3-3": "tick-ee90c4"
           },
-          "external_id": "tick-44c1c5"
+          "external_id": "tick-44c1c5",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -117,7 +127,27 @@
             3
           ],
           "analysis_cycle_total": 3,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            }
+          }
         }
       }
     },

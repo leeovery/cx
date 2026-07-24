@@ -31,7 +31,16 @@
           "review_cycle": 5,
           "finding_gate_mode": "auto",
           "construction_gate_mode": "auto",
-          "date": "2026-07-12"
+          "date": "2026-07-12",
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c4": "complete",
+            "review-gap-analysis-tracking-c5": "complete",
+            "review-input-tracking-c1": "complete",
+            "review-input-tracking-c4": "complete",
+            "review-input-tracking-c5": "complete"
+          }
         }
       }
     },
@@ -128,7 +137,21 @@
             "restore-host-terminal-windows-10-2": "tick-5ae99f",
             "restore-host-terminal-windows-10-3": "tick-52302e"
           },
-          "external_id": "tick-9d3e8a"
+          "external_id": "tick-9d3e8a",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-integrity-tracking-c4": "complete",
+            "review-integrity-tracking-c5": "complete",
+            "review-integrity-tracking-c6": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete",
+            "review-traceability-tracking-c4": "complete",
+            "review-traceability-tracking-c5": "complete",
+            "review-traceability-tracking-c6": "complete"
+          }
         }
       }
     },
@@ -256,7 +279,49 @@
             8,
             9,
             10
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved",
+                "8": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            }
+          }
         }
       }
     },

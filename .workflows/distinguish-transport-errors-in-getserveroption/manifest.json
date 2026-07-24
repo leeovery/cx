@@ -23,6 +23,12 @@
             "distinguish-transport-errors-in-getserveroption": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-input-tracking-c1": "complete",
+            "review-input-tracking-c2": "complete"
           }
         }
       }
@@ -51,7 +57,15 @@
             "tick-88b642": "distinguish-transport-errors-in-getserveroption-2-2",
             "tick-78d7a5": "distinguish-transport-errors-in-getserveroption-2-3"
           },
-          "external_id": "tick-899e13"
+          "external_id": "tick-899e13",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -97,7 +111,16 @@
             2
           ],
           "analysis_cycle_total": 2,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            }
+          }
         }
       }
     },

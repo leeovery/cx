@@ -23,6 +23,10 @@
             "config-dir-wrong-path-macos": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete"
           }
         }
       }
@@ -44,7 +48,15 @@
             "config-dir-wrong-path-macos-1": "tick-b265f3",
             "config-dir-wrong-path-macos-1-2": "tick-6a3514"
           },
-          "external_id": "tick-c1a482"
+          "external_id": "tick-c1a482",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c1": "in-progress",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },

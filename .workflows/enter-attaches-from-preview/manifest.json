@@ -23,6 +23,10 @@
             "enter-attaches-from-preview": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete"
           }
         }
       }
@@ -64,7 +68,14 @@
             "enter-attaches-from-preview-4-2": "tick-618ead",
             "enter-attaches-from-preview-4-3": "tick-7fa539"
           },
-          "external_id": "tick-6cea9c"
+          "external_id": "tick-6cea9c",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -125,7 +136,22 @@
             4
           ],
           "analysis_cycle_total": 3,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            }
+          }
         }
       }
     },

@@ -23,6 +23,10 @@
             "resume-hooks-not-firing-after-server-kill": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -45,7 +49,11 @@
             "resume-hooks-not-firing-after-server-kill-1-1": "tick-351e93",
             "resume-hooks-not-firing-after-server-kill-1-2": "tick-a0dabc"
           },
-          "external_id": "tick-ed0985"
+          "external_id": "tick-ed0985",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-traceability-tracking-c1": "complete"
+          }
         }
       }
     },

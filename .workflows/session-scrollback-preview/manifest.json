@@ -30,6 +30,12 @@
             "session-scrollback-preview": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -89,7 +95,29 @@
             "session-scrollback-preview-6": "tick-445de1",
             "session-scrollback-preview-6-1": "tick-1f00d1"
           },
-          "external_id": "tick-6527e1"
+          "external_id": "tick-6527e1",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c10": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-integrity-tracking-c4": "complete",
+            "review-integrity-tracking-c5": "complete",
+            "review-integrity-tracking-c6": "complete",
+            "review-integrity-tracking-c7": "complete",
+            "review-integrity-tracking-c8": "complete",
+            "review-integrity-tracking-c9": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c10": "in-progress",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete",
+            "review-traceability-tracking-c4": "complete",
+            "review-traceability-tracking-c5": "complete",
+            "review-traceability-tracking-c6": "complete",
+            "review-traceability-tracking-c7": "complete",
+            "review-traceability-tracking-c8": "complete",
+            "review-traceability-tracking-c9": "in-progress"
+          }
         }
       }
     },
@@ -166,7 +194,23 @@
             6
           ],
           "analysis_cycle_total": 3,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     },

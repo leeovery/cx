@@ -24,6 +24,11 @@
             "status-recent-warnings-pipe-format": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete"
           }
         }
       }
@@ -47,7 +52,15 @@
             "status-recent-warnings-pipe-format-1-3": "tick-095fcb",
             "status-recent-warnings-pipe-format-1-4": "tick-8ff2fe"
           },
-          "external_id": "tick-8795f8"
+          "external_id": "tick-8795f8",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },

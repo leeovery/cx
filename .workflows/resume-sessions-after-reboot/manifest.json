@@ -30,6 +30,12 @@
             "resume-sessions-after-reboot": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -73,7 +79,13 @@
             "resume-sessions-after-reboot-5": "tick-705cf8",
             "resume-sessions-after-reboot-5-1": "tick-2ee721"
           },
-          "external_id": "tick-695f97"
+          "external_id": "tick-695f97",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "in-progress",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -134,7 +146,23 @@
             5
           ],
           "analysis_cycle_total": 3,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     },

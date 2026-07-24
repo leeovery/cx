@@ -23,6 +23,11 @@
             "state-notify-cascade-on-binary-upgrade": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -67,7 +72,13 @@
             "state-notify-cascade-on-binary-upgrade-5": "tick-c35069",
             "state-notify-cascade-on-binary-upgrade-5-1": "tick-ab72d9"
           },
-          "external_id": "tick-a00b4b"
+          "external_id": "tick-a00b4b",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -128,7 +139,38 @@
             3,
             4,
             5
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     },

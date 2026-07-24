@@ -23,6 +23,13 @@
             "portal-observability-layer": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete",
+            "review-input-tracking-c1": "complete",
+            "review-input-tracking-c2": "complete"
           }
         }
       }
@@ -120,7 +127,15 @@
             "portal-observability-layer-11-1": "tick-331cfe",
             "portal-observability-layer-11-2": "tick-6690c9"
           },
-          "external_id": "tick-7ac1a9"
+          "external_id": "tick-7ac1a9",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -235,7 +250,45 @@
             9,
             10,
             11
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c5": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            }
+          }
         }
       }
     },

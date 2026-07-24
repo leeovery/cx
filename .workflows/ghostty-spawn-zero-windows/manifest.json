@@ -24,7 +24,12 @@
           "review_cycle": 4,
           "finding_gate_mode": "auto",
           "construction_gate_mode": "auto",
-          "date": "2026-07-17"
+          "date": "2026-07-17",
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-input-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -51,7 +56,11 @@
             "ghostty-spawn-zero-windows-2-1": "tick-e08d19",
             "ghostty-spawn-zero-windows-2-2": "tick-b461d6"
           },
-          "external_id": "tick-f00989"
+          "external_id": "tick-f00989",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-traceability-tracking-c1": "complete"
+          }
         }
       }
     },
@@ -109,7 +118,15 @@
           "completed_phases": [
             1,
             2
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            }
+          }
         }
       }
     },

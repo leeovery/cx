@@ -24,7 +24,13 @@
               "status": "incorporated"
             }
           },
-          "construction_gate_mode": "auto"
+          "construction_gate_mode": "auto",
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete",
+            "review-input-tracking-c1": "complete"
+          }
         }
       }
     },
@@ -95,7 +101,15 @@
             "session-tagging-and-grouping-9-1": "tick-ccc036",
             "session-tagging-and-grouping-9-2": "tick-a10690"
           },
-          "external_id": "tick-7d0ed3"
+          "external_id": "tick-7d0ed3",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -184,7 +198,43 @@
             7,
             8,
             9
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            },
+            "c5": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            }
+          }
         }
       }
     },

@@ -23,6 +23,9 @@
             "preview-visual-distinction": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete"
           }
         }
       }
@@ -62,7 +65,16 @@
             "preview-visual-distinction-3-1": "tick-2d2c2e",
             "preview-visual-distinction-3-2": "tick-fef834"
           },
-          "external_id": "tick-2d1808"
+          "external_id": "tick-2d1808",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-integrity-tracking-c4": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },

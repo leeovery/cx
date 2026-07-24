@@ -24,7 +24,12 @@
           "review_cycle": 3,
           "finding_gate_mode": "auto",
           "construction_gate_mode": "auto",
-          "date": "2026-07-02"
+          "date": "2026-07-02",
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-input-tracking-c1": "complete"
+          }
         }
       }
     },
@@ -67,7 +72,13 @@
             "skip-bootstrap-when-warm-7": "tick-f06a01",
             "skip-bootstrap-when-warm-7-1": "tick-c2ac11"
           },
-          "external_id": "tick-0d5812"
+          "external_id": "tick-0d5812",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -141,7 +152,31 @@
             5,
             6,
             7
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     },

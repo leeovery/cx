@@ -23,6 +23,12 @@
             "daemon-merge-reintroduces-dead-sessions": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -71,7 +77,13 @@
             "daemon-merge-reintroduces-dead-sessions-5-1": "tick-9c9774",
             "daemon-merge-reintroduces-dead-sessions-5-2": "tick-0b7481"
           },
-          "external_id": "tick-3b2193"
+          "external_id": "tick-3b2193",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -136,7 +148,33 @@
             5
           ],
           "analysis_cycle_total": 4,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            }
+          }
         }
       }
     },

@@ -24,7 +24,15 @@
           "review_cycle": 5,
           "finding_gate_mode": "auto",
           "construction_gate_mode": "auto",
-          "date": "2026-07-18"
+          "date": "2026-07-18",
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-gap-analysis-tracking-c3": "complete",
+            "review-gap-analysis-tracking-c4": "complete",
+            "review-input-tracking-c1": "complete",
+            "review-input-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -122,7 +130,13 @@
             "cli-verb-surface-redesign-17": "tick-d8bf21",
             "cli-verb-surface-redesign-17-1": "tick-8999be"
           },
-          "external_id": "tick-4f7acf"
+          "external_id": "tick-4f7acf",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-traceability-tracking-c1": "complete",
+            "review-traceability-tracking-c2": "complete"
+          }
         }
       }
     },
@@ -254,7 +268,72 @@
             16,
             17
           ],
-          "updated": "2026-07-20"
+          "updated": "2026-07-20",
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved",
+                "8": "approved"
+              }
+            },
+            "c10": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved"
+              }
+            },
+            "c11": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c5": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c6": {
+              "tasks": {
+                "1": "approved"
+              }
+            },
+            "c8": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            },
+            "c9": {
+              "tasks": {
+                "1": "approved"
+              }
+            }
+          }
         }
       }
     },
@@ -328,7 +407,20 @@
             "cli-verb-surface-redesign-16-1",
             "cli-verb-surface-redesign-16-2",
             "cli-verb-surface-redesign-17-1"
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "gate_mode": "auto",
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved"
+              }
+            }
+          }
         }
       }
     }

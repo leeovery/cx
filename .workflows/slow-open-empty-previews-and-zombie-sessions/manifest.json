@@ -23,6 +23,11 @@
             "slow-open-empty-previews-and-zombie-sessions": {
               "status": "incorporated"
             }
+          },
+          "tracking": {
+            "review-gap-analysis-tracking-c1": "complete",
+            "review-gap-analysis-tracking-c2": "complete",
+            "review-input-tracking-c1": "complete"
           }
         }
       }
@@ -121,7 +126,14 @@
             "slow-open-empty-previews-and-zombie-sessions-12": "tick-386f40",
             "slow-open-empty-previews-and-zombie-sessions-12-1": "tick-2defea"
           },
-          "external_id": "tick-7da549"
+          "external_id": "tick-7da549",
+          "tracking": {
+            "review-integrity-tracking-c1": "complete",
+            "review-integrity-tracking-c2": "complete",
+            "review-integrity-tracking-c3": "complete",
+            "review-traceability-tracking-c2": "complete",
+            "review-traceability-tracking-c3": "complete"
+          }
         }
       }
     },
@@ -234,7 +246,50 @@
           ],
           "updated": "2026-05-25",
           "analysis_cycle_total": 7,
-          "analysis_cycle_session": 0
+          "analysis_cycle_session": 0,
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved"
+              }
+            },
+            "c2": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved",
+                "8": "approved",
+                "9": "approved"
+              }
+            },
+            "c3": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved"
+              }
+            },
+            "c4": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved"
+              }
+            }
+          }
         }
       }
     },
@@ -316,7 +371,18 @@
             "slow-open-empty-previews-and-zombie-sessions-11-3",
             "slow-open-empty-previews-and-zombie-sessions-11-4",
             "slow-open-empty-previews-and-zombie-sessions-12-1"
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "gate_mode": "auto",
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved"
+              }
+            }
+          }
         }
       }
     }
