@@ -2,6 +2,8 @@
 
 Portal's TUI has no general-purpose notification surface today. `bubbles/list`'s built-in status bar is explicitly disabled (`SetShowStatusBar(false)` in `internal/tui/model.go:507, 549`), and the only "warning" mechanism is the post-exit stderr flush used by the bootstrap orchestrator — useless for anything that needs feedback while the TUI is still running.
 
+> _Update 2026-07-24: much of this infrastructure has since shipped as part of the Modern Vivid reskin. `internal/tui/notice_band.go` is a single-slot notice-band arbiter (pinned line under the title separator, one active message, severity styling, recomputes the list height when it appears/clears) and `internal/tui/sessions_flash.go` provides the tick/keystroke auto-dismissing inline flash via a `tea.Cmd`-style `setFlash` API — i.e. the requested surface now exists. The one residual open scope: `setFlash` is **Sessions-page-scoped** ("records an inline-flash message on the Sessions page"), so generalizing it to Loading/Projects/Preview is the only remaining work, and several of the motivating cases below (preview-dismiss signaling) were already closed by feature-local handlers. Re-scope to the residual before picking this up._
+
 Add a general flash/toast layer reusable from every page (Loading, Sessions, Projects, FileBrowser, Preview) with:
 
 - Pinned chrome line (header or footer placement, TBD) holding zero or one active message at a time.

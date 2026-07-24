@@ -4,6 +4,6 @@ The Detector seam is still constructed at two sites across the CLI + picker spli
 
 Consider having `buildProductionSpawnSeams.Detector` delegate through `spawnDetector` (or a shared `newDetector(client)` helper) so the Detector is single-sourced too. Task 10-2 explicitly left this open ("either delegate ... or source only the other six"), so it is a genuine design choice, not a defect. (Also: on the CLI path `buildProductionSpawnSeams` constructs a Detector that `buildSpawnDeps` discards — negligible cost, a cheap struct build.)
 
-Location: `cmd/spawn.go:292-302` & `:337-339`.
+Location: `cmd/spawn_seams.go:53` (`buildProductionSpawnSeams.Detector`) & `:67` (`spawnDetector`). (The former `cmd/spawn.go` was renamed to `cmd/spawn_seams.go` in the CLI-verb-surface redesign; both sites still call `spawn.NewDetector` independently as of 2026-07-24, so the drift concern stands.)
 
 Source: review of restore-host-terminal-windows/restore-host-terminal-windows
