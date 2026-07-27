@@ -422,6 +422,137 @@ universally do not: you name a theme and that's the theme. Portal is an
 application, so the convention he's invoking is the applicable one. Vim/Neovim's
 `background=light|dark` is the notable counter-example, and it is set by hand.
 
+## Separating "persistent preference" from "initial guess"
+
+Lee raised a middle option: use detection **only** to pick a theme on first load,
+and never re-apply it once something is configured. This is the most useful
+distinction to come out of the thread so far, because it splits two jobs that
+`appearance` currently conflates:
+
+- **Job A — what does the user want, persistently?** A *preference*. Detection is
+  bad at this: it's unreliable inside tmux, and re-inferring on every launch means
+  a flaky detect can flip the UI between runs. That inconsistency is probably a
+  large part of why auto *feels* broken even when it's working as designed.
+- **Job B — what's a sensible starting guess?** A *seed*, consumed once.
+  Detection is fine at this, because a wrong one-time guess is a one-time
+  annoyance the user corrects once, permanently.
+
+**The key structural point: the seed approach keeps nearly all the
+simplification.** The large wins come from "a theme carries its own canvas, so
+there is no light/dark axis" — *not* from "never look at the terminal
+background". Those are separable:
+
+- The gate's **first-paint blocking role disappears either way**, because a
+  persisted theme is known at construction. Nothing to race, paint on frame one,
+  50ms wait still deleted.
+- `theme.Mode`, `Token.ColorFor`, the dual-canvas contrast bookkeeping,
+  `prefs.Appearance`, and the paired-vs-split question are still all gone.
+- What comes back is small: a **non-blocking, best-effort, one-shot** read of the
+  OSC 11 reply, used to choose between two defaults and then persisted. It needs
+  no race and no timeout, because nothing is gated on it.
+- And the reply is **arriving anyway** — `restore.go` already needs the OSC 11
+  query to capture the original background for restore-on-exit. Reading that same
+  reply once to pick a default is close to free.
+
+Residual costs: a first-run-only paint-then-flip if the light reply lands after
+first paint (mild, and only ever once), plus a small amount of code. The real
+hazard is scope creep on the trigger condition — if it fires on anything other
+than "the user has never chosen", the between-runs flakiness comes straight back.
+
+## Shipping a default: the options
+
+Whatever happens, Portal must boot with *a* theme. Four shapes on the table.
+
+### 1. Hardcoded default, manual change thereafter
+
+Dark, and this doesn't look like a close call:
+
+- **MV is dark-first by construction.** The package doc says so, `theme.Mode`'s
+  zero value is Dark *on purpose*, and the dark hexes are the pinned §2.9
+  authoritative source. The light variants were derived afterwards and needed six
+  individual corrections plus three eyeball-pinned surface tints. The dark palette
+  is simply the better-tuned artifact.
+- **The failure mode is symmetric and safe.** Canvas ownership guarantees the
+  contrast floor in both directions, so a mismatch is *jarring, never illegible*.
+  That reduces the choice to base rates, and terminal users skew dark.
+- It keeps an existing documented fallback rather than making a new decision.
+
+### 2. Detection as a first-run seed
+
+Composes with (1) rather than replacing it: default is the dark theme; on first
+run only, if OSC 11 reports light, start on the light theme instead and persist.
+Hardcoded default is the floor; detection is an optional improvement on top. Fails
+safe by construction.
+
+### 3. First-run modal asking the user to pick
+
+Worth pushing back on, for two structural reasons rather than taste:
+
+- **"First run" isn't reliably a TUI moment.** Portal's dominant entry point is
+  `portal open` / the `x` function, and a bare positional resolves and attaches
+  **directly via `syscall.Exec` without ever showing the picker**. So a first-run
+  modal either has to block a non-TUI path (bad) or fire only when the picker
+  happens to open first (inconsistent).
+- **Modals blank the screen to the canvas** — the exact problem that pushed the
+  theme selector toward a slide-over in the first place. A theme-picking *modal*
+  has nothing to preview against, so the first-run experience would be strictly
+  worse at picking a theme than the normal slide-over is.
+
+Also: it asks the user to choose before they've seen the app or any theme. The
+counter-argument (explicit, honest, one interruption ever) is real but doesn't
+answer the two structural points.
+
+### 4. No persisted default at all — resolve to dark at read time
+
+Not raised, but worth having on the table because it interacts with (2): if
+"unconfigured" stays *distinguishable* from "explicitly chose dark" (i.e. nothing
+is written to `prefs.json` until the user picks), then the seed can fire on any
+launch where the user has never chosen — not just a literal first run. A failed
+detect gets another chance next launch, and no first-run bookkeeping is needed.
+Persist on first successful detect and the window closes cleanly.
+
+### A naming consequence
+
+The seed flagged that *token* names become a public contract a user themes
+against. **Theme names are the same class of problem** — once `tokyo-night-dark`
+is a string users write in config (and that ships as the default), renaming it
+breaks their config. Worth settling deliberately alongside the border-token
+rename rather than falling out of implementation.
+
+## Assessment (for discussion to ratify, not settled here)
+
+Asked directly for a read, with the reasoning rather than just the verdict:
+
+**Removing the light/dark appearance axis looks right**, and the strongest argument
+is not the code deletion — that's a consequence, not a reason. It's that the axis
+**infers something it cannot reliably infer, in order to make a choice the user is
+better placed to make**, and Portal's own history documents the unreliability
+(tmux passthrough). An unreliable inference driving a loud outcome — Portal
+repaints the terminal background — is a poor trade.
+
+The "third position on the same question" concern also looks weaker on inspection.
+Read the arc: (1) don't own the background, best-effort adaptive plus an override
+escape hatch; (2) own the canvas, guarantee the floor, detect *which* canvas;
+(3) own the canvas, let the user name it. Every step **reduced the amount of
+inference**. This is the same direction of travel one step further, not
+vacillation.
+
+**What the ecosystem does** (from recollection — flagged as the thing a deep dive
+should verify rather than trusted): terminal *applications* overwhelmingly default
+to a single named theme and let the user set it — `bat`, `delta` (defaults dark,
+`--light`/`--dark` by hand), Helix (`theme = "…"`), lazygit, k9s, Zellij. Auto
+light/dark detection lives mostly at the *emulator* layer (Ghostty's mode-mapped
+theme setting, iTerm2 presets, Windows Terminal), and where applications do offer
+it, it tends to be opt-in rather than the mechanism. Neovim's `background` is the
+notable counter-example and is set by hand. That pattern supports: hardcoded
+sensible default + manual selection, with detection as a convenience rather than
+the mechanism.
+
+Net: option **(1) + (2)**, and specifically (2) implemented via the (4)
+"unconfigured is distinguishable" shape, gets the user close to right without
+making detection load-bearing. Option (3) has structural problems in Portal
+specifically.
+
 ## Open Questions
 
 - Must a user theme supply both Light and Dark variants, or can it supply one?
