@@ -1019,19 +1019,406 @@ an additional built-in theme's values come from and whether an off-the-shelf pal
 can clear Portal's floors; what the validation rule set actually is; the
 capture-harness cost; and whether detection works in Portal's stack at all.
 
+---
+
+# Appendix: consolidated evidence
+
+Findings from the background review and the ecosystem deep dive, folded in so
+discussion inherits them. Organised by subject rather than by finding id. Sources
+for every ecosystem claim are in
+`.workflows/.cache/theming-system/research/theming-system/`.
+
+## A. Ecosystem evidence (deep dive, ~20 applications + 5 emulators + spec families)
+
+### A1. Detection landscape
+
+- **Application-layer detection is common and often default-ON**: `bat` (`--theme`
+  defaults to `auto`), `delta` (`--detect-dark-light` defaults to `auto`), Neovim
+  (`'background'` auto-set by the TUI on startup and re-detected whenever a UI
+  attaches, unless set explicitly), `yazi` (preset chosen by detection).
+- **Where detection is opt-in, the opt-in shape is "name two themes"**, not a
+  boolean. Helix's config is a union — `Constant(String)` or
+  `Adaptive{light, dark, fallback}`, with `fallback` documented as *"a theme to
+  choose when the terminal did not declare either light or dark mode"*, defaulting
+  to the dark one. Zellij requires `theme_dark` **and** `theme_light`; set only one
+  and the static `theme` stays authoritative.
+- **Dark is the universal no-answer fallback** — Helix, Neovim, delta, Glamour v2.
+- **The emulator layer answers a different question**: it tracks the *OS* appearance,
+  not the terminal's colours. Ghostty's `theme = light:X,dark:Y` is explicitly
+  *"based on the current desktop environment theme"*. kitty models **three** OS
+  states (`dark-theme.auto.conf` / `light-theme.auto.conf` /
+  `no-preference-theme.auto.conf`). iTerm2 is a checkbox; WezTerm is a documented
+  Lua recipe; Alacritty has nothing native.
+
+### A2. Charm's own direction (most directly applicable — Portal is a Lipgloss v2 app)
+
+Glamour v2 **removed** `WithAutoStyle()` outright, defaulting to `"dark"`. Lipgloss
+v2 moved `AdaptiveColor` into `compat` with the rationale that implicit detection
+*"removes the purity from Lip Gloss… removes transparency around when I/O happens"*.
+**But the recommended replacement keeps paired values and makes detection explicit**:
+`lightDark := lipgloss.LightDark(hasDarkBG)` then `lightDark(lightVal, darkVal)`.
+Charm de-recommended implicit *detection*, not paired *colours* — a nuance that is
+easy to flatten into "Charm abandoned adaptive colours", which is not what happened.
+
+### A3. Pairing: five distinct ways the ecosystem expresses light↔dark
+
+A theme is overwhelmingly **one palette**; siblings are separate themes. Where the
+pairing lives varies:
+
+1. **Naming convention only** (most common, most fragile) — Zellij's 41 built-ins
+   include `ayu-`, `everforest-`, `gruvbox-`, `iceberg-`, `solarized-`,
+   `tokyo-night-` `-dark`/`-light` pairs. delta actually *parses* it:
+   `is_light_syntax_theme()` returns true if the name `.contains("light")`.
+2. **Two config settings** — Helix `[theme] dark=/light=/fallback=`; Zellij
+   `theme_dark`/`theme_light`; bat `--theme-dark`/`--theme-light`; yazi
+   `[flavor] dark=/light=`; kitty's three `.auto.conf` files.
+3. **One setting, inline mapping** — Ghostty's `theme = light:X,dark:Y`, both halves
+   mandatory in that form.
+4. **Metadata inside the palette** — base16's optional `variant`; **tinted8** makes
+   `variant: dark|light` *required* and adds `scheme.family` (e.g. "Tokyo") +
+   `scheme.style` (e.g. "Night", "Moon"), replacing the naming convention with
+   structure. **No spec in the family carries a pointer to its sibling.**
+5. **Derived from the palette itself** — Ghostty's theme browser classifies every
+   theme by the relative luminance of the theme's own background (Rec.709
+   coefficients, 0.5 threshold). If a theme owns its background, its light/dark
+   identity is computable and need not be declared.
+
+**Counter-evidence for paired**: tmux master (3.8, **unreleased**) adds a `theme
+[detect|terminal|light|dark]` option plus two parallel sets of ten slots
+(`dark-theme-black`… / `light-theme-black`…) resolved to one usable name
+(`themeblack`) — structurally Portal's current model, though the slots are ANSI
+colour families rather than semantic roles.
+
+**Cardinality note (session finding)**: paired assumes 1:1. Real families are not —
+Catppuccin is one light (Latte) and three darks; Dracula and Nord are dark-only;
+Zellij's 41 built-ins contain only six sibling pairs, leaving 29 single-mode themes.
+k9s pairs `rose-pine.yaml` with `rose-pine-dawn.yaml` — the sibling isn't even named
+`-light`.
+
+### A4. Defaults and first run
+
+**No terminal application surveyed prompts on first run.** Every one ships a
+hardcoded default and starts rendering. The single counter-example found in the
+wider ecosystem is **Powerlevel10k**, whose wizard auto-launches on first shell
+startup and renders a live preview per option — but it can do that because its
+"first run" is unambiguously an interactive shell with a terminal attached and its
+output surface is a prompt it is already drawing. Both properties are the inverse of
+Portal's situation.
+
+### A5. A fourth strategy Portal has already rejected by owning a canvas
+
+Several tools sidestep light/dark entirely by **inheriting the terminal's ANSI
+palette**: lazygit's whole default theme is ANSI names (`[green, bold]`,
+`[default]`); gitui's `Default for Theme` is `Color::Reset`/`Color::White`/…;
+fzf's `--color=16`/`bw`; Helix ships `base16_default`; tmux master names it
+`theme terminal`. btop is the only surveyed tool offering *both* — a hex theme plus
+`theme_background = false` to opt out of owning the background. The trade is
+legibility guarantees for palette control. Portal's canvas ownership is the
+deliberate opposite choice; worth knowing the road not taken is a real one.
+
+### A6. File format
+
+**No consensus whatsoever** — each tool uses whatever its config already used:
+Helix TOML (114–194 lines), k9s YAML (114, with YAML anchors for dedup), Zellij KDL
+(124), btop flat `key="value"` (41), atuin TOML (2–10, partial by design), gitui RON
+(2–21, partial by design), Glamour JSON, base16/tinted8 YAML (~20), fzf a single CLI
+string. **Ghostty and kitty avoid inventing a format at all — a theme *is* a config
+file** (with a documented security caveat in Ghostty's case: a theme can set any
+config option, so don't use untrusted ones).
+
+**Partial-merge-over-a-base is the clear modern direction**, and gitui migrated to
+it deliberately: *"you don't have to specify the full theme anymore (as of 0.23)"*.
+atuin chains via `parent = "autumn"` with a `max_depth = 10` guard; Helix has
+`inherits`; yazi merges user `theme.toml` over the flavor; Ghostty lets later keys
+override the theme. **Note for Portal: atuin and Helix both let the user pick *which*
+base — so merge-over-default and selectable-base are the same feature, not competing
+ones.**
+
+**Library and selection are separated almost universally**: themes live in
+`~/.config/<tool>/themes|skins|flavors/`, selection is one line in the main config.
+Two-tier search (user dir shadows shipped dir) is standard; Helix reserves `default`
+and `base16_default` as unshadowable. And **both GUI-adjacent pickers write to a
+machine-owned file rather than editing the user's config** — kitty copies to
+`current-theme.conf` and injects an `include`; Ghostty writes `theme = <name>` into
+`auto/theme.ghostty`.
+
+### A7. Token vocabularies
+
+Counts run **8 to ~105**: atuin 8 (semantic), lazygit 12 (all use-site), base16 16
+(ANSI-slot), gitui 21, base24 24, Crush ~34, btop 41, k9s ~50, Zellij 14 components
+× 6 slots, Helix ~105 keys (53 of them `ui.*`).
+
+**Use-site naming is the norm, not the exception** — Helix, the most sophisticated
+system surveyed, names essentially its whole UI half by use-site (`ui.statusline`,
+`ui.bufferline.active`, `ui.popup.info`, `ui.menu.selected`). So Portal's
+`border.separator` / `border.footer` are not anomalous by ecosystem standards; they
+are the majority convention.
+
+**Two-layer structure is common**: an arbitrary-named palette underneath, named
+roles on top. Helix's default declares `[palette] white/lilac/lavender/comet/
+bossanova/midnight/…` — poetic names with no semantics — then binds scopes to them.
+Starship goes furthest: no fixed vocabulary at all, users name their own colours.
+
+### A8. Prior art for weight-based naming (directly relevant to the border rename)
+
+**Charm's Crush** is the best example, and it is a Bubble Tea application:
+
+```go
+// Low-contrast dividers, separators, and rule lines.
+separator color.Color
+
+fgSubtle     color.Color
+fgMoreSubtle color.Color
+fgMostSubtle color.Color
+
+// Contrast pairings: foregrounds designed to sit on top of a matching background role.
+onPrimary color.Color
+
+bgMostVisible  color.Color
+bgLessVisible  color.Color
+bgLeastVisible color.Color
+```
+
+The convention is **comparative/superlative ladders encoding intrinsic prominence**,
+and `separator` is defined *intrinsically* — "low-contrast dividers, separators, and
+rule lines" — rather than by where it appears. `onPrimary` is documented as a
+*contrast pairing*, which is the same concept Portal's `contrast_test.go` encodes
+implicitly. **Caveats**: Crush is not user-themeable (themes are Go functions) and
+has no light/dark handling at all — so this is internal-vocabulary prior art, not a
+public contract.
+
+Two others: Zellij's two-axis scheme (component = use-site, slot = intrinsic weight
+`base`/`background`/`emphasis_0..3`); and base16's ordering *rule* —
+`base00`→`base07` must range dark-to-light — which is what lets one slot name serve
+both modes ("position on the prominence ramp", not "this colour").
+
+### A9. Live switching and preview — three mechanisms, all shipping
+
+- **In-app command with live preview (closest analogue to the slide-over)** — Helix
+  `:theme <name>` re-themes without restart, and the completion prompt implements a
+  clean **three-state** model: `Update` → preview, `Abort` → revert,
+  `Validate` → commit. It also gates on capability, refusing a truecolor theme on a
+  non-truecolor terminal.
+- **Config-file watch** — Zellij (*"picks up changes in real time, you will not have
+  to restart"*), Alacritty (`live_config_reload`), and **k9s, which is the most
+  directly relevant because it's Go**: `fsnotify` on the skins directory, reacting
+  only to the *active* skin, with a **listener pattern notifying UI components of
+  theme changes** — i.e. exactly the "re-point the cached leaf styles" operation
+  `applyCanvasMode` already performs.
+- **External picker + reload signal** — kitty's `kitten themes` (live preview, fuzzy
+  search, recently-used list) and **Ghostty's `+list-themes`, whose layout is what
+  Portal is contemplating: theme list on the left, live preview pane on the right**,
+  fuzzy search, `F1` help, `Esc` to exit, and an `f` key cycling the light/dark
+  filter (`all → dark → light`). It also re-themes its own chrome live off
+  colour-scheme events — a mid-session flip handled as routine, not special-cased.
+
+### A10. Contrast validation is essentially absent from the ecosystem
+
+**No terminal application surveyed validates user colours for contrast** — not at
+load, not ever. The only in-band mechanism found anywhere is **Ghostty's
+`minimum-contrast`**: real WCAG 2.0 ratios, but a **clamp** applied per rendered
+cell at draw time, **off by default** (`1` = no constraint), and it demonstrates the
+clamp failure mode — pushing foreground toward black or white destroys the theme's
+hue at the point it engages.
+
+What validation exists elsewhere is structural, not perceptual: Helix's
+`cargo xtask themelint` checks *completeness* (missing scopes), and its
+`is_16_color()` check refuses truecolor themes on incapable terminals — real
+validation, wrong axis. atuin's `debug = true` warns on unparseable colours.
+**Neither base16 nor tinted8 imposes any contrast requirement**; base16's
+dark-to-light ordering is an unenforced guideline. External tooling exists
+(WCAG-Terminal-Checker — report-only; dank16 — solves it at *generation* time) but
+sits outside the tools.
+
+**Portal's existing numerically-verified floor against exact canvas hexes appears to
+be more rigorous than anything in the surveyed ecosystem, including the specs.**
+
+## B. Portal-specific gaps and corrections (background review)
+
+### B1. Corrections to claims made during this session
+
+- **`prefs.Appearance` has 7 non-test consumers**, not one: `cmd/open.go`,
+  `cmd/capturetool/main.go`, `internal/prefs/store.go`, `internal/capture/swatch.go`,
+  `internal/tui/build.go`, `internal/tui/appearance_gate.go`, `internal/tui/model.go`.
+  The **capture harness is a second independent consumer** the session did not know
+  about.
+- **14 files reference `prefs.Appearance`/`WithAppearance`/`Load|SaveAppearance`**,
+  not "two dedicated plus ~8". Widening to the canvas-mode surface reaches 28 test
+  files.
+- **`SaveAppearance` has no production caller today** — `cmd/open.go` only *loads*
+  it. Appearance is currently read-only in production, so a slide-over would be its
+  first writer.
+- **The live-swap site enumeration was incomplete.** Beyond delegates, list help
+  styles, pagination dots and the outer fill, `applyCanvasMode` also re-points
+  `styleFilterInput`/`styleListFilterInput` and TitleBar backgrounds. There is **no
+  guard test** enforcing that future cached styles get added there (unlike the
+  colour-literal rule, which has an AST glob guard). The `pagepreview.go:35` sweep
+  found init-time copies of *`Token` values*; init-time copies of *derived styles*
+  were not swept for.
+- **The colour-literal guard is narrower than the invariant it implies**: it flags
+  only a `BasicLit` argument to `lipgloss.Color` within the `internal/tui` package
+  directory. It does not see `lipgloss.ANSIColor`, struct-literal colour types,
+  colours arriving from dependency defaults, or anything in `internal/capture`.
+  Dependency-owned colour is handled ad hoc — `applyCanvasMode` strips the
+  `bubbles/list` default Title box only on the colourless branch.
+
+### B2. The validation rule set is richer than "floors plus a pairing table"
+
+`contrast_test.go` has 14 test functions encoding more than floors:
+
+- **Two-sided bands, not floors.** `text.dim` must clear 3:1 **and must not reach
+  4.5** ("that would mean it is no longer de-emphasised"). `text.faint` is **exempt**
+  from the floor but must sit above 1:1 **and strictly below 3:1** — a ceiling. A
+  floor-only validator would accept themes the current suite rejects.
+- **A non-contrast threshold**: `floorFillPerceptible = 1.1` governs tint fills.
+- **Three tokens are explicitly not numerically checkable** —
+  `TestLightSurfaceTintsPinned` exists because light-tint-on-light-canvas is
+  "numeric-insufficient", confirmed by human eyeball at a gate.
+- Plus pair rules for `bg.selection` / `bg.warning` / `bg.track`, foreground-on-tint
+  pairings, the inline flash, and the preview peek chrome.
+
+**Nothing checks that semantically distinct tokens stay distinguishable from *each
+other*** — `state.green` vs `state.red` (attached vs kill), `accent.violet` vs
+`accent.blue` (cursor vs key hints). A theme where both clear the floor and equal
+each other passes every rule contemplated. Portal's glyph-backed state design is the
+existing mitigation.
+
+**Also unexamined**: a floor validated on a truecolor hex says nothing about the
+colour actually painted after `lipgloss`/`colorprofile` downsamples on a 256- or
+16-colour terminal — the validator would measure the requested value, not the
+painted one.
+
+### B3. Theme file: integration surface
+
+- **No YAML or TOML direct dependency in `go.mod`** — every config today is stdlib
+  `encoding/json` (`projects.json`, `hooks.json`, `prefs.json`, `terminals.json`)
+  plus one flat `key=value` file (`aliases`). YAML/TOML adds a third-party parser to
+  a codebase that has avoided one for config.
+- **`terminals.json` is the closest precedent**, not `prefs.json`: user-authored,
+  read-only at load, own env var, loaded once at construction, documented in
+  `docs/custom-terminals.md`, mapped to the **empty log component** because
+  "terminals" isn't in the closed component vocabulary. A themes file inherits that
+  last property — **which constrains where a validation warning could be emitted**.
+- `cmd/config.go`'s `configFilePath`, `migrateConfigFile` and `configFileComponents`
+  each need an entry.
+
+### B4. Theme identity and discovery (largely unexplored)
+
+Single file vs a `themes/` directory; slug vs display name (the persisted value is a
+durable identifier); collision between a user theme and a built-in name; **what
+renders when the persisted theme no longer exists on disk** — the tolerant-decode
+pattern used for the `Appearance`/`SessionListMode` enums does not transfer to an
+open string; whether the file is re-read on launch only or reloadable; how a theme
+author iterates (note `internal/capture`'s `contrast-validation-{dark,light}` swatch
+fixture is already a token sheet that could serve authoring).
+
+**Surfaces outside the TUI, none considered**: a `--theme` flag (the *reversed*
+earlier stance named exactly that), a `portal theme list`/scaffold verb, a
+`portal doctor` health-check line for an invalid theme file (doctor is the
+established config-health surface), and the seed's own "documented token vocabulary"
+deliverable.
+
+### B5. Capture harness
+
+`testdata/vhs/` holds **43 tapes** with committed reference PNGs, **9 of them
+`-light` pairs**, including a dedicated `contrast-validation-{dark,light}` swatch
+pair rendered from `theme.MV` via `internal/capture/swatch.go`. `internal/capture`
+is import-guarded to read **no real config** and pins appearance by injecting
+`prefs.Appearance` through `tui.Build` — **the exact mechanism this work removes**.
+So a config-loaded theme needs an equivalent injection option in
+`tui.Build`/`capture.Fixture*` plus a `capturetool --theme` flag, or the harness can
+only ever capture the compiled-in default. A themes × fixtures matrix is a real
+per-theme maintenance cost against a harness already recorded as flaky-on-write.
+
+### B6. Border rename: evidence the values themselves raise
+
+`BorderSeparator` and `BorderFooter` carry an **identical Light hex** (`#C9CDDB`)
+and differ only in Dark (`#292E42` vs `#20232E`). Whether these are two roles or one
+role with a weight variant is a question the values raise on their own — and it
+bears on the naming *and* on whether the vocabulary should consolidate. The `Name`
+strings are already consumed by `All()`, `TestMVDarkVariantsPinned` and
+`contrast_test.go` table names, so a rename has mechanical footprint before any user
+file exists.
+
+Related, unasked: **how does a token vocabulary evolve once it is a public
+contract?** Adding a 21st token runs into `TestMVTokenCount`'s exact-20 pin. Nothing
+surveyed had an application-scale versioning story; the only mechanisms found were
+ecosystem-scale (base16's compatibility branches, tinted8's required
+`scheme.supports.styling-spec` version field).
+
+### B7. Other open threads carried forward
+
+- **Documented-behaviour removal**: `appearance` is described in `README.md` at four
+  places (`:83`, `:266`, `:379`, and a dedicated paragraph at `:385` recommending
+  users pin it *"when auto-detection misfires (for example under tmux
+  passthrough)"*). That advice is now doubly obsolete and the removal has README /
+  CHANGELOG / user-expectation consequences.
+- **Startup cost is unbudgeted**: the removal argument counts the 50ms first-paint
+  wait as a win while adding a config read, parse and multi-rule validation sweep to
+  every launch, in a codebase whose cold path is explicitly latency-engineered.
+- **Persistence seam**: the existing `ModePersister` interface (injected via
+  `build.go`, deliberately **nil** in capture fixtures so an `s`-toggle during a
+  capture writes nowhere) is the precedent a theme persister would follow. Also
+  unexamined: what two concurrently-running Portal windows do with a mid-session
+  change.
+- **Merge-over-base has a twist**: the canvas is itself a token, so a partial theme
+  supplying a canvas but inheriting `text.primary` from a base leaves the inherited
+  token measured against a background it was never tuned for. Which base a merge
+  resolves against (MV always? the selected theme? the same-mode built-in?) is
+  unstated.
+- **`NO_COLOR`**: a theme selector previews nothing under it. Portal has an existing
+  precedent for proactively blocking a walkable dead-end affordance — multi-select
+  `m` is blocked at entry on an unsupported terminal, with a flash and a help-row
+  filter.
+- **Slide-over specifics not covered**: which key opens it against the taken set
+  (`/ s x m k d e r ? Space Enter Esc`), behaviour during an active filter, in
+  multi-select mode, and on the Projects and Preview pages; and alternative
+  live-preview shapes (bottom band, half-height overlay, previewing on a synthetic
+  sample screen — which the `contrast-validation` swatch fixture essentially already
+  is).
+
 ## Open Questions
 
-- Must a user theme supply both Light and Dark variants, or can it supply one?
-  What renders if the user is in a mode the theme doesn't define?
-- Is a user theme a *full replacement* or a *merge over a base*? (The seed
-  proposes merge-over-default; worth testing whether that still holds when the
-  base itself is selectable.)
-- Does validation **warn** or **clamp** when a user colour falls below the floor?
-  (Seed leaves both open.)
-- How do the theme name and the `appearance` pref compose in the selector UI —
-  one list, or two axes?
-- Does the theme file define *one* theme or *many* (a library the selector reads
-  from)?
+### Dissolved during the session (recorded so they aren't re-opened by accident)
+
+- *Must a user theme supply both Light and Dark variants?* — moot under the split
+  model the session converged on: a theme is one palette, so there is never a
+  missing variant. The deep dive names this as the strongest structural argument
+  for split.
+- *How do the theme name and the `appearance` pref compose in the selector?* — moot:
+  under split there is no `appearance` pref; the override is the *shape* of the
+  theme setting (one name, or a light/dark pair).
+- *Is live re-theming technically achievable?* (parked by discovery) — **yes**,
+  verified: render-time token resolution plus the existing `applyCanvasMode`
+  restyle precedent.
+- *Does light/dark detection work inside tmux?* — **yes** via DEC mode 2031, verified
+  present end-to-end in Portal's dependency stack (behavioural confirmation in a
+  live terminal still outstanding).
+
+### Carried into discussion
+
+- Is a theme a *full replacement* or a *merge over a base* — and if merge, which
+  base? Complicated by the canvas being itself a token: a partial theme supplying a
+  canvas but inheriting foregrounds leaves those measured against a background they
+  were never tuned for. Note the ecosystem treats merge-over-default and
+  selectable-base as the *same* feature (atuin `parent`, Helix `inherits`).
+- Does validation **warn**, **clamp**, or do nothing for user colours? (Lee's
+  position in session: not Portal's problem — the strict floor was for MV, the theme
+  Portal designs. Floors are MV-specific in code already, so this is consistent.)
+- Does the theme file define one theme or many, and does a user theme shadow a
+  built-in of the same name?
+- Do detection's two jobs ship — the one-shot default seed, and the ongoing
+  "follow the terminal" pair form? Independently optional.
+- The border-token names, and whether the two border tokens are one role or two
+  (identical light hex).
+- Everything in Appendix B — the Portal-specific integration surface.
+
+### Genuinely still research (small, deferred by agreement)
+
+- Does any surface render both border tokens together in a way that *requires* them
+  to differ? If nothing does, that is evidence they are one role.
+- Behavioural confirmation that mode 2031 fires through Ghostty → tmux 3.7b →
+  Portal. The code path is verified; the event has not been watched.
 
 ## Triage
 
