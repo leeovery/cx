@@ -919,6 +919,75 @@ Q1 and Q2 are the real decisions. Q3 falls out. And Q2 has the curated-set vs
 user-ecosystem question upstream of it (see above), which is the genuinely unasked
 one.
 
+## What detection would actually DO under the split model
+
+Lee is leaning split, chiefly on authoring burden, and asks the right follow-up:
+under split, what is `auto` even for? His guess was "just the initial startup" —
+that is one of two jobs, and the smaller one.
+
+### Job 1 — Seed the default for an unconfigured user (one-shot)
+
+Portal ships a default theme. On a first run with nothing configured, detection can
+start on the light built-in instead of the dark one. Applies only while the user has
+configured *nothing*; the moment they choose, it never runs again. This is the job
+described earlier in this file.
+
+### Job 2 — Follow the terminal, continuously (ongoing, push-driven)
+
+This is the one the earlier "first-run seed" framing missed, and mode 2031 is what
+makes it different in kind. 2031 is a **push notification on change**, not a query.
+So if the terminal flips light→dark mid-session — macOS appearance following sunset,
+or the user switching their Ghostty theme — Portal *receives*
+`uv.LightColorSchemeEvent` / `uv.DarkColorSchemeEvent` and can swap to the user's
+nominated theme for that mode, live, without a restart. That is Helix's `Adaptive`
+config doing its job continuously, not at startup.
+
+Crucially, **Job 2 only has meaning if the user nominated two themes.** Under split:
+
+- `theme = "tokyo-night-dark"` → detection is never consulted. Nothing to choose
+  between. No `auto` concept is needed or exposed.
+- `theme = { dark = "…", light = "…" }` → detection *is* the chooser, for the
+  session's whole life.
+
+So under split, **`auto` is not a setting at all** — it is implied by whether the
+user supplied a pair. "Do we need auto?" becomes the cleaner question: *do we
+support the adaptive two-theme form?* The two jobs are independently optional —
+either, both, or neither.
+
+### The honest counter-case for Job 2
+
+It only pays off for users who genuinely run a light terminal by day and a dark one
+by night. It costs the 2031 opt-in, an event path, and a live-swap route — and
+Portal is a transient UI by Lee's own earlier reasoning, so a brief mismatch is
+cheap. Worth deciding on its own merits rather than inheriting it because detection
+happens to be available.
+
+### A related mechanic split needs anyway: how does Portal know a theme's mode?
+
+Under split, Portal must know whether a given theme is a light or a dark one — for
+the adaptive pair form, and for a list filter if the selector offers one. Two
+options, both with prior art:
+
+- **Derive it.** Because Portal's canvas is *itself a token*, a theme's light/dark
+  identity is computable from its own canvas luminance. Ghostty's theme browser does
+  exactly this (`shouldIncludeTheme`, Rec.709 coefficients, 0.5 threshold on the
+  theme's background). A theme file then declares nothing.
+- **Declare it.** base16's common scheme format carries an optional `variant`;
+  the newer tinted8 spec makes `variant: dark|light` **required** and adds
+  `scheme.family` / `scheme.style` so the sibling relationship is structured rather
+  than inferred from the slug.
+
+Derivation is less for an author to get wrong; declaration is more explicit and
+survives a theme whose canvas sits near the threshold.
+
+### An interaction to be aware of
+
+If Job 2 ships alongside the slide-over, the two can fight: the user picks a light
+theme in the panel while their terminal is dark and their config says
+`dark = tokyo-night-dark`. Which wins, and for how long? Helix has prior art — a
+manual `:theme x` sets a constant theme for the session, overriding the adaptive
+config until restart. Noting the interaction; the resolution is discussion's.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
