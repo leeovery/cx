@@ -709,6 +709,67 @@ gives byte-identical UX with no write storm. Same idiom, different write cadence
 worth choosing deliberately rather than inheriting the `s` toggle's write-per-press
 behaviour by analogy.
 
+## VERIFIED: the mode-2031 chain works in Portal's stack today
+
+The deep dive named this as its single most load-bearing unverified item. Checked
+directly against the pinned dependency versions — **the whole chain is present and
+needs no upstream change.**
+
+**1. `github.com/charmbracelet/x/ansi v0.11.7` has full mode-2031 support:**
+
+```go
+ModeLightDark        = DECMode(2031)
+SetModeLightDark     = "\x1b[?2031h"
+ResetModeLightDark   = "\x1b[?2031l"
+RequestModeLightDark = "\x1b[?2031$p"
+RequestLightDarkReport = "\x1b[?996n"   // poll current state
+func LightDarkReport(dark bool) string  // "\x1b[?997;1n" / "\x1b[?997;2n"
+```
+
+**2. `ultraviolet` decodes the report into typed events** (`decoder.go:428-440`):
+DSR `997;1` → `DarkColorSchemeEvent{}`, `997;2` → `LightColorSchemeEvent{}`.
+
+**3. Bubble Tea v2 delivers them to `Update` without wrapping.** This is the part
+that could have blocked it, and it doesn't: `tea.go:50` declares
+`type Msg = uv.Event` — a **type alias**, not a distinct type — and
+`translateInputEvent` (`input.go`) ends with a bare `return e` for any event it has
+no explicit case for. It has no case for the two colour-scheme events, so they
+arrive in `Update` verbatim as `uv.DarkColorSchemeEvent` / `uv.LightColorSchemeEvent`
+and can be type-switched directly. No fork, no upstream PR, no parsing by hand.
+
+**4. Portal must opt in itself, and there is a sanctioned route.** Bubble Tea does
+not enable 2031 on its own (the renderer sets bracketed paste, focus, mouse,
+alt-screen, synchronised output and unicode-core — not 2031) and ships no
+`Request…` Cmd for it. But `tea.Raw(any) Cmd` (`raw.go`) exists precisely for this,
+documented as *"for advanced use cases where you need to query the terminal or send
+escape sequences directly"*, and the program `execute`s it verbatim
+(`tea.go:858`). So `tea.Raw(ansi.SetModeLightDark)` from `Init`, optionally with
+`tea.Raw(ansi.RequestLightDarkReport)` to poll immediately rather than wait for a
+push.
+
+**5. Environment check: the installed tmux is 3.7b, not the 3.6b CLAUDE.md
+records.** Mode 2031 landed in tmux 3.6, so it is available — and the local
+environment is a release newer than the documented target. (Minor doc drift worth
+noting separately.)
+
+### What this changes
+
+The premise that *"bg-detection passthrough is unreliable inside tmux"* — inherited
+from the `spectrum-tui-design` discussion, repeated in Portal's README, and used in
+this session as an argument for deleting the appearance axis — was formed against
+**OSC 11**, a colour query the app must classify by luminance and race with a
+timeout. Mode 2031 is a different mechanism: a *semantic* light/dark answer, pushed
+on change, which tmux synthesises even when the outer terminal cannot answer.
+
+That does not decide anything, but it does mean the appearance question should be
+re-opened in discussion against the 2031 mechanism rather than against OSC 11. The
+"detection is unreliable" leg of the removal argument is no longer supported by the
+evidence that produced it.
+
+**Still unverified (needs a real terminal, not code reading):** whether
+Ghostty → tmux 3.7b → Portal actually produces the event in practice. The code path
+exists end-to-end; the behavioural confirmation does not yet.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
