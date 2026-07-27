@@ -669,6 +669,39 @@ the startup canvas keeps it correct with no new machinery. (This holds whether o
 not the appearance axis is removed: `restore.go` needs the query regardless, for the
 original-background capture.)
 
+### Settled in session: persist on close, marker, no revert key
+
+Lee's refinement: mark the theme active when the panel opens (yes), **no special
+keybinding to get back to it** (deliberately not added — the marker is
+informational, not an affordance), whatever you're on when you close is what's
+saved, and the panel carries a **visual statement of the contract** — an
+"escape closes / saves on close" hint.
+
+That resolves the persist-timing question in favour of **persist on close**, which
+is also the no-write-storm option. It makes the marker self-consistent: the marker
+shows the *persisted* theme, so if you close on a different one the marker has
+moved next time you open. One coherent story rather than two mechanisms.
+
+Two consequences worth recording.
+
+**The contract hint doesn't fit the existing footer vocabulary.** Portal's footer is
+descriptor-driven (`keymap.go`, `keymapEntry` with `Core` / `RightAligned` /
+`Destructive`), consumed by *both* the footer and the `?` help, with
+`keymap_dispatch_guard_test.go` guarding descriptor↔dispatch drift. Every existing
+entry is a `key + action-label` pair (`↑↓ navigate`, `⏎ attach`, `s switch view`),
+and there are four descriptor sets today (`sessionsKeymap`, `projectsKeymap`,
+`commandPendingKeymap`, `previewKeymap`). "Saves on close" is a *statement about
+behaviour*, not a keybinding — so either it rides an entry's label (`esc  close ·
+saves`) or the panel needs a non-key hint slot. The slide-over will want its own
+descriptor set regardless, joining the existing four.
+
+**"Applied but not persisted" becomes a reachable state.** Under persist-on-close,
+if Portal dies while the panel is open — `Ctrl-C`, terminal closed, or any exit path
+that isn't "close the panel" — the visually-applied theme was never written, and the
+next launch comes back on the marker. That is arguably *correct* (you never finished,
+so nothing saved) and it is defensible, but it is a state that simply cannot exist
+under write-per-arrow. Worth being a deliberate choice rather than a side effect.
+
 ### The one thing apply-on-arrow genuinely does need decided
 
 Visual application and *persistence* are separable, and only the second is
