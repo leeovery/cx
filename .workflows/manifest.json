@@ -170,6 +170,9 @@
     },
     "custom-terminal-docs-and-clickable-see-docs": {
       "work_type": "quick-fix"
+    },
+    "projects-filter-input-reskin": {
+      "work_type": "quick-fix"
     }
   },
   "defaults": {
