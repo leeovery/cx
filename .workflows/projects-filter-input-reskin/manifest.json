@@ -4,7 +4,15 @@
   "status": "in-progress",
   "created": "2026-07-27",
   "description": "Reskin the Projects page live filter input to Modern Vivid (orange prompt/query/cursor), mirroring the Sessions filter-input restyle.",
-  "phases": {},
+  "phases": {
+    "specification": {
+      "items": {
+        "projects-filter-input-reskin": {
+          "status": "completed"
+        }
+      }
+    }
+  },
   "seeds": [
     {
       "path": "seeds/2026-06-25-projects-filter-input-reskin.md",
