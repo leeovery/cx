@@ -615,6 +615,69 @@ uses it at exactly one site today.
 painted mode-matched backdrop). Both terms are now in play in the same feature.
 Worth keeping them lexically separate in the spec so they don't get conflated.
 
+## Live-preview semantics: apply-on-arrow
+
+Lee's model: arrowing the list **sets** the theme for real; `Esc` just closes the
+panel; the theme stays set. No separate commit step.
+
+Methodological note he was right to make: the earlier framing let *existing code*
+constrain the design question. The feature is allowed to change the code — the
+question is what the right behaviour is, then whether it's implementable.
+
+### Two established idioms, and his is one of them
+
+- **Picker idiom** — hover previews, `Esc` **reverts** to what was active, `Enter`
+  commits. VS Code's theme quick-pick, Telescope's `colorscheme` picker.
+- **Settings-panel idiom** — a change applies immediately and there is no cancel.
+  iTerm2's appearance prefs, and most application settings surfaces.
+
+Lee's model is the settings-panel idiom. It is coherent, and more importantly it is
+**consistent with Portal's own existing behaviour**: the `s` grouping-mode toggle
+already persists on every press with no undo. Internal consistency is the stronger
+argument here than matching VS Code.
+
+Its one honest cost: **no escape hatch from a bad landing.** Arrow through eight
+themes, dislike where you stopped, and you have to *remember* what you had. Trivial
+with two or three built-ins; less so with a growing user library. A cheap mitigation
+that preserves the model completely: mark the theme that was active when the panel
+opened (Portal already has a marker vocabulary — `●`). "Get back" becomes visible
+rather than remembered, with no revert machinery and no shadow state.
+
+### Is it possible — yes, and the OSC 11 concern was overstated
+
+**Correction to the earlier framing.** Bubble Tea v2 **diffs** the view's
+background colour and only emits when it changes —
+`bubbletea/v2@v2.0.7/cursed_renderer.go:411-432`:
+
+```go
+{newColor: view.BackgroundColor, oldColor: lbg, reset: ansi.ResetBackgroundColor, setter: ansi.SetBackgroundColor},
+…
+if c.newColor != c.oldColor { … s.scr.WriteString(c.setter(col.Hex())) }
+```
+
+So there is no per-keystroke churn. Hovering N themes emits OSC 11 exactly once per
+*distinct* canvas landed on — the minimum possible, and precisely what the feature
+requires. The declarative `v.BackgroundColor` assignment per frame is not a
+per-frame write.
+
+**The `restore.go` echo-guard concern also dissolves on inspection.** That guard
+exists because the startup OSC 11 *query reply* can race Portal's own canvas set.
+The query is issued once, from `Init`. A later theme switch issues no new query, so
+it creates no new race — the guard only ever needs to compare against the canvas
+active during the *startup* window, not the currently-active one. Anchoring it to
+the startup canvas keeps it correct with no new machinery. (This holds whether or
+not the appearance axis is removed: `restore.go` needs the query regardless, for the
+original-background capture.)
+
+### The one thing apply-on-arrow genuinely does need decided
+
+Visual application and *persistence* are separable, and only the second is
+awkward. "Arrow sets the theme" taken literally means a `prefs.json` write per arrow
+keypress. Apply-on-arrow visually while persisting on panel close (or debounced)
+gives byte-identical UX with no write storm. Same idiom, different write cadence —
+worth choosing deliberately rather than inheriting the `s` toggle's write-per-press
+behaviour by analogy.
+
 ## Open Questions
 
 - Must a user theme supply both Light and Dark variants, or can it supply one?
