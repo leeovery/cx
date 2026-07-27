@@ -1380,12 +1380,23 @@ func (m *Model) applyProjectCanvasMode() {
 	m.projectList.Styles.Title = m.projectList.Styles.Title.UnsetBackground().UnsetForeground()
 }
 
-// styleFilterInput restyles the bubbles/list FilterInput to the §7 MV treatment:
-// an accent.orange `/ ` prompt, the live query text in accent.orange, and an
-// accent.orange block cursor (input-active). It is the input-active counterpart of
+// styleFilterInput restyles BOTH the Sessions and Projects bubbles/list
+// FilterInputs to the §7 MV treatment, routing each through the shared
+// styleListFilterInput helper so the two pages can never drift: an accent.orange
+// `/ ` prompt, the live query text in accent.orange, and an accent.orange block
+// cursor (input-active). It is the input-active counterpart of
 // renderFilterQueryHeader (the list-active locked-query render): the same
 // accent.orange `/ query` reads in both modes, the only difference being the
 // cursor, which the live bubbles/list FilterInput owns while Filtering.
+func (m *Model) styleFilterInput() {
+	m.styleListFilterInput(&m.sessionList)
+	m.styleListFilterInput(&m.projectList)
+}
+
+// styleListFilterInput applies the §7 MV filter-input treatment to a single
+// bubbles/list FilterInput. It is the per-list core shared by the Sessions and
+// Projects lists (via styleFilterInput) so both pages render a byte-identical
+// filter input.
 //
 // The leaf .Background(canvas) is deliberately NOT applied here: the filter input
 // carries NO background tint (§7.1) — it renders over the canvas the surrounding
@@ -1395,9 +1406,9 @@ func (m *Model) applyProjectCanvasMode() {
 //
 // Cursor blink is disabled so the captured frame is deterministic (the cursor is
 // always the solid orange block the §7.1 reference shows, never a blinked-off gap).
-func (m *Model) styleFilterInput() {
-	m.sessionList.FilterInput.Prompt = filterPromptPrefix
-	styles := m.sessionList.FilterInput.Styles()
+func (m *Model) styleListFilterInput(l *list.Model) {
+	l.FilterInput.Prompt = filterPromptPrefix
+	styles := l.FilterInput.Styles()
 	if m.colourless {
 		// No canvas, no hue: the `/ ` prompt + query render on the terminal's native
 		// fg, and the cursor falls back to a bare (non-coloured) block. The colour is
@@ -1407,7 +1418,7 @@ func (m *Model) styleFilterInput() {
 		styles.Focused.Text = lipgloss.NewStyle()
 		styles.Cursor.Color = lipgloss.NoColor{}
 		styles.Cursor.Blink = false
-		m.sessionList.FilterInput.SetStyles(styles)
+		l.FilterInput.SetStyles(styles)
 		return
 	}
 	orange := theme.MV.AccentOrange.ColorFor(m.canvasMode)
@@ -1415,7 +1426,7 @@ func (m *Model) styleFilterInput() {
 	styles.Focused.Text = lipgloss.NewStyle().Foreground(orange)
 	styles.Cursor.Color = orange
 	styles.Cursor.Blink = false
-	m.sessionList.FilterInput.SetStyles(styles)
+	l.FilterInput.SetStyles(styles)
 }
 
 // NewModelWithSessions creates a Model pre-populated with sessions, for testing.
