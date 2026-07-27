@@ -684,16 +684,14 @@ moved next time you open. One coherent story rather than two mechanisms.
 
 Two consequences worth recording.
 
-**The contract hint doesn't fit the existing footer vocabulary.** Portal's footer is
+**The contract hint sits along the top of the panel, not the bottom** (Lee's
+clarification). That side-steps the footer question entirely: Portal's footer is
 descriptor-driven (`keymap.go`, `keymapEntry` with `Core` / `RightAligned` /
 `Destructive`), consumed by *both* the footer and the `?` help, with
-`keymap_dispatch_guard_test.go` guarding descriptor↔dispatch drift. Every existing
-entry is a `key + action-label` pair (`↑↓ navigate`, `⏎ attach`, `s switch view`),
-and there are four descriptor sets today (`sessionsKeymap`, `projectsKeymap`,
-`commandPendingKeymap`, `previewKeymap`). "Saves on close" is a *statement about
-behaviour*, not a keybinding — so either it rides an entry's label (`esc  close ·
-saves`) or the panel needs a non-key hint slot. The slide-over will want its own
-descriptor set regardless, joining the existing four.
+`keymap_dispatch_guard_test.go` guarding descriptor↔dispatch drift, and every entry
+there is a `key + action-label` pair. A statement about behaviour ("saves on close")
+doesn't fit that vocabulary — but as panel *header* chrome it doesn't need to, and
+needs no descriptor entry.
 
 **"Applied but not persisted" becomes a reachable state.** Under persist-on-close,
 if Portal dies while the panel is open — `Ctrl-C`, terminal closed, or any exit path
@@ -710,6 +708,37 @@ keypress. Apply-on-arrow visually while persisting on panel close (or debounced)
 gives byte-identical UX with no write storm. Same idiom, different write cadence —
 worth choosing deliberately rather than inheriting the `s` toggle's write-per-press
 behaviour by analogy.
+
+## Convergence flag — threads that have left research territory
+
+Lee called this out mid-session and he is right: the slide-over thread drifted into
+deciding rather than exploring. Recording the boundary so the phase doesn't keep
+crossing it.
+
+**These are decisions, not findings — they belong to discussion.** They are recorded
+above because they were reasoned through here, but they should be re-opened and
+ratified in the discussion phase rather than treated as settled by research:
+
+- Overlay vs shrink-to-fit for the panel (landed on overlay).
+- Apply-on-arrow vs preview-then-commit (landed on apply-on-arrow).
+- Persist-on-close vs persist-per-keypress (landed on persist-on-close).
+- Marker for the on-open theme; no revert keybinding.
+- Whether the appearance axis is removed at all.
+- Panel input routing — what `Enter` does while the panel is open, who owns arrows,
+  behaviour during an active filter / multi-select / on other pages. **This is
+  squarely discussion territory and was wrongly pushed as a research question.**
+
+**The distinction worth holding onto**, because the session blurred it: *"is
+light/dark detection reliable inside tmux?"* is a research question — factual,
+testable, and it changes what options exist. *"Should Portal remove the appearance
+axis?"* is a discussion question. The first informs the second; they are not the
+same question, and the session had started treating them as one.
+
+**What remains genuinely unexplored, and is research territory:** the theme-file
+format and its dependency cost; the border-token rename and naming prior art; where
+an additional built-in theme's values come from and whether an off-the-shelf palette
+can clear Portal's floors; what the validation rule set actually is; the
+capture-harness cost; and whether detection works in Portal's stack at all.
 
 ## Open Questions
 
