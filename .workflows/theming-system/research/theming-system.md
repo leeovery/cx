@@ -762,13 +762,63 @@ timeout. Mode 2031 is a different mechanism: a *semantic* light/dark answer, pus
 on change, which tmux synthesises even when the outer terminal cannot answer.
 
 That does not decide anything, but it does mean the appearance question should be
-re-opened in discussion against the 2031 mechanism rather than against OSC 11. The
-"detection is unreliable" leg of the removal argument is no longer supported by the
-evidence that produced it.
+re-opened in discussion against the 2031 mechanism rather than against OSC 11.
+
+### CORRECTION — 2031 answers a *different question* than OSC 11
+
+The paragraph above originally continued *"the 'detection is unreliable' leg of the
+removal argument is no longer supported"*, on the basis that 2031 is a better answer
+to the same question. **That was wrong**, and the packages Portal would consume say
+so explicitly. Verified in source:
+
+- `ansi/mode.go:642` — *"ModeLightDark is a mode that enables reporting the
+  **operating system's** color scheme (light or dark) preference."*
+- `ultraviolet/event.go:321,326` — *"DarkColorSchemeEvent is sent when the
+  **operating system** is using a dark color scheme"*, and its light counterpart.
+
+OSC 11 answers **"what colour is my terminal's background?"**. 2031 answers **"what
+appearance is the user's OS set to?"**. Those are different signals that routinely
+disagree — and Lee's own ambiguous manual test is precisely the disagreement case: a
+Ghostty pinned to a fixed dark theme on a light macOS. Under OSC 11 Portal correctly
+reads dark; under 2031 it would read **light**, not flakily but *systematically*.
+
+Two wrinkles cutting the same way:
+
+- tmux's own CHANGES entry says it *"will guess the theme from the background colour
+  on terminals which do not themselves support the escape sequence"* — so on the
+  synthesis path 2031 returns a **background-luminance guess**, the very signal whose
+  unreliability was the original objection. Same escape sequence, two different
+  underlying questions depending on who answers.
+- A1 in the appendix already recorded that the emulator layer "tracks the *OS*
+  appearance, not the terminal's colours". The contradiction was present in this
+  document and went unnoticed.
+
+**Revised conclusion.** What is established is narrower than first written: a
+detection mechanism exists, is plumbed end-to-end in Portal's stack, and does not
+suffer OSC 11's race. What is **not** established is that it answers the question
+Portal wants answered.
 
 **Still unverified (needs a real terminal, not code reading):** whether
-Ghostty → tmux 3.7b → Portal actually produces the event in practice. The code path
-exists end-to-end; the behavioural confirmation does not yet.
+Ghostty → tmux 3.7b → Portal produces the event in practice. Note this would confirm
+the *code path only* — it cannot settle which question the answer represents, so it
+must not be treated as settling the argument above.
+
+### The unstated payoff — what is detection actually FOR?
+
+Never asked, and it sits upstream of everything else in this thread. Portal **owns an
+opaque canvas** and guarantees its contrast floors against that canvas — this document
+says repeatedly that a mismatch is *"jarring, never illegible"*. If legibility is
+guaranteed either way, then detection's entire payoff is **aesthetic blending** with
+the surrounding terminal. That is a real but modest benefit, and naming it matters
+twice: it is what the "follow the terminal continuously" job should be costed
+against, and it is what discriminates the two signals —
+
+- **Aesthetic blending with the terminal** → wants the terminal's background →
+  **OSC 11** is the right signal and 2031 is the wrong one.
+- **Following the user's system-wide preference** → wants the OS scheme → **2031** is
+  the right signal.
+
+Portal needs to know which it wants before it can judge whether 2031 supplies it.
 
 ## The false dichotomy: detection and pairing are independent axes
 
