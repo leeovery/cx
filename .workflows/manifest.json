@@ -173,6 +173,9 @@
     },
     "projects-filter-input-reskin": {
       "work_type": "quick-fix"
+    },
+    "theming-system": {
+      "work_type": "feature"
     }
   },
   "defaults": {
