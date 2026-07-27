@@ -213,6 +213,107 @@ decision for this phase.
 
 ---
 
+## The slide-over becomes an appearance surface too, not just a theme list
+
+Lee's reaction to the two-axes finding: put the **light / dark / auto** picker in
+the slide-over as well. His reasoning — that setting exists today but is
+*config-only* (`prefs.json` `appearance`), and this is the opportunity to make it
+TUI-configurable rather than a file edit.
+
+That is feasible on the same seam, with one wrinkle. `appearance` is read **once
+at TUI construction** (`WithAppearance` in `cmd/open.go`) and its value gates
+whether OSC 11 detection runs at all — `light`/`dark` *pin* the canvas and skip
+both detection and the ~50ms first-paint wait. So:
+
+- **auto → light/dark** is trivial: set `canvasMode`, re-apply, re-emit the canvas
+  OSC 11, persist.
+- **light/dark → auto** is the interesting direction: detection has to run *now*,
+  mid-session. Mechanically fine (there's no first-paint gate left to win), but the
+  appearance gate's designed invariant is **single-resolution, never
+  paint-then-flip** — and switching to `auto` live *is* a paint-then-flip by
+  nature. The invariant was written for startup, so this isn't a contradiction so
+  much as a case the gate was never asked to handle.
+
+Worth noting both axes converge on the same machinery: **theme change and
+appearance change are the same re-apply + re-emit-OSC-11 operation**, differing
+only in which input moved. The slide-over is one panel driving two settings
+through one seam.
+
+Scope observation (not a proposal): `prefs.json` currently holds exactly two
+things — `session_list_mode` and `appearance`. If the slide-over becomes the home
+for `appearance`, then one pref is adjusted by a keybind cycle (`s`) and the other
+by a panel. There's a latent consistency question there about what a "settings
+surface" in Portal is, which this work will brush against whether or not it
+answers it.
+
+## Paired vs split: is "one theme carries both variants" the right model?
+
+Lee raised this himself and explicitly invited the discussion: today a theme is
+`{20 tokens} × {light, dark}` — one theme, two variants. The alternative is
+`theme = one palette` tagged light or dark, so "Tokyo Night Dark" and "Tokyo Night
+Light" are two separate themes and the appearance axis selects between them.
+
+**The central reframe: splitting does not remove the pairing, it relocates it.**
+`auto` mode is the reason. Under `auto`, detection says "the terminal is light" and
+something must know *which* palette to use — so a split model still needs a
+light↔dark relationship, expressed either as a naming convention
+(`gruvbox-light`/`gruvbox-dark` — fragile and prescriptive), as two settings
+(`theme.light` / `theme.dark`), or as metadata inside the theme (`variant:` plus a
+`pair:` pointer — which is pairing again, just externalised). So the real question
+is **where the pairing lives**, not whether it exists.
+
+### Arguments the current paired model is right
+
+- **It's what the code already is.** `Token{Name, Light, Dark}` + `ColorFor(mode)`.
+  Zero migration, zero call-site churn.
+- **The appearance axis stays genuinely orthogonal.** `auto` can flip light↔dark
+  without changing theme *identity* — the user picked "Tokyo Night" and stays on
+  Tokyo Night all day. That's a clean conceptual model.
+- **One selector list**, and arrowing through it never changes the canvas mode —
+  so live preview is a pure colour change with no mode flip mid-scroll.
+
+### Arguments for splitting
+
+- **The whole terminal ecosystem is single-palette.** base16/base24, iTerm2
+  `.itermcolors`, Alacritty, WezTerm, Zellij, Helix, `bat`/`delta` — one palette
+  per file, with "Gruvbox Light" and "Gruvbox Dark" as two named themes. If Portal
+  ever wants theme files that are recognisable to (or cribbable from) that
+  ecosystem, single-palette matches convention.
+- **Authors only care about the mode they use.** Paired forces every author to
+  either design both halves or leave one undefined — which is precisely the
+  "what renders if the mode is undefined?" open question below. Split makes that
+  question disappear: an author writes exactly one palette and nothing is missing.
+- **The asymmetry is real, and Portal's own code is the evidence.** A good light
+  palette is not a mechanical lightening of a good dark one. In MV, six light
+  hexes had to be *individually* darkened with erratum comments to clear the
+  floor, and the three light surface tints were **eyeball-pinned at a validation
+  gate** rather than derived. MV's light and dark are, in practice, two
+  independently-tuned palettes that happen to share token names — the paired
+  struct implies a derivation relationship that doesn't actually exist.
+- **It would collapse `mode` out of the render layer.** `theme.Mode` is currently
+  threaded as a parameter through essentially every render helper in
+  `internal/tui` (`headerStyle(tok, mode, colourless)`, `renderDeleteModalContent(…,
+  mode, colourless)`, and so on across ~20 files), and its only job is choosing a
+  variant — it is always passed straight down to `ColorFor`. If the active theme
+  were already resolved to a single palette, `Token` collapses to `{Name, Value}`,
+  `ColorFor` disappears, and `mode` stops needing to reach renderers at all. That
+  is a substantial simplification of the render layer — and simultaneously a
+  substantial mechanical change to make.
+
+### Consequences that cut across both
+
+- **Live preview behaves differently.** Under paired, arrowing the theme list never
+  changes light/dark. Under split, arrowing onto a light-only theme while in dark
+  mode must either flip the canvas (arguably *more* honest — you see the theme as
+  designed) or refuse/filter it (the list shows only themes matching the current
+  mode). Both are defensible; they're different products.
+- **Ghostty solves this exact problem in its own config** with a mode-mapped theme
+  setting (a single theme name, *or* a light/dark pair in one setting) — a directly
+  relevant precedent, and Portal already has a native Ghostty spawn adapter. Worth
+  verifying the exact shape rather than trusting recollection.
+- **Validation is indifferent.** Each variant is already measured against its own
+  canvas independently, so the floor check works the same either way.
+
 ## Open Questions
 
 - Must a user theme supply both Light and Dark variants, or can it supply one?
