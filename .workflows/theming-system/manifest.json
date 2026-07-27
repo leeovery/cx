@@ -4,7 +4,15 @@
   "status": "in-progress",
   "created": "2026-07-27",
   "description": "Make Portal's Modern Vivid colour-token layer user-themeable — load token values from config rather than code, ship additional built-in themes, add a live-preview in-app theme selector, and settle the border token names before they become the public contract.",
-  "phases": {},
+  "phases": {
+    "research": {
+      "items": {
+        "theming-system": {
+          "status": "in-progress"
+        }
+      }
+    }
+  },
   "seeds": [
     {
       "path": "seeds/2026-06-17-user-overridable-theme-system.md",
