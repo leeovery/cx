@@ -770,6 +770,90 @@ evidence that produced it.
 Ghostty → tmux 3.7b → Portal actually produces the event in practice. The code path
 exists end-to-end; the behavioural confirmation does not yet.
 
+## The false dichotomy: detection and pairing are independent axes
+
+The session has been treating "keep auto-detection" and "each theme ships light +
+dark" as one package, and flipping between the package and its opposite. The
+ecosystem shows they are **two separate questions**, and all four combinations
+ship somewhere:
+
+| | **Detect light/dark** | **No detection** |
+|---|---|---|
+| **Theme carries both variants** | Portal today; tmux 3.8 (`theme detect` + `dark-theme-*`/`light-theme-*`) | Pick a theme, pin the mode by hand |
+| **Theme is one palette** | **Helix** — `[theme] dark = "x", light = "y", fallback = "z"`; also bat (`--theme-dark`/`--theme-light`), yazi, Zellij (`theme_dark`/`theme_light`), kitty's `*.auto.conf`, Ghostty's `theme = light:X,dark:Y` | The single most common shape: `theme = "name"` |
+
+The bottom-left cell is the one this session never considered: **auto-detection with
+single-palette themes**, where detection picks between two *named themes* rather than
+between two variants inside one theme. It is also the best-articulated version found
+anywhere — Helix's config enum carries an explicit third value for "the terminal
+declared nothing":
+
+```rust
+Adaptive {
+    light: String,
+    dark: String,
+    /// A theme to choose when the terminal did not declare either light or dark mode.
+    /// When not specified the dark theme is preferred.
+    fallback: Option<String>,
+}
+```
+
+So **wanting auto-detection does not commit Portal to the paired model.** That is
+the main thing to carry into discussion.
+
+### Where the evidence actually points, per axis
+
+**Detection axis — the evidence moved decisively toward "it's viable".** Mode 2031
+is verified present end-to-end in Portal's stack, tmux synthesises the answer, and
+four surveyed applications detect *by default*. The original "unreliable inside
+tmux" objection was against OSC 11 and does not carry over.
+
+**Pairing axis — the evidence is genuinely split, and the two sides are different
+kinds of evidence:**
+
+*For paired:*
+- **Charm's own direction is the most directly applicable prior art**, because
+  Portal is a Lipgloss v2 app. Lipgloss v2 moved `AdaptiveColor` into `compat` and
+  de-recommends it — but the recommended replacement is
+  `lightDark := lipgloss.LightDark(hasDarkBG)` then `lightDark(lightVal, darkVal)`.
+  **Paired values retained; the *detection* made explicit.** Charm de-recommended
+  implicit detection, not paired colours. Glamour v2 likewise removed
+  `WithAutoStyle()` and told callers to detect themselves. That nuance is easy to
+  flatten into "Charm abandoned adaptive colours", which is not what happened.
+- tmux 3.8 adopting paired slots — but weaker than it first appears: tmux's slots
+  are *ANSI colour families* (`themeblack`), which structurally must pair because
+  one slot means "black" in both modes. Portal's tokens are semantic roles. The
+  analogy is looser than the surface similarity suggests.
+- Zero migration; theme identity stays stable across an auto flip.
+
+*For split:*
+- Single-palette is overwhelmingly dominant across ~20 surveyed tools.
+- **The "missing variant" problem simply ceases to exist.** The deep dive's own
+  assessment: the ecosystem never answers "what if a theme defines only one
+  variant?" because single-palette means there is never a missing variant. Every
+  tool needing both refers to *two theme names*.
+- **The authoring burden, which is the Portal-specific argument and the strongest
+  one.** Paired means a theme author supplies 40 values (20 tokens × 2 modes) and
+  clears contrast floors against *two* canvases. Split means 20 values against one.
+  Portal's own history is the evidence for how real that cost is: MV's light
+  variants needed six individual erratum corrections plus three eyeball-pinned
+  surface tints *by the maintainer who designed the palette*.
+- Collapses `theme.Mode`, `Token.ColorFor`, and mode-threading through ~20 files.
+
+### The decision criterion this suggests
+
+The pairing choice turns less on which is "more modern" and more on **who writes
+themes**:
+
+- If themes are curated built-ins Lee authors, paired costs little — he does the
+  two-mode tuning either way, and theme identity stays stable across an auto flip.
+- If a **user theme ecosystem** is wanted, paired doubles both the authoring burden
+  and the contrast-tuning burden, and every surveyed tool with a real theme
+  ecosystem went single-palette.
+
+That question — is this a curated set or a user ecosystem? — is upstream of the
+pairing decision and has not been asked in this session.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
