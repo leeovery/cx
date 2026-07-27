@@ -553,6 +553,68 @@ Net: option **(1) + (2)**, and specifically (2) implemented via the (4)
 making detection load-bearing. Option (3) has structural problems in Portal
 specifically.
 
+## The slide-over: overlay, and the mechanism already ships
+
+Lee's picture clarified: the panel **overlays** the right-hand side. Content does
+not shrink or reflow — it stays exactly where it is and the panel draws on top of
+it. "Much like the modal, but fixed to the right-hand side as a list" — the
+difference from a modal being that a modal blanks the background and the slide-over
+does not.
+
+**This is already implemented in Portal.** `internal/tui/pagepreview.go:731-747`
+(`overlayHelpOnPreview`) composites the `?` help panel over the Preview page using
+z-ordered layers:
+
+```go
+background := lipgloss.NewLayer(preview).X(0).Y(0).Z(0)
+foreground := lipgloss.NewLayer(panel).X(x).Y(y).Z(1)
+return lipgloss.NewCompositor(background, foreground).Render()
+```
+
+Its doc comment states the exact principle Lee described — *"the preview content
+stays visible behind it (§9 — the Preview `?` help overlays, it does NOT blank).
+… leaving every cell outside the panel showing the preview underneath."* So the
+non-blanking overlay is not a new chrome shape at the mechanism level: it is an
+existing, shipped, spec-sanctioned one, currently used at one site. The slide-over
+is that same call with `X` pinned to the right edge and full height instead of
+centred.
+
+Verified: `charm.land/lipgloss/v2 v2.0.4` ships genuine compositing —
+`Layer` with `X`/`Y`/**`Z`** and nested `AddLayers`, plus `Compositor` with
+`Render()` and `Hit(x, y)` (mouse hit-testing, which a clickable panel could use
+later). No ANSI-aware string surgery required; this is a first-class API. Portal
+uses it at exactly one site today.
+
+### What overlay buys and what it costs
+
+- **It sidesteps the pagination-invariant risk entirely.** The list's width and
+  height are untouched, so nothing reflows, no height re-budget, no
+  one-row-per-delegate perturbation. That was the main hazard in the shrink-to-fit
+  alternative and overlay removes it rather than managing it.
+- **The owned canvas makes overlay clean.** Because Portal paints an opaque
+  backdrop on every cell, the panel's cells are fully opaque with no transparency
+  artefacts. In a TUI that leaves the terminal background showing through, an
+  overlay panel tends to look broken — canvas ownership is what makes this tidy.
+- **But it hides the right-hand column, which is where Portal puts information.**
+  This is the honest cost and it isn't "covering empty space": the footer's
+  right-aligned `? help` (`right_anchored_row.go`), the right-side header hint, and
+  session row meta all live at the right edge. Shrink-to-fit would hide nothing but
+  pay reflow; overlay pays no reflow but hides the informational edge. A genuine
+  tradeoff, and it argues for thinking about *what* sits behind the panel, not just
+  the panel.
+- **Narrow terminals need a separate answer.** `header.go` pins
+  `minTerminalWidth = 40` with staged degradation below it. A usably-wide panel
+  (~24–30 columns) over a 40-column terminal covers most of the screen, at which
+  point the overlay degenerates into "a modal that doesn't blank" and there is
+  almost nothing left visible to preview against — defeating the reason for
+  choosing a slide-over. Some threshold behaviour is needed.
+
+### Naming hazard
+
+`lipgloss.Canvas` is a *different concept* from Portal's "owned canvas" (the
+painted mode-matched backdrop). Both terms are now in play in the same feature.
+Worth keeping them lexically separate in the spec so they don't get conflated.
+
 ## Open Questions
 
 - Must a user theme supply both Light and Dark variants, or can it supply one?
