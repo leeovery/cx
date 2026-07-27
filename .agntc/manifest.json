@@ -533,8 +533,8 @@
     "constraint": "^0.6.0"
   },
   "samber/cc-skills-golang": {
-    "ref": "v1.9.0",
-    "commit": "4158351dd5420c027755953fb73baa92d59a8b7b",
+    "ref": "v1.9.1",
+    "commit": "15b1a0fcf1b39f7aa7075094e1228cf4cbbb7c3b",
     "agents": [
       "claude"
     ],
@@ -973,7 +973,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/samber/cc-skills-golang.git",
-    "installedAt": "2026-07-17T07:16:28.470Z",
+    "installedAt": "2026-07-27T12:48:34.522Z",
     "constraint": "^1.5.1"
   }
 }
