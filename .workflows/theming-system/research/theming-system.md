@@ -854,6 +854,71 @@ themes**:
 That question — is this a curated set or a user ecosystem? — is upstream of the
 pairing decision and has not been asked in this session.
 
+## Decomposition: three questions, only two of them independent
+
+The session kept flip-flopping on "remove the appearance axis or not" because that
+was treated as its own decision when it is partly *downstream* of another. Breaking
+it into the three questions actually in play:
+
+**Q1 — Does Portal detect the terminal's light/dark preference at all?**
+Independent. Answerable on evidence: viable now (mode 2031 verified present in
+Portal's stack; tmux synthesises the answer; four surveyed tools detect by default).
+
+**Q2 — Is a theme one palette, or a light/dark pair?**
+Independent. This is the paired-vs-split question.
+
+**Q3 — Is there a user override on detection, and what does it look like?**
+**Not independent — its *shape* is determined by Q2.** This is the one the session
+has been calling "the appearance axis", and it is why the question kept resisting a
+clean answer.
+
+### Why Q3 is derived
+
+`prefs.appearance = auto|light|dark` is not "the detection". It is the **override on**
+the detection — `auto` means *use* the detected answer, `light`/`dark` mean *ignore*
+it and force this. What that override looks like depends entirely on Q2:
+
+- **Under paired**, detection picks a *variant inside* the selected theme. An
+  override therefore has to be a separate mode enum, because there is no other way
+  to say "give me MV's light variant even though my terminal is dark". That enum is
+  exactly today's `auto|light|dark`. **Paired keeps the appearance setting.**
+- **Under split**, detection picks *between two named themes*. The override is not a
+  mode enum — it is the **shape of the theme setting itself**. Helix's design is
+  precisely this: `Config::Constant(String)` vs
+  `Config::Adaptive{light, dark, fallback}`. Writing `theme = "tokyo-night-dark"`
+  *is* the pin (a constant theme, no detection); writing `dark = "…" / light = "…"`
+  opts into detection. There is no `appearance` enum anywhere.
+  **Split dissolves the appearance setting into the theme setting.**
+
+So the answer to "are we keeping or removing auto/light/dark" is: **it is not a
+standalone choice.** Choosing split removes it as a *consequence*; choosing paired
+keeps it. The only genuinely free part is whether `auto` is among its values, which
+is Q1.
+
+### The four combinations, made concrete
+
+What the user's config actually looks like in each:
+
+- **Paired + detect** (today's design, now on a working detection mechanism) —
+  `theme = "modern-vivid"` + `appearance = auto|light|dark`. One theme identity that
+  survives a light/dark flip.
+- **Paired + no detect** — `theme = "modern-vivid"` + `appearance = light|dark`.
+  Same model, the `auto` value simply removed.
+- **Split + detect** (Helix's design) — `theme = { dark = "tokyo-night-dark", light
+  = "tokyo-night-light", fallback = "tokyo-night-dark" }`. No appearance setting.
+- **Split + no detect** (the most common shape in the wild) —
+  `theme = "tokyo-night-dark"`. One line, nothing else.
+
+Note that the last two are the *same setting* in two shapes, which is what makes
+Helix's design tidy: a user who doesn't care writes one theme name and never learns
+the adaptive form exists.
+
+### What this means for sequencing the discussion
+
+Q1 and Q2 are the real decisions. Q3 falls out. And Q2 has the curated-set vs
+user-ecosystem question upstream of it (see above), which is the genuinely unasked
+one.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
