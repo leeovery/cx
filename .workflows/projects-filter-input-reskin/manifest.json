@@ -11,6 +11,36 @@
           "status": "completed"
         }
       }
+    },
+    "planning": {
+      "items": {
+        "projects-filter-input-reskin": {
+          "status": "completed",
+          "format": "tick",
+          "spec_commit": "1134ae92f46d939cae793450a132ff8d33a5128a",
+          "task_list_gate_mode": "auto",
+          "author_gate_mode": "auto",
+          "finding_gate_mode": "auto",
+          "review_cycle": 0,
+          "phase": 1,
+          "task": null,
+          "external_id": "tick-dc0f87",
+          "task_map": {
+            "projects-filter-input-reskin-1": "tick-37c9c1",
+            "projects-filter-input-reskin-1-1": "tick-4c392b"
+          },
+          "storage_paths": [
+            ".tick/"
+          ]
+        }
+      }
+    },
+    "scoping": {
+      "items": {
+        "projects-filter-input-reskin": {
+          "status": "completed"
+        }
+      }
     }
   },
   "seeds": [
