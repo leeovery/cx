@@ -314,6 +314,114 @@ is **where the pairing lives**, not whether it exists.
 - **Validation is indifferent.** Each variant is already measured against its own
   canvas independently, so the floor check works the same either way.
 
+## What `appearance: ""` means, and what Lee's test does / doesn't prove
+
+Lee's local `prefs.json` carries `"appearance": ""`. Traced: `parseAppearance("")`
+hits the tolerant-decode default → **`AppearanceAuto`**. So he is on auto, and the
+detect-or-timeout gate *is* arming. Everything is wired correctly —
+`tea.RequestBackgroundColor` is issued from `Init` (`model.go:2130`), the reply is
+classified by `msg.IsDark()` (`model.go:2229`), and a 50ms `tea.Tick` races it to
+the dark fallback.
+
+He switched to light mode and Portal stayed dark, across a restart. Two readings,
+and they are **not** equivalent evidence:
+
+1. **OSC 11 got no usable reply inside 50ms.** Plausible — the
+   `spectrum-tui-design` discussion explicitly flagged that Portal runs *inside
+   tmux*, "where bg-detection passthrough is unreliable". Under this reading auto
+   is ineffective in Lee's actual environment.
+2. **The terminal never actually changed.** If Ghostty is configured with a fixed
+   theme rather than a light/dark-mapped one, switching *macOS* appearance changes
+   nothing about the terminal's background — and Portal reporting dark would be
+   **correct**, not broken.
+
+Unresolved which. Noting it because "auto doesn't work" and "auto worked, my
+terminal just didn't change" are different justifications for removing auto — even
+though, as below, the case for removal doesn't actually rest on either.
+
+## Proposal (Lee): delete the appearance axis entirely
+
+Lee's position after the above: **remove `auto`, and remove light/dark as an
+appearance/config concept altogether.** Split MV into `Tokyo Night Dark` and
+`Tokyo Night Light` as two ordinary themes, so nothing is lost — the existing
+values survive as two entries in the theme list. Theme selection is manual, in the
+TUI. Rationale: terminal *applications* generally don't auto-switch (you pick a
+theme), and Portal is a transient UI, so a mismatch is not fatal.
+
+### This is a much larger simplification than the theme model alone
+
+The thing worth surfacing: `appearance` is not merely a setting. It is the **sole
+reason the appearance gate exists**. If the chosen theme already answers "light or
+dark", then the following all lose their only consumer:
+
+- **`internal/tui/appearance_gate.go` in its entirety** (167 lines) — the
+  detect-or-timeout race, `appearanceTimeoutMsg`, `arm()`, `resolveFromDark`,
+  `resolveDark`, the single-resolution / no-flip invariant, the pending
+  blank-first-frame.
+- **The 50ms first-paint wait.** In auto mode today the first *real* paint is held
+  behind a neutral blank frame for up to 50ms waiting for OSC 11. Delete the axis
+  and Portal paints the correct canvas on frame one, always, with no race to win.
+  That's a startup win *and* the removal of the trickiest timing code in the TUI.
+- **`prefs.Appearance`** — the enum, its tolerant decode, `LoadAppearance` /
+  `SaveAppearance`, and `WithAppearance`.
+- **`Token.ColorFor` and `theme.Mode` threading.** `Token` collapses to
+  `{Name, Value}`; the `mode` parameter stops travelling through ~20 files of
+  render helpers.
+- **The dual-canvas contrast bookkeeping.** Each theme is validated against *its
+  own* canvas, one palette at a time — no light-vs-`#e1e2e7` / dark-vs-`#0b0c14`
+  split, and no erratum comments recording which background a ratio was measured
+  against.
+- **The paired-vs-split question itself**, which was only hard *because* `auto`
+  needed a light↔dark pairing. Remove auto and the pairing has no consumer. The
+  slide-over becomes one list on one axis.
+
+### What does *not* disappear (precision matters here)
+
+- **The OSC 11 *query* stays.** `restore.go` captures the original terminal
+  background in order to restore it on exit — independent of detection. What dies
+  is the *classification* and the race, not `tea.RequestBackgroundColor`.
+- **The canvas-echo guard stays** (and keeps its "do not drop this" status); its
+  comparison just re-points from "the mode's canvas" to "the active theme's
+  canvas".
+- **`NO_COLOR` still needs its carve-out**, but gets simpler: it currently rides
+  the gate as `newColourlessGate` — a gate whose only job is to skip a race. With
+  no race, NO_COLOR becomes plainly "suppress canvas and colour".
+
+### Honest costs
+
+- **First-run mismatch becomes sticky.** A light-terminal user's first launch is
+  dark until they change it. Today auto *sometimes* gets that right; under the
+  proposal it never does by itself. Traded for a reliable worst case and a large
+  simplification — but it is a real regression in the best case.
+- **Mismatch is more visible for Portal than for most TUIs**, precisely because
+  Portal *owns* the canvas and sets the terminal default background — a dark
+  Portal in a light terminal repaints the window rather than blending into it. That
+  cuts both ways: it makes a mismatch louder, *and* it removes any "blend in
+  quietly" option that auto might otherwise be protecting. Portal is imposing a
+  background either way, so the argument that the user should simply choose it has
+  force.
+- **A prefs migration decision.** Existing files carry `appearance`. Tolerant
+  decode means dropping the field is graceful (it becomes dead data), but there's a
+  choice about whether to *translate* a persisted `light`/`dark` into a default
+  theme selection on first run, or just ignore it.
+- **This reverses a spec decision that was itself a reversal.** §2.6's
+  detect-or-timeout gate replaced the earlier "best-effort + `--theme` override"
+  stance when canvas ownership landed. This would be the third position on the same
+  question — not a criticism (the ground genuinely moved each time), but the spec
+  edit is real and a body of tests pinning the gate's invariants would be deleted
+  (two dedicated test files, `appearance_detection_test.go` and
+  `appearance_option_test.go`, plus references across ~8 more).
+
+### On the premise
+
+Lee's claim that terminals don't usually have auto mode is **right where it
+matters and wrong where it doesn't**. Terminal *emulators* increasingly do have it
+(Ghostty's mode-mapped theme setting, iTerm2's separate light/dark presets, Windows
+Terminal). Terminal *applications* — `bat`, `delta`, Helix, lazygit, k9s — almost
+universally do not: you name a theme and that's the theme. Portal is an
+application, so the convention he's invoking is the applicable one. Vim/Neovim's
+`background=light|dark` is the notable counter-example, and it is set by hand.
+
 ## Open Questions
 
 - Must a user theme supply both Light and Dark variants, or can it supply one?
