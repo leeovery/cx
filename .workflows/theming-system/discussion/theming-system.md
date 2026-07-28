@@ -370,6 +370,141 @@ the value can be computed that day. Not deciding is free here; deciding is not.
 
 ---
 
+## Light/dark detection — ships, follows the terminal, two-slot form
+
+### Context
+
+Portal owns a mode-matched canvas, so something must decide which canvas to
+paint. Today that is `prefs.appearance = auto|light|dark` plus an OSC 11
+detect-or-timeout gate. Split removes the *variant* axis from the theme, so the
+question re-forms as: does Portal detect at all, against which signal, and what
+does the user-facing setting look like?
+
+Research spent the majority of its time here and arrived at "match the terminal"
+— but flagged it for ratification. This section ratifies it and records the
+journey, because the journey contains two reversals that are easy to
+re-introduce if forgotten.
+
+### Journey — including two false paths
+
+**1. The starting premise was that detection is unreliable inside tmux.**
+Inherited from the `spectrum-tui-design` discussion, repeated in Portal's README,
+and used as the main argument for deleting the appearance axis entirely.
+
+**2. Lee proposed deleting the appearance axis outright** — no `auto`, no
+light/dark as a config concept; split MV into two ordinary themes and select
+manually. The appeal was large: `appearance_gate.go` (167 lines), the 50ms
+first-paint wait, `prefs.Appearance`, `Token.ColorFor`, and the dual-canvas
+contrast bookkeeping all lose their only consumer.
+
+**3. DEC mode 2031 was found to be plumbed end-to-end in Portal's stack** —
+`x/ansi` has the mode constants and report parsers, `ultraviolet` decodes DSR
+`997;1`/`997;2` into typed events, and Bubble Tea v2 passes them through to
+`Update` verbatim (`type Msg = uv.Event` is a type *alias*, and
+`translateInputEvent` returns unhandled events bare). Portal opts in with
+`tea.Raw(ansi.SetModeLightDark)`. tmux 3.6+ supports it and the installed tmux is
+3.7b. That looked like it refuted the unreliability premise.
+
+**4. FALSE PATH — 2031 answers a different question.** The packages say so
+explicitly: `ModeLightDark` reports *"the **operating system's** color scheme
+preference"*. OSC 11 answers *"what colour is my terminal's background?"*. Those
+routinely disagree, and Lee's own environment is the disagreement case — a
+Ghostty pinned dark on a light macOS. A further wrinkle cuts the same way: on
+terminals that don't support 2031, tmux *synthesises* the answer by guessing from
+the background colour, which is the very signal whose unreliability was the
+original objection. So 2031 is a better-engineered answer to a question Portal
+may not be asking.
+
+**5. The unasked question: what is detection FOR?** Because Portal owns an
+opaque canvas and guarantees its contrast floors against that canvas, a
+mode mismatch is *jarring, never illegible*. Detection's entire payoff is
+therefore **aesthetic blending with the surrounding terminal** — and naming that
+is what discriminates the signals. Blending wants the terminal's background,
+which is OSC 11's question, not 2031's.
+
+**6. The live test settled it.** Lee set macOS to light with Ghostty pinned dark
+and captured screenshots. His shell prompt broke badly — it followed the OS, set
+*foreground only*, and inherited a background it does not control, so contrast
+collapsed into washed-out barely-legible text. Portal, in the same terminal in
+the same state, rendered perfectly. Portal paints **both** (leaf
+`.Background(canvas)`, the outer `fillCanvas`, and OSC 11 for the gutter), so it
+cannot produce that failure whichever signal it follows — but the comparison
+shows exactly what following the OS costs anything that doesn't own its
+background.
+
+**7. Retroactive correction — the tmux premise was probably never true here.**
+Ghostty being pinned dark means Lee's original observation (Portal stayed dark
+when macOS went light) was Portal reading the terminal *correctly*. OSC 11 was
+working the whole time. The "detection is unreliable inside tmux" premise, which
+drove a large part of the research session and sits in the README, is retired.
+
+### Decision
+
+**Detection ships. The signal is the terminal background via OSC 11. Mode 2031
+is deliberately not adopted. The user-facing form is Helix's two-slot shape.**
+
+Three arguments carried it:
+
+1. **Transition dominance.** Portal's dwell time is seconds — launch, pick, exec
+   into a session, many times a day — so the transition in and out dominates the
+   experience. Matching the terminal reads as "your terminal, with a picker in
+   it". Matching the OS against a pinned terminal flashes light and drops back to
+   dark, twice per use. (Correcting an earlier framing: Portal does not sit
+   *inside* anything — it covers the window edge to edge, so the mismatch is felt
+   only at the transition.)
+2. **A terminal/OS mismatch is usually deliberate, not stale.** Lee's Ghostty is
+   *pinned* dark — an explicit choice about the environment Portal lives in. For
+   something that lives inside a terminal, the terminal's background is arguably
+   the *more* relevant preference, not the weaker one.
+3. **Forward compatibility with transparency**, which is deferred-not-rejected.
+   A transparent theme *must* follow the terminal background. Choosing terminal
+   now makes adding transparency later **purely additive** — no second mechanism,
+   no per-theme signal selection. Choosing OS now makes it expensive.
+
+**Config shape** (no `appearance` setting exists anywhere — the override is the
+*shape* of the theme setting):
+
+- `theme = "tokyo-night"` — a constant. Detection is never consulted.
+- `theme.light = "…"` / `theme.dark = "…"` — opts in; detection chooses.
+- A no-answer resolves to the **dark** slot (Helix carries an explicit third
+  `fallback` value for exactly this, defaulting to dark; Helix, Neovim, delta and
+  Glamour v2 all use dark as the universal no-answer fallback).
+
+### Accepted cost
+
+**OSC 11 is query-only; 2031 pushes on change.** So Portal gets
+*correct-at-startup*, not *live-following* — a terminal that flips mid-session
+is not noticed until the next launch. Judged thin: terminal backgrounds rarely
+change mid-session, and when they do it is usually because the terminal is itself
+following the OS.
+
+### Precision — what actually dies, and what does not
+
+An earlier research framing counted the whole appearance gate and the 50ms
+first-paint wait as deleted. Under the two-slot form that is **only partly
+true**, and the difference matters:
+
+- **Dies:** `prefs.Appearance` (the `auto|light|dark` enum, its tolerant decode,
+  `LoadAppearance`/`SaveAppearance`, `WithAppearance`) — replaced by the shape of
+  the theme setting. Note `SaveAppearance` has no production caller today, so
+  this is mostly read-path removal.
+- **Dies via split, not via this decision:** `Token.ColorFor`, `theme.Mode`
+  threading, the dual-canvas contrast bookkeeping.
+- **Survives, but becomes conditional:** the detect-or-timeout gate. A user on a
+  constant theme needs no detection, so their first paint is immediate — a real
+  startup win. A user on the two-slot form still needs light/dark resolved
+  *before* first paint or Portal paints one theme and flips, so the same race,
+  timeout and dark fallback still apply to them.
+- **Survives unchanged:** the OSC 11 *query* itself (`restore.go` needs it to
+  capture the original background for restore-on-exit, independent of
+  detection); the `NO_COLOR` carve-out; and the canvas-echo guard, whose
+  comparison re-points from "the mode's canvas" to "the active theme's canvas".
+
+Confidence: **high.** Ratified against research's landed position with the live
+test as evidence; the only soft spot is the accepted loss of live-following.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.

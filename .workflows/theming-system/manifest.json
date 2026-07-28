@@ -22,7 +22,7 @@
               "parent": null
             },
             "light-dark-detection": {
-              "status": "pending",
+              "status": "exploring",
               "parent": null
             },
             "theme-file-format-and-discovery": {
