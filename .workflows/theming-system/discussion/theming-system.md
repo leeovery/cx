@@ -163,6 +163,49 @@ a hex and the test fails, with or without the comment.
 whether built-in themes stay contrast-tested once they are data files becomes
 load-bearing. Recorded against *test-and-capture-harness-impact*.
 
+### Theme identity — filename is the slug, in-file `name` is the label
+
+#### Context
+
+Surfaced by the background review: the discussion had made a file the unit of
+both a built-in and a user theme, and deferred name collision, without ever
+defining what a *name* is. Four distinct things were being conflated — the
+filename, an in-file `name` field, the human display label in the selector, and
+the durable slug persisted in `prefs.json`. Research raised slug-vs-display-name
+(B4) as a durable-identifier question that was never answered.
+
+#### Options Considered
+
+**Filename is identity** — `themes/nord.json` → slug `nord`, displayed as `nord`.
+- Pros: zero duplication; file and content cannot disagree; rename is a file
+  move. Effectively what kitty and Ghostty do.
+- Cons: display names are constrained to filename shape (`tokyo-night-day`, not
+  "Tokyo Night Day").
+
+**In-file `name` is identity** — filename irrelevant.
+- Pros: free display names.
+- Cons: two files can claim the same name; file and content can disagree — a
+  confusion class the first option doesn't have.
+
+**Both, with distinct jobs** — filename is the *slug* (durable key, persisted,
+written in config); an optional in-file `name` is *only* the display label.
+- Pros: they can never collide because only one is an identifier. The persisted
+  value is structurally unique by virtue of being a filename in a directory, and
+  the rendered value is free text. Renaming a theme is a file move — an
+  operation users already understand.
+
+#### Decision
+
+**Both, with distinct jobs.** Filename (minus extension) is the slug and the
+durable identity Portal persists; an optional in-file `name` is the display
+label in the selector, falling back to the slug when absent.
+
+This also answers research's "theme names are the same class of public-contract
+problem as token names" concern in the cheapest possible way: the contract is a
+*filename*, so a user renaming their own theme is a deliberate file operation
+with an obvious consequence, and Portal renaming a built-in is the same kind of
+breaking change as renaming a token — visible, deliberate, and rare.
+
 ### Still open under this subtopic
 
 - The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
