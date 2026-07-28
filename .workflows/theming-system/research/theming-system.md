@@ -1139,6 +1139,45 @@ a 16-slot palette onto 20 semantic roles with tokens adjusted to clear floors, s
 calling the result "Nord" is a claim about a modified thing. Some upstream projects
 publish porting guidelines for exactly this. Not treated as a blocker.
 
+## Theme validity — settled in session
+
+**One rule: a theme is listed only if all 20 tokens are present AND every value is
+syntactically well-formed.** Anything else is rejected with a single failure mode and
+a single message. Explicitly NOT checked: whether the colours are good, readable,
+mutually distinguishable, or clear any contrast floor — an all-black but well-formed
+theme is valid and gets listed. The check is *syntactic*, never perceptual.
+
+Rejection surfaces as a flash/banner, and Lee's instinct is that it belongs **inside
+the slide-over** rather than the main UI — it is a message about the thing you are
+looking at, and it avoids adding a seventh contender to the notice-band arbiter's
+already-crowded precedence chain (filter line → burst progress → transient flash →
+multi-select banner → unsupported banner → no-tags signpost).
+
+### Why Portal must own the parse
+
+`lipgloss.Color` **never returns an error** and its accepted domain is wider and
+stranger than a theme format wants (`color.go:68`):
+
+```go
+if strings.HasPrefix(s, "#") { c, err := parseHex(s); if err != nil { return noColor }; return c }
+i, err := strconv.Atoi(s); if err != nil { return noColor }
+if i < 0 { i = -i }                      // negatives silently abs'd
+if i < 16 { return ansi.BasicColor(i) }
+if i < 256 { return ANSIColor(i) }
+r, g, b := uint8((i>>16)&0xff), ...      // >=256 reinterpreted as packed RGB
+```
+
+So `"212"` is a valid ANSI-256 index, `"-5"` becomes `5`, `"16777215"` silently
+becomes white, and every failure is the silent `noColor` sentinel. Portal therefore
+owns a small validator (regex + range test) rather than leaning on lipgloss — which
+also lets it report *"theme `nord`: `text.primary` = `#GGGGGG` is not a valid
+colour"* instead of a bare boolean.
+
+**Open, and the actual decision here: what value domain does a Portal theme accept?**
+Hex only? Hex plus ANSI index (which `Token`'s own doc comment already sanctions)?
+Everything else follows from that. Bonus: the parse-to-RGB it requires is exactly what
+a contrast check would need if floors ever return for any class of theme.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
