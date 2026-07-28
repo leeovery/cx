@@ -206,6 +206,48 @@ problem as token names" concern in the cheapest possible way: the contract is a
 with an obvious consequence, and Portal renaming a built-in is the same kind of
 breaking change as renaming a token — visible, deliberate, and rare.
 
+### Namespace collision — no shadowing; built-in names are reserved
+
+#### Context
+
+Two namespaces exist (embedded built-ins, user `themes/` directory), and the
+whole-theme-rejection decision puts a hard constraint on how they compose:
+**an invalid theme falls back to the default built-in, so if a user file can
+shadow the default built-in, the fallback itself can be broken** — drop in
+`tokyo-night.json` with a typo'd hex and the thing Portal falls back to is the
+same broken file. That must be impossible.
+
+#### Options Considered
+
+**User dir shadows built-ins, with reserved names** — the ecosystem norm
+(two-tier search is standard; Helix reserves `default` and `base16_default`).
+- Pros: lets a user correct a built-in in place, keeping the name they know.
+- Cons: a reserved-name special case; "which `nord` am I looking at?" ambiguity;
+  a precedence chain to document.
+
+**Built-ins always win; a colliding user file is silently ignored.**
+- Pros: no reserved-name case.
+- Cons: silent — you edit a file and nothing happens, with no signal at all.
+
+**No shadowing; built-in names are reserved, full stop.** A user file whose slug
+collides with a built-in is rejected through the same message channel as any
+other invalid theme.
+- Pros: collapses the reserved-default special case into one general rule; the
+  selector never shows two entries with the same label; no precedence chain; the
+  failure is loud rather than silent.
+- Cons: to tweak a built-in you must copy it under a new slug.
+
+#### Decision
+
+**No shadowing.** Built-in slugs are reserved; a colliding user file is rejected
+with a message naming the conflict.
+
+Deciding factor: the workaround is a two-second file rename and is
+self-documenting. Lee: *"if I wanted to edit that as a user theme, I would just
+call it Nord-Lee. So it's really not a big deal."* And with the PR route open,
+genuinely *correcting* a built-in has a proper channel rather than needing a
+local override.
+
 ### Still open under this subtopic
 
 - The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
