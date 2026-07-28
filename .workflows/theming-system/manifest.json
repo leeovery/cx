@@ -11,6 +11,13 @@
           "status": "completed"
         }
       }
+    },
+    "discussion": {
+      "items": {
+        "theming-system": {
+          "status": "in-progress"
+        }
+      }
     }
   },
   "seeds": [

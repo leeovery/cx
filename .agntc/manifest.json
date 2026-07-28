@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.6.12",
-    "commit": "647e9ac11584aa02261bfdef2d3e6cd67d682f8b",
+    "ref": "v0.6.13",
+    "commit": "61b998f2c991f719212ab17b52728be2901700a9",
     "agents": [
       "claude"
     ],
@@ -96,6 +96,7 @@
       ".claude/skills/workflow-discussion-process/",
       ".claude/skills/workflow-discussion-process/SKILL.md",
       ".claude/skills/workflow-discussion-process/references/",
+      ".claude/skills/workflow-discussion-process/references/closing-gates.md",
       ".claude/skills/workflow-discussion-process/references/conclude-discussion.md",
       ".claude/skills/workflow-discussion-process/references/discussion-guidelines.md",
       ".claude/skills/workflow-discussion-process/references/discussion-session.md",
@@ -104,6 +105,8 @@
       ".claude/skills/workflow-discussion-process/references/guidelines.md",
       ".claude/skills/workflow-discussion-process/references/initialize-discussion.md",
       ".claude/skills/workflow-discussion-process/references/meeting-assistant.md",
+      ".claude/skills/workflow-discussion-process/references/off-topic-epic.md",
+      ".claude/skills/workflow-discussion-process/references/off-topic-non-epic.md",
       ".claude/skills/workflow-discussion-process/references/perspective-agents.md",
       ".claude/skills/workflow-discussion-process/references/review-agent.md",
       ".claude/skills/workflow-discussion-process/references/template.md",
@@ -530,7 +533,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-07-28T12:34:29.590Z",
+    "installedAt": "2026-07-28T12:36:34.572Z",
     "constraint": "^0.6.0"
   },
   "samber/cc-skills-golang": {
