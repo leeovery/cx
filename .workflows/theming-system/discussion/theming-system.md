@@ -248,6 +248,51 @@ call it Nord-Lee. So it's really not a big deal."* And with the PR route open,
 genuinely *correcting* a built-in has a proper channel rather than needing a
 local override.
 
+### File format — flat `key = value`
+
+#### Context
+
+Research found **no ecosystem consensus whatsoever** — each tool uses whatever
+its config already used (Helix TOML, k9s YAML, Zellij KDL, btop flat
+`key="value"`, atuin TOML, gitui RON, Glamour JSON, base16/tinted8 YAML). So the
+decision is Portal-internal, and Portal's constraint is sharp: **no third-party
+YAML or TOML dependency exists** — every config today is stdlib `encoding/json`
+(`projects.json`, `hooks.json`, `prefs.json`, `terminals.json`) plus one flat
+`key=value` file (`aliases`).
+
+#### Options Considered
+
+**JSON** — matches most existing config, zero new deps.
+- Cons: **cannot carry comments**, and a theme is the one config file that
+  genuinely wants one — ported palettes need attribution, and attribution was
+  settled as repo-side rather than in-UI, making a file header its natural home.
+  Also the most punctuation-heavy way to express a flat map of 20 strings.
+
+**TOML** — comments, less punctuation.
+- Cons: adds a third-party parser to a codebase that has deliberately avoided
+  one for config; buys nesting Portal doesn't need.
+
+**Flat `key = value` with `#` comments**
+- Pros: Portal already parses this shape (`aliases`), so it is not a new idiom.
+  Zero deps, minimal punctuation, comments free. A theme is literally 20
+  key→value pairs plus a `name` line. Closest structural match in the survey is
+  btop (`theme[main_bg]="#…"`, 41 lines, flat).
+- Cons: a hand-rolled parser (small); a second non-JSON config format to
+  document.
+
+#### Decision
+
+**Flat `key = value` with `#` comments.** Lee: *"nice and simple."*
+
+The dividing line already implicit in Portal's own config supports it —
+*nesting needed → JSON* (`terminals.json` maps glob patterns to command recipes;
+`projects.json` is machine-written), *flat human-authored map → flat file*
+(`aliases`). A theme is squarely the second.
+
+**Forward note (not a decision):** the deferred transparent-theme idea would need
+a distinguished value meaning "use the terminal default" — btop's precedent is an
+empty value. The format should leave that door open rather than close it.
+
 ### Still open under this subtopic
 
 - The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
