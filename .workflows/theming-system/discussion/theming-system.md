@@ -113,6 +113,68 @@ selection setting) without committing to ecosystem-scale governance.
 
 ---
 
+## Theme file format & discovery
+
+### Built-ins are theme files, not Go code (decided)
+
+#### Context
+
+The drop-in route (above) means Portal must parse a theme file. That raises a
+fork the current code doesn't have: today `theme.MV` is a Go `var` holding a
+struct of 20 `Token{Name, Light, Dark}` fields, so a built-in and a user theme
+would be two different things arriving by two different paths.
+
+#### Options considered
+
+**Option 1 — built-ins stay Go structs.** User themes are parsed into the same
+struct. Two authoring paths for one concept: a PR contributor writes Go, a
+drop-in user writes a file.
+- Cons: the paths can drift (Go can express what the format can't); the format's
+  rough edges never bite the maintainer because he never uses it; two things to
+  keep in sync.
+
+**Option 2 — a built-in *is* a theme file**, embedded via `go:embed`, parsed by
+the same loader as a user's.
+- Pros: one code path, one format, one validity rule. A PR is "add a file". A
+  user copies a built-in, tweaks two values, drops it in `themes/` — which is
+  how people actually make themes. The format is dogfooded by every built-in, so
+  a bad format is the maintainer's problem on day one rather than a stranger's on
+  day ninety. Prior art: Ghostty and kitty avoid inventing a theme format at all
+  — a theme *is* a config file.
+- Cons: MV's values currently carry inline erratum comments (original →
+  corrected hex, measured ratio) which a data file must either support or drop;
+  parse failures move from compile-time to load-time, so built-ins want a test
+  that loads all of them; `internal/capture`'s no-real-config import guard needs
+  the embedded set reachable without touching the config path (fine — embed is
+  not config).
+
+#### Decision
+
+**Option 2.** Both agreed independently, on symmetry and single-path grounds.
+
+**The erratum comments are deleted, not ported.** Lee: *"we can just delete all
+that … we don't need all that history spewing through with it."* The existing
+MV values move across clean. This is defensible beyond taste: `contrast_test.go`
+already enforces the corrected values numerically, so a comment recording *why* a
+hex differs from its upstream Tokyo Night sibling is duplicated history — revert
+a hex and the test fails, with or without the comment.
+
+**Thread this opens:** it is the *test* that makes deleting the comments safe, so
+whether built-in themes stay contrast-tested once they are data files becomes
+load-bearing. Recorded against *test-and-capture-harness-impact*.
+
+### Still open under this subtopic
+
+- The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
+  third-party parser dependency today; everything is stdlib `encoding/json` plus
+  one flat `key=value` file (`aliases`).
+- Directory layout and env var; how a built-in and a user theme of the same name
+  resolve (two namespaces now exist).
+- Whether a theme is a full replacement or a merge over a base, and which base.
+- What renders when a persisted theme name no longer exists on disk.
+
+---
+
 ## Summary
 
 ### Key Insights
