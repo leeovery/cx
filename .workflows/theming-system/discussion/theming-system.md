@@ -503,6 +503,32 @@ true**, and the difference matters:
 Confidence: **high.** Ratified against research's landed position with the live
 test as evidence; the only soft spot is the accepted loss of live-following.
 
+### The one-shot seed job — not shipped
+
+Research separated detection into two independently-optional jobs: **Job 2**,
+follow the terminal continuously (what the two-slot form is), and **Job 1**, use
+detection once to seed a default for a user who has configured nothing.
+
+Under the locked design, detection acts only when the user nominated a pair — so
+a brand-new user with a light terminal gets the dark default and stays there
+until they change it. Job 1 would use the OSC 11 reply, on a launch where nothing
+is configured, to start on the light built-in instead.
+
+**Options weighed.** It is cheap: the reply arrives anyway for `restore.go`'s
+original-background capture, and because nothing is gated on it, it needs no race
+and no timeout. Research named the real hazard as scope creep on the trigger —
+if it fires on anything other than "the user has never chosen", the between-run
+flipping returns, which is what made `auto` *feel* broken even when working as
+designed.
+
+**Decision: not shipped.** The two-slot form already gives anyone who cares about
+matching their terminal an explicit and reliable way to say so, so the seed buys
+one saved setup step at the cost of a second detection consumer with different
+semantics from the first. Research A4 also found that **no terminal application
+surveyed prompts or seeds on first run** — every one ships a hardcoded default
+and starts rendering. "Unconfigured user sees the dark default" is the
+convention, not a failure.
+
 ---
 
 ## Process note — research positions are leans, not decisions
