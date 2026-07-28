@@ -277,6 +277,62 @@ so the change is mostly signature removal rather than behaviour change).
 
 ---
 
+## Theme validity — full replacement, no merge
+
+### Context
+
+Surfaced by the background review as a live contradiction in this document: the
+audience decision inherited research's validity rule ("all 20 tokens present +
+syntactically well-formed") while the file-format section listed "full
+replacement or merge over a base" as still open, four paragraphs apart. Those
+cannot both hold — a merge model makes partial files legitimate by definition,
+which negates "all 20 present".
+
+Merge-over-a-base is also the clear modern direction in the ecosystem (gitui
+migrated to it deliberately; atuin chains via `parent`, Helix via `inherits`,
+yazi merges user `theme.toml` over the flavor), and research noted that
+merge-over-default and selectable-base are the *same* feature rather than
+competing ones — so this was a real option, not a straw man.
+
+### Options Considered
+
+**Full replacement** — every theme names all 20 tokens.
+- Pros: one rule, one failure mode, self-contained files. Preserves the validity
+  rule exactly as inherited. No base-resolution semantics to define.
+- Cons: "Tokyo Night but with a red cursor" means copying 20 lines to change one.
+
+**Merge over a base** — partial files declaring `base = "…"`.
+- Pros: cheap tweaks; matches the ecosystem's direction.
+- Cons: needs base-resolution rules (which base — always MV? the selected theme?
+  the same-mode built-in?), and drags in a **Portal-specific hazard**: the canvas
+  is *itself a token*, so a partial theme supplying a new canvas while inheriting
+  `text.primary` from a base produces an inherited foreground measured against a
+  background it was never tuned for. Merge can silently compose two individually
+  fine themes into an illegible one.
+
+### Decision
+
+**Full replacement. Every theme must declare all 20 tokens.**
+
+The deciding factor is that the go:embed decision already solved the problem
+merge exists to solve: because a built-in *is* a file, "copy a built-in and edit
+it" is a first-class workflow, and at 20 tokens the copy is trivial. Lee: *"it's
+such a small number of tokens that it's really not difficult to create a variant
+by just copy and pasting the whole theme and editing."*
+
+Merge was also never discussed as a want — it arrived as an inherited research
+option, not a requirement. YAGNI applies; it stays available as a future
+addition because full-replacement files remain valid under any later merge
+model (a file that declares everything simply inherits nothing).
+
+The validity rule inherited from research therefore stands, now ratified rather
+than assumed: **a theme is listed only if all 20 tokens are present AND every
+value is syntactically well-formed.** Explicitly not checked: whether the
+colours are good, readable, mutually distinguishable, or clear any contrast
+floor.
+
+---
+
 ## Summary
 
 ### Key Insights
