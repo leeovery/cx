@@ -1038,6 +1038,94 @@ theme in the panel while their terminal is dark and their config says
 manual `:theme x` sets a constant theme for the session, overriding the adaptive
 config until restart. Noting the interaction; the resolution is discussion's.
 
+## Terminal vs OS: the session landed on **match the terminal**
+
+Tested live by Lee, with screenshots. He set macOS to light while Ghostty stayed
+pinned dark. His shell prompt broke badly — something in the prompt stack followed
+the OS and switched to light-appropriate greys while the background stayed dark,
+producing washed-out, barely-legible text. **Portal, opened in the same terminal in
+the same state, rendered perfectly.**
+
+That comparison is the whole argument in one image. The prompt sets *foreground only*
+and inherits a background it does not control, so the moment the two signals disagree
+contrast collapses. Portal paints **both** — leaf `.Background(canvas)`, the outer
+full-terminal `fillCanvas`, and OSC 11 for the gutter — so it cannot produce a
+contrast mismatch whichever signal it follows. Canvas ownership is what bought that.
+
+It also corrects an earlier framing in this document: the cost of following the OS was
+described as "a light Portal *inside* a dark terminal". Portal does not sit inside
+anything — it covers the window edge to edge. The mismatch is felt only at the
+**transition** in and out.
+
+### Why terminal won
+
+1. **Forward compatibility with a possible transparent-background mode — the
+   strongest argument, and it inverts an earlier claim in this document.** This file
+   previously concluded that if both owned-canvas and transparent themes existed, the
+   signal would have to become *per-theme*. That is only true if Portal follows the
+   **OS**. Transparent themes *must* follow the terminal background — so if Portal
+   already follows the terminal, adding transparency later is **purely additive**: no
+   second mechanism, no per-theme signal selection. Choosing terminal now makes the
+   deferred transparency decision cheap; choosing OS now makes it expensive.
+2. **Portal's dwell time is seconds, so the transition dominates.** Launch → pick →
+   exec into a session, many times a day. A Portal matching the terminal reads as
+   "your terminal, with a picker in it". A Portal matching the OS against a pinned
+   terminal flashes light and drops back to dark, twice per use.
+3. **A terminal/OS mismatch is usually deliberate, not stale.** The earlier "the OS is
+   the truer preference" argument assumed the mismatch was accidental. Lee's Ghostty
+   is *pinned* dark — an explicit choice about the environment Portal lives in. For
+   something that lives inside a terminal, the terminal's background is arguably the
+   more relevant preference, not the weaker one.
+
+### This retroactively resolves the ambiguous test
+
+The session could not decide whether Lee's original observation (Portal stayed dark
+when macOS went light) meant "OSC 11 failed inside tmux" or "the terminal never
+changed". He has since confirmed **Ghostty is pinned dark**. So reading #2 is almost
+certainly correct: the terminal genuinely *was* dark, Portal correctly read dark, and
+**OSC 11 was working the whole time**. The "detection is unreliable inside tmux"
+premise — which drove a large part of this session — was probably never true in this
+environment.
+
+### What is given up
+
+OSC 11 is **query-only**; mode 2031 pushes on change. So following the terminal gives
+*correct-at-startup* but not *live-following* — both signals need a startup query, but
+only 2031 can tell Portal the answer changed later. In practice thin: terminal
+backgrounds rarely change mid-session, and when they do it is usually because the
+terminal is itself following the OS.
+
+## Transparency: deferred, not rejected
+
+Lee's case for it, recorded because it is good: the original contrast strictness
+existed **because there was exactly one theme** — if Portal's single palette clashed
+with a user's terminal, Portal was unusable and there was no alternative. With a
+*library*, "that theme doesn't suit my terminal, I'll pick another" is a perfectly
+normal answer, and it is how the ecosystem already behaves — k9s does not own the
+background, some of its skins clash with Lee's off-grey Nord-ish terminal, and the
+answer is simply to use a different skin. Under transparency, matching becomes the
+*user's* job via theme choice, which is the benefit.
+
+Deferred until there are enough themes for the question to be real. Deferring is now
+cheap precisely because of the terminal-signal decision above — a transparent theme
+needs no new detection mechanism.
+
+**Feasibility, verified.** The plumbing already exists: `NO_COLOR` is exactly this
+mode. Canvas ownership lives in three places (leaf `.Background(canvas)`, the outer
+`fillCanvas`, OSC 11) and all three are already suppressed under the carve-out.
+The obstacle is that **one boolean does two jobs** — `header.go:87`'s `colourless`
+branch returns a bare style, dropping *both* hue and canvas. A transparent theme wants
+the `Foreground` kept and the `Background` dropped, so the change is splitting
+`colourless` into independent no-hue / no-canvas flags and threading the second.
+Prior art: btop's `theme[main_bg]` empty-for-terminal-default plus its separate
+`theme_background` opt-out.
+
+**Costs if it ever ships** (recorded so they are not rediscovered): validation becomes
+bimodal — Portal's floors, bands, ceilings and fill-perceptibility thresholds are all
+computed against exact canvas hexes and cannot be evaluated for a transparent theme;
+and the slide-over needs the panel to opt *back into* a background to stay readable
+over arbitrary content beneath it.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
@@ -1048,6 +1136,10 @@ crossing it.
 above because they were reasoned through here, but they should be re-opened and
 ratified in the discussion phase rather than treated as settled by research:
 
+- **Match the terminal background, not the OS colour scheme** (landed late in the
+  session, on the transition-dominance and transparency-forward-compatibility
+  arguments). Implies OSC 11 stays the mechanism and mode 2031 is not adopted.
+- **Owning the canvas is retained; transparency deferred, not rejected.**
 - Overlay vs shrink-to-fit for the panel (landed on overlay).
 - Apply-on-arrow vs preview-then-commit (landed on apply-on-arrow).
 - Persist-on-close vs persist-per-keypress (landed on persist-on-close).
