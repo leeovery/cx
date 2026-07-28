@@ -519,7 +519,14 @@ is a string users write in config (and that ships as the default), renaming it
 breaks their config. Worth settling deliberately alongside the border-token
 rename rather than falling out of implementation.
 
-## Assessment (for discussion to ratify, not settled here)
+## Assessment (SUPERSEDED — kept for the record)
+
+> **Read this section with two later corrections in hand.** Its ecosystem paragraph
+> was explicitly flagged as recollection and was subsequently **refuted** — see
+> Appendix A1: `bat`, `delta`, Neovim and `yazi` all detect light/dark **by
+> default**. And its "detection is unreliable" argument was later shown probably
+> never to have been true in this environment (see "This retroactively resolves the
+> ambiguous test"). The session's actual landing is in "Terminal vs OS", below.
 
 Asked directly for a read, with the reasoning rather than just the verdict:
 
@@ -664,10 +671,19 @@ per-frame write.
 exists because the startup OSC 11 *query reply* can race Portal's own canvas set.
 The query is issued once, from `Init`. A later theme switch issues no new query, so
 it creates no new race — the guard only ever needs to compare against the canvas
-active during the *startup* window, not the currently-active one. Anchoring it to
-the startup canvas keeps it correct with no new machinery. (This holds whether or
-not the appearance axis is removed: `restore.go` needs the query regardless, for the
-original-background capture.)
+active during the *startup* window, not the currently-active one. (This holds whether
+or not the appearance axis is removed: `restore.go` needs the query regardless, for
+the original-background capture.)
+
+**CORRECTION — "no new machinery" was too confident.** The reasoning above holds, but
+the code does not currently express it: `RestoreTerminalBackground` derives its
+comparison value *at exit* from `m.canvasMode` via `canvasHexFor`, which reads
+`theme.MV.Canvas` **directly** — a hardcoded MV reference sitting outside the token
+render path, and therefore one of the sites "every renderer references a token" does
+not cover. Anchoring to the startup canvas means (a) capturing and retaining that hex
+as new model state, and (b) making `canvasHexFor` stop being MV-specific. Small in
+absolute terms, but it lands on the one mechanic carrying an explicit "do **not** drop
+this guard" warning.
 
 ### Settled in session: persist on close, marker, no revert key
 
@@ -1212,6 +1228,58 @@ list of cached-style sites with **no guard test** enforcing that new ones are ad
 element silently keeps the previous theme's colours until something else re-renders
 it. Also outstanding: `pagepreview.go:35`'s init-time `Token` copy, and the fact that
 init-time copies of *derived styles* were never swept for.
+
+## Token rename scope — the audit content, and Lee's leaning
+
+Raised in session and not otherwise captured. The rename was logged against the two
+border tokens, but the *whole* 20-token vocabulary becomes the public contract, and
+applying the file's own test — intrinsic name or use-site name? — to the rest turns up
+three things:
+
+- **`bg.track` is named after the loading bar's empty track.** Its own comment says
+  so. Use-site-derived by exactly the standard that condemned `border.footer`.
+- **`text.on-selection` and `text.on-warning` are pairing names pointing at *other
+  tokens*.** That is Crush's `onPrimary` convention (A8), so it is defensible — but it
+  means renaming `bg.selection` or `bg.warning` strands two other names. There is
+  coupling *inside* the vocabulary that a two-token rename would not surface.
+- **The ramp `text.muted-bright` → `text.detail` → `text.dim` → `text.faint` encodes
+  no ordering in its names.** A theme author cannot tell from the names which is
+  brighter. That is precisely what A8's prior art solves — Crush's
+  `fgSubtle`/`fgMoreSubtle`/`fgMostSubtle`, and base16's rule that `base00`→`base07`
+  must run dark-to-light.
+
+**Lee's leaning (stated, not confirmed):** *"maybe I was wrong to suggest that … there's
+only 20 tokens, so maybe it's not that difficult"* — i.e. toward a **full 20-token
+audit** rather than the two-token rename as originally logged. Recorded as a leaning;
+the scope decision belongs to discussion.
+
+Still absent either way, and needed before naming can be settled: a statement of what
+the two border tokens' **intrinsic roles actually are** (the identical light hex is
+evidence they may be one role, not two — see B6), and any candidate naming scheme for
+Portal.
+
+## Slide-over: search and filtering deferred (YAGNI)
+
+Lee: no search or filtering in the panel for now — themes will be added over time, not
+in bulk, so it is a YAGNI until the library is large enough to warrant it.
+
+**The tripwire is worth recording, and it is later than first framed.** In session it
+was suggested that the pressure comes from the light/dark *mix* rather than the raw
+count — a user in a dark terminal applying a light theme every second row on the way
+past. Lee's correction: not every theme will have both, and the well-known palettes
+skew heavily dark (A3 — only six sibling pairs among Zellij's 41 built-ins; Dracula
+and Nord are dark-only). So a Portal library built from famous palettes would be mostly
+dark with a handful of light ones, and the interleaving problem arrives later than a
+50/50 split would imply.
+
+Both closest analogues do solve it when the library grows (A9): kitty's themes kitten
+has fuzzy search plus a recently-used list; Ghostty's `+list-themes` has fuzzy search
+and an `f` key cycling `all → dark → light`.
+
+**Also raised and self-answered:** how the panel would let a user set *both* halves of
+an adaptive light/dark pair — Lee's own answer was a keybinding or a toggle on the
+slide-over selecting which slot you are setting. A design question for discussion, not
+a feasibility one; nothing blocks it.
 
 ## Convergence flag — threads that have left research territory
 
