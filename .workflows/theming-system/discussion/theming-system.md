@@ -293,6 +293,44 @@ The dividing line already implicit in Portal's own config supports it —
 a distinguished value meaning "use the terminal default" — btop's precedent is an
 empty value. The format should leave that door open rather than close it.
 
+### Value domain — hex only, `#RRGGBB`
+
+#### Context
+
+Research named this "the actual decision here" for validation: everything else
+about the validator follows from what values a theme may contain. `Token`'s own
+doc comment currently sanctions ANSI indices, so hex-plus-index was a live
+option, not an invented one.
+
+The pressure comes from `lipgloss.Color`, which **never returns an error** and
+whose accepted domain is wider and stranger than a theme format wants: `"212"`
+is a valid ANSI-256 index, `"-5"` is silently abs'd to `5`, `"16777215"` is
+reinterpreted as packed RGB (white), and every failure is the silent `noColor`
+sentinel. Portal therefore owns its own validator regardless — which is what
+turns all of that into one honest message ("theme `nord`: `text.primary` =
+`#GGGGGG` is not a valid colour").
+
+#### Decision
+
+**Hex only, `#RRGGBB`.** No ANSI indices, no named colours, no `#RGB` shorthand
+(six digits cost nothing and remove a parse branch).
+
+Two reasons, the second decisive:
+
+- Spec §2.4 is an explicit decision that Portal **imposes its own exact hues via
+  truecolor and does not inherit the terminal's 16 ANSI colours** — a
+  recognisable identity needs consistent hues across machines. Admitting ANSI
+  indices lets a theme opt back into the palette Portal deliberately declined
+  (research A5 records ANSI-inheriting themes as the road not taken).
+- **An ANSI index has no fixed RGB.** The validator must parse to RGB anyway,
+  and that same parse is what any future contrast check needs. A token valued
+  `212` cannot be measured against anything — admitting them would permanently
+  foreclose checking a theme numerically, including Portal's own built-ins.
+
+Confidence: **high on the reasoning, low investment from Lee** — he explicitly
+deferred to the recommendation rather than holding a position. Worth re-testing
+in spec if it constrains something unforeseen.
+
 ### Still open under this subtopic
 
 - The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
