@@ -1178,6 +1178,41 @@ Hex only? Hex plus ANSI index (which `Token`'s own doc comment already sanctions
 Everything else follows from that. Bonus: the parse-to-RGB it requires is exactly what
 a contrast check would need if floors ever return for any class of theme.
 
+## Swap cost: the cheap path already exists and already excludes the expensive one
+
+Lee's ask: while the slide-over is open, a theme change should take the shortest path
+to updating colours on screen, with any heavier work deferred to panel exit.
+
+**Verified: that split already exists in the code, and no deferral is needed.**
+
+- **Restyle** — `applyCanvasMode` swaps the delegate and re-points the cached style
+  structs `bubbles/list` holds (help styles, pagination dots, TitleBar, both filter
+  inputs, then the same again for Projects). O(1), no I/O, no list content touched.
+- **Rebuild** — `rebuildSessionList` re-derives the item list and, in grouped modes,
+  runs the lazy dir-resolution pass with its per-session tmux pane reads (the known
+  ~0.5s By-Project switch cost at ~38 sessions).
+
+**`applyCanvasMode` does not call `rebuildSessionList`.** The cheap path already
+excludes the expensive one and is already exercised in production — it is what runs
+whenever the OSC 11 reply lands after first paint.
+
+**Correction to the premise:** "without re-rendering the screen" is not a target,
+because the re-render is not the cost. Bubble Tea rebuilds the whole view string on
+*every* keypress regardless, diffs it against the previous frame, and writes only
+changed cells — holding the down arrow in the sessions list already does this dozens
+of times a second. A theme swap costs one ordinary keypress plus the style re-point.
+
+**So "bake in on exit" is unnecessary, and would be worse** — nothing is left
+un-baked, and deferring work to panel close would create a visible discontinuity at
+the one moment that should be seamless.
+
+**The real risk is completeness, not speed.** The restyle path is a hand-maintained
+list of cached-style sites with **no guard test** enforcing that new ones are added
+(unlike the colour-literal rule, which has an AST glob guard). Miss a site and that
+element silently keeps the previous theme's colours until something else re-renders
+it. Also outstanding: `pagepreview.go:35`'s init-time `Token` copy, and the fact that
+init-time copies of *derived styles* were never swept for.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
