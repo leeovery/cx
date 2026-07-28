@@ -331,6 +331,92 @@ value is syntactically well-formed.** Explicitly not checked: whether the
 colours are good, readable, mutually distinguishable, or clear any contrast
 floor.
 
+### Vocabulary evolution — reject missing, ignore unknown
+
+#### Context
+
+Raised by the background review as the direct consequence of full replacement:
+under "all 20 present", **adding a 21st token is a breaking change for every
+user theme simultaneously** — and it arrives from ordinary future UI work, not
+from a deliberate naming pass. `TestMVTokenCount` already pins the count at
+exactly 20, so vocabulary size is an enforced invariant. Research found no
+application-scale precedent for versioning a token vocabulary (the only
+mechanisms surveyed were ecosystem-scale: base16 compatibility branches,
+tinted8's required `scheme.supports.styling-spec` field).
+
+Two independent levers, mapping to the two directions the vocabulary can move:
+
+- **Unknown key** → ignore or reject. Tolerating unknown keys makes *removing* a
+  token survivable (old files keep working).
+- **Missing key** → reject or fall back. Tolerating missing keys makes *adding*
+  one survivable — but is a back door into the inheritance just ruled out.
+
+#### Options Considered
+
+**Shape A — degrade per-token.** Missing token falls back to a baked-in base
+default; the theme still loads and stays selectable; a permanent banner names
+what fell back.
+- Pros: degrades gracefully in exactly the case that triggers this — when the
+  missing token is *brand new*, the surface it paints is brand new too, so the
+  foreign colour is confined to something no existing theme ever coloured. Much
+  less destructive than a general merge.
+- Cons: needs a **new partial-load path** (load, detect incomplete, patch
+  specific tokens, carry "degraded" as a state). And the fallback source is not
+  trivial under split — a light theme missing `text.primary` cannot borrow the
+  dark built-in's `#C0CAF5` (illegible on a light canvas), so "base defaults"
+  must mean *the same-mode built-in*, which is merge-with-a-base under another
+  name, canvas hazard intact.
+
+**Shape B — degrade whole-theme.** Missing token means the theme is invalid: it
+is not selectable, Portal falls back to the default built-in, and a message
+names the missing tokens.
+- Pros: **reuses machinery Portal needs regardless.** "Persisted theme isn't
+  loadable" already has to exist — a user deletes a theme file, renames it, or
+  typos the name in `prefs.json`. B routes the new-token case into that same
+  path rather than inventing a second one.
+- Cons: throws away 20 correct values because of one absent one; on an upgrade
+  that adds a token, a user's theme visibly vanishes and Portal reverts.
+
+#### Decision
+
+**Ignore unknown keys; reject missing keys — Shape B.**
+
+The deciding factor was that B's simplicity is real rather than apparent: the
+not-loadable path is required anyway, so B adds no new state, while A adds a
+partial-load path plus a same-mode-default resolution rule that recreates the
+merge semantics and the canvas hazard.
+
+Surfacing, and a deliberate departure from Lee's opening instinct for a
+permanent main-UI banner:
+
+- **Not a permanent notice-band entry.** Portal's notice band is a single-slot
+  arbiter with six contenders already (filter line → burst progress → transient
+  flash → multi-select banner → unsupported banner → no-tags signpost); a
+  seventh permanent contender is a real cost for a rare event. Under B the
+  symptom is already loud — Portal is visibly the default theme instead of the
+  user's — so the message is *explanation*, not alarm.
+- **In the slide-over**, consistent with the rejection-surfacing route already
+  favoured, naming the exact missing tokens.
+- **Plus a `portal doctor` line.** Doctor is Portal's established config-health
+  surface and — unlike anything in the TUI — it works on the
+  `portal open <target>` exec path, where the picker never renders and no banner
+  would ever be seen. Carried to *non-tui-surfaces-and-docs*.
+
+**Corollary (stated here, not separately debated — flag for spec):** falling
+back must **not** overwrite the persisted theme name in `prefs.json`. Portal
+keeps the user's choice and renders the default; fixing the theme file restores
+it on the next launch without the user re-selecting. Overwriting would make the
+failure destructive rather than transient.
+
+**Scope note:** this may be near-hypothetical. Portal's own token rule (spec
+§2.8) is that a new surface reuses an existing role and a new token is promoted
+only where the value genuinely differs — the vocabulary is designed not to grow.
+
+**Open, pushed downstream:** *which* built-in is the fallback default. Research's
+read is dark (MV is dark-first by construction, `theme.Mode`'s zero value is Dark
+on purpose, and the dark hexes are the pinned authoritative source). Owned by
+*built-in-theme-set*.
+
 ---
 
 ## Summary
@@ -360,9 +446,12 @@ floor.
 
 - **Decided:** theme audience (curated, two contribution routes); built-ins are
   embedded theme files parsed by the same loader as user themes; theme model is
-  split (one palette per theme).
-- **Uncertain:** everything downstream of the file format, the detection
-  question, the token vocabulary, and the whole slide-over surface.
+  split (one palette per theme); themes are full replacements with no merge;
+  validity is all-20-present + syntactically well-formed; unknown keys ignored,
+  missing keys reject the whole theme with fallback to the default built-in.
+- **Uncertain:** the concrete file format, theme identity and discovery
+  mechanics, the detection question, the token vocabulary, and the whole
+  slide-over surface.
 
 ## Triage
 
