@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.6.10",
-    "commit": "b2b7a98d06f8ec7910d99a29766b9c6884451752",
+    "ref": "v0.6.12",
+    "commit": "647e9ac11584aa02261bfdef2d3e6cd67d682f8b",
     "agents": [
       "claude"
     ],
@@ -167,7 +167,6 @@
       ".claude/skills/workflow-implementation-entry/SKILL.md",
       ".claude/skills/workflow-implementation-entry/references/",
       ".claude/skills/workflow-implementation-entry/references/check-dependencies.md",
-      ".claude/skills/workflow-implementation-entry/references/environment-check.md",
       ".claude/skills/workflow-implementation-entry/references/invoke-skill.md",
       ".claude/skills/workflow-implementation-entry/references/validate-dependencies.md",
       ".claude/skills/workflow-implementation-entry/references/validate-phase.md",
@@ -418,8 +417,10 @@
       ".claude/skills/workflow-shared/references/analysis-approval-gate.md",
       ".claude/skills/workflow-shared/references/background-agent-surfacing.md",
       ".claude/skills/workflow-shared/references/casing-conventions.md",
+      ".claude/skills/workflow-shared/references/closing-recap.md",
       ".claude/skills/workflow-shared/references/compliance-check.md",
       ".claude/skills/workflow-shared/references/convergence-analysis.md",
+      ".claude/skills/workflow-shared/references/correcting-historical-artifacts.md",
       ".claude/skills/workflow-shared/references/create-discovery-topic.md",
       ".claude/skills/workflow-shared/references/discovery-gap-analysis.md",
       ".claude/skills/workflow-shared/references/drain-triage.md",
@@ -529,7 +530,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-07-24T12:51:52.041Z",
+    "installedAt": "2026-07-28T12:34:29.590Z",
     "constraint": "^0.6.0"
   },
   "samber/cc-skills-golang": {

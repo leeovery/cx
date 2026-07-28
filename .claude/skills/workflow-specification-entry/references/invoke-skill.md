@@ -22,8 +22,11 @@ Source material:
 
 Work unit: {work_unit}
 Action: {verb} specification
+```
 
 #### If `work_type` is `bugfix`
+
+Invoke the **workflow-specification-process** skill (Skill tool) with the next fenced block as its arguments. Do not act on the gathered context until its instructions load — the skill defines the process.
 
 ```
 Specification session for: {work_unit}
@@ -33,6 +36,7 @@ Source material:
 
 Work unit: {work_unit}
 Action: {verb} specification
+```
 
 #### If `work_type` is `epic`
 
@@ -51,10 +55,13 @@ Source material:
 Work unit: {work_unit}
 Topic: {topic}
 Action: {verb} specification
+```
 
 #### If `work_type` is `cross-cutting`
 
 Check for completed research: `node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.research.{topic} status`. Include the `Research:` line only when the status is `completed`; omit it otherwise.
+
+Invoke the **workflow-specification-process** skill (Skill tool) with the next fenced block as its arguments. Do not act on the gathered context until its instructions load — the skill defines the process.
 
 ```
 Specification session for: {work_unit}
@@ -65,3 +72,4 @@ Source material:
 
 Work unit: {work_unit}
 Action: {verb} specification
+```
