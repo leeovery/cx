@@ -557,15 +557,51 @@ arrowing could never flip the canvas), and the fallback-default choice.
 
 ---
 
+### Discovery — lazy, not startup-scanned
+
+#### Context
+
+Surfaced by the background review: auto-discovery turns one config read into an
+**N-file scan-parse-validate sweep**, on a cold path that is explicitly
+latency-engineered — the concurrent-bootstrap flip exists for that path, and this
+very feature counts a 50ms first-paint wait as a cost worth removing. An
+unbudgeted per-launch sweep would take back exactly what the detection decision
+just won.
+
+#### Options Considered
+
+- **Scan at startup** — simple, whole list always ready. Pays the sweep on every
+  launch including the overwhelming majority where nobody opens the selector, and
+  `portal open <target>` execs straight through with no TUI at all.
+- **Lazy** — load the *selected* theme by name at startup (one file read, no
+  enumeration); enumerate the directory only when the slide-over opens, where a
+  few milliseconds is invisible against a keypress.
+- **Watch with `fsnotify`** — k9s's approach on its skins directory, with a
+  listener notifying UI components. Machinery for a problem Portal doesn't have:
+  you cannot edit a theme file while looking at Portal.
+
+#### Decision
+
+**Lazy.** The cold path costs exactly one extra file read regardless of how many
+themes exist — which also means the drop-in route can never degrade startup no
+matter how many files a user accumulates.
+
+Details settled with it:
+
+- **Directory resolution** follows Portal's existing per-file chain shape:
+  dedicated env var → `XDG_CONFIG_HOME/portal/themes/` → `~/.config/portal/themes/`.
+  Note this is a *directory*, where `configFilePath` resolves *files* — a small
+  mechanical difference for the spec to pin.
+- **Enumeration is top-level only** — files matching the theme extension in the
+  directory itself; no subdirectory recursion, no symlink chasing.
+- **Extension:** `.theme` (recommended, low stakes) — the slug is the filename
+  minus the extension, so *some* extension is needed for slug derivation.
+
 ### Still open under this subtopic
 
-- The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
-  third-party parser dependency today; everything is stdlib `encoding/json` plus
-  one flat `key=value` file (`aliases`).
-- Directory layout and env var; how a built-in and a user theme of the same name
-  resolve (two namespaces now exist).
-- Whether a theme is a full replacement or a merge over a base, and which base.
-- What renders when a persisted theme name no longer exists on disk.
+- What renders when a persisted theme name no longer exists on disk — expected to
+  fall into the same not-loadable path as a rejected theme (fall back to the
+  default built-in, keep the persisted name), but not yet explicitly ratified.
 
 ---
 
