@@ -175,19 +175,138 @@ load-bearing. Recorded against *test-and-capture-harness-impact*.
 
 ---
 
+## Theme model — split, not paired
+
+### Context
+
+Today a theme is `{20 tokens} × {light, dark}`: `Token{Name, Light, Dark}` with
+`Token.ColorFor(mode)` picking the variant, and `theme.Mode` threaded as a
+parameter through essentially every render helper in `internal/tui`
+(`headerStyle(tok, mode, colourless)` and ~20 files of the same shape) whose only
+job is to reach `ColorFor`. The alternative is that a theme is **one palette**
+that *is* light or dark, so MV becomes two entries rather than one.
+
+This is the branch that determines what a theme file even contains — 20 values
+or 40 — so it had to settle before the format.
+
+### Options Considered
+
+**Paired** (status quo)
+- Pros: zero migration, zero call-site churn; theme *identity* survives a
+  light/dark flip (you pick "Tokyo Night" and stay on it whichever mode is
+  active); the selector is one list where arrowing never changes the canvas
+  mode, so live preview is a pure colour change.
+- Cons: an author must supply 40 values and clear contrast against *two*
+  canvases; dark-only famous palettes (Dracula, Nord) have no light half, so
+  "what renders in the hole?" becomes a real rule; `mode` keeps travelling
+  through the render layer.
+
+**Split**
+- Pros: `Token` collapses to `{Name, Value}`, `ColorFor` disappears, and `mode`
+  stops being threaded through ~20 files — a substantial simplification of the
+  render layer. 20 values against one canvas. The "missing variant" problem
+  *ceases to exist* rather than being handled. Single-palette is the
+  overwhelmingly dominant ecosystem shape (~20 tools surveyed).
+- Cons: theme identity no longer survives a light/dark flip — "follow the
+  terminal" becomes jumping between two *different* themes, which only works if
+  the user nominated a pair. The selector list gets longer and mixed-mode, so
+  arrowing in a dark terminal will land on light themes and flip the whole
+  screen white. It is also a substantial mechanical change to make.
+
+### Journey
+
+Research's central reframe was that **splitting does not remove the pairing, it
+relocates it** — under auto-detection something must still know which palette to
+use, expressed as a naming convention, two settings, or in-file metadata. That
+initially made split look like a wash.
+
+What dissolved that was the observation that **detection and pairing are
+independent axes**, and all four combinations ship somewhere. The cell the
+earlier framing never considered — auto-detection *with* single-palette themes,
+where detection picks between two **named themes** rather than two variants — is
+Helix's design and the best-articulated version found anywhere. So wanting
+detection does not commit Portal to paired.
+
+Two further corrections mattered:
+
+- **The pairing MV implies isn't real.** Six of MV's light hexes needed
+  *individual* correction and three light surface tints were eyeball-pinned at a
+  validation gate — by the person who designed the palette. MV's light and dark
+  are two independently-tuned palettes that happen to share token names; the
+  struct claims a derivation relationship that does not exist.
+- **Charm's direction is easy to misread.** Lipgloss v2 moved `AdaptiveColor`
+  into `compat`, but the recommended replacement
+  (`lightDark := lipgloss.LightDark(hasDarkBG)`) *keeps paired values* and makes
+  detection explicit. Charm de-recommended implicit detection, not paired
+  colours — so it is not evidence for split.
+
+The decisive argument was the **authoring burden under the PR route just
+decided**: 20 values against one canvas versus 40 against two is the difference
+between a contributor porting a palette in an evening and not bothering — and
+the dark-only palettes have no light half to supply at all.
+
+### Decision
+
+**Split.** A theme is one palette of 20 values and is itself light or dark. MV
+splits into two built-ins carrying the existing values.
+
+Consequences:
+
+- `Token` becomes `{Name, Value}`; `Token.ColorFor` and `theme.Mode` threading
+  are removed from the render layer.
+- Two questions research listed as *dissolved* stay dissolved, because they were
+  conditional on exactly this outcome: *"must a user theme supply both
+  variants?"* (no such thing under split) and *"how do the theme name and the
+  `appearance` pref compose in the selector?"* (no `appearance` pref survives
+  split — the override becomes the *shape* of the theme setting, not a mode
+  enum).
+- The appearance-axis question is therefore **not a standalone decision** — it
+  falls out of this one. What remains genuinely open is whether Portal detects
+  at all, and what the adaptive two-theme form looks like if it does.
+- New mechanic split needs regardless: **how does Portal know a given theme's
+  light/dark identity?** Either derive it from the theme's own canvas luminance
+  (the canvas is itself a token — Ghostty's theme browser does exactly this) or
+  declare it in the file (tinted8 makes `variant: dark|light` required). Owned
+  by *light-dark-detection* / *theme-file-format-and-discovery*.
+- The mixed-mode selector list is a live-preview experience question for
+  *slide-over-panel-design*, not a blocker here.
+
+Confidence: **high**. Both parties reached it independently, and the mechanical
+cost is bounded (research verified the render layer resolves tokens per-frame,
+so the change is mostly signature removal rather than behaviour change).
+
+---
+
 ## Summary
 
 ### Key Insights
 
-*(to be filled as the discussion progresses)*
+1. **Detection and pairing are independent axes**, not one package — the session
+   inherited them fused from earlier framing, and separating them is what let
+   the theme model settle without first settling detection.
+2. **One path beats two.** The audience decision and the built-ins-as-files
+   decision both resolved by preferring a single mechanism used by everyone
+   (including the maintainer) over a privileged internal path plus a public one.
 
 ### Open Threads
 
-*(to be filled as the discussion progresses)*
+- Research's own convergence flag lists positions it reasoned through that must
+  be **re-ratified here, not inherited** — notably the terminal-vs-OS signal
+  choice, overlay vs shrink-to-fit, apply-on-arrow, persist-on-close, and the
+  slide-over conclusions generally.
+- Vocabulary *evolution* (adding or removing a token, not just renaming one) has
+  no owner yet — under an "all 20 tokens present" validity rule, adding a 21st
+  token invalidates every existing user theme at once.
+- Startup cost of an N-file discovery scan is unbudgeted against a cold path
+  that is explicitly latency-engineered.
 
 ### Current State
 
-- Nothing decided yet — session starting.
+- **Decided:** theme audience (curated, two contribution routes); built-ins are
+  embedded theme files parsed by the same loader as user themes; theme model is
+  split (one palette per theme).
+- **Uncertain:** everything downstream of the file format, the detection
+  question, the token vocabulary, and the whole slide-over surface.
 
 ## Triage
 

@@ -18,7 +18,7 @@
           "status": "in-progress",
           "subtopics": {
             "theme-model-paired-vs-split": {
-              "status": "pending",
+              "status": "decided",
               "parent": null
             },
             "light-dark-detection": {
