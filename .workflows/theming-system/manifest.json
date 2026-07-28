@@ -15,7 +15,53 @@
     "discussion": {
       "items": {
         "theming-system": {
-          "status": "in-progress"
+          "status": "in-progress",
+          "subtopics": {
+            "theme-model-paired-vs-split": {
+              "status": "pending",
+              "parent": null
+            },
+            "light-dark-detection": {
+              "status": "pending",
+              "parent": null
+            },
+            "theme-file-format-and-discovery": {
+              "status": "pending",
+              "parent": null
+            },
+            "theme-validity-and-validation": {
+              "status": "pending",
+              "parent": null
+            },
+            "token-vocabulary-and-rename": {
+              "status": "pending",
+              "parent": null
+            },
+            "built-in-theme-set": {
+              "status": "pending",
+              "parent": null
+            },
+            "slide-over-panel-design": {
+              "status": "pending",
+              "parent": null
+            },
+            "live-swap-mechanics": {
+              "status": "pending",
+              "parent": null
+            },
+            "theme-plumbing-architecture": {
+              "status": "pending",
+              "parent": null
+            },
+            "non-tui-surfaces-and-docs": {
+              "status": "pending",
+              "parent": null
+            },
+            "test-and-capture-harness-impact": {
+              "status": "pending",
+              "parent": null
+            }
+          }
         }
       }
     }
