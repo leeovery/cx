@@ -49,6 +49,70 @@ to ratify or overturn, not to inherit as settled.
 
 ---
 
+## Theme audience — curated set, with two contribution routes
+
+### Context
+
+Research flagged this as the genuinely unasked question, and it sits upstream of
+several others: *who writes Portal themes?* The answer sets how much the token
+names matter as a public contract, how much documentation and error-message
+polish a theme file needs, and — via authoring burden — it bears on the
+paired-vs-split theme model.
+
+Two poles were put on the table:
+
+**A — Curated set, config as escape hatch.** Lee authors everything that ships;
+the loader exists so a determined user can drop one in. Token names barely
+matter, docs are a README table, paired light/dark costs little because Lee
+tunes both halves anyway.
+
+**B — Theme ecosystem.** Strangers write and share themes. Token names become a
+versioned public contract with an evolution story, error messages must serve
+someone who has never read the code, and paired doubles an outsider's burden
+(40 values against two canvases vs 20 against one). Every surveyed tool with a
+real theme ecosystem went single-palette.
+
+The framing offered was *"build A, name like B"* — accept that a B-scale
+ecosystem won't materialise for a tool this size, but take B's naming discipline
+now because it is nearly free up front and expensive to retrofit (which is
+precisely what the border-rename seed was already worried about).
+
+### Decision
+
+**Mostly A, with two explicit contribution routes.** Lee is realistically the
+only user, but:
+
+1. **PR route → baked into the binary.** Anyone can open a pull request adding a
+   theme. If Lee accepts it, it ships as a built-in.
+2. **Drop-in route → auto-discovered from config.** A user puts a theme file in
+   a `themes/` directory inside the Portal config dir and Portal picks it up
+   automatically — no registration step. If it is valid it appears in the
+   selector alongside the built-ins.
+
+This lands on the ecosystem's standard two-tier shape (library directory +
+selection setting) without committing to ecosystem-scale governance.
+
+### Consequences carried forward
+
+- **Token names still matter, but the blast radius is asymmetric.** Renaming a
+  token is a repo-wide mechanical change for built-ins; it only *breaks* files
+  in a user's `themes/` dir. That keeps the "name it right before shipping"
+  pressure real without making it existential — and it is a further argument for
+  settling the vocabulary in this feature rather than after.
+- **Auto-discovery makes the validity rule user-visible.** "Valid ⇒ selectable"
+  means an invalid file silently doesn't appear unless something says why.
+  Research already settled the rule (all 20 tokens present + syntactically
+  well-formed) and that rejection surfaces inside the slide-over; this decision
+  is what makes that surfacing load-bearing rather than a nicety.
+- **Two namespaces now exist** (built-in names and user-directory names), so
+  collision/shadowing needs an answer — deferred to
+  *theme-file-format-and-discovery*.
+- **The authoring-burden argument for split is weakened but not removed.** A PR
+  contributor still does the work, and dark-only famous palettes (Dracula, Nord)
+  have no light half to supply.
+
+---
+
 ## Summary
 
 ### Key Insights
