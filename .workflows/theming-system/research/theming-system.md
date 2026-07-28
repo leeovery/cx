@@ -1126,6 +1126,19 @@ computed against exact canvas hexes and cannot be evaluated for a transparent th
 and the slide-over needs the panel to opt *back into* a background to stay readable
 over arbitrary content beneath it.
 
+## Attribution for ported themes — settled in session
+
+Ported palettes (Nord, Dracula, Catppuccin, Rose Pine, Tokyo Night …) are separately
+licensed works, and Portal ships as a distributed Homebrew binary, so redistribution
+carries an attribution obligation. **Lee's position: attribution lives in the
+repository — documentation and the GitHub README — and explicitly NOT in the UI.**
+No in-app attribution surface, no credits screen, nothing in the slide-over.
+
+Secondary and unresolved-by-omission: the *naming* question. A port is a remapping of
+a 16-slot palette onto 20 semantic roles with tokens adjusted to clear floors, so
+calling the result "Nord" is a claim about a modified thing. Some upstream projects
+publish porting guidelines for exactly this. Not treated as a blocker.
+
 ## Convergence flag — threads that have left research territory
 
 Lee called this out mid-session and he is right: the slide-over thread drifted into
