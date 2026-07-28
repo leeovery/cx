@@ -331,6 +331,71 @@ Confidence: **high on the reasoning, low investment from Lee** — he explicitly
 deferred to the recommendation rather than holding a position. Worth re-testing
 in spec if it constrains something unforeseen.
 
+### Theme variant (light/dark identity) — no such concept
+
+#### Context
+
+Research listed this as *"a related mechanic split needs anyway"*: under split,
+Portal must know whether a given theme is light or dark — either declared in the
+file (tinted8 requires `variant: dark|light`) or derived from the theme's own
+canvas luminance (Ghostty's theme browser does this with Rec.709 coefficients
+and a 0.5 threshold). The orchestrator opened this as a genuine choice and
+recommended deriving.
+
+#### Journey — the premise was wrong
+
+Lee pushed back: *"Do we care? I don't think Portal needs to know, does it?"*
+And he is right. The framing assumed Portal has to classify themes itself, which
+it does not:
+
+- Under the adaptive two-slot form, **the slot classifies the theme.**
+  `light = "x"` means "use this when the terminal is light" — Portal never
+  inspects the palette to know that.
+- Warning that a dark theme sits in the light slot is exactly the *perceptual*
+  judgement already ruled out of validation (validity is syntactic, never
+  perceptual).
+- Grouping or filtering the selector list by variant is the panel search/filter
+  feature already deferred as YAGNI.
+
+So the mechanic has **no consumer**.
+
+#### Decision
+
+**No variant concept.** Not declared, not derived.
+
+The asymmetry is what makes not-deciding safe rather than merely convenient:
+*declaring* would lock a key into the public contract now, whereas *deriving*
+costs nothing and needs no format change — so if a selector filter ever ships,
+the value can be computed that day. Not deciding is free here; deciding is not.
+
+---
+
+## Process note — research positions are leans, not decisions
+
+Recorded because it changed how the rest of this session ran.
+
+Research landed roughly eleven decision-shaped positions (terminal-vs-OS signal,
+overlay vs shrink-to-fit, apply-on-arrow, persist-on-close, the on-open marker
+with no revert key, the contract hint on the panel top, attribution in the repo,
+validity as presence-plus-syntax, no panel search, the swap-cost split) and
+flagged in its own convergence section that these *"should be re-opened and
+ratified in the discussion phase rather than treated as settled by research"*.
+
+Mid-session the question arose whether the discussion was needlessly
+re-deriving settled ground. The agreed position, in Lee's words: *"What's in the
+research is research. Anything that is decision-shaped still needs to be
+ratified, but it does give us a lean … we should be ratifying and discussing
+everything, even if it appears to be a decision at the research level."*
+
+So every research position is treated as a **lean with reasoning attached** — it
+shortens the discussion but does not replace it, and it can be overturned. Two
+in particular have *changed inputs* since research reasoned about them, because
+the split decision landed after: the mixed-mode selector list under
+apply-on-arrow (research reasoned about arrow-preview under paired, where
+arrowing could never flip the canvas), and the fallback-default choice.
+
+---
+
 ### Still open under this subtopic
 
 - The concrete file format (JSON / TOML / flat `key=value`) — Portal has no
