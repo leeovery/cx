@@ -1138,6 +1138,102 @@ mechanism.
 
 ---
 
+## Non-TUI surfaces, logging & docs
+
+### `portal doctor` — a read-only theme health line
+
+Doctor is Portal's established config-health surface and the **only** surfacing
+route that works on the `portal open <target>` exec path, where the picker never
+renders and no in-TUI message would ever be seen. It:
+
+- scans the themes directory and reports any file failing validity, with the
+  reason;
+- reports when the persisted theme name no longer resolves.
+
+**Read-only, with no `--fix` action.** Doctor can prune a stale hook entry;
+it cannot repair someone's colours.
+
+### Ruled out as YAGNI
+
+- **`--theme` flag** — a third way to set a theme, for a single launch nobody
+  asked for. (Note this was the escape hatch named in the *reversed* pre-canvas
+  stance, so it arrives with no live constituency.)
+- **`portal theme list` verb** — the slide-over lists them; doctor validates
+  them.
+
+### A new `theme` log component
+
+Portal's log component taxonomy is **closed and spec-governed** — components are
+never invented at a call site. `terminals.json` maps to the *empty* component
+because "terminals" is not in the vocabulary, making it silent in `portal.log`.
+
+**Decision: add a `theme` component** via spec amendment. Precedent is direct —
+`spawn` and `resolve` were both added by the features that needed them, as
+spec-governed amendments. Events worth recording: theme loaded, theme rejected
+with reason, fallback applied.
+
+What distinguishes this from `prefs` and `terminals` (both deliberately outside
+the vocabulary) is that those are **dumb stores with no runtime behaviour**,
+whereas the theme loader has parse/validate/fallback *outcomes*. It also closes
+the gap the review raised as F10/F9 together: without a log component, a broken
+theme on the exec path leaves **no trace anywhere**, since doctor is manual and
+the slide-over never opens. Lee: *"logging is good because it helps diagnose
+problems."*
+
+### Docs
+
+`docs/theming.md`, following the `docs/custom-terminals.md` precedent (a
+user-authored config file with its own doc). Contents: the **19-token vocabulary
+with each role's meaning** — the seed's own deliverable, and far more load-bearing
+now the names are a public contract — the file format, the two-slot config, and
+attribution for ported palettes (attribution lives in the repo and README,
+explicitly **not** in the UI).
+
+**README/CHANGELOG consequences.** `appearance` is described in `README.md` at
+four places, including a paragraph recommending users pin it *"when
+auto-detection misfires (for example under tmux passthrough)"*. That comes out
+with the setting — and the advice is obsolete twice over, since the premise was
+probably never true in the first place.
+
+---
+
+## Loose ends closed
+
+### Persisted theme missing from disk
+
+Ratified explicitly rather than left implied: a persisted theme name that no
+longer resolves takes **the same path as a rejected theme** — fall back to the
+default built-in, keep the persisted name (never overwrite), and surface via the
+slide-over, `portal doctor`, and the `theme` log component. One not-loadable
+path serves deletion, renaming, a typo in the name, and a missing token alike.
+
+### What a theme file may contain (the review's F8)
+
+Answered by the accumulated decisions, but worth stating: a Portal theme file
+contains **exactly the 19 token keys plus an optional `name`**. Unknown keys are
+ignored; there is no behaviour, no includes, no nesting.
+
+This means Ghostty's documented caveat — *a theme can set any config option, so
+don't use untrusted ones* — **does not transfer**. Portal's theme file is a
+closed key set of colour values with no capacity to influence anything else, so
+ingesting an unreviewed drop-in file carries no configuration-injection surface.
+
+### Terminal colour capability (the review's F13)
+
+Raised as an open question: a floor validated on a truecolor hex says nothing
+about the colour actually painted after `lipgloss`/`colorprofile` downsamples on
+a 256- or 16-colour terminal, and Helix's `is_16_color()` check refuses truecolor
+themes on incapable terminals.
+
+**No action, deliberately.** Spec §2.4 already accepts downsampling as graceful
+degradation for MV — "a hue may approximate, but the contrast floor still governs
+legibility" — and nothing about user themes changes that. Bundled themes are
+floor-checked on their truecolor values exactly as MV is today; drop-ins are
+syntactic-only by decision, so there is no floor to invalidate. Helix's check is
+real validation on an axis Portal has already chosen not to police.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.

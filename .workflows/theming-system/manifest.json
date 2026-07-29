@@ -26,7 +26,7 @@
               "parent": null
             },
             "theme-file-format-and-discovery": {
-              "status": "exploring",
+              "status": "decided",
               "parent": null
             },
             "theme-validity-and-validation": {
@@ -54,7 +54,7 @@
               "parent": null
             },
             "non-tui-surfaces-and-docs": {
-              "status": "pending",
+              "status": "decided",
               "parent": null
             },
             "test-and-capture-harness-impact": {
