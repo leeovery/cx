@@ -831,6 +831,27 @@ remember whether you set it.
 the panel opened, but under a pair there are potentially *two* markers (one per
 slot) plus a different shape for a constant. Visual question, not a logic one.
 
+### The mixed-mode flash, and list order
+
+Under split + apply-on-arrow, arrowing past a light theme in a dark terminal
+flips the entire canvas near-white and back. With four built-ins, two of four
+rows do it, every time they are passed. Research could not have reasoned about
+this — under paired, arrowing could never change the canvas mode.
+
+**Accepted as correct behaviour, not a defect.** Lee: *"the flash isn't a bug,
+it's the feature."* Seeing a light theme as designed is precisely what
+live-preview is for, and under the picker idiom it is transient and reversible
+(`Esc` restores), which is far milder than a persisted flip.
+
+**List order is alphabetical.** Ordering same-mode themes first was proposed as a
+free mitigation — it would turn the surprise into a deliberate act — and
+**rejected**: unnecessary once the flash is accepted as the feature.
+
+That keeps the earlier "no variant concept" decision fully intact. Ordering would
+have required Portal to derive each theme's mode from canvas luminance; with the
+mitigation rejected, the variant concept has **no consumer anywhere** — nothing
+declared in the file, nothing derived at load.
+
 ### Precedent — mixed, and honestly thin in one place
 
 For the picker itself it is strong: Helix's `:theme` re-themes live without
