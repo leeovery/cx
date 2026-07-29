@@ -619,7 +619,15 @@ tokens simply do not use them.
 their roles. Lee: *"let's absolutely audit that! This is the perfect time to do
 so!"*
 
-### Proposed scheme (PROVISIONAL — under discussion)
+### The scheme (decided)
+
+Accepted as proposed, including all three flagged spots resolved to the
+recommendation: `accent.key` (not `accent.keyhint`), `bg.subtle` (not
+`bg.inactive`), and the ramp's ordinal/qualitative join accepted with **file
+ordering as part of the contract** — the ramp ships in ramp order with a header
+comment saying so (base16's rule that ordering is spec, not incident). Fully
+positional names (`text.1`…`text.6`) were rejected: they would remove the
+ambiguity but strip all meaning from ~20 files of call sites.
 
 | # | Current | Proposed | Why |
 |---|---|---|---|
