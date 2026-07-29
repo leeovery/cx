@@ -1234,6 +1234,81 @@ real validation on an axis Portal has already chosen not to police.
 
 ---
 
+## Capture harness & tests
+
+### The premise correction — committed PNGs were scaffolding, not an asset
+
+The orchestrator analysed this as a **themes × fixtures matrix problem**: 43
+committed reference PNGs × 4 built-ins = 172 images on a harness already recorded
+as flaky-on-write, with every accepted PR theme adding 43 more. That looked like
+a wall.
+
+**Lee: the committed references were never meant to persist.** They existed so he
+could watch the redesign come to life during implementation — *"it was never
+really designed to be kept … I should have dictated that those weren't persisted
+once the feature was implemented."* With no regression obligation, the matrix
+obligation disappears entirely and the cost analysis collapses.
+
+(Note this contradicts how `CLAUDE.md` currently describes `testdata/vhs/` — as
+committed reference PNGs forming a visual-verification harness — which reads as a
+durable asset. Worth correcting when the docs are updated.)
+
+### The constraint that makes `capturetool` load-bearing
+
+Recorded prominently because it explains why this tool exists and must keep
+working:
+
+**Lee cannot run Portal from a temporary build to check a visual change.** A
+scratch build interferes with the live system — it disturbs the running daemon,
+its bootstrap sequence touches real state, and *"even when you try to sandbox it,
+there are issues"*. So `capturetool` is not a convenience; it is the **only
+viable route** to seeing a visual change before release.
+
+This also explains and endorses the fixtures' deliberate shallowness: *"they do
+just enough to visualise what you're meant to be visualising, and then that's
+it."* Fixtures are about **look, not behaviour** — they need not be functionally
+complete.
+
+### Decisions
+
+- **`capturetool` and `internal/capture` survive and are open for edit.** Whatever
+  the tool needs to work with the new system is in scope for this feature — no
+  separate redevelopment work unit. Lee: *"whatever you have to do to the
+  capturetool to make it work with the new system, that's what we have to do."*
+- **Everything the tool previously produced is deleted.** The committed reference
+  PNGs go; they could not survive the token rename and the theme split without a
+  full recapture in any case, and they are explicitly not wanted as a permanent
+  asset.
+- **The harness must be repaired for the theme change**: `tui.Build` takes a
+  *theme* where it took a `prefs.Appearance` (the exact injection mechanism this
+  work removes), and `capturetool` gains a `--theme` flag. Without this the
+  harness can only ever render the compiled-in default.
+- **New fixtures are added for the slide-over** — the adaptive-pair state, the
+  constant-while-previewing state, and the narrow degraded panel — so the panel is
+  visible during implementation rather than at release.
+- **`internal/capture` must stay alive regardless** of what happens to the
+  images: the swap-and-diff completeness guard drives the fixture *renderer*.
+
+### Guard tests reshape
+
+- **`TestMVTokenCount`** moves 20 → 19, and its meaning shifts from "MV has 20
+  tokens" to "the vocabulary is 19".
+- **`TestMVDarkVariantsPinned` is deleted.** Once themes are data files whose
+  values are their own source of truth, an exact-hex pin in a Go test is a
+  change-detector duplicating the file. The contrast floor test is the real guard
+  for bundled themes.
+- **`TestLightSurfaceTintsPinned` survives** — and this closes the thread opened
+  when the erratum comments were dropped (the review's F5). Three light surface
+  tints are **not numerically checkable** (light-tint-on-light-canvas is
+  numeric-insufficient; they were confirmed by human eyeball at a validation
+  gate), so for those the exact-value pin is the only guard and the comment was
+  the only record of the judgement behind it. They keep their pin, and the *why*
+  moves into the theme file as a comment — which the flat `key = value` format
+  supports. **The format decision is what makes deleting the Go-side erratum
+  comments safe rather than lossy.**
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.
