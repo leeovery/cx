@@ -321,7 +321,7 @@ YAML or TOML dependency exists** — every config today is stdlib `encoding/json
 **Flat `key = value` with `#` comments**
 - Pros: Portal already parses this shape (`aliases`), so it is not a new idiom.
   Zero deps, minimal punctuation, comments free. A theme is literally 20
-  key→value pairs plus a `name` line. Closest structural match in the survey is
+  key→value pairs. Closest structural match in the survey is
   btop (`theme[main_bg]="#…"`, 41 lines, flat).
 - Cons: a hand-rolled parser (small); a second non-JSON config format to
   document.
@@ -806,13 +806,32 @@ barrelled at the ends: three bright (9.25 / 10.26 / 10.84) and three dark (1.24 
 e.g. `#939EB2` (4.62) and `#73819B` (3.18), interpolated on nord3's hue and
 saturation.
 
-**One further structural finding.** Nord's dark end holds only three values
-(nord1/2/3) for Portal's four dark roles (`bg.subtle`, `bg.selection`, `border`,
-`text.faint`), so one value must serve two roles — `nord3` covers both `border`
-and `text.faint`. That is legitimate (a palette choosing one value for two roles
-is not the same as two tokens that differ pointlessly, which is what the border
-consolidation removed), but it is worth knowing that the 19-token vocabulary is
-*wider* than a 16-slot ANSI palette at the dark end.
+**Correction 3 — the warning band (added after the third review found the
+mapping covered only 16 of 19 tokens).** `bg.attention` and `text.on-attention`
+were missed, and they are the hardest remaining pair for a 16-slot palette:
+`bg.attention` is a *background tint* — neither a neutral from the barrelled dark
+end nor a foreground accent — and `text.on-attention` carries a pairing floor
+against it. The rule set (`TestBgWarningPairRule`) has three legs: text-on-tint
+≥ 4.5, the accent bar ≥ 3.0 vs canvas, and the fill ≥ 1.1 vs canvas.
+
+Nord satisfies it, but only with a **third invented value**: blending nord13 into
+the nord0 canvas at ~20% gives `#54524F`, whose fill measures **1.60** vs canvas
+(≥ 1.10) and carries nord6 `#ECEFF4` at **6.76** (≥ 4.50). The bar leg is already
+clear — nord13 is 8.00 vs canvas. So `text.on-attention` ← nord6 needs no
+invention; `bg.attention` does.
+
+**Revised tally: one corrected value (`state.destructive`) and three invented
+ones (`text.muted`, `text.subtle`, `bg.attention`).**
+
+**One further structural finding, corrected.** Nord's dark end holds only three
+values (nord1/2/3) for Portal's **five** dark-end roles (`bg.subtle`,
+`bg.selection`, `border`, `text.faint`, `bg.attention`) — the earlier count of
+four omitted the warning tint. So `nord3` serves both `border` and `text.faint`,
+*and* `bg.attention` has to be interpolated outright. A palette choosing one
+value for two roles is legitimate (unlike two tokens that differ pointlessly,
+which the border consolidation removed), but the gap is wider than first
+recorded: the 19-token vocabulary is meaningfully wider than a 16-slot ANSI
+palette at the dark end, and every port should expect to invent there.
 
 ### Fidelity versus floors — resolved
 
@@ -834,7 +853,7 @@ would break the bundled-tier guarantee that is the entire point of having tiers.
 Paper frames: `Sessions — Nord (port)`, `Kill Modal — Nord, red as published
 (#BF616A · 3.05)`, `Kill Modal — Nord, red corrected v2 (#DD8188 · 4.50)`.
 
-All four appear in the slide-over alongside anything the user has dropped in
+All three appear in the slide-over alongside anything the user has dropped in
 their themes directory.
 
 ### Two quality tiers (answers the review's F14)
@@ -985,8 +1004,8 @@ slot) plus a different shape for a constant. Visual question, not a logic one.
 ### The mixed-mode flash, and list order
 
 Under split + apply-on-arrow, arrowing past a light theme in a dark terminal
-flips the entire canvas near-white and back. With four built-ins, two of four
-rows do it, every time they are passed. Research could not have reasoned about
+flips the entire canvas near-white and back. With three built-ins, one of three
+rows does it, every time it is passed. Research could not have reasoned about
 this — under paired, arrowing could never change the canvas mode.
 
 **Accepted as correct behaviour, not a defect.** Lee: *"the flash isn't a bug,
@@ -2137,7 +2156,7 @@ through and this list is updated as each lands.
   validity is all-19-present + syntactically well-formed; unknown keys ignored,
   missing keys reject the whole theme with fallback to the default built-in;
   file format is flat `key = value` with hex-only values; identity is
-  filename-slug plus optional display label, with no shadowing of built-in
+  the filename slug (no display-label field), with no shadowing of built-in
   slugs; discovery is lazy; detection ships against the terminal background via
   OSC 11 in a two-slot form, with the adaptive pair shipped as the default; the
   19-token vocabulary is renamed to weight-and-meaning names; the slide-over's
@@ -2145,8 +2164,9 @@ through and this list is updated as each lands.
   swap-and-diff completeness guard; theme plumbing threads the theme where
   `mode` is threaded today; the `portal doctor` line, a new `theme` log
   component and `docs/theming.md`; and the capture-harness treatment.
-- **Being worked:** the final review's findings, and the scope question of
-  whether the two new palettes are designed in this feature or follow up.
+- **Being worked:** the outstanding review findings. Everything else on the
+  Discussion Map is decided, including the built-in set (three: Tokyo Night
+  Dark, Tokyo Night Light, Nord — a further light theme follows up).
 
 ## Triage
 
