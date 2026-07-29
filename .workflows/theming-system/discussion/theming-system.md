@@ -201,7 +201,7 @@ written in config); an optional in-file `name` is *only* the display label.
   the rendered value is free text. Renaming a theme is a file move — an
   operation users already understand.
 
-#### Decision
+#### Decision (amended — see below)
 
 **Both, with distinct jobs.** Filename (minus extension) is the slug and the
 durable identity Portal persists; an optional in-file `name` is the display
@@ -212,6 +212,45 @@ problem as token names" concern in the cheapest possible way: the contract is a
 *filename*, so a user renaming their own theme is a deliberate file operation
 with an obvious consequence, and Portal renaming a built-in is the same kind of
 breaking change as renaming a token — visible, deliberate, and rare.
+
+#### Amendment — slug rules, and the `name` field is dropped (the review's F6/F7)
+
+The review found the mechanism non-deterministic, and one claim made elsewhere
+false.
+
+**The false claim.** The no-shadowing decision listed as a benefit that *"the
+selector never shows two entries with the same label"*. It cannot hold — two user
+files with distinct slugs (`nord-lee.theme`, `nord-mine.theme`) could both carry
+`name = "Nord"`, and the panel renders labels. Identity never collides; labels
+could. It also left alphabetical order ambiguous (by slug or by label — they
+differ the moment a label is set).
+
+**The undefined rules.** `My Theme.theme` would yield a slug containing a space,
+persisted into a config value. Case-sensitivity was unstated (Portal's tag
+precedent is deliberately case-sensitive). And on a case-insensitive macOS
+filesystem, `Nord.theme` beside a built-in `nord` is precisely the collision the
+no-shadowing rule exists to prevent.
+
+**Decision 1 — the slug is constrained to `[a-z0-9-]`.** A file whose name does
+not match is skipped and reported through the channel already decided (count in
+the panel, detail in doctor: *"theme file `Nord.theme`: slug must be lowercase
+letters, digits and hyphens"*). This removes the case question outright rather
+than defining case-insensitive matching, so the reserved-name check stays **exact
+string equality** — which is what the no-shadowing safety property requires.
+
+**Reject, never normalise.** Lowercasing `Nord.theme` to `nord` would let it
+shadow the built-in, breaking the rule it exists to protect.
+
+**Decision 2 — the optional `name` field is dropped. The slug is the label.**
+This is a **reversal** of the second half of the identity decision above, flagged
+as such. It deletes the collision class and the sort ambiguity together
+(alphabetical by slug, because the slug is the only name there is). The cost is
+display prettiness — `tokyo-night-day` rather than "Tokyo Night Day" — judged not
+worth a second identifier-shaped thing in the file, given every comparable tool
+lists slugs (Helix, Zellij, Ghostty) and the constrained charset reads cleanly.
+
+**Consequence:** a theme file now contains **exactly the 19 token keys** and
+nothing else, which simplifies the F8 trust-boundary statement further.
 
 ### Namespace collision — no shadowing; built-in names are reserved
 
