@@ -1311,6 +1311,38 @@ probably never true in the first place.
 
 ## Loose ends closed
 
+### Which built-in is "the default built-in" (the review's F2 / F15)
+
+The phrase was used throughout without ever being resolved: it is what a rejected
+theme falls back to, what the no-shadowing rule exists to protect (*"if a user
+file can shadow the default built-in, the fallback itself can be broken"*), what
+a missing persisted theme resolves to, and what `portal doctor` reports against.
+Only the shipped *setting* (the adaptive pair) had been decided, which is a
+different thing.
+
+It is non-trivial because the fallback was described in the singular while the
+setting has two slots.
+
+**Decision: the fallback is per-slot and mode-matched.** A broken or unloadable
+`dark` resolves to `tokyo-night`; a broken `light` resolves to
+`tokyo-night-day`; a broken *constant* resolves to `tokyo-night`.
+
+This introduces **no new mechanism** — it is the already-decided "an unset slot
+holds the shipped default" rule applied to a slot that is *set but unloadable*
+rather than unset. One rule covers both cases.
+
+It also disposes of the review's F15: because the shipped adaptive default and
+the fallback default are then **the same values**, the earlier argument that
+shipping the pair "degrades to shipping a constant dark" stays true rather than
+quietly resting on two different notions of "default".
+
+Rejected: a single fixed fallback regardless of mode. Simpler to state, worse in
+practice — a light-terminal user with a typo in their light slot would be thrown
+to a dark theme, a bigger surprise than falling to the light default.
+
+Lee: *"that is what I've been assuming"* — locked explicitly rather than left
+implied.
+
 ### Persisted theme missing from disk
 
 Ratified explicitly rather than left implied: a persisted theme name that no
