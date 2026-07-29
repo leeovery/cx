@@ -701,10 +701,10 @@ ambiguity but strip all meaning from ~20 files of call sites.
 
 1. **The ramp's middle join.** `text.tertiary` → `text.muted` mixes an ordinal
    vocabulary with a qualitative one, so the ordering at that join rests on
-   convention rather than the names. Mitigation follows base16's insight that
-   ordering is part of the *contract*: the ramp ships in ramp order in the file
-   with a header comment saying so. Fully positional names (`text.1`…`text.6`)
+   convention rather than the names. Fully positional names (`text.1`…`text.6`)
    would remove the ambiguity but strip all meaning from ~20 files of call sites.
+   *(The mitigation first proposed here — "the ramp ships in ramp order in the
+   file, ordering is part of the contract" — was **withdrawn**; see below.)*
 2. **`accent.key`** could read as "important" rather than "keyboard key";
    `accent.keyhint` / `accent.hint` are the alternatives.
 3. **`bg.subtle`** reuses the word from `text.subtle` in a different namespace;
@@ -1713,6 +1713,63 @@ VHS-vs-direct-writer is a genuine implementation detail, not a deferred decision
   while they are being collaborated on**, and cleared out after sign-off so they
   do not live in the repository forever.
 - Cleaning up is **not this feature's job** and is not done as we go.
+
+### The swap-and-diff guard, specified properly (the review's F12)
+
+**What it is** (jargon that went undefined for a while): render a screen under
+theme A, switch to theme B, render again, and scan the second output for any
+colour value belonging to theme A. A survivor means some element never got the
+new theme — the "assert no stale data survived the invalidation" trick applied to
+rendered output rather than a cache. It exists because the cached styles
+`bubbles/list` holds cannot reliably be found by reading code.
+
+**The flaw as first specified:** it only works if A and B share **no** values.
+
+- A hex both palettes happen to set identically survives the swap
+  *legitimately*, so the test fails permanently for a non-bug.
+- Worse and silent: a token with the *same* value in both themes renders
+  identically before and after, so the test cannot tell whether that site updated
+  — it passes either way and the site is uncovered with no signal.
+
+Using two shipped themes makes both failure modes a matter of time, and a future
+PR theme could introduce an overlap unnoticed.
+
+**Decision: construct two synthetic themes inside the test**, all 38 values
+deliberately unique — none repeated within a theme or across the pair. No
+coincidence is possible, every token site is genuinely covered, and nothing done
+to the shipped palettes can break or blind the guard. It also permits a stronger
+assertion: not merely "no A value survives" but "every expected B value is
+present", catching a site that renders nothing at all rather than merely stale.
+
+**Lane: unit.** It renders only through the offline harness — no tmux server, no
+daemon, no built binary — which is where `CLAUDE.md` draws the line.
+
+**The two known offenders stay fixed *and* guarded.** `pagepreview.go`'s
+package-init `Token` copy would hold theme A's value straight through a swap;
+fixing it does not make the guard redundant, the guard is what stops it
+returning.
+
+Lee's framing, accepted: this is **purely a testing concern** with no product
+behaviour either way, and owned by the orchestrator rather than arbitrated.
+
+### File ordering is not a contract (the review's F13) — withdrawn
+
+The token-naming decision accepted one ambiguity (the ramp's `text.tertiary` →
+`text.muted` join) and mitigated it with *"the ramp ships in ramp order in the
+file — ordering is part of the contract"*, borrowed from base16.
+
+**Withdrawn.** Lee: *"why would theme token order matter? They have keys and
+values. Order should be irrelevant in all cases."* He is right, and the borrowing
+was invalid: base16's tokens are named `base00`–`base07` and its spec requires
+them to run dark-to-light, so **position is the meaning**. Portal's names carry
+their own meaning, so order carries nothing — and the chosen flat `key = value`
+format parses unordered anyway, making the "contract" unenforceable and
+undetectable.
+
+**Where the ramp's ordering actually lives: `docs/theming.md`**, which documents
+each of the 19 roles and its relative weight. That is the seed's own deliverable
+and exists regardless. A theme author learns the vocabulary there — they were
+never going to infer a six-step ramp from six adjectives in isolation.
 
 ### Guard tests reshape
 
