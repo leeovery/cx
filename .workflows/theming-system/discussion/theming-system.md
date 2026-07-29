@@ -930,6 +930,41 @@ pair. The slot keys are genuinely novel — not a reason to avoid them, but the
 reason a Paper mockup earns its keep, since there is no established shape to
 borrow.
 
+### Paper spike — two marker/slot treatments
+
+Two artboards added to the **Portal** Paper file, both built on the canonical
+`Sessions — Modern Vivid v2` frame so they inherit the shipped MV conventions
+(JetBrains Mono, 32px rows, `#0B0C14` canvas, `#28243A` selection tint,
+`#BB9AF7` cursor, panel chrome `#0C0C16` on `#2B3050` border):
+
+- **`Theme slide-over — A (inline slot badges)`** — slot assignment shown as a
+  right-aligned `dark` / `light` badge on the assigned rows.
+- **`Theme slide-over — B (assignment header)`** — a `dark → … / light → …`
+  key-value block pinned under the panel header, with a plain list below.
+
+Shared decisions expressed in both frames:
+
+- **Full-height, flush to the right edge, left border only** — deliberately
+  *not* an inset bordered panel like the modals, so it reads as a slide-over
+  rather than a floating dialog.
+- **Non-blanking overlay.** The Sessions list stays fully visible; the panel
+  covers the right column, which visibly costs the footer's `x projects` and
+  `? help` — exactly the accepted trade recorded above.
+- **Vertical keymap footer** (`⏎ set theme` / `d set as dark` / `l set as light`
+  / `esc close`) rather than Portal's horizontal footer row — a horizontal keymap
+  does not fit a ~30-column panel, and the vertical form matches the help
+  modal's key-column idiom.
+- **Cursor row** uses the shipped selection treatment (`▌` + tint + white bold
+  name), so the panel's list reads as the same kind of list as Sessions.
+- The list shows a **user drop-in theme** (`nord-lee`) sitting alphabetically
+  among the built-ins, with no visual distinction — deliberate, matching the
+  decision that a valid drop-in is simply selectable.
+
+Two small refinements made during the spike: the slot badge dropped its leading
+`●` (the glyph is the *attached* marker in the sessions list, and reusing it for
+slot assignment risked a second meaning for one glyph), and the panel header
+dropped a theme count (noise at this list size).
+
 ### Sequencing — model first, then mock
 
 Agreed to settle the interaction in words before mocking, so the Paper frame
