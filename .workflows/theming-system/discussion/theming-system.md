@@ -1203,6 +1203,39 @@ set by hand. Judged a fair trade against a panel that appears to do nothing.
 test. A colourless render contains no theme hexes, so there is nothing to diff —
 their inclusion would be meaningless rather than merely redundant.
 
+### The panel re-themes too (the review's F2)
+
+Never stated: does the slide-over's own chrome re-theme with the previewed theme,
+or stay anchored to the persisted one? Both readings bite. Re-theming means its
+border, cursor bar and slot dots change on every arrow — and since a drop-in need
+only be *valid*, not good, a legal-but-awful theme could render the panel's own
+list and `esc close` hint unreadable while the user is standing on it. Not
+re-theming makes the panel the one surface holding non-current colours while
+everything behind it swaps, which also means it legitimately retains theme-A
+hexes and would need carving out of the swap-and-diff guard.
+
+**Decision: everything re-themes, panel included. No exceptions.** Lee: *"yes
+everything rethemes."*
+
+Reasons, ascending:
+
+1. It is the honest preview — the panel is part of what the theme paints, so a
+   fixed panel shows a theme that cannot be fully judged.
+2. It avoids a **permanent exception in the render layer** — a surface that
+   deliberately ignores the active theme is precisely the shape the completeness
+   guard exists to catch, so the alternative would mean carving out the one test
+   protecting against accidental carve-outs.
+3. The unreadable-panel risk is smaller than it looks, because **`Esc` is a
+   keypress, not a visible affordance** — no need to read the hint to close the
+   panel. The picker idiom does the rest: `Esc` discards the preview and lands
+   back on the prior theme.
+
+**Residue recorded rather than hidden:** a user can only get *stuck* in an
+unreadable theme by explicitly committing one, and the recovery is then editing
+`prefs.json` rather than anything in the UI. Since a drop-in is by decision the
+user's own creation and only they can reach this state, that is judged
+proportionate — but it is a real edge.
+
 ### Panel geometry — degrade, don't refuse
 
 **Width.** Fixed preferred width (~24–30 columns: name, markers, slot
@@ -1558,6 +1591,32 @@ it, giving a forensic trail with no user-facing interruption.
 Rejected: accepting the silent flip as cosmetic and one keypress to fix — wrong
 when the affected users are exactly those who set a preference, and when the
 translation is this small and this exact.
+
+### Correction — the exec-path justification was wrong (the review's F6)
+
+Both the doctor line and the `theme` log component were argued partly from the
+`portal open <target>` exec path: doctor as *"the only surfacing route that works
+on the exec path"*, and the log component as closing a gap where *"a broken theme
+on the exec path leaves no trace anywhere"*.
+
+**That premise is wrong.** Under lazy discovery the theme is loaded at **TUI
+construction**, and the exec path constructs no TUI — it resolves a target and
+`syscall.Exec`s. So the loader never runs there, nothing themed is rendered, and
+there is no failure to surface or record on that path at all.
+
+**Both decisions stand; the reasoning is corrected:**
+
+- **Doctor's theme line** earns its place as the *detailed, scriptable,
+  on-demand* diagnostic surface — full terminal width, able to enumerate
+  per-file reasons — not because of the exec path.
+- **The `theme` log component** earns its place because a TUI launch that rejects
+  a theme should leave a **passive** record. The panel's skipped-count is
+  transient and only visible if the panel is opened; doctor must be invoked. The
+  log is the only trail that exists without the user going looking.
+
+**And a win worth recording explicitly:** the exec path does **zero** theme work
+— no scan, no file read, no parse. On the path Portal is most careful to keep
+free of cost, this feature adds nothing at all.
 
 ### Docs
 
