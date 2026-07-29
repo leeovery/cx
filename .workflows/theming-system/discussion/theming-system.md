@@ -1451,6 +1451,37 @@ theme on the exec path leaves **no trace anywhere**, since doctor is manual and
 the slide-over never opens. Lee: *"logging is good because it helps diagnose
 problems."*
 
+### Upgrade path for an existing `appearance` value (the review's F4)
+
+Real installs hold `"appearance": "dark"` or `"light"` today — the README
+currently *recommends* pinning it. Deleting `prefs.Appearance` makes that field
+unknown, so tolerant decode silently ignores it, and a user who deliberately
+pinned `dark` on a light terminal upgrades into the shipped adaptive pair and
+**silently gets a light Portal** with nothing explaining why. That is the worst
+outcome for precisely the group who expressed a preference.
+
+**The mapping is exact**, which makes the fix cheap: `appearance: dark` meant
+"always dark regardless of terminal", and the new equivalent is a **constant**
+theme.
+
+**Decision: a one-shot translation on first run after upgrade.** If `appearance`
+is `light` or `dark` **and** no theme keys are set, write `"theme":
+"tokyo-night-day"` or `"theme": "tokyo-night"` and drop the field.
+`appearance: auto` needs nothing — ignoring it lands exactly on the adaptive
+default, which is what `auto` meant.
+
+Intent is preserved precisely rather than approximately: a pinned mode becomes a
+pinned theme, and detection stays off for them just as it was.
+
+Portal has the precedent — `migrateConfigFile` performs a one-shot move from the
+old macOS config path. This is the same shape and **self-disarming**: once theme
+keys exist the condition can never fire again. The `theme` log component records
+it, giving a forensic trail with no user-facing interruption.
+
+Rejected: accepting the silent flip as cosmetic and one keypress to fix — wrong
+when the affected users are exactly those who set a preference, and when the
+translation is this small and this exact.
+
 ### Docs
 
 `docs/theming.md`, following the `docs/custom-terminals.md` precedent (a
