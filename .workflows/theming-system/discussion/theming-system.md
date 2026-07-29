@@ -989,6 +989,39 @@ grouping mode would resolve that inconsistency, but `s` is fast and good, and it
 is scope creep on an already-large feature. Two mechanisms for two prefs is a
 mild inconsistency worth living with.
 
+### Rejection surfacing — count in the panel, detail in doctor (the review's F3)
+
+Four decisions lean on "the rejection surfaces inside the slide-over" — the
+audience decision (auto-discovery makes validity user-visible), no-shadowing
+(*"loud rather than silent"*), whole-theme rejection (*"naming the exact missing
+tokens"*), and hex-only validation (*"one honest message"*). None of them
+designed it, and the settled panel makes it awkward: **an invalid theme is absent
+from the list**, so there is no row to attach a message to, and the panel is
+~24–30 columns and degrades narrower. *"theme `nord-lee`: `text.primary` =
+`#GGGGGG` is not a valid colour"* does not fit that, nor does enumerating six
+missing token names, and N invalid files multiplies it.
+
+**Decision: split the job by surface rather than forcing the panel to diagnose.**
+
+- **The panel carries the *count*, not the detail** — a single line beneath the
+  list, e.g. `⚠ 2 theme files skipped`. Enough to tell the user their file did
+  not appear and it is not their imagination. Fits 30 columns, is constant-size
+  regardless of N, and needs no per-token enumeration.
+- **`portal doctor` carries the detail** — already decided as the theme health
+  line, has full terminal width, works on the exec path, and enumerating
+  *"theme `nord-lee`: missing `text.primary`, `bg.subtle`; `state.red` =
+  `#GGGGGG` invalid"* is exactly what a diagnostic line is for.
+- **The `theme` log component carries the forensic trail** — already decided.
+
+Each surface gets the job its shape suits, and the panel needs no design that
+fights its own width. Accepted cost: one extra step (see the count, run
+`portal doctor`) for something that only happens when a hand-written file is
+broken.
+
+**Implies a fourth panel fixture** — the skipped-count line — added to the
+capture set alongside adaptive-pair, constant-while-previewing and narrow
+degraded.
+
 ### Panel geometry — degrade, don't refuse
 
 **Width.** Fixed preferred width (~24–30 columns: name, markers, slot
