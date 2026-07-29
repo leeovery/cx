@@ -979,6 +979,19 @@ practice rather than a collision. The two signals stay independent: `●` marks
 One refinement that stood: the panel header dropped a theme count (noise at this
 list size).
 
+### The constant state — third frame
+
+`Theme slide-over — A (constant set, previewing another)` completes the panel's
+specification, since the two setting states never coexist on screen: it shows a
+**constant** theme (`nord`, carrying a bare `●` with no slot word, exactly as
+multi-select marks a row) while the **cursor sits on a different theme**
+(`tokyo-night`, which the app behind is therefore rendering).
+
+That combination is the picker idiom made visible: the `●` is what is
+*persisted*, the cursor + canvas is what is *previewed*, and `Esc` would restore
+the marked one. It is also why the bare `●` is sufficient — with no slots there
+is nothing to qualify, and the label would be redundant with the marker.
+
 ### Sequencing — model first, then mock
 
 Agreed to settle the interaction in words before mocking, so the Paper frame
