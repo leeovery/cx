@@ -339,6 +339,42 @@ The dividing line already implicit in Portal's own config supports it —
 a distinguished value meaning "use the terminal default" — btop's precedent is an
 empty value. The format should leave that door open rather than close it.
 
+#### Lexical rules (the review's F3)
+
+The format was justified by pointing at `aliases` as precedent, but `aliases` has
+**no comment syntax and no `#`-prefixed values**, so it does not carry the hard
+case: **`#` is both the comment marker and the hex prefix, and every value in a
+theme file starts with `#`.** Comment support is *why* this format was chosen
+over JSON — it is where a ported palette's attribution lives, and where the note
+explaining the eyeball-pinned light tints goes — so the collision has to be
+resolved explicitly. It matters more than usual because the format **is** the
+public contract, the loader is hand-rolled by decision, and doctor promises a
+per-file reason string that can only be as precise as the rules it enforces.
+
+The forcing case:
+
+```
+text.primary = #ECEFF4 # tuned for the lighter canvas
+```
+
+— a colour plus a trailing note, or one invalid value?
+
+**Decisions:**
+
+- **`#` starts a comment only at the beginning of a line** (after optional
+  leading whitespace). No trailing comments, so the ambiguity never arises — a
+  `#` after `=` is always part of the colour.
+- **Values are bare, never quoted.** A quoted value is rejected with a message
+  saying so. (btop, the cited structural match, quotes; `aliases` does not — one
+  had to be picked and stated.)
+- **A duplicate key is rejected**, not resolved. Silently taking one of two
+  conflicting values for a token is exactly the quiet wrongness the validity rule
+  exists to prevent, and "all 19 present" would otherwise have to define what a
+  repeat counts as.
+- Whitespace around `=` is trimmed; blank lines ignored; keys are lowercase by
+  definition (per the slug/vocabulary charset) and matched case-sensitively;
+  CRLF tolerated; a BOM is stripped.
+
 ### Value domain — hex only, `#RRGGBB`
 
 #### Context
