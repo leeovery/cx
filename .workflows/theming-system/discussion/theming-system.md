@@ -170,7 +170,7 @@ a hex and the test fails, with or without the comment.
 whether built-in themes stay contrast-tested once they are data files becomes
 load-bearing. Recorded against *test-and-capture-harness-impact*.
 
-### Theme identity — filename is the slug, in-file `name` is the label
+### Theme identity — filename is the slug (amended: the `name` field was later dropped)
 
 #### Context
 
@@ -1601,8 +1601,9 @@ path serves deletion, renaming, a typo in the name, and a missing token alike.
 ### What a theme file may contain (the review's F8)
 
 Answered by the accumulated decisions, but worth stating: a Portal theme file
-contains **exactly the 19 token keys plus an optional `name`**. Unknown keys are
-ignored; there is no behaviour, no includes, no nesting.
+contains **exactly the 19 token keys** (the optional `name` field was dropped —
+see the identity amendment). Unknown keys are ignored; there is no behaviour, no
+includes, no nesting.
 
 This means Ghostty's documented caveat — *a theme can set any config option, so
 don't use untrusted ones* — **does not transfer**. Portal's theme file is a
