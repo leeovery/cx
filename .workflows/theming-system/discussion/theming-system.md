@@ -1081,6 +1081,34 @@ not **blocking first paint**, not about not asking. If the reply has not landed
 (requiring the panel to be opened within milliseconds of launch) it falls to
 dark, the same rule as everywhere else.
 
+### `NO_COLOR` — block the panel (the review's F10)
+
+Under `NO_COLOR` Portal paints no canvas, imposes no hues, and renders
+glyph-backed on the terminal's native fg/bg. So a theme panel previews nothing,
+its cursor tint and slot dots have no colour, and committing persists a choice
+with zero visible feedback.
+
+**Decision: `t` is blocked under `NO_COLOR`, with a flash**, following the
+multi-select precedent exactly — `m` is proactively blocked at entry on an
+unsupported terminal rather than letting the user walk into a dead end, with a
+flash and its help row filtered out via the `sessionsHelpKeymap()` call-site
+filter. The `t` row is filtered the same way while blocked.
+
+This is deliberately the **opposite** call to the narrow-terminal one. Narrow is
+a *space shortage*, where §2.7 mandates degrade. `NO_COLOR` is a *capability
+absence* — there is no colour to theme, so the panel's purpose is inert rather
+than cramped.
+
+**Counter recorded rather than buried:** someone may run `NO_COLOR` in one
+context and not another, so blocking prevents setting a theme that *would* apply
+elsewhere. Accepted, because the escape hatch is now first-class — `prefs.json`
+is the documented hand-editable home for the theme setting, so three keys can be
+set by hand. Judged a fair trade against a panel that appears to do nothing.
+
+**Guard consequence:** colourless fixtures are **excluded** from the swap-and-diff
+test. A colourless render contains no theme hexes, so there is nothing to diff —
+their inclusion would be meaningless rather than merely redundant.
+
 ### Panel geometry — degrade, don't refuse
 
 **Width.** Fixed preferred width (~24–30 columns: name, markers, slot
