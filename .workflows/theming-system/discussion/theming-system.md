@@ -1041,6 +1041,103 @@ would push in the wrong direction.
 
 ---
 
+## Live-swap mechanics
+
+### Speed is a non-issue, and "bake in on exit" is rejected
+
+Research verified the cheap path already exists and already excludes the
+expensive one:
+
+- **Restyle** — `applyCanvasMode` swaps the delegate and re-points the cached
+  style structs `bubbles/list` holds. O(1), no I/O, no list content touched. It
+  is already exercised in production: it is what runs when the OSC 11 reply lands
+  after first paint.
+- **Rebuild** — `rebuildSessionList` re-derives the item list and, in grouped
+  modes, runs the lazy dir-resolution pass with its per-session tmux pane reads
+  (the known ~0.5s By-Project cost at ~38 sessions).
+
+**`applyCanvasMode` does not call `rebuildSessionList`.** So the original ask —
+"take the shortest path to updating colours, defer heavier work to panel exit" —
+needs no deferral mechanism: nothing heavy is on the path.
+
+The premise that the re-render is the cost is also wrong. Bubble Tea rebuilds
+the whole view string on *every* keypress regardless, diffs it, and writes only
+changed cells — holding the down arrow in the sessions list already does this
+dozens of times a second. A theme swap costs one ordinary keypress plus the
+style re-point.
+
+**"Bake in on exit" is therefore rejected**: nothing is left un-baked, and
+deferring work to panel close would create a visible discontinuity at the one
+moment that should be seamless.
+
+### The real risk is completeness — guarded behaviourally
+
+Threading the theme (above) fixes most of this: anything taking the theme as a
+parameter re-derives per frame. What remains is the **cached styles Portal does
+not own** — `bubbles/list`'s help styles, pagination dots, TitleBar, and both
+filter inputs — which are assigned once. That list is **hand-maintained with no
+guard test**, unlike the colour-literal rule which has an AST glob guard. Miss a
+site and the element silently keeps the previous theme's colours until something
+else re-renders it.
+
+Two specific offenders research already found: `pagepreview.go:35` copies a
+`Token` at **package init**, so it would never see a swap; and init-time copies
+of *derived styles* were never swept for at all.
+
+**Decision — a behavioural guard, not a structural one.** Render every capture
+fixture under theme A, swap to theme B, render again, and assert **no theme-A hex
+survives** in the output. The offline capture harness already renders every
+canonical screen deterministically through the shared `tui.Build` constructor
+with every tmux seam faked, so the fixture list *is* the coverage list, and it
+grows automatically as screens are added.
+
+This beats a structural guard because it catches *any* missed site — including
+ones added years later — without anyone having to remember a rule. A structural
+guard would have to recognise "this is a cached style" in the AST, which is not
+mechanically well-defined.
+
+The two known offenders are fixed outright rather than guarded around: the
+package-scope `Token` copy goes, and `canvasHexFor` stops referencing `theme.MV`.
+
+Confidence: **high on the approach; Lee deferred to the recommendation** rather
+than holding a position ("whatever you think there is the right thing to do").
+
+### OSC 11 re-emission and the canvas-echo guard
+
+- **No per-keystroke churn.** Bubble Tea v2 **diffs** the view's background
+  colour and emits only on change (`cursed_renderer.go:411-432`), so hovering N
+  themes emits OSC 11 exactly once per *distinct* canvas landed on — the minimum
+  the feature requires. The declarative per-frame `BackgroundColor` assignment is
+  not a per-frame write.
+- **The echo guard needs no new race handling.** It exists because the startup
+  OSC 11 *query reply* can race Portal's own canvas set. The query is issued once
+  from `Init`; a later theme switch issues no new query, so it creates no new
+  race. The guard only ever needs to compare against the canvas active during the
+  *startup* window.
+- **But it does need work**, and it lands on the one mechanic carrying an
+  explicit "do **not** drop this guard" warning: `RestoreTerminalBackground`
+  currently derives its comparison value *at exit* from `m.canvasMode` via
+  `canvasHexFor`, which reads `theme.MV.Canvas` **directly** — a hardcoded MV
+  reference outside the token render path. Anchoring to the startup canvas means
+  capturing and retaining that hex as model state, and making `canvasHexFor`
+  theme-agnostic.
+
+### Concurrent Portal instances (the review's F12)
+
+Portal's multi-window burst routinely produces several concurrent processes, so
+multiple live instances are normal rather than an edge case. Behaviour under the
+decided design: each instance loads its theme at construction; an instance that
+changes theme persists it; other instances are unaffected until relaunch (there
+is no file watch — discovery is lazy, and `fsnotify` was rejected). `prefs.json`
+is last-write-wins.
+
+**This is exactly how `session_list_mode` already behaves** — the `s` toggle
+persists per-instance with no cross-instance sync, via the existing
+`ModePersister` seam that a theme persister follows. No new hazard, no new
+mechanism.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.
