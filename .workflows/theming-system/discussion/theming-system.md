@@ -34,6 +34,13 @@ What research deliberately did *not* settle is the decision set. It flagged its
 own convergence — several threads landed on positions that belong to this phase
 to ratify or overturn, not to inherit as settled.
 
+> **Normative note on the token count.** The vocabulary is **19 tokens**. It was
+> 20 for most of this session; the border-token consolidation (see *Token
+> vocabulary & rename*) dropped `border.footer`, taking it to 19. Sections
+> written before that decision describe the 20-token state — where they state a
+> *rule* they have been corrected to 19; where they describe *today's code* (which
+> still has 20) they are left as they are. **19 governs.**
+
 ### References
 
 - [Research](../research/theming-system.md) — including Appendix A (ecosystem
@@ -101,7 +108,7 @@ selection setting) without committing to ecosystem-scale governance.
   settling the vocabulary in this feature rather than after.
 - **Auto-discovery makes the validity rule user-visible.** "Valid ⇒ selectable"
   means an invalid file silently doesn't appear unless something says why.
-  Research already settled the rule (all 20 tokens present + syntactically
+  Research already settled the rule (all tokens present + syntactically
   well-formed) and that rejection surfaces inside the slide-over; this decision
   is what makes that surfacing load-bearing rather than a nicety.
 - **Two namespaces now exist** (built-in names and user-directory names), so
@@ -1409,11 +1416,9 @@ Details settled with it:
 - **Extension:** `.theme` (recommended, low stakes) — the slug is the filename
   minus the extension, so *some* extension is needed for slug derivation.
 
-### Still open under this subtopic
-
-- What renders when a persisted theme name no longer exists on disk — expected to
-  fall into the same not-loadable path as a rejected theme (fall back to the
-  default built-in, keep the persisted name), but not yet explicitly ratified.
+*(The one item previously listed as still open here — what renders when a
+persisted theme name no longer exists on disk — is ratified under "Loose ends
+closed" below.)*
 
 ---
 
@@ -1489,7 +1494,7 @@ the dark-only palettes have no light half to supply at all.
 
 ### Decision
 
-**Split.** A theme is one palette of 20 values and is itself light or dark. MV
+**Split.** A theme is one palette of 19 values and is itself light or dark. MV
 splits into two built-ins carrying the existing values.
 
 Consequences:
@@ -1538,7 +1543,7 @@ competing ones — so this was a real option, not a straw man.
 
 ### Options Considered
 
-**Full replacement** — every theme names all 20 tokens.
+**Full replacement** — every theme names all 19 tokens.
 - Pros: one rule, one failure mode, self-contained files. Preserves the validity
   rule exactly as inherited. No base-resolution semantics to define.
 - Cons: "Tokyo Night but with a red cursor" means copying 20 lines to change one.
@@ -1554,11 +1559,11 @@ competing ones — so this was a real option, not a straw man.
 
 ### Decision
 
-**Full replacement. Every theme must declare all 20 tokens.**
+**Full replacement. Every theme must declare all 19 tokens.**
 
 The deciding factor is that the go:embed decision already solved the problem
 merge exists to solve: because a built-in *is* a file, "copy a built-in and edit
-it" is a first-class workflow, and at 20 tokens the copy is trivial. Lee: *"it's
+it" is a first-class workflow, and at 19 tokens the copy is trivial. Lee: *"it's
 such a small number of tokens that it's really not difficult to create a variant
 by just copy and pasting the whole theme and editing."*
 
@@ -1568,7 +1573,7 @@ addition because full-replacement files remain valid under any later merge
 model (a file that declares everything simply inherits nothing).
 
 The validity rule inherited from research therefore stands, now ratified rather
-than assumed: **a theme is listed only if all 20 tokens are present AND every
+than assumed: **a theme is listed only if all 19 tokens are present AND every
 value is syntactically well-formed.** Explicitly not checked: whether the
 colours are good, readable, mutually distinguishable, or clear any contrast
 floor.
@@ -1578,7 +1583,7 @@ floor.
 #### Context
 
 Raised by the background review as the direct consequence of full replacement:
-under "all 20 present", **adding a 21st token is a breaking change for every
+under "all 19 present", **adding a 20th token is a breaking change for every
 user theme simultaneously** — and it arrives from ordinary future UI work, not
 from a deliberate naming pass. `TestMVTokenCount` already pins the count at
 exactly 20, so vocabulary size is an enforced invariant. Research found no
@@ -1674,26 +1679,32 @@ on purpose, and the dark hexes are the pinned authoritative source). Owned by
 
 ### Open Threads
 
-- Research's own convergence flag lists positions it reasoned through that must
-  be **re-ratified here, not inherited** — notably the terminal-vs-OS signal
-  choice, overlay vs shrink-to-fit, apply-on-arrow, persist-on-close, and the
-  slide-over conclusions generally.
-- Vocabulary *evolution* (adding or removing a token, not just renaming one) has
-  no owner yet — under an "all 20 tokens present" validity rule, adding a 21st
-  token invalidates every existing user theme at once.
-- Startup cost of an N-file discovery scan is unbudgeted against a cold path
-  that is explicitly latency-engineered.
+All twelve Discussion Map subtopics are `decided`. The threads listed here
+earlier — research positions needing re-ratification, vocabulary evolution
+having no owner, the discovery scan being unbudgeted — were all closed during
+the session and are recorded in their own sections.
+
+Remaining threads are the ones the final review opened; they are being worked
+through and this list is updated as each lands.
 
 ### Current State
 
 - **Decided:** theme audience (curated, two contribution routes); built-ins are
   embedded theme files parsed by the same loader as user themes; theme model is
   split (one palette per theme); themes are full replacements with no merge;
-  validity is all-20-present + syntactically well-formed; unknown keys ignored,
-  missing keys reject the whole theme with fallback to the default built-in.
-- **Uncertain:** the concrete file format, theme identity and discovery
-  mechanics, the detection question, the token vocabulary, and the whole
-  slide-over surface.
+  validity is all-19-present + syntactically well-formed; unknown keys ignored,
+  missing keys reject the whole theme with fallback to the default built-in;
+  file format is flat `key = value` with hex-only values; identity is
+  filename-slug plus optional display label, with no shadowing of built-in
+  slugs; discovery is lazy; detection ships against the terminal background via
+  OSC 11 in a two-slot form, with the adaptive pair shipped as the default; the
+  19-token vocabulary is renamed to weight-and-meaning names; the slide-over's
+  interaction model, geometry and marker treatment; live-swap mechanics and the
+  swap-and-diff completeness guard; theme plumbing threads the theme where
+  `mode` is threaded today; the `portal doctor` line, a new `theme` log
+  component and `docs/theming.md`; and the capture-harness treatment.
+- **Being worked:** the final review's findings, and the scope question of
+  whether the two new palettes are designed in this feature or follow up.
 
 ## Triage
 
