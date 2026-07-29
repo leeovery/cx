@@ -805,6 +805,32 @@ no special case.
 clears the constant. Whichever was set last wins. This also answers "what if both
 a constant and a pair are present" — that state cannot exist.
 
+### Partial pairs — an unset slot holds the shipped default
+
+Lee's question: if you set dark and no light, do you have to set both? What
+renders in a light terminal?
+
+**Answer: you never have to set both, because a slot is never empty.** The
+adaptive form always has two slots; the shipped values are their *defaults*. So
+`dark = nord` yields `{light: tokyo-night-day, dark: nord}` — light is still the
+shipped default because it was never overridden. There is no incomplete-pair
+state to validate, explain, or render around.
+
+This makes the shipped default and a partially-overridden pair **the same
+mechanism** rather than two, which is why it beats the alternatives. Zellij's
+rule (set only one slot and the static theme stays authoritative) doesn't
+transfer — mutual exclusion means no static theme survives once a slot is set.
+"Must set both" would need an invalid intermediate state plus something to render
+during it.
+
+Consequence for the panel: it can show both slots' current values at all times,
+including ones never touched — you can see what light is set to without having to
+remember whether you set it.
+
+**Parked for the mockup:** research settled a marker for the theme active when
+the panel opened, but under a pair there are potentially *two* markers (one per
+slot) plus a different shape for a constant. Visual question, not a logic one.
+
 ### Precedent — mixed, and honestly thin in one place
 
 For the picker itself it is strong: Helix's `:theme` re-themes live without
