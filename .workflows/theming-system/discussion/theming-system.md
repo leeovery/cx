@@ -762,16 +762,70 @@ value for the pair. A theme setting is either:
 
 ---
 
-## Slide-over panel — interaction model (PROVISIONAL)
+## Slide-over panel — interaction model
 
-### Lee's proposed model
+### Journey
 
-- Arrowing the list re-themes the app live behind the panel.
-- `Enter` sets `theme = <selection>` (a constant) and closes the panel — the
-  common case, one key.
-- Separate keybindings assign the current selection to the **dark** or **light**
-  slot, and do *not* close, because building a pair is inherently a
-  multi-selection (theme A for dark, theme B for light). `Esc` closes.
+Lee's opening model was: arrow previews live, `Enter` sets a constant **and
+closes**, slot keybindings assign dark/light without closing, `Esc` closes.
+
+**First correction — `Enter` and `Esc` cannot both commit.** Research had landed
+on *persist-on-close* (apply-on-arrow, save whatever you're on when the panel
+closes, with a "saves on close" hint). An explicit `Enter` breaks that: if `Esc`
+also saves, `Enter` does nothing `Esc` doesn't. So one must not commit — which
+means `Esc` discards. That flips the panel from the settings-panel idiom to the
+**picker idiom** (Helix's completion prompt is exactly three-state: `Update`
+previews, `Abort` reverts, `Validate` commits).
+
+**Second correction — Lee's own, and it resolves a hole in the first.** If
+`Enter` closes, how do you exit after setting *both* slots? Pressing `Enter`
+would commit a constant and wipe the pair you just built. His answer: **`Enter`
+does not close. `Esc` is the only way out.**
+
+### Decision
+
+- **Arrowing previews only.** The app re-themes live behind the panel; nothing is
+  written.
+- **`Enter` commits a constant** (`theme = <selection>`). Panel stays open.
+- **Slot keys commit to the dark or light slot.** Panel stays open — building a
+  pair is inherently two selections.
+- **`Esc` closes.** Anything committed persists; an uncommitted preview is
+  discarded and the previously persisted theme is restored.
+
+Every write is an explicit keypress; nothing writes on close. This also
+eliminates the *"applied but not persisted"* state research flagged as reachable
+under persist-on-close — where Portal dies with the panel open and the
+visually-applied theme was never written.
+
+Cost accepted: the common case ("pick one and go") is two keys rather than one.
+Bought uniformity — one exit key, no dual-purpose keys, and the pair flow needs
+no special case.
+
+**Mutual exclusion.** Committing a constant clears the slots; assigning a slot
+clears the constant. Whichever was set last wins. This also answers "what if both
+a constant and a pair are present" — that state cannot exist.
+
+### Precedent — mixed, and honestly thin in one place
+
+For the picker itself it is strong: Helix's `:theme` re-themes live without
+restart behind a three-state prompt; Ghostty's `+list-themes` is close to the
+described layout (list one side, live preview the other, `Esc` to exit, `f`
+cycling a light/dark filter); kitty's themes kitten has live preview and a
+recently-used list.
+
+For **assigning a theme to a light/dark slot from inside a picker, nothing was
+found.** Helix, Ghostty, Zellij, kitty and bat all require editing config for the
+pair. The slot keys are genuinely novel — not a reason to avoid them, but the
+reason a Paper mockup earns its keep, since there is no established shape to
+borrow.
+
+### Sequencing — model first, then mock
+
+Agreed to settle the interaction in words before mocking, so the Paper frame
+expresses a decided model rather than exploring one. The panel still has
+undecided structure that changes the frame (width, what sits behind it,
+narrow-terminal behaviour, whether it opens from pages other than Sessions). The
+frame then becomes the reference artifact carried into spec and planning.
 
 ---
 
