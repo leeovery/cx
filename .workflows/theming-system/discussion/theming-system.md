@@ -531,6 +531,48 @@ convention, not a failure.
 
 ---
 
+## Token vocabulary & rename
+
+### The two border tokens are one role — consolidate
+
+#### Evidence
+
+Research left one item as genuinely-still-research: *does any surface render both
+border tokens together in a way that requires them to differ?* Checked in code
+during this session, and the answer is no — the code says so explicitly.
+
+- `panel.go`'s `renderJoinedPanel` doc comment: *"single-tone: the 2-tone footer
+  leg of §8.1 was dropped in task 3-4"*. **Spec §8.1's "2-tone border
+  (`border.separator` + `border.footer`)" is stale** — the implementation dropped
+  it and the helper takes a single border token.
+- `border.separator` serves the title rule (`header.go:130`), every modal panel
+  frame (destructive-confirm, edit, help, rename), and edit-modal chips.
+- **`border.footer` has exactly one production consumer** — `footer.go:267`, the
+  footer rule.
+- The two carry an **identical light hex** (`#C9CDDB`), differing only in dark
+  (`#292E42` vs `#20232E`).
+
+Under split this becomes visible in the artefact itself: the light theme file
+would carry two keys with the same value, and the dark file two keys differing by
+a shade nothing ever renders side by side.
+
+#### Decision
+
+**Consolidate to one border token.** `border.footer` is dropped; the footer rule
+renders with the same token as the title rule. The vocabulary goes **20 → 19**
+(`TestMVTokenCount`'s exact-20 pin moves with it).
+
+Accepted visual change: the footer rule becomes marginally more prominent in dark
+(`#292E42` rather than `#20232E`) — verifiable directly through the capture
+harness. Lee: *"we don't need tokens that are marginally different when they
+don't appear together. That's just drift."*
+
+This dissolves the border seed's original premise. There is no longer a
+*two*-token rename to settle — there is one border token to name, inside a wider
+vocabulary question.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.
