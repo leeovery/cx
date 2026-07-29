@@ -356,7 +356,7 @@ And he is right. The framing assumed Portal has to classify themes itself, which
 it does not:
 
 - Under the adaptive two-slot form, **the slot classifies the theme.**
-  `light = "x"` means "use this when the terminal is light" — Portal never
+  the light slot means "use this when the terminal is light" — Portal never
   inspects the palette to know that.
 - Warning that a dark theme sits in the light slot is exactly the *perceptual*
   judgement already ruled out of validation (validity is syntactic, never
@@ -471,8 +471,8 @@ Three arguments carried it:
 **Config shape** (no `appearance` setting exists anywhere — the override is the
 *shape* of the theme setting):
 
-- `theme = "tokyo-night"` — a constant. Detection is never consulted.
-- `theme.light = "…"` / `theme.dark = "…"` — opts in; detection chooses.
+- `"theme": "tokyo-night"` — a constant. Detection is never consulted.
+- `"theme_light": "…"` / `"theme_dark": "…"` — opts in; detection chooses.
 - A no-answer resolves to the **dark** slot (Helix carries an explicit third
   `fallback` value for exactly this, defaulting to dark; Helix, Neovim, delta and
   Glamour v2 all use dark as the universal no-answer fallback).
@@ -828,7 +828,7 @@ rather than a large library.
 ### Decision — ship the adaptive pair (option b)
 
 Portal ships with the light/dark pair already nominated
-(`light = tokyo-night-day`, `dark = tokyo-night`), so a brand-new user gets
+(`"theme_light": "tokyo-night-day"`, `"theme_dark": "tokyo-night"`), so a brand-new user gets
 whichever matches their terminal, automatically.
 
 The alternative considered was shipping a constant dark default, with the
@@ -854,7 +854,7 @@ Reasons:
 - It **degrades to the alternative**: no answer resolves to dark, so (b) is a
   superset of (a) with a bounded downside.
 - **Asymmetric escape.** Pinning is one line and is the *simpler* config
-  (`theme = "tokyo-night"`), so an annoyed user has an obvious remedy. The
+  (`"theme": "tokyo-night"`), so an annoyed user has an obvious remedy. The
   alternative's failure has no signal at all — a light-terminal user gets a dark
   Portal forever and never learns a light theme exists.
 
@@ -869,8 +869,8 @@ reliably through tmux); the one-line pin is the remedy.
 an implicit pair. So the loader needs no unconfigured branch, only a default
 value for the pair. A theme setting is either:
 
-- **constant** (`theme = "nord"`) — detection off; or
-- **adaptive** (`light = …` / `dark = …`) — detection on.
+- **constant** (`"theme": "nord"`) — detection off; or
+- **adaptive** (`"theme_light"` / `"theme_dark"`) — detection on.
 
 ---
 
@@ -924,7 +924,7 @@ renders in a light terminal?
 
 **Answer: you never have to set both, because a slot is never empty.** The
 adaptive form always has two slots; the shipped values are their *defaults*. So
-`dark = nord` yields `{light: tokyo-night-day, dark: nord}` — light is still the
+`"theme_dark": "nord"` yields `{light: tokyo-night-day, dark: nord}` — light is still the
 shipped default because it was never overridden. There is no incomplete-pair
 state to validate, explain, or render around.
 
@@ -1310,6 +1310,41 @@ probably never true in the first place.
 ---
 
 ## Loose ends closed
+
+### The theme setting's on-disk shape (the review's F1)
+
+A notation error ran through most of the session: the setting was written as
+`theme = "tokyo-night"` / `theme.light` — which is the **theme file's** flat
+format — while being located in `prefs.json` throughout. The actual JSON shape
+was never decided, and the decided semantics make it non-obvious: the value is
+polymorphic (a string when constant, a pair when adaptive), mutual exclusion
+means one form must clear the other, and `prefs` is a deliberate leaf with
+tolerant decode.
+
+**Options:** a polymorphic `theme` field (string *or* object — reads nicely, but
+tolerant-decoding a two-typed field means probing both, and "what does a corrupt
+value degrade to" turns murky in the store meant to be dumbest); an always-object
+form (`{"constant": …}` / `{"light": …, "dark": …}` — explicit, verbose for the
+common case, invents a wrapper key); or three flat string keys.
+
+**Decision: three flat string keys** — `"theme"`, `"theme_light"`,
+`"theme_dark"`, alongside the existing `"session_list_mode"`.
+
+- Matches what `prefs.json` already is (a flat map of scalars), so **tolerant
+  decode stays exactly as dumb as today**: missing, empty or unrecognised falls
+  to the shipped default *per field*, with no type probing.
+- **Mutual exclusion is enforced on write** — committing a constant clears both
+  slots; assigning a slot clears the constant.
+- If a hand-edit leaves both present, **`theme` wins**, as a documented
+  deterministic rule.
+- The "only two states" model stays a *rule* rather than being encoded in a
+  type: non-empty `theme` ⇒ constant, otherwise the pair, with unset slots
+  holding shipped defaults.
+
+**`prefs.json` is the hand-editable home for the theme setting.** Portal has no
+separate user config file, and prefs already holds `appearance` today with the
+README instructing users to set it by hand — the theme setting inherits exactly
+that: machine-written by the panel, hand-editable by anyone who prefers.
 
 ### Which built-in is "the default built-in" (the review's F2 / F15)
 
