@@ -38,11 +38,11 @@
               "parent": null
             },
             "built-in-theme-set": {
-              "status": "exploring",
+              "status": "decided",
               "parent": null
             },
             "slide-over-panel-design": {
-              "status": "pending",
+              "status": "exploring",
               "parent": null
             },
             "live-swap-mechanics": {

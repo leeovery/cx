@@ -711,6 +711,70 @@ rather than a large library.
 
 ---
 
+## Shipped default & the theme setting's two states
+
+### Decision — ship the adaptive pair (option b)
+
+Portal ships with the light/dark pair already nominated
+(`light = tokyo-night-day`, `dark = tokyo-night`), so a brand-new user gets
+whichever matches their terminal, automatically.
+
+The alternative considered was shipping a constant dark default, with the
+light-terminal user changing it once.
+
+**Two corrections landed on the way.** First, this was a *gap*, not a reversal:
+the earlier decision was to skip the **one-shot seed** (detect once on a virgin
+install and persist), which is a different mechanism; the shipped default config
+had never been decided. Second, the orchestrator's earlier claim that "every
+surveyed application ships a hardcoded default and starts rendering" came from a
+research paragraph research itself marked **SUPERSEDED and explicitly refuted**.
+The surviving claim is narrower — nobody *prompts* on first run (A4). On
+detection, A1 is the opposite: `bat` (`--theme` defaults `auto`), `delta`
+(`--detect-dark-light` defaults `auto`), Neovim (`background` auto-set by the TUI
+on startup and re-detected when a UI attaches) and `yazi` all detect **by
+default**.
+
+Reasons:
+
+- The 50ms is a **timeout, not a price** — terminals that answer do so in
+  single-digit ms — and it applies only to TUI launches, since
+  `portal open <target>` execs without painting.
+- It **degrades to the alternative**: no answer resolves to dark, so (b) is a
+  superset of (a) with a bounded downside.
+- **Asymmetric escape.** Pinning is one line and is the *simpler* config
+  (`theme = "tokyo-night"`), so an annoyed user has an obvious remedy. The
+  alternative's failure has no signal at all — a light-terminal user gets a dark
+  Portal forever and never learns a light theme exists.
+
+**Risk named:** a terminal that answers OSC 11 inconsistently makes Portal flip
+between launches — the exact thing that made `auto` feel broken historically.
+Lee's environment is evidence against it (the live test showed OSC 11 working
+reliably through tmux); the one-line pin is the remedy.
+
+### There are only two states, not three
+
+"Nothing set" and "pair nominated" are the same thing — the shipped default *is*
+an implicit pair. So the loader needs no unconfigured branch, only a default
+value for the pair. A theme setting is either:
+
+- **constant** (`theme = "nord"`) — detection off; or
+- **adaptive** (`light = …` / `dark = …`) — detection on.
+
+---
+
+## Slide-over panel — interaction model (PROVISIONAL)
+
+### Lee's proposed model
+
+- Arrowing the list re-themes the app live behind the panel.
+- `Enter` sets `theme = <selection>` (a constant) and closes the panel — the
+  common case, one key.
+- Separate keybindings assign the current selection to the **dark** or **light**
+  slot, and do *not* close, because building a pair is inherently a
+  multi-selection (theme A for dark, theme B for light). `Esc` closes.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.
