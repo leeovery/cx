@@ -960,10 +960,24 @@ Shared decisions expressed in both frames:
   among the built-ins, with no visual distinction — deliberate, matching the
   decision that a valid drop-in is simply selectable.
 
-Two small refinements made during the spike: the slot badge dropped its leading
-`●` (the glyph is the *attached* marker in the sessions list, and reusing it for
-slot assignment risked a second meaning for one glyph), and the panel header
-dropped a theme count (noise at this list size).
+**Treatment chosen: A.** B's assignment block is more legible at a glance, but it
+puts theme names in a second place, pushes the list down, and with only two slots
+the badges say the same thing without the extra region. A also scales better as
+the library grows, since a badge stays attached to the row it describes. Lee's
+accepted caveat: with a very long list the assignments could scroll out of view —
+judged fine, since a user knows what they picked and can scroll to find it.
+
+**The `●` was restored, and the reasoning for dropping it was wrong.** The spike
+removed the badge's leading `●` on the grounds that the glyph already means
+*attached* in the sessions list. Lee corrected this: Portal **already
+repurposes** `●` for multi-select marking, where it indicates a marked row rather
+than a live session. So `●` is Portal's general "marked / active" glyph, not an
+attached-only one, and using it for slot assignment is consistent with existing
+practice rather than a collision. The two signals stay independent: `●` marks
+*assignment*, the `▌` + tint cursor treatment marks *browse position*.
+
+One refinement that stood: the panel header dropped a theme count (noise at this
+list size).
 
 ### Sequencing — model first, then mock
 
