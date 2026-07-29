@@ -852,6 +852,31 @@ have required Portal to derive each theme's mode from canvas luminance; with the
 mitigation rejected, the variant concept has **no consumer anywhere** — nothing
 declared in the file, nothing derived at load.
 
+### Opening the panel — `t`, on Sessions and Projects
+
+**Key: `t`.** Free on Sessions (taken there: `/ s x m k d e r ? Space Enter Esc`
+plus arrows) and the obvious mnemonic.
+
+**Pages:**
+
+- **Sessions** — yes; the default page and the richest surface to preview
+  against.
+- **Projects** — yes. Theme is a *global* setting; refusing would make it feel
+  page-scoped for no reason, and `t` is free there.
+- **Preview** — **no.** The preview body is captured real ANSI scrollback that is
+  deliberately out-of-theme, so live preview would only re-theme the frame
+  chrome — a weak surface. It is also already a full-screen overlay, so the panel
+  would stack an overlay on an overlay. `Esc` out and change it.
+- **Modals** — no; modals are key-exclusive by design.
+
+**Considered and ruled out:** research noticed a latent question about what a
+"settings surface" in Portal is — after this work `prefs.json` holds exactly two
+things, grouping mode (changed by the `s` key cycle) and theme (changed by a
+panel). Making the slide-over a general settings panel that also swallows
+grouping mode would resolve that inconsistency, but `s` is fast and good, and it
+is scope creep on an already-large feature. Two mechanisms for two prefs is a
+mild inconsistency worth living with.
+
 ### Precedent — mixed, and honestly thin in one place
 
 For the picker itself it is strong: Helix's `:theme` re-themes live without
