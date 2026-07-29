@@ -675,20 +675,85 @@ ambiguity but strip all meaning from ~20 files of call sites.
 
 ## Built-in theme set & quality tiers
 
-### The shipped set
+### The shipped set — three built-ins
 
-**Four built-ins:**
+**Revised mid-session.** The set was first decided as four (Tokyo Night Dark,
+Tokyo Night Light, Nord, and one further light theme). Lee then spotted that the
+discussion had decided the *set* without ever designing the new palettes — and
+under the two-tier quality rule a bundled theme must be **good**, not merely
+valid, so each port is a design task with its own contrast-tuning and eyeball
+gate.
+
+Three routes were weighed: **(a)** split only (two themes — satisfies the letter
+of "not a single built-in" but not the spirit of "genuine options", being one
+palette in two modes); **(b)** split plus Nord; **(c)** the original four.
+
+**Decision: (b) — three built-ins.**
 
 - **Tokyo Night Dark** and **Tokyo Night Light** — the existing MV values, split
-  into two themes by the split decision. Nothing is lost; the palette survives
-  as two entries.
+  into two themes. Nothing is lost.
 - **Nord** (dark-only, as the palette is).
-- **One further light theme** (family TBD at implementation).
+- A further light theme **follows up as separate work**.
 
-Two dark, two light. The split alone does not satisfy discovery's "ship at least
-one additional theme so Portal launches with genuine options" requirement —
-"Tokyo Night" and "Tokyo Night Day" are one identity in two modes — so two
-materially different palettes join them.
+The deciding argument was **risk, not scope**: the 19-token vocabulary has only
+ever been exercised by the palette it was designed for, so porting one genuinely
+external palette is the first real test of whether the roles map cleanly — and
+that test must happen *before* the names become a public contract. Nord makes
+the test unusually sharp because its canvas is `#2E3440`, a mid-dark rather than
+a near-black, so its contrast headroom is materially tighter than MV's.
+
+The counterweight is that everything after the first external theme is cheap by
+construction: `go:embed` makes adding a theme literally adding a file, and the PR
+route exists to receive exactly that. A follow-up "more themes" task is the
+system being used as designed rather than deferred work.
+
+Accepted cost: the light side ships with a single option until the follow-up.
+The adaptive default still works out of the box either way, since it is Tokyo
+Night on both slots.
+
+### The Nord port, analysed against the real spec
+
+Worked through in session against the published Nord palette (16 colours:
+Polar Night `nord0–3`, Snow Storm `nord4–6`, Frost `nord7–10`, Aurora
+`nord11–15`) and Portal's actual rule set in `contrast_test.go`.
+
+**Result: the vocabulary survives, but the floors force two corrections.**
+
+Every Nord colour measured against Nord's own canvas (`nord0 #2E3440`):
+
+| | ratio | | ratio |
+|---|---|---|---|
+| nord1 `#3B4252` | 1.24 | nord9 `#81A1C1` | 4.64 |
+| nord2 `#434C5E` | 1.45 | nord10 `#5E81AC` | 3.10 |
+| nord3 `#4C566A` | 1.69 | nord11 `#BF616A` | **3.05** |
+| nord4 `#D8DEE9` | 9.25 | nord12 `#D08770` | 4.39 |
+| nord5 `#E5E9F0` | 10.26 | nord13 `#EBCB8B` | 8.00 |
+| nord6 `#ECEFF4` | 10.84 | nord14 `#A3BE8C` | 6.13 |
+| nord7 `#8FBCBB` | 5.99 | nord15 `#B48EAD` | 4.41 |
+| nord8 `#88C0D0` | 6.24 | | |
+
+**Maps clean:** canvas ← nord0; `text.primary/secondary/tertiary` ← nord6/5/4;
+`text.faint` ← nord3 (1.69 sits correctly inside the decorative band, above 1.0
+and below 3.0); `bg.selection` ← nord2 (fill 1.45 ≥ 1.10, and nord6 on it is
+7.49 ≥ 4.50); `bg.subtle` ← nord1; `border` ← nord3 (no numeric floor);
+`accent.primary` ← nord15 (4.41 ≥ 3.00); `accent.key` ← nord9 (4.64);
+`accent.mode` ← nord7/8 (5.99 / 6.24); `accent.attention` ← nord13 (8.00);
+`state.positive` ← nord14 (6.13).
+
+**Correction 1 — the red fails.** `state.destructive` carries the **4.5** normal
+floor, and Nord's red `nord11 #BF616A` measures **3.05** against Nord's own
+canvas. Lightened hue- and saturation-preserving, `#CF888F` clears at 4.50. So a
+shipped Nord would carry a red that is not literally Nord's red.
+
+**Correction 2 — the ramp's middle does not exist in Nord.** Nord's greys are
+barrelled at the ends: three bright (9.25 / 10.26 / 10.84) and three dark (1.24 /
+1.45 / 1.69), with nothing between. Portal needs `text.muted` ≥ 4.5 and
+`text.subtle` in the 3.0–4.5 band, so **two values must be invented** —
+e.g. `#939EB2` (4.62) and `#73819B` (3.18), interpolated on nord3's hue and
+saturation.
+
+This is the concrete form of the fidelity-versus-floors tension, no longer
+hypothetical.
 
 All four appear in the slide-over alongside anything the user has dropped in
 their themes directory.
