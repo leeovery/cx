@@ -877,6 +877,45 @@ grouping mode would resolve that inconsistency, but `s` is fast and good, and it
 is scope creep on an already-large feature. Two mechanisms for two prefs is a
 mild inconsistency worth living with.
 
+### Panel geometry — degrade, don't refuse
+
+**Width.** Fixed preferred width (~24–30 columns: name, markers, slot
+indicators, border, padding), with long user slugs truncated `…` as Portal
+already does for session names. A fixed width is predictable to lay out against;
+content-driven width would make the panel jump around as the library changes.
+
+**Narrow terminals — the orchestrator's first proposal was wrong.** It suggested
+*refusing to open* below a threshold of "panel width + the app's documented
+40-column minimum", citing the multi-select precedent (`m` is proactively blocked
+at entry on an unsupported terminal with a flash, rather than letting the user
+walk into a dead end).
+
+Lee pushed back: *"it would have to be very narrow for that to be the case. Like
+on a mobile, I would still expect it to open."* He is right, and there is a
+principled reason the precedent doesn't transfer: **multi-select is blocked
+because of a capability *absence* — the terminal genuinely cannot spawn windows.
+A narrow terminal is a space *shortage*, and §2.7's doctrine for space shortage
+is explicit: degrade, never break.** Refusing on width would contradict Portal's
+own established stance.
+
+So:
+
+- The panel **shrinks** between a preferred and a minimum width as the terminal
+  narrows — staged degradation, consistent with §2.7's existing width steps
+  (drop right-side header hint → compact wordmark → truncate names).
+- It **refuses only when even the minimum panel cannot render**, which is very
+  narrow indeed — and then it flashes rather than opening a broken frame.
+- Exact thresholds are pinned at implementation, as §2.7 already does for its
+  own degradation steps.
+
+**What the panel covers.** Overlay hides the right-hand column, where the
+footer's right-aligned `? help`, the right-side header hint, and session row meta
+live. **Accepted** — and for a better reason than transience: the theme is
+carried almost entirely by the *left* of the screen (session names, cursor bar,
+group headers, footer key glyphs), while the right edge is metadata. The overlay
+covers the least theme-informative part of the screen, which is exactly what a
+preview surface wants.
+
 ### Precedent — mixed, and honestly thin in one place
 
 For the picker itself it is strong: Helix's `:theme` re-themes live without
