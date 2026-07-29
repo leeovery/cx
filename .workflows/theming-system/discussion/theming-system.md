@@ -1289,6 +1289,40 @@ complete.
 - **`internal/capture` must stay alive regardless** of what happens to the
   images: the swap-and-diff completeness guard drives the fixture *renderer*.
 
+### Two mechanisms, two audiences — both stay
+
+The orchestrator initially conflated these, treating the still image as "how the
+design reaches Lee". It is not. Corrected:
+
+- **VHS tapes → PNGs are for the *agent*.** During the agentic implementation
+  loop the implementer captures a screen, looks at it, and assesses its own work;
+  the reviewer does the same. **Without a producible PNG the agent cannot see
+  what it built**, and Lee ends up hand-correcting every task — the explicit
+  failure mode this tooling exists to prevent.
+- **`capturetool --fixture` is for *Lee*.** He loads it in a real terminal at the
+  human-in-the-loop gate and judges it as the real thing — Portal's look and
+  feel, without running Portal.
+
+**The workflow this serves** (recorded because it constrains the harness):
+implement → capture → agent self-assesses → reviewer → converge → *then* the
+human gate. Lee is involved only once the implementer and reviewer are both
+satisfied.
+
+**VHS is not removed.** Rendering a terminal screen to an image means driving a
+real terminal emulator and screenshotting it, which is exactly what VHS is built
+for. Direct PNG output from `capturetool` is welcome *if* it proves cheap, but it
+optimises a mechanism that already works, and the only forced change here is
+theme injection. The **requirement** is that every fixture can produce a PNG;
+VHS-vs-direct-writer is a genuine implementation detail, not a deferred decision.
+
+### Retention — draw the line now
+
+- Everything that exists today (PNGs, tapes, fixtures) is deleted.
+- From this feature forward, captures are created as work proceeds, **committed
+  while they are being collaborated on**, and cleared out after sign-off so they
+  do not live in the repository forever.
+- Cleaning up is **not this feature's job** and is not done as we go.
+
 ### Guard tests reshape
 
 - **`TestMVTokenCount`** moves 20 → 19, and its meaning shifts from "MV has 20
