@@ -666,6 +666,51 @@ ambiguity but strip all meaning from ~20 files of call sites.
 
 ---
 
+## Built-in theme set & quality tiers
+
+### The shipped set
+
+**Four built-ins:**
+
+- **Tokyo Night Dark** and **Tokyo Night Light** — the existing MV values, split
+  into two themes by the split decision. Nothing is lost; the palette survives
+  as two entries.
+- **Nord** (dark-only, as the palette is).
+- **One further light theme** (family TBD at implementation).
+
+Two dark, two light. The split alone does not satisfy discovery's "ship at least
+one additional theme so Portal launches with genuine options" requirement —
+"Tokyo Night" and "Tokyo Night Day" are one identity in two modes — so two
+materially different palettes join them.
+
+All four appear in the slide-over alongside anything the user has dropped in
+their themes directory.
+
+### Two quality tiers (answers the review's F14)
+
+**Contrast floors apply to what Portal ships; syntactic validity applies to what
+users write.**
+
+- **Bundled** (built-in, or an accepted PR — a PR is *intake into this tier*):
+  must be valid **and good**. Contrast floors, bands and thresholds are checked.
+  It carries Portal's name, and this is what stops the selector filling with
+  Portal-endorsed themes nobody can read.
+- **Drop-in** (user themes directory): must be **valid only** — all 19 tokens
+  present, every value well-formed. Whether it looks good is the user's business.
+  Lee: *"we can't control what users do … it has to be valid, but it doesn't have
+  to look good."*
+
+This is consistent with the position recorded in research (the strict floor was
+for MV, the theme Portal designs) and with floors already being MV-specific in
+code.
+
+**Consequence:** porting is not free. A straight palette lift may not clear the
+floors unmodified — MV's own light variants needed six individual corrections.
+Each bundled theme is real work, which argues for shipping a small number well
+rather than a large library.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.
