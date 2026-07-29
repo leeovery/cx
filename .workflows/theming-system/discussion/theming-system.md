@@ -571,6 +571,91 @@ This dissolves the border seed's original premise. There is no longer a
 *two*-token rename to settle — there is one border token to name, inside a wider
 vocabulary question.
 
+### Scope — full audit of all 19, including the hue-named accents
+
+#### The finding research missed
+
+Research's audit flagged three issues (`bg.track` is use-site-derived; the
+`text.on-*` tokens are pairing names coupling to other tokens; the text ramp
+encodes no ordering). It did not flag the largest one:
+
+**Six tokens are named after MV's hues, not their roles** — `accent.violet`,
+`accent.blue`, `accent.cyan`, `state.green`, `state.red`, `accent.orange`.
+
+For a single built-in this is harmless: MV's primary accent *is* violet. As a
+public theming contract it is guaranteed to lie. A Gruvbox port has no violet, so
+its author writes `accent.violet = "#d79921"` — Gruvbox yellow — and the key
+actively misdescribes its own value. Every port after the first has this problem,
+and it cannot be fixed later without breaking their files.
+
+It is the same anti-pattern the border seed logged, but larger in scale and
+worse in kind: `border.footer` merely *goes* stale as surfaces reuse it, whereas
+a hue name is wrong the moment anyone themes against it.
+
+#### The distinction that defines the target
+
+Three naming failures are in play and only two are failures:
+
+- **A place** (`border.footer`) — wrong; goes stale as surfaces reuse the token.
+- **A hue** (`accent.violet`) — wrong; lies in every port.
+- **A meaning** (`state.destructive`) — right; stays true regardless of palette
+  or where it is drawn.
+
+The third is the target. Crucially this does **not** mean everything becomes
+weight-based: research (A7) found use-site naming is the ecosystem *norm* (Helix
+names essentially its whole UI half that way). The ramp and the border want
+intrinsic-**weight** names because their role genuinely is "how prominent"; the
+accents want **meaning** names because a theme author needs to know what a colour
+signifies in order to choose one.
+
+§2.1 already defines these roles in exactly those terms — "primary accent",
+"key-hint", "state — attached", "state — destructive", "filter/search &
+warning", "preview mode-chrome". The role names already exist in the spec; the
+tokens simply do not use them.
+
+#### Decision
+
+**Full audit of all 19 tokens**, including renaming the hue-named accents to
+their roles. Lee: *"let's absolutely audit that! This is the perfect time to do
+so!"*
+
+### Proposed scheme (PROVISIONAL — under discussion)
+
+| # | Current | Proposed | Why |
+|---|---|---|---|
+| 1 | `text.primary` | `text.primary` | unchanged — top of ramp, already intrinsic |
+| 2 | `text.strong` | `text.secondary` | ordinal makes ramp position explicit |
+| 3 | `text.muted-bright` | `text.tertiary` | current name is self-contradictory |
+| 4 | `text.detail` | `text.muted` | `detail` describes content, not weight |
+| 5 | `text.dim` | `text.subtle` | ladder consistency |
+| 6 | `text.faint` | `text.faint` | unchanged — decorative floor |
+| 7 | `text.on-selection` | `text.on-selection` | unchanged — contrast pairing (Crush `onPrimary` convention) |
+| 8 | `accent.violet` | `accent.primary` | hue → role (§2.1 "primary accent") |
+| 9 | `accent.blue` | `accent.key` | hue → role (§2.1 "key-hint") |
+| 10 | `accent.cyan` | `accent.mode` | hue → role (§2.1 "preview mode-chrome" = signals a distinct mode) |
+| 11 | `accent.orange` | `accent.attention` | hue → role; one warm token covers filter query, edit-mode, warning flash |
+| 12 | `state.green` | `state.positive` | hue → meaning (live / attached / success) |
+| 13 | `state.red` | `state.destructive` | hue → meaning |
+| 14 | `canvas` | `canvas` | unchanged — already intrinsic |
+| 15 | `bg.selection` | `bg.selection` | unchanged — names a state, not a place |
+| 16 | `bg.warning` | `bg.attention` | pairs with `accent.attention` |
+| 17 | `bg.track` | `bg.subtle` | use-site → intrinsic weight (a low neutral fill) |
+| 18 | `border.separator` | `border` | sole border token after consolidation |
+| 19 | `text.on-warning` | `text.on-attention` | lockstep with `bg.attention` |
+
+**Three spots flagged as genuinely arguable:**
+
+1. **The ramp's middle join.** `text.tertiary` → `text.muted` mixes an ordinal
+   vocabulary with a qualitative one, so the ordering at that join rests on
+   convention rather than the names. Mitigation follows base16's insight that
+   ordering is part of the *contract*: the ramp ships in ramp order in the file
+   with a header comment saying so. Fully positional names (`text.1`…`text.6`)
+   would remove the ambiguity but strip all meaning from ~20 files of call sites.
+2. **`accent.key`** could read as "important" rather than "keyboard key";
+   `accent.keyhint` / `accent.hint` are the alternatives.
+3. **`bg.subtle`** reuses the word from `text.subtle` in a different namespace;
+   `bg.inactive` is the alternative but generalises less well.
+
 ---
 
 ## Process note — research positions are leans, not decisions
