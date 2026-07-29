@@ -1048,6 +1048,39 @@ Two consequences:
   attach or filter, so buying it footer space would cost a more useful entry on
   narrow terminals.
 
+### Two undefined transitions (the review's F9)
+
+**Committing to a slot that is not the active one.** Previewing a light theme in
+a dark terminal and pressing `l` writes the light slot, but the resolved-active
+theme is still the dark slot.
+
+**Decision: commit changes nothing on screen** — it is a write, not a
+navigation. The panel keeps previewing whatever the cursor is on; the display
+resolves from persisted state only on close.
+
+That also sharpens `Esc`, stated loosely earlier as "restores the previously
+persisted theme". Precisely: **`Esc` discards the preview and renders the
+resolved persisted state** — which equals "what you had before" only when
+nothing was committed. Commit slots and `Esc` lands on the newly-resolved theme,
+which is correct.
+
+**Constant → adaptive mid-session.** This looked like a real problem: a
+constant-theme user's launch deliberately skips the detect-or-timeout gate, so
+assigning a slot converts them to adaptive in-session and needs a light/dark
+answer this launch never waited for.
+
+**It dissolves.** `restore.go` issues the OSC 11 query from `Init` **regardless**
+— it needs the original background to restore on exit, independent of detection,
+and that survives every decision made here. The terminal's background is
+therefore already in hand; the detection decision only ever governed whether to
+**classify and use** it. Converting to adaptive mid-session starts using an
+answer that already arrived: no new query, no race, no gate.
+
+The startup win survives intact — skipping the gate for constant users is about
+not **blocking first paint**, not about not asking. If the reply has not landed
+(requiring the panel to be opened within milliseconds of launch) it falls to
+dark, the same rule as everywhere else.
+
 ### Panel geometry — degrade, don't refuse
 
 **Width.** Fixed preferred width (~24–30 columns: name, markers, slot
