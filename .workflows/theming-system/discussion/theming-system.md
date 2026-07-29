@@ -1022,6 +1022,32 @@ broken.
 capture set alongside adaptive-pair, constant-while-previewing and narrow
 degraded.
 
+### Input routing while the panel is open (the review's F8)
+
+The panel was established as *not* a modal — it does not blank — and modals were
+cited as key-exclusive by contrast. But blanking is a **rendering** property and
+exclusivity is an **input** property; the discussion never said which applied.
+
+**Decision: the panel is key-exclusive.** It owns arrows, `Enter`, the slot keys
+and `Esc`; everything else is swallowed. Pass-through is genuinely bad — `k`
+would kill the highlighted session while you pick a theme, `x` would swap to
+Projects with the panel open, `m` would start a multi-select behind it.
+Non-blanking and key-exclusive are not in tension: seeing the list without being
+able to drive it *is* the live-preview premise.
+
+Two consequences:
+
+- **`t` needs the filter carve-out** — while `/` is focused it is a literal
+  filter character, exactly as `s` already is.
+- **The keymap descriptor gains a `t` row** on Sessions and Projects, because
+  `keymap.go` single-sources both the footer and the `?` help and
+  `keymap_dispatch_guard_test` guards descriptor↔dispatch drift. It is added as
+  a **non-core** entry — present in `?` help, absent from the footer. Sessions
+  already carries seven footer entries and §2.7 degrades the footer as width
+  shrinks; `t` is an occasional settings action, not a per-session one like
+  attach or filter, so buying it footer space would cost a more useful entry on
+  narrow terminals.
+
 ### Panel geometry — degrade, don't refuse
 
 **Width.** Fixed preferred width (~24–30 columns: name, markers, slot
