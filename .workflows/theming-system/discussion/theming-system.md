@@ -1002,6 +1002,45 @@ frame then becomes the reference artifact carried into spec and planning.
 
 ---
 
+## Theme plumbing — swap `mode` for the theme
+
+### Context
+
+Research called this the feature's one real architectural tradeoff: `theme.MV` is
+a package-level global read directly at **182 call sites**, so making the active
+theme switchable meant choosing between
+
+- **mutable package state** (`theme.Active` var + setter) — near-zero call-site
+  churn, but package-level mutable state on the render path, and render becomes
+  order-dependent on the setter; or
+- **explicit plumbing** — pass a `Theme` down through the renderers; idiomatic
+  and test-friendly, but a large mechanical change plus a third parameter on
+  every render helper that already threads `mode` and `colourless`.
+
+### The split decision dissolved the tradeoff
+
+Every call site reads `headerStyle(theme.MV.TextPrimary, mode, colourless)` — and
+**split removes the `mode` parameter**, because a theme no longer has variants to
+resolve between. So all 182 sites are being edited regardless, and a parameter
+slot is freed at exactly the same moment.
+
+That guts the case for mutable global state: its entire advantage was avoiding
+churn Portal is now paying anyway.
+
+### Decision
+
+**The model holds the active `Theme` and passes it where `mode` is passed
+today** — a straight substitution of one threaded value for another, in code
+already being touched. No package-level mutable state, no new parameter.
+
+Secondary benefit that matters in this codebase specifically: a test can
+construct a model with any theme instead of mutating a global and hoping nothing
+else observed it. The suite already forbids `t.Parallel()` because the cmd
+package injects mocks via package-level mutable state — adding another global
+would push in the wrong direction.
+
+---
+
 ## Process note — research positions are leans, not decisions
 
 Recorded because it changed how the rest of this session ran.
