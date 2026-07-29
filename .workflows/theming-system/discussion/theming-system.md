@@ -1424,6 +1424,28 @@ renders and no in-TUI message would ever be seen. It:
 **Read-only, with no `--fix` action.** Doctor can prune a stale hook entry;
 it cannot repair someone's colours.
 
+**Advisory — theme lines do not drive the exit code (the review's F11).**
+Doctor's contract is a scriptable exit code, 0 iff all checks pass, and because
+there is deliberately no repair path a failing theme line would go
+**permanently** non-zero until someone hand-edits a file — unlike every other
+check, which is either `--fix`-repairable or indicates genuine runtime breakage.
+
+The exit code exists as a signal about the **resurrection machinery** — daemon
+alive, hooks registered, state sane. A stray junk file in `themes/` is not that:
+Portal is working, it simply did not list one theme. Letting it hold the
+diagnostic red means an automated health check fires about the daemon because
+someone left a half-written palette lying around.
+
+So doctor gains **two classes of line**: *Portal-health checks*, which drive the
+exit code as today, and *user-content diagnostics*, which report and do not.
+Theme validity is the first member of the second class. **This amends the spec's
+doctor contract** — flagged as a real change, not a detail.
+
+Rejected: failing the exit code on the grounds that a user who dropped a broken
+file into a Portal-read directory should get a loud persistent signal. They do —
+via the panel count and the doctor line — without conscripting a signal that
+means something else.
+
 ### Ruled out as YAGNI
 
 - **`--theme` flag** — a third way to set a theme, for a single launch nobody
