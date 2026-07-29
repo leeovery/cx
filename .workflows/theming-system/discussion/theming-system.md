@@ -742,8 +742,23 @@ and below 3.0); `bg.selection` ← nord2 (fill 1.45 ≥ 1.10, and nord6 on it is
 
 **Correction 1 — the red fails.** `state.destructive` carries the **4.5** normal
 floor, and Nord's red `nord11 #BF616A` measures **3.05** against Nord's own
-canvas. Lightened hue- and saturation-preserving, `#CF888F` clears at 4.50. So a
-shipped Nord would carry a red that is not literally Nord's red.
+canvas. **Decision: ship the corrected value `#DD8188` (4.50).** The floor rule
+holds with no carve-out — this being the *first* external palette, a carve-out
+granted here would set the precedent for every PR theme after it.
+
+**Method note, and a bug worth carrying to spec.** The first correction offered
+was `#CF888F`, derived by raising HSL lightness with saturation held constant.
+Lee rejected it on sight — *"washed out and … more pink"* — and he was right:
+raising lightness at fixed HSL saturation **drops actual chroma**, so that value
+lost ~27% of Nord's red saturation. Re-derived as the colour of least perceptual
+distance from `#BF616A` (measured in **Oklab**) that still clears 4.50, the
+answer is `#DD8188`, which retains ~94% of the chroma at the identical ratio.
+
+So: **contrast corrections must be computed in a perceptual space, never by
+moving HSL lightness.** This will recur on every future port. It also raises a
+check to run when MV's own values move into theme files — its erratum values are
+described as *"darkened, hue-preserved"*, which may carry the same flaw in the
+opposite direction.
 
 **Correction 2 — the ramp's middle does not exist in Nord.** Nord's greys are
 barrelled at the ends: three bright (9.25 / 10.26 / 10.84) and three dark (1.24 /
@@ -752,8 +767,33 @@ barrelled at the ends: three bright (9.25 / 10.26 / 10.84) and three dark (1.24 
 e.g. `#939EB2` (4.62) and `#73819B` (3.18), interpolated on nord3's hue and
 saturation.
 
-This is the concrete form of the fidelity-versus-floors tension, no longer
-hypothetical.
+**One further structural finding.** Nord's dark end holds only three values
+(nord1/2/3) for Portal's four dark roles (`bg.subtle`, `bg.selection`, `border`,
+`text.faint`), so one value must serve two roles — `nord3` covers both `border`
+and `text.faint`. That is legitimate (a palette choosing one value for two roles
+is not the same as two tokens that differ pointlessly, which is what the border
+consolidation removed), but it is worth knowing that the 19-token vocabulary is
+*wider* than a 16-slot ANSI palette at the dark end.
+
+### Fidelity versus floors — resolved
+
+The tension the review raised as F5 is answered: **the floors win, and the
+corrected values ship under the palette's own name.**
+
+Nord is a 16-slot ANSI palette; no application maps it 1:1 onto its own semantic
+roles, so every Nord port in the wild adapts (Ghostty, Zellij and k9s all ship
+one). The corrections here are minimal and perceptually close, and
+`docs/theming.md` records them alongside the attribution.
+
+Judged **visually, not numerically** — both reds were mocked in a Nord kill modal
+and compared side by side. Lee: *"if red as published fails the contrast settings
+that we've established, then let's go for the corrected v2."*
+
+**Relaxing the floor for a named port was the one option ruled out**, because it
+would break the bundled-tier guarantee that is the entire point of having tiers.
+
+Paper frames: `Sessions — Nord (port)`, `Kill Modal — Nord, red as published
+(#BF616A · 3.05)`, `Kill Modal — Nord, red corrected v2 (#DD8188 · 4.50)`.
 
 All four appear in the slide-over alongside anything the user has dropped in
 their themes directory.
