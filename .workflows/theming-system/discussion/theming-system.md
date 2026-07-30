@@ -850,11 +850,33 @@ end nor a foreground accent — and `text.on-attention` carries a pairing floor
 against it. The rule set (`TestBgWarningPairRule`) has three legs: text-on-tint
 ≥ 4.5, the accent bar ≥ 3.0 vs canvas, and the fill ≥ 1.1 vs canvas.
 
-Nord satisfies it, but only with a **third invented value**: blending nord13 into
-the nord0 canvas at ~20% gives `#54524F`, whose fill measures **1.60** vs canvas
-(≥ 1.10) and carries nord6 `#ECEFF4` at **6.76** (≥ 4.50). The bar leg is already
-clear — nord13 is 8.00 vs canvas. So `text.on-attention` ← nord6 needs no
-invention; `bg.attention` does.
+Nord satisfies it, but only with a **third invented value** for `bg.attention`.
+The bar leg is already clear — nord13 is 8.00 vs canvas — and `text.on-attention`
+← nord6 needs no invention.
+
+**Revised after a visual gate (the review's F9).** The first value offered was
+`#54524F` (a ~20% nord13-into-canvas blend, fill **1.60**), derived purely
+arithmetically. Checked against **how MV actually does this band**, that is far
+too heavy: MV's `bg.warning` `#241B10` measures only **1.15** against its canvas —
+the tint is a whisper, not a wash. A 20% blend also pushed the tint into a warm
+grey outside Nord's distinctly cool family, which is exactly what the review
+flagged.
+
+**Settled: `bg.attention` = `#3D4046`** (~8% blend, fill **1.20** — matching MV's
+proportion), carrying nord6 `#ECEFF4` at **9.02**. At that strength the tint stays
+recognisably Nord rather than reading as warm grey.
+
+**One honest divergence from MV:** MV warms its on-band text (`#E8C9A0`) to match
+the band. Nord's Snow Storm is entirely cool and has no warm light, so
+`text.on-attention` uses nord6 — cooler than MV's treatment, but faithful to the
+palette. Recorded as a deliberate port choice.
+
+Frame: `Sessions — Nord inline flash (bg.attention #3D4046)`.
+
+**Visual-gate note for the other two invented values:** `text.muted` and
+`text.subtle` have already been seen — `text.muted` is the "N window(s)" text in
+`Sessions — Nord (port)`. Only `bg.attention` had never been rendered, which is
+why it was the one that needed the frame.
 
 **Revised tally: one corrected value (`state.destructive`) and three invented
 ones (`text.muted`, `text.subtle`, `bg.attention`).**
@@ -2201,6 +2223,51 @@ this session found spec §8.1's "2-tone border" claim stale against the
 implementation purely by chance. Same drift class, same subsystem. **Resolution: a
 test parses the doc's token table and compares the name set against
 `Theme.All()`** — cheap, and matching the codebase's existing guard idiom.
+
+### Remaining verification & mechanics (the review's F6, F7, F8, F11, F12, F13)
+
+**Retention deletes artifacts, not fixtures (F7).** *"Everything that exists today
+(PNGs, tapes, fixtures) is deleted"* contradicted the guard, which drives the
+fixture renderer and whose coverage assertion needs the fixture set to exist.
+Clarified: the deletion covers **committed PNGs and the tapes that produce them**.
+The Go fixture *definitions* in `internal/capture` and the harness itself are
+**permanent**. "Cleared out after sign-off" likewise means the images, not the
+fixtures.
+
+**Floor-check enrolment is automatic (F6).** Bundled means *valid and good* and a
+PR is intake into that tier, but nothing said how a new theme file enters the
+floor checks. Decision: **the floor test auto-enumerates the embedded set**, so a
+new file is checked by default, plus a light/dark table carrying an assertion that
+**every embedded theme appears in it** — a forgotten entry fails the suite rather
+than silently shipping a Portal-endorsed theme nobody checked (or measuring a
+light theme against a dark reference). `TestLightSurfaceTintsPinned` becomes
+per-light-theme, its pins established at a visual gate when one is added.
+
+**Reason vocabulary extended to seven (F8).** Three labels did not cover the
+reject classes other decisions created. The set: `missing tokens`, `bad colour`,
+`bad syntax` (duplicate key, quoted value, malformed line), `bad name`,
+`reserved name`, `unreadable`, `not found`. *Which* line and *which* key stays in
+doctor, where there is width.
+
+**Symlinks (F11).** "No symlink chasing" was ambiguous about files. Decision:
+symlinked **files are followed** — the standard dotfiles shape, and dotfiles users
+are exactly who hand-authors a theme. Symlinked **directories are not**, which is
+what the original phrase guarded. The slug derives from the link name as
+enumerated.
+
+**The panel's keymap is descriptor-governed (F12).** The panel introduces `Enter`,
+`d`, `l` and `Esc` through a bespoke vertical footer outside `keymap.go` — a second
+place a key label can go stale, the very drift class guarded elsewhere. Decision:
+the panel's keys live in the descriptor as a panel scope, its vertical footer
+renders from it, and `keymap_dispatch_guard_test` covers them. **The slot keys are
+pinned here as `d` and `l`** — they had only ever been named inside the Paper spike
+description, never in the decision that introduced them.
+
+**Blocked-`t` feedback (F13).** Consistency falls out of an existing precedent:
+**flash** where the key *is* bound and the user could reasonably expect it to work
+(`NO_COLOR` on Sessions/Projects); **silent** where it is not bound at all
+(Preview, modals, burst-locked). That is exactly how `s` already behaves —
+Sessions-only, and pressing it on Projects does nothing, quietly.
 
 ### Guard tests reshape
 
