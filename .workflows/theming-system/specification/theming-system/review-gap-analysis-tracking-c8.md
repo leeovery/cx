@@ -26,8 +26,8 @@ An implementer must invent the discrimination, and the two readings differ by wh
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Real defect, fixed. §8.9 now discriminates absent from unusable: an absent prefs.json means nothing to merge and nothing to lose, so the write proceeds and creates the file (the ordinary first write — a fresh install has no prefs file, and an abort there would be permanent since the s-key persister is under the same rule and §8.1 bars the migration from creating it); a present-but-undecodable or unreadable file aborts. Same discrimination §5.5 and §12.1 already draw. §13.6's prefs test extended to cover file creation.
 
 ---
 
@@ -53,8 +53,8 @@ Two further consequences ride on the same ambiguity:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §10.5: §10.3's no-op condition governs both halves, and for the in-memory half it is evaluated against the load-time snapshot — if any theme key is set the translation neither writes nor applies. Scoping it to the write alone produced a one-launch silent flip on §10.3's own reachable sequence. The deliberate two-point evaluation (load for memory, RMW re-read for the write) is stated, and `theme: appearance migrated` pinned to fire only when a theme key is actually persisted.
 
 ---
 
@@ -80,8 +80,8 @@ This matters more than a wiring detail because §13.1 makes the harness the **on
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §13.3: a fixture declares its own raw persisted theme keys independently of `--theme`, which pins only the nomination's palette. Without the separation the adaptive-pair fixture is unreachable, since capturetool always passes the constant shape and §8.2 makes a non-empty `theme` render a bare ● with no slot badges. Noted as fixture data rather than config discovery, so §7.1's import guard is untouched.
 
 ---
 
@@ -102,8 +102,8 @@ The same question applies to the commit-time load §8.4 adds (the newly-live opp
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.3's `theme: loaded` now also fires for the fallback, carrying the fallback's slug — otherwise both it and `theme: fallback applied` name the slug that failed, and a grep on a broken install cannot answer which palette is rendering, which is the greppability the component is justified on.
 
 ---
 
@@ -128,8 +128,8 @@ An implementer must pick one of: the floor counts two message rows at the minimu
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.1 now states that at the minimum *height* the message is truncated to one line rather than wrapped — wrapping costs a row of vertical budget, and §9.8's floor counts exactly one message row with both contenders non-suppressible. Truncation degrades the message rather than the row the user is being asked about.
 
 ---
 
@@ -150,8 +150,8 @@ Rendered lipgloss/ANSI output carries no hex — a truecolor foreground is `ESC[
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.4 now states the comparison is against each token's rendered SGR form, not its hex — styled output carries no hex. Flagged that assertion 1 is a negative, so a wrong search representation passes vacuously and silently, with assertion 2 as a bounded backstop the guard should not rest on. §4.3's canonicalisation rationale corrected from three sites to two.
 
 ---
 
@@ -172,7 +172,7 @@ A second, smaller instance of the same omission: whether the theme scan runs on 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.2 now places advisories as a trailing block after the ordered catalog and before the summary (the catalog is fixed-order one-line-per-check; the theme class is 0..N and user-content-dependent, so interleaving would make a fixed report vary in length and position), and states the theme scan runs on `--fix` too — suppressing it would make `--fix` a less informative diagnosis than the plain run.
 
 ---

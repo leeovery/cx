@@ -269,7 +269,7 @@ Two reasons for excluding ANSI indices, the second decisive:
 - The MV spec's §2.4 is an explicit decision that Portal **imposes its own exact hues via truecolor and does not inherit the terminal's 16 ANSI colours** — a recognisable identity needs consistent hues across machines. Admitting ANSI indices lets a theme opt back into the palette Portal deliberately declined.
 - **An ANSI index has no fixed RGB.** The validator must parse to RGB anyway, and that same parse is what any contrast check needs. A token valued `212` cannot be measured against anything — admitting them would permanently foreclose checking a theme numerically, including Portal's own built-ins.
 
-Hex case (upper or lower) is not constrained on input, and **the parser canonicalises to uppercase**. Three comparison sites this feature introduces or re-points depend on it: §11.4's retained startup canvas hex against the exit-time value, §11.3's background diffing, and §13.4's scan of rendered output for theme-A values. All three compare hex strings, and a theme file written `#c0caf5` must not fail to match one written `#C0CAF5`. (`portal theme export` is unaffected — it emits file bytes, §12.1.)
+Hex case (upper or lower) is not constrained on input, and **the parser canonicalises to uppercase**. Two hex-string comparison sites this feature introduces or re-points depend on it: §11.4's retained startup canvas hex against the exit-time value, and §11.3's background diffing. A theme file written `#c0caf5` must not fail to match one written `#C0CAF5`. (§13.4's guard is unaffected — it compares *rendered* SGR sequences, not hex.) (`portal theme export` is unaffected — it emits file bytes, §12.1.)
 
 ### 4.4 What a theme file may contain
 
@@ -885,7 +885,12 @@ This means the `theme` component is emitted from more than one package — the l
 
 **§10.3's no-op condition is evaluated at the RMW re-read, against the bytes about to be merged — never against the load-time snapshot.** Because the translation's write is non-blocking, a user can commit a theme in the window between compute and persist; evaluated against the stale snapshot the pending translation would write `theme = tokyo-night` over the `nord` they just committed and clear the slots, which is §10.3's own failure displaced from cross-launch to intra-process. The same re-read is what lets the migration observe that another instance already set `theme_migrated`.
 
-**A re-read that does not yield a usable file aborts the write — it never becomes an overwrite.** `prefs.json` is hand-editable and its decode is tolerant, so a stray comma degrades to a zero-value struct rather than erroring. Merging into that and committing it would erase `session_list_mode`, `theme_migrated`, every untouched theme key and the retained raw `appearance` in a single `s` keypress — the exact loss §8.8 calls out, on the path §13.6 names as the one whose failure is silent and permanent. So a decode failure **or** an I/O failure on the re-read is treated as a failed write: nothing is written, `theme: commit failed` is emitted, and the panel reports it (§9.13).
+**An absent file and an unusable one are different conditions, and only the second aborts.**
+
+- **`prefs.json` absent** — there is nothing to merge and nothing to lose, so the write **proceeds and creates the file**. This is the ordinary first write: §8.1 leaves a fresh install with no prefs file at all, so a brand-new user pressing `Enter` on their first theme is the most common write in the product. An abort here would be permanent — nothing else creates the file either, since the `s`-key persister is under the same rule and §8.1 bars the migration from creating it.
+- **`prefs.json` present but unusable** — a decode failure or an I/O failure — **aborts the write; it never becomes an overwrite.** Prefs is hand-editable and its decode is tolerant, so a stray comma degrades to a zero-value struct rather than erroring. Merging into that and committing it would erase `session_list_mode`, `theme_migrated`, every untouched theme key and the retained raw `appearance` in a single `s` keypress — the exact loss §8.8 calls out, on the path §13.6 names as the one whose failure is silent and permanent. Nothing is written, `theme: commit failed` is emitted, and the panel reports it (§9.13).
+
+This is the same absent-versus-unusable discrimination §5.5 draws for the themes directory and §12.1 draws for export: absence is a normal state, unreadability is a misconfiguration. **§13.6's prefs test covers file creation as well as merge and round-trip** — a suite built only around merging would not catch an abort-on-absent implementation.
 
 **The migration write inherits only the abort half.** It runs at prefs load, before any panel exists, so it has no reporting surface and needs none: it is best-effort and non-blocking by §10.5, the condition is still true next launch, and it retries. It emits **no** `theme: commit failed` — its failure signal is the *absence* of `theme: appearance migrated`, which §10.5 already designs for, and which keeps the commit-failed event single-sited on the theme persister (§8.9). What it does inherit is the rule that matters: **a re-read that does not decode aborts rather than overwrites.**
 
@@ -914,7 +919,7 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 1. The **slot-from-constant confirm** (§9.2).
 2. A **failed commit write** (§9.13).
 
-At the minimum panel width the slot may wrap to two rows. It is not a list delegate, so wrapping costs nothing structurally.
+At the minimum panel width the slot may wrap to two rows — it is not a list delegate, so wrapping costs nothing to pagination. **It does cost a row of vertical budget, so at the minimum *height* the message is truncated to one line rather than wrapped.** §9.8's floor counts exactly one message row, and both contenders are non-suppressible; a two-row message there would leave zero list rows or overflow the frame. Truncation is the only option that keeps the panel coherent, and it degrades a message the user is being asked to answer rather than the row they are answering about.
 
 **Every panel surface's token, so nothing is left to the frames** (§9.14 forbids reading values off them) and §13.4's guard has no carve-out to make:
 
@@ -1269,6 +1274,12 @@ Retaining it is inert to the new binary and still meaningful to an old one, and 
 
 **Separate *computing* from *persisting*.** At prefs load, read `appearance`, compute the translated theme, and **use it in memory immediately**; the write is **best-effort and non-blocking**. A failed write means Portal renders the correct theme this launch and retries next launch (the condition is still true), so it can never flip the user to the wrong theme — which was the translation's entire purpose.
 
+**§10.3's no-op condition governs both halves, and for the in-memory half it is evaluated against the load-time snapshot.** If any theme key is already set, the translation neither writes a theme key **nor applies its computed value in memory** — the user's setting is what renders. Scoping the condition to the write alone would produce a one-launch silent flip on §10.3's own reachable sequence: hand-edit `theme_dark = nord`, launch, and the still-pending translation would render Tokyo Night for that launch and Nord thereafter. That is the failure §10.1 exists to prevent, delivered by the mechanism added to prevent it.
+
+The condition is therefore checked twice against two reads, deliberately: at **load** for the in-memory half (the only moment early enough to affect what is painted), and again at the **RMW re-read** for the write half (§8.9), where it also absorbs a commit made by another instance in between.
+
+**`theme: appearance migrated` fires only when a theme key is actually persisted.** A run that writes the marker alone translated nothing, so announcing a migration would be false — and §12.3's "absence is the signal the write failed" stays true only if the event means what it says.
+
 **Concurrency is a non-issue, for a stateable reason:** several burst-launched instances hitting the condition simultaneously all compute **the same value from the same input**, so the write is idempotent and last-write-wins is harmless. That is what makes it safe where a general read-modify-write would not be. It also never runs on the exec path, which constructs no TUI and reads no prefs.
 
 The translation emits `theme: appearance migrated` (INFO, one-shot) — see §12.3.
@@ -1399,6 +1410,10 @@ So doctor gains **two classes of line**:
 
 Theme validity is the first member of the second class. **Doctor's closing summary distinguishes the two counts** — e.g. *"N checks passed · 2 advisories"* — so the exit code's meaning is legible without reading the contract.
 
+**Advisories render as a trailing block, after the ordered check catalog and before the summary.** They do not interleave: the catalog is one line per check in a fixed order, whereas the theme class is 0..N lines whose cardinality depends on user content and which do not participate in `<N>`/`<T>`. Interleaving would make a fixed-order report vary in length and position with the contents of a directory.
+
+**The theme scan runs on the `--fix` path too**, and its advisories and the `· <M> advisories` suffix appear there. `--fix` re-diagnoses after repairs and the theme lines are read-only in both passes — there is no repair to perform, and suppressing them would make `--fix` a *less* informative diagnosis than the plain run.
+
 Rejected: failing the exit code on the grounds that a user who dropped a broken file into a Portal-read directory should get a loud persistent signal. They do — via the panel row and the doctor line — without conscripting a signal that means something else.
 
 ### 12.3 A new `theme` log component
@@ -1411,7 +1426,7 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 
 | Event | Level | Cadence |
 |---|---|---|
-| `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. **Also fires at commit time** for the one load that happens outside construction: the newly-live opposite slot on a constant → adaptive conversion (§8.4). |
+| `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. **Also fires at commit time** for the one load that happens outside construction: the newly-live opposite slot on a constant → adaptive conversion (§8.4). **When a nomination is unloadable it fires for the fallback too**, carrying the fallback's slug — otherwise `theme: fallback applied` and `theme: loaded` both name the slug that *failed*, and a `grep "theme:"` on a broken install cannot answer which palette is actually rendering. That is the greppability the component is justified on (§6.3). |
 | `theme: enumerated` | INFO | At panel open, **every open** (it is a per-event INFO, not a repeated warning, so it needs no dedup). `count` is **rows produced** — the full §9.4 union, built-ins included — and `rejected` is **unselectable rows**, which is the subset carrying a §6.2 reason. Both are stated because the union makes them genuinely ambiguous: "files considered" and "valid themes" would give different numbers on the same install. Fires on an **absent** directory too (`count` reflects the built-ins) and on an **unusable** one (`count` likewise, alongside `theme: directory unusable`) — the panel opened either way, which is what the event records. |
 | `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. Carries `token` where the reason names one (`missing tokens`, `bad colour`) — this is the `token` attr's only consumer. A file with **no slug** (`bad name`) is identified by `path` instead, and the **dedup key is `slug`+`reason` where a slug exists and `path`+`reason` where it does not** — otherwise the class most likely to recur across panel opens is the one class with no dedup key. |
 | `theme: directory unusable` | WARN | Where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. **Deduplicated per process on `path`+`reason`**, like its neighbour — enumeration runs on every panel open (§5.8), so without it a user with a bad directory gets an identical WARN per open. An *absent* directory emits nothing. |
@@ -1548,6 +1563,10 @@ The committed reference PNGs were never meant to persist — they existed so the
 
   A missing fixture is a blind spot the guard structurally cannot report: §13.4 enumerates whatever fixtures exist, so absence reads as coverage.
 
+- **A fixture declares its own raw persisted theme keys, independently of `--theme`.** The two inputs are separate by §8.4's own construction: `--theme` pins the *palette* the nomination carries, while the badges, the `not found` and charset-rejected rows, and the persisted-slug-under-fallback case all derive from the **raw keys**. Without that separation the adaptive-pair fixture is unreachable — `capturetool` always passes the constant shape, and §8.2 makes a non-empty `theme` render a bare `●` with no slot badges, so a fixture built from the nomination alone could only ever produce the one state.
+
+  This is fixture data, not config discovery, so §7.1's import guard is untouched — the same reasoning that lets `--theme <path>` take an explicit input. It is load-bearing because §13.1 makes the harness the only route to seeing any of this before release, and §9.14 identifies the slot half as the part with no prior art anywhere: the badges are precisely what the visual gate exists to judge.
+
 ### 13.4 The swap-and-diff completeness guard
 
 **What it is:** render **every fixture** under theme A, switch to theme B, render again, and scan the second output for any colour value belonging to theme A.
@@ -1574,7 +1593,8 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 - **Render under A first, then swap, then render again.** The A-render is not optional set-up — it is what populates the caches. A fixture rendered only after the swap passes trivially.
 - **The swap goes through the same entry point the panel's arrow-preview uses** (the `applyCanvasMode` restyle and style re-point), not a test-only setter and not a rebuild.
 - **`internal/capture` / `tui.Build` must expose a seam to drive that from a test**, since fixtures are one-shot renders today. Adding it is in scope (§13.3).
-- **The render is forced to a truecolor profile.** Under `go test` stdout is not a TTY, so lipgloss would otherwise strip colour and there would be no hexes to diff at all.
+- **The render is forced to a truecolor profile.** Under `go test` stdout is not a TTY, so lipgloss would otherwise strip colour and there would be nothing to diff at all.
+- **The comparison is against each token's *rendered* form, not its hex.** Styled output carries no hex — a truecolor foreground is `ESC[38;2;R;G;B m`, decimal — so the guard converts each theme's token values to their SGR representation and searches for those. Stating it matters because assertion 1 is a **negative**: searching for the wrong representation passes vacuously and silently. Assertion 2 is the backstop that would fail loudly, which bounds the exposure, but the guard is the feature's central completeness mechanism and should not rest on a backstop.
 
 **Lane: unit.** It renders only through the offline harness — no tmux server, no daemon, no built binary.
 
