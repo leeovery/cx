@@ -882,6 +882,57 @@ The constant frame completes the panel's specification because the two setting s
 
 **Caution when reading any Paper frame:** the mocks use **per-frame literal hexes**, so the same token can carry different values across frames. The frames are reference, never truth.
 
+## 10. Upgrade path from `appearance`
+
+### 10.1 The problem
+
+Real installs hold `"appearance": "dark"` or `"light"` today — the README currently *recommends* pinning it. Deleting `prefs.Appearance` makes that field unknown, so tolerant decode silently ignores it, and a user who deliberately pinned `dark` on a light terminal upgrades into the shipped adaptive pair and **silently gets a light Portal** with nothing explaining why. That is the worst outcome for precisely the group who expressed a preference.
+
+### 10.2 The translation
+
+The mapping is exact, which makes the fix cheap: `appearance: dark` meant "always dark regardless of terminal", and the new equivalent is a **constant** theme.
+
+| Existing `appearance` | Action |
+|---|---|
+| `dark` | Write `"theme": "tokyo-night"` |
+| `light` | Write `"theme": "tokyo-night-day"` |
+| `auto` | Nothing — ignoring it lands exactly on the adaptive default, which is what `auto` meant |
+| absent | Nothing |
+
+Intent is preserved precisely rather than approximately: a pinned mode becomes a pinned theme, and detection stays off for them just as it was.
+
+Portal has the precedent — `migrateConfigFile` performs a one-shot move from the old macOS config path.
+
+Rejected: accepting the silent flip as cosmetic and one keypress to fix. Wrong when the affected users are exactly those who set a preference, and when the translation is this small and this exact.
+
+### 10.3 The trigger is an explicit marker
+
+**The translation is gated on an explicit `theme_migrated` marker in `prefs.json`, not on the absence of theme keys.**
+
+Gating on absence would be re-armable, and it composes badly with the "no unset" acceptance (§9.9), whose documented escape hatch is to hand-edit `prefs.json`: an upgraded user who deletes their theme keys to return to the shipped adaptive pair would get **silently re-translated and re-pinned** on the next launch — Portal reinstating exactly what they just undid.
+
+With an explicit marker: `appearance` is retained, deleting theme keys does nothing, and the trigger fires **exactly once ever**.
+
+### 10.4 `appearance` is retained, not dropped
+
+**The translation adds the theme keys and leaves `appearance` in place.**
+
+Portal ships via Homebrew where reverting a version is routine, and the protected population is exactly those who pinned `appearance`. Dropping the field would mean that post-translation their pin is gone, an older binary reads nothing, falls to `auto`, and resumes detecting — precisely what the translation prevented, displaced in time.
+
+Retaining it is inert to the new binary and still meaningful to an old one, and it removes a schema mutation entirely (which also removes the question of who owns performing the deletion).
+
+**Accepted:** the retained `appearance` is a **frozen legacy value** and is **not** kept in sync with later panel commits. A downgraded binary honours the user's old pin rather than their current choice — which is the most a binary with no concept of themes could do.
+
+### 10.5 Ownership and write-path robustness
+
+**`cmd/config.go`'s `loadPrefsStore` owns the translation.** Three decided constraints meet here: `prefs` is a deliberate leaf that must not import `internal/log`; the translation happens at prefs load; the `theme` log component records it. `loadPrefsStore` already owns prefs path resolution and the migrate breadcrumb for every other config file, and is not a leaf, so it can log. **`prefs` stays dumb.**
+
+**Separate *computing* from *persisting*.** At prefs load, read `appearance`, compute the translated theme, and **use it in memory immediately**; the write is **best-effort and non-blocking**. A failed write means Portal renders the correct theme this launch and retries next launch (the condition is still true), so it can never flip the user to the wrong theme — which was the translation's entire purpose.
+
+**Concurrency is a non-issue, for a stateable reason:** several burst-launched instances hitting the condition simultaneously all compute **the same value from the same input**, so the write is idempotent and last-write-wins is harmless. That is what makes it safe where a general read-modify-write would not be. It also never runs on the exec path, which constructs no TUI and reads no prefs.
+
+The translation emits `theme: appearance migrated` (INFO, one-shot) — see §12.3.
+
 ---
 
 ## Working Notes
