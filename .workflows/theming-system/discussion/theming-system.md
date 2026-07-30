@@ -1205,6 +1205,31 @@ Projects with the panel open, `m` would start a multi-select behind it.
 Non-blanking and key-exclusive are not in tension: seeing the list without being
 able to drive it *is* the live-preview premise.
 
+**Entry conditions (the review's F9).** Settled: **nothing blocks `t` except a
+modal and a pending burst.**
+
+- **Multi-select** — `t` opens, and the marked set is **unaffected**. The panel
+  *nests* over the mode and `Esc` resolves innermost-first (closing the panel and
+  returning to multi-select with selections intact), which is not a new rule — it
+  is what §8.1 already specifies for modals. The multi-select banner sits in the
+  notice band on the left, so it stays visible behind the panel. Lee's reason for
+  wanting this is a good one: *"it might be that I want to see what the theme
+  looks like when I'm multi-selecting"* — the marked-row `●` is itself themed, so
+  previewing mid-selection is legitimate. Blocking `t` here was considered and
+  rejected as inventing a restriction to avoid a question the codebase already
+  answers.
+- **A pending burst** — `t` is swallowed. The burst input-locks the model (only
+  `Ctrl-C`/`Esc` live) because it is mid-async-operation; swallowing is consistent
+  with that lock rather than an exception to it. Lee: *"a pending burst shouldn't
+  allow any type of key behaviour, but it's all quite quick, so it'd be weird for
+  that to work anyway."*
+- **Modals** — capture keystrokes, so no `t`, per existing key-exclusivity.
+- **Sessions and Projects normal view** — always available.
+
+*(Adjacent, and not a contradiction: `t` is separately blocked under `NO_COLOR` —
+that is an environment capability question, not a UI-state conflict. "Never
+blocked" here means by other UI states.)*
+
 Two consequences:
 
 - **`t` needs the filter carve-out** — while `/` is focused it is a literal
