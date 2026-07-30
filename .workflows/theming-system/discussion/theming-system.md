@@ -908,8 +908,10 @@ that we've established, then let's go for the corrected v2."*
 **Relaxing the floor for a named port was the one option ruled out**, because it
 would break the bundled-tier guarantee that is the entire point of having tiers.
 
-Paper frames: `Sessions — Nord (port)`, `Kill Modal — Nord, red as published
-(#BF616A · 3.05)`, `Kill Modal — Nord, red corrected v2 (#DD8188 · 4.50)`.
+Paper frames: `Sessions — Nord (port)`, `Kill Modal — Nord (state.destructive
+#DD8188)`, `Sessions — Nord inline flash (bg.attention #3D4046)`. *(The
+`#BF616A` comparison frame was deleted once the decision landed — the rejected
+value is recorded here rather than kept on the canvas.)*
 
 All three appear in the slide-over alongside anything the user has dropped in
 their themes directory.
