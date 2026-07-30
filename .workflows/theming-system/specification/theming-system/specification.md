@@ -177,6 +177,10 @@ Decisive reasons:
 - `theme.Mode` (the `Light`/`Dark` enum) is **removed**, along with its threading through the render layer.
 - `Theme` remains a struct of 19 named `Token` fields with a stable-order `All()` accessor, but is no longer a package-level `var` holding one built-in — it is the parse result of a theme file (§4). It is an ordinary struct, constructible in a test without going through the loader (which is what the swap-and-diff guard's synthetic themes need, §13.4).
 - **`All()`'s stable order is the §2.4 table order, 1 through 19.** It was previously asserted without being defined; the numbering is the definition.
+- **The token layer moves to a new leaf package, `internal/theme`**, taking the loader with it. Today's `internal/tui/theme` is a pure data package under the TUI, which no longer fits: the loader does file I/O and binds the `theme` log component (§12.3), and its consumers span two layers — TUI construction, the panel, `portal doctor` and `portal theme export`. Leaving it under `internal/tui` would make `cmd/doctor.go` and the export verb import a TUI subpackage to read a config file.
+
+  One package holds the vocabulary, the parser, the validator, the §6.2 ladder, by-name resolution, enumeration and the embedded set — one component binding, as CLAUDE.md's rule requires. The colour-literal guard's exclusion re-points to it.
+- **`cmd/config.go` owns themes-directory path resolution**, via a `themesDirPath` alongside `prefsFilePath` — it already owns every other config path, and §5.5's chain is deliberately the same shape. **The loader takes the directory as an injected value and never resolves it**, which is what keeps the embedded set reachable with no path at all: `internal/capture` uses only the built-in lookup, so §7.1's "`go:embed` is not config discovery" and §13.3's import guard both stay satisfiable. The panel receives the directory through the `ThemeEnumerator` seam (§13.3), wired at construction.
 - **`Theme` carries no identity field.** The slug is held alongside the palette by whatever loaded it — the model for the active theme, the enumeration row for a listed one. This is what lets `capturetool --theme <path>` (§13.3) work at all: a theme loaded from an explicit path has no slug, and a struct with a mandatory-but-empty identity field would be lying. Consumers that need both (the `theme: loaded` log line, the panel's `●` placement) already have the slug in hand, because they are the ones that resolved it.
 - `theme.MV` as an exported package-level value **ceases to exist**. Its values move into `tokyo-night.theme` and `tokyo-night-day.theme` (§7.3).
 
@@ -841,7 +845,13 @@ Portal's multi-window burst routinely produces several concurrent processes, so 
 
 **Every writer must read-modify-write:** re-read `prefs.json` immediately before writing, mutate only its own field(s), and write the merged result. Not novel — the project and hooks stores already do this for their own mutations.
 
-**This includes the migration write** (§10.5). Its idempotence argument covers simultaneous cold launches computing the same value, but not the case this rule exists to close: an instance constructed against a pre-migration file flushing stale in-memory prefs and reverting a commit another instance made in between. The RMW re-read also lets the migration observe that another instance already set `theme_migrated` and skip its own write.
+**The RMW re-read uses the non-migrating read** (§10.5). It is a write-path read, not a load — its job is to get the current bytes to merge into, and re-entering the translation from inside a write would be both surprising and, since §10.5 allows the marker write to fail and retry, a specified rather than hypothetical state.
+
+**This includes the migration write** (§10.5). Its idempotence argument covers simultaneous cold launches computing the same value, but not the case this rule exists to close: an instance constructed against a pre-migration file flushing stale in-memory prefs and reverting a commit another instance made in between.
+
+**§10.3's no-op condition is evaluated at the RMW re-read, against the bytes about to be merged — never against the load-time snapshot.** Because the translation's write is non-blocking, a user can commit a theme in the window between compute and persist; evaluated against the stale snapshot the pending translation would write `theme = tokyo-night` over the `nord` they just committed and clear the slots, which is §10.3's own failure displaced from cross-launch to intra-process. The same re-read is what lets the migration observe that another instance already set `theme_migrated`.
+
+**"Skip" means skip the theme keys, not the whole write** — the marker is still recorded, so the translation does not stay pending forever. And once a mid-session commit supersedes the translated value, **the commit is the model's active theme**: the translation's in-memory result was only ever the starting value for a launch nobody had chosen a theme in.
 
 `prefs.json` continues to go through `fileutil.AtomicWrite`, so all three theme keys land in one atomic write and partial failure is impossible.
 
@@ -948,10 +958,12 @@ The startup win survives intact — skipping the gate for constant users is abou
 
 ### 9.4 The list — files ∪ whatever prefs names
 
-**Every `*.theme` file in the themes directory gets a row, plus every built-in, plus any slug named in `prefs.json` that has no file.**
+**Every `*.theme` file in the themes directory gets a row, plus every built-in, plus any slug named in `prefs.json` that resolves to neither.**
+
+**"Resolves", not "has a file"** — the distinction is load-bearing, and doctor already uses the right vocabulary (§12.2: "reports when a persisted theme name no longer *resolves*"). A built-in is embedded, not a directory entry, so keying the union on file-existence would mint a second `⚠ not found` row for every persisted built-in slug — which is the state produced by the panel's most common action, pressing `Enter` on `tokyo-night`. **One slug is one row**, always: a persisted slug that names a built-in *is* that built-in's row, and a persisted slug that names an existing-but-invalid file *is* that file's row, carrying both the reason and the badge.
 
 - Enumerating every file means an invalid theme is *present and named*, so the user sees "there's my theme, it's registered, but it's invalid" rather than being completely in the dark about why it did not appear.
-- A persisted slug with **no file** gets a row too — marked, unselectable, reason `not found`. Same shape as an invalid file: the user sees what is set and why it is not applying. This covers a deleted file, a renamed file, and a typo in `prefs.json`.
+- A persisted slug that **resolves to nothing** — no built-in and no file — gets a row of its own: marked, unselectable, reason `not found`. Same shape as an invalid file: the user sees what is set and why it is not applying. This covers a deleted file, a renamed file, and a typo in `prefs.json`.
 - A persisted slug **rejected by the charset check** (§8.6) before any file is sought gets a row with reason **`bad name`**, not `not found` — the reason maps to the actual failure, and each §6.2 reason has exactly one condition. Telling a user their file is missing when they typed an illegal name sends them looking in the wrong place.
 - Applies **per-slot** under an adaptive pair with one dead or broken slug.
 
@@ -1017,13 +1029,14 @@ Treatment **B** (a `dark → … / light → …` key-value block pinned under t
 | **Sessions** | Yes — the default page and the richest surface to preview against |
 | **Projects** | Yes — theme is a *global* setting; refusing would make it feel page-scoped for no reason, and `t` is free there |
 | **Preview** | **No.** The preview body is captured real ANSI scrollback that is deliberately out-of-theme, so live preview would only re-theme the frame chrome — a weak surface. It is also already a full-screen overlay, so the panel would stack an overlay on an overlay. |
+| **Loading** | **No**, and **silently** — the loading page is inert by design (animation only), which is what contains the restore/daemon race surface. On the cold + TUI path it holds for at least `LoadingMinDuration` with the user watching, so it is not a corner case. Silent rather than flashed, per the rule below: `t` is not bound there, and the loading page renders no notice band to flash into. |
 | **Modals** | No — modals are key-exclusive by design |
 
 **`t` needs the filter carve-out** — while `/` is focused it is a literal filter character, exactly as `s` already is.
 
 ### 9.7 Entry conditions and input routing
 
-**Nothing blocks `t` except a modal, a pending burst, and `NO_COLOR`.**
+**Nothing blocks `t` except a modal, a pending burst, `NO_COLOR`, and the pages where it is not bound at all (§9.6 — Preview and Loading).**
 
 - **Multi-select** — `t` opens, and the marked set is **unaffected**. The panel *nests* over the mode and `Esc` resolves innermost-first (closing the panel and returning to multi-select with selections intact), which is what MV spec §8.1 already specifies for modals. The multi-select banner sits in the notice band on the left, so it stays visible behind the panel. Previewing mid-selection is legitimate — the marked-row `●` is itself themed.
 - **A pending burst** — `t` is swallowed. The burst input-locks the model (only `Ctrl-C`/`Esc` live) because it is mid-async-operation; swallowing is consistent with that lock rather than an exception to it.
@@ -1049,8 +1062,10 @@ The multi-select precedent (proactive block at entry) deliberately does **not** 
 **Height.**
 
 - **Overflow: scroll**, through the `bubbles/list` machinery, so `Ctrl+↑/↓` paging applies per MV spec §12.2. The invalid-row skip composes with paging exactly as the group-header skip already does.
-- **Minimum height: the same degrade-then-refuse rule as width** — shrink the visible row count, and refuse with a flash only when header + footer + one row cannot fit.
+- **Minimum height: the same degrade-then-refuse rule as width** — shrink the visible row count, and refuse with a flash only when **header + footer + one row + one message row** cannot fit. The message row is part of the floor even though §9.1 does not reserve it when empty: both of its contenders are non-suppressible. The confirm gates a write §9.2 requires not to happen silently, and the failed-commit line is specified to persist until the next keypress — so a floor computed without it would put the panel one row short at exactly the moment a message appears, asking "clear constant `<slug>`?" about a row no longer on screen.
 - **Resize while open: degrade in place**, closing with a flash only if the terminal falls below the render floor. The entry condition is not the only check; §2.7's degradation is already per-dimension.
+- **A forced close takes the `Esc` path exactly** — it discards an uncommitted preview and renders the resolved persisted state (§9.2). It is the only other way the panel goes away, and any other behaviour would strand the user rendering a theme they never chose, with the surface that could change it now gone and a terminal too narrow to reopen it. That is also the state §11.4 names as the one where a colour the user never chose can survive Portal's exit.
+- **A live slot-from-constant confirm is silently cancelled** by a forced close. Nothing has been written at that point (§9.2), so there is no partial state to leave behind — but it is stated because the confirm is otherwise specified as resolvable only by a keypress.
 
 ### 9.9 No unset — accepted
 
@@ -1394,8 +1409,9 @@ The committed reference PNGs were never meant to persist — they existed so the
 - **`tui.Build` takes the loaded *nomination* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes, replaced per §8.4 (one theme under a constant, both under an adaptive pair, plus which member is active). `capturetool` always passes the **constant shape**: a single pinned theme, no gate, no wait — which is what keeps captures byte-deterministic. Without this injection the harness can only ever render the compiled-in default.
 - **`capturetool` gains a `--theme` flag, replacing `--appearance`.** `--theme` accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
   - **Default: `tokyo-night`** when the flag is omitted, matching the shipped dark default. Every capture an agent takes without passing the flag depends on this, so it is named rather than inferred.
-  - **Slug versus path is discriminated by the `.theme` suffix**, not by a path separator — so `nord` is a slug and `nord.theme`, `./nord.theme` and `/abs/nord.theme` are all paths. One rule, and it reads the way a user would say it.
-  - **Invalid input is a hard error** with the §6.2 reason and a non-zero exit — never a fallback. Silently rendering the wrong theme at a visual gate is precisely the failure this tool exists to prevent.
+  - **Slug versus path is discriminated by a path separator *or* the `.theme` suffix** — so `nord` is a slug, and `nord.theme`, `./nord.theme`, `/abs/nord.theme` and `./mytheme.txt` are all paths. The separator half matters: without it a real file with an unexpected extension would be classified as a slug and rejected as an unknown built-in, an error naming the wrong problem for a file that plainly exists.
+  - **Only the content reasons apply to a path** — `bad syntax`, `bad colour`, `missing tokens`, `unreadable`. **Invalid input is a hard error** with the §6.2 reason and a non-zero exit, never a fallback: silently rendering the wrong theme at a visual gate is precisely the failure this tool exists to prevent. An explicit path may carry any extension, since nothing derives a slug from it (§3.2).
+  - **The filename reasons — `bad name` and `reserved name` — warn on stderr but do not block.** Blocking would break the workflow §12.1 publishes, since an exported built-in is a reserved slug until the user renames it. Warning is what the flag's stated purpose demands: it is the only visual-verification route for someone authoring a drop-in, so it is the one place a fatal filename is worth catching before the file reaches the themes directory.
 - **`--appearance` is removed, not kept alongside.** It exists today (`dark|light`, resolving to a pinned `prefs.Appearance`), and its entire backing mechanism — `prefs.Appearance` and `WithAppearance` — is deleted by §8.8. There is no mode left to pin; a theme *is* the mode.
 - **The contrast-validation swatch fixture is re-pointed to `--theme` too.** `capturetool` carries a standalone labelled-tint swatch branch (the MV §16.5 lock-in/bail surface) which deliberately does not route through `tui.Build` and is driven by `--appearance` today. It is the surface that satisfies the human eyeball gate §7.5 and §13.5 require for a new light theme's pinned tints, so it must take a theme like everything else.
 - **PNG production stays on VHS. No direct writer, no new dependency.** The hard requirement is that **every fixture can produce a PNG** (§13.1) — that is what the mechanism must satisfy, and VHS already satisfies it. Rasterising styled ANSI needs a terminal-cell renderer with an embedded font and fixed cell metrics, which would mean a real module dependency plus a font asset in a repo that has deliberately avoided both, to replace a mechanism that works.
@@ -1467,7 +1483,9 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 
 *Single-token dual clearance:* `state.positive` is one token rendering both on the canvas and on the selected row, so it must clear **both** — ≥ 4.50 against canvas *and* against `bg.selection`. This is the leg that caught the Nord green (§7.4) and the one MV itself solved by darkening.
 
-*Light themes only:* the four eyeball-pinned tints (below) are exact-value pins, not ratios.
+*Light themes only:* the four eyeball-pinned tints carry **additional** exact-value pins. **Nothing above is relaxed** — every rule in this section applies to every bundled theme regardless of light or dark, including the ≥ 1.10 fill legs on all three tints. The light/dark table's sole job is **enrolment**: it names which built-ins are light so `TestLightSurfaceTintsPinned` and `TestLightTintFillsArePerceptible` know which themes to run against. "Carve-out" describes the *enrolment*, not a relaxation.
+
+`border` is one of the four pinned tokens but carries no numeric floor in the table above, so it participates in the pins and in nothing else — worth stating explicitly, since the count of four is load-bearing (§7.1 decides which pin notes move into the theme files by it).
 
 **Plus a light/dark table**, needed because the light surface tints are not numerically checkable (light-tint-on-light-canvas is numeric-insufficient — hence `TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
 
@@ -1491,6 +1509,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 | **`TestEveryTokenHasLightVariant`** (`contrast_test.go`) | **Deleted.** Same fate — it asserts every token carries a populated, parseable `Light` hex. Its *parseability* half is subsumed by the embedded-set validity test (§7.6), which checks every value in every shipped theme. |
 | **`TestLightTintFillsArePerceptible`** | **Survives, and becomes per-light-theme**, alongside `TestLightSurfaceTintsPinned`. It covers the same four tints and takes the same light/dark table membership (§13.5); its ≥1.1 fill floor resolves its reference background from the theme rather than the hardcoded light canvas. |
 | **Loader / parser test** | **New.** The single most branch-heavy component in the feature has no other test home — §7.6's embedded-set test only ever sees valid files by construction. It is table-driven over §4.2's branch table, §4.3's hex domain, §5.2's slug charset, §5.4's reserved-name check, and — critically — **§6.2's fixed-order short-circuit ladder**, which is only meaningful if pinned: a file that is simultaneously duplicate-keyed and missing tokens must report `bad syntax`, and nothing else asserts that. |
+| **Prefs + migration test** | **New.** This is the one part of the feature whose failure mode is silent, permanent destruction of a user's config, and none of it is observable at the moment it goes wrong. It covers §10.2's mapping; §10.3's separation of trigger from no-op condition, including the reachable loss-of-setting sequence it exists to close; §8.1's marker rules (written only when the file exists, empty values omitted); §8.8's raw `appearance` round-trip — whose named failure is that the first `s`-keypress after upgrade silently erases the user's pin, invisible until a downgrade; and §8.9's RMW merge, that writer A does not revert writer B's field. The spec pins a named test for `RestoreTerminalBackground` because it can leave a colour stuck in a terminal; this path deletes a setting the user chose. |
 | **Embedded-set validity + fallback-slug resolution** | **New** (§7.6). |
 | **Swap-and-diff completeness guard** | **New** (§13.4). |
 | **`RestoreTerminalBackground` anchor test** | **New** (§11.4). |

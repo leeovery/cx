@@ -29,8 +29,8 @@ The adjacent case is also unstated, though it is inferable: a persisted slug nam
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.4's union re-keyed on *resolves to neither* rather than *has no file*, with the built-in case named explicitly (a persisted built-in slug is that built-in's row, not a second `not found` row) and the invariant stated: one slug is one row, always. The existing-but-invalid case is covered by the same rule.
 
 ---
 
@@ -59,8 +59,8 @@ Related and one line to settle in the same place: whether the translation's in-m
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.9 now assigns the RMW re-read to the non-migrating read (it is a write-path read, and re-entering the translation from inside a write is a specified state given the marker write may fail), and pins §10.3's no-op condition to the re-read bytes rather than the load-time snapshot — closing the intra-process version of the loss §10.3 exists to prevent. Also settled: "skip" means skip the theme keys not the marker, and a mid-session commit supersedes the translated value.
 
 ---
 
@@ -85,8 +85,8 @@ Consequence for planning: the task breakdown itself becomes a design decision, a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §3.2 now moves the token layer plus loader to a new leaf `internal/theme` (the loader does I/O and binds a log component, and its consumers span cmd and tui, so a TUI subpackage no longer fits), assigns themes-directory path resolution to `cmd/config.go`'s `themesDirPath` alongside every other config path, and keeps the loader path-injected so the embedded set stays reachable with no path — which is what keeps §7.1's and §13.3's import guards satisfiable.
 
 ---
 
@@ -113,8 +113,8 @@ The gap is sharpened by contrast: the spec pins a named test for `RestoreTermina
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.6 gains a Prefs + migration test row covering §10.2's mapping, §10.3's trigger/no-op separation, §8.1's marker rules and omitempty, §8.8's raw appearance round-trip, and §8.9's RMW merge — the one part of the feature whose failure is silent, permanent config destruction, invisible until a downgrade.
 
 ---
 
@@ -145,8 +145,8 @@ One more thing the same sentence leaves open: `border` is one of the four pinned
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.5 clarified: nothing is relaxed for light themes, the pins are *additional*, and the light/dark table's sole job is enrolment (naming which built-ins the two pin tests run against) — so "carve-out" describes the enrolment, not a relaxation. `border` noted as participating in the pins and no numeric floor.
 
 ---
 
@@ -175,8 +175,8 @@ The natural implementation (the loading page is inert, keys handled only on Sess
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.6 gains a Loading row (blocked, silently — the page is inert by design and renders no notice band to flash into) and §9.7's exhaustive claim widened to include the pages where `t` is not bound at all.
 
 ---
 
@@ -197,8 +197,8 @@ Second, smaller: if the slot-from-constant **confirm** is live when the forced c
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.8 now states that a forced close takes the `Esc` path exactly (discard the preview, render resolved persisted state) — otherwise the user is stranded on an unchosen theme with the surface that could fix it gone and the terminal too narrow to reopen it — and that a live confirm is silently cancelled, since nothing has been written.
 
 ---
 
@@ -222,8 +222,8 @@ An implementer must invent one of: the floor includes a message row (so the refu
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.8's minimum height now includes a message row in the floor: both contenders are non-suppressible (the confirm gates a write that must not happen silently, the failure line persists until the next keypress), so a floor without it would leave the panel one row short exactly when a message appears.
 
 ---
 
@@ -245,5 +245,5 @@ A third case falls out of the discriminator rule and is worth settling in the sa
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3 now discriminates slug-vs-path by a path separator *or* the `.theme` suffix (so a real file with an unexpected extension is not misreported as an unknown built-in), applies only the content reasons as hard errors to a path input, and makes the filename reasons warn-but-not-block — blocking would break the published export→look workflow, while warning is what the flag's stated purpose demands.
