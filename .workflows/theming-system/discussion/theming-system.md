@@ -2021,6 +2021,121 @@ Attr keys: `slug`, `slot`, `reason`, `path`, `token`, `count`.
 Rejections are **WARN**, not INFO: doctor treats them as advisory for *exit-code*
 purposes, but "your config did not work" is a warning in a log.
 
+### Log cadence, corrected for lazy discovery (the review's F4)
+
+The catalogue gave `theme: loaded` as carrying a **rejected count** at TUI
+construction — but under lazy discovery nothing is enumerated then. Corrected to
+three events with distinct cadences:
+
+- **`theme: loaded`** — at construction. Resolved slug(s) only, no count.
+- **`theme: enumerated`** — at panel open. `count` and `rejected`.
+- **`theme: rejected`** — per file, **deduplicated per process**: a given
+  slug+reason logs once, so five panel opens (enumeration re-reads on every open)
+  do not produce five identical WARN sets.
+
+### `portal theme export` — command surface (the review's F5)
+
+- **Bootstrap-exempt** — added to `skipTmuxCheck`. Printing a file must not start a
+  tmux server, ensure the saver, or run restore, which every non-member of that set
+  does via `PersistentPreRunE`.
+- **Slug domain: built-ins *and* drop-ins.** Resolving both makes export a
+  diagnosis tool — "show me what Portal parsed" — not just an on-ramp.
+- **Output** is the theme in canonical form. An **invalid** drop-in is refused with
+  its reason on stderr and a non-zero exit; an **unknown** slug likewise. Doctor's
+  advisory-vs-health distinction is doctor's own contract and does not extend here.
+- The `theme` verb group has only `export` for now, `list` having been ruled out —
+  a one-member group, noted deliberately.
+
+### Panel vertical axis (the review's F6)
+
+Geometry was decided on width only, while the panel is full-height and the list is
+the union of built-ins, every `*.theme` file, and whatever `prefs.json` names.
+
+- **Overflow: scroll**, through the `bubbles/list` machinery, so `Ctrl+↑/↓` paging
+  applies per §12.2. The invalid-row skip composes with paging exactly as the
+  group-header skip already does on the Sessions list.
+- **Minimum height: the same degrade-then-refuse rule as width** — shrink the
+  visible row count, and refuse with a flash only when header + footer + one row
+  cannot fit.
+- **Resize while open: degrade in place**, closing with a flash only if the
+  terminal falls below the render floor. The entry condition was never meant to be
+  the only check, and §2.7's degradation is already per-dimension.
+
+### The exit-time canvas restore needs its own test (the review's F7)
+
+`RestoreTerminalBackground` must be re-anchored to a **retained startup canvas
+hex** (new model state) with `canvasHexFor` made theme-agnostic. The swap-and-diff
+guard scans *rendered fixture output*, so it structurally cannot cover an exit-time
+OSC 11 write — the same blind spot that motivated the guard, reappearing on the one
+path where a mistake re-sticks a colour in the user's terminal **after Portal
+exits**. And this is the mechanic carrying an explicit "do **not** drop this guard"
+warning.
+
+**Named verification: a direct unit test on `RestoreTerminalBackground`**, driven
+without fixtures, asserting it compares against the retained startup canvas and not
+the active theme's — including the case where a theme was committed mid-session.
+
+### MV's own erratum values — the check has an owner (the review's F10)
+
+The method note raised that MV's corrected light values, described as *"darkened,
+hue-preserved"*, may carry the same chroma flaw in the opposite direction. It was
+left as a sentence with no owner, while sitting on the critical path of *"the
+existing MV values move across clean"*.
+
+**Owner: a task in this feature's implementation, before MV's values are frozen
+into theme files.** Re-derive the six corrected light values in Oklab, measure
+chroma loss, and give a **fresh visual gate** to any that moved materially.
+
+**Flagged consequence:** if the check finds anything, shipped colours change,
+`TestLightSurfaceTintsPinned`'s eyeball-established pins move, and "Tokyo Night
+Dark/Light are just the existing values" stops holding exactly. The built-in-set
+decision is therefore conditional on this check.
+
+### PR intake is cheap for dark themes, not for light (the review's F11)
+
+Two framings conflicted: the PR route as *"literally adding a file"* against
+verification obligations attached to the same act. Correcting it plainly:
+
+- **A dark theme is genuinely near-free.** Floor checks auto-enumerate the embedded
+  set; no eyeball pins are involved.
+- **A light theme is a design task with a human gate.**
+  `TestLightSurfaceTintsPinned` becomes per-light-theme and its pins are
+  established by human eyeball at a visual gate — which only Lee can perform, via
+  `capturetool`, because Portal cannot be run from a temporary build.
+- **There is no CI** (tests and lint run locally), so a contributor gets no signal
+  that their theme fails a floor until the maintainer runs the suite.
+
+**Consequence stated rather than inherited:** the deferred *"further light theme
+follows up as separate work"* is a design task, not a file drop.
+
+### Where the vocabulary lives (the review's F12)
+
+After this feature the 19 roles are described in the MV spec, in
+`docs/theming.md`, in that doc's copy-pasteable example theme, and in the embedded
+`.theme` files.
+
+- **`docs/theming.md` is the source of truth for the public contract** — the 19
+  roles and their meanings.
+- **The MV spec is amended by this feature's specification phase**, explicitly:
+  the renames, 20 → 19, the dropped `border.footer`, the removal of
+  `Token.ColorFor` / `theme.Mode`, and §2.9's two-hardcoded-canvas framing. Named as
+  spec-phase work rather than left unowned. (§8.1's stale "2-tone border" claim goes
+  with it.)
+- **The example theme is covered by the same doc guard** — it must parse and contain
+  all 19 keys — so it is not a fourth unguarded copy.
+
+### PNG production is no longer optional (the review's F14)
+
+The VHS-versus-direct-writer choice was left as an implementation detail *"on the
+assumption the existing mechanism already works"* — but the retention decision
+deletes the tapes that made it work, while the harness requirement is that **every
+fixture can produce a PNG** (without which the agent cannot review its own output).
+
+**Corrected: direct PNG output from `capturetool` is required, not an
+optimisation.** VHS is retained only if a gif is ever wanted for motion. Leaving it
+open would have left the agent's self-review loop dependent on artifacts the same
+section deletes.
+
 ### Doctor's advisory lines, visually (the review's F17)
 
 Doctor renders one line per check with a pass/fail marker and drives a single exit
