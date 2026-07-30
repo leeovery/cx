@@ -25,8 +25,8 @@ Note also that §8.9's rule reaches the *existing* `s`-key mode persister ("Ever
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.9: the merge lives inside `prefs` behind field-specific save methods (SaveTheme / SaveThemeSlot / SaveMigrationMarker), matching SaveSessionListMode which already RMWs internally; create-on-absent and abort-on-undecodable go with it as persistence semantics. `cmd` keeps the path, the seam and the logging. The whole-record Load/Save alternative rejected — it would hand any caller an API that can clobber the file, the opposite of what "prefs stays dumb" protects.
 
 ---
 
@@ -55,8 +55,8 @@ The same question applies to the migration write, whose RMW re-read (§8.9) can 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.2: the post-commit recompute uses the construction snapshot plus this instance's own mutation, never the merged bytes the RMW read — re-deriving from them would be the cross-instance sync §8.4 declines, arrived at through the write path. Accepted residue recorded: the other instance's slot badge is stale until relaunch, the same per-instance staleness §8.9 already accepts, confined to a slot the user is not acting on.
 
 ---
 
@@ -78,8 +78,8 @@ Since §13.6 is where the test work is enumerated, an omission there is an omiss
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.6 gains two rows: a panel behaviour test driven through the ThemeEnumerator seam (§13.3 described it as a possibility rather than a commitment) covering sort keys and the built-in-first tie, row composition and truncation, the badge derivation table, the union's one-slug-one-row rule, the commit recompute and identity-anchored cursor, the confirm's resolution rules and the outstanding-failure state machine; and a nomination-resolution/fallback test distinct from §7.6's build-time guarantee, covering per-slot mode-matched fallback, embedded-set-before-directory ordering, and §8.6's charset check as applied to a persisted value.
 
 ---
 
@@ -102,8 +102,8 @@ There is a defensible case for both lines (one says "this file is broken", the o
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §12.2: one slug produces one advisory line, mirroring §9.4's one-slug-one-row so the two surfaces cannot disagree about how many problems exist. When a persisted theme is also the invalid file, the unresolvable-persisted line wins — it carries the reason *and* the slot, so the validity line would add only a second entry in <M>. <M> counts problems, not detections.
 
 ---
 
@@ -132,8 +132,8 @@ The fix is a sentence, but which sentence it is changes what gets built.
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §13.3: a candidate slug *is* derived from the basename solely to produce the warnings and never used as identity — without it the `reserved name` warning cannot exist, since §6.2 decides both filename reasons from the slug alone. Also pinned that the filename warnings apply to the path form only, since a slug argument names a built-in by design.
 
 ---
 
@@ -155,8 +155,8 @@ So an implementer at the minimum width must choose between truncating pinned cop
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A's pinned copy shortened to `⚠ dir unreadable` (16 columns) so it fits the panel's minimum width without truncation, with the reasoning in §9.5: it is the one row the composition rules cannot degrade (no label, badge or reason, and a fixed string the truncation-floor argument does not reach) and the one that must not become nonsense. The panel header's `Themes` label supplies the dropped context.
 
 ---
 
@@ -176,8 +176,8 @@ That matters disproportionately for this fixture: §9.14 identifies the slot hal
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3 now states the fixture-coherence rule: capturetool runs no gate so the dark slot is active, therefore `--theme` must name the palette the dark slot declares, or the frame shows the cursor on one theme and the canvas on another. Flagged as an authoring rule the harness cannot check and §13.4's guard cannot report, on the fixture whose whole job is judging the badge/cursor vocabulary that has no prior art.
 
 ---
 
@@ -197,8 +197,8 @@ It may well be acceptable (the `theme: commit failed` WARN is in the log either 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.13: Ctrl-C with a failure outstanding is accepted as an undelivered report, with the log as the record — the main screen is going away so no flash can be raised, and a post-TUI stderr warning would put a colour-preference message on the channel Portal reserves for bootstrap failures. Named explicitly because §9.13 resolves every other exit.
 
 ---
 
@@ -216,5 +216,5 @@ Portal has exactly one piece of animation today (the loading page, which §9.6 r
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.1: the panel does not animate — "slide-over" names the shape, not a motion idiom. Recorded the three pinned behaviours an animated open would disturb (repeated OSC 11 emission through a canvas-bearing slide, intermediate widths no fixture covers, and a t-then-Esc race).
