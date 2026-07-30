@@ -30,7 +30,7 @@ Portal is realistically a single-user tool. Two contribution routes exist regard
 1. **PR route** — anyone may open a pull request adding a theme file; if accepted it ships embedded as a built-in.
 2. **Drop-in route** — a theme file placed in the user's themes directory is auto-discovered with no registration step. If valid it appears in the selector alongside the built-ins.
 
-This is the ecosystem's standard two-tier shape (library directory + selection setting) without committing to ecosystem-scale governance. It sets the two quality tiers (§7) and makes the token names a public contract worth settling now: renaming a token is a mechanical repo-wide change for built-ins, but it *breaks* files in a user's themes directory.
+This is the ecosystem's standard two-tier shape (library directory + selection setting) without committing to ecosystem-scale governance. It sets the two quality tiers (§6.4) and makes the token names a public contract worth settling now: renaming a token is a mechanical repo-wide change for built-ins, but it *breaks* files in a user's themes directory.
 
 ### 1.4 Deferred by decision
 
@@ -47,7 +47,7 @@ Not omissions — each was considered and deliberately excluded from this featur
 - **A general settings panel** that would also swallow the `s` grouping-mode cycle. Two mechanisms for two prefs is an accepted mild inconsistency.
 - **A runtime last-resort hardcoded palette** beneath the fallback — replaced by a build-time guarantee (§7.6).
 - **A panel key that unsets a theme back to the shipped default** (§9.9).
-- **A theme "variant" (light/dark) concept** anywhere in the product — neither declared in a file nor derived at load (§4.6).
+- **A theme "variant" (light/dark) concept** anywhere in the product — neither declared in a file nor derived at load (§4.7).
 
 ## 2. Token vocabulary — the 19 roles
 
@@ -720,7 +720,7 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 | Key | Effect | Panel |
 |---|---|---|
 | `↑` / `↓` | Move the cursor. **The app re-themes live behind the panel. Nothing is written.** | stays open |
-| `Ctrl+↑` / `Ctrl+↓` | Page, per §12.2 | stays open |
+| `Ctrl+↑` / `Ctrl+↓` | Page, per MV spec §12.2 | stays open |
 | `Enter` | **Commits a constant** — writes `theme = <selection>`, clears both slots | **stays open** |
 | `d` | **Commits the dark slot** — writes `theme_dark = <selection>`, clears the constant | stays open |
 | `l` | **Commits the light slot** — writes `theme_light = <selection>`, clears the constant | stays open |
@@ -799,7 +799,7 @@ Treatment **B** (a `dark → … / light → …` key-value block pinned under t
 
 **Nothing blocks `t` except a modal, a pending burst, and `NO_COLOR`.**
 
-- **Multi-select** — `t` opens, and the marked set is **unaffected**. The panel *nests* over the mode and `Esc` resolves innermost-first (closing the panel and returning to multi-select with selections intact), which is what §8.1 already specifies for modals. The multi-select banner sits in the notice band on the left, so it stays visible behind the panel. Previewing mid-selection is legitimate — the marked-row `●` is itself themed.
+- **Multi-select** — `t` opens, and the marked set is **unaffected**. The panel *nests* over the mode and `Esc` resolves innermost-first (closing the panel and returning to multi-select with selections intact), which is what MV spec §8.1 already specifies for modals. The multi-select banner sits in the notice band on the left, so it stays visible behind the panel. Previewing mid-selection is legitimate — the marked-row `●` is itself themed.
 - **A pending burst** — `t` is swallowed. The burst input-locks the model (only `Ctrl-C`/`Esc` live) because it is mid-async-operation; swallowing is consistent with that lock rather than an exception to it.
 - **Modals** — capture keystrokes, so no `t`, per existing key-exclusivity.
 - **Sessions and Projects normal view** — always available.
@@ -822,7 +822,7 @@ The multi-select precedent (proactive block at entry) deliberately does **not** 
 
 **Height.**
 
-- **Overflow: scroll**, through the `bubbles/list` machinery, so `Ctrl+↑/↓` paging applies per §12.2. The invalid-row skip composes with paging exactly as the group-header skip already does.
+- **Overflow: scroll**, through the `bubbles/list` machinery, so `Ctrl+↑/↓` paging applies per MV spec §12.2. The invalid-row skip composes with paging exactly as the group-header skip already does.
 - **Minimum height: the same degrade-then-refuse rule as width** — shrink the visible row count, and refuse with a flash only when header + footer + one row cannot fit.
 - **Resize while open: degrade in place**, closing with a flash only if the terminal falls below the render floor. The entry condition is not the only check; §2.7's degradation is already per-dimension.
 
@@ -1174,7 +1174,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 
 ## 14. Footer keymap revision
 
-This is a change to the existing §12.2 keymap revision, driven by discoverability: the feature would otherwise be near-invisible — `--theme` and `portal theme list` ruled out, the themes directory silent and never seeded, built-in rows indistinguishable from drop-ins, the reserved-slug set invisible, and no active-theme indicator when the panel is closed. Discoverability would rest entirely on `?` help and `docs/theming.md`.
+This is a change to the existing MV spec §12.2 keymap revision, driven by discoverability: the feature would otherwise be near-invisible — `--theme` and `portal theme list` ruled out, the themes directory silent and never seeded, built-in rows indistinguishable from drop-ins, the reserved-slug set invisible, and no active-theme indicator when the panel is closed. Discoverability would rest entirely on `?` help and `docs/theming.md`.
 
 ### 14.1 The change
 
@@ -1204,7 +1204,7 @@ The Modern Vivid specification is amended by this feature's work. Named explicit
 
 ### 15.1 The three named amendments
 
-1. **§12.2 — the keymap revision.** The footer changes of §14 above.
+1. **MV spec §12.2 — the keymap revision.** The footer changes of §14 above.
 2. **The `portal doctor` contract.** Two classes of line — Portal-health checks driving the exit code, user-content diagnostics carrying `⚠` and not driving it — plus a closing summary distinguishing the counts (§12.2).
 3. **The log-component vocabulary.** A new `theme` component with its own attr keys and event catalogue (§12.3).
 
