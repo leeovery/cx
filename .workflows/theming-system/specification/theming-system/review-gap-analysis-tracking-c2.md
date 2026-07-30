@@ -26,8 +26,8 @@ The missing statement is the retention mechanism: whether `prefsFile` keeps a ra
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Confirmed against internal/prefs/store.go:125 — prefsFile is a plain struct so undeclared keys drop on re-encode. §8.8 now states prefsFile keeps a raw `appearance string` field, read-and-preserved and never parsed, and clarifies that the "Dies" row means the enum/API not the on-disk slot. §12.6's prefs row updated to match.
 
 ---
 
@@ -54,8 +54,8 @@ This also affects §11.4's requirement to capture the startup canvas hex, since 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.4: the constructor takes the loaded *nomination* (one Theme under a constant, both under adaptive) plus which member is active; §3.4's "model holds the active Theme" describes what is threaded to renderers. capturetool passes the constant shape. §11.4's retained startup canvas is captured from the theme the gate selected.
 
 ---
 
@@ -82,8 +82,8 @@ An implementer must pick, and the two choices produce visibly different products
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.2: opening never changes *which* theme is shown, but does apply the fresher parse of that theme's values. Edited-and-valid re-renders on open; edited-and-now-invalid resolves the fallback on open (not deferred to Esc) with the cursor on the fallback's row and the ● still on the persisted slug. Invariant stated: the cursor is always on a selectable row and that row is always what is painted.
 
 ---
 
@@ -106,8 +106,8 @@ The ladder in particular is only meaningful if tested: a file that is simultaneo
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §4.2's mis-pointer corrected (§7.6 → §13.6), and a new Loader/parser test row added to §13.6 — table-driven over the branch table, hex domain, slug charset, reserved-name check and especially §6.2's short-circuit ladder, which nothing else pins.
 
 ---
 
@@ -134,8 +134,8 @@ But several panel surfaces have no token named anywhere:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Every panel surface's token tabled in §9.1 — body, borders, header, cursor row, valid/invalid row labels, the ● badge (accent.primary, not state.positive, which would imply liveness), the ⚠ and reason (accent.attention, keeping its own token so it stays legible on a text.faint row), the vertical footer split, and both message-slot states (no bg.attention band inside a narrow panel).
 
 ---
 
@@ -157,8 +157,8 @@ Without this, the harness leg the whole implementation loop rests on is not plan
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): keep VHS, drop the direct-writer requirement. §13.3 rewritten — the hard requirement is a producible PNG per fixture, which VHS already satisfies; a rasteriser would mean a module dependency plus an embedded font to replace something that works. New tapes are written per fixture and cleared after sign-off under §13.2's retention rule.
 
 ---
 
@@ -183,8 +183,8 @@ Unstated and needed:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §13.4: the swap must be a live mutation of one already-rendered model through the production swap path, with the A-render as load-bearing cache population, a new capture/tui.Build seam to drive it, and a forced truecolor profile (stdout is not a TTY under go test). The two-model shape that would pass vacuously is named explicitly.
 
 ---
 
@@ -209,8 +209,8 @@ Related and equally unstated: §4.2 covers duplicate unknown keys explicitly (`b
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §6.2 step 5: value validation covers *known* keys only. An unknown key is ignored entirely, key and value both — otherwise §4.6's forward-compatibility lever only holds for values that happen to still be well-formed hex.
 
 ---
 
@@ -233,8 +233,8 @@ This has a second-order consequence the spec half-covers: quitting **while a pre
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.7: `Ctrl-C` stays live, matching the burst input-lock. The exclusivity rationale is about destructive pass-through and does not reach the global quit. §11.4's named test extended to cover quit-with-uncommitted-preview, flagged as the likelier mistake than the committed-mid-session case.
 
 ---
 
@@ -254,8 +254,8 @@ Also unstated: after `d`/`l` clears the constant on such a file, the *other* sta
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.2: `theme` winning means the slots are not read at all, so the panel shows a single bare ● and no slot badges — §9.5's no-coexistence property holds via the resolution rule, not via the file. Stale slots are left on disk; the one visible consequence (a stale slot going live when d/l clears the constant) is named.
 
 ---
 
@@ -275,8 +275,8 @@ Also unstated: after `d`/`l` clears the constant on such a file, the *other* sta
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §5.6: extension matched case-insensitively so `Nord.THEME` enumerates and gets a visible `bad name` row rather than vanishing (the slug is still matched exactly, so §5.2's reject-never-normalise is untouched); a real subdirectory named x.theme is skipped silently as a non-candidate; a dangling symlink is `unreadable`, and `unreadable` is widened to cover every read failure not just permissions.
 
 ---
 
@@ -299,8 +299,8 @@ The pinned `⚠ themes dir unreadable` row is correctly excluded from ordering, 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.5: sort key is the slug wherever one exists (so a reserved-name row sorts by slug while displaying its filename), filename only for `bad name` rows, comparison case-insensitive with a byte-wise tie-break, and the pinned directory row excluded from ordering entirely.
 
 ---
 
@@ -325,8 +325,8 @@ Given Portal's convention of single-sourcing exact strings (e.g. `spawn.Unsuppor
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): pin all of it. New §14A tables the exact copy for the panel message slot, rows, header and footer; the three flashes; export's three stderr cases; and doctor's four line formats — with the note that panel wording is a layout constraint at 24–30 columns.
 
 ---
 
@@ -347,8 +347,8 @@ Given Portal's convention of single-sourcing exact strings (e.g. `spawn.Unsuppor
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §12.1: ExactArgs(1); exit 1 for every failure class (export is a pipe-into-a-file tool, not a diagnostic — the stderr reason discriminates); a charset-failing slug refused as `bad name` not `not found`, matching §9.4's discrimination. The published workflow gains the `mkdir -p` line, since Portal never seeds the directory and a redirect will not create it.
 
 ---
 
@@ -370,8 +370,8 @@ The path form is called out as "the only visual-verification route for someone a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §13.3: default `tokyo-night` when the flag is omitted; slug-vs-path discriminated by the `.theme` suffix rather than a path separator; invalid input is a hard error with the §6.2 reason and non-zero exit, never a fallback — silently rendering the wrong theme at a visual gate is the failure the tool exists to prevent.
 
 ---
 
@@ -391,8 +391,8 @@ The event catalogue is complete but three details are left open, and this is a *
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §12.3: `theme: loaded` is one line per nominated theme (keeping slug/slot single-valued and greppable); `token` declared as carried by `theme: rejected` where the reason names one, which is its only consumer; `theme: appearance migrated` tied to successful persist rather than compute, which is what makes "one-shot" true and makes its absence the signal that the write failed.
 
 ---
 
@@ -414,8 +414,8 @@ Listing the six tokens in §7.7 would make the check self-contained and remove t
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §7.7 now names all six §2.9 erratum corrections with original → shipped values under their new token names, plus text.tertiary as a seventh darkening carrying the same risk, and excludes accent.primary explicitly (never darkened). The ordering trap is named: §7.1 deletes the comments that are otherwise the only record. Also added: a re-derived value rejected at its visual gate leaves the shipped value standing.
 
 ---
 
@@ -433,7 +433,7 @@ Both plausible parsers reject, but with **different user-visible reasons**: spli
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §4.2's branch table: split on the first `=`, so a stray second `=` lands in the value and fails as `bad colour`. Consistent with the comment rule — the format never re-interprets anything right of the first separator.
 
 ---

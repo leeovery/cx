@@ -1330,7 +1330,7 @@ So `capturetool` is not a convenience; it is the **only viable route** to seeing
 
 | Mechanism | Audience | Why |
 |---|---|---|
-| **A producible PNG per fixture** | The **agent** | During the agentic implementation loop the implementer captures a screen, looks at it, and assesses its own work; the reviewer does the same. **Without a producible PNG the agent cannot see what it built**, and every task ends up hand-corrected — the exact failure mode this tooling exists to prevent. |
+| **A producible PNG per fixture**, via VHS (§13.3) | The **agent** | During the agentic implementation loop the implementer captures a screen, looks at it, and assesses its own work; the reviewer does the same. **Without a producible PNG the agent cannot see what it built**, and every task ends up hand-corrected — the exact failure mode this tooling exists to prevent. |
 | **`capturetool --fixture`** | **The human** | Loaded in a real terminal at the human-in-the-loop gate and judged as the real thing — Portal's look and feel, without running Portal. |
 
 **The workflow this serves:** implement → capture → agent self-assesses → reviewer → converge → *then* the human gate.
@@ -1342,7 +1342,7 @@ The committed reference PNGs were never meant to persist — they existed so the
 **Retention rule, drawn now:**
 
 - **Everything that exists today as an image or tape is deleted** — the committed reference PNGs and the VHS tapes that produce them. They could not survive the token rename and the theme split without a full recapture in any case.
-- **From this feature forward, captures are created as work proceeds, committed while they are being collaborated on, and cleared out after sign-off** so they do not live in the repository forever.
+- **From this feature forward, captures and the tapes that produce them are created as work proceeds, committed while they are being collaborated on, and cleared out after sign-off** so they do not live in the repository forever. A tape is scaffolding on the same terms as the image it renders.
 - **Cleaning up is not this feature's job** and is not done as we go.
 
 **The deletion covers images and tapes, NOT fixtures.** The Go fixture *definitions* in `internal/capture` and the harness itself are **permanent** — the swap-and-diff guard drives the fixture renderer and its coverage assertion needs the fixture set to exist. "Cleared out after sign-off" likewise means the images, not the fixtures.
@@ -1357,7 +1357,9 @@ The committed reference PNGs were never meant to persist — they existed so the
   - **Invalid input is a hard error** with the §6.2 reason and a non-zero exit — never a fallback. Silently rendering the wrong theme at a visual gate is precisely the failure this tool exists to prevent.
 - **`--appearance` is removed, not kept alongside.** It exists today (`dark|light`, resolving to a pinned `prefs.Appearance`), and its entire backing mechanism — `prefs.Appearance` and `WithAppearance` — is deleted by §8.8. There is no mode left to pin; a theme *is* the mode.
 - **The contrast-validation swatch fixture is re-pointed to `--theme` too.** `capturetool` carries a standalone labelled-tint swatch branch (the MV §16.5 lock-in/bail surface) which deliberately does not route through `tui.Build` and is driven by `--appearance` today. It is the surface that satisfies the human eyeball gate §7.5 and §13.5 require for a new light theme's pinned tints, so it must take a theme like everything else.
-- **Direct PNG output from `capturetool` is required, not an optimisation.** The retention decision deletes the tapes that made PNG production work, while the harness requirement is that every fixture can produce a PNG. VHS is retained only if a gif is ever wanted for motion.
+- **PNG production stays on VHS. No direct writer, no new dependency.** The hard requirement is that **every fixture can produce a PNG** (§13.1) — that is what the mechanism must satisfy, and VHS already satisfies it. Rasterising styled ANSI needs a terminal-cell renderer with an embedded font and fixed cell metrics, which would mean a real module dependency plus a font asset in a repo that has deliberately avoided both, to replace a mechanism that works.
+
+  §13.2 deletes the *current* tapes along with the images, because both are scaffolding tied to the pre-rename, pre-split screens. **New tapes are written per fixture as work proceeds and cleared out after sign-off**, under exactly the same retention rule as the images (§13.2) — a tape is scaffolding, not an asset. VHS also remains the route if a gif is ever wanted for motion.
 - **New fixtures are added for the slide-over** — the adaptive-pair state, the constant-while-previewing state, an invalid-theme row, and the narrow degraded panel — so the panel is visible during implementation rather than at release.
 
 ### 13.4 The swap-and-diff completeness guard
@@ -1452,6 +1454,50 @@ The Projects footer was verified against the `Projects (MV)` frame: it carries n
 **The footer is filtered in lockstep with `?` help.** A blocked `t` (under `NO_COLOR`, §9.10) or a blocked `m` (unsupported terminal) is absent from **both** surfaces, through the same call-site filter. Advertising a key in the footer that only produces a blocked flash is the dead-end the proactive block exists to prevent, and help/footer disagreeing about the same key is a live inconsistency.
 
 **Consequence for the width budget:** §14.3's arithmetic is measured with both entries present, which is the tight case. Filtering only ever removes entries, so every blocked-state footer is strictly narrower and no separate budget is needed.
+
+---
+
+## 14A. User-facing copy
+
+Every new user-facing string is pinned here, following Portal's existing convention of single-sourcing exact copy (`spawn.UnsupportedNoopMessage`). These are the whole feedback surface for states the user cannot otherwise diagnose, and in the panel the wording is a **layout constraint** as much as a copy choice — it has to fit 24–30 columns.
+
+**Panel — message slot (§9.1):**
+
+| State | Copy |
+|---|---|
+| Slot-from-constant confirm (§9.2) | `clear constant <slug>?  y / n` — the slug truncated by §9.5's rule if needed |
+| Failed commit write (§9.13) | `⚠ couldn't save theme` |
+
+**Panel — rows (§9.5):** the seven terse reasons of §6.2 verbatim (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`), each prefixed `⚠ `. The pinned directory row is `⚠ themes dir unreadable`.
+
+**Panel — header and footer (§9.1):** header `Themes`; footer `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`.
+
+**Flashes (main screen):**
+
+| Trigger | Copy |
+|---|---|
+| `t` under `NO_COLOR` (§9.10) | `theme picker needs colour — NO_COLOR is set` |
+| `t` below the render floor (§9.8) | `terminal too narrow for the theme picker` |
+| Resize below the floor with the panel open (§9.8) | `terminal too narrow — theme picker closed` |
+
+**`portal theme export` (§12.1), stderr, exit 1:**
+
+| Case | Copy |
+|---|---|
+| Unknown slug | `no theme named <slug>` |
+| Invalid drop-in | `theme <slug> is not valid: <reason>` |
+| Slug fails the charset check | `theme <slug> is not valid: bad name` |
+
+**`portal doctor` (§12.2)** — one advisory line per finding, `⚠`-marked, detail after a colon:
+
+| Case | Copy |
+|---|---|
+| Invalid theme file | `⚠ theme <slug>: <reason> — <detail>` where detail enumerates within the reason (e.g. `missing text.primary, bg.subtle`) |
+| Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>` |
+| Themes directory unusable | `⚠ themes directory unreadable: <path>` |
+| Closing summary | `<N> checks passed · <M> advisories` |
+
+Copy that is **not** pinned here is unchanged from what already ships.
 
 ---
 
