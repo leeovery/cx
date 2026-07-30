@@ -30,8 +30,8 @@ Downstream, the same constraint is what produces the panel's ~24–30 column bud
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.1 now states the founding constraint: Portal's modals blank the page to canvas before drawing, so a modal picker would render canvas plus its own frame and preview nothing — non-blanking is the only shape that can do the job, not a preference. Recorded what inherits from it (the column budget, row composition, message truncation, §14A's layout-constraint framing, the accepted footer cost) and that it is the deeper reason behind §9.2's inline confirm and §9.6's Preview refusal, both of which had been resting on the weaker stacking argument.
 
 ---
 
@@ -74,8 +74,8 @@ The disposition itself is not in doubt — the names are kept and §2.5 already 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §2.3 now admits a deliberate fourth naming kind — a *pairing* name — with the reasoning that the `text.on-*` roles are genuinely relational (they exist only to be legible on a specific tint, and §13.5 floors them as pairings) and the cost stated: renaming `bg.attention` forces renaming `text.on-attention` in lockstep, the only place in the 19 where one rename is necessarily two breaking changes. §2.6 gains a fourth accepted-ambiguity entry, which is the third of research's three flagged naming issues finally disposed of.
 
 ---
 
@@ -113,5 +113,5 @@ It is also the only place the port's central structural claim is checkable in fu
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §7.4 now carries the port's measured *input* — all sixteen Nord colours against nord0 — alongside its output, with the reasoning that a leg failing on a directly-taken value has no Oklab correction available (the value is Nord's own) so the remedy is slot substitution, which needs the palette. The two absent near-misses read off explicitly: nord12 at 4.39 just under the foreground floor, nord10 at 3.10 legal for accent.primary and illegal for every other accent.

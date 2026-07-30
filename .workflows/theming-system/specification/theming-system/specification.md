@@ -79,6 +79,10 @@ Three naming failures are in play; two are failures:
 
 This does **not** make everything weight-based. The text ramp and the border want intrinsic-**weight** names because their role genuinely is "how prominent". The accents want **meaning** names because a theme author needs to know what a colour signifies in order to choose one.
 
+**A fourth kind is deliberately kept: a *pairing* name.** `text.on-selection` and `text.on-attention` name **another token** rather than a place, a hue, a meaning or a weight — and that is correct here, because their role genuinely *is* relational: each exists only to be legible on a specific tint, and §13.5 floors it as a pairing. A theme author choosing a value for `text.on-attention` needs to know what it sits on, which is exactly what the name says.
+
+**Its cost is stated because it is real and one-directional:** renaming `bg.attention` forces renaming `text.on-attention` in lockstep (§2.4 row 19 records the coupling as a fact), and under §4.6 each rename fails every drop-in using the old key. These two are the only place in the 19 where one rename is necessarily two breaking changes — worth knowing in a vocabulary whose whole justification (§1.3) is that renaming is mechanical for built-ins and breaking for users.
+
 ### 2.4 The rename table
 
 All 19 tokens, with the Go field name each maps to:
@@ -150,6 +154,7 @@ Three spots were flagged as genuinely arguable and resolved to the values above:
 1. **The ramp's middle join.** `text.tertiary` → `text.muted` mixes an ordinal vocabulary with a qualitative one, so ordering at that join rests on convention rather than the names. Fully positional names (`text.1`…`text.6`) would remove the ambiguity but strip all meaning from ~20 files of call sites — rejected. The ramp's weight ordering is documented in `docs/theming.md` (§12.4), which is where a theme author learns the vocabulary.
 2. **`accent.key`** could read as "important" rather than "keyboard key". Accepted over `accent.keyhint` / `accent.hint`.
 3. **`bg.subtle`** reuses the word from `text.subtle` in a different namespace. Accepted over `bg.inactive`, which generalises less well.
+4. **The `text.on-*` pairing names** couple to other tokens rather than describing themselves. Accepted as a deliberate fourth naming kind — see §2.3 for why the coupling is right for these two roles and what it costs.
 
 ### 2.7 File ordering is not a contract
 
@@ -553,6 +558,21 @@ Note `border` takes the former `border.separator` value in both; `border.footer`
 
 Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`, Frost `nord7–10`, Aurora `nord11–15`). Portal's 19-token vocabulary is meaningfully wider than 16 slots **at the dark end**, so the port takes 14 values directly, **corrects two**, and **invents three**.
 
+**The measured input**, every Nord colour against Nord's own canvas `nord0 #2E3440`. This is the port's *source* material, kept alongside its output because a leg that fails on a value taken **directly** from the palette has no Oklab correction available — the value is Nord's own — and the remedy is instead "is another slot a better fit?", the move this port already made once (nord8 over nord7):
+
+| | ratio | | ratio |
+|---|---|---|---|
+| nord1 `#3B4252` | 1.24 | nord9 `#81A1C1` | 4.64 |
+| nord2 `#434C5E` | 1.45 | nord10 `#5E81AC` | 3.10 |
+| nord3 `#4C566A` | 1.69 | nord11 `#BF616A` | 3.05 |
+| nord4 `#D8DEE9` | 9.25 | nord12 `#D08770` | 4.39 |
+| nord5 `#E5E9F0` | 10.26 | nord13 `#EBCB8B` | 8.00 |
+| nord6 `#ECEFF4` | 10.84 | nord14 `#A3BE8C` | 6.13 |
+| nord7 `#8FBCBB` | 5.99 | nord15 `#B48EAD` | 4.41 |
+| nord8 `#88C0D0` | 6.24 | | |
+
+Two declined slots are worth reading off it, because they are the near-misses that make a substitution question non-trivial: **nord12 at 4.39** sits just under the 4.50 foreground floor — a plausible candidate that fails — and **nord10 at 3.10** clears the 3.00 UI floor while failing 4.50, so under §13.5 it is legal for `accent.primary` and illegal for every other accent. This table is also what supports the barrelled-greys claim below as a statement about the whole palette rather than the six values quoted there.
+
 **`nord.theme`:**
 
 | Token | Value | Source | Ratio vs canvas |
@@ -907,6 +927,10 @@ This is the same absent-versus-unusable discrimination §5.5 draws for the theme
 ### 9.1 Shape and placement
 
 A **full-height, right-edge, non-blanking overlay** with a **left border only** — deliberately *not* an inset bordered panel like the modals, so it reads as a slide-over rather than a floating dialog.
+
+**A modal was never available, and this is the constraint the whole shape follows from.** Portal's modals **blank the page to the canvas** before drawing (`modal.go` clears to canvas, then `placeModalOnClearedCanvas`). A modal theme picker would therefore render the canvas plus its own frame and **preview nothing** — and live preview is the feature. Non-blanking is not a preference; it is the only shape that can do the job.
+
+Everything downstream inherits from it: the ~24–30 column budget (§9.8), the four-element row-composition priority and truncation floor it forces (§9.5), the message-slot truncation rule (§9.1), §14A's *"in the panel the wording is a layout constraint as much as a copy choice"*, and the accepted cost below of covering three footer entries and cutting a label mid-word. A reader may reasonably ask why a centred modal — which costs no footer at all — was not used: because it costs the entire preview. The same constraint is why §9.2's confirm is inline rather than a modal, and it is the deeper of the two reasons §9.6 refuses the Preview page.
 
 - The Sessions (or Projects) list stays fully visible behind it and re-themes live.
 - Rendered over the existing overlay mechanism (`overlayHelpOnPreview` / the lipgloss v2 `Compositor` with real z-layers), which already ships.
