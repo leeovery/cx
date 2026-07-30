@@ -53,7 +53,7 @@ Not omissions — each was considered and deliberately excluded from this featur
 
 ### 2.1 The vocabulary is 19 tokens
 
-The closed vocabulary goes from 20 tokens to **19**. Every renderer references a token; no raw hex survives at a call site (the existing glob-based colour-literal guard in `internal/tui` continues to enforce this, excluding the `theme` subpackage).
+The closed vocabulary goes from 20 tokens to **19**. Every renderer references a token; no raw hex survives at a call site (the existing glob-based colour-literal guard over `internal/tui` continues to enforce this — see §13.6, where its exemption goes away).
 
 ### 2.2 The border tokens consolidate to one
 
@@ -179,7 +179,7 @@ Decisive reasons:
 - **`All()`'s stable order is the §2.4 table order, 1 through 19.** It was previously asserted without being defined; the numbering is the definition.
 - **The token layer moves to a new leaf package, `internal/theme`**, taking the loader with it. Today's `internal/tui/theme` is a pure data package under the TUI, which no longer fits: the loader does file I/O and binds the `theme` log component (§12.3), and its consumers span two layers — TUI construction, the panel, `portal doctor` and `portal theme export`. Leaving it under `internal/tui` would make `cmd/doctor.go` and the export verb import a TUI subpackage to read a config file.
 
-  One package holds the vocabulary, the parser, the validator, the §6.2 ladder, by-name resolution, enumeration and the embedded set. The colour-literal guard's exclusion re-points to it. It binds the `theme` log component — but it is not the only package that emits under it (§8.9); CLAUDE.md's rule is bind once *per package*, which `spawn` and `bootstrap` already span several files under.
+  One package holds the vocabulary, the parser, the validator, the §6.2 ladder, by-name resolution, enumeration and the embedded set. It binds the `theme` log component — but it is not the only package that emits under it (§8.9); CLAUDE.md's rule is bind once *per package*, which `spawn` and `bootstrap` already span several files under.
 - **`cmd/config.go` owns themes-directory path resolution**, via a `themesDirPath` alongside `prefsFilePath` — it already owns every other config path, and §5.5's chain is deliberately the same shape. **The loader takes the directory as an injected value and never resolves it**, which is what keeps the embedded set reachable with no path at all: `internal/capture` uses only the built-in lookup, so §7.1's "`go:embed` is not config discovery" and §13.3's import guard both stay satisfiable. The panel receives the directory through the `ThemeEnumerator` seam (§13.3), wired at construction.
 - **`Theme` carries no identity field.** The slug is held alongside the palette by whatever loaded it — the model for the active theme, the enumeration row for a listed one. This is what lets `capturetool --theme <path>` (§13.3) work at all: a theme loaded from an explicit path has no slug, and a struct with a mandatory-but-empty identity field would be lying. Consumers that need both (the `theme: loaded` log line, the panel's `●` placement) already have the slug in hand, because they are the ones that resolved it.
 - `theme.MV` as an exported package-level value **ceases to exist**. Its values move into `tokyo-night.theme` and `tokyo-night-day.theme` (§7.3).
@@ -375,7 +375,8 @@ The env var is named here rather than left to implementation because it is a use
 
   This does not weaken §5.2's reject-never-normalise rule — it is the same rule applied one level up: the casing is reported, never silently corrected.
 - **Symlinked files are followed** — the standard dotfiles shape, and dotfiles users are exactly who hand-authors a theme. The slug derives from the link name as enumerated. A **dangling symlink** enumerates and then fails to read: reason `unreadable`.
-- **Symlinked directories are not followed.** A **real subdirectory** named `x.theme` is **skipped silently** — enumeration matches files, and a directory is not a candidate that failed, it is not a candidate at all. A **symlink whose target is a directory** is treated identically: skipped silently. What the entry resolves to is what decides, not whether a link is involved, so there is one rule rather than two.
+- **These rules govern entries *inside* the themes directory. The resolved themes directory itself may be a symlink and is followed** — dotfiles users symlink `~/.config/portal` and its contents as a matter of course, which is the same reason symlinked files are followed. Not following the root would make every drop-in vanish with no row and no doctor line (§5.5 makes an absent directory deliberately silent), which is the "completely in the dark" state §9.4 exists to prevent.
+- **Symlinked directories are not followed** as entries. A **real subdirectory** named `x.theme` is **skipped silently** — enumeration matches files, and a directory is not a candidate that failed, it is not a candidate at all. A **symlink whose target is a directory** is treated identically: skipped silently. What the entry resolves to is what decides, not whether a link is involved, so there is one rule rather than two.
 - **`unreadable` covers every read failure**, not only permissions — a dangling link, an I/O error, or anything else that stops the bytes arriving.
 
 ### 5.7 Discovery is lazy
@@ -561,7 +562,7 @@ Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`,
 | `text.faint` | `#4C566A` | nord3 | 1.69 |
 | `text.on-selection` | `#FFFFFF` | functional maximum | 8.63 on `bg.selection` |
 | `accent.primary` | `#B48EAD` | nord15 | 4.41 |
-| `accent.key` | `#81A1C1` | nord9 | 4.64 |
+| `accent.key` | `#81A1C1` | nord9 | 4.64 (floor 4.50) |
 | `accent.mode` | `#88C0D0` | nord8 — chosen over nord7 `#8FBCBB` (5.99) as Nord's own primary UI accent | 6.24 |
 | `accent.attention` | `#EBCB8B` | nord13 | 8.00 |
 | `state.positive` | `#A7C492` | **corrected** from nord14 `#A3BE8C` | 6.51 canvas / 4.50 selection |
@@ -597,19 +598,24 @@ Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`,
 | `bg.attention` fill vs canvas | 1.20 | ≥ 1.10 | ✓ |
 | `state.positive` on `bg.selection` | 4.23 → **4.50** corrected | ≥ 4.50 | ✗ → ✓ |
 | `text.on-selection` on `bg.selection` | 8.63 | ≥ 4.50 | ✓ |
-| `text.primary` on `bg.selection` | 7.49 | ≥ 4.50 | ✓ |
+| `text.primary` on `bg.selection` | 7.49 | — | walked, not required¹ |
 | `text.secondary` on `bg.selection` | 7.09 | ≥ 4.50 | ✓ |
 | `text.tertiary` on `bg.selection` | 6.39 | ≥ 4.50 | ✓ |
 | `text.on-attention` on `bg.attention` | 9.02 | ≥ 4.50 | ✓ |
 | `accent.attention` bar vs canvas | 8.00 | ≥ 3.00 | ✓ |
 | `accent.primary` vs canvas | 4.41 | ≥ 3.00 | ✓ |
-| `accent.key` vs canvas | 4.64 | ≥ 3.00 | ✓ |
+| `accent.key` vs canvas | 4.64 | ≥ 4.50 | ✓ |
 | `accent.mode` vs canvas (peek chrome) | 6.24 | ≥ 4.50 | ✓ |
 | `text.subtle` band | 3.18 | 3.00–4.49 | ✓ |
 | `text.faint` band | 1.69 | 1.00–2.99 | ✓ |
 | `state.destructive` vs canvas | 4.50 | ≥ 4.50 | ✓ |
 
-Two floors are worth reading off this table because they are not obvious from the per-token ratios above: **accents carry a ≥ 3.00 UI floor**, not the 4.50 normal-text floor (`accent.mode` is the exception, floored at 4.50 because it renders preview peek chrome); and the **warning band is a three-leg rule** — text-on-tint ≥ 4.50, the accent bar ≥ 3.00 vs canvas, and the fill ≥ 1.10 vs canvas — all three of which the invented `bg.attention` participates in.
+**§13.5 is the canonical rule set; this table is one palette's walk of it.** Two things it makes concrete:
+
+- **`accent.primary` alone carries the ≥ 3.00 UI floor.** Every other accent and state token is held to 4.50 (§13.5). An earlier reading of this table generalised 3.00 to all accents — that is wrong, and it matters: it decides whether a future port whose key-hint blue sits at 3.5 passes or fails the bundled tier.
+- **The warning band is a three-leg rule** — text-on-tint ≥ 4.50, the accent *bar* ≥ 3.00 vs canvas, and the fill ≥ 1.10 vs canvas. The bar leg's 3.00 is a property of the *pair rule*, not of `accent.attention`, which separately carries 4.50 as a foreground. The invented `bg.attention` participates in all three.
+
+¹ **`text.primary` on `bg.selection` is not a required leg** and is not in §13.5's canonical list — the selected row's name renders in `text.on-selection`, which is what that token exists for. It was walked during the port and the figure is kept because it is free information, not because it gates anything.
 
 **A failure on an unwalked leg can force re-deriving an *invented* value — which then needs a fresh visual gate.** The port was twice found incomplete (first covering 16 of 19 tokens, then roughly half the rule set), and each time the completeness claim was plausible enough to pass unexamined. The floor test auto-enumerating the embedded set (§13.5) means a missed leg surfaces at implementation rather than shipping — but if it lands on `text.muted`, `text.subtle` or `bg.attention`, the new value is an *invention*, and this port's own precedent (§7.4, `bg.attention`) is that inventions are settled at a visual gate rather than by arithmetic.
 
@@ -668,6 +674,8 @@ The **six `§2.9 erratum` corrections**, given as original → shipped, under th
 3. **Gate** anything that moved materially.
 
 **The chroma figure is recorded for all seven values regardless of outcome**, which is also what closes a gap §7.4 opens: Nord's two corrections carry their chroma figures precisely so they are checkable if ever re-derived, and without this step MV's would be the only corrections in the built-in set without one.
+
+**Its home is a `#` comment beside the value in `tokyo-night-day.theme`** — the same home §7.1 gives the other judgement that is not numerically recoverable, the eyeball pins. It is the only durable option: the theme file is exported byte-faithfully to users (§12.1), it travels with the value it describes, and it survives a re-derivation that supersedes §7.3's tables. A commit message would be gone in a year; `docs/theming.md` documents roles, not derivations.
 
 **Threshold: Oklab ΔE ≥ 0.05 is "moved materially".** The Nord port anchors the scale at the other end (ΔE 0.018, cited as essentially imperceptible), and 0.05 is comfortably above that while still well below a difference anyone would describe as a colour change. Under it, nothing happens.
 
@@ -855,6 +863,8 @@ This means the `theme` component is emitted from more than one package — the l
 
 **§10.3's no-op condition is evaluated at the RMW re-read, against the bytes about to be merged — never against the load-time snapshot.** Because the translation's write is non-blocking, a user can commit a theme in the window between compute and persist; evaluated against the stale snapshot the pending translation would write `theme = tokyo-night` over the `nord` they just committed and clear the slots, which is §10.3's own failure displaced from cross-launch to intra-process. The same re-read is what lets the migration observe that another instance already set `theme_migrated`.
 
+**A re-read that does not yield a usable file aborts the write — it never becomes an overwrite.** `prefs.json` is hand-editable and its decode is tolerant, so a stray comma degrades to a zero-value struct rather than erroring. Merging into that and committing it would erase `session_list_mode`, `theme_migrated`, every untouched theme key and the retained raw `appearance` in a single `s` keypress — the exact loss §8.8 calls out, on the path §13.6 names as the one whose failure is silent and permanent. So a decode failure **or** an I/O failure on the re-read is treated as a failed write: nothing is written, `theme: commit failed` is emitted, and the panel reports it (§9.13). The same applies to the migration write, which this rule already covers.
+
 **"Skip" means skip the theme keys, not the whole write** — the marker is still recorded, so the translation does not stay pending forever. And once a mid-session commit supersedes the translated value, **the commit is the model's active theme**: the translation's in-memory result was only ever the starting value for a launch nobody had chosen a theme in.
 
 `prefs.json` continues to go through `fileutil.AtomicWrite`, so all three theme keys land in one atomic write and partial failure is impossible.
@@ -942,8 +952,11 @@ Which sharpens `Esc` precisely: **`Esc` discards the preview and renders the res
 **Assigning a slot while a constant is set asks for confirmation first.** This is the one place a keypress described as inert can silently cost the user a setting they chose: on `"theme": "nord"`, pressing `l` clears the constant, the untouched dark slot falls back to the shipped default, and `Esc` in a dark terminal lands on `tokyo-night` rather than `nord`.
 
 - `d`/`l` on a constant raises an **inline confirm in the panel's message slot** (§9.13) naming the constant that will be cleared.
-- **`y` confirms** — the constant is cleared and the slot written, in one atomic prefs write. **Any other key cancels**, including `Esc`, which cancels the confirm without closing the panel.
-- While the confirm is live it is **key-exclusive within the panel**: arrows, `Enter` and the other slot key are swallowed until it resolves. Nothing has been written yet, so there is no partial state to leave behind.
+- While the confirm is live it is **key-exclusive within the panel** and resolves on exactly three inputs:
+  - **`y` or `Y` confirms** — the constant is cleared and the slot written, in one atomic prefs write.
+  - **`n`, `N` or `Esc` cancels**, leaving the panel open and nothing written. `Esc` cancels the confirm rather than closing the panel, because the innermost thing resolves first — the same nesting rule §9.7 applies to the panel over multi-select.
+  - **`Ctrl-C` quits Portal**, per §9.7. It is not a cancel; it stays live everywhere.
+- **Every other key is swallowed** — arrows, `Enter`, the other slot key, all of it. The confirm persists until one of the three above resolves it. Nothing has been written yet, so there is no partial state to leave behind.
 - It is **inline, not a modal** — the panel does not blank, and stacking a modal over an overlay is the shape §9.6 rejects for the Preview page.
 
 **The reverse direction needs no confirm.** `Enter` on a theme while a pair is set clears both slots — but `Enter` visibly does what it says: you get the theme you are looking at, and it is the theme already previewing behind the panel. Nothing is surprising, so the confirm would be friction for its own sake. The asymmetry is the point: the confirm guards the case where the *resolved* theme changes as a side effect of a write the user was told is inert.
@@ -994,7 +1007,7 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 - Comparison is **case-insensitive, with a byte-wise tie-break**. Slugs are lowercase by construction, but filenames are not, and a byte-wise-only comparison would file `Zed.theme` ahead of every valid theme.
 - The pinned `⚠ themes dir unreadable` row is **outside the ordering** — it is always first.
 
-**A displayed slug that came from `prefs.json` is truncated and control-stripped before rendering.** It is hand-editable text drawn into a fixed-width frame, and §8.6 validates it before *use* as a path component but the unresolvable row still shows it — so a pasted newline, tab or ANSI escape would otherwise reach the panel.
+**A slug that came from `prefs.json` is control-stripped at the point it is read, not at the point it is drawn** — it is a property of the value, so every consumer inherits it. §8.6 validates it before *use* as a path component, but a charset-rejected value is still *reported* (§9.4, §12.1), and it reaches three surfaces: the panel row, doctor's advisory line (§14A), and `portal theme export`'s stderr. A pasted newline, tab or ANSI escape would otherwise corrupt whichever of them the user is reading to find the problem. **Truncation is separate and stays panel-local** — doctor and export have full width and want the whole value.
 
 **Row composition — one row per theme, always.** An invalid row never wraps to two lines: every list row is exactly one delegate line, which is the invariant `bubbles/list` pagination depends on and which §9.8's paging and the invalid-row skip both rest on. The elements compete for a fixed ~24–30 columns in this priority order:
 
@@ -1124,6 +1137,8 @@ This recreates "applied but not persisted", but as a *reported* state rather tha
 
 **The report must survive the panel closing.** `Esc` is the only way out and it re-resolves from persisted state (§9.2) — so composed naively, the very next keypress both clears the message and drops the theme the user chose, with no `●` movement to signal it (§9.13 correctly forbids that) and nothing on the main screen. The "reported rather than silent" property would hold for exactly one keystroke.
 
+**"Outstanding" is a state, not a message.** A commit failure is outstanding from the moment a write fails until a **subsequent commit succeeds** — nothing else clears it. In particular arrowing away does not: that dismisses the *message* (which persists only until the next keypress) while leaving the state, which is what stops the very next `Esc` reinstating the silent revert this section exists to close. And because a successful retry clears it, a `d` that fails followed by an `l` that succeeds raises no flash — the user is not told a theme was not saved when it was.
+
 **So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
 
 **A commit is always re-attemptable.** The commit keys are unconditional writes (§9.2), so pressing `d`/`l`/`Enter` again simply retries — no special retry affordance, and no state to clear first.
@@ -1226,6 +1241,13 @@ Threading the theme (§3.4) fixes most of this: anything taking the theme as a p
 2. `canvasHexFor` references `theme.MV` directly — a hardcoded MV reference outside the token render path. It becomes theme-agnostic.
 
 Fixing them does not make the guard redundant; **the guard is what stops them returning** (§13.4).
+
+**The panel introduces a third `bubbles/list` instance, and it is the worst case of this class.** Its styles are assigned once at panel open, and it is the one surface whose theme changes on *every arrow keypress* (§9.11 requires the panel's own chrome to re-theme, no exceptions). Two rules keep it current:
+
+- **The panel's delegate re-derives per frame from the previewed theme**, like every other delegate — so rows, badges, reasons and the cursor treatment are never cached.
+- **The `bubbles/list`-owned styles the panel uses** (pagination dots, its own help/title styles) are re-pointed by **the same restyle path as the main list**, extended to cover the panel's instance. Not a rebuild — §11.1 rules that out as the expensive path, and it would be worse here, on a per-keypress surface.
+
+**Coverage consequence for §13.4:** pagination dots only render when the panel's list paginates, so one of §13.3's panel fixtures must carry enough theme rows to overflow. Otherwise the guard is blind at exactly the new site this paragraph adds.
 
 **These two are what was *found*, not the boundary of the class.** Init-time copies of *derived styles* (a style struct built from a token at package scope, rather than the token itself) were never swept for at all. Implementation must run that sweep rather than treating the two named fixes as closing the category. The swap-and-diff guard is the safety net that catches whatever the sweep misses — but a sweep that is never run leaves the guard doing work a five-minute grep would have done, and leaves the residue undocumented.
 
@@ -1419,7 +1441,7 @@ The committed reference PNGs were never meant to persist — they existed so the
 
 - **Everything that exists today as an image or tape is deleted** — the committed reference PNGs and the VHS tapes that produce them. They could not survive the token rename and the theme split without a full recapture in any case.
 - **From this feature forward, captures and the tapes that produce them are created as work proceeds, committed while they are being collaborated on, and cleared out after sign-off** so they do not live in the repository forever. A tape is scaffolding on the same terms as the image it renders.
-- **Cleaning up is not this feature's job** and is not done as we go.
+- **This feature does not take on a general repo-wide capture cleanup**, and does not clear captures continuously as it goes. Both of the above are in scope and both are single, bounded acts: delete today's images and tapes once at the start, clear this feature's own once at sign-off.
 
 **The deletion covers images and tapes, NOT fixtures.** The Go fixture *definitions* in `internal/capture` and the harness itself are **permanent** — the swap-and-diff guard drives the fixture renderer and its coverage assertion needs the fixture set to exist. "Cleared out after sign-off" likewise means the images, not the fixtures.
 
@@ -1535,7 +1557,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 | **`RestoreTerminalBackground` anchor test** | **New** (§11.4). |
 | **`docs/theming.md` token-table guard** | **New** (§13.5). |
 | **`keymap_dispatch_guard_test`** | Extended to cover the panel scope (§9.12). |
-| **Colour-literal guard** | Unchanged in mechanism; continues to exclude the `theme` subpackage. |
+| **Colour-literal guard** | Unchanged in mechanism and unchanged in scope — it still scans `internal/tui`. **Its `theme`-subpackage exemption is deleted rather than re-pointed**: §3.2 moves that package out to `internal/theme`, so there is nothing under `internal/tui` left to exempt, and widening the guard's globs to reach a sibling purely in order to exempt it would be a mechanism change. The exemption has also lost its reason — it existed so `theme.MV` could declare hexes, and after §7.1 the new package holds **no hex values at all**; they live in the embedded `.theme` files. |
 
 ## 14. Footer keymap revision
 
@@ -1597,8 +1619,10 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | Trigger | Copy |
 |---|---|
 | `t` under `NO_COLOR` (§9.10) | `theme picker needs colour — NO_COLOR is set` |
-| `t` below the render floor (§9.8) | `terminal too narrow for the theme picker` |
-| Resize below the floor with the panel open (§9.8) | `terminal too narrow — theme picker closed` |
+| `t` below the **width** floor (§9.8) | `terminal too narrow for the theme picker` |
+| `t` below the **height** floor (§9.8) | `terminal too short for the theme picker` |
+| Resize below the **width** floor with the panel open (§9.8) | `terminal too narrow — theme picker closed` |
+| Resize below the **height** floor with the panel open (§9.8) | `terminal too short — theme picker closed` |
 | Panel closed with a failed commit outstanding (§9.13) | `⚠ theme not saved — see portal.log` |
 
 **`portal theme export` (§12.1), stderr, exit 1:**

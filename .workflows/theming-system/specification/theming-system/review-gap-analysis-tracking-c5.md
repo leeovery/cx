@@ -28,8 +28,8 @@ The confirm is the one affordance in the feature that gates a write §9.2 says m
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.2's confirm now resolves on exactly three inputs — `y`/`Y` confirms, `n`/`N`/`Esc` cancels (Esc resolving innermost-first per §9.7's nesting rule), `Ctrl-C` quits — and everything else is swallowed. Removes the any-other-key-cancels vs key-exclusive contradiction and closes both the `Ctrl-C` and shift-Y edges.
 
 ---
 
@@ -54,8 +54,8 @@ That sentence and §13.5's table cannot both be the rule. It is not an academic 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Verified against contrast_test.go: the shipped floors are per-token (only accent.violet/primary is 3.0; accent.blue/cyan and the state tokens are 4.5), so §13.5 was right and §7.4's read-off sentence was wrong. §7.4's table corrected (`accent.key` floor 4.50) and the sentence rewritten to state that accent.primary alone carries 3.00 and that the bar leg's 3.00 is a property of the pair rule not of the token. `text.primary` on `bg.selection` re-marked as walked-but-not-required with a footnote — the selected row renders `text.on-selection`, which is what that token is for.
 
 ---
 
@@ -83,8 +83,8 @@ Neither is obviously intended and the spec supplies no third rule (e.g. "cleared
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.13 now defines "outstanding" as a state cleared only by a subsequent successful commit — explicitly not by arrowing (which dismisses the message but not the state, stopping the next Esc reinstating the silent revert) and explicitly cleared by a successful retry (so a failed `d` followed by a successful `l` raises no flash).
 
 ---
 
@@ -105,8 +105,8 @@ The choice an implementer is left to make is real and not cosmetic: treat a deco
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.9 now aborts the write on a re-read that fails to decode or fails on I/O — never an overwrite — treating it as a failed commit with `theme: commit failed` and the panel report, since merging into a tolerantly-zeroed struct would erase session_list_mode, the marker, untouched theme keys and the retained appearance in one keypress.
 
 ---
 
@@ -127,8 +127,8 @@ The safety net does not obviously catch this either. §13.4's guard renders fixt
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §11.2 now names the panel's `bubbles/list` as a third instance and the worst case of the class: its delegate re-derives per frame, its bubbles/list-owned styles are re-pointed by the same restyle path (not rebuilt — §11.1 rules that out, and it would be worse on a per-keypress surface). Added the coverage consequence that one panel fixture must carry enough rows to paginate, or §13.4 is blind at the new site.
 
 ---
 
@@ -153,8 +153,8 @@ A planner cannot tell from this whether a deletion task exists at all. It also h
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.2's third bullet rewritten: this feature does not take on a general repo-wide cleanup and does not clear continuously, but both stated deletions are in scope as single bounded acts — today's images and tapes at the start, this feature's own at sign-off. Removes the reading under which the PNGs stay and §12.6's CLAUDE.md correction would be wrong.
 
 ---
 
@@ -178,8 +178,8 @@ On a wide, short terminal — a two-line-tall split pane, which is a common tmux
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A now pins four flash strings instead of two, splitting width from height — a wide, short split pane is a common tmux shape and was previously told its terminal was too narrow.
 
 ---
 
@@ -202,8 +202,8 @@ The candidates are materially different in durability: a `#` comment in `tokyo-n
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §7.7 now homes the chroma record in a `#` comment beside the value in `tokyo-night-day.theme` — the same home §7.1 gives the eyeball pins, and the only durable one: it is exported byte-faithfully to users, travels with the value, and survives a re-derivation that supersedes §7.3's tables.
 
 ---
 
@@ -226,8 +226,8 @@ Doctor has full width so truncation is not the issue — control-stripping is. A
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.5 re-scoped control-stripping from the panel's renderer to the value itself, at read time, so doctor's advisory line and export's stderr inherit it — both render the same unvalidated string. Truncation stays panel-local, since doctor and export have full width and want the whole value.
 
 ---
 
@@ -250,8 +250,8 @@ Applied to the root the rule produces the worst available outcome: enumeration y
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §5.6 now scopes its symlink rules to entries *inside* the directory and states that the resolved themes directory itself may be a symlink and is followed — not following it would make every drop-in vanish with no row and no doctor line, since §5.5 makes an absent directory deliberately silent.
 
 ---
 
@@ -272,5 +272,5 @@ Worth resolving in one line because the answer is not neutral: under this featur
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §13.6: the guard's scope is unchanged (`internal/tui`) and its `theme`-subpackage exemption is **deleted**, not re-pointed — §3.2 moves that package out, and widening the globs to reach a sibling in order to exempt it would be a mechanism change. The exemption has also lost its reason, since after §7.1 the new package holds no hex values at all. §2.1 and §3.2 reworded to match.
