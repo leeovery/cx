@@ -812,7 +812,7 @@ Every Nord colour measured against Nord's own canvas (`nord0 #2E3440`):
 and below 3.0); `bg.selection` ← nord2 (fill 1.45 ≥ 1.10, and nord6 on it is
 7.49 ≥ 4.50); `bg.subtle` ← nord1; `border` ← nord3 (no numeric floor);
 `accent.primary` ← nord15 (4.41 ≥ 3.00); `accent.key` ← nord9 (4.64);
-`accent.mode` ← nord7/8 (5.99 / 6.24); `accent.attention` ← nord13 (8.00);
+`accent.mode` ← nord8 `#88C0D0` (6.24 — chosen over nord7, being Nord's own primary UI accent); `accent.attention` ← nord13 (8.00);
 `state.positive` ← nord14 (6.13).
 
 **Correction 1 — the red fails.** `state.destructive` carries the **4.5** normal
@@ -878,8 +878,9 @@ Frame: `Sessions — Nord inline flash (bg.attention #3D4046)`.
 `Sessions — Nord (port)`. Only `bg.attention` had never been rendered, which is
 why it was the one that needed the frame.
 
-**Revised tally: one corrected value (`state.destructive`) and three invented
-ones (`text.muted`, `text.subtle`, `bg.attention`).**
+**Tally: two corrected values (`state.destructive`, `state.positive`) and three
+invented ones (`text.muted`, `text.subtle`, `bg.attention`)** — see "the unwalked
+legs" below, which found the second correction.
 
 **One further structural finding, corrected.** Nord's dark end holds only three
 values (nord1/2/3) for Portal's **five** dark-end roles (`bg.subtle`,
@@ -890,6 +891,59 @@ value for two roles is legitimate (unlike two tokens that differ pointlessly,
 which the border consolidation removed), but the gap is wider than first
 recorded: the 19-token vocabulary is meaningfully wider than a 16-slot ANSI
 palette at the dark end, and every port should expect to invent there.
+
+### The unwalked legs — a second correction (the review's F8)
+
+The port was originally measured against roughly half of `contrast_test.go`'s
+fourteen tests. Walking the rest found one genuine failure:
+
+| Leg | Nord | Floor | |
+|---|---|---|---|
+| `bg.subtle` fill vs canvas | 1.24 | ≥ 1.10 | ✓ |
+| **`state.positive` on `bg.selection`** | **4.23** | **≥ 4.50** | **✗** |
+| `text.on-selection` on `bg.selection` | 8.63 | ≥ 4.50 | ✓ |
+| `text.secondary` on `bg.selection` | 7.09 | ≥ 4.50 | ✓ |
+| `text.tertiary` on `bg.selection` | 6.39 | ≥ 4.50 | ✓ |
+| `text.on-attention` on `bg.attention` | 9.02 | ≥ 4.50 | ✓ |
+| `accent.mode` vs canvas (peek chrome) | 6.24 | ≥ 4.50 | ✓ |
+| `text.subtle` band | 3.18 | 3.00–4.49 | ✓ |
+| `text.faint` band | 1.69 | 1.00–2.99 | ✓ |
+| `state.destructive` vs canvas | 4.50 | ≥ 4.50 | ✓ |
+
+**`state.positive` needed correcting too.** `TestStateGreenClearsCanvasAndSelection`
+requires the single token to clear **both** the canvas and the selection tint;
+nord14 `#A3BE8C` clears canvas at 6.13 but only 4.23 on nord2. This is precisely
+the problem MV itself solved — its light green was darkened *"so the single token
+clears bg.selection"*.
+
+**Corrected to `#A7C492`** (minimal Oklab distance, ΔE **0.018** — essentially
+imperceptible), clearing selection at 4.50 and canvas at 6.51, with chroma
+marginally *above* the original.
+
+**Lesson recorded:** the earlier tally was presented as a result when it was a
+floor. The floor test auto-enumerating the embedded set means a missed leg surfaces
+at implementation rather than shipping — but a failure on an unwalked leg can force
+re-deriving an *invented* value, which by this port's own precedent then needs a
+fresh visual gate.
+
+### Derivation method for *invented* values (the review's F9)
+
+The method note established that **corrections must be computed in a perceptual
+space, never by moving HSL lightness**. The three invented values were then
+produced arithmetically (`text.muted`/`text.subtle` interpolated on nord3's hue and
+saturation; `bg.attention` an ~8% blend), which looks like a violation.
+
+**Clarified: the rule governs *corrections*, not *inventions*.** A correction has a
+published source value whose chroma must be preserved — that is what HSL-lightness
+movement destroys. An invented value has no source to preserve; its constraints are
+landing in the right band and looking right, which is why `bg.attention` was
+settled at a **visual gate** rather than by arithmetic (and why its first
+arithmetic answer was wrong by a factor of three).
+
+**Outstanding visual gate:** `text.subtle` has no locus on any captured Nord frame
+— it renders group `··· N` counts and pending loading steps, neither of which
+appears on the flat Sessions frame. It needs a gate at implementation, on a grouped
+Nord capture.
 
 ### Fidelity versus floors — resolved
 
@@ -1211,8 +1265,10 @@ ensure that we can't build this if the fallback doesn't render … that needs to
 impossible."* That is better engineering — a build-time guarantee beats a runtime
 crutch.
 
-- **A unit test parses and validates every embedded built-in.** This is the actual
-  guarantee: a broken embed cannot get through the suite. It promotes what was
+- **A unit test parses and validates every embedded built-in, *and* asserts that
+  every fallback slug and the shipped default pair resolve within that set.** Both
+  halves are needed — see the amendment below; validating the files alone leaves a
+  renamed file or typo'd constant undetected. It promotes what was
   recorded as a passing mitigation under the `go:embed` decision into a
   load-bearing requirement.
 - **No runtime fallback-to-hardcoded-values.** With no path pretending to handle
@@ -1220,6 +1276,61 @@ crutch.
   rather than limping on values nobody chose. `main.go` already owns a
   panic-recovering exit with a `process: panic` lifecycle marker, so that is a
   *marked* termination, not an unhandled crash.
+
+### Construction timing under the adaptive default (the review's F1)
+
+Three decisions each assumed the active theme is known at a moment the others said
+it is not: plumbing has the model holding the active `Theme`; lazy discovery does
+*one* file read by name at startup; detection says a two-slot user's light/dark
+resolves **after** `Init`, when the OSC 11 reply or the 50ms timeout lands. Since
+the shipped default **is** the adaptive pair, the common path constructs the model
+before the slot is known — and every available answer was bad (defer the read onto
+the first-paint critical path, or paint dark and flip, which the same paragraph
+forbids).
+
+**Decision: construction loads every *nominated* theme — at most two.** The gate
+then only **selects** between values already in hand: no file read on the critical
+path, no flip. The cold-path cost is one read for a constant, two for a pair.
+
+This also completes the mid-session constant→adaptive transition: that dissolved on
+the grounds that the OSC 11 *answer* is already in hand, but the other slot's
+*file* would not have been read at construction (a constant nominates one theme).
+Assigning a slot therefore reads that slot's file at commit time — a keypress-time
+read, already the panel's cost model.
+
+### The translation's trigger — an explicit marker (the review's F2)
+
+The translation was justified as *"self-disarming: once theme keys exist the
+condition can never fire again"* — written when the decision was to **drop**
+`appearance`. The downgrade reversal kept the field without revisiting that claim,
+leaving the disarm resting entirely on theme keys remaining present forever.
+
+That composes badly with the "no unset" acceptance, whose documented escape hatch
+is to hand-edit `prefs.json`: an upgraded user who deletes their theme keys to
+return to the shipped adaptive pair gets **silently re-translated and re-pinned**
+on the next launch — Portal reinstating exactly what they just undid.
+
+**Decision: gate the translation on an explicit `theme_migrated` marker**, not on
+the absence of theme keys. `appearance` is retained for downgrade, deleting theme
+keys does nothing, and the trigger fires exactly once ever.
+
+**Accepted:** the retained `appearance` is a frozen legacy value and is **not** kept
+in sync with later panel commits. A downgraded binary honours the user's old pin
+rather than their current choice — which is the most a binary with no concept of
+themes could do.
+
+### The build-time guarantee must cover the slugs (the review's F3)
+
+*"A unit test parses and validates every embedded built-in"* proves the **files**
+are good, but the fallback is three hardcoded slug constants (`tokyo-night`,
+`tokyo-night-day`) resolving *into* that set. Rename a built-in file in a later PR,
+or typo a constant, and every embedded theme still validates while **every fallback
+path becomes unresolvable** — and with no runtime floor by decision, the consequence
+is a loud startup failure.
+
+**Decision: the test also asserts that every fallback slug and the shipped default
+pair resolve** within the embedded set. That is the guarantee Lee actually asked
+for — *"we can't build this if the fallback doesn't render"*.
 
 ### Enumeration timing — re-read on every open (the review's F12)
 
@@ -1769,8 +1880,9 @@ Intent is preserved precisely rather than approximately: a pinned mode becomes a
 pinned theme, and detection stays off for them just as it was.
 
 Portal has the precedent — `migrateConfigFile` performs a one-shot move from the
-old macOS config path. This is the same shape and **self-disarming**: once theme
-keys exist the condition can never fire again. The `theme` log component records
+old macOS config path. It fires **exactly once ever**, gated on an explicit
+`theme_migrated` marker (see the amendment below — an earlier version gated on the
+absence of theme keys, which was re-armable). The `theme` log component records
 it, giving a forensic trail with no user-facing interruption.
 
 Rejected: accepting the silent flip as cosmetic and one keypress to fix — wrong
@@ -2342,8 +2454,9 @@ just won.
 
 #### Decision
 
-**Lazy.** The cold path costs exactly one extra file read regardless of how many
-themes exist — which also means the drop-in route can never degrade startup no
+**Lazy.** The cold path costs one file read **per nominated theme** — one for a
+constant, two for an adaptive pair (see the construction-timing amendment below) —
+regardless of how many themes exist — which also means the drop-in route can never degrade startup no
 matter how many files a user accumulates.
 
 Details settled with it:
