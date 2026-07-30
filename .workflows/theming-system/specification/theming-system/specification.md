@@ -232,7 +232,7 @@ The route explicitly **closed** is btop's precedent of an *empty* value: §4.2 p
 | **Comments** | `#` starts a comment **only at the beginning of a line**, after optional leading whitespace. There are no trailing comments, so the ambiguity never arises — a `#` after `=` is always part of the colour. |
 | **Values are bare** | Never quoted. A quoted value is **rejected** with a message saying so. |
 | **Duplicate keys** | **Rejected**, not resolved. Silently taking one of two conflicting values is exactly the quiet wrongness the validity rule exists to prevent, and "all 19 present" would otherwise have to define what a repeat counts as. |
-| **Whitespace** | Trimmed around `=`. Blank lines ignored. |
+| **Whitespace** | **Each line is trimmed at both ends first**, so leading indentation before a key is fine — the same tolerance the comment rule already grants `#`. Then trimmed around `=`. Blank lines ignored. |
 | **Keys** | Lowercase by definition (per the vocabulary charset), matched **case-sensitively**. |
 | **Encoding** | CRLF tolerated; a BOM is stripped. |
 | **Malformed lines** | A line that is neither blank, a comment, nor a well-formed `key = value` pair rejects the file (`bad syntax`). |
@@ -263,7 +263,7 @@ Two reasons for excluding ANSI indices, the second decisive:
 - The MV spec's §2.4 is an explicit decision that Portal **imposes its own exact hues via truecolor and does not inherit the terminal's 16 ANSI colours** — a recognisable identity needs consistent hues across machines. Admitting ANSI indices lets a theme opt back into the palette Portal deliberately declined.
 - **An ANSI index has no fixed RGB.** The validator must parse to RGB anyway, and that same parse is what any contrast check needs. A token valued `212` cannot be measured against anything — admitting them would permanently foreclose checking a theme numerically, including Portal's own built-ins.
 
-Hex case (upper or lower) is not constrained.
+Hex case (upper or lower) is not constrained on input, and **the parser canonicalises to uppercase**. Three comparison sites this feature introduces or re-points depend on it: §11.4's retained startup canvas hex against the exit-time value, §11.3's background diffing, and §13.4's scan of rendered output for theme-A values. All three compare hex strings, and a theme file written `#c0caf5` must not fail to match one written `#C0CAF5`. (`portal theme export` is unaffected — it emits file bytes, §12.1.)
 
 ### 4.4 What a theme file may contain
 
@@ -371,7 +371,7 @@ The env var is named here rather than left to implementation because it is a use
 
   This does not weaken §5.2's reject-never-normalise rule — it is the same rule applied one level up: the casing is reported, never silently corrected.
 - **Symlinked files are followed** — the standard dotfiles shape, and dotfiles users are exactly who hand-authors a theme. The slug derives from the link name as enumerated. A **dangling symlink** enumerates and then fails to read: reason `unreadable`.
-- **Symlinked directories are not followed.** A **real subdirectory** named `x.theme` is **skipped silently** — enumeration matches files, and a directory is not a candidate that failed, it is not a candidate at all.
+- **Symlinked directories are not followed.** A **real subdirectory** named `x.theme` is **skipped silently** — enumeration matches files, and a directory is not a candidate that failed, it is not a candidate at all. A **symlink whose target is a directory** is treated identically: skipped silently. What the entry resolves to is what decides, not whether a link is involved, so there is one rule rather than two.
 - **`unreadable` covers every read failure**, not only permissions — a dangling link, an I/O error, or anything else that stops the bytes arriving.
 
 ### 5.7 Discovery is lazy
@@ -415,7 +415,7 @@ Seven reject classes. The terse label appears on the panel row; the detail appea
 | `missing tokens` | One or more of the 19 keys absent |
 | `bad colour` | A value that is not a well-formed `#RRGGBB` hex |
 | `bad syntax` | Duplicate key, quoted value, or a malformed line |
-| `bad name` | Slug does not match `[a-z0-9-]` |
+| `bad name` | The filename is not a valid theme filename — **two causes**: the slug does not match `^[a-z0-9][a-z0-9-]*$` (§5.2), or the extension is not exactly lowercase `.theme` (§5.6). One reason class because the user-facing fact is the same (*this filename is not usable*) and the panel row has no width to discriminate; doctor's detail names which (§14A). |
 | `reserved name` | Slug collides with a built-in |
 | `unreadable` | The file could not be read |
 | `not found` | A slug named by `prefs.json` with no corresponding file |
@@ -424,8 +424,8 @@ Seven reject classes. The terse label appears on the panel row; the detail appea
 
 **Reasons are evaluated in a fixed order and the first failure short-circuits**, so a file always has exactly one reason and the panel's single-reason row is never a choice:
 
-1. `bad name` — the slug is checked before the file is opened, so a `bad name` file can never also report `unreadable` or anything about its contents.
-2. `reserved name` — likewise decided from the slug alone, before any read.
+1. `bad name` — the **filename** is checked before the file is opened, so a `bad name` file can never also report `unreadable` or anything about its contents. Both causes live here, and both mean the file yields no usable slug — which is what lets the next rung assume one exists.
+2. `reserved name` — likewise decided from the slug alone, before any read. Unreachable for a `bad name` file, which has no slug to collide.
 3. `unreadable` — the read itself failed.
 4. `bad syntax` — lexical failure (§4.2) aborts the parse, so no value-level or presence check runs.
 5. `bad colour` — value validation across every **known** key in the file. **Unknown keys' values are not validated**, because §4.6's forward-compatibility lever requires it: if a removed token's stale line could reject a file on its value, "old files keep working" would only hold for values that happen to still be well-formed hex, which is a much weaker guarantee than the one §4.4 and §4.6 state. An unknown key is ignored entirely — key and value both.
@@ -690,7 +690,9 @@ The **six `§2.9 erratum` corrections**, given as original → shipped, under th
 
 - **Type: boolean.** Not a version string or timestamp — the translation is a single event with no successor, so there is nothing to version.
 - **Tolerant decode:** anything that is not literal `true` — absent, empty, corrupt, unrecognised — decodes to `false`. This keeps decode as dumb as the string keys: the failure direction is "run the translation again", and the translation is idempotent by §10.5, so a corrupt marker costs one redundant write rather than a wrong theme.
-- **Written unconditionally on the first post-upgrade prefs load**, including when there is nothing to translate (`appearance` is `auto` or absent). Otherwise the condition is re-evaluated on every launch forever. §10.2's "Nothing" refers to the *theme keys* — the marker is still set.
+- **Written on the first post-upgrade prefs load whenever `prefs.json` already exists**, including when there is nothing to translate (`appearance` is `auto` or present-but-unrecognised). §10.2's "Nothing" refers to the *theme keys* — the marker is still set, so the condition is not re-evaluated forever.
+- **Not written when `prefs.json` does not exist.** A fresh install has no `appearance` to translate, so creating the file purely to record a marker would be a new side effect on a path this feature otherwise adds nothing to (§5.5 pointedly refuses to create the themes directory; §12.3 records that the exec path stays free). Re-evaluating on each launch costs an absent-field check on a read that is already happening — free, and the file appears the moment the user changes anything.
+- **Empty values are omitted on write** (`omitempty` across the theme keys and the retained `appearance`). The §8.1 example above shows the full schema, not the on-disk shape: a key the user has never set is *absent*, which is exactly the "unset slot holds the shipped default" semantics of §8.3, keeps a hand-editable file clean, and means a downgraded binary reads an absent `appearance` as absent rather than as an empty string.
 - **Never participates in mutual exclusion** (§8.2). It is orthogonal to which theme keys are set, and clearing theme keys by hand does not clear it — that is precisely the property §10.3 exists to guarantee.
 
 Rejected: a polymorphic `theme` field (string *or* object — tolerant-decoding a two-typed field means probing both, and "what does a corrupt value degrade to" turns murky in the store meant to be dumbest), and an always-object form (`{"constant": …}` / `{"light": …, "dark": …}` — explicit but verbose for the common case, and invents a wrapper key).
@@ -959,7 +961,7 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 **Sort key and display label are separate, and the sort key is fully determined:**
 
 - The **sort key is the slug** wherever one exists — including a `reserved name` row, which is why it sorts adjacent to the built-in it collides with despite being *labelled* by filename. A `not found` persisted-slug row sorts by its slug too.
-- Only a **`bad name`** row has no slug; it sorts by **filename**.
+- Only a **`bad name`** row has no slug; it sorts by **filename**. A **persisted string rejected by §8.6's charset check** has neither a slug nor a file — it sorts by **the persisted string itself**, control-stripped and truncated as it is for display. There is exactly one thing to sort it by, and using it keeps the ordering total.
 - Comparison is **case-insensitive, with a byte-wise tie-break**. Slugs are lowercase by construction, but filenames are not, and a byte-wise-only comparison would file `Zed.theme` ahead of every valid theme.
 - The pinned `⚠ themes dir unreadable` row is **outside the ordering** — it is always first.
 
@@ -1051,6 +1053,12 @@ Under `NO_COLOR` Portal paints no canvas, imposes no hues, and renders glyph-bac
 
 This is deliberately the **opposite** call to the narrow-terminal one. Narrow is a *space shortage*, where §2.7 mandates degrade. `NO_COLOR` is a *capability absence* — there is no colour to theme, so the panel's purpose is inert rather than cramped.
 
+**Under `NO_COLOR` the theme machinery still runs normally, unchanged.** Nothing branches on it below the render layer:
+
+- **Both nominated themes are still loaded** at construction. Two file reads whose values are then not painted is the honest cost of not special-casing the loader — and the alternative (skip loading under `NO_COLOR`) would mean a theme commit made in that session had nothing in hand to persist against.
+- **The gate is skipped** (`NO_COLOR` already suppresses detection today), so the standing **dark** no-answer fallback selects the active member. `theme: loaded` is emitted as normal, one line per nomination.
+- **The startup canvas hex is captured as normal** from the selected member, so `RestoreTerminalBackground` has a defined comparison value — but no canvas is painted and no OSC 11 set is issued, so there is nothing to restore and the set-back is a no-op. The §11.4 anchor test does not need a `NO_COLOR` case: the value is defined and unused.
+
 **Counter recorded rather than buried:** someone may run `NO_COLOR` in one context and not another, so blocking prevents setting a theme that *would* apply elsewhere. Accepted, because the escape hatch is first-class — `prefs.json` is the documented hand-editable home for the theme setting, so three keys can be set by hand.
 
 ### 9.11 Everything re-themes, panel included
@@ -1067,9 +1075,10 @@ This is deliberately the **opposite** call to the narrow-terminal one. Narrow is
 
 The panel introduces `Enter`, `d`, `l` and `Esc` through a bespoke vertical footer outside `keymap.go` — a second place a key label can go stale, the very drift class guarded elsewhere.
 
-- **The panel's keys live in the keymap descriptor as a panel scope.**
-- **Its vertical footer renders from the descriptor.**
+- **The panel's keys live in the keymap descriptor as a panel scope** — **all six**: `↑`/`↓`, `Ctrl+↑`/`Ctrl+↓`, `Enter`, `d`, `l`, `Esc`. The descriptor must be complete or the dispatch guard's descriptor↔dispatch parity is what breaks.
+- **Its vertical footer renders from the descriptor, filtered to the `Core` entries** — `Enter`, `d`, `l`, `Esc`. Arrows and paging are present in the descriptor as **non-core**, which is exactly the distinction §14.1 applies to arrows on the main footer, for the same reason: arrows in a list are a given. That is how the six-entry descriptor and §14A's pinned four-row footer are both satisfied without either being a special case.
 - **`keymap_dispatch_guard_test` covers them.**
+- **`?` does nothing inside the panel.** It is swallowed with everything else (§9.7) — there is no panel help modal, and the panel scope exists to drive the vertical footer and the guard, not a help body. The panel's four commits are already listed in front of the user; a help modal over a non-blanking overlay would also stack the shape §9.6 rejects.
 
 ### 9.13 A failed commit write
 
@@ -1123,6 +1132,12 @@ Rejected: accepting the silent flip as cosmetic and one keypress to fix. Wrong w
 Gating on absence would be re-armable, and it composes badly with the "no unset" acceptance (§9.9), whose documented escape hatch is to hand-edit `prefs.json`: an upgraded user who deletes their theme keys to return to the shipped adaptive pair would get **silently re-translated and re-pinned** on the next launch — Portal reinstating exactly what they just undid.
 
 With an explicit marker: `appearance` is retained, deleting theme keys does nothing, and the trigger fires **exactly once ever**.
+
+**The trigger and the no-op condition are separate things.** The marker decides *whether the translation is still pending*; a check on the theme keys decides *whether there is anything to do*:
+
+- **If any theme key is already set, the translation writes no theme key** — it only sets the marker. This is not absence-gating the trigger (which §10.3 rejects as re-armable); it is refusing to clobber a choice the user has already made.
+- Without it, a reachable sequence loses a setting: a user upgrades, runs only bootstrap-exempt commands for a while so the migration never fires, reads the new docs and hand-edits `theme_dark = nord`, then launches the picker — whereupon the still-pending translation pins `theme = tokyo-night` and §8.2's write rule clears the slot they just authored. That is the mirror image of the failure §10.1 exists to prevent.
+- **Mutual exclusion still applies** when the translation *does* write: it writes a constant, so it clears the slots. There is simply never anything to clear, because it only writes when all three keys are empty.
 
 ### 10.4 `appearance` is retained, not dropped
 
@@ -1272,11 +1287,11 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 |---|---|---|
 | `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. |
 | `theme: enumerated` | INFO | At panel open. Carries `count` and `rejected`. |
-| `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. Carries `token` where the reason names one (`missing tokens`, `bad colour`) — this is the `token` attr's only consumer. |
+| `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. Carries `token` where the reason names one (`missing tokens`, `bad colour`) — this is the `token` attr's only consumer. A file with **no slug** (`bad name`) is identified by `path` instead, and the **dedup key is `slug`+`reason` where a slug exists and `path`+`reason` where it does not** — otherwise the class most likely to recur across panel opens is the one class with no dedup key. |
 | `theme: directory unusable` | WARN | Per enumeration where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. An *absent* directory emits nothing. |
-| `theme: fallback applied` | WARN | Per fallback |
+| `theme: fallback applied` | WARN | Per fallback. Carries `slug` (the nomination that failed), `slot` where one applies, and `reason`. Without them the line is not greppable, which is the whole reason the log earns its place. |
 | `theme: appearance migrated` | INFO | Emitted on **successful persist**, not on compute. §10.5's write is best-effort and retries next launch, so a compute-time emission could legitimately fire on several consecutive launches and "one-shot" would be false. Tied to the persist, it fires exactly once — and its absence after a translation is itself the signal that the write failed. |
-| `theme: commit failed` | WARN | Per failed write |
+| `theme: commit failed` | WARN | Per failed write. Carries `slug`, `slot` (absent when committing a constant), and `reason`. |
 
 **Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`, `rejected`.
 
@@ -1313,6 +1328,12 @@ A new user-facing doc, following the `docs/custom-terminals.md` precedent (a use
 **That paragraph comes out with the setting** — and the advice is obsolete twice over, since the premise was probably never true in the first place (§8.7).
 
 README gains the theme setting in its place, pointing at `docs/theming.md`.
+
+**CHANGELOG.** This release needs a user-visible upgrade note, not just a feature line — two other decisions lean on the user knowing the setting changed shape. §10.4 keeps `appearance` on disk precisely because Homebrew downgrades are routine, and §9.9 accepts "no unset" on the grounds that `prefs.json` is hand-editable *and documented*. The entry must therefore cover:
+
+- The new theme setting (`theme` / `theme_light` / `theme_dark`) and the three built-ins, pointing at `docs/theming.md`.
+- That **`appearance` is replaced and translated automatically** — a pinned `light`/`dark` becomes the equivalent constant theme, `auto` needs nothing — so a user who set it does not have to act.
+- That the old key is **left in place** for downgrade, and is not kept in sync afterwards.
 
 ### 12.6 `CLAUDE.md`
 
@@ -1357,7 +1378,7 @@ The committed reference PNGs were never meant to persist — they existed so the
 ### 13.3 Harness changes required
 
 - **`capturetool` and `internal/capture` survive and are open for edit.** Whatever the tool needs to work with the new system is in scope for this feature — no separate redevelopment work unit.
-- **`tui.Build` takes a *theme* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes. Without this the harness can only ever render the compiled-in default.
+- **`tui.Build` takes the loaded *nomination* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes, replaced per §8.4 (one theme under a constant, both under an adaptive pair, plus which member is active). `capturetool` always passes the **constant shape**: a single pinned theme, no gate, no wait — which is what keeps captures byte-deterministic. Without this injection the harness can only ever render the compiled-in default.
 - **`capturetool` gains a `--theme` flag, replacing `--appearance`.** `--theme` accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
   - **Default: `tokyo-night`** when the flag is omitted, matching the shipped dark default. Every capture an agent takes without passing the flag depends on this, so it is named rather than inferred.
   - **Slug versus path is discriminated by the `.theme` suffix**, not by a path separator — so `nord` is a slug and `nord.theme`, `./nord.theme` and `/abs/nord.theme` are all paths. One rule, and it reads the way a user would say it.
@@ -1367,6 +1388,7 @@ The committed reference PNGs were never meant to persist — they existed so the
 - **PNG production stays on VHS. No direct writer, no new dependency.** The hard requirement is that **every fixture can produce a PNG** (§13.1) — that is what the mechanism must satisfy, and VHS already satisfies it. Rasterising styled ANSI needs a terminal-cell renderer with an embedded font and fixed cell metrics, which would mean a real module dependency plus a font asset in a repo that has deliberately avoided both, to replace a mechanism that works.
 
   §13.2 deletes the *current* tapes along with the images, because both are scaffolding tied to the pre-rename, pre-split screens. **New tapes are written per fixture as work proceeds and cleared out after sign-off**, under exactly the same retention rule as the images (§13.2) — a tape is scaffolding, not an asset. VHS also remains the route if a gif is ever wanted for motion.
+- **The panel's theme enumeration is behind an injectable seam.** A `ThemeEnumerator`-shaped interface, matching the `TmuxEnumerator` / `ScrollbackReader` idiom the preview page already uses: production wires the real directory walk, fixtures fake it. This is an architectural requirement, not a convenience — the harness must render an invalid-theme row without a real themes directory, and §7.1's no-real-config import guard forbids `internal/capture` reaching config at all. It is also what makes the panel unit-testable (row composition, ordering, truncation, the invalid-row skip), none of which otherwise has a test home.
 - **New fixtures are added for the slide-over** — the adaptive-pair state, the constant-while-previewing state, an invalid-theme row, and the narrow degraded panel — so the panel is visible during implementation rather than at release.
 
 ### 13.4 The swap-and-diff completeness guard
@@ -1406,6 +1428,33 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 ### 13.5 Contrast checking
 
 **Floor-check enrolment is automatic.** The floor test **auto-enumerates the embedded set**, so a new built-in is checked by default.
+
+**The canonical rule set, stated here because "auto-enumerates" only means anything against a complete and theme-independent list.** §7.4's table is the *Nord port's* verification record — a walk of these rules for one palette — not the rules themselves. Every ratio is measured against **the theme's own `canvas`** (§13.5's amendment), never a constant. Three floors carry the whole set: **4.50** normal text, **3.00** large/UI, **1.10** fill-perceptible.
+
+*Foreground vs canvas:*
+
+| Token | Rule |
+|---|---|
+| `text.primary`, `text.secondary`, `text.tertiary`, `text.muted` | ≥ 4.50 |
+| `text.subtle` | band **3.00–4.49** — it must clear the UI floor *and* stay below normal text, or it is not de-emphasised. (This generalises what ships today as a light-only ceiling; the Nord port already satisfies it at 3.18.) |
+| `text.faint` | band **> 1.00 and < 3.00** — visible but decorative-only; reaching the UI floor is a failure |
+| `accent.primary` | ≥ 3.00 (large/UI — it renders bars and glyphs, not body text) |
+| `accent.key`, `accent.mode`, `accent.attention`, `state.positive`, `state.destructive` | ≥ 4.50 |
+| `border`, `canvas` | no numeric floor |
+
+*Tint pair rules — three legs each:*
+
+| Tint | Legs |
+|---|---|
+| `bg.selection` | text-on-tint (`text.on-selection`) ≥ 4.50 · bar (`accent.primary`) vs canvas ≥ 3.00 · fill vs canvas ≥ 1.10 |
+| `bg.attention` | text-on-tint (`text.on-attention`) ≥ 4.50 · bar (`accent.attention`) vs canvas ≥ 3.00 · fill vs canvas ≥ 1.10 |
+| `bg.subtle` | fill vs canvas ≥ 1.10 only — nothing renders on it |
+
+*Foreground-on-tint pairings, all ≥ 4.50:* `text.on-selection`, `text.secondary`, `text.tertiary` and `state.positive` on `bg.selection`; `text.on-attention` on `bg.attention`.
+
+*Single-token dual clearance:* `state.positive` is one token rendering both on the canvas and on the selected row, so it must clear **both** — ≥ 4.50 against canvas *and* against `bg.selection`. This is the leg that caught the Nord green (§7.4) and the one MV itself solved by darkening.
+
+*Light themes only:* the four eyeball-pinned tints (below) are exact-value pins, not ratios.
 
 **Plus a light/dark table**, needed because the light surface tints are not numerically checkable (light-tint-on-light-canvas is numeric-insufficient — hence `TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
 
@@ -1462,6 +1511,18 @@ The Projects footer was verified against the `Projects (MV)` frame: it carries n
 
 **Consequence for the width budget:** §14.3's arithmetic is measured with both entries present, which is the tight case. Filtering only ever removes entries, so every blocked-state footer is strictly narrower and no separate budget is needed.
 
+**The Projects footer needs its own call-site filter.** §9.10 names `sessionsHelpKeymap()`, but §14.2 puts `t theme` in the Projects footer too, so the Projects keymap needs the matching filter for a blocked `t`. Same mechanism, second call site.
+
+### 14.4 Below the reference width — the footer degrades right-to-left
+
+The Sessions footer fits at 86 columns with **no headroom**, so narrower terminals are a live case rather than a theoretical one. MV §2.7's ladder covers the header and rows, not the footer.
+
+**Rule: drop footer entries from the right until the row fits, and never wrap or truncate a label.** A half-rendered key hint is worse than an absent one — the footer's job is to advertise what is available, and a truncated `x proje…` advertises nothing while costing the same space.
+
+**`? help` is never dropped.** It is right-aligned and it is the escape hatch that makes every dropped entry recoverable: the help modal lists the full keymap regardless of footer width, so a user on a narrow terminal loses the reminder, not the capability.
+
+Below the width where `? help` alone fits, the footer renders empty — consistent with §2.7's degrade-never-break doctrine, and Portal's documented 40-column minimum sits well above it. **Exact thresholds are pinned at implementation**, as §2.7 already does for its own steps.
+
 ---
 
 ## 14A. User-facing copy
@@ -1500,11 +1561,23 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | Case | Copy |
 |---|---|
 | Invalid theme file | `⚠ theme <slug>: <reason> — <detail>` where detail enumerates within the reason (e.g. `missing text.primary, bg.subtle`) |
-| Invalid theme file **with no slug** (`bad name`) | `⚠ theme file <filename>: slug must be lowercase letters, digits and hyphens` — the file is named, not a slug, because a `bad name` file has none (§5.2) and "which file is it?" is the whole diagnostic value here |
+| `bad name`, bad **slug** | `⚠ theme file <filename>: slug must be lowercase letters, digits and hyphens` |
+| `bad name`, bad **extension casing** | `⚠ theme file <filename>: extension must be lowercase .theme` — a distinct message because the slug portion is already legal, and sending the user to fix the one thing that is fine is exactly the misdirection §9.4 and §12.1 discriminate against elsewhere |
 | `reserved name` conflict | `⚠ theme file <filename>: <slug> is a built-in — rename it (e.g. <slug>-mine.theme)` — the message names the conflict *and* the fix, which is what makes §5.4's workaround self-documenting rather than merely short |
-| Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>` |
+| Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>`. `<slot>` renders `light` or `dark` under an adaptive pair; under a **constant** the parenthetical is omitted entirely — `⚠ theme <slug> does not resolve: <reason>` |
 | Themes directory unusable | `⚠ themes directory unreadable: <path>` |
-| Closing summary | `<N> checks passed · <M> advisories` |
+| Closing summary, M ≥ 1 | `<N> checks passed · <M> advisory` at M=1, `· <M> advisories` above |
+| Closing summary, M = 0 | `<N> checks passed` — the advisory clause is suppressed, so an unchanged doctor run reads exactly as it does today |
+
+**`<detail>` formats**, since §6.2/§6.3 push all discrimination here and doctor has the width for it:
+
+| Reason | Detail |
+|---|---|
+| `missing tokens` | The token names, comma-separated: `missing text.primary, bg.subtle` |
+| `bad colour` | Every offending `key = value` pair, comma-separated: `text.primary = #GGGGGG, canvas = blue` |
+| `bad syntax` | Line number and the offending content: `line 12: duplicate key text.primary` / `line 4: quoted value` / `line 7: not a key = value pair`. A duplicate names the **second** occurrence's line, which is the one to delete |
+| `unreadable` | The OS error verbatim — it is the only thing that distinguishes a permission denial from a dangling symlink, and doctor is where a verbatim system message belongs |
+| `reserved name` | Covered by its own pinned line above, which names the conflict and the fix rather than following the generic frame |
 
 **Fatal startup message (§7.6)**, on the should-never-happen path where a fallback slug does not resolve within the embedded set: `built-in theme <slug> is missing or invalid — this binary is broken`. Terse is right for a path the build-time guarantee makes unreachable, but it is still new copy and is pinned rather than left implicit.
 

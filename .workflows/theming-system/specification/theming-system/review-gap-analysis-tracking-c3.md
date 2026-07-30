@@ -28,8 +28,8 @@ Implementer consequence: either the reason vocabulary needs a second cause docum
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved by keeping seven reasons and discriminating in doctor: §6.2's `bad name` definition now names both causes (bad slug, non-exact extension casing) with the rationale for one class (same user-facing fact, no panel width to discriminate), the ladder's rung 1 reworded to check the *filename* and to note why rung 2 is then unreachable, and §14A split into two pinned messages so a `mytheme.THEME` user is told about the extension, not the slug.
 
 ---
 
@@ -52,8 +52,8 @@ Both cannot be the signature. §8.4's later note that `capturetool --theme` *"pa
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3's wording corrected to match §8.4: `tui.Build` takes the loaded *nomination*, with the note that capturetool always passes the constant shape.
 
 ---
 
@@ -78,8 +78,8 @@ All three are defensible readings, and they differ in whether a user loses a set
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §10.3 by separating the trigger from the no-op condition: the marker decides whether the translation is pending, a theme-keys check decides whether there is anything to do. If any theme key is set, only the marker is written. The reachable loss-of-setting sequence is recorded, and mutual exclusion is noted as still applying when the translation does write (with nothing ever there to clear).
 
 ---
 
@@ -99,8 +99,8 @@ All three are defensible readings, and they differ in whether a user loses a set
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.1: the marker is written only when prefs.json already exists — a fresh install has nothing to translate, and creating the file purely for a marker would be a new side effect on a path this feature otherwise keeps free; re-evaluation costs an absent-field check on a read already happening. Also pinned: empty values are omitted on write (omitempty), with §8.1's example clarified as the schema rather than the on-disk shape.
 
 ---
 
@@ -123,8 +123,8 @@ Also unpinned: the closing summary when there are **zero** advisories. §12.2 pi
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A extended with the five `<detail>` formats (missing tokens, bad colour, bad syntax with line number and second-occurrence rule, unreadable verbatim OS error, reserved name via its own line), the `<slot>` parenthetical omitted under a constant, and both closing-summary forms including M=0 suppression and M=1 singular.
 
 ---
 
@@ -148,8 +148,8 @@ An implementer therefore has to reconstruct the canonical rules from the existin
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.5 now states the canonical, theme-independent rule set in full — the three floors, per-token foreground rules including text.subtle's band generalised from today's light-only ceiling, the three tint pair rules, the foreground-on-tint pairings, and state.positive's dual clearance — with §7.4's table explicitly reframed as the Nord port's verification record rather than the rules themselves.
 
 ---
 
@@ -169,8 +169,8 @@ This also has planning consequences: the seam is what makes the panel unit-testa
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3 gains a `ThemeEnumerator` seam matching the existing TmuxEnumerator/ScrollbackReader idiom, named as an architectural requirement (the import guard forbids internal/capture reaching config, so the invalid-theme-row fixture cannot use the production enumerator) and as what makes the panel unit-testable at all.
 
 ---
 
@@ -190,8 +190,8 @@ Related and cheap to settle in the same place: §9.10 names only `sessionsHelpKe
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: New §14.4: the footer drops entries right-to-left, never wraps or truncates a label (a half-rendered hint advertises nothing), and never drops `? help` — which keeps every dropped entry recoverable via the help modal. Thresholds pinned at implementation per §2.7. The Projects-side blocked-`t` filter is also named in §14.3.
 
 ---
 
@@ -212,8 +212,8 @@ Two further holes in the same catalogue:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.3 now declares attrs for `theme: fallback applied` (slug/slot/reason) and `theme: commit failed` (slug/slot/reason), and pins the `theme: rejected` dedup key as slug+reason where a slug exists and path+reason where it does not — closing the hole for the one class most likely to recur.
 
 ---
 
@@ -233,8 +233,8 @@ Two further holes in the same catalogue:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Both resolved: §4.2's whitespace rule now trims each line at both ends first (so indentation before a key is fine, matching the tolerance the comment rule already grants), and §4.3 pins parser canonicalisation to uppercase, naming the three comparison sites (retained startup canvas, background diffing, swap-and-diff scan) that depend on it.
 
 ---
 
@@ -253,8 +253,8 @@ Two further holes in the same catalogue:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Both resolved: §5.6 treats a symlink resolving to a directory identically to a real subdirectory (skipped silently — what the entry resolves to decides, not whether a link is involved), and §9.5 sorts a charset-rejected persisted string by the string itself, control-stripped, keeping the ordering total.
 
 ---
 
@@ -274,8 +274,8 @@ Also unstated: whether `?` inside the panel does anything. §9.7 says everything
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.12 now requires all six keys in the descriptor with the footer rendering only the `Core` subset — arrows and paging are non-core, exactly the distinction §14.1 applies on the main footer — so the six-entry descriptor and §14A's four-row footer are both satisfied without a special case. `?` inside the panel is explicitly a no-op with the reasoning.
 
 ---
 
@@ -298,8 +298,8 @@ Nothing here is visually consequential, but each is a branch an implementer must
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.10 now states that the theme machinery runs unchanged under NO_COLOR: both nominated themes still load (so a commit has something to persist against), the gate is skipped so the dark no-answer fallback selects, `theme: loaded` emits as normal, and the startup canvas hex is captured but unused — with the explicit note that the §11.4 anchor test needs no NO_COLOR case.
 
 ---
 
@@ -317,5 +317,5 @@ That is a live question rather than boilerplate: §10.4 keeps `appearance` on di
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.5 gains a CHANGELOG subsection: the entry must cover the new setting and built-ins, that `appearance` is translated automatically so a user who set it need not act, and that the old key is left in place for downgrade and not kept in sync — all three because §10.4 and §9.9 lean on the user knowing the setting changed shape.
