@@ -657,7 +657,13 @@ The **six `§2.9 erratum` corrections**, given as original → shipped, under th
 
 `accent.primary` (`#8A3FD1`) is explicitly **out of scope**: its in-source note records that it cleared its floor unremedied, so it was never darkened.
 
-**Owned by this feature's implementation, before MV's values are frozen into theme files:** re-derive the six corrected light values in Oklab — the minimal-Oklab-distance colour that clears the same floor — and compare each against the shipped value.
+**Owned by this feature's implementation, before MV's values are frozen into theme files.** Three steps, and the middle one is the point:
+
+1. **Re-derive** each value in Oklab — the minimal-Oklab-distance colour that clears the same floor.
+2. **Measure chroma loss** of the *shipped* value against its *original*, the way the Nord red was diagnosed: `#CF888F` lost ~27% of the source's chroma and was rejected on sight; `#DD8188` retains ~94% and shipped. This is the quantity under suspicion — "darkened, hue-preserved" is a claim about chroma — and it is **not** what ΔE answers. ΔE(shipped, re-derivation) says whether the re-derivation landed somewhere else; the two disagree in both directions, since a shipped value can sit within threshold of the re-derivation while both have shed chroma against the original, and a value can exceed the threshold on lightness alone with chroma intact.
+3. **Gate** anything that moved materially.
+
+**The chroma figure is recorded for all seven values regardless of outcome**, which is also what closes a gap §7.4 opens: Nord's two corrections carry their chroma figures precisely so they are checkable if ever re-derived, and without this step MV's would be the only corrections in the built-in set without one.
 
 **Threshold: Oklab ΔE ≥ 0.05 is "moved materially".** The Nord port anchors the scale at the other end (ΔE 0.018, cited as essentially imperceptible), and 0.05 is comfortably above that while still well below a difference anyone would describe as a colour change. Under it, nothing happens.
 
@@ -749,7 +755,12 @@ This is load-bearing because three other decisions collide otherwise: the model 
 
 **Resolution order on the by-name path: the embedded set first, then the themes directory.** A nominated slug that names a built-in resolves to the built-in and **never reads the themes directory at all**. This is what makes §5.4's no-shadowing guarantee implementable on the path that matters — construction does not enumerate, so there is no collision to *detect* there; the safety property has to come from ordering. And construction is where the fallback resolves, which is the exact thing no-shadowing exists to protect.
 
-**Mid-session slot assignment reads at commit time.** A constant nominates one theme, so assigning a slot (converting the user to adaptive in-session) reads that slot's file at keypress time — already the panel's cost model.
+**Mid-session slot assignment loads the *other* slot at commit time.** A constant nominates one theme, so converting to adaptive makes a second slot live that construction never loaded. The slot the user just assigned needs no read — §5.8's enumeration already holds its parse, which is what makes arrowing the O(1) restyle of §11.1. The read that is needed is the **opposite** one:
+
+- **An untouched slot holds a shipped default** (§8.3), so it resolves from the embedded set and never touches the themes directory (§8.4's ordering rule) — cheap and infallible.
+- **A stale hand-edited slot** (§8.2, where a `theme`-wins file's slots were invisible until the constant cleared) is a by-name directory read that can fail into §8.5's fallback like any other.
+
+Both are keypress-time work, which is already the panel's cost model. **This is the one theme load that happens outside construction**, so it emits `theme: loaded` at commit rather than at construction — the catalogue's cadence column (§12.3) accounts for it.
 
 **The constructor therefore takes the loaded *nomination*, not a single theme.** One value covering both states:
 
@@ -932,6 +943,8 @@ Assigning a slot converts a constant-theme user to adaptive in-session, which ne
 **This dissolves.** `restore.go` issues the OSC 11 query from `Init` **regardless** — it needs the original background to restore on exit, independent of detection. The terminal's background is therefore already in hand; the detection decision only ever governed whether to **classify and use** it. Converting to adaptive mid-session starts using an answer that already arrived: no new query, no race, no gate.
 
 The startup win survives intact — skipping the gate for constant users is about not **blocking first paint**, not about not asking. If the reply has not landed (requiring the panel to be opened within milliseconds of launch) it falls to **dark**, the same rule as everywhere else.
+
+**The transition's other half is a file, not an answer**, and it does not dissolve: the slot the user did *not* assign was never loaded at construction and becomes live on the same keypress. §8.4 specifies that load.
 
 ### 9.4 The list — files ∪ whatever prefs names
 
@@ -1285,7 +1298,7 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 
 | Event | Level | Cadence |
 |---|---|---|
-| `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. |
+| `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. **Also fires at commit time** for the one load that happens outside construction: the newly-live opposite slot on a constant → adaptive conversion (§8.4). |
 | `theme: enumerated` | INFO | At panel open. Carries `count` and `rejected`. |
 | `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. Carries `token` where the reason names one (`missing tokens`, `bad colour`) — this is the `token` attr's only consumer. A file with **no slug** (`bad name`) is identified by `path` instead, and the **dedup key is `slug`+`reason` where a slug exists and `path`+`reason` where it does not** — otherwise the class most likely to recur across panel opens is the one class with no dedup key. |
 | `theme: directory unusable` | WARN | Per enumeration where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. An *absent* directory emits nothing. |

@@ -37,8 +37,8 @@ Two consequences follow that are also unstated:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.4's mid-session paragraph rewritten to name the *other* slot: the assigned slot needs no read (§5.8 already holds its parse), the newly-live opposite slot does — from the embedded set for an untouched shipped default, or a by-name directory read that can fall to §8.5 for a stale hand-edited slug. §9.3 gains a closing note that the transition's file half does not dissolve, and §12.3's `theme: loaded` cadence extended to cover the one load outside construction.
 
 ---
 
@@ -70,7 +70,7 @@ It also leaves §7.7's recording obligation thin: the spec requires that *"a pas
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §7.7 restructured into the source's three steps with chroma measurement restored as step 2, including why it is not a synonym for ΔE (the two disagree in both directions) and the Nord ~27%/~94% precedent as the diagnostic method. The chroma figure is recorded for all seven values regardless of outcome, closing the gap where MV's corrections would be the only ones in the built-in set without one.
 
 ---
