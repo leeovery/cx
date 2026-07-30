@@ -568,6 +568,139 @@ MV's six corrected light values are described in-source as *"darkened, hue-prese
 
 **Flagged consequence:** if the check finds anything, shipped colours change, `TestLightSurfaceTintsPinned`'s eyeball-established pins move, and "Tokyo Night Dark/Light are just the existing values" (§7.3) stops holding exactly. **The built-in-set decision is conditional on this check.**
 
+## 8. The theme setting — resolution & detection
+
+### 8.1 On-disk shape — three flat string keys in `prefs.json`
+
+`prefs.json` gains three keys alongside the existing `session_list_mode`:
+
+```json
+{
+  "session_list_mode": "flat",
+  "theme": "",
+  "theme_light": "",
+  "theme_dark": ""
+}
+```
+
+Rejected: a polymorphic `theme` field (string *or* object — tolerant-decoding a two-typed field means probing both, and "what does a corrupt value degrade to" turns murky in the store meant to be dumbest), and an always-object form (`{"constant": …}` / `{"light": …, "dark": …}` — explicit but verbose for the common case, and invents a wrapper key).
+
+Three flat keys match what `prefs.json` already is — a flat map of scalars — so **tolerant decode stays exactly as dumb as today**: missing, empty or unrecognised falls to the shipped default *per field*, with no type probing.
+
+**`prefs.json` is the hand-editable home for the theme setting.** Portal has no separate user config file, and prefs already holds `appearance` today with the README instructing users to set it by hand. The theme setting inherits exactly that: machine-written by the panel, hand-editable by anyone who prefers.
+
+### 8.2 Two states, not three
+
+A theme setting is either:
+
+- **Constant** — `"theme": "nord"`. Detection is never consulted.
+- **Adaptive** — `"theme_light"` / `"theme_dark"`. Detection chooses.
+
+"Nothing set" and "pair nominated" are **the same state**: the shipped default *is* an implicit pair, so the loader needs no unconfigured branch — only a default value per slot.
+
+**Mutual exclusion is enforced on write.** Committing a constant clears both slots; assigning a slot clears the constant. Whichever was set last wins, so "both a constant and a pair are present" cannot arise from Portal's own writes.
+
+**If a hand-edit leaves both present, `theme` wins** — a documented deterministic rule. The "only two states" model stays a *rule* rather than being encoded in a type: non-empty `theme` ⇒ constant, otherwise the pair.
+
+### 8.3 The shipped default is the adaptive pair
+
+Portal ships with the pair already nominated:
+
+```
+theme_light = tokyo-night-day
+theme_dark  = tokyo-night
+```
+
+So a brand-new user gets whichever matches their terminal, automatically.
+
+Reasons over shipping a constant dark default:
+
+- **The 50ms is a timeout, not a price** — terminals that answer do so in single-digit ms — and it applies only to TUI launches, since `portal open <target>` execs without painting.
+- **It degrades to the alternative**: no answer resolves to dark, so the adaptive pair is a superset of a constant dark default with a bounded downside.
+- **Asymmetric escape.** Pinning is one line and is the *simpler* config (`"theme": "tokyo-night"`), so an annoyed user has an obvious remedy. The alternative's failure has no signal at all — a light-terminal user gets a dark Portal forever and never learns a light theme exists.
+
+**Risk named:** a terminal that answers OSC 11 inconsistently makes Portal flip between launches. The one-line pin is the remedy.
+
+**Partial pairs do not exist.** The adaptive form always has two slots and the shipped values are their *defaults*, so `"theme_dark": "nord"` yields `{light: tokyo-night-day, dark: nord}` — light is still the shipped default because it was never overridden. There is no incomplete-pair state to validate, explain, or render around, and the shipped default and a partially-overridden pair are **the same mechanism** rather than two.
+
+### 8.4 Construction timing — load every nominated theme
+
+**At construction Portal loads every *nominated* theme — at most two.** The light/dark gate then only **selects** between values already in hand.
+
+This is load-bearing because three other decisions collide otherwise: the model holds the active `Theme` (§3.4), discovery is lazy and does one read by name (§5.7), and a two-slot user's light/dark resolves **after** `Init`, when the OSC 11 reply or the 50ms timeout lands. Since the shipped default *is* the adaptive pair, the common path constructs the model before the slot is known — and both alternatives were bad: defer the read onto the first-paint critical path, or paint dark and flip.
+
+**Cold-path cost:** one file read for a constant, two for a pair. No file read on the critical path, no flip.
+
+**Mid-session slot assignment reads at commit time.** A constant nominates one theme, so assigning a slot (converting the user to adaptive in-session) reads that slot's file at keypress time — already the panel's cost model.
+
+### 8.5 Fallback — per-slot and mode-matched
+
+When a nominated theme is unloadable (invalid file, missing file, bad persisted slug):
+
+| Nominated slot | Falls back to |
+|---|---|
+| `theme_dark` | `tokyo-night` |
+| `theme_light` | `tokyo-night-day` |
+| `theme` (constant) | `tokyo-night` |
+
+This introduces **no new mechanism** — it is the already-decided "an unset slot holds the shipped default" rule applied to a slot that is *set but unloadable* rather than unset. One rule covers both cases, and it makes the shipped adaptive default and the fallback default **the same values**.
+
+Rejected: a single fixed fallback regardless of mode. Simpler to state, worse in practice — a light-terminal user with a typo in their light slot would be thrown to a dark theme, a bigger surprise than falling to the light default.
+
+**One not-loadable path serves every cause** — a deleted file, a renamed file, a typo in `prefs.json`, a missing token, a bad colour. All fall back, keep the persisted name (§6.3), and surface through the panel, doctor and the log.
+
+### 8.6 The persisted slug is validated before use
+
+The persisted value comes from a hand-editable file and is used to **locate a file by name** on a path that deliberately does not enumerate — so `../something` would be used as a path component.
+
+**Validate the persisted slug against the same `[a-z0-9-]` charset before use** (§5.2), and treat an invalid one as unresolvable: fallback plus report, identical to any other unresolvable theme.
+
+### 8.7 Light/dark detection
+
+**Detection ships. The signal is the terminal background via OSC 11.** DEC mode 2031 (the OS colour scheme) is deliberately **not** adopted.
+
+The two answer different questions: `ModeLightDark` reports *the operating system's* colour-scheme preference; OSC 11 reports *what colour the terminal's background is*. They routinely disagree — a terminal pinned dark on a light OS is the canonical case. On terminals that don't support 2031, tmux *synthesises* the answer by guessing from the background colour anyway.
+
+**What detection is for discriminates the signals.** Because Portal owns an opaque canvas and guarantees its contrast floors against that canvas, a mode mismatch is *jarring, never illegible*. Detection's entire payoff is therefore **aesthetic blending with the surrounding terminal** — which wants the terminal's background, OSC 11's question.
+
+Three arguments carried it:
+
+1. **Transition dominance.** Portal's dwell time is seconds — launch, pick, exec into a session, many times a day — so the transition in and out dominates the experience. Matching the terminal reads as "your terminal, with a picker in it". Matching the OS against a pinned terminal flashes light and drops back to dark, twice per use.
+2. **A terminal/OS mismatch is usually deliberate, not stale.** A pinned terminal is an explicit choice about the environment Portal lives in. For something that lives inside a terminal, the terminal's background is arguably the *more* relevant preference.
+3. **Forward compatibility with transparency** (deferred, not rejected). A transparent theme *must* follow the terminal background, so choosing terminal now makes adding transparency later purely additive.
+
+**Accepted cost: OSC 11 is query-only; 2031 pushes on change.** Portal gets *correct-at-startup*, not *live-following* — a terminal that flips mid-session is not noticed until the next launch. Judged thin: terminal backgrounds rarely change mid-session, and when they do it is usually because the terminal is itself following the OS.
+
+**The "detection is unreliable inside tmux" premise is retired.** It was the main argument for deleting the appearance axis entirely, it appears in the README, and it does not survive testing — OSC 11 works reliably through tmux. The README advice that rests on it comes out with the setting (§12.5).
+
+**A one-shot detection seed is not shipped.** Under this design detection acts only when the user nominated a pair — but since the shipped default *is* a pair, a brand-new user with a light terminal already gets the light theme. There is no unconfigured case left to seed.
+
+### 8.8 What survives and what dies in the appearance gate
+
+Under the two-slot form, the gate is only *partly* removed:
+
+| | |
+|---|---|
+| **Dies** | `prefs.Appearance` — the `auto\|light\|dark` enum, its tolerant decode, `LoadAppearance`/`SaveAppearance`, `WithAppearance`. (`SaveAppearance` has no production caller today, so this is mostly read-path removal.) |
+| **Dies via split** | `Token.ColorFor`, `theme.Mode` threading, the dual-canvas contrast bookkeeping. |
+| **Survives, but conditional** | The detect-or-timeout first-paint gate. A user on a **constant** theme needs no detection, so their first paint is immediate — a real startup win. A user on the **adaptive** form still needs light/dark resolved *before* first paint or Portal paints one theme and flips, so the same race, ~50ms timeout and **dark** no-answer fallback still apply. |
+| **Survives unchanged** | The OSC 11 *query* itself — `restore.go` needs it to capture the original background for restore-on-exit, independent of detection. The `NO_COLOR` carve-out. The canvas-echo guard, whose comparison re-points from "the mode's canvas" to a retained startup canvas hex (§11.4). |
+
+**The query is issued from `Init` regardless of the setting shape.** That is what makes a mid-session constant → adaptive conversion work without a new query, race or gate (§9.3).
+
+### 8.9 Concurrent instances and prefs writes
+
+Portal's multi-window burst routinely produces several concurrent processes, so multiple live instances are normal.
+
+- Each instance loads its theme at construction; an instance that changes theme persists it; **other instances are unaffected until relaunch.** There is no file watch.
+- This is exactly how `session_list_mode` already behaves — the `s` toggle persists per-instance with no cross-instance sync, via the existing `ModePersister` seam that a theme persister follows.
+
+**But a stale whole-file write can silently revert a theme.** Before this feature `prefs.json` had one field with a production writer. It now holds four independently-mutated fields written from two surfaces: instance A, constructed ten minutes ago, presses `s` and writes *its* in-memory prefs, silently reverting the theme instance B just committed. `AtomicWrite` does not help — this is a lost update, not a partial write.
+
+**Both writers must read-modify-write:** re-read `prefs.json` immediately before writing, mutate only their own field(s), and write the merged result. Not novel — the project and hooks stores already do this for their own mutations.
+
+`prefs.json` continues to go through `fileutil.AtomicWrite`, so all three theme keys land in one atomic write and partial failure is impossible.
+
 ---
 
 ## Working Notes
