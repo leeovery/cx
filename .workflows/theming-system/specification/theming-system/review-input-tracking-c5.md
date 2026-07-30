@@ -26,8 +26,8 @@ This also leaves §3.2's justification for the new `internal/theme` package over
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.9 now names the owner: a `cmd`-layer theme persister injected via `WithThemePersister`, the shape `WithModePersister` already has — it resolves the prefs path, performs the RMW via the non-migrating read, and is the emission site for `theme: commit failed`. §3.2's overstated "one component binding" claim corrected to CLAUDE.md's actual rule (bind once per package), with the three emitting packages named.
 
 ---
 
@@ -53,8 +53,8 @@ Adjacent and unstated in the same section: whether a *retry* is available at all
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.13 by carrying the report past the close: a panel closed with a failed commit outstanding raises a main-screen flash (`⚠ theme not saved — see portal.log`, pinned in §14A). The revert itself stands — the write did not land, so Esc resolving to persisted state is correct — but it is no longer silent. Also stated: commits are unconditional writes, so pressing the key again simply retries.
 
 ---
 
@@ -89,8 +89,8 @@ Also incomplete rather than absent: the table's **`tui/theme` row** entry says "
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.6 widened from four entries to seven: the `tui` row (whose staleness is most dangerous — it carries the do-not-drop-this-guard warning immediately before the code §11.4 changes), the config-path-resolution section (themesDirPath, PORTAL_THEMES_DIR, the non-migrating read, WithThemePersister, WithAppearance's deletion), and the bootstrap-exempt set (`theme` added). The `tui/theme` row now also records that the package *moves* to a new `internal/theme` leaf rather than merely losing clauses.
 
 ---
 
@@ -120,7 +120,7 @@ The third is the sharpest, because that same table is the README's inventory of 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.5 now tables all four README sites rather than disposing of one: the tmux-passthrough paragraph deleted, the feature bullet and TUI-views paragraph rewritten to the theme setting, and the config-file table row updated plus a new themes-directory row carrying PORTAL_THEMES_DIR. Also added: the retained `appearance` is explicitly not documented as live, per §10.4.
 
 ---

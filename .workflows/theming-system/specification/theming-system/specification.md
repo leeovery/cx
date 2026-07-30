@@ -179,7 +179,7 @@ Decisive reasons:
 - **`All()`'s stable order is the §2.4 table order, 1 through 19.** It was previously asserted without being defined; the numbering is the definition.
 - **The token layer moves to a new leaf package, `internal/theme`**, taking the loader with it. Today's `internal/tui/theme` is a pure data package under the TUI, which no longer fits: the loader does file I/O and binds the `theme` log component (§12.3), and its consumers span two layers — TUI construction, the panel, `portal doctor` and `portal theme export`. Leaving it under `internal/tui` would make `cmd/doctor.go` and the export verb import a TUI subpackage to read a config file.
 
-  One package holds the vocabulary, the parser, the validator, the §6.2 ladder, by-name resolution, enumeration and the embedded set — one component binding, as CLAUDE.md's rule requires. The colour-literal guard's exclusion re-points to it.
+  One package holds the vocabulary, the parser, the validator, the §6.2 ladder, by-name resolution, enumeration and the embedded set. The colour-literal guard's exclusion re-points to it. It binds the `theme` log component — but it is not the only package that emits under it (§8.9); CLAUDE.md's rule is bind once *per package*, which `spawn` and `bootstrap` already span several files under.
 - **`cmd/config.go` owns themes-directory path resolution**, via a `themesDirPath` alongside `prefsFilePath` — it already owns every other config path, and §5.5's chain is deliberately the same shape. **The loader takes the directory as an injected value and never resolves it**, which is what keeps the embedded set reachable with no path at all: `internal/capture` uses only the built-in lookup, so §7.1's "`go:embed` is not config discovery" and §13.3's import guard both stay satisfiable. The panel receives the directory through the `ThemeEnumerator` seam (§13.3), wired at construction.
 - **`Theme` carries no identity field.** The slug is held alongside the palette by whatever loaded it — the model for the active theme, the enumeration row for a listed one. This is what lets `capturetool --theme <path>` (§13.3) work at all: a theme loaded from an explicit path has no slug, and a struct with a mandatory-but-empty identity field would be lying. Consumers that need both (the `theme: loaded` log line, the panel's `●` placement) already have the slug in hand, because they are the ones that resolved it.
 - `theme.MV` as an exported package-level value **ceases to exist**. Its values move into `tokyo-night.theme` and `tokyo-night-day.theme` (§7.3).
@@ -841,6 +841,10 @@ Portal's multi-window burst routinely produces several concurrent processes, so 
 - Each instance loads its theme at construction; an instance that changes theme persists it; **other instances are unaffected until relaunch.** There is no file watch.
 - This is exactly how `session_list_mode` already behaves — the `s` toggle persists per-instance with no cross-instance sync, via the existing `ModePersister` seam that a theme persister follows.
 
+**The panel's commit write is owned by `cmd`, not by `prefs` or by the TUI** — a theme persister injected at construction through a `WithThemePersister` option, exactly the shape `WithModePersister` already has. The same three constraints that decided §10.5's ownership apply unchanged here: `prefs` is a leaf that must not import `internal/log`, the write needs prefs path resolution, and the `theme` component records its failure. So the persister behind the seam resolves the path, performs the RMW via the non-migrating read, and is **the emission site for `theme: commit failed`** (§12.3), which otherwise has none.
+
+This means the `theme` component is emitted from more than one package — the loader (`internal/theme`), the translation (`cmd/config.go`), and this persister. That is legal and normal: CLAUDE.md's rule is *bind once per package*, and `spawn` and `bootstrap` already emit from several files.
+
 **But a stale whole-file write can silently revert a theme.** Before this feature `prefs.json` had one field with a production writer. It now holds five independently-mutated fields written from three surfaces: instance A, constructed ten minutes ago, presses `s` and writes *its* in-memory prefs, silently reverting the theme instance B just committed. `AtomicWrite` does not help — this is a lost update, not a partial write.
 
 **Every writer must read-modify-write:** re-read `prefs.json` immediately before writing, mutate only its own field(s), and write the merged result. Not novel — the project and hooks stores already do this for their own mutations.
@@ -1118,6 +1122,12 @@ A failed write on `Enter`/`d`/`l`:
 
 This recreates "applied but not persisted", but as a *reported* state rather than a silent one, which is the distinction the picker idiom was buying.
 
+**The report must survive the panel closing.** `Esc` is the only way out and it re-resolves from persisted state (§9.2) — so composed naively, the very next keypress both clears the message and drops the theme the user chose, with no `●` movement to signal it (§9.13 correctly forbids that) and nothing on the main screen. The "reported rather than silent" property would hold for exactly one keystroke.
+
+**So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
+
+**A commit is always re-attemptable.** The commit keys are unconditional writes (§9.2), so pressing `d`/`l`/`Enter` again simply retries — no special retry affordance, and no state to clear first.
+
 ### 9.14 Reference frames
 
 Three Paper artboards are the forward-looking reference for this panel, all built on the canonical `Sessions — Modern Vivid v2` frame so they inherit the shipped MV conventions:
@@ -1351,11 +1361,18 @@ A new user-facing doc, following the `docs/custom-terminals.md` precedent (a use
 
 ### 12.5 README and CHANGELOG
 
-`appearance` is described in `README.md` at four places, including a paragraph recommending users pin it *"when auto-detection misfires (for example under tmux passthrough)"*.
+`appearance` is described in `README.md` at **four places**, and all four come out with the setting:
 
-**That paragraph comes out with the setting** — and the advice is obsolete twice over, since the premise was probably never true in the first place (§8.7).
+| Site | Change |
+|---|---|
+| The paragraph recommending users pin it *"when auto-detection misfires (for example under tmux passthrough)"* | **Deleted.** Obsolete twice over — the premise was probably never true in the first place (§8.7). |
+| The feature bullet — *"auto-detected, or pinned via `appearance`"* | Rewritten to the theme setting: detection follows the terminal background, pinned by a constant `theme`. |
+| The TUI-views paragraph — *"set `appearance` in `prefs.json`"* | Same rewrite. |
+| The config-file table row for `prefs.json` | Now lists `theme` / `theme_light` / `theme_dark` alongside the grouping mode. The table also gains a **themes directory** row carrying `PORTAL_THEMES_DIR` — §5.5 fixed that name precisely so the docs could print it. |
 
-README gains the theme setting in its place, pointing at `docs/theming.md`.
+README gains the theme setting in their place, pointing at `docs/theming.md`.
+
+**The retained `appearance` key is not documented as live.** §10.4 keeps it on disk as a frozen legacy value for downgrade, not as a setting to advertise — documenting it would invite users to set it in a binary that no longer reads it.
 
 **CHANGELOG.** This release needs a user-visible upgrade note, not just a feature line — two other decisions lean on the user knowing the setting changed shape. §10.4 keeps `appearance` on disk precisely because Homebrew downgrades are routine, and §9.9 accepts "no unset" on the grounds that `prefs.json` is hand-editable *and documented*. The entry must therefore cover:
 
@@ -1365,11 +1382,14 @@ README gains the theme setting in its place, pointing at `docs/theming.md`.
 
 ### 12.6 `CLAUDE.md`
 
-`CLAUDE.md` is what an implementing agent reads first, and four of its entries describe the pre-feature world. All four are corrected by this feature — leaving them stale would have three of them actively misdescribing the subsystem under construction while the work is under way.
+`CLAUDE.md` is what an implementing agent reads first, and seven of its entries describe the pre-feature world. All seven are corrected by this feature — leaving them stale would have most of them actively misdescribing the subsystem under construction while the work is under way.
 
 | Entry | Correction |
 |---|---|
-| **The `tui/theme` row** | Describes ~20 tokens "each with a **Light and Dark** variant", `Token.ColorFor(mode)`, `theme.MV` as the single built-in, `Mode`'s zero value as the no-answer fallback, and `contrast_test.go` measuring against two hardcoded canvases. Every clause is deleted by §2.1, §3.2 and §13.5. |
+| **The `tui/theme` row** | Describes ~20 tokens "each with a **Light and Dark** variant", `Token.ColorFor(mode)`, `theme.MV` as the single built-in, `Mode`'s zero value as the no-answer fallback, and `contrast_test.go` measuring against two hardcoded canvases. Every clause is deleted by §2.1, §3.2 and §13.5 — and the row itself **moves**, since §3.2 relocates the package to a new `internal/theme` leaf. It leaves the TUI's subtree in the internal-packages inventory and the leaf is a new member of it. |
+| **The `tui` row** | Describes `restore.go` painting "the **mode-matched** canvas" and the canvas-echo guard comparing "against the canvas hex", carrying the standing *"do not drop this guard"* warning. §11.4 re-anchors that comparison to a retained **startup** canvas hex and makes `canvasHexFor` theme-agnostic; §3.2 deletes the mode concept the wording rests on. **This is the entry whose staleness is most dangerous** — it is the warning an implementer reads immediately before touching the exact code §11.4 changes. |
+| **The "Config path resolution" section** | Enumerates the config surface as resolving via `configFilePath`, and describes the TUI wiring as `WithInitialMode` / `WithModePersister` / `WithAppearance`. §3.2 adds `themesDirPath` (a *directory*, not a `configFilePath` member), §5.5 adds `PORTAL_THEMES_DIR`, §10.5 adds the non-migrating read variant, §8.9 adds `WithThemePersister`, and §8.8/§8.4/§13.3 delete `WithAppearance` in favour of the loaded nomination. |
+| **The "Server bootstrap" section's bootstrap-exempt set** | Lists `skipTmuxCheck` verbatim. §12.1 adds `theme`. |
 | **The `prefs` row** | Documents the `appearance` override, the `Appearance` enum and its tolerant decode, and `cmd/open.go`'s `WithAppearance` wiring. Replaced by `theme` / `theme_light` / `theme_dark` / `theme_migrated` per §8.1 and §8.8 — noting that `appearance` survives on disk as a preserved raw string (§8.8). |
 | **The logging section** | Pins the taxonomy at "17 component names". §12.3 adds an 18th (`theme`) with its own attr keys — the same shape of amendment `spawn` and `resolve` carried, which is why the count is stated at all. |
 | **The visual capture harness section** | Describes `testdata/vhs/` as committed reference PNGs forming a visual-verification harness, which reads as a durable asset. It is not (§13.2). The `capturetool` flag description also changes with §13.3. |
@@ -1579,6 +1599,7 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | `t` under `NO_COLOR` (§9.10) | `theme picker needs colour — NO_COLOR is set` |
 | `t` below the render floor (§9.8) | `terminal too narrow for the theme picker` |
 | Resize below the floor with the panel open (§9.8) | `terminal too narrow — theme picker closed` |
+| Panel closed with a failed commit outstanding (§9.13) | `⚠ theme not saved — see portal.log` |
 
 **`portal theme export` (§12.1), stderr, exit 1:**
 
