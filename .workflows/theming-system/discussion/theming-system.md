@@ -1083,7 +1083,83 @@ grouping mode would resolve that inconsistency, but `s` is fast and good, and it
 is scope creep on an already-large feature. Two mechanisms for two prefs is a
 mild inconsistency worth living with.
 
+### Every theme file gets a row — invalid ones shown, not selectable
+
+**This supersedes the count-line decision below**, and deletes work rather than
+adding it. Lee's proposal: *"not showing incorrect themes [is wrong] … render
+everything in the theme directory if it's a theme file. If it's invalid, show it
+as invalid and don't allow it to be selected … you can actually see 'oh, there's
+my theme, it has been registered, but it's invalid', rather than it just not being
+there at all and you being completely in the dark about why."*
+
+Strictly better on the same problem: the row is present and named, instead of a
+count that sends the user to another command to discover which file and why.
+
+**It also dissolves the review's F10 entirely.** There is no "persisted theme has
+no row to mark" case any more — every file in the directory has a row, so an
+unresolved persisted slug is listed, marked, and shown invalid. The marker keeps
+meaning "this is what's persisted", and nothing implies the fallback was chosen.
+The same holds per-slot under an adaptive pair with one broken slot.
+
+And it improves the case the charset rule handled badly: a file with a **bad
+name** (`My Theme.theme`) was going to be silently skipped; now it is a row
+showing the filename with `bad name` as its reason.
+
+**Shape:** enumerate every `*.theme` file; each gets a row; valid rows are
+selectable; invalid rows render in `text.faint` with `⚠` and a terse reason
+(`missing tokens`, `bad colour`, `bad name`) — glyph-backed per §2.2 so it
+survives colourless. Arrow keys skip invalid rows, reusing the mechanism that
+already skips group-header rows on the Sessions list. Full detail stays in doctor,
+where there is width to enumerate.
+
+**The fourth panel fixture becomes an invalid-theme row** rather than a
+skipped-count line.
+
+### No runtime floor under the fallback — a build-time guarantee instead
+
+The orchestrator proposed a compiled-in last-resort palette (equal to Tokyo Night
+Dark) for the case where the *fallback built-in itself* fails to load, on the
+grounds that every fallback path terminates at a built-in and nothing sat beneath
+it.
+
+**Rejected, in favour of making the situation impossible.** Lee: *"we need to
+ensure that we can't build this if the fallback doesn't render … that needs to be
+impossible."* That is better engineering — a build-time guarantee beats a runtime
+crutch.
+
+- **A unit test parses and validates every embedded built-in.** This is the actual
+  guarantee: a broken embed cannot get through the suite. It promotes what was
+  recorded as a passing mitigation under the `go:embed` decision into a
+  load-bearing requirement.
+- **No runtime fallback-to-hardcoded-values.** With no path pretending to handle
+  it, a binary somehow shipped with a broken default fails **loudly at startup**
+  rather than limping on values nobody chose. `main.go` already owns a
+  panic-recovering exit with a `process: panic` lifecycle marker, so that is a
+  *marked* termination, not an unhandled crash.
+
+### Enumeration timing — re-read on every open (the review's F12)
+
+Lazy discovery said "enumerate when the slide-over opens" without saying whether
+that means once per process or per open.
+
+**Decision: re-read on every open.** It is a directory read of a handful of small
+files behind a keypress — imperceptible against the keypress itself — and caching
+buys nothing measurable while breaking the loop the drop-in route exists for
+(copy a built-in, edit it, see it, without relaunching Portal).
+
+**This also corrects a bad reason given earlier.** `fsnotify` was rejected partly
+on *"you cannot edit a theme file while looking at Portal"* — which is false,
+since Portal's own burst puts several windows on screen and an editor would
+naturally be in one. The rejection stands on better grounds: Portal does not need
+to *watch* the directory, it needs to not *cache* it. Re-reading on open gets the
+same result with no watcher, no event path, and no mid-session surprise where the
+list changes under the cursor.
+
 ### Rejection surfacing — count in the panel, detail in doctor (the review's F3)
+
+> **SUPERSEDED in part** — the panel's skipped-count line is replaced by listing
+> every theme file with invalid ones shown in place (see above). The
+> split-by-surface principle and the doctor/log halves stand.
 
 Four decisions lean on "the rejection surfaces inside the slide-over" — the
 audience decision (auto-discovery makes validity user-visible), no-shadowing
