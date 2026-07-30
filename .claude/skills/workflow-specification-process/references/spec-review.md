@@ -97,11 +97,12 @@ Dispatch the `workflow-specification-review-input` agent via the Task tool:
   node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.specification.{topic} sources
   node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit} work_type
   ```
-  Sources returns an object keyed by source name (e.g., `{"auth-design": {"status": "incorporated"}}`). Resolve each source name to its artifact — sources can be incorporated specifications or research files, not only discussions:
-  - If a specification item named `{source-name}` exists in the manifest (an incorporated source spec): `.workflows/{work_unit}/specification/{source-name}/specification.md`
-  - Else if `.workflows/{work_unit}/research/{source-name}.md` exists: that research file
-  - Else, when work type is `bugfix`: `.workflows/{work_unit}/investigation/{source-name}.md`
-  - Else: `.workflows/{work_unit}/discussion/{source-name}.md`
+  Sources returns an object keyed by source name (e.g., `{"auth-design": {"status": "incorporated"}}`). Resolve each source name to its artifact — sources can be incorporated specifications or research files, not only discussions. First match wins:
+
+  1. `{source-name}` is not `{topic}` and a specification item named `{source-name}` exists in the manifest (an incorporated source spec) → `.workflows/{work_unit}/specification/{source-name}/specification.md`
+  2. `.workflows/{work_unit}/research/{source-name}.md` exists → that research file
+  3. Work type is `bugfix` → `.workflows/{work_unit}/investigation/{source-name}.md`
+  4. Otherwise → `.workflows/{work_unit}/discussion/{source-name}.md`
 
   Pass all resolved paths to the agent.
 - **Topic name**: the current topic
@@ -163,7 +164,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.
 
 → Proceed to **F. Completion**.
 
-#### If `finding_gate_mode` is `auto` and `review_cycle` < 5
+#### If findings were surfaced and `finding_gate_mode` is `auto` and `review_cycle` < 5
 
 > *Output the next fenced block as a code block:*
 
@@ -173,7 +174,7 @@ Review cycle {N} complete — findings applied. Running follow-up cycle.
 
 → Return to **A. Cycle Initialization**.
 
-#### If `finding_gate_mode` is `auto` and `review_cycle` >= 5
+#### If findings were surfaced and `finding_gate_mode` is `auto` and `review_cycle` >= 5
 
 → Load **[convergence-analysis.md](../../workflow-shared/references/convergence-analysis.md)** with loop_type = `spec-review`, work_unit = `{work_unit}`, topic = `{topic}`.
 
@@ -198,7 +199,7 @@ Run another review cycle?
 
 → Proceed to **F. Completion**.
 
-#### If `finding_gate_mode` is `gated`
+#### If findings were surfaced and `finding_gate_mode` is `gated`
 
 → Load **[convergence-analysis.md](../../workflow-shared/references/convergence-analysis.md)** with loop_type = `spec-review`, work_unit = `{work_unit}`, topic = `{topic}`.
 
