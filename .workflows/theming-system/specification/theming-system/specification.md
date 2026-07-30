@@ -770,7 +770,9 @@ This is load-bearing because three other decisions collide otherwise: the model 
 **Mid-session slot assignment loads the *other* slot at commit time.** A constant nominates one theme, so converting to adaptive makes a second slot live that construction never loaded. The slot the user just assigned needs no read — §5.8's enumeration already holds its parse, which is what makes arrowing the O(1) restyle of §11.1. The read that is needed is the **opposite** one:
 
 - **An untouched slot holds a shipped default** (§8.3), so it resolves from the embedded set and never touches the themes directory (§8.4's ordering rule) — cheap and infallible.
-- **A stale hand-edited slot** (§8.2, where a `theme`-wins file's slots were invisible until the constant cleared) is a by-name directory read that can fail into §8.5's fallback like any other.
+- **A stale hand-edited slot** (§8.2, where a `theme`-wins file's slots were invisible until the constant cleared) **resolves from the panel's retained enumeration** (§5.8), which already parsed and classified every file in the directory when the panel opened. Only a slug the enumeration has no entry for falls through to the embedded set, and if it is in neither it is unresolvable and takes §8.5's fallback.
+
+**No commit-time directory read.** Issuing one would produce a *third* parse of the same slug — neither construction's nor the panel's — that can disagree with the row the user is looking at, reintroducing exactly the staleness split §5.8 exists to close. The panel's parse is the fresher truth by §5.8's own rule, so the panel row and the applied theme cannot disagree.
 
 Both are keypress-time work, which is already the panel's cost model. **This is the one theme load that happens outside construction**, so it emits `theme: loaded` at commit rather than at construction — the catalogue's cadence column (§12.3) accounts for it.
 
@@ -779,7 +781,17 @@ Both are keypress-time work, which is already the panel's cost model. **This is 
 - **Constant** — one loaded `Theme`; the gate is never consulted, and it is active from frame one.
 - **Adaptive** — both loaded `Theme`s, light and dark; the gate selects between them when the OSC 11 reply or the timeout lands.
 
-The model holds that nomination plus which member is currently active — "the model holds the active `Theme`" (§3.4) describes what is *threaded to renderers*, which is always exactly one theme. `capturetool --theme` (§13.3) passes the constant shape: a pinned single theme, no gate, no wait, which is what makes captures byte-deterministic.
+**The constructor also takes the raw persisted theme keys** — `theme`, `theme_light`, `theme_dark` exactly as read, control-stripped per §9.5. The nomination alone is insufficient for the panel, in three ways it cannot recover:
+
+- **A slug that never loaded is not in the nomination.** §9.4 requires a row for a persisted slug resolving to neither a built-in nor a file, and for a persisted string rejected by the charset check. Neither ever produced a `Theme`.
+- **A badge needs the *persisted* slug, not the nomination's.** Under a fallback these differ by design — "the `●` still marks the persisted slug" (§9.2) while the nomination holds the fallback's palette.
+- **§14A's confirm renders the persisted constant**, on a path where that constant may be the one that failed to load.
+
+The model holds that nomination, the raw keys, and which member is currently active — "the model holds the active `Theme`" (§3.4) describes what is *threaded to renderers*, which is always exactly one theme.
+
+**The panel uses the construction-time prefs snapshot; it does not re-read `prefs.json` on open.** This is a deliberate asymmetry with §5.8's fresh directory read, and the two are asymmetric because the files are: the themes directory is what the drop-in loop edits by hand between panel opens, which is the loop §5.8 exists to serve, whereas `prefs.json` is what Portal itself writes. Re-reading it would let another instance's commit silently change what this panel shows and marks — the cross-instance sync §8.9 explicitly declines. A user who hand-edits prefs mid-session sees it on the next launch, consistent with every other prefs consumer.
+
+**`portal doctor` reports the keys *in force*** — under §8.2's `theme`-wins rule that is the constant alone when one is set, and both slots otherwise. Reporting an ignored key as unresolvable would send the user to fix something Portal is not reading. `capturetool --theme` (§13.3) passes the constant shape: a pinned single theme, no gate, no wait, which is what makes captures byte-deterministic.
 
 **The retained startup canvas hex (§11.4) is captured from the theme the gate *selected***, not from what the constructor was handed — under adaptive those differ until the gate resolves.
 
@@ -837,6 +849,10 @@ Under the two-slot form, the gate is only *partly* removed:
 | **Survives unchanged** | The OSC 11 *query* itself — `restore.go` needs it to capture the original background for restore-on-exit, independent of detection. The `NO_COLOR` carve-out. The canvas-echo guard, whose comparison re-points from "the mode's canvas" to a retained startup canvas hex (§11.4). |
 
 **The query is issued from `Init` regardless of the setting shape.** That is what makes a mid-session constant → adaptive conversion work without a new query, race or gate (§9.3).
+
+**The gate resolves exactly once. A reply that arrives after the timeout has resolved it does not re-resolve it.** The reply is still *consumed* — `restore.go` needs it for the original-background capture, and §9.3 needs it in hand for a mid-session conversion — but it never flips the active theme.
+
+This matters more under split than it did before. A late flip used to swap one palette's light variant for its dark one; now it swaps to **a different theme entirely** — the other slot's nomination, potentially Nord for Tokyo Night Day — changing the canvas and every accent a second after the user is already reading the picker. Single resolution is also what makes §11.4's "the startup canvas hex captured from the theme the gate selected" a single, unambiguous value, and what keeps a late reply from overwriting an uncommitted preview in an open panel.
 
 **`prefsFile` keeps a raw `appearance string` field, so the on-disk value round-trips.** This is load-bearing, not tidiness: `prefs.json` decodes into a plain Go struct, so **any key not declared as a field is dropped on re-encode** — and §8.9 makes every writer re-encode the whole file. Delete the field and the first `s`-keypress or theme commit after upgrade silently erases the user's `appearance` pin, defeating §10.4's downgrade guarantee at the moment the user is least likely to notice.
 
@@ -945,6 +961,13 @@ The invariant that survives both cases: **the cursor is always on a selectable r
 
 **Cost accepted:** the common case ("pick one and go") is two keys rather than one.
 
+**A successful commit recomputes the panel's full row set, not just the badges.** Badges obviously move — §9.13's "a failed commit does not move the `●`" only means anything because a successful one does — but a commit can add or remove rows outright:
+
+- `Enter` clears both slots, so a `not found` or charset-rejected row that existed *only* because a slot named it loses its reason to exist and **disappears**.
+- `d`/`l` on a constant makes the other slot live (§8.2). If that slot names a slug with no file and no built-in, §9.4 requires it to have a row — and the open-time union never minted one, because a `theme`-wins file's slots are not read at all. So a row **appears**.
+
+So a commit re-derives the union (§9.4), re-sorts it (§9.5), and **re-anchors the cursor to the previewed theme's identity, never to its index**. Anchoring to an index would silently break §9.2's invariant the moment a row is inserted above the cursor: the screen would keep previewing one theme while the cursor sat on another. The directory is *not* re-enumerated — §5.8 pins that to panel open, and a commit changes prefs, not the directory.
+
 **Committing to a non-active slot changes nothing on screen.** Previewing a light theme in a dark terminal and pressing `l` writes the light slot, but the resolved-active theme is still the dark slot. A commit is a **write, not a navigation** — the panel keeps previewing whatever the cursor is on; the display resolves from persisted state only on close.
 
 Which sharpens `Esc` precisely: **`Esc` discards the preview and renders the resolved persisted state.** That equals "what you had before" only when nothing was committed. Commit slots and `Esc` lands on the newly-resolved theme, which is correct.
@@ -1005,9 +1028,12 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 - The **sort key is the slug** wherever one exists — including a `reserved name` row, which is why it sorts adjacent to the built-in it collides with despite being *labelled* by filename. A `not found` persisted-slug row sorts by its slug too.
 - Only a **`bad name`** row has no slug; it sorts by **filename**. A **persisted string rejected by §8.6's charset check** has neither a slug nor a file — it sorts by **the persisted string itself**, control-stripped and truncated as it is for display. There is exactly one thing to sort it by, and using it keeps the ordering total.
 - Comparison is **case-insensitive, with a byte-wise tie-break**. Slugs are lowercase by construction, but filenames are not, and a byte-wise-only comparison would file `Zed.theme` ahead of every valid theme.
+- **One tie is guaranteed by construction and the byte-wise tie-break cannot settle it: a `reserved name` row and the built-in it collides with have the identical sort key**, since `reserved name` is *defined* as that collision (§6.2). **The built-in sorts first**, then the rejected file. That is the useful order — the valid, selectable thing the user can act on, immediately followed by the row explaining why their file is not it — and it is what makes §9.5's adjacency argument concrete rather than incidental. It also makes the panel fixtures deterministic (§13.3), which a sort left to chance would not.
 - The pinned `⚠ themes dir unreadable` row is **outside the ordering** — it is always first.
 
-**A slug that came from `prefs.json` is control-stripped at the point it is read, not at the point it is drawn** — it is a property of the value, so every consumer inherits it. §8.6 validates it before *use* as a path component, but a charset-rejected value is still *reported* (§9.4, §12.1), and it reaches three surfaces: the panel row, doctor's advisory line (§14A), and `portal theme export`'s stderr. A pasted newline, tab or ANSI escape would otherwise corrupt whichever of them the user is reading to find the problem. **Truncation is separate and stays panel-local** — doctor and export have full width and want the whole value.
+**A slug that came from `prefs.json` is control-stripped at the point it is read, not at the point it is drawn** — it is a property of the value, so every consumer inherits it. §8.6 validates it before *use* as a path component, but a charset-rejected value is still *reported* (§9.4), and it reaches two surfaces: the panel row and doctor's advisory line (§14A). A pasted newline, tab or ANSI escape would otherwise corrupt whichever of them the user is reading to find the problem. **Truncation is separate and stays panel-local** — doctor has full width and wants the whole value.
+
+**A slug arriving as a CLI argument is control-stripped the same way**, at the point `portal theme export` reads its argument. Export never reads prefs (§10.5), so it is not covered by the rule above — but §14A echoes the argument back on stderr (`no theme named <slug>`), and an argument can carry a pasted escape exactly as a prefs value can.
 
 **Row composition — one row per theme, always.** An invalid row never wraps to two lines: every list row is exactly one delegate line, which is the invariant `bubbles/list` pagination depends on and which §9.8's paging and the invalid-row skip both rest on. The elements compete for a fixed ~24–30 columns in this priority order:
 
@@ -1053,7 +1079,9 @@ Treatment **B** (a `dark → … / light → …` key-value block pinned under t
 
 ### 9.7 Entry conditions and input routing
 
-**Nothing blocks `t` except a modal, a pending burst, `NO_COLOR`, and the pages where it is not bound at all (§9.6 — Preview and Loading).**
+**Nothing blocks `t` except a modal, a pending burst, `NO_COLOR`, a terminal below the render floor, and the pages where it is not bound at all (§9.6 — Preview and Loading).**
+
+- **Below the render floor** (either dimension, §9.8) — `t` refuses with a flash rather than opening a broken frame. This is a third shape alongside the two below: the key is bound and the panel is available in principle, but there is no room. It flashes like the `NO_COLOR` case for the opposite reason — §9.10 draws that distinction deliberately, capability absence versus space shortage — and §14A pins a string per dimension. It is an **entry** condition, not only the resize condition §9.8 describes.
 
 - **Multi-select** — `t` opens, and the marked set is **unaffected**. The panel *nests* over the mode and `Esc` resolves innermost-first (closing the panel and returning to multi-select with selections intact), which is what MV spec §8.1 already specifies for modals. The multi-select banner sits in the notice band on the left, so it stays visible behind the panel. Previewing mid-selection is legitimate — the marked-row `●` is itself themed.
 - **A pending burst** — `t` is swallowed. The burst input-locks the model (only `Ctrl-C`/`Esc` live) because it is mid-async-operation; swallowing is consistent with that lock rather than an exception to it.
@@ -1206,7 +1234,9 @@ Retaining it is inert to the new binary and still meaningful to an old one, and 
 
 **`cmd/config.go`'s `loadPrefsStore` owns the translation.** Three decided constraints meet here: `prefs` is a deliberate leaf that must not import `internal/log`; the translation happens at prefs load; the `theme` log component records it. `loadPrefsStore` already owns prefs path resolution and the migrate breadcrumb for every other config file, and is not a leaf, so it can log. **`prefs` stays dumb.**
 
-**`cmd/config.go` also exposes a non-migrating read variant, which every bootstrap-exempt command uses.** `portal doctor` must read `prefs.json` to report an unresolvable theme (§12.2), and `portal theme export` may resolve a persisted slug — but doctor's contract is that it **heals nothing on the read-only path**, and a one-shot config mutation as a side effect of running a diagnosis breaks that. Splitting the read from the migration keeps doctor's "read-only" claim literally true and keeps `export` side-effect-free, without relocating ownership of the translation away from `loadPrefsStore` (which is where the logging constraint puts it).
+**`cmd/config.go` also exposes a non-migrating read variant, for `portal doctor`.** Doctor must read `prefs.json` to report an unresolvable theme (§12.2), but its contract is that it **heals nothing on the read-only path**, and a one-shot config mutation as a side effect of running a diagnosis breaks that. Splitting the read from the migration keeps doctor's "read-only" claim literally true, without relocating ownership of the translation away from `loadPrefsStore` (which is where the logging constraint puts it).
+
+**`portal theme export` does not read `prefs.json` at all.** Its argument is a slug, which resolves by name against the embedded set and then the themes directory (§8.4's ordering) — the theme setting never enters. That keeps it side-effect-free by construction rather than by carve-out.
 
 **The migration therefore runs only where a TUI is constructed** — which is also the only place its result is used, since the exec path constructs no TUI and reads no prefs.
 
@@ -1222,7 +1252,7 @@ The translation emits `theme: appearance migrated` (INFO, one-shot) — see §12
 
 The cheap path already exists and already excludes the expensive one:
 
-- **Restyle** — `applyCanvasMode` swaps the delegate and re-points the cached style structs `bubbles/list` holds. O(1), no I/O, no list content touched. It is already exercised in production: it is what runs when the OSC 11 reply lands after first paint, and it performs exactly the mid-session restyle a theme swap needs.
+- **Restyle** — `applyCanvasMode` swaps the delegate and re-points the cached style structs `bubbles/list` holds. O(1), no I/O, no list content touched. It performs exactly the mid-session restyle a theme swap needs. **Its production caller changes with this feature**: today it runs when a late OSC 11 reply lands after first paint, which §8.8 retires (the gate resolves once); from here its callers are the panel's arrow-preview and commit paths. The mechanism is proven, not the caller — so §13.4's guard is driving an existing entry point with a new set of callers, not building one.
 - **Rebuild** — `rebuildSessionList` re-derives the item list and, in grouped modes, runs the lazy dir-resolution pass with its per-session tmux pane reads (the known ~0.5s By-Project cost at ~38 sessions).
 
 **`applyCanvasMode` does not call `rebuildSessionList`.** Nothing heavy is on the theme-swap path, so no deferral mechanism is needed.
@@ -1346,10 +1376,10 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 | Event | Level | Cadence |
 |---|---|---|
 | `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. **Also fires at commit time** for the one load that happens outside construction: the newly-live opposite slot on a constant → adaptive conversion (§8.4). |
-| `theme: enumerated` | INFO | At panel open. Carries `count` and `rejected`. |
+| `theme: enumerated` | INFO | At panel open, **every open** (it is a per-event INFO, not a repeated warning, so it needs no dedup). `count` is **rows produced** — the full §9.4 union, built-ins included — and `rejected` is **unselectable rows**, which is the subset carrying a §6.2 reason. Both are stated because the union makes them genuinely ambiguous: "files considered" and "valid themes" would give different numbers on the same install. Fires on an **absent** directory too (`count` reflects the built-ins) and on an **unusable** one (`count` likewise, alongside `theme: directory unusable`) — the panel opened either way, which is what the event records. |
 | `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. Carries `token` where the reason names one (`missing tokens`, `bad colour`) — this is the `token` attr's only consumer. A file with **no slug** (`bad name`) is identified by `path` instead, and the **dedup key is `slug`+`reason` where a slug exists and `path`+`reason` where it does not** — otherwise the class most likely to recur across panel opens is the one class with no dedup key. |
-| `theme: directory unusable` | WARN | Per enumeration where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. An *absent* directory emits nothing. |
-| `theme: fallback applied` | WARN | Per fallback. Carries `slug` (the nomination that failed), `slot` where one applies, and `reason`. Without them the line is not greppable, which is the whole reason the log earns its place. |
+| `theme: directory unusable` | WARN | Where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. **Deduplicated per process on `path`+`reason`**, like its neighbour — enumeration runs on every panel open (§5.8), so without it a user with a bad directory gets an identical WARN per open. An *absent* directory emits nothing. |
+| `theme: fallback applied` | WARN | Carries `slug` (the nomination that failed), `slot` where one applies, and `reason` — without them the line is not greppable, which is the whole reason the log earns its place. **Deduplicated per process on `slug`+`reason`**, like its neighbours. A persistently broken active theme resolves a fallback at construction (§8.4), again on every panel open (§9.2) and again on every `Esc` (§5.8); "per fallback" read literally would make a passive forensic trail into a running commentary. |
 | `theme: appearance migrated` | INFO | Emitted on **successful persist**, not on compute. §10.5's write is best-effort and retries next launch, so a compute-time emission could legitimately fire on several consecutive launches and "one-shot" would be false. Tied to the persist, it fires exactly once — and its absence after a translation is itself the signal that the write failed. |
 | `theme: commit failed` | WARN | Per failed write. Carries `slug`, `slot` (absent when committing a constant), and `reason`. |
 

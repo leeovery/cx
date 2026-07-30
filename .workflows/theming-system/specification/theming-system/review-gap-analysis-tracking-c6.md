@@ -29,8 +29,8 @@ Also unresolved by the same gap: whether a late reply is allowed to flip **while
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.8: the gate resolves exactly once and a late reply never re-resolves it — it is still consumed for restore.go's original-background capture and for §9.3's mid-session conversion. Reasoning recorded that a late flip is materially louder under split (a different theme, not a variant), and that single resolution is what makes §11.4's retained hex unambiguous and stops a late reply overwriting an open preview. §11.1's "already exercised in production" claim corrected: the mechanism is proven, its caller changes to the panel's preview/commit paths.
 
 ---
 
@@ -57,8 +57,8 @@ Second half of the same gap: **where the panel reads those keys from when it ope
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.4 now has the constructor take the raw persisted theme keys alongside the nomination, with the three reasons the nomination cannot cover them (a slug that never loaded, a badge needing the persisted rather than nomination slug under fallback, §14A's confirm). Also settled: the panel uses the construction-time prefs snapshot and does not re-read prefs on open — stated as a deliberate asymmetry with §5.8's directory read, with the reasoning (the directory is what the drop-in loop edits; prefs is what Portal writes, and re-reading would be the cross-instance sync §8.9 declines). Doctor reports the keys in force per §8.2's theme-wins rule.
 
 ---
 
@@ -81,8 +81,8 @@ The union in §9.4 reads as an open-time computation (§5.8 pins enumeration to 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.2 now states that a successful commit re-derives the full §9.4 union, re-sorts per §9.5, and re-anchors the cursor to the previewed theme's *identity* rather than its index — with both mid-session row changes named (a row disappearing when Enter clears the slots, a row appearing when d/l makes a previously-unread stale slot live). The directory is explicitly not re-enumerated, since a commit changes prefs not the directory.
 
 ---
 
@@ -108,8 +108,8 @@ Narrow in user impact, but it is a genuine fork in the panel's commit handler, a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.4: the opposite slot resolves from the panel's retained enumeration, not a fresh by-name directory read — only a slug the enumeration has no entry for falls through to the embedded set. A commit-time read would produce a third parse that can disagree with the row the user is looking at, reintroducing the staleness split §5.8 exists to close.
 
 ---
 
@@ -137,8 +137,8 @@ It is not cosmetic: §9.5's own argument for labelling the rejected file by file
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.5 now settles the one tie construction guarantees: a reserved-name row and its colliding built-in have identical sort keys and the byte-wise tie-break cannot separate them. The built-in sorts first — the selectable thing followed immediately by the row explaining why the user's file is not it — which also makes the panel fixtures deterministic.
 
 ---
 
@@ -170,8 +170,8 @@ The second half matters independently of which way it resolves: **a slug arrivin
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved: `portal theme export` does not read prefs at all — its argument is a slug resolving by name, so it is side-effect-free by construction rather than carve-out. §10.5's clause corrected (the non-migrating read exists for doctor), §9.5's three-surface claim reduced to two, and control-stripping given a second home at export's argument read, since §14A echoes the argument on stderr and a CLI argument can carry an escape exactly as a prefs value can.
 
 ---
 
@@ -201,8 +201,8 @@ The catalogue is declared closed and spec-governed, and its cadence column is wh
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.3 now deduplicates `theme: directory unusable` (on path+reason) and `theme: fallback applied` (on slug+reason) per process, matching `theme: rejected`. Both fire on repeating triggers — enumeration per panel open, and a fallback resolved at construction, on every open and on every Esc — so the plain reading turned a passive forensic trail into a running commentary.
 
 ---
 
@@ -227,8 +227,8 @@ The list is also where the flash-versus-silent rule is stated ("**flash** where 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.7's exhaustive list now includes the render-floor refusal as a fifth blocker, named as a third shape (bound and available in principle, refused for want of space), flashing like the NO_COLOR case for the opposite reason, and explicitly an *entry* condition rather than only §9.8's resize condition.
 
 ---
 
@@ -253,7 +253,7 @@ Two adjacent one-liners the same row leaves open: whether `theme: enumerated` fi
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.3 now defines `count` as rows produced (the full §9.4 union, built-ins included) and `rejected` as unselectable rows, with the note that the union is what makes them ambiguous. Also settled: the event fires on every panel open including an absent or unusable directory, and needs no dedup, being a per-event INFO rather than a repeated warning.
 
 ---
