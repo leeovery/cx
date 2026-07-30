@@ -193,6 +193,100 @@ Decisive reasons:
 
 Rejected: mutable package state. Its entire advantage was avoiding churn Portal is now paying anyway, and it would put order-dependent mutable state on the render path. Secondary benefit that matters in this codebase specifically: a test can construct a model with any theme instead of mutating a global and hoping nothing else observed it — and the suite already forbids `t.Parallel()` because the `cmd` package injects mocks via package-level mutable state.
 
+## 4. Theme file format
+
+### 4.1 Flat `key = value` with `#` comments
+
+A theme file is a flat map of 19 `key = value` pairs with `#` comments. No JSON, no TOML, no third-party parser.
+
+```
+# Nord — https://www.nordtheme.com/
+# state.destructive and state.positive are corrected for Portal's contrast floors.
+
+canvas = #2E3440
+text.primary = #ECEFF4
+…
+```
+
+Rationale:
+
+- Portal already parses this shape (`aliases`), so it is not a new idiom, and it needs **zero new dependencies** — every config today is stdlib `encoding/json` plus one flat `key=value` file.
+- **JSON cannot carry comments**, and a theme is the one config file that genuinely wants them: ported palettes need attribution, and the eyeball-pinned light tints need a note recording the judgement behind them. Attribution being repo-side rather than in-UI makes a file header its natural home.
+- TOML would add a third-party parser to a codebase that has deliberately avoided one for config, and buys nesting Portal does not need.
+- The dividing line already implicit in Portal's own config: *nesting needed → JSON*; *flat human-authored map → flat file*. A theme is squarely the second.
+
+Accepted cost: a small hand-rolled parser, and a second non-JSON config format to document.
+
+**Forward note (not a requirement):** the deferred transparent-theme idea would need a distinguished value meaning "use the terminal default". The format should leave that door open rather than close it.
+
+### 4.2 Lexical rules
+
+`#` is both the comment marker and the hex prefix, and **every value in a theme file starts with `#`** — so the collision must be resolved explicitly. The forcing case is `text.primary = #ECEFF4 # tuned for the lighter canvas`: a colour plus a trailing note, or one invalid value?
+
+| Rule | Detail |
+|---|---|
+| **Comments** | `#` starts a comment **only at the beginning of a line**, after optional leading whitespace. There are no trailing comments, so the ambiguity never arises — a `#` after `=` is always part of the colour. |
+| **Values are bare** | Never quoted. A quoted value is **rejected** with a message saying so. |
+| **Duplicate keys** | **Rejected**, not resolved. Silently taking one of two conflicting values is exactly the quiet wrongness the validity rule exists to prevent, and "all 19 present" would otherwise have to define what a repeat counts as. |
+| **Whitespace** | Trimmed around `=`. Blank lines ignored. |
+| **Keys** | Lowercase by definition (per the vocabulary charset), matched **case-sensitively**. |
+| **Encoding** | CRLF tolerated; a BOM is stripped. |
+| **Malformed lines** | A line that is neither blank, a comment, nor a well-formed `key = value` pair rejects the file (`bad syntax`). |
+
+### 4.3 Value domain — hex only, `#RRGGBB`
+
+**Values are hex only, in `#RRGGBB` form.** No ANSI indices, no named colours, no `#RGB` shorthand (six digits cost nothing and remove a parse branch).
+
+Portal owns its own validator regardless, because `lipgloss.Color` **never returns an error** and its accepted domain is wider and stranger than a theme format wants: `"212"` is a valid ANSI-256 index, `"-5"` is silently abs'd to `5`, `"16777215"` is reinterpreted as packed RGB (white), and every failure is the silent `noColor` sentinel. Owning the validator is what turns all of that into one honest message.
+
+Two reasons for excluding ANSI indices, the second decisive:
+
+- The MV spec's §2.4 is an explicit decision that Portal **imposes its own exact hues via truecolor and does not inherit the terminal's 16 ANSI colours** — a recognisable identity needs consistent hues across machines. Admitting ANSI indices lets a theme opt back into the palette Portal deliberately declined.
+- **An ANSI index has no fixed RGB.** The validator must parse to RGB anyway, and that same parse is what any contrast check needs. A token valued `212` cannot be measured against anything — admitting them would permanently foreclose checking a theme numerically, including Portal's own built-ins.
+
+Hex case (upper or lower) is not constrained.
+
+### 4.4 What a theme file may contain
+
+A Portal theme file contains **exactly the 19 token keys and nothing else**. Unknown keys are ignored. There is no `name` field, no behaviour, no includes, no nesting.
+
+**Security consequence, worth stating:** Ghostty's documented caveat — *a theme can set any config option, so don't use untrusted ones* — **does not transfer**. Portal's theme file is a closed key set of colour values with no capacity to influence anything else, so ingesting an unreviewed drop-in file carries no configuration-injection surface.
+
+### 4.5 Full replacement, no merge
+
+**Every theme must declare all 19 tokens.** There is no merge-over-a-base, no `inherits`/`parent`/`base` key, no partial files.
+
+- The `go:embed` decision already solves the problem merge exists to solve: because a built-in *is* a file, "copy a built-in and edit it" is a first-class workflow (§12.1 makes it reachable), and at 19 tokens the copy is trivial.
+- Merge drags in a **Portal-specific hazard**: the canvas is *itself a token*, so a partial theme supplying a new canvas while inheriting `text.primary` from a base produces an inherited foreground measured against a background it was never tuned for. Merge can silently compose two individually fine themes into an illegible one.
+- Merge was never a requirement — it arrived as an inherited option. It stays available as a future addition, because full-replacement files remain valid under any later merge model (a file that declares everything simply inherits nothing).
+
+### 4.6 Vocabulary evolution — ignore unknown, reject missing
+
+The two directions the vocabulary can move are governed by two independent levers:
+
+- **Unknown key → ignored.** This makes *removing* a token survivable: old files keep working.
+- **Missing key → the whole theme is rejected.** It is not selectable, Portal falls back per §8.5, and a message names the missing tokens.
+
+Rejected: per-token degradation (missing token falls back to a baked-in base default, theme still loads as "degraded"). It needs a new partial-load path and a fallback source that is not trivial under split — a light theme missing `text.primary` cannot borrow the dark built-in's value, so "base defaults" would have to mean *the same-mode built-in*, which is merge-with-a-base under another name with the canvas hazard intact.
+
+Whole-theme rejection **reuses machinery Portal needs regardless**: "persisted theme isn't loadable" already has to exist for a deleted file, a renamed file, or a typo in `prefs.json`. Adding a 20th token in future routes into that same path rather than inventing a second one.
+
+**Scope note:** this is near-hypothetical. Portal's own token rule (MV spec §2.8) is that a new surface reuses an existing role and a new token is promoted only where the value genuinely differs — the vocabulary is designed not to grow.
+
+### 4.7 No variant concept
+
+**Portal has no notion of a theme being "light" or "dark".** It is neither declared in the file nor derived from canvas luminance.
+
+The mechanic has no consumer:
+
+- Under the adaptive two-slot form, **the slot classifies the theme** — the light slot means "use this when the terminal is light". Portal never inspects the palette to know that.
+- Warning that a dark theme sits in the light slot is a *perceptual* judgement, which validation explicitly never makes (§6.1).
+- Grouping or filtering the selector list by variant is the deferred panel-search feature. Ordering same-mode themes first was proposed as a mitigation for the mixed-mode flash and **rejected** (§9.2), which removes the last candidate consumer.
+
+The asymmetry is what makes not-deciding safe rather than merely convenient: *declaring* would lock a key into the public contract now, whereas *deriving* costs nothing and needs no format change — so if a selector filter ever ships, the value can be computed that day.
+
+**The one exception is test-side, not product-side:** the contrast test table names which built-ins are light, because the three light surface tints are not numerically checkable (§13.5). A test is allowed to know things the runtime does not.
+
 ---
 
 ## Working Notes
