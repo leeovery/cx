@@ -364,7 +364,7 @@ The env var is named here rather than left to implementation because it is a use
 | State | Behaviour |
 |---|---|
 | **Absent** | The common case. **Silent** — zero drop-ins is not an error. No doctor line, no log entry. Portal never creates or seeds it. |
-| **Unreadable**, or a regular file where a directory belongs | A genuine misconfiguration: a **doctor advisory line** and a **log entry**. |
+| **Unreadable**, or a regular file where a directory belongs | A genuine misconfiguration: a **doctor advisory line**, and a **`theme: directory unusable` log entry from the TUI path** when the panel's enumeration hits it. Doctor itself emits nothing (§12.3) — the two surfaces report the same condition, each in its own medium. |
 
 ### 5.6 Enumeration rules
 
@@ -1355,6 +1355,14 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 
 **Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`, `rejected`.
 
+**The component records where a theme is *used*, never where one is *diagnosed*.** `portal doctor` and `portal theme export` both enumerate or parse and both can hit every §6.2 reason — and **neither emits any `theme` event**. Three reasons, and they compound:
+
+- The log's stated job (below) is to be the record that exists **without the user going looking**. Doctor and export are the user looking; their whole output is already the diagnostic, printed to the screen the user is reading.
+- Doctor is the run most likely to hit a full reject set, so emitting would put the largest WARN volume on the surface that needs it least.
+- It keeps doctor's read-only claim literal, which §10.5 and §12.2 already went to some trouble to preserve — a diagnosis command that writes WARNs about a state it just reported is the same shape of side effect.
+
+This also makes `theme: rejected`'s per-process deduplication determinate: the emitting processes are TUI launches, and nothing else.
+
 Both additions close holes in the closed declaration rather than extending it by preference: `rejected` was already used by `theme: enumerated` without being declared, and §5.5's required log entry for an unusable directory had no event that fits (`theme: rejected` is per-*file*, and §6.2's `unreadable` reason is defined as "the file could not be read").
 
 Rejections are **WARN**, not INFO: doctor treats them as advisory for *exit-code* purposes, but "your config did not work" is a warning in a log.
@@ -1459,6 +1467,10 @@ The committed reference PNGs were never meant to persist — they existed so the
 - **PNG production stays on VHS. No direct writer, no new dependency.** The hard requirement is that **every fixture can produce a PNG** (§13.1) — that is what the mechanism must satisfy, and VHS already satisfies it. Rasterising styled ANSI needs a terminal-cell renderer with an embedded font and fixed cell metrics, which would mean a real module dependency plus a font asset in a repo that has deliberately avoided both, to replace a mechanism that works.
 
   §13.2 deletes the *current* tapes along with the images, because both are scaffolding tied to the pre-rename, pre-split screens. **New tapes are written per fixture as work proceeds and cleared out after sign-off**, under exactly the same retention rule as the images (§13.2) — a tape is scaffolding, not an asset. VHS also remains the route if a gif is ever wanted for motion.
+
+- **The harness is known to fail silently on write, and this feature is unusually exposed to it.** VHS runs the tape, reports no error, and does not produce the PNG — so the agent pixel-checks a **stale or absent** image, which reads either as "the change didn't render" or, worse, as a false pass against the previous capture. A theme change is visible *only* in the image; there is no functional assertion that would catch a capture that never landed, and every capture in this feature is a first-time write through a freshly-written tape.
+
+  **Mitigation, procedural and mandatory: verify a fresh write before trusting or reviewing a capture** — confirm the file's hash changed — and retry on failure. This qualifies the chosen mechanism rather than reopening it: VHS satisfies the requirement, and §13.1's argument is that the agent cannot see its work without it, which makes an unverified capture worse than none.
 - **The panel's theme enumeration is behind an injectable seam.** A `ThemeEnumerator`-shaped interface, matching the `TmuxEnumerator` / `ScrollbackReader` idiom the preview page already uses: production wires the real directory walk, fixtures fake it. This is an architectural requirement, not a convenience — the harness must render an invalid-theme row without a real themes directory, and §7.1's no-real-config import guard forbids `internal/capture` reaching config at all. It is also what makes the panel unit-testable (row composition, ordering, truncation, the invalid-row skip), none of which otherwise has a test home.
 - **New fixtures are added for the slide-over** — the adaptive-pair state, the constant-while-previewing state, an invalid-theme row, and the narrow degraded panel — so the panel is visible during implementation rather than at release.
 
@@ -1498,7 +1510,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 
 ### 13.5 Contrast checking
 
-**Floor-check enrolment is automatic.** The floor test **auto-enumerates the embedded set**, so a new built-in is checked by default.
+**Floor-check enrolment is automatic.** The floor tests **auto-enumerate the embedded set**, so a new built-in is checked by default. "The floor test" is ten tests, all rewritten by this feature — see §13.6, which names them; the enrolment assertion below composes with all ten.
 
 **The canonical rule set, stated here because "auto-enumerates" only means anything against a complete and theme-independent list.** §7.4's table is the *Nord port's* verification record — a walk of these rules for one palette — not the rules themselves. Every ratio is measured against **the theme's own `canvas`** (§13.5's amendment), never a constant. Three floors carry the whole set: **4.50** normal text, **3.00** large/UI, **1.10** fill-perceptible.
 
@@ -1552,6 +1564,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 | **`TestLightTintFillsArePerceptible`** | **Survives, and becomes per-light-theme**, alongside `TestLightSurfaceTintsPinned`. It covers the same four tints and takes the same light/dark table membership (§13.5); its ≥1.1 fill floor resolves its reference background from the theme rather than the hardcoded light canvas. |
 | **Loader / parser test** | **New.** The single most branch-heavy component in the feature has no other test home — §7.6's embedded-set test only ever sees valid files by construction. It is table-driven over §4.2's branch table, §4.3's hex domain, §5.2's slug charset, §5.4's reserved-name check, and — critically — **§6.2's fixed-order short-circuit ladder**, which is only meaningful if pinned: a file that is simultaneously duplicate-keyed and missing tokens must report `bad syntax`, and nothing else asserts that. |
 | **Prefs + migration test** | **New.** This is the one part of the feature whose failure mode is silent, permanent destruction of a user's config, and none of it is observable at the moment it goes wrong. It covers §10.2's mapping; §10.3's separation of trigger from no-op condition, including the reachable loss-of-setting sequence it exists to close; §8.1's marker rules (written only when the file exists, empty values omitted); §8.8's raw `appearance` round-trip — whose named failure is that the first `s`-keypress after upgrade silently erases the user's pin, invisible until a downgrade; and §8.9's RMW merge, that writer A does not revert writer B's field. The spec pins a named test for `RestoreTerminalBackground` because it can leave a colour stuck in a terminal; this path deletes a setting the user chose. |
+| **The ten floor tests in `contrast_test.go`** — `TestForegroundFloorAgainstOwnCanvas`, `TestTextDimHeldToThreeToOneFloor`, `TestTextFaintDecorativeBand`, `TestBgSelectionPairRule`, `TestBgWarningPairRule`, `TestInlineFlashWarningPairClearsFloor`, `TestPreviewPeekChromeClearsFloorAgainstCanvas`, `TestBgTrackPairRule`, `TestForegroundOnTintPairings`, `TestStateGreenClearsCanvasAndSelection` | **All rewritten.** Each is built on four things this feature removes: they read `theme.MV.<Field>` (a package value §3.2 deletes), address `.Dark`/`.Light` on a `Token` (a shape §3.2 collapses), run a `/dark` + `/light` subtest pair per token (a mode axis that no longer exists), and measure against the `canvasDark`/`canvasLight` constants (§13.5 and §15.2 retire both in favour of the theme's own `canvas`). Each must additionally gain §13.5's auto-enumeration over the embedded set, which is a structural change — a loop over themes wrapping the loop over tokens — not a rename. **They do not compile after §3.2**, and together they are the single largest mechanical surface in the reshape. Two of them are the named carriers of rules §13.5 states canonically: `TestBgWarningPairRule` is the three-leg warning band, `TestStateGreenClearsCanvasAndSelection` is the dual clearance that caught the Nord green. (`TestContrastMath` is pure ratio math and is genuinely untouched — the one member of the file that is.) |
 | **Embedded-set validity + fallback-slug resolution** | **New** (§7.6). |
 | **Swap-and-diff completeness guard** | **New** (§13.4). |
 | **`RestoreTerminalBackground` anchor test** | **New** (§11.4). |

@@ -36,8 +36,8 @@ Adjacent, same paragraph: the spec's §13.2 correctly rescales the matrix figure
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3 gains a bullet recording that the harness fails silently on write and that this feature is unusually exposed (a theme change is visible only in the image; no functional assertion catches a capture that never landed), with the mandatory mitigation: verify the file's hash changed before trusting or reviewing a capture, and retry. Qualifies the cycle-2 VHS decision rather than reopening it. Corroborated by prior recorded experience with this harness.
 
 ---
 
@@ -73,8 +73,8 @@ Three consequences of leaving them unnamed:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.6 gains a row naming all ten rewritten floor tests, with the four removed foundations they rest on (theme.MV, .Dark/.Light, the /dark+/light subtest axis, the canvasDark/canvasLight constants), the structural nature of the auto-enumeration change, the fact that they do not compile after §3.2, and the two that are named carriers of rules §13.5 states canonically. §13.5's "the floor test" corrected to plural with a pointer.
 
 ---
 
@@ -99,7 +99,7 @@ The same question applies, more narrowly, to `portal theme export`: it parses an
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved: the `theme` component records where a theme is *used*, never where one is *diagnosed* — neither doctor nor export emits any event. Reasons: the log's job is the record that exists without the user going looking (doctor is the user looking), doctor would produce the largest WARN volume on the surface needing it least, and it keeps doctor's read-only claim literal per §10.5/§12.2. §5.5's directory-states row clarified so its "log entry" is explicitly the TUI-path one. Also makes `theme: rejected`'s per-process dedup determinate.
 
 ---
