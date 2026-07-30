@@ -175,7 +175,9 @@ Decisive reasons:
 - `Token` becomes `{Name, Value string}`.
 - `Token.ColorFor` is **removed**.
 - `theme.Mode` (the `Light`/`Dark` enum) is **removed**, along with its threading through the render layer.
-- `Theme` remains a struct of 19 named `Token` fields with a stable-order `All()` accessor, but is no longer a package-level `var` holding one built-in — it is the parse result of a theme file (§4).
+- `Theme` remains a struct of 19 named `Token` fields with a stable-order `All()` accessor, but is no longer a package-level `var` holding one built-in — it is the parse result of a theme file (§4). It is an ordinary struct, constructible in a test without going through the loader (which is what the swap-and-diff guard's synthetic themes need, §13.4).
+- **`All()`'s stable order is the §2.4 table order, 1 through 19.** It was previously asserted without being defined; the numbering is the definition.
+- **`Theme` carries no identity field.** The slug is held alongside the palette by whatever loaded it — the model for the active theme, the enumeration row for a listed one. This is what lets `capturetool --theme <path>` (§13.3) work at all: a theme loaded from an explicit path has no slug, and a struct with a mandatory-but-empty identity field would be lying. Consumers that need both (the `theme: loaded` log line, the panel's `●` placement) already have the slug in hand, because they are the ones that resolved it.
 - `theme.MV` as an exported package-level value **ceases to exist**. Its values move into `tokyo-night.theme` and `tokyo-night-day.theme` (§7.3).
 
 ### 3.3 Consequences that follow from split
@@ -232,6 +234,20 @@ Accepted cost: a small hand-rolled parser, and a second non-JSON config format t
 | **Keys** | Lowercase by definition (per the vocabulary charset), matched **case-sensitively**. |
 | **Encoding** | CRLF tolerated; a BOM is stripped. |
 | **Malformed lines** | A line that is neither blank, a comment, nor a well-formed `key = value` pair rejects the file (`bad syntax`). |
+
+**Branch-by-branch, because each one is a user-visible reason label and a test case in the embedded-set validity test (§7.6):**
+
+| Input | Reason | Why |
+|---|---|---|
+| `text.primary =` (empty value) | `bad colour` | The line *is* a well-formed pair; the value simply is not `#RRGGBB`. |
+| `= #FFFFFF` (no key) | `bad syntax` | Not a pair. |
+| `text.primary` (no `=`) | `bad syntax` | Not a pair. |
+| A duplicated key — **known or unknown**, **same value or different** | `bad syntax` | The duplicate check is lexical and runs before any key is classified or compared. Making it conditional on the key being known, or on the values differing, adds branches to buy nothing. |
+| `Text.Primary = …` | ignored as unknown → file fails `missing tokens` | Keys match case-sensitively (above). Doctor names the missing token, which is what makes it findable (§6.2). |
+| `#FFF` / `#FFFFFFFF` / `#GGGGGG` | `bad colour` | §4.3 admits `#RRGGBB` only. |
+| Trailing or internal whitespace in a value | `bad colour` | Trimming is defined around `=` only; a value with interior whitespace is not a valid hex. Trailing whitespace after the value **is** trimmed, since it is whitespace around the pair rather than inside the value. |
+| An empty file, or one containing only comments | `missing tokens` | It parsed; it declares nothing. |
+| A BOM anywhere but the first bytes of the file | `bad syntax` | The BOM strip applies at file start only. |
 
 ### 4.3 Value domain — hex only, `#RRGGBB`
 
@@ -302,7 +318,9 @@ An optional display-label field was considered and **rejected**. Two files with 
 
 ### 5.2 Slug charset — `[a-z0-9-]`
 
-**A slug must match `[a-z0-9-]`.** A file whose name does not is **rejected** with reason `bad name` and rendered as an unselectable row (§9.5).
+**A slug must match `^[a-z0-9][a-z0-9-]*$`** — lowercase letters, digits and hyphens, at least one character, not starting with a hyphen. A file whose name does not is **rejected** with reason `bad name` and rendered as an unselectable row (§9.5).
+
+The anchoring closes three edges a bare character class leaves open: the **empty slug** is illegal (so a file named exactly `.theme` is rejected, and the empty string stays unambiguously the *unset* sentinel of §8.1), a **leading hyphen** is illegal (it reads as a flag in every context a slug is typed into), and a **trailing hyphen** is legal but pointless. There is **no length bound** — the slug is an identity, and §9.8's truncation is a display concern that must not silently become a validity rule.
 
 **Reject, never normalise.** Lowercasing `Nord.theme` to `nord` would let it shadow the built-in, breaking the rule §5.4 exists to protect.
 
@@ -362,6 +380,13 @@ Rejected: startup scan (pays the sweep on every launch including the overwhelmin
 
 The directory is enumerated **on every panel open**, not once per process. It is a directory read of a handful of small files behind a keypress; caching buys nothing measurable while breaking the loop the drop-in route exists for — copy a built-in, edit it, see it, without relaunching Portal.
 
+**The enumeration's parse results are retained for the panel's lifetime**, so arrowing previews from values already in hand — no file read per keystroke, which is what keeps the swap the O(1) restyle of §11.1. They are discarded when the panel closes; the next open re-reads.
+
+**The panel's parse supersedes the construction-time parse for the same slug.** After a mid-session edit the panel holds the fresher truth, and that is the entire point of re-reading. Two consequences, both following from the same rule:
+
+- **`Esc` resolves persisted state against the panel's enumeration**, not against what construction loaded. If the user edited their active theme's file and broke it, `Esc` lands on the §8.5 fallback — Portal shows what the config now says, not a stale copy it happens to still hold.
+- **The mirror case works for the same reason**: fixing a previously-invalid theme takes effect on the next panel open, without relaunching. That symmetry is what §5.8 exists to buy.
+
 ## 6. Validity & rejection
 
 ### 6.1 The validity rule
@@ -387,6 +412,21 @@ Seven reject classes. The terse label appears on the panel row; the detail appea
 | `not found` | A slug named by `prefs.json` with no corresponding file |
 
 *Which* token is missing, *which* line is malformed, and *which* key carries a bad colour stays in doctor, where there is width to enumerate.
+
+**Reasons are evaluated in a fixed order and the first failure short-circuits**, so a file always has exactly one reason and the panel's single-reason row is never a choice:
+
+1. `bad name` — the slug is checked before the file is opened, so a `bad name` file can never also report `unreadable` or anything about its contents.
+2. `reserved name` — likewise decided from the slug alone, before any read.
+3. `unreadable` — the read itself failed.
+4. `bad syntax` — lexical failure (§4.2) aborts the parse, so no value-level or presence check runs.
+5. `bad colour` — per-value validation across the whole file.
+6. `missing tokens` — the presence check runs last, on a file that parsed and whose every present value is well-formed.
+
+`not found` is not in this ladder — it applies only to a persisted slug with no file (§9.4), where there is nothing to check.
+
+**Doctor enumerates within the reason, not across reasons** — all missing tokens, or all bad-coloured keys, for the one reason that applies. It does not report a file as both `bad colour` and `missing tokens`.
+
+**A wrong-case key is an unknown key** (§4.2 matches case-sensitively), so `Text.Primary` is ignored and the file fails as `missing tokens`. That reason is technically accurate but can misdirect, so doctor's detail line names the missing tokens — which is what makes the mistake findable.
 
 ### 6.3 Where rejection surfaces
 
@@ -573,7 +613,9 @@ There is **no runtime fallback to hardcoded values** beneath the built-in fallba
 
 Both halves are load-bearing. Validating the files alone proves the *files* are good, but the fallback is hardcoded slug constants (`tokyo-night`, `tokyo-night-day`) resolving *into* that set — rename a built-in file in a later PR, or typo a constant, and every embedded theme still validates while **every fallback path becomes unresolvable.**
 
-With no path pretending to handle it, a binary somehow shipped with a broken default fails **loudly at startup** rather than limping on values nobody chose. `main.go` already owns a panic-recovering exit with a `process: panic` lifecycle marker, so that is a *marked* termination, not an unhandled crash.
+With no path pretending to handle it, a binary somehow shipped with a broken default fails **loudly at startup** rather than limping on values nobody chose.
+
+**Mechanism:** the loader returns an ordinary error for an embedded parse failure — it does not panic. The escalation happens where the fallback is *needed*: a fallback that cannot resolve is a fatal error returned up the normal path, so the user sees a one-line message rather than a Go panic trace. `main.go`'s panic-recovering exit and its `process: panic` lifecycle marker remain the backstop for a genuine programming fault, not the designed route. **Validation is not startup-eager** — nothing walks the embedded set at init, because §7.6's test already proves it at build time and re-proving it on every launch buys nothing on a cold path this feature otherwise adds no cost to.
 
 Rejected: a compiled-in last-resort palette equal to Tokyo Night Dark. A build-time guarantee beats a runtime crutch.
 
@@ -581,24 +623,40 @@ Rejected: a compiled-in last-resort palette equal to Tokyo Night Dark. A build-t
 
 MV's six corrected light values are described in-source as *"darkened, hue-preserved"*, which may carry the same chroma flaw as the rejected Nord red — in the opposite direction.
 
-**Owned by this feature's implementation, before MV's values are frozen into theme files:** re-derive the six corrected light values in Oklab, measure chroma loss, and give a **fresh visual gate** to any that moved materially.
+**Owned by this feature's implementation, before MV's values are frozen into theme files:** re-derive the six corrected light values in Oklab — the minimal-Oklab-distance colour that clears the same floor — and compare each against the shipped value.
+
+**Threshold: Oklab ΔE ≥ 0.05 is "moved materially".** The Nord port anchors the scale at the other end (ΔE 0.018, cited as essentially imperceptible), and 0.05 is comfortably above that while still well below a difference anyone would describe as a colour change. Under it, nothing happens.
+
+**Acceptance criteria, so the check has a determinate outcome either way:**
+
+- **Every value under threshold** → the check passes, `§7.3`'s tables stand, nothing moves, and the result is recorded (a passing check is a finding, not a non-event).
+- **Any value at or over threshold** → that value is replaced by the re-derivation and gets a **fresh visual gate**. If it is one of the four eyeball-pinned tints (§13.5), `TestLightSurfaceTintsPinned` and `TestLightTintFillsArePerceptible` take the new pin from that gate.
+- **If anything moves, §7.3's value tables in this specification are superseded by the theme files** rather than being re-written here. The files are the source of truth for values (§15.3); this spec's tables are the record of what was carried across, and a note pointing at the moved values is the honest form once they diverge.
 
 **Flagged consequence:** if the check finds anything, shipped colours change, `TestLightSurfaceTintsPinned`'s eyeball-established pins move, and "Tokyo Night Dark/Light are just the existing values" (§7.3) stops holding exactly. **The built-in-set decision is conditional on this check.**
 
 ## 8. The theme setting — resolution & detection
 
-### 8.1 On-disk shape — three flat string keys in `prefs.json`
+### 8.1 On-disk shape — three flat string keys in `prefs.json`, plus a migration marker
 
-`prefs.json` gains three keys alongside the existing `session_list_mode`:
+`prefs.json` gains three theme keys and one migration marker alongside the existing `session_list_mode`:
 
 ```json
 {
   "session_list_mode": "flat",
   "theme": "",
   "theme_light": "",
-  "theme_dark": ""
+  "theme_dark": "",
+  "theme_migrated": false
 }
 ```
+
+**`theme_migrated`** is not a theme setting — it is the one-shot gate for the `appearance` translation (§10.3). Its contract:
+
+- **Type: boolean.** Not a version string or timestamp — the translation is a single event with no successor, so there is nothing to version.
+- **Tolerant decode:** anything that is not literal `true` — absent, empty, corrupt, unrecognised — decodes to `false`. This keeps decode as dumb as the string keys: the failure direction is "run the translation again", and the translation is idempotent by §10.5, so a corrupt marker costs one redundant write rather than a wrong theme.
+- **Written unconditionally on the first post-upgrade prefs load**, including when there is nothing to translate (`appearance` is `auto` or absent). Otherwise the condition is re-evaluated on every launch forever. §10.2's "Nothing" refers to the *theme keys* — the marker is still set.
+- **Never participates in mutual exclusion** (§8.2). It is orthogonal to which theme keys are set, and clearing theme keys by hand does not clear it — that is precisely the property §10.3 exists to guarantee.
 
 Rejected: a polymorphic `theme` field (string *or* object — tolerant-decoding a two-typed field means probing both, and "what does a corrupt value degrade to" turns murky in the store meant to be dumbest), and an always-object form (`{"constant": …}` / `{"light": …, "dark": …}` — explicit but verbose for the common case, and invents a wrapper key).
 
@@ -647,6 +705,8 @@ Reasons over shipping a constant dark default:
 This is load-bearing because three other decisions collide otherwise: the model holds the active `Theme` (§3.4), discovery is lazy and does one read by name (§5.7), and a two-slot user's light/dark resolves **after** `Init`, when the OSC 11 reply or the 50ms timeout lands. Since the shipped default *is* the adaptive pair, the common path constructs the model before the slot is known — and both alternatives were bad: defer the read onto the first-paint critical path, or paint dark and flip.
 
 **Cold-path cost:** one file read for a constant, two for a pair. No file read on the critical path, no flip.
+
+**Resolution order on the by-name path: the embedded set first, then the themes directory.** A nominated slug that names a built-in resolves to the built-in and **never reads the themes directory at all**. This is what makes §5.4's no-shadowing guarantee implementable on the path that matters — construction does not enumerate, so there is no collision to *detect* there; the safety property has to come from ordering. And construction is where the fallback resolves, which is the exact thing no-shadowing exists to protect.
 
 **Mid-session slot assignment reads at commit time.** A constant nominates one theme, so assigning a slot (converting the user to adaptive in-session) reads that slot's file at keypress time — already the panel's cost model.
 
@@ -712,9 +772,11 @@ Portal's multi-window burst routinely produces several concurrent processes, so 
 - Each instance loads its theme at construction; an instance that changes theme persists it; **other instances are unaffected until relaunch.** There is no file watch.
 - This is exactly how `session_list_mode` already behaves — the `s` toggle persists per-instance with no cross-instance sync, via the existing `ModePersister` seam that a theme persister follows.
 
-**But a stale whole-file write can silently revert a theme.** Before this feature `prefs.json` had one field with a production writer. It now holds four independently-mutated fields written from two surfaces: instance A, constructed ten minutes ago, presses `s` and writes *its* in-memory prefs, silently reverting the theme instance B just committed. `AtomicWrite` does not help — this is a lost update, not a partial write.
+**But a stale whole-file write can silently revert a theme.** Before this feature `prefs.json` had one field with a production writer. It now holds five independently-mutated fields written from three surfaces: instance A, constructed ten minutes ago, presses `s` and writes *its* in-memory prefs, silently reverting the theme instance B just committed. `AtomicWrite` does not help — this is a lost update, not a partial write.
 
-**Both writers must read-modify-write:** re-read `prefs.json` immediately before writing, mutate only their own field(s), and write the merged result. Not novel — the project and hooks stores already do this for their own mutations.
+**Every writer must read-modify-write:** re-read `prefs.json` immediately before writing, mutate only its own field(s), and write the merged result. Not novel — the project and hooks stores already do this for their own mutations.
+
+**This includes the migration write** (§10.5). Its idempotence argument covers simultaneous cold launches computing the same value, but not the case this rule exists to close: an instance constructed against a pre-migration file flushing stale in-memory prefs and reverting a commit another instance made in between. The RMW re-read also lets the migration observe that another instance already set `theme_migrated` and skip its own write.
 
 `prefs.json` continues to go through `fileutil.AtomicWrite`, so all three theme keys land in one atomic write and partial failure is impossible.
 
@@ -768,7 +830,8 @@ The startup win survives intact — skipping the gate for constant users is abou
 **Every `*.theme` file in the themes directory gets a row, plus every built-in, plus any slug named in `prefs.json` that has no file.**
 
 - Enumerating every file means an invalid theme is *present and named*, so the user sees "there's my theme, it's registered, but it's invalid" rather than being completely in the dark about why it did not appear.
-- A persisted slug with **no file** gets a row too — marked, unselectable, reason `not found`. Same shape as an invalid file: the user sees what is set and why it is not applying. This covers a deleted file, a renamed file, a typo in `prefs.json`, and a persisted slug rejected by the charset check before any file is sought.
+- A persisted slug with **no file** gets a row too — marked, unselectable, reason `not found`. Same shape as an invalid file: the user sees what is set and why it is not applying. This covers a deleted file, a renamed file, and a typo in `prefs.json`.
+- A persisted slug **rejected by the charset check** (§8.6) before any file is sought gets a row with reason **`bad name`**, not `not found` — the reason maps to the actual failure, and each §6.2 reason has exactly one condition. Telling a user their file is missing when they typed an illegal name sends them looking in the wrong place.
 - Applies **per-slot** under an adaptive pair with one dead or broken slug.
 
 This is what makes the `●` marker always have something to sit on, so it keeps meaning "this is what's persisted" and nothing ever implies the fallback was chosen.
@@ -784,6 +847,10 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 **Invalid rows** render in `text.faint` with `⚠` and a terse reason from §6.2 (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`) — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
 
 **A `bad name` row is labelled by its filename**, not a slug — it has none, because §5.2 rejects rather than normalises. The same applies to its position in the list: **ordering is alphabetical by slug, falling back to the filename for a row that has no slug.**
+
+**A `reserved name` row is likewise labelled by its filename.** Its slug is valid, but it is *identical* to the built-in's — labelling by slug would put two rows reading `nord` in a list where §9.5 deliberately makes built-in and drop-in rows indistinguishable. `nord.theme` beside `nord` tells the user exactly which one is theirs, and it sorts adjacent to the built-in it collides with, which is where the explanation is most useful. The terse reason stays `reserved name`; doctor carries the sentence naming the conflict.
+
+**A displayed slug that came from `prefs.json` is truncated and control-stripped before rendering.** It is hand-editable text drawn into a fixed-width frame, and §8.6 validates it before *use* as a path component but the unresolvable row still shows it — so a pasted newline, tab or ANSI escape would otherwise reach the panel.
 
 **Arrow keys skip invalid rows**, reusing the mechanism that already skips group-header rows on the Sessions list. The skip composes with paging exactly as the group-header skip already does.
 
@@ -1231,7 +1298,9 @@ Dropping `↑↓ navigate` frees ~93px; `t theme` costs ~61px and `m multi-selec
 
 The Projects footer was verified against the `Projects (MV)` frame: it carries no `navigate` today and has ~322px of slack before `? help`.
 
-The `t` row is filtered out of `?` help while blocked under `NO_COLOR` (§9.10); `m`'s existing filter under an unsupported terminal is unchanged.
+**The footer is filtered in lockstep with `?` help.** A blocked `t` (under `NO_COLOR`, §9.10) or a blocked `m` (unsupported terminal) is absent from **both** surfaces, through the same call-site filter. Advertising a key in the footer that only produces a blocked flash is the dead-end the proactive block exists to prevent, and help/footer disagreeing about the same key is a live inconsistency.
+
+**Consequence for the width budget:** §14.3's arithmetic is measured with both entries present, which is the tight case. Filtering only ever removes entries, so every blocked-state footer is strictly narrower and no separate budget is needed.
 
 ---
 
