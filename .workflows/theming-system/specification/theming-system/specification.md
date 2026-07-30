@@ -1461,6 +1461,11 @@ A new user-facing doc, following the `docs/custom-terminals.md` precedent (a use
 - **The 19-token vocabulary with each role's meaning** — the substance of §2.5. `docs/theming.md` is **the source of truth for the public contract.**
 - **The text ramp's weight ordering** — the sole record of it, since file ordering carries nothing (§2.7).
 - **The file format** — lexical rules, value domain, the closed key set.
+- **Discovery: where a theme file goes, what it must be called, and how Portal finds it.** The drop-in author's first three questions, and currently the only part of the contract with no documented home:
+  - The themes directory and its resolution chain — **`PORTAL_THEMES_DIR` → `XDG_CONFIG_HOME/portal/themes/` → `~/.config/portal/themes/`** (§5.5). §5.5 fixes that env var's name in the spec *precisely so this doc can print it*.
+  - The filename rules — the filename is the identity, the slug charset `^[a-z0-9][a-z0-9-]*$`, and the exactly-lowercase `.theme` extension (§5.1–§5.3). Violating them produces `bad name`, which the panel and doctor both render, so the rules belong where a user reads before writing the file rather than after.
+  - The enumeration rules that decide whether a file is seen at all — top-level only, symlinked files followed, symlinked directories skipped (§5.6).
+  - **The two-line drop-in workflow** from §12.1, `mkdir -p` included — Portal never creates or seeds the directory, so without that line the first thing a new user meets is a redirect error.
 - **A complete copy-pasteable example theme** (also the no-terminal on-ramp).
 - **The two-slot config** — `theme` / `theme_light` / `theme_dark`, constant vs adaptive, mutual exclusion, the `theme`-wins hand-edit rule.
 - **The reserved built-in slugs.**
@@ -1468,7 +1473,7 @@ A new user-facing doc, following the `docs/custom-terminals.md` precedent (a use
 
 **Attribution and licensing are deliberately not pursued further.** No per-theme licence line, no "(adapted)" naming convention, no PR contribution requirement. Ported palettes keep their own names. Recorded so a future reader does not mistake the omission for an oversight.
 
-**`docs/theming.md` gets a guard** (§13.5) — it is now the sole record of the ramp ordering and role meanings, with nothing otherwise keeping it honest.
+**`docs/theming.md` gets a guard** (§13.5) — it is now the sole record of the ramp ordering and role meanings, with nothing otherwise keeping it honest. The guard covers the **vocabulary half only**: it parses the token table and compares the name set against `Theme.All()`. The discovery half above has no automated check and is maintained by hand, which is worth knowing rather than assuming.
 
 ### 12.5 README and CHANGELOG
 
@@ -1733,6 +1738,15 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | Resize below the **width** floor with the panel open (§9.8) | `terminal too narrow — theme picker closed` |
 | Resize below the **height** floor with the panel open (§9.8) | `terminal too short — theme picker closed` |
 | Panel closed with a failed commit outstanding (§9.13) | `⚠ theme not saved — see portal.log` |
+
+**Notice-band precedence for these flashes.** The band is a single-slot arbiter whose existing order is *filter line → burst progress → transient flash → multi-select banner → unsupported banner → no-tags signpost*. All six theme signals route through the **transient flash** slot, which composes correctly with everything below it — a flash outranks the multi-select banner, so the nesting §9.7 allows works — and needs no answer for burst progress, since §9.7 swallows `t` during a pending burst.
+
+**The filter line is the one contender above flash that can be live throughout a panel open/use/close, and the theme flashes take precedence over it.** A filter can sit applied-but-unfocused on the Sessions list the whole time, and under the existing order two decided guarantees would fail silently:
+
+- §9.13's failed-commit report would never reach the band — and because raising the flash **discharges** the outstanding state, the report would be destroyed rather than deferred. That is the silent revert the section exists to close.
+- §9.10's proactive `NO_COLOR` block would produce nothing at all, which is the walkable dead end it exists to prevent, reached by another route.
+
+A filter line is a persistent restatement of a state the user can already see in their own list; each theme flash reports a one-time event with no other surface. **This is a change to the band's precedence, scoped to these flashes** — stated rather than left to whatever the existing arbiter happens to do, since an implementer adding a flash would otherwise inherit the current order silently.
 
 **`portal theme export` (§12.1), stderr, exit 1:**
 

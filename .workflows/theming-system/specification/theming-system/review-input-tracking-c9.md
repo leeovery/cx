@@ -30,8 +30,8 @@ The multi-select case composes correctly by contrast and is worth noting as the 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A now carries the band's full precedence order (the spec had the six-contender *count* twice but never the order) and states that the theme flashes take precedence over the filter line — the one contender above flash that can be live throughout a panel open/use/close. Without it §9.13's report is destroyed rather than deferred (the flash discharges the state) and §9.10's proactive block produces nothing, both being the exact failures their sections close. Recorded as a scoped precedence change rather than left to whatever the existing arbiter does.
 
 ---
 
@@ -73,7 +73,7 @@ Worth noting the doc guard (§13.5) does not catch this: it parses the token tab
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.4's contents list gains a Discovery bullet covering the directory and its resolution chain including PORTAL_THEMES_DIR (which §5.5 named in the spec precisely so this doc could print it), the filename identity/charset/extension rules, §5.6's enumeration rules, and §12.1's two-line drop-in workflow with mkdir -p. Also noted at §12.4's guard reference that the doc guard covers the vocabulary half only, so the discovery half is hand-maintained.
 
 ---
