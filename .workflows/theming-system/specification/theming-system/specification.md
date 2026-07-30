@@ -933,6 +933,50 @@ Retaining it is inert to the new binary and still meaningful to an old one, and 
 
 The translation emits `theme: appearance migrated` (INFO, one-shot) — see §12.3.
 
+## 11. Live-swap mechanics
+
+### 11.1 Speed is a non-issue
+
+The cheap path already exists and already excludes the expensive one:
+
+- **Restyle** — `applyCanvasMode` swaps the delegate and re-points the cached style structs `bubbles/list` holds. O(1), no I/O, no list content touched. It is already exercised in production: it is what runs when the OSC 11 reply lands after first paint, and it performs exactly the mid-session restyle a theme swap needs.
+- **Rebuild** — `rebuildSessionList` re-derives the item list and, in grouped modes, runs the lazy dir-resolution pass with its per-session tmux pane reads (the known ~0.5s By-Project cost at ~38 sessions).
+
+**`applyCanvasMode` does not call `rebuildSessionList`.** Nothing heavy is on the theme-swap path, so no deferral mechanism is needed.
+
+The premise that the re-render is the cost is also wrong: Bubble Tea rebuilds the whole view string on *every* keypress regardless, diffs it, and writes only changed cells — holding the down arrow in the sessions list already does this dozens of times a second. **A theme swap costs one ordinary keypress plus the style re-point.**
+
+**"Bake in on exit" is rejected**: nothing is left un-baked, and deferring work to panel close would create a visible discontinuity at the one moment that should be seamless.
+
+### 11.2 The real risk is completeness
+
+Threading the theme (§3.4) fixes most of this: anything taking the theme as a parameter re-derives per frame. What remains is the **cached styles Portal does not own** — `bubbles/list`'s help styles, pagination dots, TitleBar, and both filter inputs — which are assigned once. That list is hand-maintained with no guard test, unlike the colour-literal rule which has an AST glob guard. Miss a site and the element silently keeps the previous theme's colours until something else re-renders it.
+
+**Two known offenders are fixed outright**, not guarded around:
+
+1. `pagepreview.go` copies a `Token` at **package init**, so it would never see a swap. The package-scope copy goes.
+2. `canvasHexFor` references `theme.MV` directly — a hardcoded MV reference outside the token render path. It becomes theme-agnostic.
+
+Fixing them does not make the guard redundant; **the guard is what stops them returning** (§13.4).
+
+### 11.3 OSC 11 re-emission
+
+- **No per-keystroke churn.** Bubble Tea v2 **diffs** the view's background colour and emits only on change, so hovering N themes emits OSC 11 exactly once per *distinct* canvas landed on — the minimum the feature requires. The declarative per-frame `BackgroundColor` assignment is not a per-frame write.
+- **The echo guard needs no new race handling.** It exists because the startup OSC 11 *query reply* can race Portal's own canvas set. The query is issued once from `Init`; a later theme switch issues no new query, so it creates no new race. The guard only ever needs to compare against the canvas active during the *startup* window.
+
+### 11.4 The exit-time canvas restore
+
+`RestoreTerminalBackground` currently derives its comparison value *at exit* from `m.canvasMode` via `canvasHexFor`, which reads `theme.MV.Canvas` directly. Under a switchable theme that is wrong: it would compare against the *active* theme's canvas rather than the one in force during the startup window.
+
+**Required change:**
+
+- **Capture and retain the startup canvas hex as model state**, and anchor `RestoreTerminalBackground`'s comparison to it.
+- **Make `canvasHexFor` theme-agnostic** — no `theme.MV` reference.
+
+This is the mechanic carrying an explicit *"do **not** drop this guard"* warning, and the swap-and-diff guard structurally cannot cover it (it scans rendered fixture output, and this is an exit-time OSC 11 write). **It therefore needs its own named verification** — a direct unit test on `RestoreTerminalBackground`, driven without fixtures, asserting it compares against the retained startup canvas and not the active theme's, **including the case where a theme was committed mid-session** (§13.4).
+
+The stakes are why: this is the one path where a mistake re-sticks a colour in the user's terminal **after Portal exits**.
+
 ---
 
 ## Working Notes
