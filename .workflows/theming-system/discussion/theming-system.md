@@ -1719,6 +1719,55 @@ there is no failure to surface or record on that path at all.
 — no scan, no file read, no parse. On the path Portal is most careful to keep
 free of cost, this feature adds nothing at all.
 
+### Write-path robustness (the review's F8, F11, F13)
+
+**The upgrade translation is a startup write (F8).** Resolution: separate
+*computing* from *persisting*. At prefs load, read `appearance`, compute the
+translated theme, and **use it in memory immediately**; the write is best-effort
+and non-blocking. A failed write means Portal renders the correct theme this
+launch and retries next launch (the condition is still true), so it can never
+flip the user to the wrong theme — which was the translation's entire purpose.
+
+Concurrency is a non-issue for a reason worth stating: several burst-launched
+instances hitting the condition simultaneously all compute **the same value from
+the same input**, so the write is idempotent and last-write-wins is harmless.
+That is what makes it safe where a general read-modify-write would not be. It also
+never runs on the exec path, which constructs no TUI and reads no prefs.
+
+**The persisted slug needs the same charset validation as a filename (F11).** The
+`[a-z0-9-]` rule was stated as applying to filenames *during enumeration*, but the
+persisted value comes from a hand-editable file and is used to locate a file by
+name on a path that deliberately does not enumerate — so `../something` would be
+used as a path component. Stakes are low (the read fails validation anyway) but
+the rule was in the wrong place: **validate the persisted slug against the same
+charset before use**, and treat an invalid one as unresolvable — fallback plus
+report, identical to any other unresolvable theme.
+
+**The themes directory itself (F11).** Absent is the common case and **silent** —
+zero drop-ins, not an error, no doctor line. Unreadable, or a regular file where a
+directory belongs, gets a **doctor advisory line and a log entry**, being a
+genuine misconfiguration rather than an absence.
+
+**A failed commit write (F13)** reports inside the panel, keeps the theme applied
+in memory, and **does not move the `●`** — the marker means "what is persisted"
+and would be lying if it moved. This does recreate "applied but not persisted",
+but as a *reported* state rather than a silent one, which is the distinction the
+picker idiom was actually buying. The multi-field concern dissolves: `prefs.json`
+already goes through `fileutil.AtomicWrite`, so all three keys land in one atomic
+write and partial failure is impossible.
+
+### Doctor's advisory lines, visually (the review's F17)
+
+Doctor renders one line per check with a pass/fail marker and drives a single exit
+code, so an advisory line that *looks* failing while leaving the exit code at 0 is
+a new reading for both humans and scripts.
+
+**Decision:** Portal-health checks keep their existing pass/fail markers;
+**advisory lines carry `⚠`**, reusing Portal's established warning glyph (§2.2,
+glyph-backed so it survives colourless). Doctor's closing summary distinguishes
+the two counts — e.g. *"N checks passed · 2 advisories"* — so the exit code's
+meaning is legible without reading the contract.
+
 ### Docs
 
 `docs/theming.md`, following the `docs/custom-terminals.md` precedent (a
