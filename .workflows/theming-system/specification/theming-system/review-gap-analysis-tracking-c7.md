@@ -33,8 +33,8 @@ The badge rule also has a third case neither section names: a slot that is **set
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved with one rule covering all three cases: the badge marks the slug a slot resolves to *before* fallback — persisted slug when set (loadable or not, so a fallback never moves the badge), shipped default's slug when unset. That makes §9.4's "the marker always has something to sit on" true on a virgin install (where §8.1 leaves prefs.json absent entirely), and makes §9.9's inherited-default-vs-pin distinction visible. §8.4's bullet cross-referenced to the full rule; the virgin-install commit's visible badge collapse recorded as correct.
 
 ---
 
@@ -63,8 +63,8 @@ Two further things are left undetermined by the same table:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A now pins three summary forms including the failing case the summary exists for (`<N> of <T> checks passed`), defines N and T as Portal-health checks only with advisories counted separately by M, and corrects the M=0 justification — the summary line is new on every run, which is the §15.1 amendment rather than a regression.
 
 ---
 
@@ -88,8 +88,8 @@ The consequence is not only cosmetic. §9.8's minimum-height floor is defined as
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3's fixture list expanded from four to seven, adding the pinned directory row, both message-slot states (the one copy the spec says may not fit), and the minimum-height-with-message frame (§9.8's floor arithmetic is only observable there), plus §11.2's paginating panel. Recorded that a missing fixture is a blind spot §13.4 structurally cannot report, since absence reads as coverage.
 
 ---
 
@@ -112,8 +112,8 @@ The migration write has no panel. §10.5 puts it in `loadPrefsStore` at prefs lo
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.9: the migration write inherits only the abort-don't-overwrite half. It runs before any panel exists, is best-effort with a next-launch retry, and emits no `theme: commit failed` — its failure signal is the absence of `theme: appearance migrated` per §10.5, which keeps the commit-failed event single-sited on the theme persister.
 
 ---
 
@@ -140,8 +140,8 @@ The migration write has no panel. §10.5 puts it in `loadPrefsStore` at prefs lo
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: All three settled in §4.2's branch table: the contradictory whitespace row split into interior-whitespace (`bad colour`) and trailing-whitespace (trimmed, not an error); "quoted" defined as any leading quote matched or not, with the reasoning that a matched-pair definition would send the unmatched case to `bad colour` and blame the wrong thing; and a well-formed key defined as non-empty with no whitespace and no `=`, so a key typo reports `bad syntax` rather than being ignored into a misleading `missing tokens`.
 
 ---
 
@@ -165,8 +165,8 @@ The opposite reading (the flash discharges the state) is equally consistent with
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.13: raising the flash discharges the state — it is the report the state exists to produce. Without it, reopening and pressing Esc would re-fire the flash on every close for the life of the process, and §9.8's forced close would stack it against the too-narrow flash in a single-slot notice band.
 
 ---
 
@@ -196,8 +196,8 @@ It also fixes the shape of a type three surfaces consume — `cmd/open.go`, `cap
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.4: the nomination carries no provisional active member under adaptive. Nothing needs one — the gate resolves before first paint, so there is no frame in the interval and no second resolution to reconcile with §8.8's resolve-once rule. §11.4's retained hex is captured when the gate resolves, defined for every frame that exists. §13.3's wording corrected to match.
 
 ---
 
@@ -219,5 +219,5 @@ Lower-stakes, from the same condition: §5.5 scopes `theme: directory unusable` 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §5.5: a theme made unreachable by an unusable directory carries `unreadable`, not `not found` — the same discrimination §9.4 draws, and permissions is the actual problem. Applied uniformly to the fallback event's reason attr, the persisted-slug rows beneath the pinned directory row, and doctor's line. Also settled that the construction-time by-name read emits `theme: directory unusable` too (dedup makes it safe), so a user who never opens the panel still gets a record.

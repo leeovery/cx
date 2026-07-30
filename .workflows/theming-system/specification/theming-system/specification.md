@@ -251,7 +251,9 @@ The route explicitly **closed** is btop's precedent of an *empty* value: §4.2 p
 | A duplicated key — **known or unknown**, **same value or different** | `bad syntax` | The duplicate check is lexical and runs before any key is classified or compared. Making it conditional on the key being known, or on the values differing, adds branches to buy nothing. |
 | `Text.Primary = …` | ignored as unknown → file fails `missing tokens` | Keys match case-sensitively (above). Doctor names the missing token, which is what makes it findable (§6.2). |
 | `#FFF` / `#FFFFFFFF` / `#GGGGGG` | `bad colour` | §4.3 admits `#RRGGBB` only. |
-| Trailing or internal whitespace in a value | `bad colour` | Trimming is defined around `=` only; a value with interior whitespace is not a valid hex. Trailing whitespace after the value **is** trimmed, since it is whitespace around the pair rather than inside the value. |
+| **Interior** whitespace in a value (`#FF FFFF`) | `bad colour` | Not a valid hex. Trailing whitespace after the value is trimmed and is **not** an error — it is whitespace around the pair, not inside the value. |
+| A value beginning with `"` or `'` | `bad syntax` | **Any leading quote is "quoted"**, matched or not — `"#FFFFFF"`, `'#FFFFFF'` and `"#FFFFFF` alike. Defining it by a *matched outer pair* would send the unmatched case down the ladder to `bad colour` at rung 5, telling the user their colour is wrong when their quoting is. The rule is one character, and it is the first character. |
+| A key containing whitespace or `=` (`text primary = …`) | `bad syntax` | **A well-formed key is non-empty and contains no whitespace and no `=`.** Without this the line is a well-formed pair with an unknown key, which is *ignored*, and the file then fails as `missing tokens` — a reason that points at the wrong thing for what is plainly a typo in a key that is otherwise right. |
 | An empty file, or one containing only comments | `missing tokens` | It parsed; it declares nothing. |
 | A BOM anywhere but the first bytes of the file | `bad syntax` | The BOM strip applies at file start only. |
 | `text.primary = #ECEFF4 = x` (more than one `=`) | `bad colour` | **Split on the first `=`.** Everything after it is the value verbatim, so a stray `=` lands in the value and fails hex validation. This also falls out of the comment rule: the format never re-interprets anything right of the first separator. |
@@ -364,7 +366,9 @@ The env var is named here rather than left to implementation because it is a use
 | State | Behaviour |
 |---|---|
 | **Absent** | The common case. **Silent** — zero drop-ins is not an error. No doctor line, no log entry. Portal never creates or seeds it. |
-| **Unreadable**, or a regular file where a directory belongs | A genuine misconfiguration: a **doctor advisory line**, and a **`theme: directory unusable` log entry from the TUI path** when the panel's enumeration hits it. Doctor itself emits nothing (§12.3) — the two surfaces report the same condition, each in its own medium. |
+| **Unreadable**, or a regular file where a directory belongs | A genuine misconfiguration: a **doctor advisory line**, and a **`theme: directory unusable` log entry from the TUI path** — emitted both by the panel's enumeration and by the construction-time by-name read (§8.4) when it hits the same condition, deduplicated per process (§12.3) so the two never double up. Emitting from construction too is what gives a user who never opens the panel a log record at all. Doctor itself emits nothing (§12.3) — the two surfaces report the same condition, each in its own medium. |
+
+**A theme made unreachable by an unusable directory carries the reason `unreadable`**, not `not found`. The distinction is the one §9.4 draws for a persisted slug: `not found` sends the user to check the filename, `unreadable` sends them to check permissions — and permissions is the actual problem. It applies uniformly to the reason attr on `theme: fallback applied` (§12.3), the terse reason on the persisted-slug rows rendered beneath the pinned directory row (§9.5), and doctor's line through §14A.
 
 ### 5.6 Enumeration rules
 
@@ -778,13 +782,15 @@ Both are keypress-time work, which is already the panel's cost model. **This is 
 
 **The constructor therefore takes the loaded *nomination*, not a single theme.** One value covering both states:
 
-- **Constant** — one loaded `Theme`; the gate is never consulted, and it is active from frame one.
-- **Adaptive** — both loaded `Theme`s, light and dark; the gate selects between them when the OSC 11 reply or the timeout lands.
+- **Constant** — one loaded `Theme`, active from frame one; the gate is never consulted.
+- **Adaptive** — both loaded `Theme`s, light and dark, and **no active member yet**. The gate selects one when the OSC 11 reply or the timeout lands, which is before first paint (§8.8).
+
+**The nomination carries no provisional active member under adaptive**, and nothing needs one: the gate resolves before anything is painted, so there is no frame to render in the interval and no second resolution to reconcile with §8.8's resolve-once rule. §11.4's retained startup canvas hex is captured **when the gate resolves**, which is the same moment the first frame is composed — so it is defined for every frame that exists, and if Portal dies before then nothing was painted and there is nothing to restore.
 
 **The constructor also takes the raw persisted theme keys** — `theme`, `theme_light`, `theme_dark` exactly as read, control-stripped per §9.5. The nomination alone is insufficient for the panel, in three ways it cannot recover:
 
 - **A slug that never loaded is not in the nomination.** §9.4 requires a row for a persisted slug resolving to neither a built-in nor a file, and for a persisted string rejected by the charset check. Neither ever produced a `Theme`.
-- **A badge needs the *persisted* slug, not the nomination's.** Under a fallback these differ by design — "the `●` still marks the persisted slug" (§9.2) while the nomination holds the fallback's palette.
+- **A badge needs the *persisted* slug, not the nomination's**, wherever one is set. Under a fallback these differ by design — "the `●` still marks the persisted slug" (§9.2) while the nomination holds the fallback's palette. (An *unset* slot's badge comes from the shipped default instead — §9.5 gives the full rule.)
 - **§14A's confirm renders the persisted constant**, on a path where that constant may be the one that failed to load.
 
 The model holds that nomination, the raw keys, and which member is currently active — "the model holds the active `Theme`" (§3.4) describes what is *threaded to renderers*, which is always exactly one theme.
@@ -879,7 +885,9 @@ This means the `theme` component is emitted from more than one package — the l
 
 **§10.3's no-op condition is evaluated at the RMW re-read, against the bytes about to be merged — never against the load-time snapshot.** Because the translation's write is non-blocking, a user can commit a theme in the window between compute and persist; evaluated against the stale snapshot the pending translation would write `theme = tokyo-night` over the `nord` they just committed and clear the slots, which is §10.3's own failure displaced from cross-launch to intra-process. The same re-read is what lets the migration observe that another instance already set `theme_migrated`.
 
-**A re-read that does not yield a usable file aborts the write — it never becomes an overwrite.** `prefs.json` is hand-editable and its decode is tolerant, so a stray comma degrades to a zero-value struct rather than erroring. Merging into that and committing it would erase `session_list_mode`, `theme_migrated`, every untouched theme key and the retained raw `appearance` in a single `s` keypress — the exact loss §8.8 calls out, on the path §13.6 names as the one whose failure is silent and permanent. So a decode failure **or** an I/O failure on the re-read is treated as a failed write: nothing is written, `theme: commit failed` is emitted, and the panel reports it (§9.13). The same applies to the migration write, which this rule already covers.
+**A re-read that does not yield a usable file aborts the write — it never becomes an overwrite.** `prefs.json` is hand-editable and its decode is tolerant, so a stray comma degrades to a zero-value struct rather than erroring. Merging into that and committing it would erase `session_list_mode`, `theme_migrated`, every untouched theme key and the retained raw `appearance` in a single `s` keypress — the exact loss §8.8 calls out, on the path §13.6 names as the one whose failure is silent and permanent. So a decode failure **or** an I/O failure on the re-read is treated as a failed write: nothing is written, `theme: commit failed` is emitted, and the panel reports it (§9.13).
+
+**The migration write inherits only the abort half.** It runs at prefs load, before any panel exists, so it has no reporting surface and needs none: it is best-effort and non-blocking by §10.5, the condition is still true next launch, and it retries. It emits **no** `theme: commit failed` — its failure signal is the *absence* of `theme: appearance migrated`, which §10.5 already designs for, and which keeps the commit-failed event single-sited on the theme persister (§8.9). What it does inherit is the rule that matters: **a re-read that does not decode aborts rather than overwrites.**
 
 **"Skip" means skip the theme keys, not the whole write** — the marker is still recorded, so the translation does not stay pending forever. And once a mid-session commit supersedes the translated value, **the commit is the model's active theme**: the translation's in-memory result was only ever the starting value for a launch nobody had chosen a theme in.
 
@@ -1063,7 +1071,17 @@ Treatment **B** (a `dark → … / light → …` key-value block pinned under t
 
 **Accepted caveat:** with a very long list the assignments could scroll out of view. Judged fine — a user knows what they picked and can scroll to find it.
 
-**Because the panel shows both slots' badges at all times**, a user can see what light is set to without having to remember whether they set it — including slots never touched, which hold shipped defaults (§8.3).
+**The badge marks the slug a slot resolves to *before* fallback.** One rule covering all three cases, which §8.4's "the badge needs the persisted slug" and the shipped-default reading each cover only part of:
+
+| Slot state | Badge sits on |
+|---|---|
+| Set and loadable | The persisted slug |
+| Set but unloadable (§8.5) | Still the **persisted** slug — a fallback never moves the badge; the `●` means "what is set", and the fallback's own row carries no badge |
+| Never set | The **shipped default's** slug (§8.3) — `tokyo-night-day` carries `● light`, `tokyo-night` carries `● dark` |
+
+The third row is what makes §9.4's justification for the whole union true — *"the `●` marker always has something to sit on"* — including on a brand-new install, where §8.1 leaves `prefs.json` absent entirely and a persisted-slug-only rule would show no marker anywhere at all. It is also the one place §9.9's inherited-default-versus-pin distinction is visible to a user, which is a reason to show it rather than a reason not to.
+
+**Because the panel shows both slots' badges at all times**, a user can see what light is set to without having to remember whether they set it. A commit on a virgin install therefore does visibly change the badges — `Enter` collapses two slot badges to one bare `●` — which is correct: the user has just converted two inherited defaults into one pin.
 
 ### 9.6 Opening the panel — `t`, on Sessions and Projects
 
@@ -1169,7 +1187,7 @@ This recreates "applied but not persisted", but as a *reported* state rather tha
 
 **"Outstanding" is a state, not a message.** A commit failure is outstanding from the moment a write fails until a **subsequent commit succeeds** — nothing else clears it. In particular arrowing away does not: that dismisses the *message* (which persists only until the next keypress) while leaving the state, which is what stops the very next `Esc` reinstating the silent revert this section exists to close. And because a successful retry clears it, a `d` that fails followed by an `l` that succeeds raises no flash — the user is not told a theme was not saved when it was.
 
-**So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
+**So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. **Raising the flash discharges the state** — it is the report the state exists to produce, so once made the state has done its job. Without that, reopening the panel and pressing `Esc` would re-fire the flash about a failure already reported, on every close for the life of the process, and §9.8's forced close would stack it against `terminal too narrow — theme picker closed` in a notice band with one slot. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
 
 **A commit is always re-attemptable.** The commit keys are unconditional writes (§9.2), so pressing `d`/`l`/`Enter` again simply retries — no special retry affordance, and no state to clear first.
 
@@ -1488,7 +1506,7 @@ The committed reference PNGs were never meant to persist — they existed so the
 ### 13.3 Harness changes required
 
 - **`capturetool` and `internal/capture` survive and are open for edit.** Whatever the tool needs to work with the new system is in scope for this feature — no separate redevelopment work unit.
-- **`tui.Build` takes the loaded *nomination* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes, replaced per §8.4 (one theme under a constant, both under an adaptive pair, plus which member is active). `capturetool` always passes the **constant shape**: a single pinned theme, no gate, no wait — which is what keeps captures byte-deterministic. Without this injection the harness can only ever render the compiled-in default.
+- **`tui.Build` takes the loaded *nomination* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes, replaced per §8.4 (one theme under a constant, both under an adaptive pair — with the active member selected by the gate, not supplied by the caller). `capturetool` always passes the **constant shape**: a single pinned theme, no gate, no wait — which is what keeps captures byte-deterministic. Without this injection the harness can only ever render the compiled-in default.
 - **`capturetool` gains a `--theme` flag, replacing `--appearance`.** `--theme` accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
   - **Default: `tokyo-night`** when the flag is omitted, matching the shipped dark default. Every capture an agent takes without passing the flag depends on this, so it is named rather than inferred.
   - **Slug versus path is discriminated by a path separator *or* the `.theme` suffix** — so `nord` is a slug, and `nord.theme`, `./nord.theme`, `/abs/nord.theme` and `./mytheme.txt` are all paths. The separator half matters: without it a real file with an unexpected extension would be classified as a slug and rejected as an unknown built-in, an error naming the wrong problem for a file that plainly exists.
@@ -1504,7 +1522,15 @@ The committed reference PNGs were never meant to persist — they existed so the
 
   **Mitigation, procedural and mandatory: verify a fresh write before trusting or reviewing a capture** — confirm the file's hash changed — and retry on failure. This qualifies the chosen mechanism rather than reopening it: VHS satisfies the requirement, and §13.1's argument is that the agent cannot see its work without it, which makes an unverified capture worse than none.
 - **The panel's theme enumeration is behind an injectable seam.** A `ThemeEnumerator`-shaped interface, matching the `TmuxEnumerator` / `ScrollbackReader` idiom the preview page already uses: production wires the real directory walk, fixtures fake it. This is an architectural requirement, not a convenience — the harness must render an invalid-theme row without a real themes directory, and §7.1's no-real-config import guard forbids `internal/capture` reaching config at all. It is also what makes the panel unit-testable (row composition, ordering, truncation, the invalid-row skip), none of which otherwise has a test home.
-- **New fixtures are added for the slide-over** — the adaptive-pair state, the constant-while-previewing state, an invalid-theme row, and the narrow degraded panel — so the panel is visible during implementation rather than at release.
+- **New fixtures are added for the slide-over**, so every specified panel surface is visible during implementation rather than at release — which matters because §13.1 makes the harness the only route to seeing any of it:
+  - **The adaptive-pair state** (two slot badges).
+  - **The constant-while-previewing state** (a bare `●` while the cursor sits elsewhere).
+  - **An invalid-theme row**, and **the pinned `⚠ themes dir unreadable` row** — the latter has its own placement rule, token and pinned copy, and no other way to be checked.
+  - **The message slot in both states** — the confirm and the failed-commit line. §9.1 warns these may wrap at the minimum width and §14A calls panel wording a layout constraint, so the one copy the spec says might not fit must be capturable.
+  - **The narrow degraded panel**, and **the panel at its minimum height with a message live** — §9.8's floor is defined as header + footer + one row + one message row, and that arithmetic is only observable on a frame that renders it.
+  - **A panel long enough to paginate** (§11.2), so the pagination dots are covered by §13.4's guard.
+
+  A missing fixture is a blind spot the guard structurally cannot report: §13.4 enumerates whatever fixtures exist, so absence reads as coverage.
 
 ### 13.4 The swap-and-diff completeness guard
 
@@ -1690,8 +1716,11 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | `reserved name` conflict | `⚠ theme file <filename>: <slug> is a built-in — rename it (e.g. <slug>-mine.theme)` — the message names the conflict *and* the fix, which is what makes §5.4's workaround self-documenting rather than merely short |
 | Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>`. `<slot>` renders `light` or `dark` under an adaptive pair; under a **constant** the parenthetical is omitted entirely — `⚠ theme <slug> does not resolve: <reason>` |
 | Themes directory unusable | `⚠ themes directory unreadable: <path>` |
-| Closing summary, M ≥ 1 | `<N> checks passed · <M> advisory` at M=1, `· <M> advisories` above |
-| Closing summary, M = 0 | `<N> checks passed` — the advisory clause is suppressed, so an unchanged doctor run reads exactly as it does today |
+| Closing summary, all checks passed | `<N> checks passed` |
+| Closing summary, some checks failed | `<N> of <T> checks passed` — the failing case is the one the summary exists for, since it is when the exit code needs explaining |
+| Closing summary, advisories present | Either form above plus ` · <M> advisory` at M=1, ` · <M> advisories` above. Suppressed entirely at M=0 |
+
+`<N>` and `<T>` count **Portal-health checks only** — the class that drives the exit code (§12.2). Advisories are counted separately by `<M>` and never fold into either, which is the whole point of distinguishing them. The summary line is **new**: today's report is a header plus one line per check with no trailing summary, so every run gains a line — that is the amendment §15.1 names, not a regression.
 
 **`<detail>` formats**, since §6.2/§6.3 push all discrimination here and doctor has the width for it:
 
