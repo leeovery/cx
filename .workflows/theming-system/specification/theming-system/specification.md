@@ -1172,6 +1172,78 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 | **`keymap_dispatch_guard_test`** | Extended to cover the panel scope (§9.12). |
 | **Colour-literal guard** | Unchanged in mechanism; continues to exclude the `theme` subpackage. |
 
+## 14. Footer keymap revision
+
+This is a change to the existing §12.2 keymap revision, driven by discoverability: the feature would otherwise be near-invisible — `--theme` and `portal theme list` ruled out, the themes directory silent and never seeded, built-in rows indistinguishable from drop-ins, the reserved-slug set invisible, and no active-theme indicator when the panel is closed. Discoverability would rest entirely on `?` help and `docs/theming.md`.
+
+### 14.1 The change
+
+- **Drop `↑↓ navigate` from the footer.** Arrows in a list are a given, and arrows are the entry that genuinely deserves non-core status — still listed in `?` help. This is the distinction (core vs non-core) applied to the right thing.
+- **Promote both `t` and `m` to core**, so both appear in the footer as well as `?` help.
+
+### 14.2 Decided footers
+
+- **Sessions** — `⏎ attach · / filter · ␣ preview · s switch view · x projects · t theme · m multi` + right-aligned `? help`
+- **Projects** — `⏎ new session · x sessions · e edit · / filter · t theme` + right-aligned `? help`
+
+### 14.3 Width, measured rather than assumed
+
+Dropping `↑↓ navigate` frees ~93px; `t theme` costs ~61px and `m multi-select` ~116px, netting **+84px** against an 89px spacer at the reference mock's 86-column width — it fits with ~5px spare and no headroom.
+
+**The label is therefore `m multi`, not `m multi-select`**, buying back ~47px.
+
+The Projects footer was verified against the `Projects (MV)` frame: it carries no `navigate` today and has ~322px of slack before `? help`.
+
+The `t` row is filtered out of `?` help while blocked under `NO_COLOR` (§9.10); `m`'s existing filter under an unsupported terminal is unchanged.
+
+---
+
+## 15. Spec amendments this feature carries
+
+The Modern Vivid specification is amended by this feature's work. Named explicitly so none is missed:
+
+### 15.1 The three named amendments
+
+1. **§12.2 — the keymap revision.** The footer changes of §14 above.
+2. **The `portal doctor` contract.** Two classes of line — Portal-health checks driving the exit code, user-content diagnostics carrying `⚠` and not driving it — plus a closing summary distinguishing the counts (§12.2).
+3. **The log-component vocabulary.** A new `theme` component with its own attr keys and event catalogue (§12.3).
+
+### 15.2 The MV vocabulary sections
+
+Also amended, as spec-phase work rather than left unowned:
+
+| Section | Amendment |
+|---|---|
+| **§2.1 / §2.9** | The token renames (§2.4), 20 → 19, the dropped `border.footer`. |
+| **§2.9** | The removal of `Token.ColorFor` and `theme.Mode`; the two-hardcoded-canvas framing goes — each theme carries its own `canvas` token and contrast is measured against it. |
+| **§8.1** | The stale "2-tone border (`border.separator` + `border.footer`)" claim, which the implementation already dropped. |
+
+### 15.3 Where the vocabulary lives after this feature
+
+The 19 roles are described in four places. Their standing is not equal:
+
+| Location | Standing |
+|---|---|
+| **`docs/theming.md`** | **The source of truth for the public contract** — the 19 roles, their meanings, the ramp's weight ordering. Guarded (§13.5). |
+| **The MV spec** | Amended per §15.2. Design rationale and contrast rules. |
+| **The doc's example theme** | Covered by the same guard as the doc — must parse and contain all 19 keys, so it is not an unguarded fourth copy. |
+| **The embedded `.theme` files** | The values themselves. Guarded by the embedded-set validity test (§7.6). |
+
+### 15.4 The MV Paper frames are historical, not specification
+
+**Modern Vivid is already implemented, so the code is the source of truth.** The MV Paper frames are historical reference from that feature's design phase; a footer in them that no longer matches (e.g. still showing `↑↓ navigate`) is **not a defect** and is not worth updating.
+
+Only the **new** frames are forward-looking reference material, because they describe surfaces that do not exist yet:
+
+- `Theme slide-over — A (inline slot badges)`
+- `Theme slide-over — A (constant set, previewing another)`
+- `Theme slide-over — B (assignment header)` (the rejected treatment)
+- `Sessions — Nord (port)`
+- `Kill Modal — Nord (state.destructive #DD8188)`
+- `Sessions — Nord inline flash (bg.attention #3D4046)`
+
+**And even those are reference, never truth:** the Paper mocks use per-frame literal hexes, so the same token can carry different values across frames. That is exactly the drift the token layer prevents in code.
+
 ---
 
 ## Working Notes
