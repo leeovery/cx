@@ -24,8 +24,8 @@ The same gap swallows a second question. Three events are *"deduplicated per pro
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §12.3: the loader takes an injected logger seam — `cmd` passes a real component logger where a theme is used (TUI construction, panel, persister) and `log.Discard` for doctor and export. That is what §3.2's "the loader binds the component" means: it holds the binding and the call sites, the caller decides whether anything is written. Per-process dedup state lives on the injected logger, shared across the construction and panel paths as §5.5 requires, rather than package state in the leaf.
 
 ---
 
@@ -72,8 +72,8 @@ The spec is aware of half of this — §9.1 keeps the `⚠` on its own token *"s
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Two fixes. §2.5's role lists updated for all eleven panel consumers (the doc guard checks names only, so this drift class is the one §13.5 cites as found by chance). And the contradiction resolved: the invalid-row label moves from `text.faint` to `text.subtle` — text.faint is floored *below* the UI threshold precisely so it cannot carry content a user must read, and §9.4's whole justification for the row is that the user can tell which file is broken. §2.5's text.faint row now says so explicitly.
 
 ---
 
@@ -104,8 +104,8 @@ The spec is otherwise unusually precise about this row (its 16-column copy is pi
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.5: the row is viewport chrome pinned beneath the header, not a list delegate — a list row would paginate away and a page-1-only warning does not do the job §9.5 gives it. Two consequences stated: §9.8's minimum-height floor gains it conditionally (otherwise at the floor the warning consumes the only list row), and `theme: enumerated`'s count excludes it, being chrome rather than a union member.
 
 ---
 
@@ -135,8 +135,8 @@ Worth noting the adjacent behaviour is already determined and asymmetric: §12.3
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A now renders `<slot>` as `both` when the two slots name one slug — §9.5 treats that as a likely state with its own badge, and §12.2's one-slug-one-line rule forbids the two-line escape. Noted that the log is already asymmetric-free, dedupping fallback-applied on slug+reason.
 
 ---
 
@@ -160,8 +160,8 @@ The confirm's own keys are the other half. §9.12 enumerates the panel scope as 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.2 now switches the panel footer to `y confirm` / `n cancel` while the confirm is live (§14.3 is firm that advertising a key that will not act is the dead end a proactive block prevents) and puts the confirm's keys in the descriptor as a nested confirm scope, so the dispatch guard covers y/Y/n/N without contradicting §9.12's "all six" — which is the panel scope's own membership, not a combined list.
 
 ---
 
@@ -183,8 +183,8 @@ The end state is otherwise correct and §10.5's retry argument still holds, so t
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §10.5 now requires the theme key and the marker to land in one combined write. Two sequential RMW saves leave a window that §10.5's best-effort write makes reachable, and a failure between them produces the one reading §12.3 designs against: the translation succeeded while the event never fires, because the next launch sees a theme key set and writes only the marker.
 
 ---
 
@@ -216,5 +216,5 @@ Both are editorial rather than behavioural, but §2 is the section a theme autho
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §2.3's opening corrected from the self-contradictory "three naming failures, two are failures" to four kinds — three tabled, two of them failures, plus the fourth set out beneath — and §2.6's "three spots" to four, matching its own four numbered items.

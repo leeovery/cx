@@ -69,7 +69,7 @@ The closed vocabulary goes from 20 tokens to **19**. Every renderer references a
 
 ### 2.3 Naming principle — meaning and weight, never hue or place
 
-Three naming failures are in play; two are failures:
+Four naming kinds are in play. Three are covered by the table below — two of them failures — and a fourth is set out beneath it:
 
 | Kind | Example | Verdict |
 |---|---|---|
@@ -117,22 +117,22 @@ These meanings are the substance of `docs/theming.md` (§12.4), which is the sou
 
 | Token | Role |
 |---|---|
-| `text.primary` | Names, wordmark, active labels, modal titles, chip text |
-| `text.secondary` | Selected-row meta, help actions, banner/signpost |
+| `text.primary` | Names, wordmark, active labels, modal titles, chip text, theme-panel row labels |
+| `text.secondary` | Selected-row meta, help actions, banner/signpost, theme-panel confirm message |
 | `text.tertiary` | Done-tick labels, selected-row path |
-| `text.muted` | Paths, counts, footer labels, subtitles, group headings |
-| `text.subtle` | Group `··· N` counts, pending loading steps |
-| `text.faint` | Decorative only — inactive dots, `+ add`, mode indicator, hints |
+| `text.muted` | Paths, counts, footer labels, subtitles, group headings, theme-panel footer labels |
+| `text.subtle` | Group `··· N` counts, pending loading steps, **de-emphasised-but-readable labels** — theme-panel invalid-row labels |
+| `text.faint` | Decorative only — inactive dots, `+ add`, mode indicator, hints. **Never carries content a user must read**; §13.5 floors it below the UI threshold precisely so it cannot |
 | `text.on-selection` | Name on the selected row (pairs against `bg.selection`) |
 
 **Accents and states:**
 
 | Token | Role |
 |---|---|
-| `accent.primary` | Cursor, selector bar, active dot, `?` key, focused field label, mode bar, loading bar |
-| `accent.key` | Footer / modal key-hint glyphs |
-| `accent.mode` | Sessions header, Preview chrome, active tick — signals a distinct mode |
-| `accent.attention` | Filter query and `/`, edit-mode, warning flash `⚠` |
+| `accent.primary` | Cursor, selector bar, active dot, `?` key, focused field label, mode bar, loading bar, theme-panel `●` assignment badge |
+| `accent.key` | Footer / modal key-hint glyphs, theme-panel footer key glyphs |
+| `accent.mode` | Sessions header, Preview chrome, active tick, theme-panel header — signals a distinct mode |
+| `accent.attention` | Filter query and `/`, edit-mode, warning flash `⚠`, theme-panel invalid-row `⚠` and reason, theme-panel directory-unreadable row |
 | `state.positive` | `●` attached, Sessions count, Projects label, `✓` done, success flash |
 | `state.destructive` | Kill / delete emphasis, `▲` |
 
@@ -144,12 +144,12 @@ These meanings are the substance of `docs/theming.md` (§12.4), which is the sou
 | `bg.selection` | Selected-row tint |
 | `bg.attention` | Warning-flash band |
 | `bg.subtle` | Low neutral fill — loading-bar empty track |
-| `border` | Title rule, footer rule, modal panel frames, edit-modal chips |
+| `border` | Title rule, footer rule, modal panel frames, edit-modal chips, theme-panel left border and header rule |
 | `text.on-attention` | Warning-flash message (pairs against `bg.attention`) |
 
 ### 2.6 Accepted ambiguities
 
-Three spots were flagged as genuinely arguable and resolved to the values above:
+Four spots were flagged as genuinely arguable and resolved to the values above:
 
 1. **The ramp's middle join.** `text.tertiary` → `text.muted` mixes an ordinal vocabulary with a qualitative one, so ordering at that join rests on convention rather than the names. Fully positional names (`text.1`…`text.6`) would remove the ambiguity but strip all meaning from ~20 files of call sites — rejected. The ramp's weight ordering is documented in `docs/theming.md` (§12.4), which is where a theme author learns the vocabulary.
 2. **`accent.key`** could read as "important" rather than "keyboard key". Accepted over `accent.keyhint` / `accent.hint`.
@@ -960,7 +960,7 @@ At the minimum panel width the slot may wrap to two rows — it is not a list de
 | Cursor row | the shipped selection treatment — `bg.selection` tint, `accent.primary` `▌`, `text.on-selection` name |
 | Valid row label | `text.primary` |
 | `●` / `● dark` / `● light` badge | `accent.primary` — the badge marks *assignment*, which is the primary-accent role Portal already uses for active dots and the selector bar; `state.positive` would wrongly imply liveness, which is what `●` means on the Sessions list |
-| Invalid row label | `text.faint` |
+| Invalid row label | `text.subtle` — **not `text.faint`**: §2.5 and §13.5 make `text.faint` decorative-only and *forbid* it reaching the UI floor, but this label is the filename or slug the user must read to know which of their files is broken (§9.4's whole justification). `text.subtle` is the de-emphasised-but-readable step, which is exactly the role. |
 | Invalid row `⚠` and its terse reason | `accent.attention` — §2.5 assigns the warning glyph to it, and the reason is part of the same signal. The `⚠` keeps its own token rather than inheriting the row's `text.faint`, so the invalidity signal stays legible on a row that is deliberately dimmed |
 | Pinned `⚠ dir unreadable` row | same as an invalid row — `accent.attention` glyph and text |
 | Vertical keymap footer | key glyphs `accent.key`, labels `text.muted` — the same split the horizontal footer uses |
@@ -1028,6 +1028,8 @@ Which sharpens `Esc` precisely: **`Esc` discards the preview and renders the res
   - **`n`, `N` or `Esc` cancels**, leaving the panel open and nothing written. `Esc` cancels the confirm rather than closing the panel, because the innermost thing resolves first — the same nesting rule §9.7 applies to the panel over multi-select.
   - **`Ctrl-C` quits Portal**, per §9.7. It is not a cancel; it stays live everywhere.
 - **Every other key is swallowed** — arrows, `Enter`, the other slot key, all of it. The confirm persists until one of the three above resolves it. Nothing has been written yet, so there is no partial state to leave behind.
+- **The panel footer switches to the confirm's own keys while it is live** — `y confirm` / `n cancel` — and switches back when it resolves. The standing footer advertises four keys of which none would act during a confirm, and §14.3 is firm that advertising a key that will not act is the dead end a proactive block exists to prevent.
+- **The confirm's keys live in the descriptor as a nested confirm scope** under the panel scope (§9.12), so its footer renders from the descriptor like the panel's and `keymap_dispatch_guard_test` covers `y`/`Y`/`n`/`N` too. §9.12's "all six" is the panel scope's own membership; the confirm is a second scope, not a sixth-plus-four list.
 - It is **inline, not a modal** — the panel does not blank, and stacking a modal over an overlay is the shape §9.6 rejects for the Preview page.
 
 **The reverse direction needs no confirm.** `Enter` on a theme while a pair is set clears both slots — but `Enter` visibly does what it says: you get the theme you are looking at, and it is the theme already previewing behind the panel. Nothing is surprising, so the confirm would be friction for its own sake. The asymmetry is the point: the confirm guards the case where the *resolved* theme changes as a side effect of a write the user was told is inert.
@@ -1065,7 +1067,7 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 
 **Built-in rows are deliberately indistinguishable from drop-in rows** — a valid drop-in is simply selectable, sitting alphabetically among the built-ins with no visual distinction.
 
-**Invalid rows** render in `text.faint` with `⚠` and a terse reason from §6.2 (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`) — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
+**Invalid rows** render their label in `text.subtle` (§9.1 — de-emphasised but readable, since the user must be able to tell *which* file is broken) with `⚠` and a terse reason from §6.2 (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`) — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
 
 **A `bad name` row is labelled by its filename**, not a slug — it has none, because §5.2 rejects rather than normalises. The same applies to its position in the list: **ordering is alphabetical by slug, falling back to the filename for a row that has no slug.**
 
@@ -1077,7 +1079,7 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 - Only a **`bad name`** row has no slug; it sorts by **filename**. A **persisted string rejected by §8.6's charset check** has neither a slug nor a file — it sorts by **the persisted string itself**, control-stripped and truncated as it is for display. There is exactly one thing to sort it by, and using it keeps the ordering total.
 - Comparison is **case-insensitive, with a byte-wise tie-break**. Slugs are lowercase by construction, but filenames are not, and a byte-wise-only comparison would file `Zed.theme` ahead of every valid theme.
 - **One tie is guaranteed by construction and the byte-wise tie-break cannot settle it: a `reserved name` row and the built-in it collides with have the identical sort key**, since `reserved name` is *defined* as that collision (§6.2). **The built-in sorts first**, then the rejected file. That is the useful order — the valid, selectable thing the user can act on, immediately followed by the row explaining why their file is not it — and it is what makes §9.5's adjacency argument concrete rather than incidental. It also makes the panel fixtures deterministic (§13.3), which a sort left to chance would not.
-- The pinned `⚠ dir unreadable` row is **outside the ordering** — it is always first.
+- The `⚠ dir unreadable` row is **outside the ordering entirely** — it is viewport chrome, not a list member (above).
 
 **A slug that came from `prefs.json` is control-stripped at the point it is read, not at the point it is drawn** — it is a property of the value, so every consumer inherits it. §8.6 validates it before *use* as a path component, but a charset-rejected value is still *reported* (§9.4), and it reaches two surfaces: the panel row and doctor's advisory line (§14A). A pasted newline, tab or ANSI escape would otherwise corrupt whichever of them the user is reading to find the problem. **Truncation is separate and stays panel-local** — doctor has full width and wants the whole value.
 
@@ -1092,7 +1094,12 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 
 Below the label's truncation floor the panel is already at §9.8's refuse threshold, so no further degradation rule is needed.
 
-**An unreadable themes directory gets its own row** (§5.5) — a non-selectable `⚠ dir unreadable` pinned at the top of the list, above the themes. **Its copy is deliberately short (16 columns) so it fits the panel's minimum width without truncation**, because it is the one row §9.5's composition rules cannot degrade: it has no label, no badge and no reason, so none of the four priorities apply, and the truncation-floor argument does not transfer to a fixed string. It is also the row that must not become nonsense — it is what stands between the user and the "completely in the dark" state. The panel header's `Themes` label supplies the context the copy drops. Without it every drop-in silently vanishes and the user sees only built-ins: the exact "completely in the dark" state §9.4 exists to prevent, in the surface it was chosen to prevent it, at the moment the user is standing there to pick a theme. **Built-in rows and persisted-slug rows still render beneath it** — the persisted rows especially, or a user with an unreadable directory loses the `●` entirely. Full detail stays in doctor (§12.2).
+**An unreadable themes directory gets its own row** (§5.5) — `⚠ dir unreadable`, **chrome pinned to the viewport directly beneath the header, not a list row.** It is deliberately *not* a `HeaderItem`-style delegate like the Sessions group headers: a list row participates in pagination, so the warning would vanish the moment the user paged down — and §9.5 justifies the row as what stands between the user and the "completely in the dark" state, which a page-1-only warning does not do. As chrome it is always visible and needs no arrow-skip rule.
+
+Two consequences follow from it being chrome:
+
+- **It costs a viewport row while present, so §9.8's minimum-height floor gains it conditionally** — header + footer + one row + one message row, **plus this row when the directory is unusable**. Otherwise at the floor the warning would consume the single list row and nothing selectable would render, while §9.5 simultaneously requires built-in and persisted-slug rows to render beneath it.
+- **It is not counted by `theme: enumerated`'s `count`** (§12.3), which counts rows produced by the §9.4 union. It is chrome, not a member of the union. **Its copy is deliberately short (16 columns) so it fits the panel's minimum width without truncation**, because it is the one row §9.5's composition rules cannot degrade: it has no label, no badge and no reason, so none of the four priorities apply, and the truncation-floor argument does not transfer to a fixed string. It is also the row that must not become nonsense — it is what stands between the user and the "completely in the dark" state. The panel header's `Themes` label supplies the context the copy drops. Without it every drop-in silently vanishes and the user sees only built-ins: the exact "completely in the dark" state §9.4 exists to prevent, in the surface it was chosen to prevent it, at the moment the user is standing there to pick a theme. **Built-in rows and persisted-slug rows still render beneath it** — the persisted rows especially, or a user with an unreadable directory loses the `●` entirely. Full detail stays in doctor (§12.2).
 
 **Arrow keys skip invalid rows**, reusing the mechanism that already skips group-header rows on the Sessions list. The skip composes with paging exactly as the group-header skip already does.
 
@@ -1313,6 +1320,8 @@ Retaining it is inert to the new binary and still meaningful to an old one, and 
 
 The condition is therefore checked twice against two reads, deliberately: at **load** for the in-memory half (the only moment early enough to affect what is painted), and again at the **RMW re-read** for the write half (§8.9), where it also absorbs a commit made by another instance in between.
 
+**The theme key and the marker land in one write.** §8.9's field-specific save methods each perform their own read-modify-write, so issuing two would leave a reachable window — §10.5's write is best-effort and non-blocking, i.e. explicitly liable to be cut short. A failure between them persists the theme key with the marker unset, and the next launch then finds the marker false, sees a theme key already set, writes only the marker, and therefore never emits the event: the translation succeeded while the log says it failed, which is the one reading §12.3 designs the event to make impossible. The migration therefore uses a combined save rather than two calls.
+
 **`theme: appearance migrated` fires only when a theme key is actually persisted.** A run that writes the marker alone translated nothing, so announcing a migration would be false — and §12.3's "absence is the signal the write failed" stays true only if the event means what it says.
 
 **Concurrency is a non-issue, for a stateable reason:** several burst-launched instances hitting the condition simultaneously all compute **the same value from the same input**, so the write is idempotent and last-write-wins is harmless. That is what makes it safe where a general read-modify-write would not be. It also never runs on the exec path, which constructs no TUI and reads no prefs.
@@ -1472,6 +1481,10 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 | `theme: commit failed` | WARN | Per failed write. Carries `slug`, `slot` (absent when committing a constant), and `reason`. |
 
 **Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`, `rejected`.
+
+**Emission is controlled by an injected logger, not by the loader deciding.** The loader takes a logger seam; `cmd` passes a **real** component logger on the paths where a theme is used — TUI construction, the panel, the theme persister — and **`log.Discard`** on `portal doctor` and `portal theme export`. That is the mechanism §3.2's "the loader binds the `theme` component" describes: it holds the binding and the call sites, while the caller decides whether anything is written. Without it the loader either emits for everyone (doctor writing a full WARN set on every run) or for no one (leaving `loaded`, `enumerated`, `rejected`, `directory unusable` and `fallback applied` with no site at all, unlike `commit failed` and `appearance migrated`, whose sites §8.9 and §10.5 pin).
+
+**The per-process dedup state lives on that injected logger**, so it is shared by every path in a TUI process — which is what §5.5 requires when the construction-time by-name read and the panel's enumeration hit the same condition. It is not package state in the leaf, which §3.4 avoids for the same reason everywhere else, and a test controls it by injecting a fresh one.
 
 **The component records where a theme is *used*, never where one is *diagnosed*.** `portal doctor` and `portal theme export` both enumerate or parse and both can hit every §6.2 reason — and **neither emits any `theme` event**. Three reasons, and they compound:
 
@@ -1807,7 +1820,7 @@ A filter line is a persistent restatement of a state the user can already see in
 | `bad name`, bad **slug** | `⚠ theme file <filename>: slug must be lowercase letters, digits and hyphens` |
 | `bad name`, bad **extension casing** | `⚠ theme file <filename>: extension must be lowercase .theme` — a distinct message because the slug portion is already legal, and sending the user to fix the one thing that is fine is exactly the misdirection §9.4 and §12.1 discriminate against elsewhere |
 | `reserved name` conflict | `⚠ theme file <filename>: <slug> is a built-in — rename it (e.g. <slug>-mine.theme)` — the message names the conflict *and* the fix, which is what makes §5.4's workaround self-documenting rather than merely short |
-| Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>`. `<slot>` renders `light` or `dark` under an adaptive pair; under a **constant** the parenthetical is omitted entirely — `⚠ theme <slug> does not resolve: <reason>` |
+| Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>`. `<slot>` renders `light` or `dark` under an adaptive pair, **`both` when the two slots name the same slug** (§9.5's `● both` state, reachable in two keypresses), and the parenthetical is omitted entirely under a **constant** — `⚠ theme <slug> does not resolve: <reason>`. One line in every case, per §12.2's one-slug-one-line rule, which two lines for one slug would break along with `<M>`'s problems-not-detections property. The log is already asymmetric-free here: `theme: fallback applied` dedups on `slug`+`reason`, so it emits once for the two failed slots regardless. |
 | Themes directory unusable | `⚠ themes directory unreadable: <path>` |
 | Closing summary, all checks passed | `<N> checks passed` |
 | Closing summary, some checks failed | `<N> of <T> checks passed` — the failing case is the one the summary exists for, since it is when the exit code needs explaining |
