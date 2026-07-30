@@ -790,7 +790,15 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 - Rendered over the existing overlay mechanism (`overlayHelpOnPreview` / the lipgloss v2 `Compositor` with real z-layers), which already ships.
 - **Cursor row** uses the shipped selection treatment (`▌` + tint + white bold name), so the panel's list reads as the same kind of list as Sessions.
 - **A vertical keymap footer** (`⏎ set theme` / `d set as dark` / `l set as light` / `esc close`) rather than Portal's horizontal footer row — a horizontal keymap does not fit a ~30-column panel, and the vertical form matches the help modal's key-column idiom.
-- **No theme count in the panel header** — noise at this list size.
+
+**Header.** The label is **`Themes`**, rendered in `accent.mode` — the token whose role is signalling a distinct mode, which is what the panel is — followed by a one-row `border` rule, matching the Sessions section-header idiom minus the count. **No theme count** — noise at this list size. The header therefore costs **two rows**, which is what §9.8's minimum-height rule (header + footer + one row) resolves against.
+
+**Message slot.** A single-row region directly above the vertical keymap footer, **not reserved when empty** — it appears and the list shrinks by one, the same way the main screen's notice band recomputes list height. It is a **single-slot arbiter** with two contenders, which can never be live at once because a confirm resolves before any write happens:
+
+1. The **slot-from-constant confirm** (§9.2).
+2. A **failed commit write** (§9.13).
+
+At the minimum panel width the slot may wrap to two rows. It is not a list delegate, so wrapping costs nothing structurally.
 
 **What the panel covers:** the right-hand column, where the footer's right-aligned `? help`, the right-side header hint, and session row meta live. **Accepted** — the theme is carried almost entirely by the *left* of the screen (session names, cursor bar, group headers, footer key glyphs), while the right edge is metadata. The overlay covers the least theme-informative part of the screen, which is exactly what a preview surface wants.
 
@@ -805,6 +813,14 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 | `l` | **Commits the light slot** — writes `theme_light = <selection>`, clears the constant | stays open |
 | `Esc` | **Closes.** Discards an uncommitted preview and renders the resolved persisted state | closes |
 
+**Opening state: the cursor lands on the theme that is actually rendering, and opening previews nothing.**
+
+- Under a **constant**, that is the constant's row.
+- Under an **adaptive pair**, it is the row for the slot currently in force — the light slot in a light terminal, the dark slot otherwise. The other slot's row still carries its `● light`/`● dark` badge; only the cursor is singular.
+- When the resolved theme is a **fallback** (§8.5), the cursor lands on the **fallback's** row, not on the persisted-but-broken one. The persisted row is unselectable (§9.5) and the arrows are specified to skip it, so parking the cursor there would put it somewhere navigation cannot return to — and it would show a row that is not what is on screen. The `●` still marks the persisted slug, which is exactly the split §9.5 draws: `●` is what is *set*, the cursor is what is *previewed*.
+
+Because the cursor starts on what is already rendering, **opening the panel never changes the screen** and the mixed-mode flash fires only on deliberate navigation.
+
 **Every write is an explicit keypress; nothing writes on close.** This eliminates the "applied but not persisted" state reachable under persist-on-close, where Portal dies with the panel open and the visually-applied theme was never written.
 
 **`Enter` does not close.** If it did, a user who had just set both slots would press `Enter` to exit and thereby commit a constant, wiping the pair they just built. `Esc` is the only way out — one exit key, no dual-purpose keys, and the pair flow needs no special case.
@@ -814,6 +830,15 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 **Committing to a non-active slot changes nothing on screen.** Previewing a light theme in a dark terminal and pressing `l` writes the light slot, but the resolved-active theme is still the dark slot. A commit is a **write, not a navigation** — the panel keeps previewing whatever the cursor is on; the display resolves from persisted state only on close.
 
 Which sharpens `Esc` precisely: **`Esc` discards the preview and renders the resolved persisted state.** That equals "what you had before" only when nothing was committed. Commit slots and `Esc` lands on the newly-resolved theme, which is correct.
+
+**Assigning a slot while a constant is set asks for confirmation first.** This is the one place a keypress described as inert can silently cost the user a setting they chose: on `"theme": "nord"`, pressing `l` clears the constant, the untouched dark slot falls back to the shipped default, and `Esc` in a dark terminal lands on `tokyo-night` rather than `nord`.
+
+- `d`/`l` on a constant raises an **inline confirm in the panel's message slot** (§9.13) naming the constant that will be cleared.
+- **`y` confirms** — the constant is cleared and the slot written, in one atomic prefs write. **Any other key cancels**, including `Esc`, which cancels the confirm without closing the panel.
+- While the confirm is live it is **key-exclusive within the panel**: arrows, `Enter` and the other slot key are swallowed until it resolves. Nothing has been written yet, so there is no partial state to leave behind.
+- It is **inline, not a modal** — the panel does not blank, and stacking a modal over an overlay is the shape §9.6 rejects for the Preview page.
+
+**The reverse direction needs no confirm.** `Enter` on a theme while a pair is set clears both slots — but `Enter` visibly does what it says: you get the theme you are looking at, and it is the theme already previewing behind the panel. Nothing is surprising, so the confirm would be friction for its own sake. The asymmetry is the point: the confirm guards the case where the *resolved* theme changes as a side effect of a write the user was told is inert.
 
 **The mixed-mode flash is the feature, not a defect.** Under split plus apply-on-arrow, arrowing past a light theme in a dark terminal flips the entire canvas near-white and back. Seeing a light theme as designed is precisely what live preview is for, and under the picker idiom it is transient and reversible. **List order is alphabetical by slug**; ordering same-mode themes first was proposed as a mitigation and **rejected** as unnecessary once the flash is accepted.
 
@@ -851,6 +876,17 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 **A `reserved name` row is likewise labelled by its filename.** Its slug is valid, but it is *identical* to the built-in's — labelling by slug would put two rows reading `nord` in a list where §9.5 deliberately makes built-in and drop-in rows indistinguishable. `nord.theme` beside `nord` tells the user exactly which one is theirs, and it sorts adjacent to the built-in it collides with, which is where the explanation is most useful. The terse reason stays `reserved name`; doctor carries the sentence naming the conflict.
 
 **A displayed slug that came from `prefs.json` is truncated and control-stripped before rendering.** It is hand-editable text drawn into a fixed-width frame, and §8.6 validates it before *use* as a path component but the unresolvable row still shows it — so a pasted newline, tab or ANSI escape would otherwise reach the panel.
+
+**Row composition — one row per theme, always.** An invalid row never wraps to two lines: every list row is exactly one delegate line, which is the invariant `bubbles/list` pagination depends on and which §9.8's paging and the invalid-row skip both rest on. The elements compete for a fixed ~24–30 columns in this priority order:
+
+1. **The `⚠` glyph** — always rendered on an invalid row. It is the invalidity signal and costs two columns.
+2. **The `●` badge** (`● dark` / `● light` / bare `●`), right-aligned, when the row is a persisted slot. §9.4 exists so the marker always has a home, so the badge outranks the reason.
+3. **The label** — slug, or filename for a `bad name`/`reserved name` row (above). Truncated with `…` to fill the space left, down to a floor of three visible characters plus the ellipsis.
+4. **The terse reason**, right-aligned — **the first element dropped** when a badge competes for the same edge. `⚠` still says the row is invalid and doctor says why, which is exactly the split §6.3 draws.
+
+Below the label's truncation floor the panel is already at §9.8's refuse threshold, so no further degradation rule is needed.
+
+**An unreadable themes directory gets its own row** (§5.5) — a non-selectable `⚠ themes dir unreadable` pinned at the top of the list, above the themes. Without it every drop-in silently vanishes and the user sees only built-ins: the exact "completely in the dark" state §9.4 exists to prevent, in the surface it was chosen to prevent it, at the moment the user is standing there to pick a theme. **Built-in rows and persisted-slug rows still render beneath it** — the persisted rows especially, or a user with an unreadable directory loses the `●` entirely. Full detail stays in doctor (§12.2).
 
 **Arrow keys skip invalid rows**, reusing the mechanism that already skips group-header rows on the Sessions list. The skip composes with paging exactly as the group-header skip already does.
 
@@ -950,7 +986,7 @@ The panel introduces `Enter`, `d`, `l` and `Esc` through a bespoke vertical foot
 
 A failed write on `Enter`/`d`/`l`:
 
-- **Reports inside the panel.**
+- **Reports in the panel's message slot** (§9.1) — `⚠` plus a terse statement that the theme could not be saved, glyph-backed per Portal's convention. It **persists until the next keypress** rather than timing out like a transient flash: it reports a state the user must act on, and a message that vanishes on its own can be missed in the surface where the only other feedback is the `●` deliberately *not* moving.
 - **Keeps the theme applied in memory.**
 - **Does not move the `●`** — the marker means "what is persisted" and would be lying if it moved.
 
@@ -1012,6 +1048,10 @@ Retaining it is inert to the new binary and still meaningful to an old one, and 
 ### 10.5 Ownership and write-path robustness
 
 **`cmd/config.go`'s `loadPrefsStore` owns the translation.** Three decided constraints meet here: `prefs` is a deliberate leaf that must not import `internal/log`; the translation happens at prefs load; the `theme` log component records it. `loadPrefsStore` already owns prefs path resolution and the migrate breadcrumb for every other config file, and is not a leaf, so it can log. **`prefs` stays dumb.**
+
+**`cmd/config.go` also exposes a non-migrating read variant, which every bootstrap-exempt command uses.** `portal doctor` must read `prefs.json` to report an unresolvable theme (§12.2), and `portal theme export` may resolve a persisted slug — but doctor's contract is that it **heals nothing on the read-only path**, and a one-shot config mutation as a side effect of running a diagnosis breaks that. Splitting the read from the migration keeps doctor's "read-only" claim literally true and keeps `export` side-effect-free, without relocating ownership of the translation away from `loadPrefsStore` (which is where the logging constraint puts it).
+
+**The migration therefore runs only where a TUI is constructed** — which is also the only place its result is used, since the exec path constructs no TUI and reads no prefs.
 
 **Separate *computing* from *persisting*.** At prefs load, read `appearance`, compute the translated theme, and **use it in memory immediately**; the write is **best-effort and non-blocking**. A failed write means Portal renders the correct theme this launch and retries next launch (the condition is still true), so it can never flip the user to the wrong theme — which was the translation's entire purpose.
 
@@ -1107,7 +1147,7 @@ Doctor is Portal's established config-health surface, with full terminal width t
 - **Reports when a persisted theme name no longer resolves.**
 - **Reports an unreadable themes directory** (or a regular file where a directory belongs). An *absent* directory is silent (§5.5).
 
-**Read-only, with no `--fix` action.** Doctor can prune a stale hook entry; it cannot repair someone's colours.
+**Read-only, with no `--fix` action.** Doctor can prune a stale hook entry; it cannot repair someone's colours. Reading `prefs.json` to report an unresolvable theme goes through the **non-migrating** prefs read (§10.5), so running doctor never triggers the one-shot `appearance` translation — the read-only claim holds literally.
 
 **Theme lines are advisory and do NOT drive the exit code — this amends doctor's contract.** Doctor's contract is a scriptable exit code, 0 iff all checks pass. Because there is deliberately no repair path, a failing theme line would go **permanently** non-zero until someone hand-edits a file — unlike every other check, which is either `--fix`-repairable or indicates genuine runtime breakage. The exit code exists as a signal about the **resurrection machinery** — daemon alive, hooks registered, state sane. A stray junk file in `themes/` is not that: Portal is working, it simply did not list one theme. Letting it hold the diagnostic red means an automated health check fires about the daemon because someone left a half-written palette lying around.
 

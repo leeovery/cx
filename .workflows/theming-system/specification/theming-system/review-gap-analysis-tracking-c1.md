@@ -21,8 +21,8 @@ An implementer cannot build the panel without deciding this, and the wrong choic
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): cursor lands on the theme actually rendering; opening previews nothing. Under a pair, the slot in force; under a fallback, the fallback's row (not the unselectable persisted one). Recorded in §9.2.
 
 ---
 
@@ -63,8 +63,8 @@ and
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): specify now. §9.5 gains a four-element priority order (⚠ → badge → truncated label → reason), one row per theme always (holding the one-delegate-per-row pagination invariant), with the reason as the first element dropped when a badge competes. Added `theme_migrated` to §8.1's JSON block with its full contract (boolean; anything not literal true decodes false; written unconditionally on first post-upgrade load including the nothing-to-translate case; never participates in mutual exclusion). §8.9's count corrected to five fields / three surfaces.
 
 ---
 
@@ -84,8 +84,8 @@ The spec needs to say either (a) doctor reads prefs through a non-migrating path
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): option (a) — `cmd/config.go` exposes a non-migrating prefs read that every bootstrap-exempt command uses. Ownership stays with `loadPrefsStore` per the §10.5 logging constraint. Recorded in §10.5 and §12.2.
 
 ---
 
@@ -105,8 +105,8 @@ Also unstated: whether the translation write and a subsequent theme commit in th
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.9 generalised from "both writers" to "every writer" and the migration write explicitly brought under the RMW rule, with the stale-instance case named and the skip-if-already-migrated benefit noted.
 
 ---
 
@@ -127,8 +127,8 @@ The two readings give the user different information for the same input (`"theme
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved to `bad name`: each §6.2 reason maps to exactly one condition. §9.4 split into two bullets so `not found` covers only deleted/renamed/typo and the charset rejection carries `bad name`.
 
 ---
 
@@ -148,8 +148,8 @@ Related, within §4.2/§4.3: it is unstated whether the "all 19 present" check r
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added a fixed short-circuiting evaluation ladder to §6.2 (bad name → reserved name → unreadable → bad syntax → bad colour → missing tokens), with `not found` explicitly outside it, doctor enumerating within a reason not across reasons, and the wrong-case-key misdirection named as intended.
 
 ---
 
@@ -169,8 +169,8 @@ This is a small surface but it is the *only* signal for the state §9.2's picker
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): specify now. §9.1 gains a single-row message slot above the vertical footer, not reserved when empty, a single-slot arbiter over the confirm and the failure message. §9.13 pins the failure message as persistent-until-next-keypress with `⚠`.
 
 ---
 
@@ -190,7 +190,7 @@ Because §9.8 defers only the *thresholds* ("exact thresholds are pinned at impl
 
 **Proposed Addition**:
 
-**Resolution**: Pending
+**Resolution**: Approved
 **Notes**:
 
 ---
@@ -211,8 +211,8 @@ This is the single case where the panel row is the user's only feedback for a re
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved: a `reserved name` row is labelled by its filename, the same escape §9.5 uses for `bad name`. `nord.theme` beside built-in `nord` distinguishes them and sorts adjacent to the collision it explains.
 
 ---
 
@@ -232,8 +232,8 @@ The spec should state what the panel does here: nothing (accepted, with the reas
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): specify now. §9.5 gains a pinned non-selectable `⚠ themes dir unreadable` row at the top of the list, with built-in and persisted-slug rows still rendering beneath it so the `●` is never lost.
 
 ---
 
@@ -257,8 +257,8 @@ Related and also unstated: whether the panel's enumeration parse is retained so 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §5.8: the panel's enumeration parse is retained for the panel's lifetime (so previews are O(1), no per-keystroke read) and supersedes the construction-time parse for the same slug. `Esc` resolves against the panel's enumeration, so a mid-session break falls back and a mid-session fix takes effect.
 
 ---
 
@@ -281,8 +281,8 @@ This matters twice over: it is a live-inconsistency question (help says one thin
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §14.3: footer is filtered in lockstep with `?` help. Width budget unaffected because filtering only removes entries, so the measured both-present case is the tight one.
 
 ---
 
@@ -310,8 +310,8 @@ These are cheap to settle and expensive to guess, because each one is a user-vis
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added a nine-row branch table to §4.2 covering empty value, no key, no `=`, duplicate known/unknown/same-value keys, wrong-case keys, wrong-length hex, interior vs trailing whitespace, empty/comment-only files, and mid-file BOM — each mapped to its §6.2 reason.
 
 ---
 
@@ -333,8 +333,8 @@ The Nord port sets a usable precedent for the *derivation* method (§7.4: Oklab 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Threshold set at Oklab ΔE ≥ 0.05 (anchored against the Nord port's 0.018 "essentially imperceptible"), with explicit pass/fail acceptance criteria including that a passing check is recorded as a finding, and that if anything moves the theme files supersede §7.3's tables rather than the tables being rewritten.
 
 ---
 
@@ -352,8 +352,8 @@ Separately, §9.4 renders "any slug named in `prefs.json` that has no file" as a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Slug rule anchored to `^[a-z0-9][a-z0-9-]*$` — empty slug illegal (so it cannot collide with §8.1's unset sentinel), leading hyphen illegal, no length bound (truncation is display, not validity). §9.5 gains the control-strip/truncate rule for a prefs-sourced displayed slug.
 
 ---
 
@@ -371,8 +371,8 @@ The guarantee §5.4 exists to protect (the fallback cannot itself be broken) dep
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.4: a nominated slug resolves against the embedded set first and a reserved slug never reads the themes directory, which is what makes §5.4's no-shadowing safety property implementable on the non-enumerating construction path where the fallback is resolved.
 
 ---
 
@@ -392,8 +392,8 @@ Related and equally small: `All()`'s "stable order" is asserted but never define
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §3.2: `Theme` is an ordinary struct constructible in-test (what §13.4's synthetic themes need), `All()`'s stable order is defined as the §2.4 table order 1–19, and `Theme` carries no identity field — the slug is held alongside by whoever loaded it, which is what lets `--theme <path>` work.
 
 ---
 
@@ -411,8 +411,8 @@ It also does not say what the user sees. "Fails loudly" via the panic path means
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §7.6: the loader returns an ordinary error, escalated to a fatal one-line message where the fallback is needed; the panic path stays the backstop for a genuine programming fault. Validation is explicitly not startup-eager.
 
 ---
 
@@ -430,8 +430,8 @@ The Paper frames show a header, but §9.14/§15.4 are explicit that the frames a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): specify now. §9.1 pins the header as the label `Themes` in `accent.mode` plus a one-row `border` rule, no count, costing two rows — which is what §9.8's minimum-height rule resolves against.
 
 ---
 
@@ -449,7 +449,7 @@ Each rule is individually decided and defensible, and §9.9 already accepts a re
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: User decision (asked, not baked): confirm before clearing, chosen over accept-and-document and over seeding the opposite slot. §9.2 specifies an inline confirm in the panel message slot, `y` confirms / any other key cancels, key-exclusive while live, not a modal. The reverse direction (`Enter` clearing a pair) needs no confirm — `Enter` visibly does what it says. Concern that this adds a confirmation affordance to a one-keypress surface was raised and the choice reaffirmed; it shares the message slot with the failed-commit report, so it costs no new region.
 
 ---
