@@ -362,6 +362,65 @@ Rejected: startup scan (pays the sweep on every launch including the overwhelmin
 
 The directory is enumerated **on every panel open**, not once per process. It is a directory read of a handful of small files behind a keypress; caching buys nothing measurable while breaking the loop the drop-in route exists for — copy a built-in, edit it, see it, without relaunching Portal.
 
+## 6. Validity & rejection
+
+### 6.1 The validity rule
+
+**A theme is valid if and only if all 19 tokens are present AND every value is syntactically well-formed.**
+
+Explicitly **not** checked at load: whether the colours are good, readable, mutually distinguishable, or clear any contrast floor. Validity is syntactic, never perceptual.
+
+Validity is what makes a theme **selectable**. An invalid theme is listed but unselectable (§9.5), and anything nominating it falls back per §8.5.
+
+### 6.2 The reason vocabulary
+
+Seven reject classes. The terse label appears on the panel row; the detail appears in `portal doctor` and the `theme` log component.
+
+| Reason | Cause |
+|---|---|
+| `missing tokens` | One or more of the 19 keys absent |
+| `bad colour` | A value that is not a well-formed `#RRGGBB` hex |
+| `bad syntax` | Duplicate key, quoted value, or a malformed line |
+| `bad name` | Slug does not match `[a-z0-9-]` |
+| `reserved name` | Slug collides with a built-in |
+| `unreadable` | The file could not be read |
+| `not found` | A slug named by `prefs.json` with no corresponding file |
+
+*Which* token is missing, *which* line is malformed, and *which* key carries a bad colour stays in doctor, where there is width to enumerate.
+
+### 6.3 Where rejection surfaces
+
+The job splits by surface rather than forcing any one of them to do all of it:
+
+| Surface | Carries |
+|---|---|
+| **The slide-over panel** | Every theme file gets a row; invalid ones render unselectable with the terse reason (§9.5). Sufficient to tell the user their file did not work and it is not their imagination. |
+| **`portal doctor`** | The detail — full terminal width, per-file, enumerating exactly which tokens are missing or which key is bad. Advisory only; does not drive the exit code (§12.2). |
+| **The `theme` log component** | The passive forensic trail (§12.3). The only record that exists without the user going looking. |
+
+**Falling back must never overwrite the persisted theme name in `prefs.json`.** Portal keeps the user's choice and renders the fallback; fixing the theme file restores it on the next launch without the user re-selecting. Overwriting would make the failure destructive rather than transient.
+
+A **permanent notice-band entry** was considered and rejected. Portal's notice band is a single-slot arbiter with six contenders already; a seventh permanent contender is a real cost for a rare event. Under whole-theme rejection the symptom is already loud — Portal is visibly the fallback theme instead of the user's — so the message is *explanation*, not alarm.
+
+### 6.4 Two quality tiers
+
+**Contrast floors apply to what Portal ships; syntactic validity applies to what users write.**
+
+| Tier | Membership | Requirement |
+|---|---|---|
+| **Bundled** | Built-in, or an accepted PR — a PR is *intake into this tier* | Must be valid **and good**. Contrast floors, bands and thresholds are checked (§13.5). It carries Portal's name. |
+| **Drop-in** | The user's themes directory | Must be **valid only** (§6.1). Whether it looks good is the user's business. |
+
+The bundled tier is what stops the selector filling with Portal-endorsed themes nobody can read. Relaxing a floor for a named port was the one option ruled out, because it would break the guarantee that is the entire point of having tiers.
+
+**Consequence: porting is not free.** A straight palette lift may not clear the floors unmodified — MV's own light variants needed six individual corrections, and the Nord port needs two (§7.4). Each bundled theme is real work, which argues for shipping a small number well rather than a large library.
+
+### 6.5 Terminal colour capability — no action
+
+A floor validated on a truecolor hex says nothing about the colour actually painted after `lipgloss`/`colorprofile` downsamples on a 256- or 16-colour terminal. Some applications (Helix) refuse truecolor themes on incapable terminals.
+
+**Portal does not.** The MV spec's §2.4 already accepts downsampling as graceful degradation — "a hue may approximate, but the contrast floor still governs legibility" — and nothing about user themes changes that. Bundled themes are floor-checked on their truecolor values exactly as MV is today; drop-ins are syntactic-only by decision, so there is no floor to invalidate. This is real validation on an axis Portal has already chosen not to police.
+
 ---
 
 ## Working Notes
