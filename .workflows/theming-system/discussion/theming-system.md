@@ -2895,41 +2895,99 @@ on purpose, and the dark hexes are the pinned authoritative source). Owned by
 ### Key Insights
 
 1. **Detection and pairing are independent axes**, not one package — the session
-   inherited them fused from earlier framing, and separating them is what let
-   the theme model settle without first settling detection.
-2. **One path beats two.** The audience decision and the built-ins-as-files
-   decision both resolved by preferring a single mechanism used by everyone
-   (including the maintainer) over a privileged internal path plus a public one.
+   inherited them fused from earlier framing, and separating them is what let the
+   theme model settle without first settling detection.
+2. **One path beats two.** The audience decision, built-ins-as-files, whole-theme
+   rejection reusing the not-loadable path, and slots-always-holding-defaults all
+   resolved by preferring a single mechanism used by everyone over a privileged
+   internal path plus a public one.
+3. **Research positions are leans, not decisions** — the process note that
+   visibly changed how the session ran, and produced several reversals.
+4. **A completeness claim is only as good as the set it was measured against.**
+   The Nord port was twice found incomplete (16 of 19 tokens, then half the
+   contrast rule set); the swap-and-diff guard's coverage rested on an unstated
+   union; the build-time fallback guarantee validated files but not the slugs
+   resolving into them. Each was plausible enough to pass unexamined.
+
+### Decisions
+
+**Model & format.** A theme is one palette of 19 values (split, not paired), a
+full replacement with no merge, in a flat `key = value` file with `#`-at-line-start
+comments, bare `#RRGGBB` values, duplicate keys rejected. Built-ins are the same
+files, embedded via `go:embed`. Identity is the filename slug (`[a-z0-9-]`), with
+no display-label field and no shadowing of built-in slugs.
+
+**Validity.** All 19 tokens present and syntactically well-formed; unknown keys
+ignored, a missing key rejects the whole theme. Bundled themes must additionally
+clear the contrast floors; drop-ins need only be valid.
+
+**Detection.** Ships, follows the **terminal background** via OSC 11 (not the OS
+scheme via mode 2031), expressed as `"theme"` / `"theme_light"` / `"theme_dark"` in
+`prefs.json` — constant or adaptive, mutually exclusive, with unset slots holding
+shipped defaults and a per-slot mode-matched fallback. The adaptive pair ships as
+the default. No `appearance` pref, no one-shot seed, no variant concept anywhere.
+
+**Built-ins.** Three: Tokyo Night Dark, Tokyo Night Light, Nord — the last with two
+corrected values (`state.destructive` `#DD8188`, `state.positive` `#A7C492`) and
+three invented ones (`text.muted`, `text.subtle`, `bg.attention`). A further light
+theme follows up as separate work, and is a design task rather than a file drop.
+
+**Vocabulary.** 19 tokens (the two border tokens consolidated to one), renamed from
+hue and use-site names to weight-and-meaning names. `docs/theming.md` is the source
+of truth for the public contract.
+
+**Slide-over.** `t` on Sessions and Projects, key-exclusive, nesting over
+multi-select. Arrow previews, `Enter` commits a constant, `d`/`l` commit slots,
+`Esc` closes and resolves from persisted state. Everything re-themes including the
+panel. Lists the union of files found and whatever prefs names, invalid rows shown
+unselectable with a reason. Blocked under `NO_COLOR`.
+
+**Plumbing & verification.** The model holds the active `Theme` and threads it where
+`mode` is threaded today. Completeness is guarded behaviourally by a swap-and-diff
+fixture test over two synthetic palettes. `capturetool` gains `--theme` and required
+direct PNG output.
+
+**Surfaces.** `portal theme export <slug>` (bootstrap-exempt), a `portal doctor`
+advisory line, a new `theme` log component, `docs/theming.md`, and a footer keymap
+revision promoting `t` and `m` to core while dropping `↑↓ navigate`.
+
+### Spec amendments this feature carries
+
+Three, named so the specification phase picks up all of them:
+
+1. **§12.2 keymap revision** — the footer changes above.
+2. **The `portal doctor` contract** — two classes of line, only Portal-health
+   checks driving the exit code.
+3. **The log-component vocabulary** — a new `theme` component with its own attr
+   keys and event catalogue.
+
+Plus the MV spec's own vocabulary sections (§2.1, §2.9, and §8.1's stale "2-tone
+border" claim) for the renames, 20 → 19, the dropped `border.footer`, the removal
+of `Token.ColorFor` / `theme.Mode`, and the two-hardcoded-canvas framing.
 
 ### Open Threads
 
-All twelve Discussion Map subtopics are `decided`. The threads listed here
-earlier — research positions needing re-ratification, vocabulary evolution
-having no owner, the discovery scan being unbudgeted — were all closed during
-the session and are recorded in their own sections.
+All twelve Discussion Map subtopics are `decided` and all five review rounds are
+fully drained. Two items are deliberately carried forward rather than left
+unresolved:
 
-Remaining threads are the ones the final review opened; they are being worked
-through and this list is updated as each lands.
+- **MV's own erratum values may carry a chroma flaw** (described as "darkened,
+  hue-preserved"). The check is owned by this feature's implementation, before MV's
+  values are frozen into theme files — and if it finds anything, shipped colours
+  change and "the existing MV values move across clean" stops holding exactly.
+- **`text.subtle` has no visual gate yet** — it renders group `··· N` counts and
+  pending loading steps, neither of which appears on any captured Nord frame. It
+  needs a gate at implementation, on a grouped Nord capture.
+
+Deferred by decision, not omission: transparency (a transparent theme needs no new
+detection mechanism, so deferring stays cheap), panel search/filtering, per-session
+tags, and the second light theme.
 
 ### Current State
 
-- **Decided:** theme audience (curated, two contribution routes); built-ins are
-  embedded theme files parsed by the same loader as user themes; theme model is
-  split (one palette per theme); themes are full replacements with no merge;
-  validity is all-19-present + syntactically well-formed; unknown keys ignored,
-  missing keys reject the whole theme with fallback to the default built-in;
-  file format is flat `key = value` with hex-only values; identity is
-  the filename slug (no display-label field), with no shadowing of built-in
-  slugs; discovery is lazy; detection ships against the terminal background via
-  OSC 11 in a two-slot form, with the adaptive pair shipped as the default; the
-  19-token vocabulary is renamed to weight-and-meaning names; the slide-over's
-  interaction model, geometry and marker treatment; live-swap mechanics and the
-  swap-and-diff completeness guard; theme plumbing threads the theme where
-  `mode` is threaded today; the `portal doctor` line, a new `theme` log
-  component and `docs/theming.md`; and the capture-harness treatment.
-- **Being worked:** the outstanding review findings. Everything else on the
-  Discussion Map is decided, including the built-in set (three: Tokyo Night
-  Dark, Tokyo Night Light, Nord — a further light theme follows up).
+Everything above is decided. The document has been consolidated so each subject
+reads correctly where it first appears; where a later decision reversed an earlier
+one, the reversal is marked in place rather than left to a downstream amendment.
 
 ## Triage
 
