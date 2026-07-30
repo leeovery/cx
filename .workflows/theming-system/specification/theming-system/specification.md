@@ -1081,6 +1081,97 @@ README gains the theme setting in its place, pointing at `docs/theming.md`.
 
 **`CLAUDE.md` needs correcting too:** it currently describes `testdata/vhs/` as committed reference PNGs forming a visual-verification harness, which reads as a durable asset. It is not (§13.2).
 
+## 13. Capture harness & test strategy
+
+### 13.1 Why `capturetool` is load-bearing
+
+**Portal cannot be run from a temporary build to check a visual change.** A scratch build interferes with the live system — it disturbs the running daemon, its bootstrap sequence touches real state, and sandboxing does not fully contain it.
+
+So `capturetool` is not a convenience; it is the **only viable route** to seeing a visual change before release. This also endorses the fixtures' deliberate shallowness: they do just enough to visualise what is meant to be visualised. **Fixtures are about look, not behaviour** — they need not be functionally complete.
+
+**Two mechanisms, two audiences — both stay:**
+
+| Mechanism | Audience | Why |
+|---|---|---|
+| **A producible PNG per fixture** | The **agent** | During the agentic implementation loop the implementer captures a screen, looks at it, and assesses its own work; the reviewer does the same. **Without a producible PNG the agent cannot see what it built**, and every task ends up hand-corrected — the exact failure mode this tooling exists to prevent. |
+| **`capturetool --fixture`** | **The human** | Loaded in a real terminal at the human-in-the-loop gate and judged as the real thing — Portal's look and feel, without running Portal. |
+
+**The workflow this serves:** implement → capture → agent self-assesses → reviewer → converge → *then* the human gate.
+
+### 13.2 Committed reference PNGs were scaffolding, not an asset
+
+The committed reference PNGs were never meant to persist — they existed so the redesign could be watched coming to life during implementation. **There is no visual-regression obligation**, so there is no themes × fixtures matrix problem: three built-ins do not multiply 43 committed images into 129.
+
+**Retention rule, drawn now:**
+
+- **Everything that exists today as an image or tape is deleted** — the committed reference PNGs and the VHS tapes that produce them. They could not survive the token rename and the theme split without a full recapture in any case.
+- **From this feature forward, captures are created as work proceeds, committed while they are being collaborated on, and cleared out after sign-off** so they do not live in the repository forever.
+- **Cleaning up is not this feature's job** and is not done as we go.
+
+**The deletion covers images and tapes, NOT fixtures.** The Go fixture *definitions* in `internal/capture` and the harness itself are **permanent** — the swap-and-diff guard drives the fixture renderer and its coverage assertion needs the fixture set to exist. "Cleared out after sign-off" likewise means the images, not the fixtures.
+
+### 13.3 Harness changes required
+
+- **`capturetool` and `internal/capture` survive and are open for edit.** Whatever the tool needs to work with the new system is in scope for this feature — no separate redevelopment work unit.
+- **`tui.Build` takes a *theme* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes. Without this the harness can only ever render the compiled-in default.
+- **`capturetool` gains a `--theme` flag.** It accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
+- **Direct PNG output from `capturetool` is required, not an optimisation.** The retention decision deletes the tapes that made PNG production work, while the harness requirement is that every fixture can produce a PNG. VHS is retained only if a gif is ever wanted for motion.
+- **New fixtures are added for the slide-over** — the adaptive-pair state, the constant-while-previewing state, an invalid-theme row, and the narrow degraded panel — so the panel is visible during implementation rather than at release.
+
+### 13.4 The swap-and-diff completeness guard
+
+**What it is:** render a screen under theme A, switch to theme B, render again, and scan the second output for any colour value belonging to theme A. A survivor means some element never got the new theme — the "assert no stale data survived the invalidation" trick applied to rendered output rather than a cache. It exists because the cached styles `bubbles/list` holds cannot reliably be found by reading code (§11.2).
+
+This is a **behavioural** guard, not a structural one, deliberately. It catches *any* missed site — including ones added years later — without anyone having to remember a rule. A structural guard would have to recognise "this is a cached style" in the AST, which is not mechanically well-defined.
+
+**It uses two synthetic themes constructed inside the test, all 38 values deliberately unique** — none repeated within a theme or across the pair. Using two shipped themes has two failure modes, and both are a matter of time:
+
+- A hex both palettes happen to set identically survives the swap *legitimately*, so the test fails permanently for a non-bug.
+- Worse and silent: a token with the *same* value in both themes renders identically before and after, so the test cannot tell whether that site updated — it passes either way and the site is uncovered with no signal.
+
+Synthetic themes make coincidence impossible, cover every token site genuinely, and mean nothing done to the shipped palettes can break or blind the guard.
+
+**Three assertions:**
+
+1. **No theme-A value survives** in the post-swap output.
+2. **Every expected theme-B value is present** — catching a site that renders *nothing* rather than merely stale. This is a **union across fixtures**, not per fixture: no single screen renders all 19 roles.
+3. **Every token is exercised by at least one fixture.** The union in (2) is only complete if every token appears on *some* fixture, and the at-risk ones are the transient states (`bg.attention` / `text.on-attention`, `accent.mode`, `state.destructive`, `text.on-selection`). Making this an assertion of the guard means a token with no fixture **fails the test** and someone adds a fixture, rather than the guard being silently blind at precisely the sites it exists to protect.
+
+**Lane: unit.** It renders only through the offline harness — no tmux server, no daemon, no built binary.
+
+**Colourless fixtures are excluded.** A colourless render contains no theme hexes, so there is nothing to diff — inclusion would be meaningless rather than merely redundant.
+
+**The two known offenders (§11.2) stay fixed *and* guarded.** Fixing `pagepreview.go`'s package-init `Token` copy does not make the guard redundant; the guard is what stops it returning.
+
+**Not covered by this guard, needing its own test:** the exit-time canvas restore (§11.4). The guard scans *rendered fixture output*, so it structurally cannot cover an OSC 11 write that happens after the last render.
+
+### 13.5 Contrast checking
+
+**Floor-check enrolment is automatic.** The floor test **auto-enumerates the embedded set**, so a new built-in is checked by default.
+
+**Plus a light/dark table**, needed because the three light surface tints are not numerically checkable (light-tint-on-light-canvas is numeric-insufficient — hence `TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
+
+- **It is the *test* that needs to know, not the product.** A test table is allowed to know things the runtime does not — the vocabulary stays variant-free (§4.7) and the table names which built-ins are light.
+- **The table carries an assertion that every embedded theme appears in it.** A forgotten entry fails the suite rather than silently shipping a Portal-endorsed theme nobody checked — or measuring a light theme against a dark reference.
+
+**`contrast_test.go` resolves its reference background from the theme.** It currently measures against two hardcoded canvases; under split each theme carries its own `canvas` token, so the reference comes from the theme rather than from a constant.
+
+**`docs/theming.md` gets a guard.** It is now the sole record of the ramp's weight ordering and the 19 roles' meanings, with nothing keeping it honest — and this feature found the MV spec's "2-tone border" claim stale against the implementation purely by chance. Same drift class, same subsystem. **A test parses the doc's token table and compares the name set against `Theme.All()`** — cheap, and matching the codebase's existing guard idiom. The doc's copy-pasteable example theme is covered by the same guard: it must parse and contain all 19 keys, so it is not a fourth unguarded copy of the vocabulary.
+
+### 13.6 Guard-test reshape
+
+| Test | Change |
+|---|---|
+| **`TestMVTokenCount`** | Moves 20 → 19, and its meaning shifts from "MV has 20 tokens" to "**the vocabulary is 19**". |
+| **`TestMVDarkVariantsPinned`** | **Deleted.** Once themes are data files whose values are their own source of truth, an exact-hex pin in a Go test is a change-detector duplicating the file. The contrast floor test is the real guard for bundled themes. |
+| **`TestLightSurfaceTintsPinned`** | **Survives, and becomes per-light-theme.** Three light surface tints are not numerically checkable, so for those the exact-value pin is the only guard. They keep their pin, and the *why* moves into the theme file as a `#` comment — which the flat format supports. **The format decision is what makes deleting the Go-side erratum comments safe rather than lossy.** Pins for any new light theme are established by human eyeball at a visual gate. |
+| **Embedded-set validity + fallback-slug resolution** | **New** (§7.6). |
+| **Swap-and-diff completeness guard** | **New** (§13.4). |
+| **`RestoreTerminalBackground` anchor test** | **New** (§11.4). |
+| **`docs/theming.md` token-table guard** | **New** (§13.5). |
+| **`keymap_dispatch_guard_test`** | Extended to cover the panel scope (§9.12). |
+| **Colour-literal guard** | Unchanged in mechanism; continues to exclude the `theme` subpackage. |
+
 ---
 
 ## Working Notes
