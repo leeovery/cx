@@ -287,6 +287,81 @@ The asymmetry is what makes not-deciding safe rather than merely convenient: *de
 
 **The one exception is test-side, not product-side:** the contrast test table names which built-ins are light, because the three light surface tints are not numerically checkable (§13.5). A test is allowed to know things the runtime does not.
 
+## 5. Identity, discovery & enumeration
+
+### 5.1 The filename is the identity
+
+**The filename minus its extension is the slug**, and the slug is the durable identity Portal persists in `prefs.json`, writes in config, and displays in the selector. There is no in-file `name` field and no separate display label.
+
+- Zero duplication: file and content cannot disagree.
+- Identity is structurally unique by virtue of being a filename in a directory.
+- Renaming a theme is a file move — an operation users already understand.
+- The contract is a *filename*, so a user renaming their own theme is a deliberate file operation with an obvious consequence, and Portal renaming a built-in is the same kind of breaking change as renaming a token: visible, deliberate, and rare.
+
+An optional display-label field was considered and **rejected**. Two files with distinct slugs could both carry `name = "Nord"`, so labels could collide even though identity could not, and alphabetical ordering would become ambiguous (by slug or by label — they differ the moment a label is set). The cost is display prettiness (`tokyo-night-day` rather than "Tokyo Night Day"), judged not worth a second identifier-shaped thing in the file. Every comparable tool lists slugs, and the constrained charset reads cleanly.
+
+### 5.2 Slug charset — `[a-z0-9-]`
+
+**A slug must match `[a-z0-9-]`.** A file whose name does not is **rejected** with reason `bad name` and rendered as an unselectable row (§9.5).
+
+**Reject, never normalise.** Lowercasing `Nord.theme` to `nord` would let it shadow the built-in, breaking the rule §5.4 exists to protect.
+
+This removes the case question outright rather than defining case-insensitive matching, so the reserved-name check stays **exact string equality** — which is what the no-shadowing safety property requires, and what makes `Nord.theme` beside a built-in `nord` safe on a case-insensitive macOS filesystem.
+
+The same charset check applies to a **persisted slug** read from `prefs.json` (§8.6).
+
+### 5.3 Extension — `.theme`
+
+Theme files carry the `.theme` extension. Some extension is needed for slug derivation; `.theme` is the choice.
+
+### 5.4 No shadowing — built-in slugs are reserved
+
+**A user file whose slug collides with a built-in is rejected**, with reason `reserved name`, through the same channel as any other invalid theme.
+
+This exists because of a hard constraint: an invalid theme falls back to a built-in, so **if a user file could shadow the built-in that is the fallback, the fallback itself could be broken.** Drop in `tokyo-night.theme` with a typo'd hex and the thing Portal falls back to is the same broken file. That must be impossible.
+
+Rejected alternatives: user-dir-shadows-built-ins with reserved names (needs a reserved-name special case, a precedence chain to document, and "which `nord` am I looking at?" ambiguity), and built-ins-always-win-silently (you edit a file and nothing happens, with no signal at all).
+
+The workaround is a two-second file rename and is self-documenting: copy `nord` to `nord-lee.theme`. With the PR route open, genuinely *correcting* a built-in has a proper channel rather than needing a local override.
+
+**Accepted consequence:** because built-in rows are deliberately indistinguishable from drop-in rows in the panel (§9.5), the reserved-slug set is not discoverable from the UI — a user learns a slug is reserved by having their file rejected with a message naming the conflict. `portal theme export` (§12.1) and `docs/theming.md` make the set discoverable outside the panel.
+
+### 5.5 Directory resolution
+
+The themes directory resolves through Portal's existing per-file chain shape:
+
+**dedicated env var → `XDG_CONFIG_HOME/portal/themes/` → `~/.config/portal/themes/`**
+
+Note this resolves a *directory* where `configFilePath` resolves *files* — a small mechanical difference. There is no one-shot migration from the old macOS Application Support path (the directory is new; nothing exists there to move).
+
+**Directory states:**
+
+| State | Behaviour |
+|---|---|
+| **Absent** | The common case. **Silent** — zero drop-ins is not an error. No doctor line, no log entry. Portal never creates or seeds it. |
+| **Unreadable**, or a regular file where a directory belongs | A genuine misconfiguration: a **doctor advisory line** and a **log entry**. |
+
+### 5.6 Enumeration rules
+
+- **Top-level only** — files matching `.theme` in the directory itself. No subdirectory recursion.
+- **Symlinked files are followed** — the standard dotfiles shape, and dotfiles users are exactly who hand-authors a theme. The slug derives from the link name as enumerated.
+- **Symlinked directories are not followed.**
+
+### 5.7 Discovery is lazy
+
+Auto-discovery must not turn one config read into an N-file scan-parse-validate sweep on a cold path that is explicitly latency-engineered.
+
+- **At construction**, Portal loads **only the nominated themes by name** — one file read for a constant, two for an adaptive pair (§8.4). No enumeration.
+- **Enumeration happens only when the slide-over opens**, where a few milliseconds is invisible against the keypress that opened it.
+
+This means the drop-in route can never degrade startup no matter how many files a user accumulates, and the exec path (`portal open <target>`) does no theme work at all.
+
+Rejected: startup scan (pays the sweep on every launch including the overwhelming majority where nobody opens the selector), and `fsnotify` watching (machinery for a problem Portal does not have — it does not need to *watch* the directory, it needs to not *cache* it).
+
+### 5.8 Enumeration re-reads on every open
+
+The directory is enumerated **on every panel open**, not once per process. It is a directory read of a handful of small files behind a keypress; caching buys nothing measurable while breaking the loop the drop-in route exists for — copy a built-in, edit it, see it, without relaunching Portal.
+
 ---
 
 ## Working Notes
