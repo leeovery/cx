@@ -34,8 +34,8 @@ Also unstated in the same table: whether export's `<reason>` frame (`theme <slug
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.1's table gains an `unreadable` row so export inherits §5.5's discrimination as the fourth by-name resolver, with the misdirection it closes named (exporting against an unreadable directory would print "no theme named X" about a file that exists). §14A gains a separate stderr frame — `theme <slug> could not be read: <OS error>` — because the file is not *invalid*; nothing was read.
 
 ---
 
@@ -65,8 +65,8 @@ Worth noting the path is not contrived: §9.8 already names the forced close as 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.13 now settles the simultaneous case: on a forced close both flashes are due and the failed-commit flash wins, with the state discharged. Reasoning recorded — the geometry event is self-evident to the user, the unsaved setting is not, and losing the commit flash on the one path where the panel cannot be reopened to retry is the exact failure the section closes.
 
 ---
 
@@ -95,8 +95,8 @@ The compensating channel is already specified — §12.5 requires the CHANGELOG 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §10.5 now states the translation is silent to the user at runtime, with the three reasons (intent is preserved exactly so there is nothing to explain; it runs before any surface exists; the notice band is a six-contender single slot §6.3 already refused for a rarer event) and the note that the spec's own §9.13 reflex points the other way. CHANGELOG named as the compensating channel.
 
 ---
 
@@ -127,7 +127,7 @@ The consequence is the part worth carrying, because two specification decisions 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.14 gains the precedent split before the artboard list: the picker half has strong prior art (Helix, Ghostty, kitty) and can be checked against a familiar idiom; the slot half exists in no surveyed tool, so the frames and fixtures are the only reference there is — which is what makes them non-negotiable and tells a reviewer where to concentrate the visual gate.
 
 ---

@@ -1187,11 +1187,18 @@ This recreates "applied but not persisted", but as a *reported* state rather tha
 
 **"Outstanding" is a state, not a message.** A commit failure is outstanding from the moment a write fails until a **subsequent commit succeeds** — nothing else clears it. In particular arrowing away does not: that dismisses the *message* (which persists only until the next keypress) while leaving the state, which is what stops the very next `Esc` reinstating the silent revert this section exists to close. And because a successful retry clears it, a `d` that fails followed by an `l` that succeeds raises no flash — the user is not told a theme was not saved when it was.
 
-**So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. **Raising the flash discharges the state** — it is the report the state exists to produce, so once made the state has done its job. Without that, reopening the panel and pressing `Esc` would re-fire the flash about a failure already reported, on every close for the life of the process, and §9.8's forced close would stack it against `terminal too narrow — theme picker closed` in a notice band with one slot. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
+**So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. **Raising the flash discharges the state** — it is the report the state exists to produce, so once made the state has done its job. Without that, reopening the panel and pressing `Esc` would re-fire the flash about a failure already reported, on every close for the life of the process.
+
+**On a forced close (§9.8) both flashes are due at once, and the failed-commit flash wins.** The notice band has one slot, and the two report different things: a geometry event the user can see for themselves — their terminal just got smaller and the panel vanished — versus an unsaved setting they must act on, which §9.13 exists to keep from being silent. **The state is discharged**, because the report was made. Losing the geometry flash costs nothing; losing the commit flash on the one path where the user cannot reopen the panel to retry is exactly the failure this section closes. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
 
 **A commit is always re-attemptable.** The commit keys are unconditional writes (§9.2), so pressing `d`/`l`/`Enter` again simply retries — no special retry affordance, and no state to clear first.
 
 ### 9.14 Reference frames
+
+**The panel is two halves with opposite risk profiles, and that is why the frames and fixtures are non-negotiable rather than nice-to-have.**
+
+- **The picker half has strong prior art.** Helix's `:theme` re-themes live behind a three-state prompt; Ghostty's `+list-themes` is close to the described layout (list one side, live preview the other, `Esc` to exit); kitty's themes kitten has live preview. A reviewer can check this half against a familiar idiom.
+- **The slot half has none.** Assigning a theme to a light/dark slot *from inside a picker* was found in no surveyed tool — Helix, Ghostty, Zellij, kitty and bat all require editing config for the pair. `d`/`l` and the `● dark` / `● light` / `● both` badge vocabulary are genuinely novel. That is not a reason to avoid them; it is the reason there is **no established shape to borrow**, so the Paper frames and §13.3's fixtures are the only reference that exists — and it tells a reviewer where to concentrate the visual gate.
 
 Three Paper artboards are the forward-looking reference for this panel, all built on the canonical `Sessions — Modern Vivid v2` frame so they inherit the shipped MV conventions:
 
@@ -1265,6 +1272,14 @@ Retaining it is inert to the new binary and still meaningful to an old one, and 
 **Concurrency is a non-issue, for a stateable reason:** several burst-launched instances hitting the condition simultaneously all compute **the same value from the same input**, so the write is idempotent and last-write-wins is harmless. That is what makes it safe where a general read-modify-write would not be. It also never runs on the exec path, which constructs no TUI and reads no prefs.
 
 The translation emits `theme: appearance migrated` (INFO, one-shot) — see §12.3.
+
+**The translation is silent to the user at runtime.** No flash, no notice band, no banner — the log line is a forensic trail with **no user-facing interruption**. Three reasons, and it is worth stating because the spec's own reflexes point the other way: §9.13 establishes that a state the user must act on has to be reported, which an implementer could reasonably generalise to a config mutation.
+
+- **There is nothing to explain.** The translation preserves intent exactly (§10.2) — a pinned mode becomes a pinned theme and detection stays off, just as it was. §10.1's problem was the *silent flip*, and the translation is what prevents it; announcing the fix would be announcing that nothing changed.
+- **It runs at prefs load, before any surface exists** to render a notice into.
+- **The notice band is a single-slot arbiter with six contenders already** — §6.3 refuses it a permanent entry for a rarer event on exactly this ground.
+
+The compensating channel is the CHANGELOG (§12.5), which is required to carry that `appearance` is translated automatically and the user need not act — the honest place for a one-time upgrade notice.
 
 ## 11. Live-swap mechanics
 
@@ -1345,6 +1360,7 @@ This closes a structural gap. *"Copy a built-in and edit it"* carries **two** de
 | **Slug domain** | **Built-ins *and* drop-ins.** Resolving both makes export a diagnosis tool — "show me what Portal parsed" — not just an on-ramp. |
 | **Invalid drop-in** | Refused, with its reason on **stderr** and a **non-zero exit**. Doctor's advisory-vs-health distinction (§12.2) is doctor's own contract and does not extend here. |
 | **Unknown slug** | Same — reason on stderr, non-zero exit. |
+| **Unreachable because the directory or file could not be read** | Refused with reason **`unreadable`**, not `unknown slug`. Export is the fourth by-name resolver and inherits §5.5's discrimination like the other three: `not found` sends the user to check the filename, `unreadable` sends them to check permissions. Without it, `portal theme export nord-lee` against a `themes/` directory the user cannot read prints *"no theme named nord-lee"* about a file that plainly exists — the same misdirection this table refuses one row above for a charset failure. It needs no new vocabulary: `unreadable` is one of §6.2's seven and §14A already pins its detail. |
 | **Arguments** | Exactly one slug. Zero or more than one is a usage error (a Cobra `ExactArgs(1)` rule). |
 | **Failure exit code** | **1 for every failure class.** Export is a pipe-into-a-file tool, not a diagnostic like doctor; the reason string on stderr is what discriminates, and distinguishing unknown-slug from invalid-file numerically buys nothing scriptable. |
 | **A slug failing the charset check** | Refused with reason **`bad name`**, not `not found` — the same discrimination §9.4 draws for the panel, for the same reason: telling a user their file is missing when they typed an illegal name sends them looking in the wrong place. |
@@ -1705,6 +1721,7 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | Unknown slug | `no theme named <slug>` |
 | Invalid drop-in | `theme <slug> is not valid: <reason>` |
 | Slug fails the charset check | `theme <slug> is not valid: bad name` |
+| Unreadable | `theme <slug> could not be read: <OS error>` — a separate frame, because the file is not *invalid*: nothing was read, so "is not valid" would describe a judgement that was never made |
 
 **`portal doctor` (§12.2)** — one advisory line per finding, `⚠`-marked, detail after a colon:
 
