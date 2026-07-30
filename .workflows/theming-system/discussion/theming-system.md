@@ -2136,6 +2136,61 @@ optimisation.** VHS is retained only if a gif is ever wanted for motion. Leaving
 open would have left the agent's self-review loop dependent on artifacts the same
 section deletes.
 
+### Footer keymap revision — discoverability (the review's F13)
+
+The review asked whether the feature's near-invisibility was intended or the sum
+of seven decisions each taken on other grounds: `t` non-core, `--theme` and
+`portal theme list` both ruled out, the themes directory silent and never seeded,
+built-in rows indistinguishable from drop-ins, the reserved-slug set invisible, and
+no active-theme indicator when the panel is closed. Discoverability rested entirely
+on `?` help and `docs/theming.md`.
+
+**Lee's answer went further than promoting `t`:** drop `↑↓ navigate` from the
+footer (arrows in a list are a given), and promote **both** `t` and `m` to core.
+
+That inverts cleanly with the earlier `t` decision — arrows are the entry that
+genuinely deserves non-core status (self-evident, still listed in `?` help), which
+is the distinction applied to the right thing.
+
+**Decided footers:**
+
+- **Sessions** — `⏎ attach · / filter · ␣ preview · s switch view · x projects ·
+  t theme · m multi` + right-aligned `? help`
+- **Projects** — `⏎ new session · x sessions · e edit · / filter · t theme` +
+  right-aligned `? help` *(verified against the `Projects (MV)` frame: it carries
+  no `navigate` today and has ~322px of slack before `? help`)*
+
+**Width, measured rather than assumed.** Dropping `↑↓ navigate` frees ~93px;
+`t theme` costs ~61px and `m multi-select` ~116px, netting **+84px** against an
+89px spacer at the mock's 86-column width — it fits with ~5px spare and no
+headroom. **The label is therefore `m multi`, not `m multi-select`**, buying back
+~47px. Decided here, not deferred.
+
+**This amends spec §12.2** (the keymap revision) — the third spec amendment this
+feature carries, alongside the doctor contract and the log-component vocabulary.
+
+### Note — the MV Paper frames are historical, not specification
+
+Recorded because it governs how everything above should be read. **Modern Vivid is
+already implemented, so the code is the source of truth.** The MV Paper frames are
+historical reference from that feature's design phase; a footer in them that no
+longer matches (e.g. still showing `↑↓ navigate`) is **not** a defect and is not
+worth updating. Lee: *"we don't need to update the paper frames … Code is the
+source of truth."*
+
+Only the **new** frames are forward-looking reference material, because they
+describe surfaces that do not exist yet: `Theme slide-over — A (inline slot
+badges)`, `Theme slide-over — A (constant set, previewing another)`,
+`Theme slide-over — B (assignment header)`, `Sessions — Nord (port)`,
+`Kill Modal — Nord (state.destructive #DD8188)`, and
+`Sessions — Nord inline flash (bg.attention #3D4046)`.
+
+A related caution surfaced while building them: the Paper mocks use **per-frame
+literal hexes**, so the same token carries different values across frames (the
+inline-flash frame's selection tint was `#1A1726` where the canonical Sessions
+frame's was `#28243A`). That is exactly the drift the token layer prevents in
+code — another reason the frames are reference, never truth.
+
 ### Doctor's advisory lines, visually (the review's F17)
 
 Doctor renders one line per check with a pass/fail marker and drives a single exit
