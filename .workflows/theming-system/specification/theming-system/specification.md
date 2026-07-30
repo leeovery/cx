@@ -219,7 +219,9 @@ Rationale:
 
 Accepted cost: a small hand-rolled parser, and a second non-JSON config format to document.
 
-**Forward note (not a requirement):** the deferred transparent-theme idea would need a distinguished value meaning "use the terminal default". The format should leave that door open rather than close it.
+**Forward note (not a requirement):** the deferred transparent-theme idea would need a distinguished value meaning "use the terminal default". The route left open is a **distinguished keyword** (`transparent`, `none`) admitted by widening §4.3's value domain — a loader change, purely additive, which is what §1.4 claims.
+
+The route explicitly **closed** is btop's precedent of an *empty* value: §4.2 pins an empty value as `bad colour`, deliberately. Recorded so a future reader neither re-derives the question nor reads that branch as an oversight to be reversed — a keyword is also self-describing in a file where every other value is a hex, which an empty right-hand side is not.
 
 ### 4.2 Lexical rules
 
@@ -363,7 +365,11 @@ The env var is named here rather than left to implementation because it is a use
 ### 5.6 Enumeration rules
 
 - **Top-level only** — files matching `.theme` in the directory itself. No subdirectory recursion.
-- **The extension is matched case-insensitively**, so `Nord.THEME` is enumerated. It then fails the slug check and gets a `bad name` row — which is the point: a case-sensitive extension match would make the file *invisible*, the "completely in the dark" state §9.4 exists to prevent, and it would do so most often on the case-insensitive filesystem where a user is most likely to type it that way. This does not weaken §5.2's reject-never-normalise rule: the extension is not part of the slug, and the slug is still matched exactly.
+- **The extension is matched case-insensitively for *enumeration*, but only the exact lowercase `.theme` is *accepted*.** A file whose extension is any other casing (`Nord.THEME`, `nord.Theme`) is enumerated so it is **visible**, and then **rejected as `bad name`** — the filename is not a valid theme filename.
+
+  Both halves are load-bearing. Enumerating case-insensitively is what stops the file being *invisible*, the "completely in the dark" state §9.4 exists to prevent, and it would be invisible most often on the case-insensitive filesystem where a user is most likely to type it that way. Accepting only the exact extension is what preserves §5.1's structural-uniqueness claim: were `foo.THEME` accepted, it would derive the slug `foo` alongside `foo.theme` on a case-sensitive filesystem — two selectable rows with the same label and a persisted `"theme": "foo"` naming both. Since a non-exact extension never contributes a slug, **a duplicate slug cannot be minted** and no new reason, precedence rule or ordering tie-break is needed. The by-name construction path (§8.4), which resolves a slug to a file without enumerating, gets the same guarantee for free: it looks for `<slug>.theme` and nothing else.
+
+  This does not weaken §5.2's reject-never-normalise rule — it is the same rule applied one level up: the casing is reported, never silently corrected.
 - **Symlinked files are followed** — the standard dotfiles shape, and dotfiles users are exactly who hand-authors a theme. The slug derives from the link name as enumerated. A **dangling symlink** enumerates and then fails to read: reason `unreadable`.
 - **Symlinked directories are not followed.** A **real subdirectory** named `x.theme` is **skipped silently** — enumeration matches files, and a directory is not a candidate that failed, it is not a candidate at all.
 - **`unreadable` covers every read failure**, not only permissions — a dangling link, an I/O error, or anything else that stops the bytes arriving.
@@ -884,7 +890,7 @@ These assignments also feed §13.4's third assertion (every token exercised by a
 **Opening state: the cursor lands on the theme that is actually rendering, and opening previews nothing.**
 
 - Under a **constant**, that is the constant's row.
-- Under an **adaptive pair**, it is the row for the slot currently in force — the light slot in a light terminal, the dark slot otherwise. The other slot's row still carries its `● light`/`● dark` badge; only the cursor is singular.
+- Under an **adaptive pair**, it is the row for the slot currently in force — the light slot in a light terminal, the dark slot otherwise. The other slot's row still carries its `● light`/`● dark` badge; only the cursor is singular. When both slots name the same slug there is one row carrying `● both` (§9.5), and the cursor is on it.
 - When the resolved theme is a **fallback** (§8.5), the cursor lands on the **fallback's** row, not on the persisted-but-broken one. The persisted row is unselectable (§9.5) and the arrows are specified to skip it, so parking the cursor there would put it somewhere navigation cannot return to — and it would show a row that is not what is on screen. The `●` still marks the persisted slug, which is exactly the split §9.5 draws: `●` is what is *set*, the cursor is what is *previewed*.
 
 Because the cursor starts on what is already rendering, **opening the panel never changes which theme is shown** and the mixed-mode flash fires only on deliberate navigation.
@@ -975,8 +981,9 @@ Below the label's truncation floor the panel is already at §9.8's refuse thresh
 **Markers — treatment A (inline slot badges):**
 
 - The assigned rows carry a right-aligned **`● dark`** / **`● light`** badge.
+- **When both slots name the same slug, that one row carries `● both`.** This is reachable in two keypresses (`d` then `l` on one row) and is a likely path — it is where a user lands wanting "this theme everywhere" without realising `Enter` is the idiom for it. `● both` is chosen over a combined `● dark light` because with exactly two slots "both" is fully determined, and it is no wider than `● light`, so it does not move the truncation budget §9.5 fixes.
 - A **constant** theme carries a bare **`●`** with no slot word — with no slots there is nothing to qualify, and a label would be redundant with the marker.
-- The two setting states never coexist on screen, so a row never carries both forms.
+- The two setting states never coexist on screen, so a row never carries a constant's form and a slot's form together.
 
 The `●` glyph is correct here: Portal **already repurposes** `●` for multi-select marking, where it indicates a marked row rather than a live session. `●` is Portal's general "marked / active" glyph, not an attached-only one. The two signals stay independent: **`●` marks assignment**, the **`▌` + tint cursor treatment marks browse position**.
 
@@ -1493,9 +1500,13 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | Case | Copy |
 |---|---|
 | Invalid theme file | `⚠ theme <slug>: <reason> — <detail>` where detail enumerates within the reason (e.g. `missing text.primary, bg.subtle`) |
+| Invalid theme file **with no slug** (`bad name`) | `⚠ theme file <filename>: slug must be lowercase letters, digits and hyphens` — the file is named, not a slug, because a `bad name` file has none (§5.2) and "which file is it?" is the whole diagnostic value here |
+| `reserved name` conflict | `⚠ theme file <filename>: <slug> is a built-in — rename it (e.g. <slug>-mine.theme)` — the message names the conflict *and* the fix, which is what makes §5.4's workaround self-documenting rather than merely short |
 | Persisted theme unresolvable | `⚠ theme <slug> (<slot>) does not resolve: <reason>` |
 | Themes directory unusable | `⚠ themes directory unreadable: <path>` |
 | Closing summary | `<N> checks passed · <M> advisories` |
+
+**Fatal startup message (§7.6)**, on the should-never-happen path where a fallback slug does not resolve within the embedded set: `built-in theme <slug> is missing or invalid — this binary is broken`. Terse is right for a path the build-time guarantee makes unreachable, but it is still new copy and is pinned rather than left implicit.
 
 Copy that is **not** pinned here is unchanged from what already ships.
 

@@ -35,8 +35,8 @@ Related, same class: §7.6's build-time-guarantee escape hatch says *"the user s
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A extended with three pinned strings: the no-slug doctor line (names the file, taking the source's own shape), the reserved-name conflict sentence (names the conflict *and* the rename fix, which is what makes §5.4's workaround self-documenting), and the fatal startup message for the unreachable broken-fallback path.
 
 ---
 
@@ -58,8 +58,8 @@ Worth noting it is the state a user lands in when they want "this theme everywhe
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §9.5: both slots on one slug renders `● both`. Chosen over a combined `● dark light` because with exactly two slots "both" is fully determined and it is no wider than `● light`, so the §9.5 truncation budget is unmoved. §9.2's opening state updated to put the cursor on that single row.
 
 ---
 
@@ -81,8 +81,8 @@ Cheap to close in any of three directions — reject a duplicate slug as a new r
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §5.6 by splitting enumeration from acceptance: any extension casing is *enumerated* (so the file is never invisible) but only exact lowercase `.theme` is *accepted*; other casings are rejected `bad name`. A non-exact extension therefore never contributes a slug, so a duplicate slug cannot be minted — no new reason, precedence rule or tie-break needed, and the by-name construction path inherits the guarantee since it looks for `<slug>.theme` and nothing else.
 
 ---
 
@@ -108,7 +108,7 @@ One line recording the surviving route (a distinguished **keyword**, not an empt
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §4.1: the surviving route for a deferred transparent theme is a distinguished *keyword* admitted by widening §4.3's value domain (purely additive, as §1.4 claims). btop's empty-value precedent is explicitly closed, since §4.2 pins an empty value as `bad colour` — recorded so the branch is not later read as an oversight.
 
 ---
