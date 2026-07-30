@@ -1115,6 +1115,66 @@ where there is width to enumerate.
 **The fourth panel fixture becomes an invalid-theme row** rather than a
 skipped-count line.
 
+### Amendment — the list is files ∪ whatever prefs names (the review's F1)
+
+"Every theme file gets a row" was said to dissolve the no-row-to-mark problem
+*entirely*. It does not: it covers a file that exists but fails validation, and
+not the three cases the missing-from-disk decision enumerates (deleted file,
+renamed file, typo in `prefs.json`), nor the case where the persisted slug fails
+the charset check and is rejected before any file is sought. No file means no row,
+so nothing carries the `●` — yet that decision claims the failure surfaces "via
+the slide-over". The two were decided an hour apart and did not compose.
+
+**Amendment: the panel lists the union of files found *and* whatever `prefs.json`
+names.** A persisted slug with no file gets a row too — marked, unselectable,
+reason `not found`. Same shape as an invalid file: the user sees what is set and
+why it is not applying. Applies per-slot under an adaptive pair with one dead
+slug.
+
+### On-ramp — `portal theme export` (the review's F2)
+
+**Structural gap.** *"Copy a built-in and edit it"* carries **two** decisions — it
+is the pro that justified `go:embed`, and the deciding factor that rejected
+merge-over-a-base (full replacement is only cheap if copying is cheap). But
+built-ins live inside the binary; `portal theme list` and `--theme` were ruled out
+as YAGNI; nothing dumps an embedded theme; and an absent `themes/` directory is
+deliberately silent, so Portal never creates or seeds it. The only remaining route
+was finding the file on GitHub — never named as the workflow, and unavailable
+offline.
+
+**Decision: add `portal theme export <slug>`**, writing the embedded theme to
+stdout, so the whole workflow is
+`portal theme export nord > ~/.config/portal/themes/nord-lee.theme`. Plus a
+complete copy-pasteable example theme in `docs/theming.md` for the no-terminal
+case.
+
+**This partially reverses the earlier YAGNI ruling, deliberately.** That ruling
+was about *listing* and *selecting* — both genuinely redundant with the panel.
+Export is redundant with nothing.
+
+Considered and rejected: a panel key duplicating the highlighted theme into
+`themes/` as `<slug>-copy.theme`. Better placed (on-ramp at the point of intent)
+but adds a key and makes the TUI write files; the verb is simpler, scriptable, and
+works when the panel is unavailable.
+
+*(Related and accepted: because built-in rows are deliberately indistinguishable
+from drop-ins, the reserved-slug set is not discoverable from the UI — a user
+learns a slug is reserved by having their file rejected with a message naming the
+conflict. `portal theme export` and the docs both make the set discoverable
+outside the panel.)*
+
+### No unset — accepted (the review's F14)
+
+Every panel action *sets*: `Enter` sets a constant, slot keys set a slot, nothing
+clears. So returning to the shipped pair after setting `theme_dark = nord` means
+explicitly setting `tokyo-night` — which resolves identically today but converts
+an **inherited default into a pin**, so a future change to the shipped default
+would no longer reach that user.
+
+**Accepted and documented rather than fixed with a clear key.** It only bites if
+the shipped default changes, and `prefs.json` is hand-editable. Recorded as a
+deliberate acceptance, not an oversight.
+
 ### No runtime floor under the fallback — a build-time guarantee instead
 
 The orchestrator proposed a compiled-in last-resort palette (equal to Tokyo Night
