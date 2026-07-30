@@ -1987,6 +1987,43 @@ each of the 19 roles and its relative weight. That is the seed's own deliverable
 and exists regardless. A theme author learns the vocabulary there — they were
 never going to infer a six-step ramp from six adjectives in isolation.
 
+### Verification — four resolutions (the review's F4, F5, F14, F15)
+
+**Contrast checking needs a light/dark distinction that "no variant concept"
+removed (F4).** Three light surface tints cannot be checked numerically
+(light-tint-on-light-canvas is numeric-insufficient — hence
+`TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
+**Resolution: it is the *test* that needs to know, not the product.** A test table
+is allowed to know things the runtime does not — the vocabulary stays
+variant-free, and the table names which built-ins are light. Separately,
+`contrast_test.go` currently measures against **two hardcoded canvases**; under
+split each theme carries its own `canvas` token, so the test resolves its
+reference background **from the theme** rather than from a constant.
+
+**The swap-and-diff guard's coverage claim was hand-wavy (F5).** "Every expected B
+value is present" cannot hold per fixture — no single screen renders all 19 roles
+— so it is a **union across fixtures**, which was never stated. And the union is
+complete only if every token appears on *some* fixture; the risks are the
+transient states (`bg.attention` / `text.on-attention`, `accent.mode`,
+`state.destructive`, `text.on-selection`). **Resolution: "every token is exercised
+by at least one fixture" becomes an assertion of the guard itself.** A token with
+no fixture fails the test and someone adds a fixture, rather than the guard being
+silently blind at precisely the sites it exists to protect.
+
+**`capturetool --theme` may point at a real theme file (F14).** The import guard's
+invariant is that `internal/capture` never *resolves* config — no XDG lookup, no
+prefs read. **An explicit path from a flag is an input, not config discovery**, so
+accepting one preserves the invariant. This matters disproportionately: it is the
+only visual-verification route for someone authoring a drop-in, given Portal
+cannot be run from a temporary build.
+
+**`docs/theming.md` gets a guard (F15).** It is now the sole record of the ramp's
+weight ordering and the 19 roles' meanings, with nothing keeping it honest — and
+this session found spec §8.1's "2-tone border" claim stale against the
+implementation purely by chance. Same drift class, same subsystem. **Resolution: a
+test parses the doc's token table and compares the name set against
+`Theme.All()`** — cheap, and matching the codebase's existing guard idiom.
+
 ### Guard tests reshape
 
 - **`TestMVTokenCount`** moves 20 → 19, and its meaning shifts from "MV has 20
