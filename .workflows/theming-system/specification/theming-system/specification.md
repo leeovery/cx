@@ -977,6 +977,110 @@ This is the mechanic carrying an explicit *"do **not** drop this guard"* warning
 
 The stakes are why: this is the one path where a mistake re-sticks a colour in the user's terminal **after Portal exits**.
 
+## 12. Non-TUI surfaces, logging & docs
+
+### 12.1 `portal theme export <slug>`
+
+Writes the named theme to **stdout** in canonical form, so the full drop-in workflow is:
+
+```
+portal theme export nord > ~/.config/portal/themes/nord-lee.theme
+```
+
+This closes a structural gap. *"Copy a built-in and edit it"* carries **two** decisions — it is the pro that justified `go:embed` (§7.1), and the deciding factor that rejected merge-over-a-base (§4.5, full replacement is only cheap if copying is cheap). But built-ins live inside the binary, `portal theme list` and `--theme` are ruled out, and an absent `themes/` directory is deliberately silent and never seeded — so without `export` the only route was finding the file on GitHub, which was never named as the workflow and is unavailable offline.
+
+**Command surface:**
+
+| | |
+|---|---|
+| **Bootstrap-exempt** | Added to `skipTmuxCheck`. Printing a file must not start a tmux server, ensure the saver, or run restore. |
+| **Slug domain** | **Built-ins *and* drop-ins.** Resolving both makes export a diagnosis tool — "show me what Portal parsed" — not just an on-ramp. |
+| **Invalid drop-in** | Refused, with its reason on **stderr** and a **non-zero exit**. Doctor's advisory-vs-health distinction (§12.2) is doctor's own contract and does not extend here. |
+| **Unknown slug** | Same — reason on stderr, non-zero exit. |
+| **Verb group** | The `theme` group has only `export`. A one-member group, noted deliberately. |
+
+**This partially reverses the YAGNI ruling on theme CLI verbs, deliberately.** That ruling was about *listing* and *selecting* — both genuinely redundant with the panel. Export is redundant with nothing.
+
+Considered and rejected: a panel key duplicating the highlighted theme into `themes/` as `<slug>-copy.theme`. Better placed (on-ramp at the point of intent) but it adds a key and makes the TUI write files; the verb is simpler, scriptable, and works when the panel is unavailable.
+
+`docs/theming.md` additionally carries a complete copy-pasteable example theme for the no-terminal case.
+
+### 12.2 `portal doctor` — a read-only theme health line
+
+Doctor is Portal's established config-health surface, with full terminal width to enumerate per-file reasons on demand. It:
+
+- **Scans the themes directory** and reports any file failing validity, with the reason and the specific token/line/key.
+- **Reports when a persisted theme name no longer resolves.**
+- **Reports an unreadable themes directory** (or a regular file where a directory belongs). An *absent* directory is silent (§5.5).
+
+**Read-only, with no `--fix` action.** Doctor can prune a stale hook entry; it cannot repair someone's colours.
+
+**Theme lines are advisory and do NOT drive the exit code — this amends doctor's contract.** Doctor's contract is a scriptable exit code, 0 iff all checks pass. Because there is deliberately no repair path, a failing theme line would go **permanently** non-zero until someone hand-edits a file — unlike every other check, which is either `--fix`-repairable or indicates genuine runtime breakage. The exit code exists as a signal about the **resurrection machinery** — daemon alive, hooks registered, state sane. A stray junk file in `themes/` is not that: Portal is working, it simply did not list one theme. Letting it hold the diagnostic red means an automated health check fires about the daemon because someone left a half-written palette lying around.
+
+So doctor gains **two classes of line**:
+
+| Class | Marker | Drives exit code |
+|---|---|---|
+| **Portal-health checks** | existing pass/fail markers | Yes, as today |
+| **User-content diagnostics** | **`⚠`** — Portal's established warning glyph (MV §2.2, glyph-backed so it survives colourless) | **No** |
+
+Theme validity is the first member of the second class. **Doctor's closing summary distinguishes the two counts** — e.g. *"N checks passed · 2 advisories"* — so the exit code's meaning is legible without reading the contract.
+
+Rejected: failing the exit code on the grounds that a user who dropped a broken file into a Portal-read directory should get a loud persistent signal. They do — via the panel row and the doctor line — without conscripting a signal that means something else.
+
+### 12.3 A new `theme` log component
+
+Portal's log component taxonomy is **closed and spec-governed** — components are never invented at a call site. **This feature adds a `theme` component via spec amendment**, with direct precedent: `spawn` and `resolve` were both added by the features that needed them.
+
+What distinguishes it from `prefs` and `terminals` (both deliberately outside the vocabulary) is that those are **dumb stores with no runtime behaviour**, whereas the theme loader has parse/validate/fallback *outcomes*.
+
+**Event catalogue:**
+
+| Event | Level | Cadence |
+|---|---|---|
+| `theme: loaded` | INFO | At TUI construction. Resolved slug(s) only — **no count** (nothing is enumerated at construction). |
+| `theme: enumerated` | INFO | At panel open. Carries `count` and `rejected`. |
+| `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. |
+| `theme: fallback applied` | WARN | Per fallback |
+| `theme: appearance migrated` | INFO | One-shot |
+| `theme: commit failed` | WARN | Per failed write |
+
+**Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`.
+
+Rejections are **WARN**, not INFO: doctor treats them as advisory for *exit-code* purposes, but "your config did not work" is a warning in a log.
+
+**Why the log earns its place:** a TUI launch that rejects a theme should leave a **passive** record. The panel's row is only visible if the panel is opened; doctor must be invoked. The log is the only trail that exists without the user going looking.
+
+**Correction to a premise, recorded so it is not re-derived:** the exec path (`portal open <target>`) constructs no TUI, so under lazy discovery the loader **never runs there** — nothing themed is rendered and there is no failure to surface or record on that path at all. Both the doctor line and the log component earn their places on other grounds (above). **And a win worth recording explicitly: on the path Portal is most careful to keep free of cost, this feature adds nothing at all.**
+
+### 12.4 `docs/theming.md`
+
+A new user-facing doc, following the `docs/custom-terminals.md` precedent (a user-authored config file with its own doc).
+
+**Contents:**
+
+- **The 19-token vocabulary with each role's meaning** — the substance of §2.5. `docs/theming.md` is **the source of truth for the public contract.**
+- **The text ramp's weight ordering** — the sole record of it, since file ordering carries nothing (§2.7).
+- **The file format** — lexical rules, value domain, the closed key set.
+- **A complete copy-pasteable example theme** (also the no-terminal on-ramp).
+- **The two-slot config** — `theme` / `theme_light` / `theme_dark`, constant vs adaptive, mutual exclusion, the `theme`-wins hand-edit rule.
+- **The reserved built-in slugs.**
+- **Attribution for ported palettes** — source and link, plus the Nord corrections. Attribution lives in the repo and README, **explicitly not in the UI** (no credits screen, nothing in the slide-over).
+
+**Attribution and licensing are deliberately not pursued further.** No per-theme licence line, no "(adapted)" naming convention, no PR contribution requirement. Ported palettes keep their own names. Recorded so a future reader does not mistake the omission for an oversight.
+
+**`docs/theming.md` gets a guard** (§13.5) — it is now the sole record of the ramp ordering and role meanings, with nothing otherwise keeping it honest.
+
+### 12.5 README and CHANGELOG
+
+`appearance` is described in `README.md` at four places, including a paragraph recommending users pin it *"when auto-detection misfires (for example under tmux passthrough)"*.
+
+**That paragraph comes out with the setting** — and the advice is obsolete twice over, since the premise was probably never true in the first place (§8.7).
+
+README gains the theme setting in its place, pointing at `docs/theming.md`.
+
+**`CLAUDE.md` needs correcting too:** it currently describes `testdata/vhs/` as committed reference PNGs forming a visual-verification harness, which reads as a durable asset. It is not (§13.2).
+
 ---
 
 ## Working Notes
