@@ -166,7 +166,7 @@ Today a theme is `{20 tokens} × {light, dark}`: `Token{Name, Light, Dark}` with
 Decisive reasons:
 
 - **Authoring burden under the contribution routes.** 19 values against one canvas versus 38 against two is the difference between a contributor porting a palette in an evening and not bothering — and dark-only famous palettes (Dracula, Nord) have no light half to supply at all.
-- **The pairing MV implies isn't real.** Six of MV's light hexes needed *individual* correction and three light surface tints were eyeball-pinned at a validation gate. MV's light and dark are two independently-tuned palettes that happen to share token names; the struct claims a derivation relationship that does not exist.
+- **The pairing MV implies isn't real.** Six of MV's light hexes needed *individual* correction and four light surface tints were eyeball-pinned at a validation gate. MV's light and dark are two independently-tuned palettes that happen to share token names; the struct claims a derivation relationship that does not exist.
 - **Detection and pairing are independent axes.** Auto-detection with single-palette themes — where detection picks between two *named themes* rather than two variants — is a shipping design (Helix's). Wanting detection does not commit Portal to paired.
 - Single-palette is the overwhelmingly dominant ecosystem shape.
 
@@ -183,7 +183,7 @@ Decisive reasons:
 - **The "missing variant" problem ceases to exist** rather than being handled. There is no hole for a dark-only palette to leave.
 - **No `appearance` pref survives.** The light/dark override becomes the *shape* of the theme setting (§8), not a mode enum.
 - **The selector list is mixed-mode.** Arrowing in a dark terminal can land on a light theme and flip the whole canvas. This is accepted behaviour, not a defect (§9.2).
-- **Contrast checking loses the product-side light/dark distinction** it needs for the three eyeball-pinned light surface tints. Resolved test-side: a test table is allowed to know things the runtime does not (§13.5).
+- **Contrast checking loses the product-side light/dark distinction** it needs for the four eyeball-pinned light surface tints (§13.5). Resolved test-side: a test table is allowed to know things the runtime does not.
 
 ### 3.4 Plumbing — the model holds the active theme
 
@@ -285,7 +285,7 @@ The mechanic has no consumer:
 
 The asymmetry is what makes not-deciding safe rather than merely convenient: *declaring* would lock a key into the public contract now, whereas *deriving* costs nothing and needs no format change — so if a selector filter ever ships, the value can be computed that day.
 
-**The one exception is test-side, not product-side:** the contrast test table names which built-ins are light, because the three light surface tints are not numerically checkable (§13.5). A test is allowed to know things the runtime does not.
+**The one exception is test-side, not product-side:** the contrast test table names which built-ins are light, because the four light surface tints are not numerically checkable (§13.5). A test is allowed to know things the runtime does not.
 
 ## 5. Identity, discovery & enumeration
 
@@ -330,9 +330,9 @@ The workaround is a two-second file rename and is self-documenting: copy `nord` 
 
 The themes directory resolves through Portal's existing per-file chain shape:
 
-**dedicated env var → `XDG_CONFIG_HOME/portal/themes/` → `~/.config/portal/themes/`**
+**`PORTAL_THEMES_DIR` → `XDG_CONFIG_HOME/portal/themes/` → `~/.config/portal/themes/`**
 
-Note this resolves a *directory* where `configFilePath` resolves *files* — a small mechanical difference. There is no one-shot migration from the old macOS Application Support path (the directory is new; nothing exists there to move).
+The env var is named here rather than left to implementation because it is a user-facing documented contract — `docs/theming.md` (§12.4) has to print it, and every other member of Portal's config chain carries a spec-fixed name for the same reason. The `_DIR` suffix (rather than the `_FILE` of `PORTAL_TERMINALS_FILE` and siblings) marks the mechanical difference: this resolves a *directory* where `configFilePath` resolves *files*. There is no one-shot migration from the old macOS Application Support path (the directory is new; nothing exists there to move).
 
 **Directory states:**
 
@@ -435,7 +435,7 @@ Consequences:
 
 - **Parse failures move from compile-time to load-time**, so built-ins need the build-time guarantee of §7.6.
 - **`internal/capture`'s no-real-config import guard is preserved** — `go:embed` is not config discovery, so the embedded set stays reachable from the capture harness without touching the config path.
-- **MV's inline erratum comments are deleted, not ported.** `contrast_test.go` already enforces the corrected values numerically, so a comment recording *why* a hex differs from its upstream sibling is duplicated history — revert a hex and the test fails, with or without the comment. The one class of judgement that is *not* numerically recoverable (the three eyeball-pinned light surface tints) moves into the theme file as a `#` comment, which the flat format supports (§13.6).
+- **MV's inline erratum comments are deleted, not ported.** `contrast_test.go` already enforces the corrected values numerically, so a comment recording *why* a hex differs from its upstream sibling is duplicated history — revert a hex and the test fails, with or without the comment. The one class of judgement that is *not* numerically recoverable (the four eyeball-pinned light surface tints — §13.5) moves into the theme file as a `#` comment, which the flat format supports (§13.6).
 
 ### 7.2 The shipped set — three built-ins
 
@@ -509,7 +509,7 @@ Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`,
 | `text.on-selection` | `#FFFFFF` | functional maximum | 8.63 on `bg.selection` |
 | `accent.primary` | `#B48EAD` | nord15 | 4.41 |
 | `accent.key` | `#81A1C1` | nord9 | 4.64 |
-| `accent.mode` | `#88C0D0` | nord8 | 6.24 |
+| `accent.mode` | `#88C0D0` | nord8 — chosen over nord7 `#8FBCBB` (5.99) as Nord's own primary UI accent | 6.24 |
 | `accent.attention` | `#EBCB8B` | nord13 | 8.00 |
 | `state.positive` | `#A7C492` | **corrected** from nord14 `#A3BE8C` | 6.51 canvas / 4.50 selection |
 | `state.destructive` | `#DD8188` | **corrected** from nord11 `#BF616A` | 4.50 |
@@ -534,6 +534,23 @@ Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`,
 **Fidelity versus floors — resolved.** The floors win, and the corrected values ship under the palette's own name. No application maps a 16-slot ANSI palette 1:1 onto its own semantic roles; every Nord port in the wild adapts. The corrections are minimal and perceptually close, judged **visually** (both reds mocked side by side in a Nord kill modal), and `docs/theming.md` records them alongside the attribution.
 
 **Derivation method — corrections versus inventions.** Contrast **corrections** must be computed in a **perceptual space (Oklab), never by moving HSL lightness** — raising lightness at fixed HSL saturation *drops actual chroma* (the first red offered, `#CF888F`, lost ~27% of Nord's red saturation and read washed-out and pink). A correction has a published source value whose chroma must be preserved. An **invented** value has no source to preserve; its constraints are landing in the right band and looking right, which is why `bg.attention` was settled at a visual gate rather than by arithmetic.
+
+**The pairing legs the port was verified against.** The per-token ratios above are only half the rule set — the second correction was found by walking the *pairing* legs. This is the port's verification baseline, to be re-checked if any value moves (§7.7):
+
+| Leg | Nord | Floor | |
+|---|---|---|---|
+| `bg.subtle` fill vs canvas | 1.24 | ≥ 1.10 | ✓ |
+| `state.positive` on `bg.selection` | 4.23 → **4.50** corrected | ≥ 4.50 | ✗ → ✓ |
+| `text.on-selection` on `bg.selection` | 8.63 | ≥ 4.50 | ✓ |
+| `text.secondary` on `bg.selection` | 7.09 | ≥ 4.50 | ✓ |
+| `text.tertiary` on `bg.selection` | 6.39 | ≥ 4.50 | ✓ |
+| `text.on-attention` on `bg.attention` | 9.02 | ≥ 4.50 | ✓ |
+| `accent.mode` vs canvas (peek chrome) | 6.24 | ≥ 4.50 | ✓ |
+| `text.subtle` band | 3.18 | 3.00–4.49 | ✓ |
+| `text.faint` band | 1.69 | 1.00–2.99 | ✓ |
+| `state.destructive` vs canvas | 4.50 | ≥ 4.50 | ✓ |
+
+**A failure on an unwalked leg can force re-deriving an *invented* value — which then needs a fresh visual gate.** The port was twice found incomplete (first covering 16 of 19 tokens, then roughly half the rule set), and each time the completeness claim was plausible enough to pass unexamined. The floor test auto-enumerating the embedded set (§13.5) means a missed leg surfaces at implementation rather than shipping — but if it lands on `text.muted`, `text.subtle` or `bg.attention`, the new value is an *invention*, and this port's own precedent (§7.4, `bg.attention`) is that inventions are settled at a visual gate rather than by arithmetic.
 
 **Outstanding visual gate:** `text.subtle` has no locus on any captured Nord frame — it renders group `··· N` counts and pending loading steps, neither of which appears on the flat Sessions frame. **It needs a visual gate at implementation, on a grouped Nord capture.** (`text.muted` has already been seen — it is the "N window(s)" text on `Sessions — Nord (port)`.)
 
@@ -766,6 +783,8 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 
 **Invalid rows** render in `text.faint` with `⚠` and a terse reason from §6.2 (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`) — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
 
+**A `bad name` row is labelled by its filename**, not a slug — it has none, because §5.2 rejects rather than normalises. The same applies to its position in the list: **ordering is alphabetical by slug, falling back to the filename for a row that has no slug.**
+
 **Arrow keys skip invalid rows**, reusing the mechanism that already skips group-header rows on the Sessions list. The skip composes with paging exactly as the group-header skip already does.
 
 **Markers — treatment A (inline slot badges):**
@@ -959,6 +978,8 @@ Threading the theme (§3.4) fixes most of this: anything taking the theme as a p
 
 Fixing them does not make the guard redundant; **the guard is what stops them returning** (§13.4).
 
+**These two are what was *found*, not the boundary of the class.** Init-time copies of *derived styles* (a style struct built from a token at package scope, rather than the token itself) were never swept for at all. Implementation must run that sweep rather than treating the two named fixes as closing the category. The swap-and-diff guard is the safety net that catches whatever the sweep misses — but a sweep that is never run leaves the guard doing work a five-minute grep would have done, and leaves the residue undocumented.
+
 ### 11.3 OSC 11 re-emission
 
 - **No per-keystroke churn.** Bubble Tea v2 **diffs** the view's background colour and emits only on change, so hovering N themes emits OSC 11 exactly once per *distinct* canvas landed on — the minimum the feature requires. The declarative per-frame `BackgroundColor` assignment is not a per-frame write.
@@ -998,6 +1019,12 @@ This closes a structural gap. *"Copy a built-in and edit it"* carries **two** de
 | **Invalid drop-in** | Refused, with its reason on **stderr** and a **non-zero exit**. Doctor's advisory-vs-health distinction (§12.2) is doctor's own contract and does not extend here. |
 | **Unknown slug** | Same — reason on stderr, non-zero exit. |
 | **Verb group** | The `theme` group has only `export`. A one-member group, noted deliberately. |
+
+**Output is the file's bytes, comments included** — not a re-serialisation of the parsed `Theme`.
+
+The theme is still parsed and validated first (that is what refuses an invalid drop-in and an unknown slug), but what is written is the source file. Re-serialising would **drop every `#` comment**, and comments are not decoration here: they carry the attribution header the file format was chosen for (§4.1) and the eyeball-pin derivation notes that are the only surviving record of a non-numeric judgement (§7.1). A user running `portal theme export tokyo-night-day > …` to start a light theme would otherwise get a file stripped of exactly the notes explaining its pinned tints.
+
+Byte-faithful output also makes the diagnosis framing honest — "show me the file Portal read" — and needs no separate decision on key ordering or trailing newline, since the shipped file already parses.
 
 **This partially reverses the YAGNI ruling on theme CLI verbs, deliberately.** That ruling was about *listing* and *selecting* — both genuinely redundant with the panel. Export is redundant with nothing.
 
@@ -1041,11 +1068,14 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 | `theme: loaded` | INFO | At TUI construction. Resolved slug(s) only — **no count** (nothing is enumerated at construction). |
 | `theme: enumerated` | INFO | At panel open. Carries `count` and `rejected`. |
 | `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. |
+| `theme: directory unusable` | WARN | Per enumeration where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. An *absent* directory emits nothing. |
 | `theme: fallback applied` | WARN | Per fallback |
 | `theme: appearance migrated` | INFO | One-shot |
 | `theme: commit failed` | WARN | Per failed write |
 
-**Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`.
+**Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`, `rejected`.
+
+Both additions close holes in the closed declaration rather than extending it by preference: `rejected` was already used by `theme: enumerated` without being declared, and §5.5's required log entry for an unusable directory had no event that fits (`theme: rejected` is per-*file*, and §6.2's `unreadable` reason is defined as "the file could not be read").
 
 Rejections are **WARN**, not INFO: doctor treats them as advisory for *exit-code* purposes, but "your config did not work" is a warning in a log.
 
@@ -1114,7 +1144,9 @@ The committed reference PNGs were never meant to persist — they existed so the
 
 - **`capturetool` and `internal/capture` survive and are open for edit.** Whatever the tool needs to work with the new system is in scope for this feature — no separate redevelopment work unit.
 - **`tui.Build` takes a *theme* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes. Without this the harness can only ever render the compiled-in default.
-- **`capturetool` gains a `--theme` flag.** It accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
+- **`capturetool` gains a `--theme` flag, replacing `--appearance`.** `--theme` accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
+- **`--appearance` is removed, not kept alongside.** It exists today (`dark|light`, resolving to a pinned `prefs.Appearance`), and its entire backing mechanism — `prefs.Appearance` and `WithAppearance` — is deleted by §8.8. There is no mode left to pin; a theme *is* the mode.
+- **The contrast-validation swatch fixture is re-pointed to `--theme` too.** `capturetool` carries a standalone labelled-tint swatch branch (the MV §16.5 lock-in/bail surface) which deliberately does not route through `tui.Build` and is driven by `--appearance` today. It is the surface that satisfies the human eyeball gate §7.5 and §13.5 require for a new light theme's pinned tints, so it must take a theme like everything else.
 - **Direct PNG output from `capturetool` is required, not an optimisation.** The retention decision deletes the tapes that made PNG production work, while the harness requirement is that every fixture can produce a PNG. VHS is retained only if a gif is ever wanted for motion.
 - **New fixtures are added for the slide-over** — the adaptive-pair state, the constant-while-previewing state, an invalid-theme row, and the narrow degraded panel — so the panel is visible during implementation rather than at release.
 
@@ -1149,7 +1181,9 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 
 **Floor-check enrolment is automatic.** The floor test **auto-enumerates the embedded set**, so a new built-in is checked by default.
 
-**Plus a light/dark table**, needed because the three light surface tints are not numerically checkable (light-tint-on-light-canvas is numeric-insufficient — hence `TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
+**Plus a light/dark table**, needed because the light surface tints are not numerically checkable (light-tint-on-light-canvas is numeric-insufficient — hence `TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
+
+**The eyeball-pinned set is four tokens, not three.** `TestLightSurfaceTintsPinned` today pins five entries — `bg.selection`, `bg.warning`, `bg.track`, `border.separator`, `border.footer` — which is **four distinct tokens after the §2.2 border consolidation**: `bg.selection`, `bg.attention`, `bg.subtle`, `border`. Each carries a matching `pinned — derivation … eyeball-confirmed` comment in `theme.go`, and `TestLightTintFillsArePerceptible` covers the same set. The count is load-bearing: it determines which pin notes move into the theme files as `#` comments (§7.1), and how wide the light-only carve-out has to be. **All four.**
 
 - **It is the *test* that needs to know, not the product.** A test table is allowed to know things the runtime does not — the vocabulary stays variant-free (§4.7) and the table names which built-ins are light.
 - **The table carries an assertion that every embedded theme appears in it.** A forgotten entry fails the suite rather than silently shipping a Portal-endorsed theme nobody checked — or measuring a light theme against a dark reference.
@@ -1164,7 +1198,10 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 |---|---|
 | **`TestMVTokenCount`** | Moves 20 → 19, and its meaning shifts from "MV has 20 tokens" to "**the vocabulary is 19**". |
 | **`TestMVDarkVariantsPinned`** | **Deleted.** Once themes are data files whose values are their own source of truth, an exact-hex pin in a Go test is a change-detector duplicating the file. The contrast floor test is the real guard for bundled themes. |
-| **`TestLightSurfaceTintsPinned`** | **Survives, and becomes per-light-theme.** Three light surface tints are not numerically checkable, so for those the exact-value pin is the only guard. They keep their pin, and the *why* moves into the theme file as a `#` comment — which the flat format supports. **The format decision is what makes deleting the Go-side erratum comments safe rather than lossy.** Pins for any new light theme are established by human eyeball at a visual gate. |
+| **`TestLightSurfaceTintsPinned`** | **Survives, and becomes per-light-theme.** The four light surface tints (§13.5) are not numerically checkable, so for those the exact-value pin is the only guard. They keep their pin, and the *why* moves into the theme file as a `#` comment — which the flat format supports. **The format decision is what makes deleting the Go-side erratum comments safe rather than lossy.** Pins for any new light theme are established by human eyeball at a visual gate. |
+| **`TestEachTokenCarriesLightVariant`** (`theme_test.go`) | **Deleted.** It asserts the `ColorFor(Light) ≠ ColorFor(Dark)` resolver seam, which cannot compile once `Token` is `{Name, Value}` and `ColorFor` is gone. |
+| **`TestEveryTokenHasLightVariant`** (`contrast_test.go`) | **Deleted.** Same fate — it asserts every token carries a populated, parseable `Light` hex. Its *parseability* half is subsumed by the embedded-set validity test (§7.6), which checks every value in every shipped theme. |
+| **`TestLightTintFillsArePerceptible`** | **Survives, and becomes per-light-theme**, alongside `TestLightSurfaceTintsPinned`. It covers the same four tints and takes the same light/dark table membership (§13.5); its ≥1.1 fill floor resolves its reference background from the theme rather than the hardcoded light canvas. |
 | **Embedded-set validity + fallback-slug resolution** | **New** (§7.6). |
 | **Swap-and-diff completeness guard** | **New** (§13.4). |
 | **`RestoreTerminalBackground` anchor test** | **New** (§11.4). |

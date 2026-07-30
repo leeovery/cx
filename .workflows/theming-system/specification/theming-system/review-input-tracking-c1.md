@@ -22,8 +22,8 @@ Two consequences follow that the spec also does not state:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added to §9.5: a `bad name` row is labelled by its filename, and list ordering falls back to the filename for a row with no slug.
 
 ---
 
@@ -46,8 +46,8 @@ The spec states the log-component taxonomy is **closed and spec-governed** and t
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added `theme: directory unusable` (WARN) to the §12.3 catalogue and declared `rejected` in the attr-key list, with a note that both close holes rather than extending the vocabulary by preference.
 
 ---
 
@@ -67,8 +67,8 @@ This matters to implementation sequencing: the spec currently reads as "two know
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added to §11.2: the two named offenders are what was found, not the class boundary; implementation must sweep init-time copies of derived styles.
 
 ---
 
@@ -90,8 +90,8 @@ The count is load-bearing in three places, so an undercount loses real content:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Verified against contrast_test.go:351 and theme.go — five pinned entries, four distinct tokens post-consolidation. Corrected in §3.1, §3.3, §4.7, §7.1, §13.5 (with the enumerated token list and why the count is load-bearing) and §13.6.
 
 ---
 
@@ -112,8 +112,8 @@ Without naming them, the reshape table reads as complete while leaving two tests
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added three rows to the §13.6 table: TestEachTokenCarriesLightVariant and TestEveryTokenHasLightVariant deleted (cannot compile once Token is {Name, Value}); TestLightTintFillsArePerceptible survives per-light-theme with theme-resolved reference background.
 
 ---
 
@@ -133,8 +133,8 @@ Also unstated: whether export emits a trailing newline / stable key order, which
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved to byte-faithful output: the theme is parsed and validated first, but the file bytes are written, preserving comments. Recorded in §12.1 with the reasoning (attribution header + eyeball-pin notes) and the note that it also disposes of key-order/trailing-newline questions.
 
 ---
 
@@ -158,8 +158,8 @@ Minor, same source: §7.4's table gives `accent.mode` ← nord8 without the reco
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added the ten-leg verification table to §7.4 as the port baseline, the unwalked-leg rule (a failed leg can force re-deriving an invention, which then needs a fresh visual gate), and the nord8-over-nord7 reason in the mapping table.
 
 ---
 
@@ -181,8 +181,8 @@ Adjacent, same sentence: §5.5 notes the mechanical difference (a *directory*, w
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Named as `PORTAL_THEMES_DIR` in §5.5, with the `_DIR` suffix marking the directory-vs-file distinction and a note on why the name is spec-fixed rather than left to implementation.
 
 ---
 
@@ -204,5 +204,5 @@ Related and more substantive: `capturetool` carries a **contrast-validation swat
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Added to §13.3: `--appearance` is removed (its backing type is deleted by §8.8), and the contrast-validation swatch branch is re-pointed to `--theme` since it is the surface that satisfies the §7.5/§13.5 light-theme eyeball gate.
