@@ -559,7 +559,7 @@ Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`,
 | `border` | `#4C566A` | nord3 | no numeric floor |
 | `text.on-attention` | `#ECEFF4` | nord6 | 9.02 on `bg.attention` |
 
-**Correction 1 — the red.** `state.destructive` carries the 4.5 normal floor; Nord's published red `#BF616A` measures **3.05** against Nord's own canvas. Shipped corrected as `#DD8188` (4.50). The floor holds with no carve-out — this being the *first* external palette, a carve-out granted here would set the precedent for every PR theme after it.
+**Correction 1 — the red.** `state.destructive` carries the 4.5 normal floor; Nord's published red `#BF616A` measures **3.05** against Nord's own canvas. Shipped corrected as `#DD8188` (4.50), **retaining ~94% of Nord's red chroma** — the figure that makes the shipped value checkable against the derivation rule below if it is ever re-derived. The floor holds with no carve-out — this being the *first* external palette, a carve-out granted here would set the precedent for every PR theme after it.
 
 **Correction 2 — the green.** The single `state.positive` token must clear **both** the canvas and the selection tint. Nord's `#A3BE8C` clears canvas at 6.13 but only **4.23** on nord2. Corrected to `#A7C492` (Oklab ΔE 0.018 — essentially imperceptible), clearing selection at 4.50 and canvas at 6.51, with chroma marginally *above* the original. This is precisely the problem MV itself solved by darkening its light green.
 
@@ -580,15 +580,23 @@ Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`,
 | Leg | Nord | Floor | |
 |---|---|---|---|
 | `bg.subtle` fill vs canvas | 1.24 | ≥ 1.10 | ✓ |
+| `bg.selection` fill vs canvas | 1.45 | ≥ 1.10 | ✓ |
+| `bg.attention` fill vs canvas | 1.20 | ≥ 1.10 | ✓ |
 | `state.positive` on `bg.selection` | 4.23 → **4.50** corrected | ≥ 4.50 | ✗ → ✓ |
 | `text.on-selection` on `bg.selection` | 8.63 | ≥ 4.50 | ✓ |
+| `text.primary` on `bg.selection` | 7.49 | ≥ 4.50 | ✓ |
 | `text.secondary` on `bg.selection` | 7.09 | ≥ 4.50 | ✓ |
 | `text.tertiary` on `bg.selection` | 6.39 | ≥ 4.50 | ✓ |
 | `text.on-attention` on `bg.attention` | 9.02 | ≥ 4.50 | ✓ |
+| `accent.attention` bar vs canvas | 8.00 | ≥ 3.00 | ✓ |
+| `accent.primary` vs canvas | 4.41 | ≥ 3.00 | ✓ |
+| `accent.key` vs canvas | 4.64 | ≥ 3.00 | ✓ |
 | `accent.mode` vs canvas (peek chrome) | 6.24 | ≥ 4.50 | ✓ |
 | `text.subtle` band | 3.18 | 3.00–4.49 | ✓ |
 | `text.faint` band | 1.69 | 1.00–2.99 | ✓ |
 | `state.destructive` vs canvas | 4.50 | ≥ 4.50 | ✓ |
+
+Two floors are worth reading off this table because they are not obvious from the per-token ratios above: **accents carry a ≥ 3.00 UI floor**, not the 4.50 normal-text floor (`accent.mode` is the exception, floored at 4.50 because it renders preview peek chrome); and the **warning band is a three-leg rule** — text-on-tint ≥ 4.50, the accent bar ≥ 3.00 vs canvas, and the fill ≥ 1.10 vs canvas — all three of which the invented `bg.attention` participates in.
 
 **A failure on an unwalked leg can force re-deriving an *invented* value — which then needs a fresh visual gate.** The port was twice found incomplete (first covering 16 of 19 tokens, then roughly half the rule set), and each time the completeness claim was plausible enough to pass unexamined. The floor test auto-enumerating the embedded set (§13.5) means a missed leg surfaces at implementation rather than shipping — but if it lands on `text.muted`, `text.subtle` or `bg.attention`, the new value is an *invention*, and this port's own precedent (§7.4, `bg.attention`) is that inventions are settled at a visual gate rather than by arithmetic.
 
@@ -788,6 +796,9 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 
 - The Sessions (or Projects) list stays fully visible behind it and re-themes live.
 - Rendered over the existing overlay mechanism (`overlayHelpOnPreview` / the lipgloss v2 `Compositor` with real z-layers), which already ships.
+- **The panel body is painted `canvas`; the left border is `border`.** No new token. The panel is therefore distinguished from the list behind it by its left border alone — which is the correct reading of a slide-over that is deliberately not a floating dialog.
+
+  The reference frames use a panel chrome of `#0C0C16` on a `#2B3050` border — a near-black *slightly* off the canvas, and a border lighter than `border`. **Neither is adopted.** They are per-frame literals of exactly the kind §9.14 cautions about, and expressing that distinction would need a 20th token whose only role is "the panel's background is a bit different from the canvas" — which fails the vocabulary's own promotion rule (a new token only where the value genuinely differs in role, not in shade) and would reopen §2.1's closed count for a difference nothing else in the app needs. Every panel surface resolving to an existing token is also what keeps §2.1's colour-literal guard and §13.4's swap-and-diff guard satisfied without a carve-out — the carve-out §9.11 exists to refuse.
 - **Cursor row** uses the shipped selection treatment (`▌` + tint + white bold name), so the panel's list reads as the same kind of list as Sessions.
 - **A vertical keymap footer** (`⏎ set theme` / `d set as dark` / `l set as light` / `esc close`) rather than Portal's horizontal footer row — a horizontal keymap does not fit a ~30-column panel, and the vertical form matches the help modal's key-column idiom.
 
@@ -1216,7 +1227,16 @@ A new user-facing doc, following the `docs/custom-terminals.md` precedent (a use
 
 README gains the theme setting in its place, pointing at `docs/theming.md`.
 
-**`CLAUDE.md` needs correcting too:** it currently describes `testdata/vhs/` as committed reference PNGs forming a visual-verification harness, which reads as a durable asset. It is not (§13.2).
+### 12.6 `CLAUDE.md`
+
+`CLAUDE.md` is what an implementing agent reads first, and four of its entries describe the pre-feature world. All four are corrected by this feature — leaving them stale would have three of them actively misdescribing the subsystem under construction while the work is under way.
+
+| Entry | Correction |
+|---|---|
+| **The `tui/theme` row** | Describes ~20 tokens "each with a **Light and Dark** variant", `Token.ColorFor(mode)`, `theme.MV` as the single built-in, `Mode`'s zero value as the no-answer fallback, and `contrast_test.go` measuring against two hardcoded canvases. Every clause is deleted by §2.1, §3.2 and §13.5. |
+| **The `prefs` row** | Documents the `appearance` override, the `Appearance` enum and its tolerant decode, and `cmd/open.go`'s `WithAppearance` wiring. Replaced by `theme` / `theme_light` / `theme_dark` / `theme_migrated` per §8.1 and §8.8. |
+| **The logging section** | Pins the taxonomy at "17 component names". §12.3 adds an 18th (`theme`) with its own attr keys — the same shape of amendment `spawn` and `resolve` carried, which is why the count is stated at all. |
+| **The visual capture harness section** | Describes `testdata/vhs/` as committed reference PNGs forming a visual-verification harness, which reads as a durable asset. It is not (§13.2). The `capturetool` flag description also changes with §13.3. |
 
 ## 13. Capture harness & test strategy
 

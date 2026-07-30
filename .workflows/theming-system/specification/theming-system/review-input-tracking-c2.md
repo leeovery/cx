@@ -44,8 +44,8 @@ Related, in the same section: the spec records that the *rejected* red `#CF888F`
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Extended §7.4's legs table from ten to sixteen rows — adding the `bg.selection` and `bg.attention` fill legs, `text.primary` on `bg.selection` (7.49), and the three accent-vs-canvas legs — plus a paragraph reading off the two non-obvious floors (accents ≥3.00 with `accent.mode` excepted at 4.50; the warning band's three legs). `#DD8188`'s ~94% chroma retention added to Correction 1.
 
 ---
 
@@ -71,8 +71,8 @@ Note this also decides whether the panel's non-blanking premise reads correctly:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved to no new token: the panel body is `canvas` and the left border is `border`. The frames' `#0C0C16`/`#2B3050` chrome is a per-frame literal of exactly the kind §9.14 cautions about; a 20th token distinguishing panel background from canvas by shade alone fails the vocabulary's promotion rule and would reopen §2.1's closed count. Recorded in §9.1 with the reasoning, including that every panel surface resolving to an existing token is what keeps the colour-literal and swap-and-diff guards carve-out-free.
 
 ---
 
@@ -98,7 +98,7 @@ The source flags `CLAUDE.md` as needing correction **at doc-update time**, givin
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.5's single `CLAUDE.md` sentence promoted to its own §12.6 with all four stale entries tabled: the `tui/theme` row, the `prefs` row, the logging section's 17-component count, and the visual-capture-harness section.
 
 ---
