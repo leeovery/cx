@@ -108,9 +108,10 @@ selection setting) without committing to ecosystem-scale governance.
   settling the vocabulary in this feature rather than after.
 - **Auto-discovery makes the validity rule user-visible.** "Valid ⇒ selectable"
   means an invalid file silently doesn't appear unless something says why.
-  Research already settled the rule (all tokens present + syntactically
-  well-formed) and that rejection surfaces inside the slide-over; this decision
-  is what makes that surfacing load-bearing rather than a nicety.
+  Research proposed the rule (all tokens present + syntactically well-formed),
+  ratified later in this session rather than inherited (see the process note);
+  this decision is what makes the surfacing load-bearing rather than a nicety.
+  How it surfaces was revised twice — see "every theme file gets a row".
 - **Two namespaces now exist** (built-in names and user-directory names), so
   collision/shadowing needs an answer — deferred to
   *theme-file-format-and-discovery*.
@@ -813,7 +814,12 @@ and below 3.0); `bg.selection` ← nord2 (fill 1.45 ≥ 1.10, and nord6 on it is
 7.49 ≥ 4.50); `bg.subtle` ← nord1; `border` ← nord3 (no numeric floor);
 `accent.primary` ← nord15 (4.41 ≥ 3.00); `accent.key` ← nord9 (4.64);
 `accent.mode` ← nord8 `#88C0D0` (6.24 — chosen over nord7, being Nord's own primary UI accent); `accent.attention` ← nord13 (8.00);
-`state.positive` ← nord14 (6.13).
+`state.positive` ← nord14 (6.13); `text.on-selection` ← `#FFFFFF` (8.63 on
+nord2 — a functional maximum for text on a tint, as MV also uses, rather than a
+palette claim); `text.on-attention` ← nord6.
+
+That is all 19 assigned: 14 taken directly from Nord, two corrected, three
+invented.
 
 **Correction 1 — the red fails.** `state.destructive` carries the **4.5** normal
 floor, and Nord's red `nord11 #BF616A` measures **3.05** against Nord's own
