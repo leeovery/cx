@@ -1756,6 +1756,27 @@ picker idiom was actually buying. The multi-field concern dissolves: `prefs.json
 already goes through `fileutil.AtomicWrite`, so all three keys land in one atomic
 write and partial failure is impossible.
 
+### Attribution, licensing and naming — deliberately not pursued (the review's F16)
+
+Attribution was settled earlier: it lives in the repository (docs and README) and
+explicitly **not** in the UI — no credits screen, nothing in the slide-over.
+
+The review raised that attribution and *licensing* are different questions, since
+the PR route compiles a stranger's port of a named palette into a
+Homebrew-distributed binary, and Nord in particular ships with a deliberately
+altered red under the palette's own name. The orchestrator proposed a per-theme
+licence line, an "(adapted)" naming convention, and a PR contribution
+requirement.
+
+**Lee declined all of it** — *"it's not up to us to worry about licencing … they're
+just 19 colours … you're worrying about nothing"* — for a project with essentially
+one user and no reach.
+
+**Settled: a source and a link in the docs, nothing further.** Ported palettes
+keep their own names, adaptations need no naming marker, and there is no
+contribution ceremony. Recorded so a future reader does not mistake the omission
+for an oversight.
+
 ### Doctor's advisory lines, visually (the review's F17)
 
 Doctor renders one line per check with a pass/fail marker and drives a single exit
