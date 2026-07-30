@@ -49,6 +49,112 @@ Not omissions — each was considered and deliberately excluded from this featur
 - **A panel key that unsets a theme back to the shipped default** (§9.9).
 - **A theme "variant" (light/dark) concept** anywhere in the product — neither declared in a file nor derived at load (§4.6).
 
+## 2. Token vocabulary — the 19 roles
+
+### 2.1 The vocabulary is 19 tokens
+
+The closed vocabulary goes from 20 tokens to **19**. Every renderer references a token; no raw hex survives at a call site (the existing glob-based colour-literal guard in `internal/tui` continues to enforce this, excluding the `theme` subpackage).
+
+### 2.2 The border tokens consolidate to one
+
+`border.separator` and `border.footer` are **one role**, not two:
+
+- `renderJoinedPanel` already takes a single border token — the 2-tone footer leg was dropped during the Modern Vivid implementation, making the MV spec's §8.1 "2-tone border (`border.separator` + `border.footer`)" claim stale.
+- `border.separator` serves the title rule, every modal panel frame (destructive-confirm, edit, help, rename), and edit-modal chips. `border.footer` has exactly **one** production consumer: the footer rule.
+- The two carry an identical light hex (`#C9CDDB`), differing only in dark (`#292E42` vs `#20232E`) — a shade nothing ever renders side by side.
+
+**`border.footer` is dropped.** The footer rule renders with the same token as the title rule.
+
+**Accepted visual change:** in dark themes the footer rule becomes marginally more prominent (`#292E42` rather than `#20232E`). Verified through the capture harness.
+
+### 2.3 Naming principle — meaning and weight, never hue or place
+
+Three naming failures are in play; two are failures:
+
+| Kind | Example | Verdict |
+|---|---|---|
+| A **place** | `border.footer` | Wrong — goes stale as other surfaces reuse the token. |
+| A **hue** | `accent.violet` | Wrong — lies in every port. A Gruvbox author writes `accent.violet = #d79921` (Gruvbox yellow) and the key actively misdescribes its own value. |
+| A **meaning** | `state.destructive` | Right — stays true regardless of palette or where it is drawn. |
+
+This does **not** make everything weight-based. The text ramp and the border want intrinsic-**weight** names because their role genuinely is "how prominent". The accents want **meaning** names because a theme author needs to know what a colour signifies in order to choose one.
+
+### 2.4 The rename table
+
+All 19 tokens, with the Go field name each maps to:
+
+| # | Current token | New token | Go field | Why |
+|---|---|---|---|---|
+| 1 | `text.primary` | `text.primary` | `TextPrimary` | unchanged — top of ramp, already intrinsic |
+| 2 | `text.strong` | `text.secondary` | `TextSecondary` | ordinal makes ramp position explicit |
+| 3 | `text.muted-bright` | `text.tertiary` | `TextTertiary` | current name is self-contradictory |
+| 4 | `text.detail` | `text.muted` | `TextMuted` | `detail` describes content, not weight |
+| 5 | `text.dim` | `text.subtle` | `TextSubtle` | ladder consistency |
+| 6 | `text.faint` | `text.faint` | `TextFaint` | unchanged — decorative floor |
+| 7 | `text.on-selection` | `text.on-selection` | `TextOnSelection` | unchanged — contrast pairing |
+| 8 | `accent.violet` | `accent.primary` | `AccentPrimary` | hue → role (primary accent) |
+| 9 | `accent.blue` | `accent.key` | `AccentKey` | hue → role (key-hint) |
+| 10 | `accent.cyan` | `accent.mode` | `AccentMode` | hue → role (signals a distinct mode) |
+| 11 | `accent.orange` | `accent.attention` | `AccentAttention` | hue → role; one warm token covers filter query, edit-mode, warning flash |
+| 12 | `state.green` | `state.positive` | `StatePositive` | hue → meaning (live / attached / success) |
+| 13 | `state.red` | `state.destructive` | `StateDestructive` | hue → meaning |
+| 14 | `canvas` | `canvas` | `Canvas` | unchanged — already intrinsic |
+| 15 | `bg.selection` | `bg.selection` | `BgSelection` | unchanged — names a state, not a place |
+| 16 | `bg.warning` | `bg.attention` | `BgAttention` | pairs with `accent.attention` |
+| 17 | `bg.track` | `bg.subtle` | `BgSubtle` | use-site → intrinsic weight (a low neutral fill) |
+| 18 | `border.separator` | `border` | `Border` | sole border token after consolidation |
+| 19 | `text.on-warning` | `text.on-attention` | `TextOnAttention` | lockstep with `bg.attention` |
+
+### 2.5 Role meanings (the public contract)
+
+These meanings are the substance of `docs/theming.md` (§12.4), which is the source of truth for the contract.
+
+**Text ramp — bright to faint, in weight order:**
+
+| Token | Role |
+|---|---|
+| `text.primary` | Names, wordmark, active labels, modal titles, chip text |
+| `text.secondary` | Selected-row meta, help actions, banner/signpost |
+| `text.tertiary` | Done-tick labels, selected-row path |
+| `text.muted` | Paths, counts, footer labels, subtitles, group headings |
+| `text.subtle` | Group `··· N` counts, pending loading steps |
+| `text.faint` | Decorative only — inactive dots, `+ add`, mode indicator, hints |
+| `text.on-selection` | Name on the selected row (pairs against `bg.selection`) |
+
+**Accents and states:**
+
+| Token | Role |
+|---|---|
+| `accent.primary` | Cursor, selector bar, active dot, `?` key, focused field label, mode bar, loading bar |
+| `accent.key` | Footer / modal key-hint glyphs |
+| `accent.mode` | Sessions header, Preview chrome, active tick — signals a distinct mode |
+| `accent.attention` | Filter query and `/`, edit-mode, warning flash `⚠` |
+| `state.positive` | `●` attached, Sessions count, Projects label, `✓` done, success flash |
+| `state.destructive` | Kill / delete emphasis, `▲` |
+
+**Surfaces:**
+
+| Token | Role |
+|---|---|
+| `canvas` | The owned mode-matched canvas, painted on every cell |
+| `bg.selection` | Selected-row tint |
+| `bg.attention` | Warning-flash band |
+| `bg.subtle` | Low neutral fill — loading-bar empty track |
+| `border` | Title rule, footer rule, modal panel frames, edit-modal chips |
+| `text.on-attention` | Warning-flash message (pairs against `bg.attention`) |
+
+### 2.6 Accepted ambiguities
+
+Three spots were flagged as genuinely arguable and resolved to the values above:
+
+1. **The ramp's middle join.** `text.tertiary` → `text.muted` mixes an ordinal vocabulary with a qualitative one, so ordering at that join rests on convention rather than the names. Fully positional names (`text.1`…`text.6`) would remove the ambiguity but strip all meaning from ~20 files of call sites — rejected. The ramp's weight ordering is documented in `docs/theming.md` (§12.4), which is where a theme author learns the vocabulary.
+2. **`accent.key`** could read as "important" rather than "keyboard key". Accepted over `accent.keyhint` / `accent.hint`.
+3. **`bg.subtle`** reuses the word from `text.subtle` in a different namespace. Accepted over `bg.inactive`, which generalises less well.
+
+### 2.7 File ordering is not a contract
+
+Token order in a theme file carries no meaning and is not enforced. The names carry their own meaning (unlike base16, where `base00`–`base07` must run dark-to-light because position *is* the meaning), and the flat `key = value` format parses unordered — so any ordering "contract" would be both unenforceable and undetectable. The ramp's weight ordering lives in `docs/theming.md`.
+
 ---
 
 ## Working Notes
