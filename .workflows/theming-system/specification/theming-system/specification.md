@@ -701,6 +701,187 @@ Portal's multi-window burst routinely produces several concurrent processes, so 
 
 `prefs.json` continues to go through `fileutil.AtomicWrite`, so all three theme keys land in one atomic write and partial failure is impossible.
 
+## 9. The slide-over panel
+
+### 9.1 Shape and placement
+
+A **full-height, right-edge, non-blanking overlay** with a **left border only** — deliberately *not* an inset bordered panel like the modals, so it reads as a slide-over rather than a floating dialog.
+
+- The Sessions (or Projects) list stays fully visible behind it and re-themes live.
+- Rendered over the existing overlay mechanism (`overlayHelpOnPreview` / the lipgloss v2 `Compositor` with real z-layers), which already ships.
+- **Cursor row** uses the shipped selection treatment (`▌` + tint + white bold name), so the panel's list reads as the same kind of list as Sessions.
+- **A vertical keymap footer** (`⏎ set theme` / `d set as dark` / `l set as light` / `esc close`) rather than Portal's horizontal footer row — a horizontal keymap does not fit a ~30-column panel, and the vertical form matches the help modal's key-column idiom.
+- **No theme count in the panel header** — noise at this list size.
+
+**What the panel covers:** the right-hand column, where the footer's right-aligned `? help`, the right-side header hint, and session row meta live. **Accepted** — the theme is carried almost entirely by the *left* of the screen (session names, cursor bar, group headers, footer key glyphs), while the right edge is metadata. The overlay covers the least theme-informative part of the screen, which is exactly what a preview surface wants.
+
+### 9.2 The interaction model — picker idiom, not settings panel
+
+| Key | Effect | Panel |
+|---|---|---|
+| `↑` / `↓` | Move the cursor. **The app re-themes live behind the panel. Nothing is written.** | stays open |
+| `Ctrl+↑` / `Ctrl+↓` | Page, per §12.2 | stays open |
+| `Enter` | **Commits a constant** — writes `theme = <selection>`, clears both slots | **stays open** |
+| `d` | **Commits the dark slot** — writes `theme_dark = <selection>`, clears the constant | stays open |
+| `l` | **Commits the light slot** — writes `theme_light = <selection>`, clears the constant | stays open |
+| `Esc` | **Closes.** Discards an uncommitted preview and renders the resolved persisted state | closes |
+
+**Every write is an explicit keypress; nothing writes on close.** This eliminates the "applied but not persisted" state reachable under persist-on-close, where Portal dies with the panel open and the visually-applied theme was never written.
+
+**`Enter` does not close.** If it did, a user who had just set both slots would press `Enter` to exit and thereby commit a constant, wiping the pair they just built. `Esc` is the only way out — one exit key, no dual-purpose keys, and the pair flow needs no special case.
+
+**Cost accepted:** the common case ("pick one and go") is two keys rather than one.
+
+**Committing to a non-active slot changes nothing on screen.** Previewing a light theme in a dark terminal and pressing `l` writes the light slot, but the resolved-active theme is still the dark slot. A commit is a **write, not a navigation** — the panel keeps previewing whatever the cursor is on; the display resolves from persisted state only on close.
+
+Which sharpens `Esc` precisely: **`Esc` discards the preview and renders the resolved persisted state.** That equals "what you had before" only when nothing was committed. Commit slots and `Esc` lands on the newly-resolved theme, which is correct.
+
+**The mixed-mode flash is the feature, not a defect.** Under split plus apply-on-arrow, arrowing past a light theme in a dark terminal flips the entire canvas near-white and back. Seeing a light theme as designed is precisely what live preview is for, and under the picker idiom it is transient and reversible. **List order is alphabetical by slug**; ordering same-mode themes first was proposed as a mitigation and **rejected** as unnecessary once the flash is accepted.
+
+### 9.3 Mid-session constant → adaptive
+
+Assigning a slot converts a constant-theme user to adaptive in-session, which needs a light/dark answer their launch deliberately never waited for.
+
+**This dissolves.** `restore.go` issues the OSC 11 query from `Init` **regardless** — it needs the original background to restore on exit, independent of detection. The terminal's background is therefore already in hand; the detection decision only ever governed whether to **classify and use** it. Converting to adaptive mid-session starts using an answer that already arrived: no new query, no race, no gate.
+
+The startup win survives intact — skipping the gate for constant users is about not **blocking first paint**, not about not asking. If the reply has not landed (requiring the panel to be opened within milliseconds of launch) it falls to **dark**, the same rule as everywhere else.
+
+### 9.4 The list — files ∪ whatever prefs names
+
+**Every `*.theme` file in the themes directory gets a row, plus every built-in, plus any slug named in `prefs.json` that has no file.**
+
+- Enumerating every file means an invalid theme is *present and named*, so the user sees "there's my theme, it's registered, but it's invalid" rather than being completely in the dark about why it did not appear.
+- A persisted slug with **no file** gets a row too — marked, unselectable, reason `not found`. Same shape as an invalid file: the user sees what is set and why it is not applying. This covers a deleted file, a renamed file, a typo in `prefs.json`, and a persisted slug rejected by the charset check before any file is sought.
+- Applies **per-slot** under an adaptive pair with one dead or broken slug.
+
+This is what makes the `●` marker always have something to sit on, so it keeps meaning "this is what's persisted" and nothing ever implies the fallback was chosen.
+
+A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design and is **superseded** by per-file rows: the row is present and named instead of a count that sends the user to another command to discover which file and why.
+
+### 9.5 Row rendering and markers
+
+**Valid rows** are selectable and render as an ordinary list row.
+
+**Built-in rows are deliberately indistinguishable from drop-in rows** — a valid drop-in is simply selectable, sitting alphabetically among the built-ins with no visual distinction.
+
+**Invalid rows** render in `text.faint` with `⚠` and a terse reason from §6.2 (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`) — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
+
+**Arrow keys skip invalid rows**, reusing the mechanism that already skips group-header rows on the Sessions list. The skip composes with paging exactly as the group-header skip already does.
+
+**Markers — treatment A (inline slot badges):**
+
+- The assigned rows carry a right-aligned **`● dark`** / **`● light`** badge.
+- A **constant** theme carries a bare **`●`** with no slot word — with no slots there is nothing to qualify, and a label would be redundant with the marker.
+- The two setting states never coexist on screen, so a row never carries both forms.
+
+The `●` glyph is correct here: Portal **already repurposes** `●` for multi-select marking, where it indicates a marked row rather than a live session. `●` is Portal's general "marked / active" glyph, not an attached-only one. The two signals stay independent: **`●` marks assignment**, the **`▌` + tint cursor treatment marks browse position**.
+
+Treatment **B** (a `dark → … / light → …` key-value block pinned under the panel header, with a plain list below) was rejected: more legible at a glance, but it puts theme names in a second place, pushes the list down, and with only two slots the badges say the same thing without the extra region. A also scales better as the library grows, since a badge stays attached to the row it describes.
+
+**Accepted caveat:** with a very long list the assignments could scroll out of view. Judged fine — a user knows what they picked and can scroll to find it.
+
+**Because the panel shows both slots' badges at all times**, a user can see what light is set to without having to remember whether they set it — including slots never touched, which hold shipped defaults (§8.3).
+
+### 9.6 Opening the panel — `t`, on Sessions and Projects
+
+**Key: `t`** — free on Sessions (taken there: `/ s x m k d e r ? Space Enter Esc` plus arrows) and the obvious mnemonic.
+
+| Page | `t` |
+|---|---|
+| **Sessions** | Yes — the default page and the richest surface to preview against |
+| **Projects** | Yes — theme is a *global* setting; refusing would make it feel page-scoped for no reason, and `t` is free there |
+| **Preview** | **No.** The preview body is captured real ANSI scrollback that is deliberately out-of-theme, so live preview would only re-theme the frame chrome — a weak surface. It is also already a full-screen overlay, so the panel would stack an overlay on an overlay. |
+| **Modals** | No — modals are key-exclusive by design |
+
+**`t` needs the filter carve-out** — while `/` is focused it is a literal filter character, exactly as `s` already is.
+
+### 9.7 Entry conditions and input routing
+
+**Nothing blocks `t` except a modal, a pending burst, and `NO_COLOR`.**
+
+- **Multi-select** — `t` opens, and the marked set is **unaffected**. The panel *nests* over the mode and `Esc` resolves innermost-first (closing the panel and returning to multi-select with selections intact), which is what §8.1 already specifies for modals. The multi-select banner sits in the notice band on the left, so it stays visible behind the panel. Previewing mid-selection is legitimate — the marked-row `●` is itself themed.
+- **A pending burst** — `t` is swallowed. The burst input-locks the model (only `Ctrl-C`/`Esc` live) because it is mid-async-operation; swallowing is consistent with that lock rather than an exception to it.
+- **Modals** — capture keystrokes, so no `t`, per existing key-exclusivity.
+- **Sessions and Projects normal view** — always available.
+
+**The panel is key-exclusive.** It owns arrows, `Enter`, `d`, `l` and `Esc`; everything else is swallowed. Pass-through is genuinely bad — `k` would kill the highlighted session while you pick a theme, `x` would swap to Projects with the panel open, `m` would start a multi-select behind it. Non-blanking and key-exclusive are not in tension: seeing the list without being able to drive it *is* the live-preview premise.
+
+**Blocked-`t` feedback follows the existing precedent:** **flash** where the key *is* bound and the user could reasonably expect it to work (`NO_COLOR` on Sessions/Projects); **silent** where it is not bound at all (Preview, modals, burst-locked). That is exactly how `s` already behaves.
+
+### 9.8 Geometry — degrade, don't refuse
+
+**Width.** A fixed preferred width of ~24–30 columns (name, markers, slot indicators, border, padding), with long user slugs truncated `…` as Portal already does for session names. A fixed width is predictable to lay out against; content-driven width would make the panel jump around as the library changes.
+
+**Narrow terminals degrade, they do not refuse.** MV spec §2.7's doctrine for space shortage is explicit: degrade, never break.
+
+- The panel **shrinks** between a preferred and a minimum width as the terminal narrows — staged degradation, consistent with §2.7's existing width steps (drop right-side header hint → compact wordmark → truncate names).
+- It **refuses only when even the minimum panel cannot render**, which is very narrow indeed — and then it flashes rather than opening a broken frame.
+- **Exact thresholds are pinned at implementation**, as §2.7 already does for its own degradation steps.
+
+The multi-select precedent (proactive block at entry) deliberately does **not** transfer: multi-select is blocked because of a capability *absence* — the terminal genuinely cannot spawn windows. A narrow terminal is a space *shortage*.
+
+**Height.**
+
+- **Overflow: scroll**, through the `bubbles/list` machinery, so `Ctrl+↑/↓` paging applies per §12.2. The invalid-row skip composes with paging exactly as the group-header skip already does.
+- **Minimum height: the same degrade-then-refuse rule as width** — shrink the visible row count, and refuse with a flash only when header + footer + one row cannot fit.
+- **Resize while open: degrade in place**, closing with a flash only if the terminal falls below the render floor. The entry condition is not the only check; §2.7's degradation is already per-dimension.
+
+### 9.9 No unset — accepted
+
+Every panel action *sets*: `Enter` sets a constant, `d`/`l` set a slot, nothing clears. So returning to the shipped pair after setting `theme_dark = nord` means explicitly setting `tokyo-night` — which resolves identically today but converts an **inherited default into a pin**, so a future change to the shipped default would no longer reach that user.
+
+**Accepted and documented rather than fixed with a clear key.** It only bites if the shipped default changes, and `prefs.json` is hand-editable.
+
+### 9.10 `NO_COLOR` — the panel is blocked
+
+Under `NO_COLOR` Portal paints no canvas, imposes no hues, and renders glyph-backed on the terminal's native fg/bg. A theme panel previews nothing, its cursor tint and slot dots have no colour, and committing persists a choice with zero visible feedback.
+
+**`t` is blocked under `NO_COLOR`, with a flash**, following the multi-select precedent exactly — proactively blocked at entry rather than letting the user walk into a dead end. **The `t` help row is filtered out while blocked**, via the same `sessionsHelpKeymap()` call-site filter that already drops the `m` row (the static descriptor is unchanged, so the keymap dispatch guard stays green).
+
+This is deliberately the **opposite** call to the narrow-terminal one. Narrow is a *space shortage*, where §2.7 mandates degrade. `NO_COLOR` is a *capability absence* — there is no colour to theme, so the panel's purpose is inert rather than cramped.
+
+**Counter recorded rather than buried:** someone may run `NO_COLOR` in one context and not another, so blocking prevents setting a theme that *would* apply elsewhere. Accepted, because the escape hatch is first-class — `prefs.json` is the documented hand-editable home for the theme setting, so three keys can be set by hand.
+
+### 9.11 Everything re-themes, panel included
+
+**The slide-over's own chrome re-themes with the previewed theme. No exceptions.**
+
+1. It is the honest preview — the panel is part of what the theme paints, so a fixed panel shows a theme that cannot be fully judged.
+2. It avoids a **permanent exception in the render layer** — a surface that deliberately ignores the active theme is precisely the shape the swap-and-diff guard exists to catch, so the alternative would mean carving out the one test protecting against accidental carve-outs.
+3. The unreadable-panel risk is smaller than it looks, because **`Esc` is a keypress, not a visible affordance** — no need to read the hint to close the panel. The picker idiom does the rest.
+
+**Residue recorded rather than hidden:** since a drop-in need only be *valid*, not good, a legal-but-awful theme can render the panel's own list unreadable while the user is standing on it. A user can only get *stuck* there by explicitly committing one, and recovery is then editing `prefs.json` rather than anything in the UI. Since a drop-in is by decision the user's own creation and only they can reach this state, that is judged proportionate — but it is a real edge.
+
+### 9.12 The panel's keymap is descriptor-governed
+
+The panel introduces `Enter`, `d`, `l` and `Esc` through a bespoke vertical footer outside `keymap.go` — a second place a key label can go stale, the very drift class guarded elsewhere.
+
+- **The panel's keys live in the keymap descriptor as a panel scope.**
+- **Its vertical footer renders from the descriptor.**
+- **`keymap_dispatch_guard_test` covers them.**
+
+### 9.13 A failed commit write
+
+A failed write on `Enter`/`d`/`l`:
+
+- **Reports inside the panel.**
+- **Keeps the theme applied in memory.**
+- **Does not move the `●`** — the marker means "what is persisted" and would be lying if it moved.
+
+This recreates "applied but not persisted", but as a *reported* state rather than a silent one, which is the distinction the picker idiom was buying.
+
+### 9.14 Reference frames
+
+Three Paper artboards are the forward-looking reference for this panel, all built on the canonical `Sessions — Modern Vivid v2` frame so they inherit the shipped MV conventions:
+
+- `Theme slide-over — A (inline slot badges)` — the adaptive-pair state
+- `Theme slide-over — A (constant set, previewing another)` — a constant `●` on one row while the cursor sits on a different theme
+- `Theme slide-over — B (assignment header)` — the **rejected** treatment, retained as the record of what was weighed
+
+The constant frame completes the panel's specification because the two setting states never coexist on screen. It is the picker idiom made visible: the `●` is what is *persisted*, the cursor + canvas is what is *previewed*, and `Esc` would restore the marked one.
+
+**Caution when reading any Paper frame:** the mocks use **per-frame literal hexes**, so the same token can carry different values across frames. The frames are reference, never truth.
+
 ---
 
 ## Working Notes
