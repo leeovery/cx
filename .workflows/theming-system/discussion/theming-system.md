@@ -1837,6 +1837,54 @@ keep their own names, adaptations need no naming marker, and there is no
 contribution ceremony. Recorded so a future reader does not mistake the omission
 for an oversight.
 
+### Prefs writes, ownership and the log catalogue (the review's F3, F4, F5, F10)
+
+**Downgrade — the field is no longer dropped (F10).** The translation was
+specified as "write `theme` **and drop** `appearance`". But Portal ships via
+Homebrew where reverting a version is routine, and the protected population is
+exactly those who pinned `appearance` — so post-translation their pin is gone, an
+older binary reads nothing, falls to `auto`, and resumes detecting: precisely what
+the translation prevented, displaced in time.
+
+**Decision: do not drop the field; only add the theme keys.** Inert to the new
+binary, still meaningful to an old one — and it removes a schema mutation
+entirely, which also removes the question of who owns performing the deletion.
+
+**Ownership (F4).** Three decided constraints met here unreconciled: `prefs` is a
+deliberate leaf that must not import `internal/log`; the translation happens "at
+prefs load"; the `theme` log component records it. **`cmd/config.go`'s
+`loadPrefsStore` owns it** — it already owns prefs path resolution and the migrate
+breadcrumb for every other config file, and is not a leaf, so it can log. `prefs`
+stays dumb.
+
+**A stale whole-file write can silently revert a theme (F3)** — the real bug in
+this cluster. Before this feature `prefs.json` had one field with a production
+writer, so "concurrency is the same as `session_list_mode` today" was true. It now
+holds four independently-mutated fields written from two surfaces. Instance A,
+constructed ten minutes ago, presses `s` and writes *its* in-memory prefs,
+silently reverting the theme instance B just committed. `AtomicWrite` does not
+help — this is a lost update, not a partial write.
+
+**Decision: read-modify-write.** Both writers re-read `prefs.json` immediately
+before writing, mutate only their own field(s), and write the merged result. Not
+novel — the project and hooks stores already do this for their own mutations.
+
+**The `theme` log catalogue (F5)**, enumerated because the vocabulary is closed and
+`spawn` set the precedent of shipping with its attr keys declared:
+
+| Event | Level | Cadence |
+|---|---|---|
+| `theme: loaded` | INFO | one cycle summary per TUI construction (resolved slug + rejected count) |
+| `theme: rejected` | WARN | one per rejected file (slug / reason / token) |
+| `theme: fallback applied` | WARN | per fallback |
+| `theme: appearance migrated` | INFO | one-shot |
+| `theme: commit failed` | WARN | per failed write |
+
+Attr keys: `slug`, `slot`, `reason`, `path`, `token`, `count`.
+
+Rejections are **WARN**, not INFO: doctor treats them as advisory for *exit-code*
+purposes, but "your config did not work" is a warning in a log.
+
 ### Doctor's advisory lines, visually (the review's F17)
 
 Doctor renders one line per check with a pass/fail marker and drives a single exit
