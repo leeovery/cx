@@ -35,8 +35,8 @@ One sentence fixes it: the guard enumerates the harness's fixture set (every fix
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.4 now states the mechanism, not just the properties it delivers: the guard renders *every* fixture and **enumerates the harness's fixture set rather than naming fixtures** — the fixture list is the coverage list and grows automatically. Recorded why it is load-bearing (a hand-picked subset satisfies all three assertions today and goes silently blind on the next screen added, which is the exact immunity claimed) and that it is what puts §13.3's panel fixtures and §11.2's paginating fixture under the guard without anyone remembering to.
 
 ---
 
@@ -63,7 +63,7 @@ Worth noting the mild irony that makes it visible: after §14.1 promotes `t` to 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §9.1's accepted-coverage paragraph now names the footer entries the overlay costs — `x projects · t theme · m multi` plus `? help` after §14.1's promotion, three entries where the source recorded one — and adds the mid-label cut with its reconciliation: §14.4 governs the footer's own layout ladder, not an opaque layer composited over a full-width footer. The main screen is explicitly not re-laid-out while the panel is open, since reflowing the previewed surface contradicts the non-blanking premise and §11.1's O(1) swap; the cleaner-edge alternative is recorded as rejected.
 
 ---

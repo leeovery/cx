@@ -927,7 +927,9 @@ At the minimum panel width the slot may wrap to two rows. It is not a list deleg
 
 These assignments also feed §13.4's third assertion (every token exercised by at least one fixture): the panel fixtures are what cover `accent.mode` and `accent.attention` outside their transient main-screen states.
 
-**What the panel covers:** the right-hand column, where the footer's right-aligned `? help`, the right-side header hint, and session row meta live. **Accepted** — the theme is carried almost entirely by the *left* of the screen (session names, cursor bar, group headers, footer key glyphs), while the right edge is metadata. The overlay covers the least theme-informative part of the screen, which is exactly what a preview surface wants.
+**What the panel covers:** the right-hand column — the right-side header hint, session row meta, and the right end of the footer, which after §14.1 is `x projects · t theme · m multi` plus the right-aligned `? help`. **Accepted**, on two grounds: the theme is carried almost entirely by the *left* of the screen (session names, cursor bar, group headers, the footer's leading key glyphs), and the overlay covers the least theme-informative part of the screen, which is exactly what a preview surface wants. Note the mild irony that the panel's own key is now one of the entries it covers.
+
+**The overlay cuts wherever its left border falls, mid-label included** — `x proje▏`. That is not a violation of §14.4's "never truncate a label": §14.4 governs how the footer *lays itself out* as the terminal narrows, and the panel is an opaque layer composited over a footer that laid out at full width. **The main screen is deliberately not re-laid-out while the panel is open**, which is what keeps the swap the O(1) restyle of §11.1 and keeps the surface being previewed from reflowing under the user — the opposite of what a preview wants. Reflowing to the reduced width would produce a cleaner edge and was rejected for that cost.
 
 ### 9.2 The interaction model — picker idiom, not settings panel
 
@@ -1506,7 +1508,9 @@ The committed reference PNGs were never meant to persist — they existed so the
 
 ### 13.4 The swap-and-diff completeness guard
 
-**What it is:** render a screen under theme A, switch to theme B, render again, and scan the second output for any colour value belonging to theme A. A survivor means some element never got the new theme — the "assert no stale data survived the invalidation" trick applied to rendered output rather than a cache. It exists because the cached styles `bubbles/list` holds cannot reliably be found by reading code (§11.2).
+**What it is:** render **every fixture** under theme A, switch to theme B, render again, and scan the second output for any colour value belonging to theme A.
+
+**The guard enumerates the harness's fixture set; it never names fixtures.** This is the mechanism the guard's claims rest on, not an implementation nicety. The offline harness already renders every canonical screen deterministically through the shared `tui.Build` constructor with every tmux seam faked, so **the fixture list *is* the coverage list, and it grows automatically as screens are added**. A test that names four or five fixtures satisfies all three assertions below today and keeps passing tomorrow, while the next screen anyone adds goes silently uncovered — which is precisely the "including ones added years later" immunity claimed below, and the reason the guard exists at all is that the missed sites cannot be found by reading code. It is also what puts §13.3's four new panel fixtures and §11.2's paginating panel fixture under the guard without anyone remembering to add them, and what makes §13.2's argument for keeping the fixture *set* alive coherent. A survivor means some element never got the new theme — the "assert no stale data survived the invalidation" trick applied to rendered output rather than a cache. It exists because the cached styles `bubbles/list` holds cannot reliably be found by reading code (§11.2).
 
 This is a **behavioural** guard, not a structural one, deliberately. It catches *any* missed site — including ones added years later — without anyone having to remember a rule. A structural guard would have to recognise "this is a cached style" in the AST, which is not mechanically well-defined.
 
