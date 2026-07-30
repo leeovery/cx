@@ -421,6 +421,153 @@ A floor validated on a truecolor hex says nothing about the colour actually pain
 
 **Portal does not.** The MV spec's §2.4 already accepts downsampling as graceful degradation — "a hue may approximate, but the contrast floor still governs legibility" — and nothing about user themes changes that. Bundled themes are floor-checked on their truecolor values exactly as MV is today; drop-ins are syntactic-only by decision, so there is no floor to invalidate. This is real validation on an axis Portal has already chosen not to police.
 
+## 7. Built-in theme set
+
+### 7.1 A built-in *is* a theme file
+
+Built-in themes are `.theme` files embedded via `go:embed` and parsed by the **same loader** as a user's drop-in. They are not Go structs.
+
+- One code path, one format, one validity rule. A PR is "add a file". A user copies a built-in, tweaks two values, drops it in `themes/` — which is how people actually make themes.
+- The format is dogfooded by every built-in, so a bad format is the maintainer's problem on day one rather than a stranger's on day ninety.
+- Prior art: Ghostty and kitty avoid inventing a theme format at all — a theme *is* a config file.
+
+Consequences:
+
+- **Parse failures move from compile-time to load-time**, so built-ins need the build-time guarantee of §7.6.
+- **`internal/capture`'s no-real-config import guard is preserved** — `go:embed` is not config discovery, so the embedded set stays reachable from the capture harness without touching the config path.
+- **MV's inline erratum comments are deleted, not ported.** `contrast_test.go` already enforces the corrected values numerically, so a comment recording *why* a hex differs from its upstream sibling is duplicated history — revert a hex and the test fails, with or without the comment. The one class of judgement that is *not* numerically recoverable (the three eyeball-pinned light surface tints) moves into the theme file as a `#` comment, which the flat format supports (§13.6).
+
+### 7.2 The shipped set — three built-ins
+
+Portal ships **three** built-in themes:
+
+| Slug | Palette |
+|---|---|
+| `tokyo-night` | Tokyo Night Dark — the existing MV dark values |
+| `tokyo-night-day` | Tokyo Night Light — the existing MV light values |
+| `nord` | Nord, dark-only as the palette is |
+
+Two routes were rejected: split-only (two themes — satisfies the letter of "not a single built-in" but not the spirit of "genuine options", being one palette in two modes), and a four-theme set including a second light theme.
+
+The deciding argument was **risk, not scope**: the 19-token vocabulary has only ever been exercised by the palette it was designed for, so porting one genuinely external palette is the first real test of whether the roles map cleanly — and that test must happen *before* the names become a public contract. Nord makes the test unusually sharp because its canvas is `#2E3440`, a mid-dark rather than a near-black, so its contrast headroom is materially tighter than MV's.
+
+The counterweight is that everything after the first external theme is cheap by construction: `go:embed` makes adding a theme literally adding a file, and the PR route exists to receive exactly that.
+
+**Accepted cost:** the light side ships with a single option until the follow-up (§7.5). The adaptive default still works out of the box either way, since it is Tokyo Night on both slots.
+
+### 7.3 Tokyo Night Dark and Light — the existing MV values
+
+The existing MV values move across unchanged, subject to the erratum re-derivation check of §7.7.
+
+**`tokyo-night.theme`** (from MV's `Dark` variants):
+
+| Token | Value | | Token | Value |
+|---|---|---|---|---|
+| `canvas` | `#0b0c14` | | `accent.primary` | `#BB9AF7` |
+| `text.primary` | `#C0CAF5` | | `accent.key` | `#7AA2F7` |
+| `text.secondary` | `#A9B1D6` | | `accent.mode` | `#7DCFFF` |
+| `text.tertiary` | `#828BB8` | | `accent.attention` | `#FF9E64` |
+| `text.muted` | `#737AA2` | | `state.positive` | `#9ECE6A` |
+| `text.subtle` | `#535C86` | | `state.destructive` | `#F7768E` |
+| `text.faint` | `#3B4261` | | `bg.selection` | `#28243a` |
+| `text.on-selection` | `#FFFFFF` | | `bg.attention` | `#241B10` |
+| `border` | `#292E42` | | `bg.subtle` | `#26283A` |
+| `text.on-attention` | `#E8C9A0` | | | |
+
+**`tokyo-night-day.theme`** (from MV's `Light` variants):
+
+| Token | Value | | Token | Value |
+|---|---|---|---|---|
+| `canvas` | `#e1e2e7` | | `accent.primary` | `#8A3FD1` |
+| `text.primary` | `#2E3C64` | | `accent.key` | `#2D5CCA` |
+| `text.secondary` | `#3F4760` | | `accent.mode` | `#0D6C87` |
+| `text.tertiary` | `#4C5478` | | `accent.attention` | `#9A5200` |
+| `text.muted` | `#586093` | | `state.positive` | `#3B5E18` |
+| `text.subtle` | `#767DA2` | | `state.destructive` | `#BD2545` |
+| `text.faint` | `#AEB2C6` | | `bg.selection` | `#D0C6F0` |
+| `text.on-selection` | `#1A1B2E` | | `bg.attention` | `#E8D6A8` |
+| `border` | `#C9CDDB` | | `bg.subtle` | `#D2D4DE` |
+| `text.on-attention` | `#7A4B12` | | | |
+
+Note `border` takes the former `border.separator` value in both; `border.footer` is dropped (§2.2).
+
+### 7.4 The Nord port
+
+Nord is a 16-slot ANSI palette (Polar Night `nord0–3`, Snow Storm `nord4–6`, Frost `nord7–10`, Aurora `nord11–15`). Portal's 19-token vocabulary is meaningfully wider than 16 slots **at the dark end**, so the port takes 14 values directly, **corrects two**, and **invents three**.
+
+**`nord.theme`:**
+
+| Token | Value | Source | Ratio vs canvas |
+|---|---|---|---|
+| `canvas` | `#2E3440` | nord0 | — |
+| `text.primary` | `#ECEFF4` | nord6 | 10.84 |
+| `text.secondary` | `#E5E9F0` | nord5 | 10.26 |
+| `text.tertiary` | `#D8DEE9` | nord4 | 9.25 |
+| `text.muted` | `#939EB2` | **invented** | 4.62 |
+| `text.subtle` | `#73819B` | **invented** | 3.18 |
+| `text.faint` | `#4C566A` | nord3 | 1.69 |
+| `text.on-selection` | `#FFFFFF` | functional maximum | 8.63 on `bg.selection` |
+| `accent.primary` | `#B48EAD` | nord15 | 4.41 |
+| `accent.key` | `#81A1C1` | nord9 | 4.64 |
+| `accent.mode` | `#88C0D0` | nord8 | 6.24 |
+| `accent.attention` | `#EBCB8B` | nord13 | 8.00 |
+| `state.positive` | `#A7C492` | **corrected** from nord14 `#A3BE8C` | 6.51 canvas / 4.50 selection |
+| `state.destructive` | `#DD8188` | **corrected** from nord11 `#BF616A` | 4.50 |
+| `bg.selection` | `#434C5E` | nord2 | 1.45 fill |
+| `bg.subtle` | `#3B4252` | nord1 | 1.24 fill |
+| `bg.attention` | `#3D4046` | **invented** | 1.20 fill |
+| `border` | `#4C566A` | nord3 | no numeric floor |
+| `text.on-attention` | `#ECEFF4` | nord6 | 9.02 on `bg.attention` |
+
+**Correction 1 — the red.** `state.destructive` carries the 4.5 normal floor; Nord's published red `#BF616A` measures **3.05** against Nord's own canvas. Shipped corrected as `#DD8188` (4.50). The floor holds with no carve-out — this being the *first* external palette, a carve-out granted here would set the precedent for every PR theme after it.
+
+**Correction 2 — the green.** The single `state.positive` token must clear **both** the canvas and the selection tint. Nord's `#A3BE8C` clears canvas at 6.13 but only **4.23** on nord2. Corrected to `#A7C492` (Oklab ΔE 0.018 — essentially imperceptible), clearing selection at 4.50 and canvas at 6.51, with chroma marginally *above* the original. This is precisely the problem MV itself solved by darkening its light green.
+
+**Invention 1 & 2 — the ramp's middle.** Nord's greys are barrelled at the ends: three bright (9.25 / 10.26 / 10.84) and three dark (1.24 / 1.45 / 1.69), with nothing between. Portal needs `text.muted` ≥ 4.5 and `text.subtle` in the 3.0–4.5 band, so both are interpolated on nord3's hue and saturation.
+
+**Invention 3 — the warning band.** `bg.attention` is a *background tint* — neither a neutral from the barrelled dark end nor a foreground accent. Settled at `#3D4046` (~8% nord13-into-canvas blend, fill 1.20), matching MV's own proportion: MV's `bg.warning` measures only **1.15** against its canvas — the tint is a whisper, not a wash. A first arithmetic answer (`#54524F`, a 20% blend at fill 1.60) was rejected at a visual gate as far too heavy and pushed into a warm grey outside Nord's cool family.
+
+**One honest divergence from MV:** MV warms its on-band text (`#E8C9A0`) to match the band. Nord's Snow Storm is entirely cool and has no warm light, so `text.on-attention` uses nord6 — cooler than MV's treatment, but faithful to the palette. A deliberate port choice.
+
+**Structural finding worth carrying forward:** Nord's dark end holds only three values (nord1/2/3) for Portal's **five** dark-end roles (`bg.subtle`, `bg.selection`, `border`, `text.faint`, `bg.attention`). `nord3` therefore serves both `border` and `text.faint`, *and* `bg.attention` is interpolated outright. A palette choosing one value for two roles is legitimate (unlike two tokens that differ pointlessly, which the border consolidation removed) — but **every port should expect to invent at the dark end.**
+
+**Fidelity versus floors — resolved.** The floors win, and the corrected values ship under the palette's own name. No application maps a 16-slot ANSI palette 1:1 onto its own semantic roles; every Nord port in the wild adapts. The corrections are minimal and perceptually close, judged **visually** (both reds mocked side by side in a Nord kill modal), and `docs/theming.md` records them alongside the attribution.
+
+**Derivation method — corrections versus inventions.** Contrast **corrections** must be computed in a **perceptual space (Oklab), never by moving HSL lightness** — raising lightness at fixed HSL saturation *drops actual chroma* (the first red offered, `#CF888F`, lost ~27% of Nord's red saturation and read washed-out and pink). A correction has a published source value whose chroma must be preserved. An **invented** value has no source to preserve; its constraints are landing in the right band and looking right, which is why `bg.attention` was settled at a visual gate rather than by arithmetic.
+
+**Outstanding visual gate:** `text.subtle` has no locus on any captured Nord frame — it renders group `··· N` counts and pending loading steps, neither of which appears on the flat Sessions frame. **It needs a visual gate at implementation, on a grouped Nord capture.** (`text.muted` has already been seen — it is the "N window(s)" text on `Sessions — Nord (port)`.)
+
+### 7.5 A further light theme — follow-up work
+
+A second light theme is deferred to separate work, and is **a design task, not a file drop**:
+
+- A **dark** theme is genuinely near-free: floor checks auto-enumerate the embedded set, and no eyeball pins are involved.
+- A **light** theme requires `TestLightSurfaceTintsPinned` per-light-theme, whose pins are established by human eyeball at a visual gate through `capturetool` — the only viable route, because Portal cannot be run from a temporary build (§13.1).
+- **There is no CI** (tests and lint run locally), so a contributor gets no signal that their theme fails a floor until the maintainer runs the suite.
+
+### 7.6 The build-time guarantee
+
+There is **no runtime fallback to hardcoded values** beneath the built-in fallback. Instead the situation is made impossible at build time.
+
+**A unit test must:**
+
+1. **Parse and validate every embedded built-in** against the full validity rule (§6.1).
+2. **Assert that every fallback slug and the shipped default pair resolve within that set.**
+
+Both halves are load-bearing. Validating the files alone proves the *files* are good, but the fallback is hardcoded slug constants (`tokyo-night`, `tokyo-night-day`) resolving *into* that set — rename a built-in file in a later PR, or typo a constant, and every embedded theme still validates while **every fallback path becomes unresolvable.**
+
+With no path pretending to handle it, a binary somehow shipped with a broken default fails **loudly at startup** rather than limping on values nobody chose. `main.go` already owns a panic-recovering exit with a `process: panic` lifecycle marker, so that is a *marked* termination, not an unhandled crash.
+
+Rejected: a compiled-in last-resort palette equal to Tokyo Night Dark. A build-time guarantee beats a runtime crutch.
+
+### 7.7 MV's erratum values — a re-derivation check
+
+MV's six corrected light values are described in-source as *"darkened, hue-preserved"*, which may carry the same chroma flaw as the rejected Nord red — in the opposite direction.
+
+**Owned by this feature's implementation, before MV's values are frozen into theme files:** re-derive the six corrected light values in Oklab, measure chroma loss, and give a **fresh visual gate** to any that moved materially.
+
+**Flagged consequence:** if the check finds anything, shipped colours change, `TestLightSurfaceTintsPinned`'s eyeball-established pins move, and "Tokyo Night Dark/Light are just the existing values" (§7.3) stops holding exactly. **The built-in-set decision is conditional on this check.**
+
 ---
 
 ## Working Notes
