@@ -64,7 +64,7 @@ and
 **Proposed Addition**:
 
 **Resolution**: Approved
-**Notes**: User decision (asked, not baked): specify now. §9.5 gains a four-element priority order (⚠ → badge → truncated label → reason), one row per theme always (holding the one-delegate-per-row pagination invariant), with the reason as the first element dropped when a badge competes. Added `theme_migrated` to §8.1's JSON block with its full contract (boolean; anything not literal true decodes false; written unconditionally on first post-upgrade load including the nothing-to-translate case; never participates in mutual exclusion). §8.9's count corrected to five fields / three surfaces.
+**Notes**: Added `theme_migrated` to §8.1's JSON block with its full contract (boolean; anything not literal true decodes false; written unconditionally on first post-upgrade load including the nothing-to-translate case; never participates in mutual exclusion). §8.9's count corrected to five fields / three surfaces.
 
 ---
 
@@ -191,7 +191,7 @@ Because §9.8 defers only the *thresholds* ("exact thresholds are pinned at impl
 **Proposed Addition**:
 
 **Resolution**: Approved
-**Notes**:
+**Notes**: User decision (asked, not baked): specify now. §9.5 gains a four-element priority order (⚠ → badge → truncated label → reason), one row per theme always (holding the one-delegate-per-row pagination invariant), with the reason as the first element dropped when a badge competes.
 
 ---
 
