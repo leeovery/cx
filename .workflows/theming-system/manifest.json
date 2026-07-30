@@ -15,7 +15,7 @@
     "discussion": {
       "items": {
         "theming-system": {
-          "status": "in-progress",
+          "status": "completed",
           "subtopics": {
             "theme-model-paired-vs-split": {
               "status": "decided",
