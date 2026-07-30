@@ -155,6 +155,44 @@ Three spots were flagged as genuinely arguable and resolved to the values above:
 
 Token order in a theme file carries no meaning and is not enforced. The names carry their own meaning (unlike base16, where `base00`–`base07` must run dark-to-light because position *is* the meaning), and the flat `key = value` format parses unordered — so any ordering "contract" would be both unenforceable and undetectable. The ramp's weight ordering lives in `docs/theming.md`.
 
+## 3. Theme model — split, not paired
+
+### 3.1 A theme is one palette
+
+Today a theme is `{20 tokens} × {light, dark}`: `Token{Name, Light, Dark}` with `Token.ColorFor(mode)` picking the variant, and `theme.Mode` threaded as a parameter through essentially every render helper in `internal/tui` (`headerStyle(tok, mode, colourless)` and ~20 files of the same shape) whose only job is to reach `ColorFor`.
+
+**A theme becomes one palette of 19 values, and is itself light or dark.** MV splits into two built-ins carrying the existing values.
+
+Decisive reasons:
+
+- **Authoring burden under the contribution routes.** 19 values against one canvas versus 38 against two is the difference between a contributor porting a palette in an evening and not bothering — and dark-only famous palettes (Dracula, Nord) have no light half to supply at all.
+- **The pairing MV implies isn't real.** Six of MV's light hexes needed *individual* correction and three light surface tints were eyeball-pinned at a validation gate. MV's light and dark are two independently-tuned palettes that happen to share token names; the struct claims a derivation relationship that does not exist.
+- **Detection and pairing are independent axes.** Auto-detection with single-palette themes — where detection picks between two *named themes* rather than two variants — is a shipping design (Helix's). Wanting detection does not commit Portal to paired.
+- Single-palette is the overwhelmingly dominant ecosystem shape.
+
+### 3.2 Go-side data shape
+
+- `Token` becomes `{Name, Value string}`.
+- `Token.ColorFor` is **removed**.
+- `theme.Mode` (the `Light`/`Dark` enum) is **removed**, along with its threading through the render layer.
+- `Theme` remains a struct of 19 named `Token` fields with a stable-order `All()` accessor, but is no longer a package-level `var` holding one built-in — it is the parse result of a theme file (§4).
+- `theme.MV` as an exported package-level value **ceases to exist**. Its values move into `tokyo-night.theme` and `tokyo-night-day.theme` (§7.3).
+
+### 3.3 Consequences that follow from split
+
+- **The "missing variant" problem ceases to exist** rather than being handled. There is no hole for a dark-only palette to leave.
+- **No `appearance` pref survives.** The light/dark override becomes the *shape* of the theme setting (§8), not a mode enum.
+- **The selector list is mixed-mode.** Arrowing in a dark terminal can land on a light theme and flip the whole canvas. This is accepted behaviour, not a defect (§9.2).
+- **Contrast checking loses the product-side light/dark distinction** it needs for the three eyeball-pinned light surface tints. Resolved test-side: a test table is allowed to know things the runtime does not (§13.5).
+
+### 3.4 Plumbing — the model holds the active theme
+
+`theme.MV` is currently a package-level global read directly at ~182 call sites. Making the active theme switchable is a straight substitution rather than a new mechanism, because **split removes the `mode` parameter** from every one of those sites — so all 182 are being edited regardless, and a parameter slot is freed at exactly the same moment.
+
+**The model holds the active `Theme` and passes it where `mode` is passed today.** No package-level mutable state (`theme.Active` var + setter), no new parameter.
+
+Rejected: mutable package state. Its entire advantage was avoiding churn Portal is now paying anyway, and it would put order-dependent mutable state on the render path. Secondary benefit that matters in this codebase specifically: a test can construct a model with any theme instead of mutating a global and hoping nothing else observed it — and the suite already forbids `t.Parallel()` because the `cmd` package injects mocks via package-level mutable state.
+
 ---
 
 ## Working Notes
