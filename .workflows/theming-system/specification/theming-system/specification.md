@@ -235,7 +235,7 @@ Accepted cost: a small hand-rolled parser, and a second non-JSON config format t
 | **Encoding** | CRLF tolerated; a BOM is stripped. |
 | **Malformed lines** | A line that is neither blank, a comment, nor a well-formed `key = value` pair rejects the file (`bad syntax`). |
 
-**Branch-by-branch, because each one is a user-visible reason label and a test case in the embedded-set validity test (§7.6):**
+**Branch-by-branch, because each one is a user-visible reason label and a test case in the loader test (§13.6):**
 
 | Input | Reason | Why |
 |---|---|---|
@@ -248,6 +248,7 @@ Accepted cost: a small hand-rolled parser, and a second non-JSON config format t
 | Trailing or internal whitespace in a value | `bad colour` | Trimming is defined around `=` only; a value with interior whitespace is not a valid hex. Trailing whitespace after the value **is** trimmed, since it is whitespace around the pair rather than inside the value. |
 | An empty file, or one containing only comments | `missing tokens` | It parsed; it declares nothing. |
 | A BOM anywhere but the first bytes of the file | `bad syntax` | The BOM strip applies at file start only. |
+| `text.primary = #ECEFF4 = x` (more than one `=`) | `bad colour` | **Split on the first `=`.** Everything after it is the value verbatim, so a stray `=` lands in the value and fails hex validation. This also falls out of the comment rule: the format never re-interprets anything right of the first separator. |
 
 ### 4.3 Value domain — hex only, `#RRGGBB`
 
@@ -362,8 +363,10 @@ The env var is named here rather than left to implementation because it is a use
 ### 5.6 Enumeration rules
 
 - **Top-level only** — files matching `.theme` in the directory itself. No subdirectory recursion.
-- **Symlinked files are followed** — the standard dotfiles shape, and dotfiles users are exactly who hand-authors a theme. The slug derives from the link name as enumerated.
-- **Symlinked directories are not followed.**
+- **The extension is matched case-insensitively**, so `Nord.THEME` is enumerated. It then fails the slug check and gets a `bad name` row — which is the point: a case-sensitive extension match would make the file *invisible*, the "completely in the dark" state §9.4 exists to prevent, and it would do so most often on the case-insensitive filesystem where a user is most likely to type it that way. This does not weaken §5.2's reject-never-normalise rule: the extension is not part of the slug, and the slug is still matched exactly.
+- **Symlinked files are followed** — the standard dotfiles shape, and dotfiles users are exactly who hand-authors a theme. The slug derives from the link name as enumerated. A **dangling symlink** enumerates and then fails to read: reason `unreadable`.
+- **Symlinked directories are not followed.** A **real subdirectory** named `x.theme` is **skipped silently** — enumeration matches files, and a directory is not a candidate that failed, it is not a candidate at all.
+- **`unreadable` covers every read failure**, not only permissions — a dangling link, an I/O error, or anything else that stops the bytes arriving.
 
 ### 5.7 Discovery is lazy
 
@@ -419,8 +422,8 @@ Seven reject classes. The terse label appears on the panel row; the detail appea
 2. `reserved name` — likewise decided from the slug alone, before any read.
 3. `unreadable` — the read itself failed.
 4. `bad syntax` — lexical failure (§4.2) aborts the parse, so no value-level or presence check runs.
-5. `bad colour` — per-value validation across the whole file.
-6. `missing tokens` — the presence check runs last, on a file that parsed and whose every present value is well-formed.
+5. `bad colour` — value validation across every **known** key in the file. **Unknown keys' values are not validated**, because §4.6's forward-compatibility lever requires it: if a removed token's stale line could reject a file on its value, "old files keep working" would only hold for values that happen to still be well-formed hex, which is a much weaker guarantee than the one §4.4 and §4.6 state. An unknown key is ignored entirely — key and value both.
+6. `missing tokens` — the presence check runs last, on a file that parsed and whose every known value is well-formed.
 
 `not found` is not in this ladder — it applies only to a persisted slug with no file (§9.4), where there is nothing to check.
 
@@ -629,7 +632,24 @@ Rejected: a compiled-in last-resort palette equal to Tokyo Night Dark. A build-t
 
 ### 7.7 MV's erratum values — a re-derivation check
 
-MV's six corrected light values are described in-source as *"darkened, hue-preserved"*, which may carry the same chroma flaw as the rejected Nord red — in the opposite direction.
+MV's corrected light values are described in-source as *"darkened, hue-preserved"*, which may carry the same chroma flaw as the rejected Nord red — in the opposite direction.
+
+**The values in scope, named here so the check is self-contained** — they are otherwise identifiable only from the inline erratum comments that §7.1 deletes, which is an ordering trap: delete the comments first (the natural order, since they go when the values move into `.theme` files) and the check's input set is gone.
+
+The **six `§2.9 erratum` corrections**, given as original → shipped, under their new token names:
+
+| Token | Original | Shipped |
+|---|---|---|
+| `text.muted` | `#5A6296` | `#586093` |
+| `text.subtle` | `#7C84AA` | `#767DA2` |
+| `accent.key` | `#2E5FD0` | `#2D5CCA` |
+| `accent.mode` | `#0E7490` | `#0D6C87` |
+| `state.positive` | `#4C7A1F` | `#456E1C` → `#3B5E18` (darkened twice) |
+| `state.destructive` | `#C32647` | `#BD2545` |
+
+**Plus a seventh, `text.tertiary` (`#515A80` → `#4C5478`)** — not an erratum but a darkening for the `bg.selection` pairing floor, so it carries the same chroma risk and is checked with the other six.
+
+`accent.primary` (`#8A3FD1`) is explicitly **out of scope**: its in-source note records that it cleared its floor unremedied, so it was never darkened.
 
 **Owned by this feature's implementation, before MV's values are frozen into theme files:** re-derive the six corrected light values in Oklab — the minimal-Oklab-distance colour that clears the same floor — and compare each against the shipped value.
 
@@ -639,6 +659,7 @@ MV's six corrected light values are described in-source as *"darkened, hue-prese
 
 - **Every value under threshold** → the check passes, `§7.3`'s tables stand, nothing moves, and the result is recorded (a passing check is a finding, not a non-event).
 - **Any value at or over threshold** → that value is replaced by the re-derivation and gets a **fresh visual gate**. If it is one of the four eyeball-pinned tints (§13.5), `TestLightSurfaceTintsPinned` and `TestLightTintFillsArePerceptible` take the new pin from that gate.
+- **If a re-derived value is rejected at its fresh visual gate**, the **shipped value stands** and the finding is recorded as "measured, moved, judged worse". The check exists to surface a possible flaw, not to mandate a change — a numerically-better value that looks wrong is exactly the failure the Nord red's first correction demonstrated.
 - **If anything moves, §7.3's value tables in this specification are superseded by the theme files** rather than being re-written here. The files are the source of truth for values (§15.3); this spec's tables are the record of what was carried across, and a note pointing at the moved values is the honest form once they diverge.
 
 **Flagged consequence:** if the check finds anything, shipped colours change, `TestLightSurfaceTintsPinned`'s eyeball-established pins move, and "Tokyo Night Dark/Light are just the existing values" (§7.3) stops holding exactly. **The built-in-set decision is conditional on this check.**
@@ -685,6 +706,10 @@ A theme setting is either:
 
 **If a hand-edit leaves both present, `theme` wins** — a documented deterministic rule. The "only two states" model stays a *rule* rather than being encoded in a type: non-empty `theme` ⇒ constant, otherwise the pair.
 
+**`theme` winning means the slots are not read at all**, so the panel renders a single bare `●` on the constant's row and no slot badges — §9.5's "the two setting states never coexist on screen" holds because the resolution rule makes the pair invisible, not because the file cannot contain both. The stale slots are left untouched on disk; nothing prunes them.
+
+The one visible consequence: on such a file, `d`/`l` clears the constant and the *other* stale hand-edited slot becomes live in the same keypress. The §9.2 confirm names the constant being cleared, which is the change the user initiated; the stale slot surfacing is then plainly visible in the panel's badges the moment the confirm resolves.
+
 ### 8.3 The shipped default is the adaptive pair
 
 Portal ships with the pair already nominated:
@@ -717,6 +742,15 @@ This is load-bearing because three other decisions collide otherwise: the model 
 **Resolution order on the by-name path: the embedded set first, then the themes directory.** A nominated slug that names a built-in resolves to the built-in and **never reads the themes directory at all**. This is what makes §5.4's no-shadowing guarantee implementable on the path that matters — construction does not enumerate, so there is no collision to *detect* there; the safety property has to come from ordering. And construction is where the fallback resolves, which is the exact thing no-shadowing exists to protect.
 
 **Mid-session slot assignment reads at commit time.** A constant nominates one theme, so assigning a slot (converting the user to adaptive in-session) reads that slot's file at keypress time — already the panel's cost model.
+
+**The constructor therefore takes the loaded *nomination*, not a single theme.** One value covering both states:
+
+- **Constant** — one loaded `Theme`; the gate is never consulted, and it is active from frame one.
+- **Adaptive** — both loaded `Theme`s, light and dark; the gate selects between them when the OSC 11 reply or the timeout lands.
+
+The model holds that nomination plus which member is currently active — "the model holds the active `Theme`" (§3.4) describes what is *threaded to renderers*, which is always exactly one theme. `capturetool --theme` (§13.3) passes the constant shape: a pinned single theme, no gate, no wait, which is what makes captures byte-deterministic.
+
+**The retained startup canvas hex (§11.4) is captured from the theme the gate *selected***, not from what the constructor was handed — under adaptive those differ until the gate resolves.
 
 ### 8.5 Fallback — per-slot and mode-matched
 
@@ -766,12 +800,16 @@ Under the two-slot form, the gate is only *partly* removed:
 
 | | |
 |---|---|
-| **Dies** | `prefs.Appearance` — the `auto\|light\|dark` enum, its tolerant decode, `LoadAppearance`/`SaveAppearance`, `WithAppearance`. (`SaveAppearance` has no production caller today, so this is mostly read-path removal.) |
+| **Dies** | The `prefs.Appearance` **enum and its API** — the `auto\|light\|dark` type, its tolerant decode, `LoadAppearance`/`SaveAppearance`, `WithAppearance`. (`SaveAppearance` has no production caller today, so this is mostly read-path removal.) **The on-disk field does not die — see below.** |
 | **Dies via split** | `Token.ColorFor`, `theme.Mode` threading, the dual-canvas contrast bookkeeping. |
 | **Survives, but conditional** | The detect-or-timeout first-paint gate. A user on a **constant** theme needs no detection, so their first paint is immediate — a real startup win. A user on the **adaptive** form still needs light/dark resolved *before* first paint or Portal paints one theme and flips, so the same race, ~50ms timeout and **dark** no-answer fallback still apply. |
 | **Survives unchanged** | The OSC 11 *query* itself — `restore.go` needs it to capture the original background for restore-on-exit, independent of detection. The `NO_COLOR` carve-out. The canvas-echo guard, whose comparison re-points from "the mode's canvas" to a retained startup canvas hex (§11.4). |
 
 **The query is issued from `Init` regardless of the setting shape.** That is what makes a mid-session constant → adaptive conversion work without a new query, race or gate (§9.3).
+
+**`prefsFile` keeps a raw `appearance string` field, so the on-disk value round-trips.** This is load-bearing, not tidiness: `prefs.json` decodes into a plain Go struct, so **any key not declared as a field is dropped on re-encode** — and §8.9 makes every writer re-encode the whole file. Delete the field and the first `s`-keypress or theme commit after upgrade silently erases the user's `appearance` pin, defeating §10.4's downgrade guarantee at the moment the user is least likely to notice.
+
+The field is a **plain string that is read and preserved, never parsed** — no enum, no tolerant decode, no accessors. §10.5's translation reads it once; nothing else in the new binary looks at it. That is the precise meaning of the "Dies" row above: the *type and its API* go, the *slot in the file* stays.
 
 ### 8.9 Concurrent instances and prefs writes
 
@@ -811,6 +849,25 @@ A **full-height, right-edge, non-blanking overlay** with a **left border only** 
 
 At the minimum panel width the slot may wrap to two rows. It is not a list delegate, so wrapping costs nothing structurally.
 
+**Every panel surface's token, so nothing is left to the frames** (§9.14 forbids reading values off them) and §13.4's guard has no carve-out to make:
+
+| Surface | Token |
+|---|---|
+| Panel body | `canvas` |
+| Left border, header rule | `border` |
+| Header label `Themes` | `accent.mode` |
+| Cursor row | the shipped selection treatment — `bg.selection` tint, `accent.primary` `▌`, `text.on-selection` name |
+| Valid row label | `text.primary` |
+| `●` / `● dark` / `● light` badge | `accent.primary` — the badge marks *assignment*, which is the primary-accent role Portal already uses for active dots and the selector bar; `state.positive` would wrongly imply liveness, which is what `●` means on the Sessions list |
+| Invalid row label | `text.faint` |
+| Invalid row `⚠` and its terse reason | `accent.attention` — §2.5 assigns the warning glyph to it, and the reason is part of the same signal. The `⚠` keeps its own token rather than inheriting the row's `text.faint`, so the invalidity signal stays legible on a row that is deliberately dimmed |
+| Pinned `⚠ themes dir unreadable` row | same as an invalid row — `accent.attention` glyph and text |
+| Vertical keymap footer | key glyphs `accent.key`, labels `text.muted` — the same split the horizontal footer uses |
+| Message slot — confirm | `text.secondary`, no band |
+| Message slot — failed commit | `⚠` and text in `accent.attention`, **no `bg.attention` band** — the warning band is a full-width main-screen flash treatment and would read as heavy inside a 24–30 column panel |
+
+These assignments also feed §13.4's third assertion (every token exercised by at least one fixture): the panel fixtures are what cover `accent.mode` and `accent.attention` outside their transient main-screen states.
+
 **What the panel covers:** the right-hand column, where the footer's right-aligned `? help`, the right-side header hint, and session row meta live. **Accepted** — the theme is carried almost entirely by the *left* of the screen (session names, cursor bar, group headers, footer key glyphs), while the right edge is metadata. The overlay covers the least theme-informative part of the screen, which is exactly what a preview surface wants.
 
 ### 9.2 The interaction model — picker idiom, not settings panel
@@ -830,7 +887,14 @@ At the minimum panel width the slot may wrap to two rows. It is not a list deleg
 - Under an **adaptive pair**, it is the row for the slot currently in force — the light slot in a light terminal, the dark slot otherwise. The other slot's row still carries its `● light`/`● dark` badge; only the cursor is singular.
 - When the resolved theme is a **fallback** (§8.5), the cursor lands on the **fallback's** row, not on the persisted-but-broken one. The persisted row is unselectable (§9.5) and the arrows are specified to skip it, so parking the cursor there would put it somewhere navigation cannot return to — and it would show a row that is not what is on screen. The `●` still marks the persisted slug, which is exactly the split §9.5 draws: `●` is what is *set*, the cursor is what is *previewed*.
 
-Because the cursor starts on what is already rendering, **opening the panel never changes the screen** and the mixed-mode flash fires only on deliberate navigation.
+Because the cursor starts on what is already rendering, **opening the panel never changes which theme is shown** and the mixed-mode flash fires only on deliberate navigation.
+
+**It can change that theme's *values*, and that is correct.** §5.8's fresh enumeration supersedes the construction-time parse, so if the active theme's file has been edited mid-session the panel holds the truth and opening applies it. Precisely:
+
+- **Edited and still valid** — the panel re-renders the *same slug* with its new values on open. The user edited the file to see the change; making them arrow away and back to trigger it would be a bug wearing a rule's clothing.
+- **Edited and now invalid** — the active theme is no longer loadable, so opening resolves the §8.5 fallback and the cursor lands on the fallback's row, exactly as it does for a theme that was already broken at construction. The `●` stays on the persisted slug, whose row is present and unselectable with its reason. The flip happens on **open**, not deferred to `Esc` — deferring would leave the panel listing a theme as invalid while the screen still renders it.
+
+The invariant that survives both cases: **the cursor is always on a selectable row, and that row is always what is painted behind the panel.**
 
 **Every write is an explicit keypress; nothing writes on close.** This eliminates the "applied but not persisted" state reachable under persist-on-close, where Portal dies with the panel open and the visually-applied theme was never written.
 
@@ -886,6 +950,13 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 
 **A `reserved name` row is likewise labelled by its filename.** Its slug is valid, but it is *identical* to the built-in's — labelling by slug would put two rows reading `nord` in a list where §9.5 deliberately makes built-in and drop-in rows indistinguishable. `nord.theme` beside `nord` tells the user exactly which one is theirs, and it sorts adjacent to the built-in it collides with, which is where the explanation is most useful. The terse reason stays `reserved name`; doctor carries the sentence naming the conflict.
 
+**Sort key and display label are separate, and the sort key is fully determined:**
+
+- The **sort key is the slug** wherever one exists — including a `reserved name` row, which is why it sorts adjacent to the built-in it collides with despite being *labelled* by filename. A `not found` persisted-slug row sorts by its slug too.
+- Only a **`bad name`** row has no slug; it sorts by **filename**.
+- Comparison is **case-insensitive, with a byte-wise tie-break**. Slugs are lowercase by construction, but filenames are not, and a byte-wise-only comparison would file `Zed.theme` ahead of every valid theme.
+- The pinned `⚠ themes dir unreadable` row is **outside the ordering** — it is always first.
+
 **A displayed slug that came from `prefs.json` is truncated and control-stripped before rendering.** It is hand-editable text drawn into a fixed-width frame, and §8.6 validates it before *use* as a path component but the unresolvable row still shows it — so a pasted newline, tab or ANSI escape would otherwise reach the panel.
 
 **Row composition — one row per theme, always.** An invalid row never wraps to two lines: every list row is exactly one delegate line, which is the invariant `bubbles/list` pagination depends on and which §9.8's paging and the invalid-row skip both rest on. The elements compete for a fixed ~24–30 columns in this priority order:
@@ -937,7 +1008,7 @@ Treatment **B** (a `dark → … / light → …` key-value block pinned under t
 - **Modals** — capture keystrokes, so no `t`, per existing key-exclusivity.
 - **Sessions and Projects normal view** — always available.
 
-**The panel is key-exclusive.** It owns arrows, `Enter`, `d`, `l` and `Esc`; everything else is swallowed. Pass-through is genuinely bad — `k` would kill the highlighted session while you pick a theme, `x` would swap to Projects with the panel open, `m` would start a multi-select behind it. Non-blanking and key-exclusive are not in tension: seeing the list without being able to drive it *is* the live-preview premise.
+**The panel is key-exclusive.** It owns arrows, `Enter`, `d`, `l` and `Esc`; everything else is swallowed **except `Ctrl-C`, which stays live**. Pass-through is genuinely bad — `k` would kill the highlighted session while you pick a theme, `x` would swap to Projects with the panel open, `m` would start a multi-select behind it. None of that reasoning reaches the global quit, and swallowing it would take away the user's exit key inside a settings surface. This matches the burst input-lock, which keeps `Ctrl-C`/`Esc` live for the same reason. Non-blanking and key-exclusive are not in tension: seeing the list without being able to drive it *is* the live-preview premise.
 
 **Blocked-`t` feedback follows the existing precedent:** **flash** where the key *is* bound and the user could reasonably expect it to work (`NO_COLOR` on Sessions/Projects); **silent** where it is not bound at all (Preview, modals, burst-locked). That is exactly how `s` already behaves.
 
@@ -1112,7 +1183,10 @@ Fixing them does not make the guard redundant; **the guard is what stops them re
 - **Capture and retain the startup canvas hex as model state**, and anchor `RestoreTerminalBackground`'s comparison to it.
 - **Make `canvasHexFor` theme-agnostic** — no `theme.MV` reference.
 
-This is the mechanic carrying an explicit *"do **not** drop this guard"* warning, and the swap-and-diff guard structurally cannot cover it (it scans rendered fixture output, and this is an exit-time OSC 11 write). **It therefore needs its own named verification** — a direct unit test on `RestoreTerminalBackground`, driven without fixtures, asserting it compares against the retained startup canvas and not the active theme's, **including the case where a theme was committed mid-session** (§13.4).
+This is the mechanic carrying an explicit *"do **not** drop this guard"* warning, and the swap-and-diff guard structurally cannot cover it (it scans rendered fixture output, and this is an exit-time OSC 11 write). **It therefore needs its own named verification** — a direct unit test on `RestoreTerminalBackground`, driven without fixtures, asserting it compares against the retained startup canvas and not the active theme's, across both divergence cases:
+
+- **A theme committed mid-session** — the persisted theme differs from the startup one.
+- **Quit with an uncommitted preview active** — `Ctrl-C` with the panel open (§9.7). The model's active theme is the *previewed* one, which the user never persisted and which a naive implementation would compare against. This is the likelier mistake of the two, and the only path on which a colour the user never chose can be left stuck in their terminal after Portal exits.
 
 The stakes are why: this is the one path where a mistake re-sticks a colour in the user's terminal **after Portal exits**.
 
@@ -1123,8 +1197,11 @@ The stakes are why: this is the one path where a mistake re-sticks a colour in t
 Writes the named theme to **stdout** in canonical form, so the full drop-in workflow is:
 
 ```
+mkdir -p ~/.config/portal/themes
 portal theme export nord > ~/.config/portal/themes/nord-lee.theme
 ```
+
+The `mkdir -p` is part of the published workflow, not an omission: Portal deliberately never creates or seeds the themes directory (§5.5), and a shell redirect will not create it either — so without that line the first thing a new user meets is a redirect error. `docs/theming.md` carries the same two lines.
 
 This closes a structural gap. *"Copy a built-in and edit it"* carries **two** decisions — it is the pro that justified `go:embed` (§7.1), and the deciding factor that rejected merge-over-a-base (§4.5, full replacement is only cheap if copying is cheap). But built-ins live inside the binary, `portal theme list` and `--theme` are ruled out, and an absent `themes/` directory is deliberately silent and never seeded — so without `export` the only route was finding the file on GitHub, which was never named as the workflow and is unavailable offline.
 
@@ -1136,6 +1213,9 @@ This closes a structural gap. *"Copy a built-in and edit it"* carries **two** de
 | **Slug domain** | **Built-ins *and* drop-ins.** Resolving both makes export a diagnosis tool — "show me what Portal parsed" — not just an on-ramp. |
 | **Invalid drop-in** | Refused, with its reason on **stderr** and a **non-zero exit**. Doctor's advisory-vs-health distinction (§12.2) is doctor's own contract and does not extend here. |
 | **Unknown slug** | Same — reason on stderr, non-zero exit. |
+| **Arguments** | Exactly one slug. Zero or more than one is a usage error (a Cobra `ExactArgs(1)` rule). |
+| **Failure exit code** | **1 for every failure class.** Export is a pipe-into-a-file tool, not a diagnostic like doctor; the reason string on stderr is what discriminates, and distinguishing unknown-slug from invalid-file numerically buys nothing scriptable. |
+| **A slug failing the charset check** | Refused with reason **`bad name`**, not `not found` — the same discrimination §9.4 draws for the panel, for the same reason: telling a user their file is missing when they typed an illegal name sends them looking in the wrong place. |
 | **Verb group** | The `theme` group has only `export`. A one-member group, noted deliberately. |
 
 **Output is the file's bytes, comments included** — not a re-serialisation of the parsed `Theme`.
@@ -1183,12 +1263,12 @@ What distinguishes it from `prefs` and `terminals` (both deliberately outside th
 
 | Event | Level | Cadence |
 |---|---|---|
-| `theme: loaded` | INFO | At TUI construction. Resolved slug(s) only — **no count** (nothing is enumerated at construction). |
+| `theme: loaded` | INFO | At TUI construction, **one line per nominated theme** — one under a constant, two under an adaptive pair — each carrying `slug` and, for the pair, `slot`. Resolved slug(s) only; **no count** (nothing is enumerated at construction). One line per nomination rather than one combined line keeps `slug`/`slot` single-valued, which is what makes the log greppable per theme. |
 | `theme: enumerated` | INFO | At panel open. Carries `count` and `rejected`. |
-| `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. |
+| `theme: rejected` | WARN | One per rejected file, **deduplicated per process** — a given slug+reason logs once, so five panel opens (enumeration re-reads on every open, §5.8) do not produce five identical WARN sets. Carries `token` where the reason names one (`missing tokens`, `bad colour`) — this is the `token` attr's only consumer. |
 | `theme: directory unusable` | WARN | Per enumeration where the themes directory is unreadable, or a regular file sits where a directory belongs (§5.5). Carries `path` and `reason`. An *absent* directory emits nothing. |
 | `theme: fallback applied` | WARN | Per fallback |
-| `theme: appearance migrated` | INFO | One-shot |
+| `theme: appearance migrated` | INFO | Emitted on **successful persist**, not on compute. §10.5's write is best-effort and retries next launch, so a compute-time emission could legitimately fire on several consecutive launches and "one-shot" would be false. Tied to the persist, it fires exactly once — and its absence after a translation is itself the signal that the write failed. |
 | `theme: commit failed` | WARN | Per failed write |
 
 **Attr keys:** `slug`, `slot`, `reason`, `path`, `token`, `count`, `rejected`.
@@ -1234,7 +1314,7 @@ README gains the theme setting in its place, pointing at `docs/theming.md`.
 | Entry | Correction |
 |---|---|
 | **The `tui/theme` row** | Describes ~20 tokens "each with a **Light and Dark** variant", `Token.ColorFor(mode)`, `theme.MV` as the single built-in, `Mode`'s zero value as the no-answer fallback, and `contrast_test.go` measuring against two hardcoded canvases. Every clause is deleted by §2.1, §3.2 and §13.5. |
-| **The `prefs` row** | Documents the `appearance` override, the `Appearance` enum and its tolerant decode, and `cmd/open.go`'s `WithAppearance` wiring. Replaced by `theme` / `theme_light` / `theme_dark` / `theme_migrated` per §8.1 and §8.8. |
+| **The `prefs` row** | Documents the `appearance` override, the `Appearance` enum and its tolerant decode, and `cmd/open.go`'s `WithAppearance` wiring. Replaced by `theme` / `theme_light` / `theme_dark` / `theme_migrated` per §8.1 and §8.8 — noting that `appearance` survives on disk as a preserved raw string (§8.8). |
 | **The logging section** | Pins the taxonomy at "17 component names". §12.3 adds an 18th (`theme`) with its own attr keys — the same shape of amendment `spawn` and `resolve` carried, which is why the count is stated at all. |
 | **The visual capture harness section** | Describes `testdata/vhs/` as committed reference PNGs forming a visual-verification harness, which reads as a durable asset. It is not (§13.2). The `capturetool` flag description also changes with §13.3. |
 
@@ -1272,6 +1352,9 @@ The committed reference PNGs were never meant to persist — they existed so the
 - **`capturetool` and `internal/capture` survive and are open for edit.** Whatever the tool needs to work with the new system is in scope for this feature — no separate redevelopment work unit.
 - **`tui.Build` takes a *theme* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes. Without this the harness can only ever render the compiled-in default.
 - **`capturetool` gains a `--theme` flag, replacing `--appearance`.** `--theme` accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
+  - **Default: `tokyo-night`** when the flag is omitted, matching the shipped dark default. Every capture an agent takes without passing the flag depends on this, so it is named rather than inferred.
+  - **Slug versus path is discriminated by the `.theme` suffix**, not by a path separator — so `nord` is a slug and `nord.theme`, `./nord.theme` and `/abs/nord.theme` are all paths. One rule, and it reads the way a user would say it.
+  - **Invalid input is a hard error** with the §6.2 reason and a non-zero exit — never a fallback. Silently rendering the wrong theme at a visual gate is precisely the failure this tool exists to prevent.
 - **`--appearance` is removed, not kept alongside.** It exists today (`dark|light`, resolving to a pinned `prefs.Appearance`), and its entire backing mechanism — `prefs.Appearance` and `WithAppearance` — is deleted by §8.8. There is no mode left to pin; a theme *is* the mode.
 - **The contrast-validation swatch fixture is re-pointed to `--theme` too.** `capturetool` carries a standalone labelled-tint swatch branch (the MV §16.5 lock-in/bail surface) which deliberately does not route through `tui.Build` and is driven by `--appearance` today. It is the surface that satisfies the human eyeball gate §7.5 and §13.5 require for a new light theme's pinned tints, so it must take a theme like everything else.
 - **Direct PNG output from `capturetool` is required, not an optimisation.** The retention decision deletes the tapes that made PNG production work, while the harness requirement is that every fixture can produce a PNG. VHS is retained only if a gif is ever wanted for motion.
@@ -1295,6 +1378,13 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 1. **No theme-A value survives** in the post-swap output.
 2. **Every expected theme-B value is present** — catching a site that renders *nothing* rather than merely stale. This is a **union across fixtures**, not per fixture: no single screen renders all 19 roles.
 3. **Every token is exercised by at least one fixture.** The union in (2) is only complete if every token appears on *some* fixture, and the at-risk ones are the transient states (`bg.attention` / `text.on-attention`, `accent.mode`, `state.destructive`, `text.on-selection`). Making this an assertion of the guard means a token with no fixture **fails the test** and someone adds a fixture, rather than the guard being silently blind at precisely the sites it exists to protect.
+
+**The swap must be a live mutation of one already-rendered model, through the production swap path.** This is the guard's whole point and the easiest way to build it wrong: the caches it exists to catch are assigned *once at construction*, so a test that builds two models — one per theme — assigns every cached style correctly in each and **passes green while live swap is broken**. The fixture harness builds a fresh model per fixture today, which is exactly the shape that would produce that vacuous pass. Specifically:
+
+- **Render under A first, then swap, then render again.** The A-render is not optional set-up — it is what populates the caches. A fixture rendered only after the swap passes trivially.
+- **The swap goes through the same entry point the panel's arrow-preview uses** (the `applyCanvasMode` restyle and style re-point), not a test-only setter and not a rebuild.
+- **`internal/capture` / `tui.Build` must expose a seam to drive that from a test**, since fixtures are one-shot renders today. Adding it is in scope (§13.3).
+- **The render is forced to a truecolor profile.** Under `go test` stdout is not a TTY, so lipgloss would otherwise strip colour and there would be no hexes to diff at all.
 
 **Lane: unit.** It renders only through the offline harness — no tmux server, no daemon, no built binary.
 
@@ -1329,6 +1419,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 | **`TestEachTokenCarriesLightVariant`** (`theme_test.go`) | **Deleted.** It asserts the `ColorFor(Light) ≠ ColorFor(Dark)` resolver seam, which cannot compile once `Token` is `{Name, Value}` and `ColorFor` is gone. |
 | **`TestEveryTokenHasLightVariant`** (`contrast_test.go`) | **Deleted.** Same fate — it asserts every token carries a populated, parseable `Light` hex. Its *parseability* half is subsumed by the embedded-set validity test (§7.6), which checks every value in every shipped theme. |
 | **`TestLightTintFillsArePerceptible`** | **Survives, and becomes per-light-theme**, alongside `TestLightSurfaceTintsPinned`. It covers the same four tints and takes the same light/dark table membership (§13.5); its ≥1.1 fill floor resolves its reference background from the theme rather than the hardcoded light canvas. |
+| **Loader / parser test** | **New.** The single most branch-heavy component in the feature has no other test home — §7.6's embedded-set test only ever sees valid files by construction. It is table-driven over §4.2's branch table, §4.3's hex domain, §5.2's slug charset, §5.4's reserved-name check, and — critically — **§6.2's fixed-order short-circuit ladder**, which is only meaningful if pinned: a file that is simultaneously duplicate-keyed and missing tokens must report `bad syntax`, and nothing else asserts that. |
 | **Embedded-set validity + fallback-slug resolution** | **New** (§7.6). |
 | **Swap-and-diff completeness guard** | **New** (§13.4). |
 | **`RestoreTerminalBackground` anchor test** | **New** (§11.4). |
