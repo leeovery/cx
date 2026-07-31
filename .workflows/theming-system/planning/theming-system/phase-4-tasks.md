@@ -2,47 +2,47 @@
 
 ## theming-system-4-1
 
-### Task 4.1: Sweep the init-time derived styles and guard the class
+### Task 4.1: Sweep the init-time derived styles and record the residue
 
 **Problem**: §11.2 names **two** offenders — `pagepreview.go`'s package-init `Token` copy and `canvasHexFor`'s built-in reference — and then says in terms that they "are what was *found*, not the boundary of the class": init-time copies of **derived styles** (a style struct built from a token at package scope, rather than the token itself) "were never swept for at all". Both named offenders were fixed in Phase 3 (tasks 3-1 and 3-3), so the *sweep itself* is still unrun. This matters because a derived style assigned once — at package init, or once in a constructor and never re-pointed — cannot see a theme swap: the element it paints silently keeps the previous theme's colours until something else re-renders it. The class is invisible to code reading, because the assignment site and the render site are different files, and §11.2 is explicit that "a sweep that is never run leaves the guard doing work a five-minute grep would have done, and leaves the residue undocumented".
 
-**Solution**: run the sweep as its own act across `internal/tui` (and `internal/capture`), classifying every colour-bearing value assigned outside the per-frame render path into exactly one of three buckets — **fix** (an offender), **leave** (a legitimate colour-free init value), **record** (residue that cannot be fixed) — and land a structural guard that discriminates on **colour**, not on package scope, so the class cannot silently return.
+**Solution**: run the sweep as its own act across `internal/tui` (and `internal/capture`), classifying every colour-bearing value assigned outside the per-frame render path into exactly one of three buckets — **fix** (an offender), **leave** (a legitimate colour-free init value), **record** (residue that cannot be fixed) — and prove by assertion that every member of §11.2's hand-maintained list is genuinely re-pointed by the restyle path.
 
-**Outcome**: every colour-bearing value in `internal/tui` is either re-derived per frame or re-pointed by the restyle path; the residue list exists in a durable, discoverable place; and a guard test fails the build if a new package-scope colour-bearing value appears.
+**Outcome**: every colour-bearing value in `internal/tui` is either re-derived per frame or re-pointed by the restyle path, each member of §11.2's list has an assertion proving it, and the residue list exists in a durable, discoverable place — with task 4-3's behavioural guard, per §11.2, as what stops the class returning.
 
 **Do**:
 - **Run the package-scope sweep.** Enumerate every package-level `var` in every non-test `.go` file under `internal/tui` (the same package-dir glob idiom `colour_literal_guard_test.go` already uses — `filepath.Glob("./*.go")`, `_test.go` excluded) and classify each initialiser. Colour-bearing means: it calls `.Foreground(` / `.Background(` / `.BorderForeground(` / `.BorderBackground(`, calls `lipgloss.Color(`, or references a `theme.` selector (a `theme.Token`, a `theme.Theme`, or a value derived from one). Known state going in: `nameBase` (`session_item.go`) and `projectNameBase` (`project_item.go`) are `lipgloss.NewStyle().Bold(true)` — **colour-free, legitimate, must not be flagged**; `attachedSlotWidth` (a `lipgloss.Width` measurement), `loadingBlockBannerWidth` (an int), `emptyFooterKeys`, `loadingWordmark`, `labelOrder`, `stepLabelTable` are likewise colour-free; `previewBorderColorToken` is already gone (task 3-1).
 - **Run the construction-time sweep**, which is in scope as well as package-init: any style assigned once in `New` / `newSessionList` / `newProjectList` / a modal-open handler and never re-pointed by `applyCanvasMode` / `applyProjectCanvasMode` / `styleFilterInput`. §11.2's hand-maintained list is the checklist and is the whole point of running the sweep rather than trusting it: the `bubbles/list` help styles (`Styles.HelpStyle`), the pagination dots (`Styles.ActivePaginationDot` / `InactivePaginationDot` **and** the rendered `Paginator.ActiveDot` / `InactiveDot` strings `list.New` reads once at construction), `Styles.TitleBar` and `Styles.Title`, both filter inputs (`FilterInput.SetStyles`, both lists), and both delegates (`SessionDelegate` / `ProjectDelegate`). For each member, prove by assertion that the live value carries the *new* theme's colour after the restyle path runs — do not accept "it looks re-pointed".
 - **Fix a found offender; never guard around it.** §11.2: "Two known offenders are fixed outright, not guarded around… Fixing them does not make the guard redundant; the guard is what stops them returning." A package-scope derived style is fixed by inlining its construction at the use site (taking the active `Theme` as every renderer already does); a construction-time style is fixed by adding it to the restyle path.
-- **Record residue where it cannot be fixed**, as a comment block at the head of the new guard test file, one line per item with the reason. The first entry is known: `internal/capture`'s contrast-validation swatch (`swatch.go`) takes its theme per invocation and never swaps, so its once-assigned styles are **deliberate recorded residue, not a finding**. Also record the outcome of the sweep in the task's commit message — a sweep that found nothing is a finding, not a non-event.
-- **Land the structural guard** in `internal/tui` (test package `tui_test`, alongside the colour-literal guard so the two read as one family): `TestNoInitTimeDerivedStyle` parses each production file with `go/parser`, walks every package-level `var` initialiser, and fails on any colour-bearing one. Allow by **shape** (no `.Foreground`/`.Background`/`lipgloss.Color`/`theme.` in the initialiser), never by a name allowlist — a name list would need editing every time a legitimate init value is added and would rot into an exemption list.
-- **Do not pre-build the panel's third `bubbles/list` instance.** §11.2 names it as the worst case of this class, and Phase 8 owns it; the guard is written so the instance inherits coverage when it lands, without this task creating it.
+- **Record residue where it cannot be fixed**, as a comment block beside the restyle path (`applyCanvasMode` in `internal/tui/model.go` — where a reader asking "what re-points, and what does not?" lands), one line per item with the reason. The first entry is known: `internal/capture`'s contrast-validation swatch (`swatch.go`) takes its theme per invocation and never swaps, so its once-assigned styles are **deliberate recorded residue, not a finding**. Also record the outcome of the sweep in the task's commit message — a sweep that found nothing is a finding, not a non-event.
+- **Add no structural guard.** §11.2's protection against the class returning is task 4-3's **behavioural** swap-and-diff guard, and §13.4 makes that choice deliberate: a structural guard "would have to recognise 'this is a cached style' in the AST, which is not mechanically well-defined". This task's product is the sweep, its fixes, its per-member assertions and its residue record — nothing standing.
+- **Do not pre-build the panel's third `bubbles/list` instance.** §11.2 names it as the worst case of this class, and Phase 8 owns it; task 4-3's guard covers the instance when it lands, without this task creating it.
 
 **Acceptance Criteria**:
 - [ ] Every package-level `var` in `internal/tui`'s production files is classified, and none is colour-bearing.
-- [ ] `nameBase`, `projectNameBase`, `attachedSlotWidth` and `loadingBlockBannerWidth` are **not** flagged — the guard discriminates on colour, not on package scope.
+- [ ] `nameBase`, `projectNameBase`, `attachedSlotWidth` and `loadingBlockBannerWidth` are classified as legitimate colour-free init values — the sweep discriminates on colour, not on package scope.
 - [ ] Every member of §11.2's hand-maintained list has a passing assertion that it carries the new theme's colour after the restyle path runs: both lists' `HelpStyle`, both lists' `ActivePaginationDot`/`InactivePaginationDot` **and** the rendered `Paginator.ActiveDot`/`InactiveDot` strings, both `TitleBar`s, both `FilterInput` style sets, and both delegates.
-- [ ] Any offender found is **fixed**, not exempted; the guard passes with no exemption entries of any kind.
-- [ ] The residue list exists at the head of the guard test file, carries a reason per entry, and includes `internal/capture`'s swatch.
-- [ ] The guard fails when a colour-bearing package-scope var is deliberately introduced (proven by a temporary local edit during development, reverted).
+- [ ] Any offender found is **fixed**, never exempted or worked around.
+- [ ] The residue list exists beside the restyle path, carries a reason per entry, and includes `internal/capture`'s swatch.
+- [ ] The sweep's outcome — offenders found and fixed, or none — is recorded in the task's commit message.
+- [ ] No new standing guard test is introduced by this task; task 4-3's behavioural guard is the protection against the class returning.
 - [ ] No panel / third `bubbles/list` instance is introduced by this task.
 - [ ] `go build ./... && go test ./...` green; `golangci-lint run` clean.
 
 **Tests**:
-- `"it flags a package-scope style carrying a colour"` — `TestNoInitTimeDerivedStyle` (AST guard over the production glob)
-- `"it does not flag a colour-free init value"` — `TestNoInitTimeDerivedStyle_AllowsColourFreeInitValues` (table: `nameBase`, `projectNameBase`, `attachedSlotWidth`, `loadingBlockBannerWidth`)
 - `"it re-points every bubbles/list-owned style on both lists"` — `TestRestylePath_RepointsListOwnedStyles` (help style, both pagination dot styles, the two rendered `Paginator` dot strings, TitleBar, Title — sessions and projects)
 - `"it re-points both filter inputs"` — `TestRestylePath_RepointsBothFilterInputs`
 - `"it re-points both delegates"` — `TestRestylePath_RepointsBothDelegates`
+- `"it re-points a fixed offender"` — one assertion per offender the sweep finds, in the same shape as the three above (none if the sweep finds none)
 - `"it leaves the swatch's per-invocation styling alone"` — no test; recorded residue, asserted only by the residue comment block
 
 **Edge Cases**:
 - The two named offenders were **already fixed in Phase 3** and are "what was *found*, not the boundary of the class" — this task's value is the sweep for **derived styles**, which was never run.
-- The guard discriminates on **colour, not package scope**: `nameBase` / `projectNameBase` (bold only) and `attachedSlotWidth` (a measured width) are legitimate init-time values and must not be flagged.
+- The sweep discriminates on **colour, not package scope**: `nameBase` / `projectNameBase` (bold only) and `attachedSlotWidth` (a measured width) are legitimate init-time values.
 - **Construction-time derivation is in scope as well as package-init** — a style assigned once in `New` / `newSessionList` and never re-pointed by the restyle path is the same defect with a different assignment site.
-- A found offender is **fixed**, not guarded around; fixing it does not make the guard redundant — the guard is what stops it returning.
+- A found offender is **fixed**, not guarded around; fixing it does not make task 4-3's guard redundant — that guard is what stops it returning.
 - Residue that cannot be fixed is **recorded**. `internal/capture`'s swatch takes its theme per invocation and never swaps: deliberate recorded residue, not a finding.
-- This structural guard is **not a substitute** for §13.4's behavioural one (task 4-3) — a structural guard cannot recognise "this is a cached style" in the AST, which is exactly why the behavioural guard exists.
+- The sweep is a **one-time act** and leaves nothing standing behind it: §11.2 assigns the ongoing protection to §13.4's behavioural guard, and §13.4 rejects a structural one deliberately because "this is a cached style" is not mechanically decidable in the AST.
 - The panel's future third `bubbles/list` instance is **Phase 8's** and must not be pre-built here.
 
 **Context**:

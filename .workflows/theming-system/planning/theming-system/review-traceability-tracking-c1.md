@@ -56,7 +56,7 @@ Task `theming-system-3-2`, **Edge Cases** — add after the third bullet:
 - **The query is issued from `Init` regardless of the setting shape** — a constant skips the gate, not the query. `restore.go` needs the reply for its original-background capture independent of detection, and §9.3's mid-session conversion needs it in hand; a constant path that skips the query breaks both.
 - A constant's pre-resolved gate carries **no** detection-derived light/dark answer — its value is the standing dark fallback and must never be read as "the terminal is dark". Task 9-6 classifies the retained reply when a conversion first needs an answer.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -122,7 +122,7 @@ Task `theming-system-9-6`, **Edge Cases** — replace the ninth bullet with thes
 - The constant path's gate is **pre-resolved to the standing dark fallback**, not to a classification of the terminal, so reading it as the in-force answer after a conversion puts a light-terminal user on the dark slot — the exact outcome §9.3 exists to prevent.
 - **No new query, no race, no gate**, and **dark** when no reply has landed — the same rule as everywhere else.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -231,5 +231,5 @@ Task `theming-system-4-1` — title, **Solution**, **Outcome**, **Do**, **Accept
 - The sweep is a **one-time act** and leaves nothing standing behind it: §11.2 assigns the ongoing protection to §13.4's behavioural guard, and §13.4 rejects a structural one deliberately because "this is a cached style" is not mechanically decidable in the AST.
 - The panel's future third `bubbles/list` instance is **Phase 8's** and must not be pre-built here.
 
-**Resolution**: Pending
-**Notes**: If the structural guard is wanted as a deliberate addition beyond the specification, reject this finding rather than applying it — the plan otherwise carries an unapproved standing rule.
+**Resolution**: Fixed
+**Notes**: Applied under auto mode. The structural AST guard was dropped; the sweep, its fixes, the per-member re-point assertions and the residue record (re-homed beside applyCanvasMode) all stand, with task 4-3 as the ongoing protection per §11.2/§13.4.

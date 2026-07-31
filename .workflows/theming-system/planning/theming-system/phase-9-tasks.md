@@ -400,6 +400,7 @@
 - **Do not re-read the assigned slot** — its parse is already retained. State that in-source, since it is the half a reader is most likely to add "for symmetry".
 - **Emit exactly one `theme: loaded`** per converting commit: INFO, **undeduplicated**, carrying `slug` and `slot`, and carrying the **fallback's** slug when the newly-live slot was unloadable — otherwise `theme: fallback applied` and `theme: loaded` both name the slug that failed and a grep on a broken install cannot answer which palette is actually rendering. Wire the emission onto **this commit entry point only**; task 8-10 pinned that the shared open/close resolver emits none, so this is added deliberately rather than inherited.
 - **Join the nomination, not the active member**: the loaded `Theme` becomes the model's other nomination member so the pair is complete; the **active** member does not change (a commit is a write, not a navigation), and `ApplyTheme` is not called. Note that task 8-10's close re-resolves from persisted state regardless, so the join is model consistency rather than a dependency of the close path.
+- **Resolve the answer half too, from the reply already in hand.** A conversion makes light/dark matter for a user whose launch deliberately never consulted detection (§8.2), so the in-force light/dark answer must be **established here** — never read off the constant path's pre-resolved gate, whose value is the standing dark fallback rather than a classification of the terminal (task 3-2). Classify the OSC 11 background retained at launch and record it as the model's light/dark answer, so task 8-10's close and task 8-8's next open select the in-force member correctly with no change of their own. **No new query, no new race, no new gate** — §9.3's transition dissolves precisely because the answer already arrived, and the single-resolution rule (§8.8) is untouched: a reply arriving after this point still never re-themes. If **no reply has landed** — which requires the panel to have been opened within milliseconds of launch — it falls to **dark**, the same rule as everywhere else. A user who launched on an adaptive pair already has a classified answer, so a conversion never arises for them and nothing is re-derived.
 - **Emit nothing where nothing converts**: an already-adaptive `d`/`l`, any `Enter`, and any **failed** write all load nothing and emit nothing — both members are in hand already (or the write did not land), so there is no load to announce.
 
 **Acceptance Criteria**:
@@ -412,6 +413,10 @@
 - [ ] An already-adaptive `d`/`l` and any `Enter` emit **no** `theme: loaded` and perform no resolution of a new member.
 - [ ] A failed write emits no `theme: loaded`.
 - [ ] The model's nomination holds both members after a conversion, while the active theme and the composed frame are unchanged.
+- [ ] After a confirmed conversion on a **light** terminal the model's light/dark answer is light, and the next close (task 8-10) selects the **light** slot; on a dark terminal it selects the dark slot.
+- [ ] The conversion issues **no** new OSC 11 query and arms no new gate — the answer is classified from the background captured at launch.
+- [ ] A conversion performed before any reply has landed resolves to **dark**, and a reply arriving afterwards still does not re-theme.
+- [ ] A user who launched on an adaptive pair is unaffected: their answer is already classified and a `d`/`l` commit does not re-derive it.
 - [ ] `ResolveSlot` and the badge path's `Resolve` return the same slug for the same input (shared rule body).
 - [ ] A `log.Discard`-backed loader emits nothing on this path.
 
@@ -426,6 +431,9 @@
 - `"it emits nothing when nothing converts"` — `TestCommitSlotLoad_NonConvertingCommitIsSilent` (adaptive `d`/`l` and `Enter`)
 - `"it emits nothing on a failed write"` — `TestCommitSlotLoad_FailedCommitLoadsNothing`
 - `"it completes the nomination without changing the active member"` — `TestCommitSlotLoad_ActiveThemeUnchanged`
+- `"it classifies the retained background on conversion"` — `TestCommitSlotLoad_ConversionUsesTheRetainedAnswer` (light terminal, dark terminal)
+- `"it issues no new query on conversion"` — `TestCommitSlotLoad_ConversionIssuesNoQuery`
+- `"it falls back to dark when no reply landed"` — `TestCommitSlotLoad_ConversionWithNoReplyIsDark`
 - `"it agrees with the badge resolution"` — `TestCommitSlotLoad_SharesTheResolverBody`
 - `"it is silent on the discard logger"` — `TestCommitSlotLoad_DiscardSilencesLoaded`
 
@@ -439,6 +447,9 @@
 - The event is wired onto the **commit entry point only** — task 8-10 pinned that the shared retained-enumeration resolver emits no `loaded` on open or close, so this is added deliberately rather than inherited from the shared body.
 - A commit that converts nothing (an already-adaptive `d`/`l`, or any `Enter`) loads nothing and emits nothing, both members being in hand already.
 - The loaded member joins the model's nomination so the pair is complete, but the **active** member does not change.
+- §9.3's transition has **two halves** and both land on this keypress: the file half (the opposite slot's load) and the **answer half** — the light/dark classification a constant user's launch deliberately never made. The answer half dissolves only because `restore.go`'s query ran anyway; it does not dissolve into *nothing*, so the classification has to happen somewhere and this is the first keypress that needs it.
+- The constant path's gate is **pre-resolved to the standing dark fallback**, not to a classification of the terminal, so reading it as the in-force answer after a conversion puts a light-terminal user on the dark slot — the exact outcome §9.3 exists to prevent.
+- **No new query, no race, no gate**, and **dark** when no reply has landed — the same rule as everywhere else.
 - A failed write converts nothing, so it loads nothing and emits nothing.
 
 **Context**:

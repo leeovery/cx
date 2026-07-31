@@ -119,7 +119,7 @@
           "spec_commit": "7278bf39d04f1301a18ac0a60a1cc6b8ae1f3e37",
           "task_list_gate_mode": "auto",
           "author_gate_mode": "auto",
-          "finding_gate_mode": "gated",
+          "finding_gate_mode": "auto",
           "review_cycle": 1,
           "phase": 11,
           "task": null,
@@ -243,7 +243,7 @@
           "staging": {},
           "external_id": "tick-f9fa94",
           "tracking": {
-            "review-traceability-tracking-c1": "in-progress"
+            "review-traceability-tracking-c1": "complete"
           }
         }
       }
