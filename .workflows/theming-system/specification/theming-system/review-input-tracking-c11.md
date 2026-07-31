@@ -38,8 +38,8 @@ Neither is a new decision — both are supporting evidence the source recorded f
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §2.3 now carries the A7 finding that use-site naming is the ecosystem norm (Helix names essentially its whole UI half that way), which is what bounds the rule and stops "a place is wrong" reading as a verdict on everyone else — and it is the second counter-argument on record against going fully positional. The pairing kind now cites Crush's `onPrimary` as the recognised convention, which matters most for the one kind that departs from the section's own principle.
 
 ---
 
@@ -73,8 +73,8 @@ Note this does not reopen split. The source's own conclusion is that Charm's dir
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §3.1 now records the Lipgloss v2 reading and its correction: moving AdaptiveColor into compat looks like support for split but is not — `lipgloss.LightDark` keeps paired values and only makes detection explicit, so Charm's direction is neutral. Kept because both APIs are live in the tree and an implementer will reasonably ask why Portal hand-rolls a decision the library has an API for; the answer (Portal's gate selects between two *named themes*) is now stated.
 
 ---
 
@@ -106,8 +106,8 @@ Three consequences:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.3 gains the ecosystem evidence for detection-by-default (bat, delta, Neovim, yazi) — the one external check on a decision that ships a named risk to every install — plus the record that the apparently-contrary "everyone ships a hardcoded default" claim is refuted, with only the narrower nobody-prompts claim surviving as the precedent for §8.7's no-seed position.
 
 ---
 
@@ -134,5 +134,5 @@ One sentence in §8.5 closes it, and it is the sentence the source wrote.
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.5 now states that §8.3's "degrades to the alternative" reason depends on the fallback values coinciding with the shipped default's — a gap that went unnoticed once — so changing them, or adopting the rejected single-fixed-fallback, silently invalidates §8.3. Flagged in the same form as §7.7's gate on the built-in set and §8.4's ordering carrying §5.4's safety property.

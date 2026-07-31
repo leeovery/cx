@@ -77,9 +77,11 @@ Four naming kinds are in play. Three are covered by the table below — two of t
 | A **hue** | `accent.violet` | Wrong — lies in every port. A Gruvbox author writes `accent.violet = #d79921` (Gruvbox yellow) and the key actively misdescribes its own value. |
 | A **meaning** | `state.destructive` | Right — stays true regardless of palette or where it is drawn. |
 
-This does **not** make everything weight-based. The text ramp and the border want intrinsic-**weight** names because their role genuinely is "how prominent". The accents want **meaning** names because a theme author needs to know what a colour signifies in order to choose one.
+This does **not** make everything weight-based — and the reason is that **use-site naming is the ecosystem norm**, not an aberration: Helix names essentially its whole UI half that way. So "a place is wrong" is a judgement about *Portal's* vocabulary, where a token is deliberately reused across surfaces, rather than a verdict on how everyone else does it. Worth knowing both for a theme author arriving from Helix and for anyone later arguing the ramp should go fully positional — the counter-argument on record is not only that it strips meaning from ~20 files of call sites (§2.6.1) but that the ecosystem does not do it either.
 
-**A fourth kind is deliberately kept: a *pairing* name.** `text.on-selection` and `text.on-attention` name **another token** rather than a place, a hue, a meaning or a weight — and that is correct here, because their role genuinely *is* relational: each exists only to be legible on a specific tint, and §13.5 floors it as a pairing. A theme author choosing a value for `text.on-attention` needs to know what it sits on, which is exactly what the name says.
+Within that bound: the text ramp and the border want intrinsic-**weight** names because their role genuinely is "how prominent". The accents want **meaning** names because a theme author needs to know what a colour signifies in order to choose one.
+
+**A fourth kind is deliberately kept: a *pairing* name.** `text.on-selection` and `text.on-attention` name **another token** rather than a place, a hue, a meaning or a weight — and that is correct here, because their role genuinely *is* relational: each exists only to be legible on a specific tint, and §13.5 floors it as a pairing. A theme author choosing a value for `text.on-attention` needs to know what it sits on, which is exactly what the name says. **It is also a recognised convention rather than a Portal invention** — Crush's `onPrimary` names the same shape — which matters for the one kind that departs from this section's own stated principle.
 
 **Its cost is stated because it is real and one-directional:** renaming `bg.attention` forces renaming `text.on-attention` in lockstep (§2.4 row 19 records the coupling as a fact), and under §4.6 each rename fails every drop-in using the old key. These two are the only place in the 19 where one rename is necessarily two breaking changes — worth knowing in a vocabulary whose whole justification (§1.3) is that renaming is mechanical for built-ins and breaking for users.
 
@@ -174,6 +176,10 @@ Decisive reasons:
 - **The pairing MV implies isn't real.** Six of MV's light hexes needed *individual* correction and four light surface tints were eyeball-pinned at a validation gate. MV's light and dark are two independently-tuned palettes that happen to share token names; the struct claims a derivation relationship that does not exist.
 - **Detection and pairing are independent axes.** Auto-detection with single-palette themes — where detection picks between two *named themes* rather than two variants — is a shipping design (Helix's). Wanting detection does not commit Portal to paired.
 - Single-palette is the overwhelmingly dominant ecosystem shape.
+
+**One thing that looks like a fifth reason is not one, and is recorded so it is not picked up as such.** Lipgloss v2 moved `AdaptiveColor` into `compat`, which reads at a glance as Charm deprecating paired colours — i.e. as independent support for split. It is not: the recommended replacement, `lipgloss.LightDark(hasDarkBG)`, **keeps paired values** and merely makes the detection explicit. What Charm de-recommended is *implicit detection*, not pairing, so **its direction is neutral on this decision.**
+
+This is a standing fact about a live dependency rather than a discarded option — both APIs are in the tree Portal builds against, and an implementer working through §3.2's collapse of `Token` or §8.8's surviving detect-or-timeout gate will meet them and reasonably ask why Portal hand-rolls a light/dark decision the library has an API for. The answer is that Portal's gate selects between two *named themes*, which `LightDark` does not model.
 
 ### 3.2 Go-side data shape
 
@@ -776,6 +782,9 @@ Reasons over shipping a constant dark default:
 - **The 50ms is a timeout, not a price** — terminals that answer do so in single-digit ms — and it applies only to TUI launches, since `portal open <target>` execs without painting.
 - **It degrades to the alternative**: no answer resolves to dark, so the adaptive pair is a superset of a constant dark default with a bounded downside.
 - **Asymmetric escape.** Pinning is one line and is the *simpler* config (`"theme": "tokyo-night"`), so an annoyed user has an obvious remedy. The alternative's failure has no signal at all — a light-terminal user gets a dark Portal forever and never learns a light theme exists.
+- **The ecosystem answers this the same way.** `bat` (`--theme` defaults `auto`), `delta` (`--detect-dark-light` defaults `auto`), Neovim (`background` auto-set by the TUI at startup and re-detected when a UI attaches) and `yazi` all **detect by default**. This is the one external check on a decision that ships a named risk to every install (below), so it is worth having on record.
+
+  **A claim that appears to argue the other way is refuted and is recorded as such**, because the same material is easy to re-derive from: *"every surveyed application ships a hardcoded default and starts rendering"* came from a research paragraph research itself superseded. The narrower claim that survives is that nobody **prompts** on first run — which is the precedent for not seeding and not prompting (§8.7), not for declining to detect.
 
 **Risk named:** a terminal that answers OSC 11 inconsistently makes Portal flip between launches. The one-line pin is the remedy.
 
@@ -832,6 +841,8 @@ When a nominated theme is unloadable (invalid file, missing file, bad persisted 
 | `theme` (constant) | `tokyo-night` |
 
 This introduces **no new mechanism** — it is the already-decided "an unset slot holds the shipped default" rule applied to a slot that is *set but unloadable* rather than unset. One rule covers both cases, and it makes the shipped adaptive default and the fallback default **the same values**.
+
+**§8.3's second reason depends on that coincidence.** "The adaptive pair degrades to a constant dark default" is true *only* because an unresolvable slot lands on the same theme the shipped default nominates — before this fallback was pinned, that argument was resting on two different notions of "default" and the gap went unnoticed. So **changing these values, or adopting the single-fixed-fallback alternative rejected below, silently invalidates §8.3.** Flagged here in the same way §7.7's check gates the built-in set and §8.4's ordering carries §5.4's safety property.
 
 Rejected: a single fixed fallback regardless of mode. Simpler to state, worse in practice — a light-terminal user with a typo in their light slot would be thrown to a dark theme, a bigger surprise than falling to the light default.
 
