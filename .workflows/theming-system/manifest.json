@@ -110,6 +110,25 @@
           }
         }
       }
+    },
+    "planning": {
+      "items": {
+        "theming-system": {
+          "status": "in-progress",
+          "format": "tick",
+          "spec_commit": "7278bf39d04f1301a18ac0a60a1cc6b8ae1f3e37",
+          "task_list_gate_mode": "gated",
+          "author_gate_mode": "gated",
+          "finding_gate_mode": "gated",
+          "review_cycle": 0,
+          "phase": 1,
+          "task": null,
+          "task_map": {},
+          "storage_paths": [
+            ".tick/"
+          ]
+        }
+      }
     }
   },
   "seeds": [
