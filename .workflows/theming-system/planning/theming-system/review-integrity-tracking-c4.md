@@ -60,7 +60,7 @@ Task 8.10 — **Tests** (tail of the list, one entry added):
 - `"it is the single close path"` — `TestPanelClose_ForcedCloseUsesTheSameFunction` (task 8-11's forced close asserted to route here)
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -123,7 +123,7 @@ Task 8.6 — **Tests** (the two overlay entries, plus one added):
 - `"it composites the panel into the model's view when open"` — `TestThemePanel_ViewCompositesWhenOpen` (open set directly; the closed frame byte-identical to the pre-panel view)
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -156,5 +156,5 @@ Task 9.9 — **Do**, the forced-close bullet:
 - **Forced close: the commit flash wins, and the flag is read *before* the close.** In task 8-11's below-floor resize path, capture `m.themeCommitFailed` **before** calling `closeThemePanel`, and raise the geometry flash only when that captured value was false; when it was true the close's own hook has already raised the report and discharged the state, so the resize path raises nothing further. Pin the ordering in-source, because the naive shape is wrong in a way no reading of the sentence catches: the hook discharges the flag *as part of* raising the report, so a post-close `if !m.themeCommitFailed { raise geometry }` always sees false and overwrites the report the hook just placed in the single-slot band. Record the reasoning too: the band has one slot and the two report different things — a geometry event the user can see for themselves (their terminal just got smaller and the panel vanished) versus an unsaved setting they must act on. Losing the geometry flash costs nothing; losing the commit flash on the one path where the user cannot reopen the panel to retry is exactly the failure §9.13 closes.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:

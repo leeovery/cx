@@ -452,6 +452,7 @@
 - **Lay out the panel** as: header (2) + directory row (0 or 1) + list body (the remainder, ≥ 1) + message slot (0, always, this phase) + footer (task 8-5's measured height). Size the panel's `list.Model` to `(innerWidth, bodyRows)` through the same `SetSize` discipline the other two lists use, and construct it with `SetFilteringEnabled(false)`, `SetShowTitle(false)`, `SetShowStatusBar(false)` and `SetShowHelp(false)` — the panel's own chrome supplies all of that. Declare `themePanelPreferredWidth = 30` and `themePanelMinWidth = 24` here as the two ends of the ladder; **task 8-11 owns choosing between them and the refusal below the minimum** — this task renders at whatever width it is handed.
 - **Declare the delegate's single construction point.** Add `func (m Model) themeRowDelegate() themeRowDelegate` returning task 8-4's delegate built from the **previewed** theme (`m.activeTheme`), `m.colourless`, and the panel's current inner content width — and build the list's delegate only through it, here at construction and (task 8-9) on every restyle. There must be exactly one place the three inputs are assembled: two construction sites can disagree about width or colourlessness, and that disagreement is invisible until a resize during a live preview, on the surface §11.2 calls the worst case of the cached-style class.
 - **Composite, do not re-lay-out.** `overlayThemePanel` mirrors `overlayHelpOnPreview` exactly: `lipgloss.NewLayer(base).X(0).Y(0).Z(0)` and `lipgloss.NewLayer(panel).X(contentW - panelWidth).Y(0).Z(1)` through `lipgloss.NewCompositor(...).Render()`. State in-source that the main screen is deliberately **not** re-laid-out while the panel is open — that is what keeps the swap the O(1) restyle of §11.1 and keeps the surface being previewed from reflowing under the user — so the overlay cuts wherever its left border falls, mid-label included (`x proje▏`), which is **not** a §14.4 violation (§14.4 governs how the footer lays *itself* out as the terminal narrows; the panel is an opaque layer over a footer that laid out at full width).
+- **Wire it into `Model.View()`.** Gate on `p.open`: render the panel at the current content height, then composite it over the already-composed page view as the **last** layer, after the outer full-terminal canvas fill — otherwise the fill paints over it. Nothing sets `open` in this task (task 8-7's `t` does), so drive it in tests by setting the field directly, exactly as the message slot's height recompute is driven above. Without this step the panel is a block that renders correctly and never reaches the screen, and every later assertion made against "the composed frame" — task 8-9's arrow diff, task 8-10's byte-compare of the pre-open frame, and every fixture in tasks 8-15 / 8-16 / 9-12 — has nothing to assert against.
 - **No animation.** Opening and closing are one frame each. Record in-source why: §11.3's OSC 11 emission would fire repeatedly through a canvas-bearing slide, intermediate panel widths would render frames no fixture covers, and `t` followed immediately by `Esc` would need a race resolved. "Slide-over" names the shape — full-height, right-edge, left-border-only — not a motion idiom.
 - Note in the panel's doc comment that this is the **third `bubbles/list` instance** and §11.2's worst case of the cached-style class: its `bubbles/list`-owned styles (pagination dots, its own help/title styles) are assigned here at construction and are re-pointed by task 8-9's restyle path, not rebuilt.
 
@@ -464,6 +465,8 @@
 - [ ] With an empty `message` the slot contributes zero rows and the list body is one row taller than with a one-row message (asserted by setting the field directly, since no contender exists yet).
 - [ ] The panel body is `canvas`; a `NO_COLOR`-style `colourless` render emits no background SGR anywhere in the block.
 - [ ] `overlayThemePanel` leaves every base cell to the left of the panel byte-identical and replaces every cell under it, with the base view composed at the **unreduced** content width (a footer entry is cut mid-label rather than reflowed).
+- [ ] `Model.View()` composites the panel when `open` is true (set directly in the test) and is byte-identical to the pre-panel view when it is false.
+- [ ] The panel is the last layer composed, so the outer full-terminal canvas fill never paints over any panel cell.
 - [ ] The panel's list is constructed with filtering, title, status bar and help all disabled, and `SetSize` is fed the inner width and the computed body height.
 - [ ] The panel's list delegate is built only through `m.themeRowDelegate()`, which takes its `Theme`, `Colourless` and `Width` from the model and the panel's current inner width — no second construction site exists.
 - [ ] Rendering the same panel state under two different `Theme`s changes every chrome colour, with no surface holding a cached style.
@@ -480,6 +483,7 @@
 - `"it shrinks the list by one when a message is present"` — `TestThemePanel_MessageSlotRecomputesListHeight`
 - `"it composites over the page without reflowing it"` — `TestThemePanel_OverlayDoesNotRelayoutTheBase`
 - `"it cuts the covered footer mid-label"` — `TestThemePanel_OverlayCutsMidLabel`
+- `"it composites the panel into the model's view when open"` — `TestThemePanel_ViewCompositesWhenOpen` (open set directly; the closed frame byte-identical to the pre-panel view)
 - `"it uses only existing tokens"` — `TestThemePanel_EveryChromeSurfaceIsATokenLookup` (render under two themes, diff)
 - `"it builds its delegate from one place"` — `TestThemePanel_DelegateHasASingleConstructionPoint`
 - `"it drops the canvas under colourless"` — `TestThemePanel_Colourless`
@@ -738,7 +742,7 @@
 
 **Problem**: Task 8-7 left a **provisional** `Esc` that merely clears panel state — correct only at that point in the sequence, because nothing had previewed yet. Now arrowing re-themes the app (task 8-9), so closing must undo a preview the user explicitly discarded, and the naive implementation — snapshot the theme at open, restore it at close — is wrong in *two* directions. It is wrong when the user broke the active theme's file mid-session (the snapshot restores a palette the config no longer yields, so Portal shows a stale copy it happens to still hold rather than what the config now says), and it is wrong forward: Phase 9's commits land on exactly this close path, and `Esc` after a commit must resolve to the **newly** persisted state, not to what was rendering when the panel opened. §11.1 also names the close as the caller that matters most — a missed style re-point there leaves a discarded preview painting the main screen, with no surface left open to explain it. And `Esc` is the *only* way out (`Enter` deliberately does not close), so this one path is also where §9.8's forced close and Phase 9's failed-commit flash must attach.
 
-**Solution**: Replace the provisional body with a single `closeThemePanel` that **re-resolves persisted state** against the panel's retained enumeration, applies the resolved active theme through `Model.ApplyTheme`, then discards the panel's retained state and re-syncs the page layout — one function serving `Esc`, the forced close, and Phase 9's hooks.
+**Solution**: Replace the provisional body with a single `closeThemePanel` that **re-resolves persisted state** against the panel's retained enumeration, applies the resolved active theme through `Model.ApplyTheme`, then discards the panel's retained state — one function serving `Esc`, the forced close, and Phase 9's hooks.
 
 **Outcome**: `Esc` closes the panel and leaves the screen painting whatever the persisted setting now resolves to — the same theme as before when nothing changed, the §8.5 fallback when the user broke the active theme's file mid-session, and (from Phase 9) the newly committed theme when a commit landed. The retained enumeration is dropped, so the next open re-reads. Nothing is written.
 
@@ -748,7 +752,7 @@
   2. Call the seam's `Resolve(p.enumeration, setting)` (task 8-8's `ResolveNominationFrom`) — resolution runs **against the retained enumeration**, never the filesystem, so it agrees with the rows the user was just looking at and issues no third parse. A non-nil error takes task 8-8's degrade policy: skip steps 3 and 4, leaving the active theme exactly as it is, and fall through to step 5 so the panel still closes.
   3. Select the in-force member exactly as task 8-8 does — the constant under a constant, else the light member iff the gate's **single** resolved answer is light, else dark. Never re-run detection.
   4. `m.ApplyTheme(selected)` — the same production restyle path every other caller drives. When nothing changed this is a no-op.
-  5. **Then** discard: `open=false`, zero `enumeration`, `union`, `badges` and `message`, and re-sync the active page's layout so the list reclaims the panel's frame. Order matters — resolution reads the enumeration, so the discard is last.
+  5. **Then** discard: `open=false`, zero `enumeration`, `union`, `badges` and `message`. Order matters — resolution reads the enumeration, so the discard is last. **The page beneath needs no re-layout on close, because it was never reduced on open** — task 8-6 composites the panel over a base view laid out at the **unreduced** content width and task 8-11 keeps that true across a resize, so there is no frame to reclaim. State that in-source as a negative: a reader who "completes" the close with a reclaim step is one step from adding the open-time reduction that would justify it, which reflows the surface being previewed and falsifies task 8-6's cut-mid-label criterion and task 8-16's `theme-panel-projects` frame. If a notice band was raised or cleared while the panel was open, the existing `resyncSessionLayout` / its Projects sibling already handles that on its own path (task 8-12) — closing the panel adds nothing to it.
 - **State the anti-pattern in-source**: `Esc` does **not** restore a theme snapshotted at open. Name both directions it would be wrong (a mid-session edit that invalidates the active theme; a Phase 9 commit that changes what persisted state resolves to) so a later reader does not "simplify" it back into a snapshot.
 - **Pin the emission policy of the retained-enumeration resolver** (it is re-called on every open and every close, so cadence matters, and this is the task where the repetition becomes real):
   - `theme: fallback applied` **does** fire — §12.3 explicitly names "again on every panel open and again on every `Esc`" as the reason it is deduplicated per process on `slug`+`reason`, so a persistently broken active theme produces one WARN, not one per close.
@@ -768,7 +772,8 @@
 - [ ] Ten open/close cycles against a persistently broken active theme emit exactly **one** `theme: fallback applied` and **zero** `theme: loaded` records.
 - [ ] `Esc` with a filter applied on the page beneath closes the panel and leaves the filter applied; `Esc` inside multi-select closes the panel and leaves the marked set and the banner intact.
 - [ ] `Esc` does not quit Portal on either page.
-- [ ] The panel's list, delegate, badges and message are all cleared on close, and the page list is re-sized so it reclaims the full frame.
+- [ ] The panel's list, delegate, badges and message are all cleared on close.
+- [ ] Neither open nor close re-lays-out the page beneath: at a fixed terminal size the active page list's width and height are byte-identical before the panel opens, while it is open, and after it closes.
 - [ ] Closing is one frame — no intermediate width, no animation state.
 
 **Tests**:
@@ -782,6 +787,7 @@
 - `"it leaves an applied filter alone"` — `TestPanelClose_DoesNotClearTheFilter`
 - `"it returns to multi-select with the set intact"` — `TestPanelClose_NestsOverMultiSelect`
 - `"it never quits"` — `TestPanelClose_EscDoesNotQuit` (both pages)
+- `"it re-lays-out nothing on the page beneath"` — `TestPanelClose_PageLayoutUnchangedAcrossOpenAndClose` (list size compared before open, while open, and after close)
 - `"it is the single close path"` — `TestPanelClose_ForcedCloseUsesTheSameFunction` (task 8-11's forced close asserted to route here)
 
 **Edge Cases**:
