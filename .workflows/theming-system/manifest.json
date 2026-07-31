@@ -179,7 +179,24 @@
             "theming-system-7-4": "tick-de3937",
             "theming-system-7-5": "tick-9773e6",
             "theming-system-7-6": "tick-3b3d5c",
-            "theming-system-7-7": "tick-bfb000"
+            "theming-system-7-7": "tick-bfb000",
+            "theming-system-8-1": "tick-71405e",
+            "theming-system-8-2": "tick-b899bd",
+            "theming-system-8-3": "tick-5e1ffb",
+            "theming-system-8-4": "tick-6519c1",
+            "theming-system-8-5": "tick-8ce43c",
+            "theming-system-8-6": "tick-90a78e",
+            "theming-system-8-7": "tick-90e355",
+            "theming-system-8-8": "tick-61f5dc",
+            "theming-system-8-9": "tick-04f62d",
+            "theming-system-8-10": "tick-1712c0",
+            "theming-system-8-11": "tick-dd4c9c",
+            "theming-system-8-12": "tick-c276f4",
+            "theming-system-8-13": "tick-0f9ff4",
+            "theming-system-8-14": "tick-4116f3",
+            "theming-system-8-15": "tick-5ef8ad",
+            "theming-system-8-16": "tick-f5faa1",
+            "theming-system-8": "tick-044380"
           },
           "storage_paths": [
             ".tick/"
@@ -197,7 +214,28 @@
               "p8": "2026-07-31"
             }
           },
-          "staging": {},
+          "staging": {
+            "author-p8": {
+              "tasks": {
+                "theming-system-8-1": "approved",
+                "theming-system-8-2": "approved",
+                "theming-system-8-3": "approved",
+                "theming-system-8-4": "approved",
+                "theming-system-8-5": "approved",
+                "theming-system-8-6": "approved",
+                "theming-system-8-7": "approved",
+                "theming-system-8-8": "approved",
+                "theming-system-8-9": "approved",
+                "theming-system-8-10": "approved",
+                "theming-system-8-11": "approved",
+                "theming-system-8-12": "approved",
+                "theming-system-8-13": "approved",
+                "theming-system-8-14": "approved",
+                "theming-system-8-15": "approved",
+                "theming-system-8-16": "approved"
+              }
+            }
+          },
           "external_id": "tick-f9fa94"
         }
       }
