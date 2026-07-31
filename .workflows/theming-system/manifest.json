@@ -122,13 +122,14 @@
           "finding_gate_mode": "gated",
           "review_cycle": 0,
           "phase": 1,
-          "task": "theming-system-1-5",
+          "task": "theming-system-1-6",
           "task_map": {
             "theming-system-1-1": "tick-cac1ab",
             "theming-system-1": "tick-1c8edf",
             "theming-system-1-2": "tick-1e2953",
             "theming-system-1-3": "tick-63e160",
-            "theming-system-1-4": "tick-a2aa9d"
+            "theming-system-1-4": "tick-a2aa9d",
+            "theming-system-1-5": "tick-61d236"
           },
           "storage_paths": [
             ".tick/"
