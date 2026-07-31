@@ -209,7 +209,18 @@
             "theming-system-9-10": "tick-8dae4d",
             "theming-system-9-11": "tick-e0b3af",
             "theming-system-9-12": "tick-2f6534",
-            "theming-system-9": "tick-163125"
+            "theming-system-9": "tick-163125",
+            "theming-system-10-1": "tick-9e27cc",
+            "theming-system-10-2": "tick-096124",
+            "theming-system-10-3": "tick-2df46b",
+            "theming-system-10-4": "tick-d32fcf",
+            "theming-system-10-5": "tick-2dbb82",
+            "theming-system-10-6": "tick-6e2508",
+            "theming-system-10-7": "tick-fc47f4",
+            "theming-system-10-8": "tick-e7d649",
+            "theming-system-10-9": "tick-275a80",
+            "theming-system-10-10": "tick-417ab6",
+            "theming-system-10": "tick-f98f60"
           },
           "storage_paths": [
             ".tick/"
@@ -229,7 +240,22 @@
               "p10": "2026-07-31"
             }
           },
-          "staging": {},
+          "staging": {
+            "author-p10": {
+              "tasks": {
+                "theming-system-10-1": "approved",
+                "theming-system-10-2": "approved",
+                "theming-system-10-3": "approved",
+                "theming-system-10-4": "approved",
+                "theming-system-10-5": "approved",
+                "theming-system-10-6": "approved",
+                "theming-system-10-7": "approved",
+                "theming-system-10-8": "approved",
+                "theming-system-10-9": "approved",
+                "theming-system-10-10": "approved"
+              }
+            }
+          },
           "external_id": "tick-f9fa94"
         }
       }
