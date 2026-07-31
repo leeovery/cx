@@ -243,7 +243,8 @@
           "staging": {},
           "external_id": "tick-f9fa94",
           "tracking": {
-            "review-traceability-tracking-c1": "complete"
+            "review-traceability-tracking-c1": "complete",
+            "review-integrity-tracking-c1": "in-progress"
           }
         }
       }
