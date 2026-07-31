@@ -77,13 +77,13 @@ Five naming kinds are in play. Three are covered by the table below — two of t
 | A **hue** | `accent.violet` | Wrong — lies in every port. A Gruvbox author writes `accent.violet = #d79921` (Gruvbox yellow) and the key actively misdescribes its own value. |
 | A **meaning** | `state.destructive` | Right — stays true regardless of palette or where it is drawn. |
 
-This does **not** make everything weight-based — and the reason is that **use-site naming is the ecosystem norm**, not an aberration: Helix names essentially its whole UI half that way. So "a place is wrong" is a judgement about *Portal's* vocabulary, where a token is deliberately reused across surfaces, rather than a verdict on how everyone else does it. Worth knowing both for a theme author arriving from Helix and for anyone later arguing the ramp should go fully positional — the counter-argument on record is not only that it strips meaning from ~20 files of call sites (§2.6.1) but that the ecosystem does not do it either.
+This does **not** make everything weight-based — and the reason is that **use-site naming is the ecosystem norm**, not an aberration: Helix names essentially its whole UI half that way. So "a place is wrong" is a judgement about *Portal's* vocabulary, where a token is deliberately reused across surfaces, rather than a verdict on how everyone else does it.
 
 Within that bound, **a fourth kind is right for six of the nineteen: a *weight* name.** The text ramp and the border take one because their role genuinely is "how prominent" — an intrinsic property that stays true in any palette, which is what distinguishes it from a place. The accents keep **meaning** names, because a theme author needs to know what a colour signifies in order to choose one.
 
 **A fifth kind is deliberately kept: a *pairing* name.** `text.on-selection` and `text.on-attention` name **another token** rather than a place, a hue, a meaning or a weight — and that is correct here, because their role genuinely *is* relational: each exists only to be legible on a specific tint, and §13.5 floors it as a pairing. A theme author choosing a value for `text.on-attention` needs to know what it sits on, which is exactly what the name says. **It is also a recognised convention rather than a Portal invention** — Crush's `onPrimary` names the same shape — which matters for the one kind that departs from this section's own stated principle.
 
-**Its cost is stated because it is real and one-directional:** renaming `bg.attention` forces renaming `text.on-attention` in lockstep (§2.4 row 19 records the coupling as a fact), and under §4.6 each rename fails every drop-in using the old key. These two are the only place in the 19 where one rename is necessarily two breaking changes — worth knowing in a vocabulary whose whole justification (§1.3) is that renaming is mechanical for built-ins and breaking for users.
+**Its cost is stated because it is real and one-directional:** renaming `bg.attention` forces renaming `text.on-attention` in lockstep (§2.4 row 19 records the coupling as a fact), and under §4.6 each rename fails every drop-in using the old key. These two are the only place in the 19 where one rename is necessarily two breaking changes.
 
 ### 2.4 The rename table
 
@@ -115,15 +115,17 @@ All 19 tokens, with the Go field name each maps to:
 
 These meanings are the substance of `docs/theming.md` (§12.4), which is the source of truth for the contract.
 
+Use-sites here are illustrative of each role, not an inventory. **The theme panel's own surface-by-surface assignments live in §9.1** and are not repeated here — one table per view, so they cannot disagree.
+
 **Text ramp — bright to faint, in weight order:**
 
 | Token | Role |
 |---|---|
-| `text.primary` | Names, wordmark, active labels, modal titles, chip text, theme-panel row labels |
-| `text.secondary` | Selected-row meta, help actions, banner/signpost, theme-panel confirm message |
+| `text.primary` | Names, wordmark, active labels, modal titles, chip text |
+| `text.secondary` | Selected-row meta, help actions, banner/signpost |
 | `text.tertiary` | Done-tick labels, selected-row path |
-| `text.muted` | Paths, counts, footer labels, subtitles, group headings, theme-panel footer labels |
-| `text.subtle` | Group `··· N` counts, pending loading steps, **de-emphasised-but-readable labels** — theme-panel invalid-row labels |
+| `text.muted` | Paths, counts, footer labels, subtitles, group headings |
+| `text.subtle` | De-emphasised but still readable — group `··· N` counts, pending loading steps |
 | `text.faint` | Decorative only — inactive dots, `+ add`, mode indicator, hints. **Never carries content a user must read**; §13.5 floors it below the UI threshold precisely so it cannot |
 | `text.on-selection` | Name on the selected row (pairs against `bg.selection`) |
 
@@ -131,10 +133,10 @@ These meanings are the substance of `docs/theming.md` (§12.4), which is the sou
 
 | Token | Role |
 |---|---|
-| `accent.primary` | Cursor, selector bar, active dot, `?` key, focused field label, mode bar, loading bar, theme-panel `●` assignment badge |
-| `accent.key` | Footer / modal key-hint glyphs, theme-panel footer key glyphs |
-| `accent.mode` | Sessions header, Preview chrome, active tick, theme-panel header — signals a distinct mode |
-| `accent.attention` | Filter query and `/`, edit-mode, warning flash `⚠`, theme-panel invalid-row `⚠` and reason, theme-panel directory-unreadable row |
+| `accent.primary` | Cursor, selector bar, active dot, `?` key, focused field label, mode bar, loading bar |
+| `accent.key` | Footer / modal key-hint glyphs |
+| `accent.mode` | Signals a distinct mode — Sessions header, Preview chrome, active tick |
+| `accent.attention` | Filter query and `/`, edit-mode, warning `⚠` |
 | `state.positive` | `●` attached, Sessions count, Projects label, `✓` done, success flash |
 | `state.destructive` | Kill / delete emphasis, `▲` |
 
@@ -146,7 +148,7 @@ These meanings are the substance of `docs/theming.md` (§12.4), which is the sou
 | `bg.selection` | Selected-row tint |
 | `bg.attention` | Warning-flash band |
 | `bg.subtle` | Low neutral fill — loading-bar empty track |
-| `border` | Title rule, footer rule, modal panel frames, edit-modal chips, theme-panel left border and header rule |
+| `border` | Title rule, footer rule, modal panel frames, edit-modal chips |
 | `text.on-attention` | Warning-flash message (pairs against `bg.attention`) |
 
 ### 2.6 Accepted ambiguities
@@ -177,7 +179,7 @@ Decisive reasons:
 - **Detection and pairing are independent axes.** Auto-detection with single-palette themes — where detection picks between two *named themes* rather than two variants — is a shipping design (Helix's). Wanting detection does not commit Portal to paired.
 - Single-palette is the overwhelmingly dominant ecosystem shape.
 
-**One thing that looks like a fifth reason is not one, and is recorded so it is not picked up as such.** Lipgloss v2 moved `AdaptiveColor` into `compat`, which reads at a glance as Charm deprecating paired colours — i.e. as independent support for split. It is not: the recommended replacement, `lipgloss.LightDark(hasDarkBG)`, **keeps paired values** and merely makes the detection explicit. What Charm de-recommended is *implicit detection*, not pairing, so **its direction is neutral on this decision.**
+**Lipgloss v2's direction is neutral on this decision, not supporting evidence.** Lipgloss v2 moved `AdaptiveColor` into `compat`, which reads at a glance as Charm deprecating paired colours — i.e. as independent support for split. It is not: the recommended replacement, `lipgloss.LightDark(hasDarkBG)`, **keeps paired values** and merely makes the detection explicit. What Charm de-recommended is *implicit detection*, not pairing, so **its direction is neutral on this decision.**
 
 This is a standing fact about a live dependency rather than a discarded option — both APIs are in the tree Portal builds against, and an implementer working through §3.2's collapse of `Token` or §8.8's surviving detect-or-timeout gate will meet them and reasonably ask why Portal hand-rolls a light/dark decision the library has an API for. The answer is that Portal's gate selects between two *named themes*, which `LightDark` does not model.
 
@@ -236,7 +238,7 @@ Accepted cost: a small hand-rolled parser, and a second non-JSON config format t
 
 **Forward note (not a requirement):** the deferred transparent-theme idea would need a distinguished value meaning "use the terminal default". The route left open is a **distinguished keyword** (`transparent`, `none`) admitted by widening §4.3's value domain — a loader change, purely additive, which is what §1.4 claims.
 
-The route explicitly **closed** is btop's precedent of an *empty* value: §4.2 pins an empty value as `bad colour`, deliberately. Recorded so a future reader neither re-derives the question nor reads that branch as an oversight to be reversed — a keyword is also self-describing in a file where every other value is a hex, which an empty right-hand side is not.
+The route explicitly **closed** is btop's precedent of an *empty* value: §4.2 pins an empty value as `bad colour`, deliberately. A keyword is also self-describing in a file where every other value is a hex, which an empty right-hand side is not.
 
 ### 4.2 Lexical rules
 
@@ -286,7 +288,7 @@ Hex case (upper or lower) is not constrained on input, and **the parser canonica
 
 A Portal theme file contains **exactly the 19 token keys and nothing else**. Unknown keys are ignored. There is no `name` field, no behaviour, no includes, no nesting.
 
-**Security consequence, worth stating:** Ghostty's documented caveat — *a theme can set any config option, so don't use untrusted ones* — **does not transfer**. Portal's theme file is a closed key set of colour values with no capacity to influence anything else, so ingesting an unreviewed drop-in file carries no configuration-injection surface.
+**Security consequence.** Ghostty's documented caveat — *a theme can set any config option, so don't use untrusted ones* — **does not transfer**. Portal's theme file is a closed key set of colour values with no capacity to influence anything else, so ingesting an unreviewed drop-in file carries no configuration-injection surface.
 
 ### 4.5 Full replacement, no merge
 
@@ -370,7 +372,7 @@ The themes directory resolves through Portal's existing per-file chain shape:
 
 **`PORTAL_THEMES_DIR` → `XDG_CONFIG_HOME/portal/themes/` → `~/.config/portal/themes/`**
 
-The env var is named here rather than left to implementation because it is a user-facing documented contract — `docs/theming.md` (§12.4) has to print it, and every other member of Portal's config chain carries a spec-fixed name for the same reason. The `_DIR` suffix (rather than the `_FILE` of `PORTAL_TERMINALS_FILE` and siblings) marks the mechanical difference: this resolves a *directory* where `configFilePath` resolves *files*. There is no one-shot migration from the old macOS Application Support path (the directory is new; nothing exists there to move).
+The env var is fixed in this specification because it is a user-facing documented contract — `docs/theming.md` (§12.4) has to print it, and every other member of Portal's config chain carries a spec-fixed name for the same reason. The `_DIR` suffix (rather than the `_FILE` of `PORTAL_TERMINALS_FILE` and siblings) marks the mechanical difference: this resolves a *directory* where `configFilePath` resolves *files*. There is no one-shot migration from the old macOS Application Support path (the directory is new; nothing exists there to move).
 
 **Directory states:**
 
@@ -621,31 +623,28 @@ Two declined slots are worth reading off it, because they are the near-misses th
 
 **The pairing legs the port was verified against.** The per-token ratios above are only half the rule set — the second correction was found by walking the *pairing* legs. This is the port's verification baseline, to be re-checked if any value moves (§7.7):
 
-| Leg | Nord | Floor | |
-|---|---|---|---|
-| `bg.subtle` fill vs canvas | 1.24 | ≥ 1.10 | ✓ |
-| `bg.selection` fill vs canvas | 1.45 | ≥ 1.10 | ✓ |
-| `bg.attention` fill vs canvas | 1.20 | ≥ 1.10 | ✓ |
-| `state.positive` on `bg.selection` | 4.23 → **4.50** corrected | ≥ 4.50 | ✗ → ✓ |
-| `text.on-selection` on `bg.selection` | 8.63 | ≥ 4.50 | ✓ |
-| `text.primary` on `bg.selection` | 7.49 | — | walked, not required¹ |
-| `text.secondary` on `bg.selection` | 7.09 | ≥ 4.50 | ✓ |
-| `text.tertiary` on `bg.selection` | 6.39 | ≥ 4.50 | ✓ |
-| `text.on-attention` on `bg.attention` | 9.02 | ≥ 4.50 | ✓ |
-| `accent.attention` bar vs canvas | 8.00 | ≥ 3.00 | ✓ |
-| `accent.primary` vs canvas | 4.41 | ≥ 3.00 | ✓ |
-| `accent.key` vs canvas | 4.64 | ≥ 4.50 | ✓ |
-| `accent.mode` vs canvas (peek chrome) | 6.24 | ≥ 4.50 | ✓ |
-| `text.subtle` band | 3.18 | 3.00–4.49 | ✓ |
-| `text.faint` band | 1.69 | 1.00–2.99 | ✓ |
-| `state.destructive` vs canvas | 4.50 | ≥ 4.50 | ✓ |
+| Leg (rule per §13.5) | Nord measured | |
+|---|---|---|
+| `bg.subtle` fill vs canvas | 1.24 | ✓ |
+| `bg.selection` fill vs canvas | 1.45 | ✓ |
+| `bg.attention` fill vs canvas | 1.20 | ✓ |
+| `state.positive` on `bg.selection` | 4.23 → **4.50** corrected | ✗ → ✓ |
+| `text.on-selection` on `bg.selection` | 8.63 | ✓ |
+| `text.primary` on `bg.selection` | 7.49 | walked, not required¹ |
+| `text.secondary` on `bg.selection` | 7.09 | ✓ |
+| `text.tertiary` on `bg.selection` | 6.39 | ✓ |
+| `text.on-attention` on `bg.attention` | 9.02 | ✓ |
+| `accent.attention` bar vs canvas | 8.00 | ✓ |
+| `accent.primary` vs canvas | 4.41 | ✓ |
+| `accent.key` vs canvas | 4.64 | ✓ |
+| `accent.mode` vs canvas (peek chrome) | 6.24 | ✓ |
+| `text.subtle` band | 3.18 | ✓ |
+| `text.faint` band | 1.69 | ✓ |
+| `state.destructive` vs canvas | 4.50 | ✓ |
 
-**§13.5 is the canonical rule set; this table is one palette's walk of it.** Two things it makes concrete:
+**The floors themselves live in §13.5 and are not restated here** — this table records only what Nord measured and whether it passed, so the two can never disagree.
 
-- **`accent.primary` alone carries the ≥ 3.00 UI floor.** Every other accent and state token is held to 4.50 (§13.5). An earlier reading of this table generalised 3.00 to all accents — that is wrong, and it matters: it decides whether a future port whose key-hint blue sits at 3.5 passes or fails the bundled tier.
-- **The warning band is a three-leg rule** — text-on-tint ≥ 4.50, the accent *bar* ≥ 3.00 vs canvas, and the fill ≥ 1.10 vs canvas. The bar leg's 3.00 is a property of the *pair rule*, not of `accent.attention`, which separately carries 4.50 as a foreground. The invented `bg.attention` participates in all three.
-
-¹ **`text.primary` on `bg.selection` is not a required leg** and is not in §13.5's canonical list — the selected row's name renders in `text.on-selection`, which is what that token exists for. It was walked during the port and the figure is kept because it is free information, not because it gates anything.
+¹ **`text.primary` on `bg.selection` is not a required leg.** It is absent from §13.5's rule set — the selected row's name renders in `text.on-selection`. Walked during the port; the figure is kept as free information, not as a gate.
 
 **A failure on an unwalked leg can force re-deriving an *invented* value — which then needs a fresh visual gate.** The port was twice found incomplete (first covering 16 of 19 tokens, then roughly half the rule set), and each time the completeness claim was plausible enough to pass unexamined. The floor test auto-enumerating the embedded set (§13.5) means a missed leg surfaces at implementation rather than shipping — but if it lands on `text.muted`, `text.subtle` or `bg.attention`, the new value is an *invention*, and this port's own precedent (§7.4, `bg.attention`) is that inventions are settled at a visual gate rather than by arithmetic.
 
@@ -713,7 +712,7 @@ The **six `§2.9 erratum` corrections**, given as original → shipped, under th
 
 - **Every value under threshold** → the check passes, `§7.3`'s tables stand, nothing moves, and the result is recorded (a passing check is a finding, not a non-event).
 - **Any value at or over threshold** → that value is replaced by the re-derivation and gets a **fresh visual gate**. If it is one of the four eyeball-pinned tints (§13.5), `TestLightSurfaceTintsPinned` and `TestLightTintFillsArePerceptible` take the new pin from that gate.
-- **If a re-derived value is rejected at its fresh visual gate**, the **shipped value stands** and the finding is recorded as "measured, moved, judged worse". The check exists to surface a possible flaw, not to mandate a change — a numerically-better value that looks wrong is exactly the failure the Nord red's first correction demonstrated.
+- **If a re-derived value is rejected at its fresh visual gate**, the **shipped value stands**, recorded as "measured, moved, judged worse". The check surfaces a possible flaw; it does not mandate a change — a numerically-better value that looks wrong is exactly the failure the Nord red's first correction demonstrated.
 - **If anything moves, §7.3's value tables in this specification are superseded by the theme files** rather than being re-written here. The files are the source of truth for values (§15.3); this spec's tables are the record of what was carried across, and a note pointing at the moved values is the honest form once they diverge.
 
 **Flagged consequence:** if the check finds anything, shipped colours change, `TestLightSurfaceTintsPinned`'s eyeball-established pins move, and "Tokyo Night Dark/Light are just the existing values" (§7.3) stops holding exactly. **The built-in-set decision is conditional on this check.**
@@ -784,7 +783,7 @@ Reasons over shipping a constant dark default:
 - **Asymmetric escape.** Pinning is one line and is the *simpler* config (`"theme": "tokyo-night"`), so an annoyed user has an obvious remedy. The alternative's failure has no signal at all — a light-terminal user gets a dark Portal forever and never learns a light theme exists.
 - **The ecosystem answers this the same way.** `bat` (`--theme` defaults `auto`), `delta` (`--detect-dark-light` defaults `auto`), Neovim (`background` auto-set by the TUI at startup and re-detected when a UI attaches) and `yazi` all **detect by default**. This is the one external check on a decision that ships a named risk to every install (below), so it is worth having on record.
 
-  **A claim that appears to argue the other way is refuted and is recorded as such**, because the same material is easy to re-derive from: *"every surveyed application ships a hardcoded default and starts rendering"* came from a research paragraph research itself superseded. The narrower claim that survives is that nobody **prompts** on first run — which is the precedent for not seeding and not prompting (§8.7), not for declining to detect.
+  **One apparently contrary claim is refuted**, and the same material is easy to re-derive from: *"every surveyed application ships a hardcoded default and starts rendering"* came from a research paragraph research itself superseded. The narrower claim that survives is that nobody **prompts** on first run — which is the precedent for not seeding and not prompting (§8.7), not for declining to detect.
 
 **Risk named:** a terminal that answers OSC 11 inconsistently makes Portal flip between launches. The one-line pin is the remedy.
 
@@ -842,7 +841,7 @@ When a nominated theme is unloadable (invalid file, missing file, bad persisted 
 
 This introduces **no new mechanism** — it is the already-decided "an unset slot holds the shipped default" rule applied to a slot that is *set but unloadable* rather than unset. One rule covers both cases, and it makes the shipped adaptive default and the fallback default **the same values**.
 
-**§8.3's second reason depends on that coincidence.** "The adaptive pair degrades to a constant dark default" is true *only* because an unresolvable slot lands on the same theme the shipped default nominates — before this fallback was pinned, that argument was resting on two different notions of "default" and the gap went unnoticed. So **changing these values, or adopting the single-fixed-fallback alternative rejected below, silently invalidates §8.3.** Flagged here in the same way §7.7's check gates the built-in set and §8.4's ordering carries §5.4's safety property.
+**§8.3's second reason depends on that coincidence.** "The adaptive pair degrades to a constant dark default" is true *only* because an unresolvable slot lands on the same theme the shipped default nominates — before this fallback was pinned, that argument was resting on two different notions of "default" and the gap went unnoticed. So **changing these values, or adopting the single-fixed-fallback alternative rejected below, silently invalidates §8.3.** 
 
 Rejected: a single fixed fallback regardless of mode. Simpler to state, worse in practice — a light-terminal user with a typo in their light slot would be thrown to a dark theme, a bigger surprise than falling to the light default.
 
@@ -904,7 +903,7 @@ Portal's multi-window burst routinely produces several concurrent processes, so 
 
 **The panel's commit write is owned by `cmd`, not by `prefs` or by the TUI** — a theme persister injected at construction through a `WithThemePersister` option, exactly the shape `WithModePersister` already has. The same three constraints that decided §10.5's ownership apply unchanged here: `prefs` is a leaf that must not import `internal/log`, the write needs prefs path resolution, and the `theme` component records its failure. The persister resolves the path, calls `prefs`, and is **the emission site for `theme: commit failed`** (§12.3), which otherwise has none.
 
-**The merge itself lives inside `prefs`, behind field-specific save methods** — `SaveTheme`, `SaveThemeSlot`, `SaveMigrationMarker`, and **`SaveTranslation`** (theme key plus marker in one write, which §10.5 requires and the first three cannot compose without leaving a window) — matching `SaveSessionListMode`, which already performs its own internal read-modify-write. So do the two rules below: **create-on-absent and abort-on-undecodable are persistence semantics, not policy**, and they belong beside the decode they depend on.
+**The merge itself lives inside `prefs`, behind field-specific save methods** — `SaveTheme`, `SaveThemeSlot`, `SaveMigrationMarker`, and **`SaveTranslation`** (theme key plus marker in one write, required by §10.5) — matching `SaveSessionListMode`, which already performs its own internal read-modify-write. So do the two rules below: **create-on-absent and abort-on-undecodable are persistence semantics, not policy**, and they belong beside the decode they depend on.
 
 The alternative — exporting a whole-record type with `Load`/`Save` so `cmd` performs the merge literally — was rejected: it would give any caller an API that can clobber the file wholesale, which is the opposite of what "`prefs` stays dumb" (§10.5) is protecting. Keeping the merge single-sited inside the leaf is what makes §8.8's raw `appearance` round-trip a property of the store rather than a rule every caller has to remember. `cmd` still owns the path, the seam and the logging; `prefs` gains no knowledge of either.
 
@@ -1078,7 +1077,7 @@ A **skipped-count line** (`⚠ 2 theme files skipped`) was the earlier design an
 
 **Built-in rows are deliberately indistinguishable from drop-in rows** — a valid drop-in is simply selectable, sitting alphabetically among the built-ins with no visual distinction.
 
-**Invalid rows** render their label in `text.subtle` (§9.1 — de-emphasised but readable, since the user must be able to tell *which* file is broken) with `⚠` and a terse reason from §6.2 (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`) — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
+**Invalid rows** render their label in `text.subtle` (§9.1 — de-emphasised but readable, since the user must be able to tell *which* file is broken) with `⚠` and its §6.2 reason — **glyph-backed** per MV spec §2.2 so it survives colourless. Full detail stays in doctor, where there is width to enumerate.
 
 **A `bad name` row is labelled by its filename**, not a slug — it has none, because §5.2 rejects rather than normalises. The same applies to its position in the list: **ordering is alphabetical by slug, falling back to the filename for a row that has no slug.**
 
@@ -1208,7 +1207,7 @@ This is deliberately the **opposite** call to the narrow-terminal one. Narrow is
 - **The gate is skipped** (`NO_COLOR` already suppresses detection today), so the standing **dark** no-answer fallback selects the active member. `theme: loaded` is emitted as normal, one line per nomination.
 - **The startup canvas hex is captured as normal** from the selected member, so `RestoreTerminalBackground` has a defined comparison value — but no canvas is painted and no OSC 11 set is issued, so there is nothing to restore and the set-back is a no-op. The §11.4 anchor test does not need a `NO_COLOR` case: the value is defined and unused.
 
-**Counter recorded rather than buried:** someone may run `NO_COLOR` in one context and not another, so blocking prevents setting a theme that *would* apply elsewhere. Accepted, because the escape hatch is first-class — `prefs.json` is the documented hand-editable home for the theme setting, so three keys can be set by hand.
+**Counter:** someone may run `NO_COLOR` in one context and not another, so blocking prevents setting a theme that *would* apply elsewhere. Accepted, because the escape hatch is first-class — `prefs.json` is the documented hand-editable home for the theme setting, so three keys can be set by hand.
 
 ### 9.11 Everything re-themes, panel included
 
@@ -1218,7 +1217,7 @@ This is deliberately the **opposite** call to the narrow-terminal one. Narrow is
 2. It avoids a **permanent exception in the render layer** — a surface that deliberately ignores the active theme is precisely the shape the swap-and-diff guard exists to catch, so the alternative would mean carving out the one test protecting against accidental carve-outs.
 3. The unreadable-panel risk is smaller than it looks, because **`Esc` is a keypress, not a visible affordance** — no need to read the hint to close the panel. The picker idiom does the rest.
 
-**Residue recorded rather than hidden:** since a drop-in need only be *valid*, not good, a legal-but-awful theme can render the panel's own list unreadable while the user is standing on it. A user can only get *stuck* there by explicitly committing one, and recovery is then editing `prefs.json` rather than anything in the UI. Since a drop-in is by decision the user's own creation and only they can reach this state, that is judged proportionate — but it is a real edge.
+**Residue:** since a drop-in need only be *valid*, not good, a legal-but-awful theme can render the panel's own list unreadable while the user is standing on it. A user can only get *stuck* there by explicitly committing one, and recovery is then editing `prefs.json` rather than anything in the UI. Since a drop-in is by decision the user's own creation and only they can reach this state, that is judged proportionate — but it is a real edge.
 
 ### 9.12 The panel's keymap is descriptor-governed
 
@@ -1245,7 +1244,7 @@ This recreates "applied but not persisted", but as a *reported* state rather tha
 
 **So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. **Raising the flash discharges the state** — it is the report the state exists to produce, so once made the state has done its job. Without that, reopening the panel and pressing `Esc` would re-fire the flash about a failure already reported, on every close for the life of the process.
 
-**`Ctrl-C` with a failure outstanding is accepted as an undelivered report.** It is the one exit §9.7 keeps live inside the panel, and the main screen is going away, so there is nowhere to raise a flash. **The log is the record** — `theme: commit failed` is already written (§12.3) — and the alternative, a post-TUI stderr warning, would put a message about a colour preference on the same channel Portal reserves for bootstrap failures. Named rather than left to fall out, because §9.13 resolves every other exit explicitly.
+**`Ctrl-C` with a failure outstanding is accepted as an undelivered report.** It is the one exit §9.7 keeps live inside the panel, and the main screen is going away, so there is nowhere to raise a flash. **The log is the record** — `theme: commit failed` is already written (§12.3) — and the alternative, a post-TUI stderr warning, would put a message about a colour preference on the same channel Portal reserves for bootstrap failures.
 
 **On a forced close (§9.8) both flashes are due at once, and the failed-commit flash wins.** The notice band has one slot, and the two report different things: a geometry event the user can see for themselves — their terminal just got smaller and the panel vanished — versus an unsaved setting they must act on, which §9.13 exists to keep from being silent. **The state is discharged**, because the report was made. Losing the geometry flash costs nothing; losing the commit flash on the one path where the user cannot reopen the panel to retry is exactly the failure this section closes. The revert itself is correct and stays — the write did not land, so the theme is not persisted and `Esc` resolving to persisted state is right — but the user is told, on the surface they are left looking at. Accepting the silent revert was the alternative; a flash is the mechanism §14A already pins copy for elsewhere, so it costs nothing new.
 
@@ -1335,11 +1334,11 @@ The condition is therefore checked twice against two reads, deliberately: at **l
 
 **`theme: appearance migrated` fires only when a theme key is actually persisted.** A run that writes the marker alone translated nothing, so announcing a migration would be false — and §12.3's "absence is the signal the write failed" stays true only if the event means what it says.
 
-**Concurrency is a non-issue, for a stateable reason:** several burst-launched instances hitting the condition simultaneously all compute **the same value from the same input**, so the write is idempotent and last-write-wins is harmless. That is what makes it safe where a general read-modify-write would not be. It also never runs on the exec path, which constructs no TUI and reads no prefs.
+**Concurrency is doubly safe here:** the write goes through §8.9's read-modify-write like every other, and beyond that several burst-launched instances hitting the condition simultaneously all compute **the same value from the same input**, so it is idempotent regardless. It never runs on the exec path, which constructs no TUI and reads no prefs.
 
 The translation emits `theme: appearance migrated` (INFO, one-shot) — see §12.3.
 
-**The translation is silent to the user at runtime.** No flash, no notice band, no banner — the log line is a forensic trail with **no user-facing interruption**. Three reasons, and it is worth stating because the spec's own reflexes point the other way: §9.13 establishes that a state the user must act on has to be reported, which an implementer could reasonably generalise to a config mutation.
+**The translation is silent to the user at runtime.** No flash, no notice band, no banner — the log line is a forensic trail with **no user-facing interruption**. Three reasons, stated because the spec's own reflexes point the other way — §9.13 establishes that a state the user must act on has to be reported, which an implementer could reasonably generalise to a config mutation.
 
 - **There is nothing to explain.** The translation preserves intent exactly (§10.2) — a pinned mode becomes a pinned theme and detection stays off, just as it was. §10.1's problem was the *silent flip*, and the translation is what prevents it; announcing the fix would be announcing that nothing changed.
 - **It runs at prefs load, before any surface exists** to render a notice into.
@@ -1511,7 +1510,7 @@ Rejections are **WARN**, not INFO: doctor treats them as advisory for *exit-code
 
 **Why the log earns its place:** a TUI launch that rejects a theme should leave a **passive** record. The panel's row is only visible if the panel is opened; doctor must be invoked. The log is the only trail that exists without the user going looking.
 
-**Correction to a premise, recorded so it is not re-derived:** the exec path (`portal open <target>`) constructs no TUI, so under lazy discovery the loader **never runs there** — nothing themed is rendered and there is no failure to surface or record on that path at all. Both the doctor line and the log component earn their places on other grounds (above). **And a win worth recording explicitly: on the path Portal is most careful to keep free of cost, this feature adds nothing at all.**
+**The exec path is not a surfacing route.** The exec path (`portal open <target>`) constructs no TUI, so under lazy discovery the loader **never runs there** — nothing themed is rendered and there is no failure to surface or record on that path at all. Both the doctor line and the log component earn their places on other grounds (above). **And a win worth recording explicitly: on the path Portal is most careful to keep free of cost, this feature adds nothing at all.**
 
 ### 12.4 `docs/theming.md`
 
@@ -1532,9 +1531,9 @@ A new user-facing doc, following the `docs/custom-terminals.md` precedent (a use
 - **The reserved built-in slugs.**
 - **Attribution for ported palettes** — source and link, plus the Nord corrections. Attribution lives in the repo and README, **explicitly not in the UI** (no credits screen, nothing in the slide-over).
 
-**Attribution and licensing are deliberately not pursued further.** No per-theme licence line, no "(adapted)" naming convention, no PR contribution requirement. Ported palettes keep their own names. Recorded so a future reader does not mistake the omission for an oversight.
+**Attribution and licensing are deliberately not pursued further.** No per-theme licence line, no "(adapted)" naming convention, no PR contribution requirement. Ported palettes keep their own names.
 
-**`docs/theming.md` gets a guard** (§13.5) — it is now the sole record of the ramp ordering and role meanings, with nothing otherwise keeping it honest. The guard covers the **vocabulary half only**: it parses the token table and compares the name set against `Theme.All()`. The discovery half above has no automated check and is maintained by hand, which is worth knowing rather than assuming.
+**`docs/theming.md` gets a guard** (§13.5) — it is now the sole record of the ramp ordering and role meanings, with nothing otherwise keeping it honest. The guard covers the **vocabulary half only**: it parses the token table and compares the name set against `Theme.All()`. The discovery half above has no automated check and is maintained by hand.
 
 ### 12.5 README and CHANGELOG
 
@@ -1605,13 +1604,13 @@ The committed reference PNGs were never meant to persist — they existed so the
 - **`capturetool` and `internal/capture` survive and are open for edit.** Whatever the tool needs to work with the new system is in scope for this feature — no separate redevelopment work unit.
 - **`tui.Build` takes the loaded *nomination* where it takes a `prefs.Appearance` today** — the exact injection mechanism this work removes, replaced per §8.4 (one theme under a constant, both under an adaptive pair — with the active member selected by the gate, not supplied by the caller). `capturetool` always passes the **constant shape**: a single pinned theme, no gate, no wait — which is what keeps captures byte-deterministic. Without this injection the harness can only ever render the compiled-in default.
 - **`capturetool` gains a `--theme` flag, replacing `--appearance`.** `--theme` accepts a built-in slug **and an explicit path to a real theme file**. An explicit path from a flag is an **input, not config discovery**, so the `internal/capture` no-real-config import guard's invariant is preserved (no XDG lookup, no prefs read). This matters disproportionately: it is the only visual-verification route for someone authoring a drop-in.
-  - **Default: `tokyo-night`** when the flag is omitted, matching the shipped dark default. Every capture an agent takes without passing the flag depends on this, so it is named rather than inferred.
+  - **Default: `tokyo-night`** when the flag is omitted, matching the shipped dark default. Every capture taken without the flag depends on it.
   - **Slug versus path is discriminated by a path separator *or* the `.theme` suffix** — so `nord` is a slug, and `nord.theme`, `./nord.theme`, `/abs/nord.theme` and `./mytheme.txt` are all paths. The separator half matters: without it a real file with an unexpected extension would be classified as a slug and rejected as an unknown built-in, an error naming the wrong problem for a file that plainly exists.
   - **Only the content reasons apply to a path** — `bad syntax`, `bad colour`, `missing tokens`, `unreadable`. **Invalid input is a hard error** with the §6.2 reason and a non-zero exit, never a fallback: silently rendering the wrong theme at a visual gate is precisely the failure this tool exists to prevent. An explicit path may carry any extension, because **no slug is derived from it for identity** (§3.2) — the rendered theme has none.
   - **A candidate slug *is* derived from the basename, solely to produce the warnings below**, and never used as identity. Without that derivation the `reserved name` warning cannot exist, since §6.2 decides both filename reasons from the slug alone.
   - **The filename reasons — `bad name` and `reserved name` — warn on stderr but do not block, and apply to the path form only.** A slug argument (`--theme nord`) names a built-in by design, so checking it for `reserved name` would warn on the normal documented invocation. Blocking would break the workflow §12.1 publishes, since an exported built-in is a reserved slug until the user renames it. Warning is what the flag's stated purpose demands: it is the only visual-verification route for someone authoring a drop-in, so it is the one place a fatal filename is worth catching before the file reaches the themes directory.
 - **`--appearance` is removed, not kept alongside.** It exists today (`dark|light`, resolving to a pinned `prefs.Appearance`), and its entire backing mechanism — `prefs.Appearance` and `WithAppearance` — is deleted by §8.8. There is no mode left to pin; a theme *is* the mode.
-- **The contrast-validation swatch fixture is re-pointed to `--theme` too.** `capturetool` carries a standalone labelled-tint swatch branch (the MV §16.5 lock-in/bail surface) which deliberately does not route through `tui.Build` and is driven by `--appearance` today. It is the surface that satisfies the human eyeball gate §7.5 and §13.5 require for a new light theme's pinned tints, so it must take a theme like everything else.
+- **The contrast-validation swatch fixture is re-pointed to `--theme` too.** `capturetool` carries a standalone labelled-tint swatch branch (the MV spec §16.5 lock-in/bail surface) which deliberately does not route through `tui.Build` and is driven by `--appearance` today. It is the surface that satisfies the human eyeball gate §7.5 and §13.5 require for a new light theme's pinned tints, so it must take a theme like everything else.
 - **PNG production stays on VHS. No direct writer, no new dependency.** The hard requirement is that **every fixture can produce a PNG** (§13.1) — that is what the mechanism must satisfy, and VHS already satisfies it. Rasterising styled ANSI needs a terminal-cell renderer with an embedded font and fixed cell metrics, which would mean a real module dependency plus a font asset in a repo that has deliberately avoided both, to replace a mechanism that works.
 
   §13.2 deletes the *current* tapes along with the images, because both are scaffolding tied to the pre-rename, pre-split screens. **New tapes are written per fixture as work proceeds and cleared out after sign-off**, under exactly the same retention rule as the images (§13.2) — a tape is scaffolding, not an asset. VHS also remains the route if a gif is ever wanted for motion.
@@ -1707,7 +1706,7 @@ Synthetic themes make coincidence impossible, cover every token site genuinely, 
 
 *Light themes only:* the four eyeball-pinned tints carry **additional** exact-value pins. **Nothing above is relaxed** — every rule in this section applies to every bundled theme regardless of light or dark, including the ≥ 1.10 fill legs on all three tints. The light/dark table's sole job is **enrolment**: it names which built-ins are light so `TestLightSurfaceTintsPinned` and `TestLightTintFillsArePerceptible` know which themes to run against. "Carve-out" describes the *enrolment*, not a relaxation.
 
-`border` is one of the four pinned tokens but carries no numeric floor in the table above, so it participates in the pins and in nothing else — worth stating explicitly, since the count of four is load-bearing (§7.1 decides which pin notes move into the theme files by it).
+`border` is one of the four pinned tokens but carries no numeric floor in the table above, so it participates in the pins and in nothing else (the count of four is load-bearing — §7.1 decides which pin notes move into the theme files by it).
 
 **Plus a light/dark table**, needed because the light surface tints are not numerically checkable (light-tint-on-light-canvas is numeric-insufficient — hence `TestLightSurfaceTintsPinned`), so the carve-out must apply to light themes only.
 
@@ -1793,7 +1792,7 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | Slot-from-constant confirm (§9.2) | `clear constant <slug>?  y / n` — the slug truncated by §9.5's rule if needed |
 | Failed commit write (§9.13) | `⚠ couldn't save theme` |
 
-**Panel — rows (§9.5):** the seven terse reasons of §6.2 verbatim (`missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found`), each prefixed `⚠ `. The pinned directory row is `⚠ dir unreadable`.
+**Panel — rows (§9.5):** §6.2's reason labels verbatim, each prefixed `⚠ `. The pinned directory row is `⚠ dir unreadable`.
 
 **Panel — header and footer (§9.1):** header `Themes`; footer `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`.
 
@@ -1815,7 +1814,7 @@ Every new user-facing string is pinned here, following Portal's existing convent
 - §9.13's failed-commit report would never reach the band — and because raising the flash **discharges** the outstanding state, the report would be destroyed rather than deferred. That is the silent revert the section exists to close.
 - §9.10's proactive `NO_COLOR` block would produce nothing at all, which is the walkable dead end it exists to prevent, reached by another route.
 
-A filter line is a persistent restatement of a state the user can already see in their own list; each theme flash reports a one-time event with no other surface. **This is a change to the band's precedence, scoped to these flashes** — stated rather than left to whatever the existing arbiter happens to do, since an implementer adding a flash would otherwise inherit the current order silently.
+A filter line is a persistent restatement of a state the user can already see in their own list; each theme flash reports a one-time event with no other surface. **This is a change to the band's precedence, scoped to these flashes**.
 
 **Projects gains a transient-flash slot.** The existing arbiter is Sessions-only — every one of its six contenders is a Sessions element — yet §9.6 binds `t` on Projects and §14.2 puts `t theme` in its footer, so five of these six flashes are reachable there. **Projects gets the flash contender alone**, not the full arbiter: no other contender has a Projects analogue, and inventing them would be scope for nothing.
 
