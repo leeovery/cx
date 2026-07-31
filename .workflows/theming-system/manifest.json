@@ -122,7 +122,7 @@
           "finding_gate_mode": "gated",
           "review_cycle": 0,
           "phase": 7,
-          "task": null,
+          "task": "theming-system-7-1",
           "task_map": {
             "theming-system-1-1": "tick-cac1ab",
             "theming-system-1": "tick-1c8edf",
@@ -184,7 +184,8 @@
               "p3": "2026-07-31",
               "p4": "2026-07-31",
               "p5": "2026-07-31",
-              "p6": "2026-07-31"
+              "p6": "2026-07-31",
+              "p7": "2026-07-31"
             }
           },
           "staging": {},
