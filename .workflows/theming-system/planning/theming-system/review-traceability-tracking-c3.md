@@ -116,7 +116,7 @@ later consumers, and it already carries the sibling standing fact in exactly thi
 > Phase boundary: Phase 5 replaces this mapping with the persisted `theme` / `theme_light` / `theme_dark` keys, adds §8.5's fallback and §7.6's fatal message; Phase 6 adds the one-shot `appearance` translation and deletes `prefs.Appearance`.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: `planning.md`'s Phase 3 task table carries a condensed Edge Cases cell for
 `theming-system-3-2`; if the fix is approved it should gain the matching condensed clause so
 the table and the detail file do not drift — suggested text: `do not adopt DEC mode 2031`
@@ -239,7 +239,7 @@ Task 2-7 is the only home: it authors the file, walks the floors and owns the vi
 > §7.4: "**A failure on an unwalked leg can force re-deriving an *invented* value — which then needs a fresh visual gate.**  The port was twice found incomplete… and each time the completeness claim was plausible enough to pass unexamined. The floor test auto-enumerating the embedded set means a missed leg surfaces at implementation rather than shipping."
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: `planning.md`'s Phase 2 task table carries a condensed Edge Cases cell for
 `theming-system-2-7`; if the fix is approved it should gain the matching condensed clause —
 suggested text: `a failing directly-taken value has no Oklab correction available (the value`
