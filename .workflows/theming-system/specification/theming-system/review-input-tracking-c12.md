@@ -29,8 +29,8 @@ The source also records the *misreading* explicitly (`FALSE PATH — 2031 answer
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.7 now records that 2031 is fully plumbed end-to-end (x/ansi, ultraviolet, Bubble Tea v2 pass-through, one-line tea.Raw opt-in, tmux 3.6+) and is declined on semantics rather than availability.
 
 ---
 
@@ -57,8 +57,8 @@ The stake is higher post-split for the reason §8.8 itself gives: the fallback n
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.8 now grounds the dark no-answer fallback in the ecosystem (Helix, Neovim, delta, Glamour v2; Helix exposes it configurably where Portal hardcodes it), noting the stakes rose under split since the fallback now selects a whole named theme.
 
 ---
 
@@ -80,7 +80,7 @@ This carries weight beyond tidiness because §6.4 makes the same argument load-b
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §7.4 now names Ghostty, Zellij and k9s as the shipping Nord ports that adapt — the external support for shipping corrected values under the palette's own name.
 
 ---
