@@ -34,8 +34,8 @@ So the specification requires flashes on a page that has nowhere to render them,
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §14A: Projects gains a transient-flash slot — the flash contender alone, not the full Sessions arbiter, since no other contender has a Projects analogue. Both alternatives rejected with reasons recorded: suppressing makes §9.10's proactive block a silent no-op and destroys §9.13's report outright (the close discharges the state whether or not a flash rendered), and refusing `t` contradicts §9.6. §13.3 gains a Projects-with-panel fixture.
 
 ---
 
@@ -62,8 +62,8 @@ The ambiguity is not confined to the failed-write case. Even on a successful tra
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §8.4: "as read" means the post-translation in-memory prefs value, not the on-disk bytes — which is the point of §10.5 computing and using immediately. Recorded what the disk reading would cost: a migrated user's badges claiming two shipped defaults while a constant paints the screen, and `d`/`l` not raising §9.2's confirm, to exactly the population §10.1 protects.
 
 ---
 
@@ -86,8 +86,8 @@ Two further loose ends in the same paragraph:
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Resolved in §13.3: a panel fixture has *four* inputs, the fourth being the cursor position — previously unstated and required, since the mandated constant-while-previewing frame is otherwise unreachable in a one-shot render. The coherence rule generalised from the adaptive case to `--theme` must name the theme *under the cursor*, which resolves to the dark slot at open for the adaptive fixture and to the previewed (not marked) theme for the constant fixture.
 
 ---
 
@@ -107,8 +107,8 @@ The specification does not say whether the replacement is a new accessor on `Tok
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §3.2 now names the replacement: a no-argument `Token.Color()` returning a color.Color via lipgloss.Color(t.Value). An accessor rather than inline conversion — it keeps the ~182 call sites reading as they do, gives §13.4's guard one derivation point, and leaves a single seam if the value domain widens for §4.1's deferred transparent keyword.
 
 ---
 
@@ -131,8 +131,8 @@ So a fourth method is required by §10.5 and absent from §8.9's enumerated API.
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §8.9's API list gains `SaveTranslation` (theme key plus marker in one write), which §10.5 requires and the three field-specific methods cannot compose without leaving the window §10.5 forbids.
 
 ---
 
@@ -152,8 +152,8 @@ The gap matters slightly more than an omission from a list, because §12.3's jus
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §12.3 assigns `capturetool` `log.Discard` — a fifth caller that neither uses nor diagnoses a theme, being an offline renderer whose output is a frame, so emission would be noise and the per-process dedup state stays owned.
 
 ---
 
@@ -180,8 +180,8 @@ For those inputs neither of §6.2's two causes applies (there is no extension, a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §6.2's `bad name` widened from a filename-only class with two causes to three causes across two input classes: directory entries (bad slug or bad extension casing) and non-file inputs (a persisted slug or CLI argument failing the same charset rule, with no extension involved). Noted that the differing line frames in §14A are what carry the input class.
 
 ---
 
@@ -202,8 +202,8 @@ For those inputs neither of §6.2's two causes applies (there is no extension, a
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.6's stale clause removed — the seam is an architectural commitment per §13.3, not a possibility; the wording was leftover decision-process narration from the cycle that introduced the test.
 
 ---
 
@@ -226,8 +226,8 @@ So the stated count is four and the described count is five. The section is the 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §2.3's count corrected from four kinds to five: place, hue and meaning in the table, plus weight and pairing beneath it. Weight was already being applied to six of the nineteen tokens and used as a distinct kind throughout §2.4's Why column. The pairing kind renumbered to fifth in both §2.3 and §2.6.
 
 ---
 
@@ -250,5 +250,5 @@ Low impact on implementation — every value is pinned in the table — but the 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §7.4's summary corrected to 13 taken directly, 2 corrected, 3 invented, 1 functional maximum (`text.on-selection` = #FFFFFF, a contrast choice rather than a palette claim), with the arithmetic shown. The figure is quoted as carry-forward guidance for future ports, and §7.4 is a section already twice found incomplete on a plausible-looking count.
