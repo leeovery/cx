@@ -348,7 +348,7 @@
   - Run each candidate through `LoadFile`, so a non-lowercase extension lands `bad name` at rung 1 and a dangling symlink `unreadable` at rung 3, with no duplicated rules here.
   - No recursion — top-level only.
 - Return entries in `os.ReadDir`'s filename order so results are deterministic; the §9.5 panel sort key (slug-with-filename-fallback, case-insensitive with a byte-wise tie-break) belongs to Phase 8 and is deliberately not applied here.
-- Wire the event-logger seam from task 1.8 at this call site: one `theme: rejected` per rejected entry, one `theme: directory unusable` for the unusable-directory verdict, and **nothing** for an absent directory.
+- Leave the `Loader` **without** an event-logger seam here: `Enumerate` returns its entries and its directory verdict and emits nothing. Task 1-8 introduces the seam, threads it onto the `Loader` and adds the three emissions at these exact call sites (one `theme: rejected` per rejected entry, one `theme: directory unusable` for the unusable-directory verdict, and nothing for an absent directory) — so structure `Enumerate` so those three points are distinguishable, but do not build the logger here.
 
 **Acceptance Criteria**:
 - [ ] An absent directory yields zero entries, a nil rejection, and no log emission.

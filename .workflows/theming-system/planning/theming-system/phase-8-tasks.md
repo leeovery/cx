@@ -196,9 +196,13 @@
   type Badge int // BadgeNone, BadgeConstant, BadgeLight, BadgeDark, BadgeBoth
   func (b Badge) Text() string // "", "●", "● light", "● dark", "● both"
   func Badges(slots []SlotResolution) map[string]Badge
+  // BadgeKey is the value a Row is looked up in Badges' map by. "" means the row
+  // can never carry a badge.
+  func (r Row) BadgeKey() string
   ```
 - **Key every badge on `SlotResolution.Requested`** and comment that this single field *is* §9.5's three-row table: `Requested` is the persisted slug when the slot was set (`WasSet=true`) whether or not it loaded, and the shipped default's slug when it was not (`WasSet=false`). One field, three rows, no branching on `FellBack` — and state explicitly that reading `Resolved` instead would move the badge onto a fallback, which is the bug this task exists to prevent.
 - **Shapes**: a `[]SlotResolution` of length 1 with `Slot == SlotConstant` yields `{Requested: BadgeConstant}`. A length-2 slice (light then dark) yields `{light.Requested: BadgeLight, dark.Requested: BadgeDark}`, collapsed to `{slug: BadgeBoth}` when the two `Requested` values are equal.
+- **Define the row's lookup key, and exclude the one collision.** `Row.BadgeKey()` returns the row's identity — `Slug` where one exists, else `Persisted`, else `Filename` — i.e. the same value `SortKey()` derives from, which is what makes task 8-1's charset-rejected persisted row (keyed on its raw string) match its badge. The **one exception is a `reserved name` row, which returns `""` and therefore never carries a badge**: its slug is identical to the built-in's by definition, so a bare identity lookup would paint `●` on *both* rows, and the rejected file is not what is persisted — the persisted slug resolved to the built-in, which is the same discrimination task 7-6 draws for doctor's persisted line. State in-source that this is the only place the union's one legitimate two-rows-for-one-slug case has an observable consequence, and that the panel must look badges up through this method rather than reading `Slug` directly.
 - **Pin the badge text verbatim** as package constants — `●`, `● dark`, `● light`, `● both` — and comment that `● both` is chosen over `● dark light` because with exactly two slots "both" is fully determined, and that it is deliberately **no wider than `● light`** so it cannot move task 8-4's truncation budget. Add a test asserting that width relation directly rather than leaving it to prose.
 - Document, in-source, that the badge renders in **`accent.primary`** and never `state.positive`: `●` marks *assignment*, and `state.positive` would wrongly read as the Sessions list's attached-session dot. (The token is applied in task 8-4's delegate; this task fixes the decision beside the vocabulary so the two cannot drift.)
 - Document that **the badge and the cursor are independent signals** — `●` is what is *set*, `▌` + tint is what is *previewed* — so a badge legitimately sits on an **unselectable** row (the persisted-but-broken theme), and that no consumer may infer selectability from the presence of a badge.
@@ -213,6 +217,8 @@
 - [ ] A slot that **fell back** keeps its badge on `Requested` (the persisted slug) and puts **no** badge on `Resolved` (the fallback), asserted on a `SlotResolution` with `FellBack=true` and differing `Requested`/`Resolved`.
 - [ ] A **never-set** slot badges the shipped default's slug, so a virgin install (`prefs.json` absent → `WasSet=false` on both slots) yields `tokyo-night-day` `● light` and `tokyo-night` `● dark`.
 - [ ] A charset-rejected persisted value is badged on that raw value, so it matches the union row keyed by the same string (task 8-1) and the badge is not lost.
+- [ ] `Row.BadgeKey()` returns the slug for a built-in, a valid file and a `not found` persisted row; the raw persisted string for a charset-rejected row; the filename for a `bad name` row; and **`""` for a `reserved name` row**.
+- [ ] With `"theme": "nord"` persisted and a `nord.theme` drop-in present, exactly **one** row's `BadgeKey()` matches the badge map — the built-in's — so only one `●` can render.
 - [ ] `lipgloss.Width(BadgeBoth.Text()) <= lipgloss.Width(BadgeLight.Text())`.
 - [ ] The function is pure: identical input yields identical output, it performs no I/O and it references no `Theme`, canvas or palette value.
 - [ ] A nil or empty slice returns an empty map with no panic.
@@ -224,6 +230,8 @@
 - `"it leaves the badge on the persisted slug under a fallback"` — `TestBadges_FallbackDoesNotMoveTheBadge`
 - `"it badges the shipped default for an unset slot"` — `TestBadges_UnsetSlotBadgesShippedDefault` (the virgin-install case)
 - `"it badges a charset-rejected persisted value on that value"` — `TestBadges_CharsetRejectedValueKeepsItsBadge`
+- `"it gives a reserved-name row no badge key"` — `TestBadgeKey_ReservedNameRowHasNone`
+- `"it keys every other row on its identity"` — `TestBadgeKey_MatchesRowIdentity` (table: built-in, valid file, `not found` persisted, charset-rejected persisted, `bad name` file)
 - `"it keeps both no wider than light"` — `TestBadges_BothIsNoWiderThanLight`
 - `"it is pure and total"` — `TestBadges_PureAndTotal` (nil slice, empty slice, repeat call)
 - `"it reads Requested, never Resolved"` — `TestBadges_KeyedOnRequestedNotResolved` (a table where the two differ on every row)
@@ -236,6 +244,7 @@
 - `● both` is deliberately no wider than `● light` so it does not move §9.5's truncation budget, and is chosen over `● dark light` because with exactly two slots "both" is fully determined.
 - `●` marks **assignment** in `accent.primary`, never liveness — `state.positive` would wrongly read as the Sessions list's attached dot.
 - The badge and the cursor are independent signals (`●` is what is *set*, `▌` + tint is what is *previewed*), so a badge legitimately sits on an unselectable row.
+- The row→badge lookup key is `Row.BadgeKey()`, never `Row.Slug` read directly — because a **`reserved name`** row shares its slug with the built-in it collides with by definition, so a bare slug lookup paints `●` on both rows. The rejected file is not what is persisted (the slug resolved to the built-in), so `BadgeKey()` returns `""` for it — the only observable consequence of §9.4's one legitimate two-rows-for-one-slug case.
 - Derivation reads the raw persisted keys plus Phase 5 task 5-4's per-slot resolution record, never the nomination alone, which cannot express a slug that never loaded.
 - A commit visibly collapses two slot badges to one bare `●` on a virgin install, which is correct — two inherited defaults became one pin (the movement itself is Phase 9's).
 
@@ -293,6 +302,7 @@
 - [ ] An invalid label renders in `text.subtle` while its `⚠` and reason render in `accent.attention` — asserted as distinct SGR runs on the same line, so the `⚠` demonstrably does not inherit the dimmed label's colour.
 - [ ] `text.faint` appears nowhere in a panel row's output.
 - [ ] A `bad name` row is labelled by its **filename** and a `reserved name` row likewise, both via `Row.Label()` with no second derivation in the delegate.
+- [ ] A `reserved name` row renders **no** `●` even when its slug is the persisted one, while the built-in it collides with renders the badge — asserted on the two adjacent rows of the same union.
 - [ ] A valid row is `text.primary` and a built-in is byte-identical to a valid drop-in with the same label and badge state.
 - [ ] The cursor row carries the `bg.selection` tint across the full row width with an `accent.primary` `▌` and a `text.on-selection` label.
 - [ ] Rendering the same item under two different `Theme`s produces different colour output with no cached-style carry-over (the delegate holds no package-scope or construction-time derived style).
@@ -307,6 +317,7 @@
 - `"it dims the invalid label without dimming its warning"` — `TestThemeRow_InvalidLabelIsSubtleWarningIsAttention`
 - `"it never uses text.faint"` — `TestThemeRow_NeverUsesTextFaint`
 - `"it labels bad-name and reserved-name rows by filename"` — `TestThemeRow_FilenameLabelledRows`
+- `"it badges the built-in and not its reserved-name collider"` — `TestThemeRow_ReservedNameRowCarriesNoBadge`
 - `"it makes a built-in indistinguishable from a drop-in"` — `TestThemeRow_BuiltinRendersLikeADropIn`
 - `"it applies the shipped selection treatment to the cursor row"` — `TestThemeRow_CursorRowSelectionTreatment`
 - `"it re-derives from the previewed theme every frame"` — `TestThemeRow_NoCachedStyles` (render, swap theme, render, diff)
@@ -931,12 +942,13 @@
 **Outcome**: `t` opens the panel on Sessions and Projects; it flashes §14A's exact copy under `NO_COLOR` and below either render-floor dimension; it is silently swallowed during a pending burst and unbound on Preview, Loading and modals; and while the panel is open every key except its own and `Ctrl-C` does nothing, with multi-select surviving underneath.
 
 **Do**:
-- **Add the gate** `func (m Model) themePanelEntry() (blockedFlash string, ok bool)` in `internal/tui/theme_panel.go`, evaluated in this order: `m.colourless` (the `NO_COLOR` carve-out) → task 8-11's `themePanelFloor(...)` on the current content dimensions and the panel's would-be `DirUnusable` state → otherwise open. It returns the pinned copy for the blocked cases and is the **only** place the decision is made; `t`'s dispatch on both pages consults it and does nothing else.
+- **Add the gate** `func (m Model) themePanelEntry() (blockedFlash string, ok bool)` in `internal/tui/theme_panel.go`, evaluated in this order: `m.colourless` (the `NO_COLOR` carve-out) → task 8-11's `themePanelFloor(contentW, contentH, false)` on the current content dimensions → otherwise open. It returns the pinned copy for the blocked cases and is the **only** place the pre-read decision is made; `t`'s dispatch on both pages consults it and does nothing else.
+- **Re-evaluate the floor once the directory's state is known.** The `⚠ dir unreadable` row raises the height floor by one (task 8-11) but `Union.DirUnusable` is a product of the enumeration, which task 8-7 pins to the keypress *after* this gate — so the pre-read evaluation passes `dirUnusable = false` and task 8-7's open sequence re-applies **the same predicate** with the real flag as soon as `Open` returns. If the real flag now fails the floor, discard the enumeration, do **not** open, and raise the same pinned height flash (`terminal too short for the theme picker`). One predicate, two evaluations — task 8-11's "compute it once" is about not re-deriving the arithmetic, not about evaluating it once. Record why neither shortcut is taken: assuming `true` at entry refuses terminals that would have rendered a good panel, contradicting §9.8's degrade-don't-refuse; assuming `false` and never re-checking opens a panel whose list body is **zero rows**, which is the "completely in the dark" state §9.5's pinned row exists to prevent. Accept, and state in-source, that a blocked open in this rare case has already performed its directory read and emitted `theme: enumerated` — the enumeration genuinely happened, and splitting the read from its emission would fork task 8-1's seam for one edge.
 - **Single-source the copy** as constants beside task 8-11's resize strings, following Portal's `spawn.UnsupportedNoopMessage` convention — verbatim: `theme picker needs colour — NO_COLOR is set`, `terminal too narrow for the theme picker`, `terminal too short for the theme picker`. Assert them against the §14A strings, not a paraphrase.
 - **Dispatch on both pages**: in `updateSessionList` and `updateProjectsPage`, `t` (after the `SettingFilter()` guard task 8-7 established) calls the gate; on `ok` it opens, otherwise it raises the returned flash through the page's band — the Sessions band or task 8-12's Projects slot — and returns `flashTickCmd(m.flashGen)` so the block inherits the standard auto-clear, exactly as the `m` proactive block does.
 - **Silence where the key is not bound at all**: **Preview** and **Loading** bind no `t` and render nothing — the feedback rule is *flash where the key is bound and the user could reasonably expect it to work, silent where it is not bound at all*, which is precisely how `s` already behaves. Record both refusals: Preview's body is deliberately out-of-theme captured scrollback (a weak preview surface) *and* it is already a full-screen overlay, so the panel would stack an overlay on an overlay; Loading is inert by design and renders no notice band to flash into, and on the cold + TUI path it holds for at least `LoadingMinDuration` with the user watching, so it is not a corner case.
 - **Modals and the burst**: modals are key-exclusive already, so `t` never reaches the gate. A **pending burst swallows** `t` — the existing `burstPending` arm at the top of `updateSessionList` returns before any rune dispatch, so this is *consistency with the lock*, not a new exception; assert it rather than adding a branch.
-- **Key-exclusive routing**: task 8-7 already swallows non-panel keys; here pin it as tested behaviour with the reasoning attached — `k` does not kill, `x` does not switch page, `m` does not enter multi-select, `/` does not filter, `?` does nothing (there is no panel help modal), `s`/`e`/`d`/`n`/`r`/`q` are inert — while **`Ctrl-C` stays live** and quits. State in-source that non-blanking and key-exclusive are not in tension: seeing the list without being able to drive it *is* the live-preview premise.
+- **Key-exclusive routing**: task 8-7 already swallows non-panel keys; here pin it as tested behaviour with the reasoning attached — `k` does not kill, `x` does not switch page, `m` does not enter multi-select, `/` does not filter, `?` does nothing (there is no panel help modal), `s`/`e`/`n`/`r`/`q` are inert — while **`Ctrl-C` stays live** and quits. `d` and `l` are **panel-owned** keys, not swallowed ones: they are inert this phase and become commit keys in task 9-3, so assert them as "the page's own binding never fires" (on Projects, `d` must not open the delete modal) rather than as "the model is unchanged", which task 9-3 would falsify. State in-source that non-blanking and key-exclusive are not in tension: seeing the list without being able to drive it *is* the live-preview premise.
 - **Nest over multi-select**: `t` opens with the marked set **unaffected**, the `N selected` banner still visible in the notice band behind the panel, and `Esc` resolving innermost-first (task 8-10's close returns to multi-select with selections intact) — the rule modals already follow. Previewing mid-selection is legitimate, since the marked-row `●` is itself themed.
 - **Own the dispatch only.** The **display** half of the block — dropping the `t` row from the footer and from `?` help in lockstep — is task 8-14's; do not filter any descriptor here.
 
@@ -945,10 +957,14 @@
 - [ ] Under `NO_COLOR` (`colourless`), `t` on either page opens nothing and raises exactly `theme picker needs colour — NO_COLOR is set`.
 - [ ] Below the width floor `t` raises exactly `terminal too narrow for the theme picker`; below the height floor, `terminal too short for the theme picker`; when both fail, the width copy (width is checked first, per task 8-11).
 - [ ] The entry gate and the resize path read the **same** floor predicate — a size that blocks entry also force-closes an open panel, asserted across one table.
+- [ ] With a **usable** directory, a terminal one row above the non-directory floor opens the panel — the gate does not reserve the `⚠ dir unreadable` row speculatively.
+- [ ] With an **unusable** directory at that same height, the panel does **not** open: the enumeration is discarded, `terminal too short for the theme picker` is raised, and no panel state survives.
+- [ ] A panel that opens with an unusable directory always renders **at least one list row** beneath the pinned `⚠ dir unreadable` row — asserted at the directory-inclusive floor exactly.
 - [ ] `t` on the Preview page and on the Loading page does nothing and raises **no** flash.
 - [ ] `t` with a modal open does nothing (the modal keeps the key) and `t` during a pending burst is swallowed with no flash.
 - [ ] Blocked `t` inherits the auto-clear: the flash clears on the tick and on the next actionable key on both pages.
-- [ ] While the panel is open: `k`, `x`, `m`, `/`, `?`, `s`, `e`, `d`, `n`, `r`, `q` each leave the model state unchanged (no kill, no page switch, no mode entry, no filter, no modal).
+- [ ] While the panel is open: `k`, `x`, `m`, `/`, `?`, `s`, `e`, `n`, `r`, `q` each leave the model state unchanged (no kill, no page switch, no mode entry, no filter, no modal).
+- [ ] `d` and `l` never reach the page beneath while the panel is open — on Projects, `d` opens **no** delete modal — asserted as an absence of the page's effect, so the criterion still holds once task 9-3 makes them commit keys.
 - [ ] `Ctrl-C` while the panel is open quits.
 - [ ] `t` entered from multi-select leaves the marked set and its banner intact, and closing returns to multi-select with the same set.
 - [ ] No descriptor is filtered by this task (both keymaps byte-unchanged).
@@ -957,12 +973,15 @@
 - `"it opens from both pages when unblocked"` — `TestPanelEntry_OpensOnSessionsAndProjects`
 - `"it blocks under NO_COLOR with the pinned copy"` — `TestPanelEntry_NoColorBlocked` (both pages)
 - `"it blocks below each render-floor dimension"` — `TestPanelEntry_FloorBlocked` (narrow, short, both)
+- `"it does not reserve the directory row before it knows"` — `TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor`
+- `"it blocks after the read when the directory row raises the floor"` — `TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation` (enumeration discarded, pinned short flash, panel closed)
 - `"it shares one floor predicate with the resize path"` — `TestPanelEntry_SameFloorAsResize`
 - `"it is silent where t is not bound"` — `TestPanelEntry_SilentOnPreviewAndLoading`
 - `"it is swallowed during a pending burst"` — `TestPanelEntry_SwallowedWhileBurstPending`
 - `"it never reaches a modal"` — `TestPanelEntry_ModalKeepsTheKey`
 - `"its flash auto-clears like every other"` — `TestPanelEntry_BlockedFlashLifecycle`
-- `"it swallows every page key while open"` — `TestPanelRouting_KeyExclusive` (table over k/x/m//,?,s,e,d,n,r,q)
+- `"it swallows every page key while open"` — `TestPanelRouting_KeyExclusive` (table over k/x/m//,?,s,e,n,r,q)
+- `"it keeps the panel's own keys off the page beneath"` — `TestPanelRouting_PanelOwnedKeysNeverReachThePage` (`d` on Projects opens no delete modal; `l` reaches no page binding)
 - `"it keeps Ctrl-C live"` — `TestPanelRouting_CtrlCQuits`
 - `"it nests over multi-select without disturbing the set"` — `TestPanelRouting_NestsOverMultiSelect`
 - `"it filters no descriptor"` — `TestPanelEntry_LeavesDescriptorsUnfiltered`
@@ -971,11 +990,12 @@
 - Nothing blocks `t` except a modal, a pending burst, `NO_COLOR`, a terminal below either render-floor dimension, and the pages where it is not bound at all.
 - `NO_COLOR` is a **capability absence** — no canvas, no hues, a preview of nothing — so it is proactively blocked, while a narrow or short terminal is a **space shortage**: deliberately the opposite calls, drawn by §9.10 on exactly that distinction.
 - Below-the-floor is an **entry** condition as well as §9.8's resize condition, and both read the one predicate.
+- The floor is **conditional on `DirUnusable`**, which does not exist until the enumeration runs on the keypress — so the predicate is evaluated twice against the same function: once before the read with `dirUnusable = false`, once immediately after `Open` returns with the real flag. Assuming `true` up front would refuse terminals that fit; assuming `false` and never re-checking would open a panel with **zero** list rows beneath the pinned warning row, the state §9.5 requires rows beneath it precisely to prevent. A blocked open on the re-evaluation has already read the directory and emitted `theme: enumerated`, which is accepted rather than worked around.
 - Feedback follows the existing precedent — **flash** where the key is bound and the user could reasonably expect it to work, **silent** where it is not bound at all, exactly how `s` already behaves.
 - **Loading** is silent and is not a corner case, since on the cold + TUI path it holds for at least `LoadingMinDuration` with the user watching and renders no notice band to flash into.
 - **Preview** is refused on two grounds — its body is deliberately out-of-theme captured scrollback so the preview would be a weak surface, and it is already a full-screen overlay so the panel would stack an overlay on an overlay.
 - A **pending burst swallows** `t`, consistent with the input-lock rather than an exception to it.
-- The panel is **key-exclusive** — it owns arrows, `Enter`, `d`, `l` and `Esc` and swallows everything else, because `k` would kill the highlighted session while you pick a theme, `x` would swap pages behind it and `m` would start a multi-select — but **`Ctrl-C` stays live**, since swallowing it would take away the exit key inside a settings surface.
+- The panel is **key-exclusive** — it owns arrows, `Enter`, `d`, `l` and `Esc` and swallows everything else, because `k` would kill the highlighted session while you pick a theme, `x` would swap pages behind it and `m` would start a multi-select — but **`Ctrl-C` stays live**, since swallowing it would take away the exit key inside a settings surface. `d`/`l` are owned rather than swallowed, so they are asserted as never reaching the page beneath (no Projects delete modal) rather than as leaving the model unchanged — task 9-3 makes them write.
 - Non-blanking and key-exclusive are not in tension: seeing the list without being able to drive it *is* the live-preview premise.
 - The panel **nests** over multi-select with the marked set unaffected, the banner still visible in the notice band behind it, and `Esc` resolving innermost-first — the rule modals already follow — and previewing mid-selection is legitimate since the marked-row `●` is itself themed.
 - The **display** half of the block (dropping the `t` row from the footer and `?` help in lockstep) is task 8-14's, so this task owns the dispatch and the flash only.

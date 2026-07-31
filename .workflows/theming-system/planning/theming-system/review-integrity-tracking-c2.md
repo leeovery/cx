@@ -76,7 +76,7 @@ Task `theming-system-8-4`, **Tests** — add after `"it labels bad-name and rese
 
 - `"it badges the built-in and not its reserved-name collider"` — `TestThemeRow_ReservedNameRowCarriesNoBadge`
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -128,7 +128,7 @@ Task `theming-system-8-13`, **Edge Cases** — add after "Below-the-floor is an 
 
 - The floor is **conditional on `DirUnusable`**, which does not exist until the enumeration runs on the keypress — so the predicate is evaluated twice against the same function: once before the read with `dirUnusable = false`, once immediately after `Open` returns with the real flag. Assuming `true` up front would refuse terminals that fit; assuming `false` and never re-checking would open a panel with **zero** list rows beneath the pinned warning row, the state §9.5 requires rows beneath it precisely to prevent. A blocked open on the re-evaluation has already read the directory and emitted `theme: enumerated`, which is accepted rather than worked around.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -185,7 +185,7 @@ Task `theming-system-8-13`, **Edge Cases** — replace the key-exclusive bullet 
 
 - The panel is **key-exclusive** — it owns arrows, `Enter`, `d`, `l` and `Esc` and swallows everything else, because `k` would kill the highlighted session while you pick a theme, `x` would swap pages behind it and `m` would start a multi-select — but **`Ctrl-C` stays live**, since swallowing it would take away the exit key inside a settings surface. `d`/`l` are owned rather than swallowed, so they are asserted as never reaching the page beneath (no Projects delete modal) rather than as leaving the model unchanged — task 9-3 makes them write.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -214,7 +214,7 @@ Task `theming-system-1-7`, **Do** — replace the final bullet with:
 
 - Leave the `Loader` **without** an event-logger seam here: `Enumerate` returns its entries and its directory verdict and emits nothing. Task 1-8 introduces the seam, threads it onto the `Loader` and adds the three emissions at these exact call sites (one `theme: rejected` per rejected entry, one `theme: directory unusable` for the unusable-directory verdict, and nothing for an absent directory) — so structure `Enumerate` so those three points are distinguishable, but do not build the logger here.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -255,5 +255,5 @@ Task `theming-system-3-2`, **Edge Cases** — add after "The zero value of `Nomi
 
 - `New`'s dark-built-in seed of `activeTheme` **survives** this task — only `Build`'s transitional pair holder is dropped. Without the seed, a model constructed without a nomination renders through `lipgloss.Color("")`'s no-colour sentinel: silently colourless, with no compile error and no failing assertion, which is precisely why task 3-1 added it.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
