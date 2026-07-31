@@ -91,7 +91,7 @@
 - **Steps, in this order**:
   1. Capture the **identity** of the currently selected row before anything changes — the same key task 8-8's anchor helper matches on (slug where one exists, else filename, else the persisted string).
   2. `union := m.themeEnumerator.Reassemble(p.enumeration, m.themeKeys)` — the retained enumeration plus this instance's **mutated** raw keys. No fresh directory read, no fresh prefs read, and nothing from the persister's RMW.
-  3. `res, _ := m.themeEnumerator.Resolve(p.enumeration, theme.ResolveSetting(...))` for the **badges** only — `theme.Badges(res.Slots)` (task 8-3). The re-resolution never selects a new active member and never calls `ApplyTheme`.
+  3. `res, err := m.themeEnumerator.Resolve(p.enumeration, theme.ResolveSetting(...))` for the **badges** only — `theme.Badges(res.Slots)` (task 8-3). The re-resolution never selects a new active member and never calls `ApplyTheme`. On a **non-nil error** take task 8-8's degrade policy verbatim — the one policy governing all three panel call sites — and **keep the existing badge map** rather than deriving from a zero `Resolution`: `theme.Badges` returns an empty map for an empty slice, so a discarded error would wipe every `●` off the panel at the exact moment the user committed one, the marker lying in the direction §9.13's "a failed commit does not move the `●`" rule exists to forbid. Steps 2, 4 and 5 still run on that path — they read the mutated keys and the retained enumeration, not the resolution — so the rows still re-derive, re-sort and re-anchor.
   4. Refresh the panel's list **items** (`p.list.SetItems(...)`) from the new rows with task 8-4's item type; do **not** construct a new `list.Model`. Its `bubbles/list`-owned styles stay **re-pointed** by task 8-9's restyle path rather than reassigned.
   5. Re-anchor the cursor to the captured identity through task 8-8's helper, inheriting its clamp-to-first-selectable degradation. Comment that an index anchor breaks §9.2's invariant the moment step 2 inserts a row above the cursor.
 - **Rely on `Reassemble` for ordering** — task 8-2 sorts inside the assembler, so an inserted row lands in its alphabetical place with no second comparator here and no caller-side sort.
@@ -109,6 +109,7 @@
 - [ ] The cursor is re-anchored by identity: a commit that inserts a row **above** the cursor leaves the cursor on the same theme, previewing the same palette.
 - [ ] When the previewed row's identity has disappeared from the recomputed union, the cursor clamps to the first selectable row with no panic.
 - [ ] A commit of the slug already persisted produces a byte-identical row set, badge map and cursor index.
+- [ ] A `Resolve` returning task 5-6's fatal during a recompute leaves the **existing** badge map in place — driven through the seam with an error-returning fake — while the rows still re-derive, re-sort and re-anchor from the mutated keys.
 - [ ] A failed commit does **not** recompute (asserted by a fake persister returning an error: rows and badges unchanged).
 - [ ] The panel's list instance is the same object after a recompute (items replaced, model not rebuilt), and its pagination dots still render in the previewed theme.
 
@@ -122,6 +123,7 @@
 - `"it anchors the cursor by identity"` — `TestPanelRecompute_CursorAnchoredByIdentity` (row inserted above)
 - `"it degrades when the previewed identity is gone"` — `TestPanelRecompute_CursorClampsOnMissingIdentity`
 - `"it is idempotent for an unchanged commit"` — `TestPanelRecompute_NoChangeCommitIsStable`
+- `"it keeps the badges when the re-resolution errors"` — `TestPanelRecompute_ResolveErrorKeepsBadges`
 - `"it does not run on a failed write"` — `TestPanelRecompute_SkippedOnFailedCommit`
 - `"it keeps the list instance and its re-pointed styles"` — `TestPanelRecompute_ItemsReplacedNotRebuilt`
 
@@ -132,6 +134,7 @@
 - The recompute calls task 8-1's `Reassemble` with the mutated keys and performs **no fresh directory read**, since §5.8 pins enumeration to panel open and a commit changes prefs, not the directory.
 - Rows re-sort through task 8-2's total comparator so an inserted row lands in its alphabetical place.
 - Badges re-derive through task 8-3's table off a re-resolution against the **retained** enumeration.
+- The badge re-resolution takes task 8-8's degrade policy on a non-nil error and the **existing** badge map stands. Discarding the error and deriving from a zero `Resolution` returns an empty badge map and wipes every `●` at the moment the user committed one; task 8-8 names this recompute as one of the three call sites that single policy governs.
 - The cursor **re-anchors to the previewed theme's identity, never to its index** — an index anchor silently breaks §9.2's invariant the moment a row is inserted above the cursor, leaving the screen previewing one theme while the cursor sits on another.
 - The recompute must not call `ApplyTheme`; the re-resolution is for badges (and task 9-6's slot load) only, never for selecting a new active member.
 - The panel's list is rebuilt from the new rows while its `bubbles/list`-owned styles stay **re-pointed** rather than reassigned.

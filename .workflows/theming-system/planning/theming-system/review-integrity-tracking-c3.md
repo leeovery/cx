@@ -49,7 +49,7 @@ Task `theming-system-8-11`, **Edge Cases** — add after "The multi-select prece
 
 - The ladder applies at **open** as well as on resize. Task 8-7 opened at the preferred width only because the ladder did not exist yet, and leaving it there would mean the panel never renders in the degraded band except after a resize — a state no fixture can reach, since task 8-16's narrow frame opens through `captureKeys` and never resizes.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -109,7 +109,7 @@ Task `theming-system-8-15`, **Edge Cases** — add after "The raw keys are decla
 
 - The declared slot record reaches the panel through the **faked seam's `Resolve` return**, not a `Deps` field: task 8-8 retired the injected record with its last consumer, so a fixture wired to the old slot would render no badge on any row — and the badges are the entire subject of both setting-state frames, which §9.14 makes the only reference that exists for the slot half.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -154,7 +154,7 @@ Task `theming-system-9-2`, **Edge Cases** — add after "Badges re-derive throug
 
 - The badge re-resolution takes task 8-8's degrade policy on a non-nil error and the **existing** badge map stands. Discarding the error and deriving from a zero `Resolution` returns an empty badge map and wipes every `●` at the moment the user committed one; task 8-8 names this recompute as one of the three call sites that single policy governs.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
