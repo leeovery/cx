@@ -144,7 +144,7 @@ the mechanism the mirror case rides on.
 > §5.8: "**The panel's parse supersedes the construction-time parse for the same slug.** After a mid-session edit the panel holds the fresher truth, and that is the entire point of re-reading. Two consequences, both following from the same rule: **`Esc` resolves persisted state against the panel's enumeration**, not against what construction loaded… **The mirror case works for the same reason**: fixing a previously-invalid theme takes effect on the next panel open, without relaunching. That symmetry is what §5.8 exists to buy."
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: `planning.md`'s Phase 8 task table carries a condensed Edge Cases cell for
 `theming-system-8-8`; if the fix is approved it should gain the matching condensed clause so
 the table and the detail file do not drift — suggested text: `the mirror case lands on the
@@ -219,7 +219,7 @@ and needs no edit.
 - [ ] All **seven** §6.2 reason labels render verbatim, each prefixed `⚠ ` — `missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable` and `not found`. The count is asserted rather than left to the test's name: `not found` is the one reason §6.2 keeps **outside** the ladder, so task 1-5 pins that `LoadFile` never produces it and it reaches a row only through task 8-1's union — making the panel the sole surface that renders it.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: Task 8-4's **Do** section already enumerates all seven and is unchanged by this
 fix. `planning.md`'s Phase 8 cell for `theming-system-8-4` states the rule without a count
 ("reason labels are §6.2's terse vocabulary verbatim, each prefixed `⚠ `, with full detail

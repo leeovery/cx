@@ -301,6 +301,7 @@
 - [ ] A label longer than the remaining budget is truncated with `…` and never falls below three visible characters plus the ellipsis.
 - [ ] An invalid label renders in `text.subtle` while its `⚠` and reason render in `accent.attention` — asserted as distinct SGR runs on the same line, so the `⚠` demonstrably does not inherit the dimmed label's colour.
 - [ ] `text.faint` appears nowhere in a panel row's output.
+- [ ] All **seven** §6.2 reason labels render verbatim, each prefixed `⚠ ` — `missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable` and `not found`. The count is asserted rather than left to the test's name: `not found` is the one reason §6.2 keeps **outside** the ladder, so task 1-5 pins that `LoadFile` never produces it and it reaches a row only through task 8-1's union — making the panel the sole surface that renders it.
 - [ ] A `bad name` row is labelled by its **filename** and a `reserved name` row likewise, both via `Row.Label()` with no second derivation in the delegate.
 - [ ] A `reserved name` row renders **no** `●` even when its slug is the persisted one, while the built-in it collides with renders the badge — asserted on the two adjacent rows of the same union.
 - [ ] A valid row is `text.primary` and a built-in is byte-identical to a valid drop-in with the same label and badge state.
@@ -322,7 +323,7 @@
 - `"it applies the shipped selection treatment to the cursor row"` — `TestThemeRow_CursorRowSelectionTreatment`
 - `"it re-derives from the previewed theme every frame"` — `TestThemeRow_NoCachedStyles` (render, swap theme, render, diff)
 - `"it stays glyph-backed and hue-free under colourless"` — `TestThemeRow_ColourlessIsGlyphBacked`
-- `"it renders the terse reason vocabulary verbatim"` — `TestThemeRow_ReasonLabelsAreTheSixTerseStrings`
+- `"it renders the terse reason vocabulary verbatim"` — `TestThemeRow_ReasonLabelsAreTheSevenTerseStrings` (table over **all seven** §6.2 labels — `missing tokens`, `bad colour`, `bad syntax`, `bad name`, `reserved name`, `unreadable`, `not found` — each asserted with its `⚠ ` prefix)
 
 **Edge Cases**:
 - One row is exactly **one delegate line**, never two — the `bubbles/list` pagination invariant that paging and the invalid-row skip both rest on, and the same invariant the Sessions group headers were reshaped to preserve.
@@ -608,6 +609,7 @@
 - [ ] Opening with an unchanged directory leaves the rendered theme byte-identical — `ApplyTheme` either is not called or is called with the active theme.
 - [ ] Editing the active theme's file to new but **valid** values and then opening re-renders the same slug with the new values, with no arrowing required.
 - [ ] Editing the active theme's file to make it **invalid** and then opening flips the screen to the §8.5 fallback **on open**, with the persisted row unselectable and reasoned.
+- [ ] **Repairing** a theme that was already invalid at construction — so the launch is rendering the §8.5 fallback — and then opening applies the **persisted** theme on that open: the cursor moves from the fallback's row onto the persisted slug's now-selectable row, the `●` (which never left it) is on that same row, the fallback's row carries no badge, and **no relaunch is required**. This is §5.8's mirror case and the payoff re-reading exists to buy, so it is asserted rather than inferred from the breaking direction.
 - [ ] `Resolve` performs **no** directory read (proven with the directory removed after the enumeration) and writes nothing to `prefs.json`.
 - [ ] The cursor is anchored by identity: inserting a row above the target before the anchor runs still lands the cursor on the target.
 - [ ] `Deps.ThemeSlots` and `WithThemeSlots` no longer exist — a source guard proves `internal/tui` declares neither — and every `●` rendered on any open derives from a `Resolve` result rather than an injected record.
@@ -625,6 +627,7 @@
 - `"it changes nothing when the directory is unchanged"` — `TestPanelOpen_DoesNotChangeTheRenderedTheme`
 - `"it applies an edited-but-valid active theme on open"` — `TestPanelOpen_AppliesMidSessionEdit`
 - `"it flips to the fallback on open when the active theme is broken"` — `TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen`
+- `"it applies a repaired theme on open with no relaunch"` — `TestPanelOpen_RepairedThemeAppliesOnOpen` (constructed on a broken persisted slug so the model starts on the fallback; the enumeration handed to `Open` carries the repaired file)
 - `"it resolves against the retained enumeration with no directory read"` — `TestResolveNominationFrom_ReadsNothing`
 - `"it anchors the cursor by identity, not index"` — `TestPanelOpenCursor_AnchoredByIdentity`
 - `"it degrades rather than indexing out of range"` — `TestPanelOpenCursor_DegradesOnMissingIdentity`
@@ -641,6 +644,7 @@
 - Because the cursor starts on what is already rendering, **opening never changes which theme is shown** and the mixed-mode flash fires only on deliberate navigation.
 - Opening **can** change that theme's *values* and that is correct — §5.8's fresh enumeration supersedes the construction-time parse, so an edited-and-still-valid active theme re-renders with its new values on open; making the user arrow away and back would be a bug wearing a rule's clothing.
 - An edit that **invalidates** the active theme resolves §8.5's fallback and flips on **open**, never deferred to `Esc`, because deferring would leave the panel listing a theme as invalid while the screen still renders it.
+- The **mirror case lands on the same open** and is the payoff §5.8 exists to buy: a theme that was invalid at construction — so the launch is rendering the fallback — becomes loadable once the user fixes the file, and the next open applies **their** theme, moving the cursor off the fallback's row onto the persisted slug's now-selectable one. It is not a free consequence of the breaking direction: it is the only case that moves the cursor *onto* a row that was unselectable at construction, and an implementation that trusted the construction-time classification of an already-broken slug would satisfy every other criterion here while leaving the user on the fallback after they fixed their file.
 - The invariant surviving both cases: the cursor is always on a selectable row and that row is always what is painted behind the panel.
 - The in-force slot comes from the gate's **single** resolution with the standing dark no-answer fallback; no new query is issued.
 - The cursor is anchored to a row **identity**, not an index — the property Phase 9's commit recompute rests on.
@@ -653,6 +657,7 @@
 > §9.2: "**Edited and still valid** — the panel re-renders the *same slug* with its new values on open… **Edited and now invalid** — the active theme is no longer loadable, so opening resolves the §8.5 fallback and the cursor lands on the fallback's row… The flip happens on **open**, not deferred to `Esc`… The invariant that survives both cases: **the cursor is always on a selectable row, and that row is always what is painted behind the panel.**"
 > §8.4: "**A stale hand-edited slot** resolves from the panel's retained enumeration (§5.8), which already parsed and classified every file in the directory when the panel opened… **No commit-time directory read.** Issuing one would produce a *third* parse of the same slug — neither construction's nor the panel's — that can disagree with the row the user is looking at."
 > §9.2: "…**re-anchors the cursor to the previewed theme's identity, never to its index**. Anchoring to an index would silently break §9.2's invariant the moment a row is inserted above the cursor."
+> §5.8: "**The panel's parse supersedes the construction-time parse for the same slug.** After a mid-session edit the panel holds the fresher truth, and that is the entire point of re-reading. Two consequences, both following from the same rule: **`Esc` resolves persisted state against the panel's enumeration**, not against what construction loaded… **The mirror case works for the same reason**: fixing a previously-invalid theme takes effect on the next panel open, without relaunching. That symmetry is what §5.8 exists to buy."
 
 **Spec Reference**: `.workflows/theming-system/specification/theming-system/specification.md` §9.2, §9.4, §9.5, §8.4, §8.5, §5.8, §8.8
 # Phase 8: The slide-over panel — tasks 8-9 … 8-16
