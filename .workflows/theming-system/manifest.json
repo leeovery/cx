@@ -121,8 +121,8 @@
           "author_gate_mode": "auto",
           "finding_gate_mode": "gated",
           "review_cycle": 0,
-          "phase": 8,
-          "task": "theming-system-8-1",
+          "phase": 9,
+          "task": null,
           "task_map": {
             "theming-system-1-1": "tick-cac1ab",
             "theming-system-1": "tick-1c8edf",
@@ -214,28 +214,7 @@
               "p8": "2026-07-31"
             }
           },
-          "staging": {
-            "author-p8": {
-              "tasks": {
-                "theming-system-8-1": "approved",
-                "theming-system-8-2": "approved",
-                "theming-system-8-3": "approved",
-                "theming-system-8-4": "approved",
-                "theming-system-8-5": "approved",
-                "theming-system-8-6": "approved",
-                "theming-system-8-7": "approved",
-                "theming-system-8-8": "approved",
-                "theming-system-8-9": "approved",
-                "theming-system-8-10": "approved",
-                "theming-system-8-11": "approved",
-                "theming-system-8-12": "approved",
-                "theming-system-8-13": "approved",
-                "theming-system-8-14": "approved",
-                "theming-system-8-15": "approved",
-                "theming-system-8-16": "approved"
-              }
-            }
-          },
+          "staging": {},
           "external_id": "tick-f9fa94"
         }
       }
