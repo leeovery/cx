@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.6.21",
-    "commit": "7e99fc6498d23a40f764b702a5dfe013141abb15",
+    "ref": "v0.6.22",
+    "commit": "dfbf12a9b67d41e33d04d67bf3724dbd413fadec",
     "agents": [
       "claude"
     ],
@@ -421,6 +421,8 @@
       ".claude/skills/workflow-shared/references/background-agent-surfacing.md",
       ".claude/skills/workflow-shared/references/casing-conventions.md",
       ".claude/skills/workflow-shared/references/closing-recap.md",
+      ".claude/skills/workflow-shared/references/coherence-analysis.md",
+      ".claude/skills/workflow-shared/references/coherence-findings-gate.md",
       ".claude/skills/workflow-shared/references/compliance-check.md",
       ".claude/skills/workflow-shared/references/convergence-analysis.md",
       ".claude/skills/workflow-shared/references/correcting-historical-artifacts.md",
@@ -533,7 +535,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-07-30T13:59:42.726Z",
+    "installedAt": "2026-07-31T10:48:05.546Z",
     "constraint": "^0.6.0"
   },
   "samber/cc-skills-golang": {

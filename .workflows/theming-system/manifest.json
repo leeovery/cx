@@ -72,7 +72,7 @@
     "specification": {
       "items": {
         "theming-system": {
-          "status": "in-progress",
+          "status": "completed",
           "sources": {
             "theming-system": {
               "status": "incorporated"
