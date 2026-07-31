@@ -32,8 +32,8 @@ This is not a hypothetical branch. §13.6 names this path as *"the one part of t
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: Real defect, latent since cycle 8. §8.9 now requires two decodes: the load path stays tolerant per §8.1, the write-path re-read is strict and errors on malformed JSON — without the split the abort branch had no trigger and the writer merged into a zero-value struct. Also pinned: unrecognised *values* in syntactically valid JSON are not "unusable" (tolerant decode absorbs them; treating them as fatal would make hand-editing prefs a lockout), and the save methods use the strict read internally.
 
 ---
 
@@ -57,8 +57,8 @@ This decides concrete build outputs an implementer cannot infer: the `ThemeEnume
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §13.3 now states the seam returns the finished §9.4 union rather than a directory listing, with `internal/theme` owning assembly — which keeps `theme: enumerated` computable where it is emitted, keeps §8.9's emitter set closed at three, and gives §9.2's post-commit re-derivation one entry point. Fixture raw keys retained separately because badges read them directly (§8.4).
 
 ---
 
@@ -79,8 +79,8 @@ The count is not inert, because the sentence is the justification for the scope 
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §14A's count corrected to six — all six pinned flashes are reachable from Projects, and the two a reader would most plausibly exclude are the two the same section argues must not be lost there.
 
 ---
 
@@ -104,5 +104,5 @@ The consequence is not theoretical: the omitted path is the one where a missed s
 
 **Proposed Addition**:
 
-**Resolution**: Pending
-**Notes**:
+**Resolution**: Approved
+**Notes**: §11.1's caller list corrected: arrow-preview, open (mid-session edit changing or invalidating the active theme) and close (`Esc` plus the forced close). A commit is not a caller — it recomputes rows and badges, not the rendered theme. Flagged that close is the path where a missed re-point leaves a discarded preview painting the main screen, and §13.4's guard drives arrow-preview only.
