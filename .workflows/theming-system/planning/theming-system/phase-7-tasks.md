@@ -155,7 +155,7 @@
 
 **Do**:
 - Add a `ThemesDir string` field to `DoctorDeps` in `cmd/doctor.go`, documented exactly like `StateDir` (empty means "resolved by `resolveDoctorDeps`"; tests set a hermetic temp dir). In `resolveDoctorDeps`, resolve it **best-effort** via `themesDirPath()` alongside the existing best-effort store construction: on error leave it empty and scan nothing. The advisory class has no not-evaluable form, so degrading to zero lines is the only shape available — a resolution failure must never abort the diagnosis.
-- Create `cmd/doctor_theme.go` with `func collectThemeAdvisories(deps *DoctorDeps) []advisory`, the single entry point tasks 7-4/7-5/7-6 extend. Return early with `nil` when `deps.ThemesDir == ""`.
+- Create `cmd/doctor_theme.go` with `func collectThemeAdvisories(deps *DoctorDeps) []advisory`, the single entry point tasks 7-4/7-5/7-6 extend. When `deps.ThemesDir == ""` (an unresolved path) **skip the directory scan only** — no `Enumerate` call, no directory line, no per-file line — and carry on with the rest of the assembly. Do **not** return early from `collectThemeAdvisories` itself: task 7-5's persisted-slug producer resolves built-ins from the embedded set with **no path at all** and yields `not found` for a drop-in slug, so an unresolved directory must never suppress the line for the failure a user is most likely to hit (§12.2). Task 7-6 assembles the three regions inside this same function, so the early return would silently remove two of them.
 - Construct the loader as `theme.NewLoader(theme.NewEventLogger(log.Discard()))` — **`log.Discard`, always**, on every doctor path. Doc-comment the reason: the `theme` component records where a theme is *used*, never where one is *diagnosed*; doctor is the user looking, its whole output is already the diagnostic, and it is the run most likely to hit a full reject set, so emitting would put the largest WARN volume on the surface that needs it least. It also keeps the read-only claim literal.
 - Call `entries, dirRej := loader.Enumerate(deps.ThemesDir)`:
   - `dirRej != nil` (unreadable directory, or a regular file where a directory belongs) → one advisory `⚠ themes directory unreadable: <path>` using `deps.ThemesDir` verbatim. `Enumerate` returns no entries in that state, so it is the only theme-file line.
@@ -175,7 +175,7 @@
 - [ ] Every advisory this task emits carries `slug == Entry.Slug` and `fromPrefs == false`, so task 7-6's union has an identity to dedup on.
 - [ ] An **absent** themes directory produces zero advisories, no error, and no log record of any kind.
 - [ ] An unreadable directory and a regular file where the directory belongs each produce exactly one line, `⚠ themes directory unreadable: <path>`, and no per-file lines.
-- [ ] A `themesDirPath()` failure yields zero advisories and a diagnosis that still renders every check and its summary.
+- [ ] A `themesDirPath()` failure yields zero **theme-file** advisories — no directory line and no per-file line — and a diagnosis that still renders every check and its summary; the skip is scoped to the scan, so `collectThemeAdvisories` still returns and task 7-5's producer still runs from it.
 - [ ] A directory holding a full reject set produces **zero** records through a `logtest.Sink` installed for the whole run.
 - [ ] Doctor never reports one file under two reasons: each entry contributes at most one line.
 - [ ] The themes directory and every file in it are byte-identical after the run, and `prefs.json` is untouched by this scan.
@@ -198,7 +198,7 @@
 - The loader is handed **`log.Discard`**, so a full reject set produces **zero** `theme` records.
 - An **absent** directory produces **no line at all**, no error and no log entry — zero drop-ins is not an error and Portal never creates or seeds it.
 - An **unusable** directory produces `⚠ themes directory unreadable: <path>` and, since `Enumerate` returns no entries in that state, it is the only theme-file line.
-- A `themesDirPath` resolution failure must degrade rather than abort the diagnosis, matching doctor's existing best-effort store construction where a nil store yields a not-evaluable check.
+- A `themesDirPath` resolution failure must degrade rather than abort the diagnosis, matching doctor's existing best-effort store construction where a nil store yields a not-evaluable check — and the degradation is **scoped to the directory scan**, never to `collectThemeAdvisories` itself, because the persisted-slug producer (task 7-5) resolves built-ins with no path at all and must still report an unresolvable persisted slug.
 - The generic frame is `⚠ theme <slug>: <reason> — <detail>` for every reason that has a slug in hand (`missing tokens`, `bad colour`, `bad syntax`, `unreadable`).
 - `<detail>` is `Rejection.Detail` verbatim — nothing is re-derived, re-ordered or double-prefixed — with `unreadable`'s OS error read off the rejection's `Err` field.
 - A duplicate names the **second** occurrence's line, which is the one to delete.
@@ -316,6 +316,7 @@
 - [ ] An absent `prefs.json`, an empty one, and one with no theme keys each yield zero lines; a corrupt one yields zero lines and no error that aborts the diagnosis.
 - [ ] `{"theme":"../evil"}` yields `⚠ theme ../evil does not resolve: bad name`, and no file is opened at any composed path (proven by placing a readable file where a naive join would land).
 - [ ] `{"theme":"nord-lee"}` with the themes directory at mode `0000` yields `unreadable`, not `not found`.
+- [ ] With `deps.ThemesDir` **empty** (an unresolved path), `{"theme":"nord-lee"}` still yields `⚠ theme nord-lee does not resolve: not found` — the unresolved directory suppresses the file scan (task 7-3) but never this producer, and no path is composed.
 - [ ] A persisted value carrying a newline, tab or ANSI escape renders on one line with the escape stripped and **not** truncated, however long it is.
 - [ ] A persisted value that is only control characters yields no line — it strips to empty and is therefore unset.
 - [ ] After a full doctor run `prefs.json` is byte-identical and `theme_migrated` is still absent; `loadPrefsStore` (migrating) appears nowhere in doctor's call graph.
@@ -329,6 +330,7 @@
 - `"it produces no line for an unset slot"` — `TestPersistedThemeAdvisory_VirginInstallIsSilent`
 - `"it reports a charset-failing value as bad name"` — `TestPersistedThemeAdvisory_CharsetFailureIsBadName` (table incl. `../evil`, asserting no path composed)
 - `"it distinguishes not found from unreadable"` — `TestPersistedThemeAdvisory_NotFoundVersusUnreadable`
+- `"it still reports a persisted slug with no themes directory"` — `TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports`
 - `"it renders the slug control-stripped and untruncated"` — `TestPersistedThemeAdvisory_ControlStrippedUntruncated`
 - `"it treats a control-only value as unset"` — `TestPersistedThemeAdvisory_ControlOnlyValueIsUnset`
 - `"it tolerates an absent or corrupt prefs file"` — `TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs`

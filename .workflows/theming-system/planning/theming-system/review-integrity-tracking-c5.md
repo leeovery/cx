@@ -71,7 +71,7 @@ In `theming-system-7-5`, **Tests** gains one entry, placed immediately after the
 - `"it still reports a persisted slug with no themes directory"` — `TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports`
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -141,7 +141,7 @@ In `theming-system-8-11`, **Edge Cases** gains one entry, placed immediately aft
 - The resize path must **re-point the delegate**, not only `SetSize` the list: task 8-4's delegate holds `Width` as a field and task 8-9's restyle path re-invokes `m.themeRowDelegate()` only on a theme swap, so a resize with no following arrow would otherwise compose every row against the pre-resize budget — the exact disagreement task 8-6's single construction point exists to prevent.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -192,7 +192,7 @@ In `theming-system-8-15`, **Edge Cases** gains one entry, placed immediately aft
 - The **tape** types the fixture's `captureKeys` sequence; `capturetool` does not replay it (that field is task 4-2's offline mirror for `ModelAt`), so a panel tape without its `t` screenshots a panel-less Sessions frame — and making `capturetool` replay it instead would double-apply the `projects` tape's `x`, which toggles pages in both directions.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
