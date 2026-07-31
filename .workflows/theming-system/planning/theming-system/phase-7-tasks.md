@@ -160,7 +160,7 @@
 - Call `entries, dirRej := loader.Enumerate(deps.ThemesDir)`:
   - `dirRej != nil` (unreadable directory, or a regular file where a directory belongs) → one advisory `⚠ themes directory unreadable: <path>` using `deps.ThemesDir` verbatim. `Enumerate` returns no entries in that state, so it is the only theme-file line.
   - `entries == nil && dirRej == nil` (absent directory) → **no line, no error, no log**. Zero drop-ins is not an error and Portal never creates or seeds the directory.
-- For each entry with a non-nil `Rejection` whose reason is one of the four this task owns — `missing tokens`, `bad colour`, `bad syntax`, `unreadable` — emit the generic frame `⚠ theme <slug>: <reason> — <detail>`, where `<slug>` is `Entry.Slug` and `<reason>` is the `Reason`'s string value (the terse §6.2 label verbatim). The filename reasons (`bad name`, `reserved name`) are task 7-4 and are skipped here — leave an explicit `default:` arm so the compiler-level exhaustiveness is visible rather than silently dropping them.
+- For each entry with a non-nil `Rejection` whose reason is one of the four this task owns — `missing tokens`, `bad colour`, `bad syntax`, `unreadable` — emit the generic frame `⚠ theme <slug>: <reason> — <detail>`, where `<slug>` is `Entry.Slug` and `<reason>` is the `Reason`'s string value (the terse §6.2 label verbatim). The filename reasons (`bad name`, `reserved name`) are task 7-4 and are skipped here — leave an explicit `default:` arm so the compiler-level exhaustiveness is visible rather than silently dropping them. **Populate the advisory's identity fields as well as its line** — `slug: Entry.Slug`, `fromPrefs: false` — because task 7-6's one-slug-one-line union drops a file line only when its `slug` is non-empty and matches a persisted line's. A producer that sets `line` alone silently defeats the dedup and makes `<M>` count detections rather than problems.
 - `<detail>` is the loader's own: `Rejection.Detail` verbatim when non-empty, else `Rejection.Err.Error()` (Phase 1 carries `unreadable`'s OS error on the dedicated `Err` field, not in `Detail`). Nothing is re-derived, re-ordered, re-wrapped or double-prefixed here — Phase 1 already renders `missing text.primary, bg.subtle`, `text.primary = #GGGGGG, canvas = blue` and `line 12: duplicate key text.primary`. Assert the `unreadable` line carries the OS error exactly once.
 - A valid entry (nil `Rejection`) produces no line.
 - Wire it into `doctorCmd.RunE`: `renderDoctorReport(w, results, collectThemeAdvisories(deps))`, replacing task 7-2's empty slice on the plain path (the `--fix` path is task 7-7).
@@ -172,6 +172,7 @@
 - [ ] A duplicate-keyed file produces `⚠ theme <slug>: bad syntax — line 12: duplicate key text.primary`, naming the **second** occurrence's line.
 - [ ] A mode-`0000` file and a dangling symlink each produce `⚠ theme <slug>: unreadable — <OS error verbatim>`, the OS error appearing exactly once.
 - [ ] A valid `.theme` file produces no line; a non-`.theme` file produces no line.
+- [ ] Every advisory this task emits carries `slug == Entry.Slug` and `fromPrefs == false`, so task 7-6's union has an identity to dedup on.
 - [ ] An **absent** themes directory produces zero advisories, no error, and no log record of any kind.
 - [ ] An unreadable directory and a regular file where the directory belongs each produce exactly one line, `⚠ themes directory unreadable: <path>`, and no per-file lines.
 - [ ] A `themesDirPath()` failure yields zero advisories and a diagnosis that still renders every check and its summary.
@@ -188,6 +189,7 @@
 - `"it degrades when the themes directory cannot be resolved"` — `TestThemeAdvisories_UnresolvedDirDegrades`
 - `"it reuses the loader's detail verbatim"` — `TestThemeAdvisories_DetailIsVerbatim`
 - `"it reports exactly one reason per file"` — `TestThemeAdvisories_OneReasonPerFile`
+- `"it carries the slug identity for the union"` — `TestThemeAdvisories_FileLinesCarryTheirSlug`
 - `"it emits zero theme log records"` — `TestThemeAdvisories_EmitsNoThemeRecords` (`logtest.Sink`, full reject set)
 - `"it writes nothing and reads no prefs"` — `TestThemeAdvisories_ScanIsReadOnly`
 
@@ -202,6 +204,7 @@
 - A duplicate names the **second** occurrence's line, which is the one to delete.
 - `unreadable` carries the **OS error verbatim**, the only thing distinguishing a permission denial from a dangling symlink.
 - Doctor enumerates **within** the reason and never across, so a file is never reported as both `bad colour` and `missing tokens`.
+- Each advisory carries `slug` and `fromPrefs: false` alongside its line — task 7-6's dedup keys on exactly those, so a producer emitting the line alone silently disables the one-slug-one-line rule.
 - A valid file produces no line; the scan performs no write, no repair and reads no `prefs.json`.
 - The `0000`-mode file and directory tests need a `chmod` cleanup and should skip when the suite runs as root, where mode bits do not deny.
 
@@ -230,6 +233,8 @@
   - `bad name` with `BadNameCause == BadNameSlug` → `⚠ theme file <filename>: slug must be lowercase letters, digits and hyphens`
   - `bad name` with `BadNameCause == BadNameExtension` → `⚠ theme file <filename>: extension must be lowercase .theme`
   - `reserved name` → `⚠ theme file <filename>: <slug> is a built-in — rename it (e.g. <slug>-mine.theme)`, where `<slug>` is `Entry.Slug` (a `reserved name` entry has a valid slug — that is what collided).
+
+  Set the identity fields alongside each line: `fromPrefs: false` in both cases; `slug` **empty** for a `bad name` row (`Entry.Slug` is empty exactly when the rejection is `bad name`, which is what makes task 7-6's "a `bad name` file can never collide with a persisted slug" structural rather than incidental) and `Entry.Slug` for a `reserved name` row.
 - Doc-comment why the frame differs from task 7-3's: the differing line frame (`⚠ theme file <filename>: …` versus `⚠ theme <slug> …`) is what carries the **input class** — a file versus a slug — which is why §6.2 keeps one reason class while doctor names which cause.
 - Doc-comment why the two `bad name` causes take distinct messages: with a bad extension the slug portion is **already legal**, so a single message telling the user to fix their slug sends them to fix the one thing that is fine — the misdirection the spec discriminates against at three other sites.
 - Doc-comment why `reserved name` is labelled by filename despite having a valid slug: that slug is *identical* to the built-in's, so labelling by slug would print the same name twice with no way to tell which row is theirs.
@@ -245,6 +250,7 @@
 - [ ] Every member of `theme.BuiltinSlugs()` produces the reserved-name line when a colliding file is dropped in; the test names no theme.
 - [ ] A `bad name` file that is also unreadable and also has a bad hex produces exactly one line, the filename one.
 - [ ] A `reserved name` file whose contents are perfectly valid still produces its line — the reason is decided from the slug alone, before any read.
+- [ ] A `bad name` advisory carries an **empty** `slug`; a `reserved name` advisory carries `Entry.Slug`; both carry `fromPrefs == false`.
 - [ ] No filename-reason line uses the `⚠ theme <slug>:` frame, and no content-reason line uses the `⚠ theme file <filename>:` frame.
 - [ ] The three frames are single-sourced in `cmd/doctor_theme.go`; no format string for them exists elsewhere.
 
@@ -255,6 +261,7 @@
 - `"it renders the reserved-name line naming the conflict and the fix"` — `TestThemeAdvisories_ReservedNameFrame`
 - `"it derives the reserved set from the embedded built-ins"` — `TestThemeAdvisories_ReservedSetIsTheEmbeddedSet` (loops `theme.BuiltinSlugs()`, names no theme)
 - `"it never reports a bad-name file's contents"` — `TestThemeAdvisories_BadNameNeverReportsContent`
+- `"it leaves a bad-name advisory without a slug"` — `TestThemeAdvisories_BadNameCarriesNoSlug`
 - `"it reports a reserved-name file whose contents are valid"` — `TestThemeAdvisories_ReservedNameDecidedBeforeRead`
 
 **Edge Cases**:
@@ -265,6 +272,7 @@
 - Its line names the **conflict and the fix** — `<slug> is a built-in — rename it (e.g. <slug>-mine.theme)` — and deliberately does **not** follow the generic `<reason> — <detail>` frame.
 - The reserved set is the embedded set itself (Phase 2 task 2-2), never a hand-maintained list, so a future built-in is covered without editing doctor.
 - A `bad name` file can never also report `unreadable` or any content reason, the filename being decided before the file is opened.
+- A `bad name` advisory carries an **empty** `slug` and a `reserved name` advisory carries its `Entry.Slug`; both carry `fromPrefs: false`. That is what makes task 7-6's non-collision rule structural rather than incidental.
 - The terse §6.2 labels stay the panel's business — doctor's width is what these frames spend.
 
 **Context**:

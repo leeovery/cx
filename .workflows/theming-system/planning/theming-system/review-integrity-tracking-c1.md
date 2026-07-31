@@ -45,7 +45,7 @@ Task `theming-system-9-6`, **Edge Cases** — add after "**No new query, no race
 
 - The conversion writes the model's light/dark answer, which is the **same value the gate's resolution sets** — so it must record the answer directly and never route through `syncResolvedMode`, where task 3-3 captures `startupCanvasHex`. Re-capturing the hex would re-anchor §11.4's echo guard to a canvas the startup window never painted, on the one path where a mistake re-sticks a colour in the user's terminal after Portal exits. Tasks 4-2, 4-5 and 8-9 assert the anchor is stable across a **swap**; a conversion is not a swap and inherits none of those assertions, which is why this task needs its own.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -99,7 +99,7 @@ Task `theming-system-8-10`, **Do** — replace step 2 with:
 
   2. Call the seam's `Resolve(p.enumeration, setting)` (task 8-8's `ResolveNominationFrom`) — resolution runs **against the retained enumeration**, never the filesystem, so it agrees with the rows the user was just looking at and issues no third parse. A non-nil error takes task 8-8's degrade policy: skip steps 3 and 4, leaving the active theme exactly as it is, and fall through to step 5 so the panel still closes.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -170,7 +170,7 @@ Task `theming-system-7-4`, **Edge Cases** — add after "A `bad name` file can n
 
 - A `bad name` advisory carries an **empty** `slug` and a `reserved name` advisory carries its `Entry.Slug`; both carry `fromPrefs: false`. That is what makes task 7-6's non-collision rule structural rather than incidental.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -232,7 +232,7 @@ Task `theming-system-8-7`, **Do** — replace the wire-production bullet with:
 
 - **Wire production** in `cmd/open.go`: a small adapter closing over the same `theme.Loader` Phase 5 task 5-7 already constructs (built on `cmd`'s package-level `themeLogger` from task 3-2 — the **real** component logger, because the panel is a path where a theme is *used*) and over `themesDirPath()`, mirroring the `ScrollbackReader` adapter that closes over `stateDir` at TUI construction. Pass the `RawKeys` and `[]SlotResolution` the construction-time resolution already produced — replacing task 5-7's `_`-plus-comment placeholder. Doctor, `portal theme export` and `capturetool` keep `log.Discard`.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -276,5 +276,5 @@ Task `theming-system-8-6`, **Edge Cases** — add after "The panel introduces a 
 
 - The delegate's three inputs (previewed `Theme`, `Colourless`, inner content width) are assembled in exactly one helper — `m.themeRowDelegate()` — which task 8-9's restyle path re-invokes. Two construction sites can disagree about width or colourlessness, and the disagreement is invisible until a resize during a preview.
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:

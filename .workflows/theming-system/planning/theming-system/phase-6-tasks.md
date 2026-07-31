@@ -416,7 +416,7 @@
 **Outcome**: A user upgrading with `"appearance": "dark"` launches once, sees Tokyo Night immediately, and finds `theme` plus `theme_migrated` written to `prefs.json` with one `theme: appearance migrated` line in `portal.log`; every subsequent launch does nothing and logs nothing; and a failed write leaves both the file and the log silent, with the condition still true for next time.
 
 **Do**:
-- Bind the component logger once for the package if Phase 5 task 5-7 has not already: `var themeLogger = log.For("theme")` at `cmd` package scope, reused by this task and task 6-7. CLAUDE.md's rule is bind once *per package*, and §8.9 explicitly legitimises the `theme` component being emitted from three packages (the loader, this translation, the persister).
+- Reuse `cmd`'s package-level `themeLogger`, bound by Phase 3 task 3-2 and shared by this task and task 6-7. Do **not** add a second `log.For("theme")` call: CLAUDE.md's rule is bind once *per package*, and §8.9 explicitly legitimises the `theme` component being emitted from three packages (the loader, this translation, the persister) — which is a per-package rule, not a per-call-site licence.
 - Add the dispatch seam in `cmd/config.go`:
   ```go
   // persistTranslation performs §10.5's best-effort, non-blocking persist of the
