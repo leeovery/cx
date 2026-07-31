@@ -89,7 +89,7 @@ the proposed wording covers both sites the spec names.
 > Phase boundary: Phase 5 replaces this mapping with the persisted `theme` / `theme_light` / `theme_dark` keys, adds §8.5's fallback and §7.6's fatal message; Phase 6 adds the one-shot `appearance` translation and deletes `prefs.Appearance`.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: `planning.md`'s Phase 3 task table carries a condensed Edge Cases cell for
 `theming-system-3-2`; if the fix is approved it should gain the matching condensed clause
 so the table and the detail file do not drift — suggested text: `neither`
@@ -163,7 +163,7 @@ use per-frame literal hexes, so they are reference, never truth.
 > Phase boundary: Nord's outstanding `text.subtle` gate lands in **Phase 3** on a grouped capture; `docs/theming.md`'s attribution and correction record lands in **Phase 10**.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**: `planning.md`'s Phase 2 task table carries a condensed Edge Cases cell for
 `theming-system-2-7`; if the fix is approved it should gain the matching condensed clause —
 suggested text: `§15.4's` `Kill Modal — Nord (state.destructive #DD8188)` `and`
