@@ -7,50 +7,41 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/prefs"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
-// ContrastValidationFixture is the registered fixture name for the §16.5
-// lock-in/bail contrast-validation swatch (task 1-9).
+// ContrastValidationFixture is the registered fixture name for the contrast-
+// validation swatch — the labelled-tint surface the human eyeball gate judges a
+// theme's pinned tints on (§7.5, §13.5).
 const ContrastValidationFixture = "contrast-validation"
 
 // NewContrastValidationModel builds the contrast-validation swatch tea.Model for
-// the appearance the capture harness pins via --appearance. It mirrors the
-// production WithCanvasMode pin path: a light/dark pin paints that owned canvas
-// from frame one; AppearanceAuto falls back to the dark canvas (the §2.6
-// no-answer fallback) since the swatch runs no OSC 11 detection. The result is a
-// tea.Model so the capture tool drives it identically to the production model.
-func NewContrastValidationModel(appearance prefs.Appearance) tea.Model {
-	return newSwatchModel(modeFromAppearance(appearance))
-}
-
-// modeFromAppearance maps the pinned appearance preference to the resolved canvas
-// mode the swatch paints. Light pins the #e1e2e7 canvas; dark and auto both
-// resolve to the #0b0c14 canvas (auto via the §2.6 dark fallback, since the
-// inert swatch runs no detection).
-func modeFromAppearance(appearance prefs.Appearance) theme.Mode {
-	if appearance == prefs.AppearanceLight {
-		return theme.Light
-	}
-	return theme.Dark
+// the theme the capture harness pins via --theme.
+//
+// It takes a WHOLE PALETTE rather than a mode (§13.3): a theme carries its own
+// canvas, so a light theme is judged against its own near-white surface and a
+// dark one against its own near-black, and there is no compiled-in palette left
+// for the swatch to fall back to. The result is a tea.Model so the capture tool
+// drives it identically to the production model.
+func NewContrastValidationModel(th theme.Theme) tea.Model {
+	return newSwatchModel(th)
 }
 
 // swatchModel is the contrast-validation swatch — a self-contained tea.Model the
-// offline capture harness renders for the §16.5 lock-in/bail gate (task 1-9). It
-// is NOT the real Sessions surface: the four light-tint surfaces (selection row,
-// separator/footer borders, warning band, loading track) are built in LATER
-// phases. This gate validates the colour TOKENS *before* those phases invest in
-// the surfaces (anti-sunk-cost), so the swatch renders, for each of the four
-// 1-9-pinned tints, a labelled band filled with the tint colour carrying its
-// on-tint foreground text on the OWNED canvas for the resolved mode.
+// offline capture harness renders for the visual gate §7.5 and §13.5 require of
+// a light theme's pinned tints. It is NOT the real Sessions surface, and it
+// deliberately does NOT route through tui.Build: it is a standalone validation
+// surface that renders, for each of the four pinned tints, a labelled band
+// filled with that tint carrying its on-tint foreground text on the theme's own
+// canvas.
 //
-// The human captures this in both modes (vhs) and eyeballs each light tint
-// against `#e1e2e7` — the wash-out risk the numeric floor alone cannot catch
-// (§2.9 / §15.6). The §4.1 foreground-on-tint pairings are rendered explicitly so
-// they are eyeballed on their tints, not just numerically verified.
+// The human captures this per theme (vhs) and eyeballs each tint against that
+// theme's canvas — the wash-out risk the numeric floors alone cannot catch,
+// which is why the light-tint pins are eyeball-established rather than computed
+// (§13.5). The §13.5 foreground-on-tint pairings are rendered explicitly so they
+// are eyeballed ON their tints, not just numerically verified.
 type swatchModel struct {
-	mode theme.Mode
+	th theme.Theme
 
 	// width/height cache the terminal size from the first WindowSizeMsg so the
 	// frame fills the screen on the painted canvas. A fixed fallback keeps a direct
@@ -59,18 +50,17 @@ type swatchModel struct {
 	height int
 }
 
-// newSwatchModel builds the swatch for a resolved canvas mode. The mode pins the
-// owned canvas (dark #0b0c14 / light #e1e2e7) and the resolved tint variants —
-// mirroring the production WithCanvasMode pin path the capture harness drives via
-// --appearance.
-func newSwatchModel(mode theme.Mode) swatchModel {
-	return swatchModel{mode: mode}
+// newSwatchModel builds the swatch for one palette. The palette pins both the
+// owned canvas and every tint and foreground rendered on it.
+func newSwatchModel(th theme.Theme) swatchModel {
+	return swatchModel{th: th}
 }
 
-// canvasHex returns the hex of the owned canvas this swatch paints for its mode.
-// Exposed for the harness/tests to assert the correct canvas is selected.
+// canvasHex returns the hex of the owned canvas this swatch paints — the
+// theme's own `canvas` token. Exposed for the harness/tests to assert the
+// correct canvas is selected.
 func (s swatchModel) canvasHex() string {
-	return tokenHex(theme.MV.Canvas, s.mode)
+	return s.th.Canvas.Value
 }
 
 // Init returns no command — the swatch is a static, deterministic render (no tmux,
@@ -94,13 +84,13 @@ func (s swatchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View paints the swatch on the owned canvas. It mirrors tui.Model.View: the
-// frame is alt-screen and the screen background is set (OSC 11) to the owned
-// canvas for the mode, so the light tints are eyeballed against the exact
-// `#e1e2e7` surface (the wash-out risk) rather than an arbitrary terminal bg.
+// frame is alt-screen and the screen background is set (OSC 11) to the theme's
+// canvas, so the tints are eyeballed against the exact surface they will render
+// against rather than an arbitrary terminal bg.
 func (s swatchModel) View() tea.View {
-	v := tea.NewView(s.fillCanvas(renderSwatch(s.mode)))
+	v := tea.NewView(s.fillCanvas(renderSwatch(s.th)))
 	v.AltScreen = true
-	v.BackgroundColor = theme.MV.Canvas.ColorFor(s.mode)
+	v.BackgroundColor = s.th.Canvas.Color()
 	return v
 }
 
@@ -116,7 +106,7 @@ func (s swatchModel) fillCanvas(view string) string {
 	if h == 0 {
 		h = 24
 	}
-	canvasStyle := lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(s.mode))
+	canvasStyle := lipgloss.NewStyle().Background(s.th.Canvas.Color())
 	blank := canvasStyle.Render(strings.Repeat(" ", w))
 	lines := strings.Split(view, "\n")
 	out := make([]string, 0, h)
@@ -142,159 +132,160 @@ func (s swatchModel) fillCanvas(view string) string {
 // fill).
 const bandWidth = 56
 
-// renderSwatch is the pure render of the contrast-validation swatch for a mode.
-// It composes a title, the four tint bands (each with its on-tint foreground
-// pairings labelled), and the borders rule on the owned canvas. Kept pure
-// (mode-in, string-out) so it is unit-testable without a tea.Program.
-func renderSwatch(mode theme.Mode) string {
-	canvas := theme.MV.Canvas.ColorFor(mode)
-	onCanvas := func(tok theme.Token) lipgloss.Style {
-		return lipgloss.NewStyle().Foreground(tok.ColorFor(mode)).Background(canvas)
-	}
+// The sample content each band lays over its tint. They are constants rather
+// than literals because the bands and the tests that assert the pairings render
+// the same text through the same token, and a second copy of a sample string is
+// a second thing to keep in step.
+const (
+	swatchSessionName  = "portal-9fk2"
+	swatchSessionPath  = "~/code/portal"
+	swatchWindowCount  = "3 windows"
+	swatchAttached     = "● attached"
+	swatchAttentionMsg = "⚠ state saver is not running — restore may be incomplete"
+)
 
+// renderSwatch is the pure render of the contrast-validation swatch for one
+// palette. It composes a title, the four pinned-tint bands (each with its
+// on-tint foreground pairings labelled) and the border rule, all on the theme's
+// own canvas. Kept pure (theme-in, string-out) so it is unit-testable without a
+// tea.Program.
+//
+// The §2.4 token names are written as literals here — the label a human reads
+// off a capture is the name they will type into a theme file, so it is not
+// derived from a Token.Name (a Theme built by hand carries values without names,
+// §3.2) and not shared with the tests that pin it.
+func renderSwatch(th theme.Theme) string {
 	var b strings.Builder
-	title := onCanvas(theme.MV.TextPrimary).Bold(true).
-		Render(fmt.Sprintf("CONTRAST VALIDATION — %s canvas %s", modeName(mode), tokenHex(theme.MV.Canvas, mode)))
+
+	title := lipgloss.NewStyle().
+		Foreground(th.TextPrimary.Color()).
+		Background(th.Canvas.Color()).
+		Bold(true).
+		Render(fmt.Sprintf("CONTRAST VALIDATION — canvas %s", th.Canvas.Value))
 	b.WriteString(title)
 	b.WriteString("\n\n")
 
-	// bg.selection band: name in text.on-selection, "3 windows" count in
-	// text.strong, "● attached" marker in state.green (the single token, darkened
-	// to #3B5E18 light so it clears the floor on the bg.selection tint too) — ALL on
-	// the bg.selection tint (the §4.1 selected-row foreground-on-tint pairings).
-	b.WriteString(tintLabel(mode, "bg.selection", theme.MV.BgSelection))
+	// bg.selection: the selected session row, carrying every §13.5
+	// foreground-on-tint pairing that tint has — the name (text.on-selection),
+	// the path (text.tertiary), the window count (text.secondary) and the
+	// `● attached` marker (state.positive, the single token that must clear
+	// against the canvas AND against this tint).
+	b.WriteString(tintLabel(th, "bg.selection", th.BgSelection))
 	b.WriteString("\n")
-	b.WriteString(selectionBand(mode))
+	b.WriteString(selectionBand(th))
 	b.WriteString("\n")
-	b.WriteString(pairCaption(mode, "fg-on-tint: text.on-selection · text.strong · state.green (● attached)"))
+	// The caption lists the four in the band's own left-to-right order, so the
+	// order IS the mapping and the line stays inside 80 cells.
+	b.WriteString(caption(th, "fg-on-tint: text.on-selection · text.tertiary · text.secondary · state.positive"))
 	b.WriteString("\n\n")
 
-	// bg.warning band: "⚠ message" in text.on-warning ON the bg.warning tint.
-	b.WriteString(tintLabel(mode, "bg.warning", theme.MV.BgWarning))
+	// bg.attention: the warning-flash band, carrying its one pairing — the
+	// message in text.on-attention.
+	b.WriteString(tintLabel(th, "bg.attention", th.BgAttention))
 	b.WriteString("\n")
-	b.WriteString(warningBand(mode))
+	b.WriteString(attentionBand(th))
 	b.WriteString("\n")
-	b.WriteString(pairCaption(mode, "fg-on-tint: text.on-warning (⚠ message)"))
+	b.WriteString(caption(th, "fg-on-tint: text.on-attention (⚠ message)"))
 	b.WriteString("\n\n")
 
-	// bg.track band: the empty-track tint with a filled portion (accent.violet, the
-	// loading-bar fill) so the bar reads against the empty track.
-	b.WriteString(tintLabel(mode, "bg.track", theme.MV.BgTrack))
+	// bg.subtle: the loading-bar empty track with its accent.primary fill over
+	// it, so the bar reads against the track and the track against the canvas.
+	// Nothing renders text on this tint (§13.5), so it carries no pairing.
+	b.WriteString(tintLabel(th, "bg.subtle", th.BgSubtle))
 	b.WriteString("\n")
-	b.WriteString(trackBand(mode))
+	b.WriteString(subtleBand(th))
+	b.WriteString("\n")
+	b.WriteString(caption(th, "bar: accent.primary over the track"))
 	b.WriteString("\n\n")
 
-	// borders: a separator/footer rule line on the canvas (border.separator and
-	// border.footer share the same light #C9CDDB; both shown).
-	b.WriteString(tintLabel(mode, "border.separator / border.footer", theme.MV.BorderSeparator))
+	// border: the sole border token after the §2.2 consolidation — one rule on
+	// the canvas, where there were a separator and a footer rule before.
+	b.WriteString(tintLabel(th, "border", th.Border))
 	b.WriteString("\n")
-	b.WriteString(borderRule(mode))
+	b.WriteString(borderRule(th))
 
 	return b.String()
 }
 
-// tintLabel renders the token name + its resolved hex above its band, in
-// text.detail on the canvas, so the human reads exactly which token + hex the
-// band below is.
-func tintLabel(mode theme.Mode, name string, tok theme.Token) string {
-	style := lipgloss.NewStyle().
-		Foreground(theme.MV.TextDetail.ColorFor(mode)).
-		Background(theme.MV.Canvas.ColorFor(mode))
-	return style.Render(fmt.Sprintf("%s  %s", name, tokenHex(tok, mode)))
+// tintLabel renders the token name + its hex above its band, so the human reads
+// exactly which token + value the band below is.
+func tintLabel(th theme.Theme, name string, tok theme.Token) string {
+	return caption(th, fmt.Sprintf("%s  %s", name, tok.Value))
 }
 
-// pairCaption renders the §4.1 foreground-on-tint token legend under a band, in
-// text.detail on the canvas, so the human reads which token each on-tint
-// foreground uses (the pairing each band proves clears its floor).
-func pairCaption(mode theme.Mode, text string) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.MV.TextDetail.ColorFor(mode)).
-		Background(theme.MV.Canvas.ColorFor(mode)).
-		Render(text)
+// caption renders one line of text.muted on the canvas — the label above each
+// band and the §13.5 pairing legend below it, which together are how the human
+// knows which token each surface and each on-tint foreground is.
+func caption(th theme.Theme, text string) string {
+	return onCanvas(th, th.TextMuted).Render(text)
 }
 
-// tokenHex resolves a token's hex string for a mode — the label text the human
-// reads ("bg.selection  #D0C6F0"). It reads the exported Light/Dark fields so the
-// label is the exact pinned hex.
-func tokenHex(tok theme.Token, mode theme.Mode) string {
-	if mode == theme.Light {
-		return tok.Light
-	}
-	return tok.Dark
+// onCanvas is the style for a foreground token rendered directly on the theme's
+// canvas — the labels and captions between the bands.
+func onCanvas(th theme.Theme, tok theme.Token) lipgloss.Style {
+	return onTint(tok, th.Canvas.Color())
 }
 
-// selectionBand fills bandWidth cells with the bg.selection tint and lays the
-// three §4.1 selected-row foregrounds over it: the name (text.on-selection), the
-// window count (text.strong) and the "● attached" marker (state.green). Each run
-// keeps the bg.selection tint as its background so every pairing is rendered ON
-// the tint.
-func selectionBand(mode theme.Mode) string {
-	tint := theme.MV.BgSelection.ColorFor(mode)
-	on := func(tok theme.Token) lipgloss.Style {
-		return lipgloss.NewStyle().Foreground(tok.ColorFor(mode)).Background(tint)
-	}
-	name := on(theme.MV.TextOnSelection).Bold(true).Render("agentic-workflows-code-based")
-	count := on(theme.MV.TextStrong).Render("3 windows")
-	// The `● attached` marker on the bg.selection tint renders in the single
-	// state.green token (light darkened to #3B5E18 = 4.65 vs #D0C6F0, dark #9ECE6A =
-	// 8.19) — the former dedicated on-selection override was folded into the global
-	// token, so the selected row uses the same green as every other state.green usage.
-	attached := on(theme.MV.StateGreen).Render("● attached")
-	gap := on(theme.MV.TextOnSelection).Render("  ")
-	content := name + gap + count + gap + attached
-	return padBand(content, bandWidth, tint)
+// onTint is the style for a foreground token rendered ON a background. Every
+// §13.5 pairing goes through it, which is what guarantees the pairing is
+// eyeballed against its tint rather than against the canvas.
+func onTint(tok theme.Token, tint color.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(tok.Color()).Background(tint)
 }
 
-// warningBand fills bandWidth cells with the bg.warning tint and lays the §4.1
-// "⚠ message" in text.on-warning over it.
-func warningBand(mode theme.Mode) string {
-	tint := theme.MV.BgWarning.ColorFor(mode)
-	msg := lipgloss.NewStyle().
-		Foreground(theme.MV.TextOnWarning.ColorFor(mode)).
-		Background(tint).
-		Render("⚠ tmux state saver is not running — restore may be incomplete")
-	return padBand(msg, bandWidth, tint)
+// selectionBand fills bandWidth cells with the bg.selection tint and lays every
+// §13.5 selected-row foreground over it: the name (text.on-selection), the path
+// (text.tertiary), the window count (text.secondary) and the `● attached`
+// marker (state.positive). Each run keeps the tint as its background so every
+// pairing is rendered ON the tint.
+func selectionBand(th theme.Theme) string {
+	tint := th.BgSelection.Color()
+	gap := onTint(th.TextOnSelection, tint).Render("  ")
+	content := strings.Join([]string{
+		onTint(th.TextOnSelection, tint).Bold(true).Render(swatchSessionName),
+		onTint(th.TextTertiary, tint).Render(swatchSessionPath),
+		onTint(th.TextSecondary, tint).Render(swatchWindowCount),
+		onTint(th.StatePositive, tint).Render(swatchAttached),
+	}, gap)
+	return padBand(content, tint)
 }
 
-// trackBand renders the loading-bar track: a filled head (accent.violet, the bar
-// token §2.9) over the bg.track empty-track tint, so the human eyeballs the bar
-// against the empty track and the empty track against the canvas.
-func trackBand(mode theme.Mode) string {
-	track := theme.MV.BgTrack.ColorFor(mode)
-	const filled = 18
+// attentionBand fills bandWidth cells with the bg.attention tint and lays the
+// §13.5 warning message in text.on-attention over it.
+func attentionBand(th theme.Theme) string {
+	tint := th.BgAttention.Color()
+	return padBand(onTint(th.TextOnAttention, tint).Render(swatchAttentionMsg), tint)
+}
+
+// subtleBarWidth is how much of the bg.subtle band the accent.primary bar
+// fills, leaving the rest as empty track — enough of each for both to be judged.
+const subtleBarWidth = 18
+
+// subtleBand renders the loading-bar track: a filled head (accent.primary, the
+// bar token) over the bg.subtle empty track, so the human eyeballs the bar
+// against the track and the track against the canvas.
+func subtleBand(th theme.Theme) string {
 	bar := lipgloss.NewStyle().
-		Background(theme.MV.AccentViolet.ColorFor(mode)).
-		Render(strings.Repeat(" ", filled))
+		Background(th.AccentPrimary.Color()).
+		Render(strings.Repeat(" ", subtleBarWidth))
 	empty := lipgloss.NewStyle().
-		Background(track).
-		Render(strings.Repeat(" ", bandWidth-filled))
+		Background(th.BgSubtle.Color()).
+		Render(strings.Repeat(" ", bandWidth-subtleBarWidth))
 	return bar + empty
 }
 
-// borderRule renders a full-bandWidth rule in border.separator over the canvas
-// (the separator and footer rules share the same light #C9CDDB), so the rule's
-// perceptibility against the canvas is eyeballed.
-func borderRule(mode theme.Mode) string {
-	return lipgloss.NewStyle().
-		Foreground(theme.MV.BorderSeparator.ColorFor(mode)).
-		Background(theme.MV.Canvas.ColorFor(mode)).
-		Render(strings.Repeat("─", bandWidth))
+// borderRule renders a full-bandWidth rule in the sole border token over the
+// canvas, so the rule's perceptibility against the canvas is eyeballed.
+func borderRule(th theme.Theme) string {
+	return onCanvas(th, th.Border).Render(strings.Repeat("─", bandWidth))
 }
 
-// padBand right-pads content to width cells, keeping the tint background across
-// the padding so the band is a continuous filled surface of exactly width cells.
-func padBand(content string, width int, tint color.Color) string {
-	gap := width - lipgloss.Width(content)
+// padBand right-pads content to bandWidth cells, keeping the tint background
+// across the padding so the band is a continuous filled surface.
+func padBand(content string, tint color.Color) string {
+	gap := bandWidth - lipgloss.Width(content)
 	if gap > 0 {
 		content += lipgloss.NewStyle().Background(tint).Render(strings.Repeat(" ", gap))
 	}
 	return content
-}
-
-// modeName is the human label for the swatch title.
-func modeName(mode theme.Mode) string {
-	if mode == theme.Light {
-		return "LIGHT"
-	}
-	return "DARK"
 }
