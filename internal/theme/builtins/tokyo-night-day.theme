@@ -1,0 +1,114 @@
+# Tokyo Night Day — https://github.com/tokyo-night/tokyo-night-vscode-theme
+#
+# Portal's light built-in: the Tokyo Night palette mapped onto Portal's 19 token
+# roles. The light half is NOT a lightening of the dark built-in — it is tuned
+# independently against this file's own canvas #e1e2e7, a near-white Portal owns
+# rather than pure white, and every ratio quoted below is measured against that
+# canvas and against no other reference.
+#
+# Two kinds of note appear below, each beside the value it belongs to.
+#
+# Seven values are contrast corrections, and each carries the re-derivation check
+# those corrections were put through before they were frozen here. A correction
+# has a source value whose chroma it is supposed to preserve, so each was
+# re-derived in Oklab as the minimal-distance colour from its ORIGINAL that
+# clears the same floor against #e1e2e7, the shipped value's chroma was measured
+# against that original, and the shipped value was compared against the
+# re-derivation. The metric, stated once so a later re-derivation is comparable:
+# ΔE is Euclidean distance in Oklab, chroma is OkLch's c (go-colorful's OkLab()
+# and OkLch()), and ΔE >= 0.05 is "moved materially" — a scale anchored by the
+# Nord port's ΔE 0.018, cited there as essentially imperceptible. All seven came
+# in under the threshold, so nothing moved and these are the values that were
+# always shipped.
+#
+# Four surface tints are eyeball pins rather than derivations. A light tint on a
+# light canvas is numeric-insufficient — the fill floor bounds it from below but
+# nothing decides between two values that both clear it — so each was lifted from
+# its dark counterpart and confirmed by human eye against #e1e2e7. That judgement
+# cannot be reconstructed from the numbers, which is why it is written down.
+
+# Text ramp, bright to faint.
+text.primary = #2E3C64
+text.secondary = #3F4760
+# Correction, darkened for the bg.selection pairing floor rather than for the
+# canvas: #515A80 → #4C5478, lifting the selected-row path from 4.17 to 4.57 on
+# #D0C6F0, and the canvas leg from 5.20 to 5.70.
+# Chroma retained 95.6%. Oklab re-derivation #4C557B.
+# ΔE(shipped, re-derived) 0.0051 — under the 0.05 threshold, so the shipped
+# value stands unchanged.
+text.tertiary = #4C5478
+# Correction: the original measured 4.48 against #e1e2e7, just under the 4.50
+# floor. #5A6296 → #586093 (4.63).
+# Chroma retained 98.5%. Oklab re-derivation #596295.
+# ΔE(shipped, re-derived) 0.0063 — under the 0.05 threshold, so the shipped
+# value stands unchanged.
+text.muted = #586093
+# Correction: the original measured 2.83 against #e1e2e7, under the 3.00 floor
+# of this token's 3.00–4.49 band. #7C84AA → #767DA2 (3.11).
+# Chroma retained 98.0%. Oklab re-derivation #7A7FA5.
+# ΔE(shipped, re-derived) 0.0091 — under the 0.05 threshold, so the shipped
+# value stands unchanged.
+text.subtle = #767DA2
+text.faint = #AEB2C6
+text.on-selection = #1A1B2E
+
+# Accents and states.
+# This value is out of scope for the re-derivation check. accent.primary renders
+# bars and glyphs rather than body text, so it carries the 3.00 large/UI floor
+# and clears it at 4.37 against #e1e2e7 unremedied — it was never darkened, so
+# there is no correction here and no chroma for one to have cost.
+accent.primary = #8A3FD1
+# Correction: the original measured 4.43 against #e1e2e7, just under the 4.50
+# floor. #2E5FD0 → #2D5CCA (4.64).
+# Chroma retained 97.8%. Oklab re-derivation #2D5ECE.
+# ΔE(shipped, re-derived) 0.0078 — under the 0.05 threshold, so the shipped
+# value stands unchanged.
+accent.key = #2D5CCA
+# Correction: the original measured 4.14 against #e1e2e7, under the 4.50 floor.
+# #0E7490 → #0D6C87 (4.62).
+# Chroma retained 95.5%. Oklab re-derivation #036E8B.
+# ΔE(shipped, re-derived) 0.0075 — under the 0.05 threshold, so the shipped
+# value stands unchanged.
+accent.mode = #0D6C87
+accent.attention = #9A5200
+# Correction, and the one this check was worth running for. A single token
+# renders both on the canvas and on the selected row, so it must clear 4.50
+# against both; the original measured 3.95 on #e1e2e7 and 3.17 on #D0C6F0, and
+# was darkened TWICE — #4C7A1F → #456E1C → #3B5E18 (5.80 / 4.65).
+# Chroma retained 81.2%, measured against the true original rather than the
+# intermediate — comfortably the largest loss of the seven, and why this green
+# reads flatter than Tokyo Night's. Oklab re-derivation #406000, which clears
+# both legs (5.62 / 4.50) while retaining 90.7%, so the chroma was recoverable.
+# ΔE(shipped, re-derived) 0.0162 — under the 0.05 threshold, so the shipped
+# value stands unchanged. Chroma loss and ΔE answer different questions, and
+# this is the value where the two disagree.
+state.positive = #3B5E18
+# Correction: the original measured 4.40 against #e1e2e7, just under the 4.50
+# floor. #C32647 → #BD2545 (4.62).
+# Chroma retained 97.5%. Oklab re-derivation #C12445.
+# ΔE(shipped, re-derived) 0.0080 — under the 0.05 threshold, so the shipped
+# value stands unchanged.
+state.destructive = #BD2545
+
+# Surfaces.
+canvas = #e1e2e7
+# Pinned — derivation: the dark violet selection anchor #28243a lifted onto the
+# light canvas #e1e2e7; eyeball-confirmed. Fill perceptible at 1.25, and the band
+# carries text.on-selection (10.50), text.secondary (5.71), text.tertiary (4.57)
+# and state.positive (4.65) above the 4.50 floor.
+bg.selection = #D0C6F0
+# Pinned — derivation: the dark amber warning anchor #241B10 lifted onto the
+# light canvas #e1e2e7; eyeball-confirmed. The derived value held as it was —
+# fill perceptible at 1.11, text.on-attention on the band 5.14 — so it needed no
+# more-contrast remedy.
+bg.attention = #E8D6A8
+# Pinned — derivation: the dark grey track anchor #26283A lifted onto the light
+# canvas #e1e2e7; eyeball-confirmed. The derived value held as it was — fill
+# perceptible at 1.14, reading as a distinct empty-track surface. Nothing renders
+# on it, so there is no text leg and no remedy was needed.
+bg.subtle = #D2D4DE
+# Pinned — derivation: the dark rule anchor #292E42 lifted onto the light canvas
+# #e1e2e7; eyeball-confirmed, perceptible at 1.23. One value serves the title
+# rule, the footer rule, the modal frames and the edit-modal chips.
+border = #C9CDDB
+text.on-attention = #7A4B12
