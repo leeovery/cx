@@ -1,4 +1,4 @@
-# Phase 8: The slide-over panel — tasks 8-1 … 8-8
+# Phase 8: The slide-over panel — surface, preview and navigation — 16 tasks
 
 ## theming-system-8-1
 
@@ -664,8 +664,6 @@
 > §5.8: "**The panel's parse supersedes the construction-time parse for the same slug.** After a mid-session edit the panel holds the fresher truth, and that is the entire point of re-reading. Two consequences, both following from the same rule: **`Esc` resolves persisted state against the panel's enumeration**, not against what construction loaded… **The mirror case works for the same reason**: fixing a previously-invalid theme takes effect on the next panel open, without relaunching. That symmetry is what §5.8 exists to buy."
 
 **Spec Reference**: `.workflows/theming-system/specification/theming-system/specification.md` §9.2, §9.4, §9.5, §8.4, §8.5, §5.8, §8.8
-# Phase 8: The slide-over panel — tasks 8-9 … 8-16
-
 ## theming-system-8-9
 
 ### Task 8.9: Arrowing re-themes the app and the panel through the restyle path
