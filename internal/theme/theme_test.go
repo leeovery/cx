@@ -177,10 +177,21 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // theme is one palette, and light/dark is the shape of the theme setting rather
 // than anything inside a theme (§1.2, §3.1, §3.2).
 //
-// Later tasks in this phase legitimately extend this list (the lexer's Pair, the
-// validator's Rejection, the loader). Nothing on the removed list ever returns
-// to it.
+// Later tasks in this phase legitimately extend this list — the lexer added Pair
+// and the reason vocabulary, and the loader is still to come. Nothing on the
+// removed list ever returns to it.
 var wantExports = []string{
+	"Pair",
+	"Reason",
+	"ReasonBadColour",
+	"ReasonBadName",
+	"ReasonBadSyntax",
+	"ReasonMissingTokens",
+	"ReasonNotFound",
+	"ReasonReservedName",
+	"ReasonUnreadable",
+	"Rejection",
+	"Rejection.Error",
 	"Theme",
 	"Theme.All",
 	"Token",
