@@ -179,14 +179,17 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 //
 // Later tasks in this phase legitimately extend this list — the lexer added Pair
 // and the reason vocabulary, the name rules added ValidSlug, SlugFromFilename
-// and the bad-name causes, and the §6.2 ladder added Loader, Result and
-// LoadFile. Nothing on the removed list ever returns to it.
+// and the bad-name causes, the §6.2 ladder added Loader, Result and LoadFile,
+// and enumeration added Entry and Enumerate. Nothing on the removed list ever
+// returns to it.
 var wantExports = []string{
 	"BadNameCause",
 	"BadNameExtension",
 	"BadNameNone",
 	"BadNameSlug",
+	"Entry",
 	"Loader",
+	"Loader.Enumerate",
 	"Loader.LoadFile",
 	"Pair",
 	"Reason",
