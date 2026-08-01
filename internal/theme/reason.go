@@ -49,11 +49,19 @@ const (
 // need to say WHICH rule was broken while the reason class stays single (see
 // BadNameCause in name.go). It is BadNameNone on every rejection that is not a
 // `bad name` one.
+//
+// Err carries the underlying OS error for the one reason produced by something
+// other than Portal's own rules (`unreadable`), and is nil for every other. It
+// is the SAME error the Detail renders, kept in structured form because §14A's
+// detail for that reason is the OS error verbatim: a caller wanting to classify
+// the failure — a denial versus a dangling symlink — matches on the error rather
+// than on the text of a message meant for a human.
 type Rejection struct {
 	Reason       Reason
 	Detail       string
 	Line         int
 	BadNameCause BadNameCause
+	Err          error
 }
 
 // Error renders the rejection as "<reason>: <detail>", or as the bare reason
