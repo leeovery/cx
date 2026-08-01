@@ -177,23 +177,27 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // theme is one palette, and light/dark is the shape of the theme setting rather
 // than anything inside a theme (§1.2, §3.1, §3.2).
 //
-// Later tasks in this phase legitimately extend this list — the lexer added Pair
-// and the reason vocabulary, the name rules added ValidSlug, SlugFromFilename
-// and the bad-name causes, the §6.2 ladder added Loader, Result and LoadFile,
-// enumeration added Entry and Enumerate, and the `theme` log component added the
-// EventLogger seam with the NewLoader that injects it. Nothing on the removed
-// list ever returns to it.
+// Later tasks legitimately extend this list — the lexer added Pair and the
+// reason vocabulary, the name rules added ValidSlug, SlugFromFilename and the
+// bad-name causes, the §6.2 ladder added Loader, Result and LoadFile,
+// enumeration added Entry and Enumerate, the `theme` log component added the
+// EventLogger seam with the NewLoader that injects it, and the embedded
+// built-in set added BuiltinBytes, BuiltinSlugs and LoadBuiltin. Nothing on the
+// removed list ever returns to it.
 var wantExports = []string{
 	"BadNameCause",
 	"BadNameExtension",
 	"BadNameNone",
 	"BadNameSlug",
+	"BuiltinBytes",
+	"BuiltinSlugs",
 	"Entry",
 	"EventLogger",
 	"EventLogger.DirectoryUnusable",
 	"EventLogger.Rejected",
 	"Loader",
 	"Loader.Enumerate",
+	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
 	"NewEventLogger",
 	"NewLoader",

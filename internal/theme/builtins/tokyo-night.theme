@@ -1,0 +1,29 @@
+# Tokyo Night — https://github.com/tokyo-night/tokyo-night-vscode-theme
+#
+# Portal's dark built-in: the Tokyo Night palette mapped onto Portal's 19 token
+# roles, tuned to clear Portal's contrast floors against this file's canvas.
+
+# Text ramp, bright to faint.
+text.primary = #C0CAF5
+text.secondary = #A9B1D6
+text.tertiary = #828BB8
+text.muted = #737AA2
+text.subtle = #535C86
+text.faint = #3B4261
+text.on-selection = #FFFFFF
+
+# Accents and states.
+accent.primary = #BB9AF7
+accent.key = #7AA2F7
+accent.mode = #7DCFFF
+accent.attention = #FF9E64
+state.positive = #9ECE6A
+state.destructive = #F7768E
+
+# Surfaces.
+canvas = #0b0c14
+bg.selection = #28243a
+bg.attention = #241B10
+bg.subtle = #26283A
+border = #292E42
+text.on-attention = #E8C9A0

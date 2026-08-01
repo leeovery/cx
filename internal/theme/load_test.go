@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -569,15 +570,19 @@ func writeDanglingThemeLink(t *testing.T, dir, base string) string {
 //
 // It also pins the invariants every rejection from the ladder shares: no
 // populated Result comes back alongside one — never a slug, never a partial
-// palette — and Line is 0 for every reason but `bad syntax`, which is the only
-// one that has a line.
+// palette, never the source bytes — and Line is 0 for every reason but
+// `bad syntax`, which is the only one that has a line.
+//
+// The zero-Result check is a DeepEqual rather than a ==: a Result carries the
+// bytes it parsed, which makes the struct uncomparable. The assertion is
+// unchanged.
 func requireLoadRejection(t *testing.T, got theme.Result, rejection *theme.Rejection, wantReason theme.Reason, wantDetail string) {
 	t.Helper()
 
 	if rejection == nil {
 		t.Fatalf("LoadFile() accepted the file as %+v, want the rejection %q: %s", got, wantReason, wantDetail)
 	}
-	if got != (theme.Result{}) {
+	if !reflect.DeepEqual(got, theme.Result{}) {
 		t.Errorf("LoadFile() returned %+v alongside a rejection, want the zero Result", got)
 	}
 	if rejection.Reason != wantReason {

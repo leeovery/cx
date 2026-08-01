@@ -50,15 +50,30 @@ func NewLoader(events *EventLogger) Loader {
 	return Loader{events: events}
 }
 
-// Result is one loaded theme: the slug its FILENAME yielded, and the palette its
-// CONTENTS declared.
+// Result is one loaded theme: the slug its FILENAME yielded, the palette its
+// CONTENTS declared, and the bytes those contents were.
 //
-// The two are held side by side rather than folded together because a Theme
-// carries no identity field (§3.2) — a slug belongs to whatever loaded the
-// palette, not to the palette.
+// The slug and the palette are held side by side rather than folded together
+// because a Theme carries no identity field (§3.2) — a slug belongs to whatever
+// loaded the palette, not to the palette.
 type Result struct {
 	Slug  string
 	Theme Theme
+
+	// Source is the exact bytes that were parsed, whether they came off the
+	// disk or out of the embedded set.
+	//
+	// It exists so `portal theme export` can write what the loader VALIDATED
+	// rather than reading its input a second time (§12.1): the bytes printed
+	// are the bytes checked, comments and trailing newline included, with no
+	// window in which the two could differ. They are the file's bytes and never
+	// a re-serialisation of the Theme, because re-serialising would drop every
+	// `#` comment — the attribution header the format was chosen to carry, and
+	// the derivation notes that are the only surviving record of a judgement no
+	// test can re-derive.
+	//
+	// It is nil on every rejection, alongside the rest of the zero Result.
+	Source []byte
 }
 
 // LoadFile loads the theme file at path, returning either its slug and palette
@@ -84,6 +99,10 @@ type Result struct {
 // duplicate-keyed and missing tokens has two defensible answers, the panel's
 // single-reason row (§9.5) becomes a choice rather than a fact, and doctor and
 // the panel become capable of disagreeing about the same file.
+//
+// Rungs 4 to 6 are parseThemeBytes, which LoadBuiltin runs on the embedded set
+// (§7.1) — so a built-in and a stranger's file are judged by the same code. The
+// first three rungs are this function's alone, being about a path.
 //
 // `not found` — §6.2's seventh reason — is deliberately outside this ladder and
 // is NEVER returned here. It applies only to a slug named by prefs.json with no
@@ -112,17 +131,38 @@ func (l Loader) LoadFile(path string) (Result, *Rejection) {
 		return Result{}, unreadable(err)
 	}
 
+	built, rejection := parseThemeBytes(data)
+	if rejection != nil {
+		return Result{}, rejection
+	}
+
+	return Result{Slug: slug, Theme: built, Source: data}, nil
+}
+
+// parseThemeBytes turns one theme file's bytes into the Theme they describe, or
+// into exactly one of §6.2's last three rungs — `bad syntax`, `bad colour`,
+// `missing tokens` — in that order.
+//
+// It is the WHOLE of the content half of the ladder, and it is deliberately the
+// only one: LoadFile reaches it with bytes off the disk and LoadBuiltin with
+// bytes out of the embedded set, so a built-in and a stranger's drop-in are
+// parsed by the same code and judged by the same rule (§7.1). A second parse
+// path is what would let a format bug hide behind a Go-side built-in, so no
+// caller may lex or validate on its own.
+//
+// The two rungs ABOVE it — `bad name` and `reserved name` — are the file
+// path's, and are deliberately outside: they are decided from a FILENAME, which
+// an embedded built-in has no equivalent of.
+//
+// A failure here is an ordinary rejection, never a panic (§7.6). Escalating a
+// broken built-in is the job of the place a fallback is needed, not of the
+// place a file is read.
+func parseThemeBytes(data []byte) (Theme, *Rejection) {
 	pairs, rejection := lexPairs(data)
 	if rejection != nil {
-		return Result{}, rejection
+		return Theme{}, rejection
 	}
-
-	built, rejection := themeFromPairs(pairs)
-	if rejection != nil {
-		return Result{}, rejection
-	}
-
-	return Result{Slug: slug, Theme: built}, nil
+	return themeFromPairs(pairs)
 }
 
 // isReserved reports whether slug is one of the injected built-in slugs.
