@@ -129,7 +129,7 @@ This matters more than ordinary doc drift because the plan itself makes the argu
 - The section is swept the way task 10-7 sweeps the MV spec: §12.6 names the minimum set, not a ceiling, so anything else falsified in the same section is corrected or left by decision rather than by omission — while Phase 3's two rows stay untouched.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -282,5 +282,5 @@ Task `theming-system-8-3`, **Acceptance Criteria** — replace the never-set cri
 - [ ] A **never-set** slot badges the shipped default's slug, so a virgin install (`prefs.json` absent → both slots' `Requested` are the shipped defaults) yields `tokyo-night-day` `● light` and `tokyo-night` `● dark`.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:

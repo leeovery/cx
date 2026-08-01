@@ -228,7 +228,6 @@
   type SlotResolution struct {
       Slot      Slot
       Requested string   // the slug that was nominated (shipped default when the slot was unset)
-      WasSet    bool     // true when Requested came from prefs rather than the shipped default
       Resolved  string   // the slug actually loaded
       FellBack  bool
       Reason    Reason   // populated iff FellBack
@@ -240,9 +239,10 @@
   }
   func (l Loader) ResolveNomination(s Setting, themesDir string) (Resolution, error)
   ```
+  **Carry no "was this slot set?" flag**, and record why in a doc comment on `Requested`. Task 5-2 substitutes the shipped default into `Setting` *before* this function sees it, so `Setting{Light: "tokyo-night-day"}` is identical whether the slot was unset or explicitly set to that slug — the distinction lives only in `RawKeys`, which this function is deliberately not given (task 5-7 keeps the raw keys local). And nothing needs it: task 8-3 keys the entire §9.5 badge table on `Requested` alone ("one field, three rows"), doctor (task 7-5) reads the raw keys directly, and task 9-6's `ResolveSlot` is handed the raw slug as a parameter. A flag that cannot be computed here and that no consumer reads would be a second, wrong source of truth for which slug carries the `●` — the same reason task 3-2 removed `Deps.Appearance` and task 8-8 retires `Deps.ThemeSlots` rather than leaving them alongside.
 - Per slot: call `ResolveByName`. On success record `FellBack=false`. On any rejection record the reason, then resolve the **fallback slug for that slot** — `SlotLight → DefaultLightSlug`, `SlotDark → DefaultDarkSlug`, `SlotConstant → DefaultDarkSlug` — through the same resolver, and record `FellBack=true` with `Resolved` set to the fallback slug.
 - Express the fallback map in terms of `DefaultLightSlug` / `DefaultDarkSlug` (never literals) and carry §8.5's warning verbatim in substance in a comment: the fallback values **are** the shipped default's values, and *changing them, or adopting the rejected single-fixed-fallback alternative, silently invalidates §8.3's "the adaptive pair degrades to a constant dark default" argument.*
-- Treat an **unset** slot as ordinary resolution, not a fallback: task 5-2 already substituted the shipped default into `Setting`, so the slot resolves normally with `WasSet=false` and `FellBack=false`. State in-source that this is why unset and unloadable converge with no second mechanism — one rule ("an unset slot holds the shipped default") applied to a slot that is *set but unloadable*.
+- Treat an **unset** slot as ordinary resolution, not a fallback: task 5-2 already substituted the shipped default into `Setting`, so the slot resolves normally with `FellBack=false` and its `Requested` is the shipped default's slug. State in-source that this is why unset and unloadable converge with no second mechanism — one rule ("an unset slot holds the shipped default") applied to a slot that is *set but unloadable* — and that it is also why this function needs no set-ness flag: both states resolve identically and `Requested` already says which slug the badge sits on.
 - Assemble the `Nomination` from the resolved themes using Phase 3 task 3-2's constructors: `ConstantNomination(t)` under a constant, `AdaptivePair(light, dark)` under a pair. Nothing here selects a member — the gate does that (task 5-7).
 - **Write nothing.** Add an explicit comment that falling back never touches `prefs.json`: the persisted name is kept so fixing the file restores it on the next launch, and overwriting would make a transient failure destructive (§6.3).
 - Both slots may fall back independently in one launch; the surviving slot must be unaffected. Do not short-circuit after the first failure.
@@ -255,7 +255,8 @@
 - [ ] Every cause takes the same path with only `Reason` differing: `not found` (deleted/renamed file), `bad name` (illegal persisted slug), `missing tokens`, `bad colour`, `bad syntax`, `unreadable` (directory or file).
 - [ ] Both slots broken in one launch → both fall back, two `SlotResolution`s with `FellBack=true`, and the returned pair carries the two shipped defaults.
 - [ ] One slot broken → the other slot's `SlotResolution` has `FellBack=false` and its theme is unchanged.
-- [ ] An **unset** slot yields `WasSet=false`, `FellBack=false` and the shipped default's theme — a virgin install produces **zero** fallbacks.
+- [ ] An **unset** slot yields `FellBack=false`, a `Requested` equal to the shipped default's slug and that theme — a virgin install produces **zero** fallbacks.
+- [ ] `SlotResolution` declares no set-ness flag: an unset slot and a slot explicitly set to the same shipped-default slug produce **identical** `SlotResolution` values, which is what makes the record computable from `Setting` alone.
 - [ ] `prefs.json` bytes are identical before and after resolution on every path, and no file is created when it is absent.
 - [ ] `Slots` has length 1 under a constant and 2 (light then dark) under a pair; `Nomination.IsConstant()` matches `Setting.IsConstant`.
 - [ ] A fallback that cannot resolve returns an error rather than a second fallback or a zero-valued `Theme` (task 5-6 pins the message).
@@ -267,6 +268,7 @@
 - `"it falls back on both slots independently"` — `TestResolveNomination_BothSlotsCanFallBack`
 - `"it leaves the surviving slot untouched"` — `TestResolveNomination_SurvivingSlotUnaffected`
 - `"it treats an unset slot as a default, not a fallback"` — `TestResolveNomination_UnsetSlotIsNotAFallback`
+- `"it produces the same record whether a default slot was set or unset"` — `TestResolveNomination_SetAndUnsetDefaultsAreIndistinguishable`
 - `"it never writes the persisted name"` — `TestResolveNomination_NeverOverwritesPrefs` (byte-compare before/after; absent file stays absent)
 - `"it records which slot fell back, from what, and why"` — `TestResolveNomination_StructuredOutcome`
 - `"it assembles the matching nomination shape"` — `TestResolveNomination_NominationShapeMatchesSetting`
@@ -280,6 +282,7 @@
 - Falling back **never overwrites the persisted name** — fixing the file restores it on the next launch with no re-selection, and overwriting would make a transient failure destructive.
 - Both slots can fall back independently in a single launch, and the surviving slot is unaffected.
 - An **unset** slot is not a fallback at all but the same default rule, so unset and unloadable converge with no second mechanism.
+- The record carries **no set-ness flag**. `Setting` already has the shipped defaults substituted in (task 5-2), so "was this slot set?" is not derivable here, and nothing consumes it — task 8-3's badge table keys on `Requested` alone, doctor reads the raw keys directly, and task 9-6's `ResolveSlot` takes the raw slug as a parameter. Adding a flag that cannot be computed and that no consumer reads would be a second, wrong source of truth for which slug carries the `●`.
 - The outcome is **structured** (which slot, from which slug, for which reason) so task 5-5's events, Phase 7's doctor line and Phase 8's `●`-stays-on-the-persisted-slug rule all read one record instead of re-deriving it.
 - A fallback that itself cannot resolve is task 5-6's fatal, never a second fallback and never a hardcoded palette.
 
@@ -287,7 +290,7 @@
 > §8.5: "When a nominated theme is unloadable (invalid file, missing file, bad persisted slug): `theme_dark` → `tokyo-night`; `theme_light` → `tokyo-night-day`; `theme` (constant) → `tokyo-night`. This introduces **no new mechanism** — it is the already-decided 'an unset slot holds the shipped default' rule applied to a slot that is *set but unloadable* rather than unset." And: "**§8.3's second reason depends on that coincidence**… So **changing these values, or adopting the single-fixed-fallback alternative rejected below, silently invalidates §8.3.**"
 > §8.5: "**One not-loadable path serves every cause** — a deleted file, a renamed file, a typo in `prefs.json`, a missing token, a bad colour. All fall back, keep the persisted name (§6.3), and surface through the panel, doctor and the log."
 > §6.3: "**Falling back must never overwrite the persisted theme name in `prefs.json`.** Portal keeps the user's choice and renders the fallback; fixing the theme file restores it on the next launch without the user re-selecting. Overwriting would make the failure destructive rather than transient."
-> §9.5's badge table needs exactly this record: a slot "Set but unloadable" keeps the badge on the **persisted** slug while "the fallback's own row carries no badge", and a "Never set" slot badges the **shipped default's** slug — which is why `WasSet` is carried separately from `Requested`.
+> §9.5's badge table needs exactly this record: a slot "Set but unloadable" keeps the badge on the **persisted** slug while "the fallback's own row carries no badge", and a "Never set" slot badges the **shipped default's** slug — which is why `Requested` (the pre-fallback slug) is carried separately from `Resolved`, and why one field covers all three rows with no set-ness flag.
 > §12.2/§14A need the same record for doctor's `⚠ theme <slug> (<slot>) does not resolve: <reason>` line (Phase 7).
 > Phase boundary: this task produces the outcome; task 5-5 emits it, task 5-6 escalates the unresolvable-fallback case, task 5-7 wires it into construction. Phase 8's panel consumes the same record for its cursor/badge rules.
 
