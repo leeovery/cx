@@ -14,9 +14,16 @@ const hexValueLength = len("#RRGGBB")
 // detailBadColourPair renders ONE offending pair; the pairs are joined with ", "
 // into `text.primary = #GGGGGG, canvas = blue`. detailMissingTokens takes the
 // whole joined list, producing `missing text.primary, bg.subtle`.
+//
+// The lead-in is a constant of its own, and detailMissingTokens is composed from
+// it, because the `theme` log component's `token` attr carries the joined LIST
+// without it (see tokenAttr in events.go). Composing the two rather than writing
+// the word twice is what keeps the render and the one place that reads it back
+// off from ever disagreeing.
 const (
-	detailBadColourPair = "%s = %s"
-	detailMissingTokens = "missing %s"
+	detailBadColourPair       = "%s = %s"
+	detailMissingTokensLeadIn = "missing "
+	detailMissingTokens       = detailMissingTokensLeadIn + "%s"
 )
 
 // themeFromPairs turns the pairs a file declared into the Theme it describes, or

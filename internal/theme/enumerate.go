@@ -47,13 +47,19 @@ type Entry struct {
 // caching would break the loop the drop-in route exists for — copy a built-in,
 // edit it, see it, without relaunching Portal.
 //
-// Nothing is emitted from here, and the three conditions the `theme` log
-// component reports on (§12.3) are each distinguishable in what comes back: a
-// rejected entry carries its Rejection, an unusable directory IS the directory
-// verdict, and an absent directory is the one state producing neither.
+// The three conditions the `theme` log component reports on (§12.3) are each
+// distinguishable here and are emitted through the injected seam: one `rejected`
+// per rejected entry, one `directory unusable` for the directory verdict, and
+// NOTHING WHATSOEVER for an absent directory. Whether any of it is written is
+// the caller's decision, not this function's — a Loader carrying a
+// log.Discard-backed seam (doctor, export, capturetool) runs the identical path
+// in silence — and repeated enumeration is deduplicated by the seam, which is
+// what keeps re-reading on every panel open (§5.8) from turning a forensic trail
+// into a running commentary.
 func (l Loader) Enumerate(dir string) ([]Entry, *Rejection) {
 	dirEntries, rejection := readThemeDir(dir)
 	if rejection != nil {
+		l.events.DirectoryUnusable(dir, rejection)
 		return nil, rejection
 	}
 
@@ -67,7 +73,11 @@ func (l Loader) Enumerate(dir string) ([]Entry, *Rejection) {
 		if resolvesToDirectory(path) {
 			continue
 		}
-		entries = append(entries, l.classify(path))
+		entry := l.classify(path)
+		if entry.Rejection != nil {
+			l.events.Rejected(entry.Slug, entry.Path, entry.Rejection)
+		}
+		entries = append(entries, entry)
 	}
 	return entries, nil
 }

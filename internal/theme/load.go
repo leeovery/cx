@@ -8,12 +8,14 @@ import (
 // Loader turns one theme file into a Theme, running §6.2's fixed rejection
 // ladder over it.
 //
-// It HARDCODES NO SLUGS and RESOLVES NO PATHS. Both are injected, and both for
-// the same reason: the loader is driven by four callers with different
-// authority — TUI construction, the panel, portal doctor and portal theme
-// export — and none of them may have config discovery imposed on it. The path to
-// read arrives as an argument (§5.5's themes-directory chain lives in cmd), and
-// the reserved built-in slugs arrive on the Loader.
+// It HARDCODES NO SLUGS, RESOLVES NO PATHS and DECIDES NOTHING ABOUT LOGGING.
+// All three are injected, and all three for the same reason: the loader is
+// driven by callers with different authority — TUI construction, the panel,
+// portal doctor, portal theme export and the offline capture harness — and none
+// of them may have config discovery or an emission policy imposed on it. The
+// path to read arrives as an argument (§5.5's themes-directory chain lives in
+// cmd), while the reserved built-in slugs and the §12.3 event seam arrive on the
+// Loader.
 type Loader struct {
 	// ReservedSlugs is the set of built-in slugs a user file may not take
 	// (§5.4). It is INJECTED rather than read from the embedded set here, so a
@@ -24,6 +26,28 @@ type Loader struct {
 	// Loader constructed before the built-in set exists wants: no input can
 	// then produce `reserved name`.
 	ReservedSlugs map[string]struct{}
+
+	// events is the injected `theme` log-component seam (§12.3). It is
+	// unexported and arrives through NewLoader because it is not configuration
+	// the loader reads but a decision the CALLER makes: a real component logger
+	// where a theme is used, log.Discard() where one is merely diagnosed.
+	//
+	// It is a pointer, so every copy of a Loader — the type is used by value —
+	// shares one dedup set, which is what §5.5 requires of the construction-time
+	// read and the panel's enumeration in the same process. A nil one is a valid
+	// silent seam, so the zero-value Loader emits nothing at all.
+	events *EventLogger
+}
+
+// NewLoader returns a Loader emitting its §12.3 events through events.
+//
+// The event logger is the one dependency that arrives by constructor rather
+// than by field, because it carries per-process state the caller owns: passing
+// log.Discard() is how `portal doctor`, `portal theme export` and capturetool
+// stay silent, and passing a fresh one is how a test controls dedup. The
+// reserved-slug set stays an ordinary field so it remains injectable on its own.
+func NewLoader(events *EventLogger) Loader {
+	return Loader{events: events}
 }
 
 // Result is one loaded theme: the slug its FILENAME yielded, and the palette its
