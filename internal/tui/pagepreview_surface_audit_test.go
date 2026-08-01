@@ -320,10 +320,16 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		// spawntest: test-only DI-seam helper (FakeAdapter) for the
 		// restore-host-terminal-windows feature; unrelated to
 		// scrollback-preview, allow-listed per this audit's own guidance.
-		"spawntest":     {},
-		"state":         {},
-		"statetest":     {},
-		"storelog":      {},
+		"spawntest": {},
+		"state":     {},
+		"statetest": {},
+		"storelog":  {},
+		// theme: added by the theming-system feature (the closed 19-token
+		// vocabulary plus the .theme loader, moved out from under internal/tui
+		// so cmd/doctor and portal theme export need not import a TUI
+		// subpackage); unrelated to scrollback-preview, allow-listed per this
+		// audit's own guidance.
+		"theme":         {},
 		"tmux":          {},
 		"tmuxerr":       {},
 		"tmuxout":       {},
