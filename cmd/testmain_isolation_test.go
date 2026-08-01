@@ -38,6 +38,12 @@ func TestMain(m *testing.M) {
 	os.Setenv("PORTAL_HOOKS_FILE", "/nonexistent/portal-test-must-isolate-hooks.json")
 	os.Setenv("PORTAL_PROJECTS_FILE", "/nonexistent/portal-test-must-isolate-projects.json")
 	os.Setenv("PORTAL_ALIASES_FILE", "/nonexistent/portal-test-must-isolate-aliases")
+	// PORTAL_THEMES_DIR resolves a directory rather than a file, but it is
+	// poisoned for the identical structural reason: a cmd body that forgets to
+	// isolate must fail loudly instead of enumerating the developer's real
+	// ~/.config/portal/themes/. Tests that exercise the themes chain set it
+	// explicitly with t.Setenv.
+	os.Setenv("PORTAL_THEMES_DIR", "/nonexistent/portal-test-must-isolate-themes")
 	// TMUX poison — the tmux-boundary counterpart of the path poisons above.
 	// Tests usually run inside the developer's real tmux, so any test that
 	// Executes a real command body whose production wiring builds

@@ -160,3 +160,37 @@ func loadPrefsStore() (*prefs.Store, error) {
 func prefsFilePath() (string, error) {
 	return configFilePath("PORTAL_PREFS_FILE", "prefs.json")
 }
+
+// themesDirPath returns the path to the user themes directory, resolving
+// PORTAL_THEMES_DIR -> XDG_CONFIG_HOME/portal/themes/ -> ~/.config/portal/themes/.
+// An empty PORTAL_THEMES_DIR is treated as unset and falls through, matching
+// configFilePath's per-file env vars.
+//
+// It is deliberately NOT a configFilePath member, for two mechanical reasons.
+// It resolves a *directory* where configFilePath resolves *files* — which is
+// what the _DIR suffix on the env var marks, against the _FILE of
+// PORTAL_TERMINALS_FILE and its siblings. And there is no one-shot migration
+// from the old macOS Application Support path to run: the directory is new, so
+// nothing exists there to move. It therefore takes no configFileComponents
+// entry and emits no migrate breadcrumb.
+//
+// It returns a path and nothing more — it never creates, seeds or stats the
+// directory. An absent themes directory is the common, silent case (which is
+// why the documented drop-in workflow starts with `mkdir -p`), and judgements
+// about what is at the returned path belong to the enumeration layer, not here.
+//
+// cmd owning this resolution is what lets internal/theme's loader take the
+// directory as an injected value and hold no path-resolution code of its own,
+// keeping the embedded built-in set reachable with no path at all.
+func themesDirPath() (string, error) {
+	if envDir := os.Getenv("PORTAL_THEMES_DIR"); envDir != "" {
+		return envDir, nil
+	}
+
+	configDir, err := xdg.ConfigBase()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(configDir, "portal", "themes"), nil
+}
