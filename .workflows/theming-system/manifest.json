@@ -114,9 +114,9 @@
     "planning": {
       "items": {
         "theming-system": {
-          "status": "in-progress",
+          "status": "completed",
           "format": "tick",
-          "spec_commit": "7278bf39d04f1301a18ac0a60a1cc6b8ae1f3e37",
+          "spec_commit": "40a29271d760eb43c85d7bcb6b3c2c8ac663fc38",
           "task_list_gate_mode": "auto",
           "author_gate_mode": "auto",
           "finding_gate_mode": "auto",
