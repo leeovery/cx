@@ -78,7 +78,7 @@ Task `theming-system-8-15`, **Edge Cases** — the existing slot-record entry st
 - The fake's `Resolve` must report the **palette** as well as the slots, because task 8-8's open applies the resolved theme through `ApplyTheme` before the cursor seed runs: a zero-valued resolution paints the panel silently colourless, a hard-coded built-in repaints the constant-previewing frame away from its own `--theme`, and under §13.4's guard either one overwrites the synthetic theme so every panel fixture covers nothing while passing every assertion.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
 
 ---
@@ -153,5 +153,5 @@ Task `theming-system-8-15`, **Edge Cases** — the existing inheritance entry st
 - The guard renders every fixture at task 4-3's **single pinned size** and replays `captureKeys` through `ModelAt`, so a panel fixture's `t` passes task 8-13's entry gate there too — a pinned size below task 8-11's floor makes the guard render a panel-less frame while every assertion still passes, which is the blind spot §13.4 structurally cannot report.
 ```
 
-**Resolution**: Pending
+**Resolution**: Fixed
 **Notes**:
