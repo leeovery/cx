@@ -178,9 +178,14 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // than anything inside a theme (§1.2, §3.1, §3.2).
 //
 // Later tasks in this phase legitimately extend this list — the lexer added Pair
-// and the reason vocabulary, and the loader is still to come. Nothing on the
+// and the reason vocabulary, the name rules added ValidSlug, SlugFromFilename
+// and the bad-name causes, and the loader is still to come. Nothing on the
 // removed list ever returns to it.
 var wantExports = []string{
+	"BadNameCause",
+	"BadNameExtension",
+	"BadNameNone",
+	"BadNameSlug",
 	"Pair",
 	"Reason",
 	"ReasonBadColour",
@@ -192,11 +197,13 @@ var wantExports = []string{
 	"ReasonUnreadable",
 	"Rejection",
 	"Rejection.Error",
+	"SlugFromFilename",
 	"Theme",
 	"Theme.All",
 	"Token",
 	"Token.Color",
 	"TokenNames",
+	"ValidSlug",
 }
 
 // TestVocabulary_HasNoModeSurface asserts the package exports exactly

@@ -44,10 +44,16 @@ const (
 // its surfaces print: nothing downstream re-derives, re-orders, re-wraps or
 // re-prefixes it. Line carries the same line number in machine-readable form
 // for the one reason that has one (`bad syntax`), and is 0 for every other.
+//
+// BadNameCause is the same shape of narrowing for the one reason whose surfaces
+// need to say WHICH rule was broken while the reason class stays single (see
+// BadNameCause in name.go). It is BadNameNone on every rejection that is not a
+// `bad name` one.
 type Rejection struct {
-	Reason Reason
-	Detail string
-	Line   int
+	Reason       Reason
+	Detail       string
+	Line         int
+	BadNameCause BadNameCause
 }
 
 // Error renders the rejection as "<reason>: <detail>", or as the bare reason
