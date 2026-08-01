@@ -200,17 +200,20 @@ func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 	})
 }
 
-// TestLoadFile_EmptyReservedSetNeverRejects pins this phase's wiring: the
-// built-in slug set is INJECTED and empty until the embedded themes exist, so
-// rung 2 is implemented and dormant — no input can produce `reserved name` yet.
+// TestLoadFile_EmptyInjectedReservedSetNeverRejects pins the SEAM the built-in
+// slugs are populated through: the set is an INJECTED field, so a Loader
+// carrying an empty one produces `reserved name` for no input at all.
 //
-// Both empty forms are covered because both are reachable: a zero-value Loader
-// carries a nil map, and a caller assembling a set from an empty built-in
-// collection produces an allocated one.
+// That stays true now that NewLoader populates the field from the embedded set
+// (§5.4), and it is what keeps the rung drivable from a test with a synthetic
+// set — the injection point is a seam rather than a formality. Both empty forms
+// are covered because both are reachable: a zero-value Loader carries a nil map,
+// and a caller assembling a set from an empty collection produces an allocated
+// one.
 //
-// The slugs are the ones that WILL be reserved, so the day the set is populated
-// this test says exactly which wiring changed rather than failing obscurely.
-func TestLoadFile_EmptyReservedSetNeverRejects(t *testing.T) {
+// The files include a real built-in's slug, so the acceptance is proved to
+// follow the INJECTED set rather than the embedded one.
+func TestLoadFile_EmptyInjectedReservedSetNeverRejects(t *testing.T) {
 	loaders := []struct {
 		name   string
 		loader theme.Loader
@@ -224,9 +227,9 @@ func TestLoadFile_EmptyReservedSetNeverRejects(t *testing.T) {
 		base  string
 		lines []string
 	}{
-		{name: "a would-be built-in slug", base: "nord.theme", lines: themeLines()},
-		{name: "a second would-be built-in slug", base: "tokyo-night.theme", lines: themeLines()},
-		{name: "a would-be built-in slug on an invalid file", base: "nord.theme", lines: withoutKey(themeLines(), "canvas")},
+		{name: "a built-in slug", base: "tokyo-night.theme", lines: themeLines()},
+		{name: "a slug the growing set will reserve", base: "nord.theme", lines: themeLines()},
+		{name: "a built-in slug on an invalid file", base: "tokyo-night.theme", lines: withoutKey(themeLines(), "canvas")},
 	}
 
 	for _, tl := range loaders {

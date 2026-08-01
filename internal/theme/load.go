@@ -18,13 +18,15 @@ import (
 // Loader.
 type Loader struct {
 	// ReservedSlugs is the set of built-in slugs a user file may not take
-	// (§5.4). It is INJECTED rather than read from the embedded set here, so a
-	// test can exercise the rung with a synthetic set and this package never
-	// decides which names are Portal's.
+	// (§5.4). NewLoader populates it from the embedded set, and it stays a
+	// FIELD rather than a lookup inside the rung so a test can exercise the
+	// collision check with a synthetic set — which is also what keeps rung 2
+	// decidable without the embedded files being involved at all.
 	//
-	// The zero value — a nil map — reserves nothing, which is exactly what a
-	// Loader constructed before the built-in set exists wants: no input can
-	// then produce `reserved name`.
+	// The zero value — a nil map — reserves nothing. That is the shape every
+	// caller uninterested in the rung carries, and it is why the production
+	// constructor exists: a Loader assembled by hand has no shadowing
+	// protection, so anything resolving a user's theme goes through NewLoader.
 	ReservedSlugs map[string]struct{}
 
 	// events is the injected `theme` log-component seam (§12.3). It is
@@ -39,15 +41,29 @@ type Loader struct {
 	events *EventLogger
 }
 
-// NewLoader returns a Loader emitting its §12.3 events through events.
+// NewLoader returns a Loader reserving every built-in slug (§5.4) and emitting
+// its §12.3 events through events.
 //
-// The event logger is the one dependency that arrives by constructor rather
-// than by field, because it carries per-process state the caller owns: passing
-// log.Discard() is how `portal doctor`, `portal theme export` and capturetool
-// stay silent, and passing a fresh one is how a test controls dedup. The
-// reserved-slug set stays an ordinary field so it remains injectable on its own.
+// The reserved set is DERIVED from the embedded set — builtinSlugSet reads the
+// embedded filenames — so a built-in added by a later PR reserves its own slug
+// with no Go edit here, and §5.4's guarantee stays true as the set grows. It is
+// built ONCE per loader rather than per file, because enumeration classifies a
+// whole directory through one Loader (§5.6) and the set is the same for every
+// candidate in it.
+//
+// The property this constructor makes real: an invalid theme falls back to a
+// built-in (§8.5), so the built-in Portal falls back to must never be a file the
+// user can supply. A `tokyo-night.theme` with a typo'd hex is rejected before it
+// is opened, and the fallback stays the embedded one.
+//
+// The event logger, by contrast, is a dependency the CALLER owns rather than
+// one this package can derive: passing log.Discard() is how `portal doctor`,
+// `portal theme export` and capturetool stay silent, and passing a fresh one is
+// how a test controls dedup. The reserved-slug set stays an ordinary field for
+// the same reason it did before — so a test can still drive rung 2 with a
+// synthetic set, or with none.
 func NewLoader(events *EventLogger) Loader {
-	return Loader{events: events}
+	return Loader{ReservedSlugs: builtinSlugSet(), events: events}
 }
 
 // Result is one loaded theme: the slug its FILENAME yielded, the palette its

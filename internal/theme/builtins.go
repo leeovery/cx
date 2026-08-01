@@ -88,6 +88,26 @@ func BuiltinSlugs() []string {
 	return slugs
 }
 
+// builtinSlugSet returns every embedded slug in the set shape §6.2's rung 2
+// looks a candidate's slug up in.
+//
+// It is DERIVED from BuiltinSlugs — from the embedded files themselves — and is
+// never a hand-maintained list, which is what keeps §5.4's guarantee true as the
+// set grows: a built-in added by a later PR reserves its own slug with no Go
+// edit, where a restated list would pass every test right up until someone
+// forgot to extend it and shipped a shadowable theme.
+//
+// The property that reservation protects, in one sentence: the built-in Portal
+// falls back to (§8.5) can never be the user's broken file.
+func builtinSlugSet() map[string]struct{} {
+	slugs := BuiltinSlugs()
+	set := make(map[string]struct{}, len(slugs))
+	for _, slug := range slugs {
+		set[slug] = struct{}{}
+	}
+	return set
+}
+
 // LoadBuiltin loads the built-in named slug, returning the same shape LoadFile
 // returns for a drop-in, whether the slug names a built-in at all, and — if it
 // does and its file is broken — why.
