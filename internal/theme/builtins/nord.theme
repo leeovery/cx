@@ -1,0 +1,97 @@
+# Nord — https://www.nordtheme.com/
+# state.destructive and state.positive are corrected for Portal's contrast floors.
+#
+# Portal's second dark built-in, and the first genuinely external palette ported
+# onto Portal's 19 token roles. Nord is a 16-slot ANSI palette — Polar Night
+# nord0-3, Snow Storm nord4-6, Frost nord7-10, Aurora nord11-15 — and Portal's
+# vocabulary is wider than 16 at the dark end, so the port takes 13 values
+# straight from the palette, corrects two, invents three, and takes one
+# functional maximum (text.on-selection #FFFFFF, a contrast choice rather than a
+# palette claim). 13 + 2 + 3 + 1 = 19.
+#
+# Every ratio quoted below is measured against this file's own canvas #2E3440 —
+# nord0, a MID-dark rather than a near-black — and against no other reference.
+# The headroom that leaves is materially tighter than a near-black canvas gives,
+# and several of the legs below clear their floor by hundredths.
+#
+# The five values that are not Nord's own carry their derivation beside them,
+# and the two kinds are derived differently. A correction has a published source
+# colour whose chroma it must preserve, so it is computed in a perceptual space
+# (Oklab) and records what it retained — never by raising HSL lightness, which
+# sheds actual chroma while appearing to buy contrast. An invention has no
+# source to preserve, so its constraints are landing in the right band and
+# looking right, and it is settled at a visual gate rather than by arithmetic.
+#
+# Fidelity versus floors is resolved in favour of the floors, and the corrected
+# values ship under the palette's own name: no application maps a 16-slot ANSI
+# palette 1:1 onto its own semantic roles, and every Nord port in the wild
+# adapts. Both corrections are minimal, perceptually close, and judged by eye.
+
+# Text ramp, bright to faint.
+text.primary = #ECEFF4
+text.secondary = #E5E9F0
+text.tertiary = #D8DEE9
+# Invention 1 of 3. Nord's greys are barrelled at the ends — three bright
+# (9.25 / 10.26 / 10.84) and three dark (1.24 / 1.45 / 1.69) with nothing in the
+# middle — and this token carries the 4.50 normal-text floor, so no slot in the
+# palette can serve it. The value is interpolated on nord3's own hue and
+# saturation (HSL 220 degrees, 16.5%) at lightness 63.7%, landing at 4.62
+# against the canvas.
+text.muted = #939EB2
+# Invention 2 of 3, the second step the barrelled ramp cannot supply,
+# interpolated on the same nord3 hue and saturation at lightness 52.9%. It lands
+# at 3.18 — inside the 3.00-4.49 band this token has to sit in, clear of the UI
+# floor and below normal text, or it is not the de-emphasised step the ramp
+# needs between text.muted and text.faint.
+text.subtle = #73819B
+text.faint = #4C566A
+text.on-selection = #FFFFFF
+
+# Accents and states.
+accent.primary = #B48EAD
+accent.key = #81A1C1
+accent.mode = #88C0D0
+accent.attention = #EBCB8B
+# Correction 2 of 2, and the one found on a pairing leg rather than against the
+# canvas. This single token renders both on the canvas and on the selected row,
+# so it must clear 4.50 against both — and nord14 #A3BE8C clears the canvas at
+# 6.13 but only 4.23 on nord2. Corrected in Oklab to #A7C492 (6.51 canvas /
+# 4.50 selection) at a distance of 0.018, essentially imperceptible, with chroma
+# at 100.8% of the original — marginally ABOVE it, so nothing of Nord's green
+# was spent to clear the floor.
+state.positive = #A7C492
+# Correction 1 of 2. This token carries the 4.50 normal-text floor and Nord's
+# published red, nord11 #BF616A, measures 3.05 against this canvas. Corrected in
+# Oklab to #DD8188 (4.50), retaining ~94% of nord11's chroma — the figure that
+# makes the shipped value checkable if it is ever re-derived. A first answer that
+# raised HSL lightness instead, #CF888F, shed 27% of that chroma and read
+# washed-out and pink. The floor holds with no carve-out: this being Portal's
+# first external palette, a carve-out granted here would set the precedent for
+# every ported theme after it.
+state.destructive = #DD8188
+
+# Surfaces.
+canvas = #2E3440
+bg.selection = #434C5E
+# Invention 3 of 3. A background warning tint is neither a neutral from the
+# barrelled dark end nor a foreground accent, so the palette holds no slot for
+# it. This is a ~8% nord13-into-canvas blend, a fill of 1.20 against the canvas,
+# matching the proportion Portal's other built-ins use — the warning band is a
+# whisper, not a wash. The first arithmetic answer, a 20% blend at #54524F
+# (fill 1.60), was rejected at a visual gate as far too heavy and as a warm grey
+# outside Nord's cool family. An invention has no source chroma to preserve, so
+# what settles it is the eye.
+bg.attention = #3D4046
+bg.subtle = #3B4252
+# Nord's dark end holds three values (nord1/2/3) for five of Portal's dark-end
+# roles, so nord3 serves BOTH border and text.faint. One value for two roles is
+# legitimate — unlike two tokens that differ pointlessly, which the border
+# consolidation removed — and it is why the warning tint above had to be
+# invented outright. Every port should expect to invent at the dark end.
+border = #4C566A
+# A deliberate divergence from Portal's other built-ins, which warm their
+# on-band text to match the warning tint. Nord's Snow Storm is entirely cool and
+# has no warm light, so this takes nord6 unchanged (9.02 on the band) — cooler
+# than that treatment, and faithful to the palette. A port choice, not an
+# oversight.
+text.on-attention = #ECEFF4

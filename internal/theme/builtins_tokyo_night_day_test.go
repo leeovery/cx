@@ -323,6 +323,10 @@ func declaresKey(line, key string) bool {
 
 // valueFor returns the value the file declares for key, failing if it declares
 // none.
+//
+// It takes the file's TEXT rather than its path so every built-in's comment
+// guard reads the same helper — the theme file format is one format, and a
+// second copy of this walk per palette is how two files' guards drift apart.
 func valueFor(t *testing.T, text, key string) string {
 	t.Helper()
 
@@ -333,7 +337,7 @@ func valueFor(t *testing.T, text, key string) string {
 		}
 	}
 
-	t.Fatalf("%s declares no %s", tokyoNightDayPath, key)
+	t.Fatalf("the theme file declares no %s", key)
 	return ""
 }
 
@@ -350,7 +354,7 @@ func commentBlockAbove(t *testing.T, text, key string) string {
 	lines := strings.Split(text, "\n")
 	index := slices.IndexFunc(lines, func(line string) bool { return declaresKey(line, key) })
 	if index < 0 {
-		t.Fatalf("%s declares no %s", tokyoNightDayPath, key)
+		t.Fatalf("the theme file declares no %s", key)
 	}
 
 	block := []string{}

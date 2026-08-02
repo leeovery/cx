@@ -55,6 +55,7 @@ import (
 // classify — so it is held to the embedded set by
 // TestThemeAppearanceTableCoversEveryEmbeddedTheme in both directions.
 var themeIsLight = map[string]bool{
+	"nord":            false,
 	"tokyo-night":     false,
 	"tokyo-night-day": true,
 }
