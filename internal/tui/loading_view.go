@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // Task spectrum-tui-design-5-5 — the honest loading screen render (§10.3 /
@@ -142,7 +142,7 @@ const loadingSectionGap = 2
 // inset content region (w × h), so View()→fillCanvas paints the owned canvas
 // around it. It builds the centred column via composeLoadingBlock and places it
 // dead-centre via lipgloss.Place.
-func renderLoadingScreen(view LoadingProgressView, w, h int, mode theme.Mode, colourless bool) string {
+func renderLoadingScreen(view LoadingProgressView, w, h int, th theme.Theme, colourless bool) string {
 	if w <= 0 {
 		w = loadingFallbackWidth
 	}
@@ -150,7 +150,7 @@ func renderLoadingScreen(view LoadingProgressView, w, h int, mode theme.Mode, co
 		h = loadingFallbackHeight
 	}
 
-	block := composeLoadingBlock(view, w, h, mode, colourless)
+	block := composeLoadingBlock(view, w, h, th, colourless)
 
 	// Centre the block in the inset content region. The whitespace lipgloss.Place
 	// emits is canvas-backfilled by the outer View()→fillCanvas wrap (the single
@@ -181,8 +181,8 @@ func renderLoadingScreen(view LoadingProgressView, w, h int, mode theme.Mode, co
 //     to a single row, then is dropped entirely — the bar(1) + list (+ budgeted
 //     footer on the error frame) is the irreducible floor, so the step-list never
 //     overflows.
-func composeLoadingBlock(view LoadingProgressView, w, h int, mode theme.Mode, colourless bool) string {
-	list := renderTickList(view.Labels, w, mode, colourless)
+func composeLoadingBlock(view LoadingProgressView, w, h int, th theme.Theme, colourless bool) string {
+	list := renderTickList(view.Labels, w, th, colourless)
 	listHeight := lipgloss.Height(list)
 
 	// §10.5 error footer rows (message + hint, + a spacer) are SEPARATE centred
@@ -197,16 +197,16 @@ func composeLoadingBlock(view LoadingProgressView, w, h int, mode theme.Mode, co
 	footerHeight := 0
 	if view.Message != "" {
 		footerBudget := h - 1 - listHeight // 1 = the bar's single row
-		footerParts = renderErrorFooter(view.Message, w, footerBudget, mode, colourless)
+		footerParts = renderErrorFooter(view.Message, w, footerBudget, th, colourless)
 		for _, p := range footerParts {
 			footerHeight += lipgloss.Height(p)
 		}
 	}
 
 	// Compute the wordmark FIRST and measure it so the bar spans its full width.
-	wordmark := renderLoadingWordmark(w, h, listHeight+footerHeight, mode, colourless)
+	wordmark := renderLoadingWordmark(w, h, listHeight+footerHeight, th, colourless)
 	wordmarkWidth := lipgloss.Width(wordmark)
-	bar := renderLoadingBar(view.BarFraction, w, wordmarkWidth, mode, colourless)
+	bar := renderLoadingBar(view.BarFraction, w, wordmarkWidth, th, colourless)
 
 	floor := 1 + listHeight + footerHeight // bar(1) + list + footer
 
@@ -220,7 +220,7 @@ func composeLoadingBlock(view LoadingProgressView, w, h int, mode theme.Mode, co
 		wordmarkHeight := lipgloss.Height(wordmark)
 		// gaps fit only when there is height to spare beyond wordmark + gaps + floor.
 		if wordmarkHeight+2*loadingSectionGap+floor <= h {
-			gap := renderSectionGap(mode, colourless)
+			gap := renderSectionGap(th, colourless)
 			parts = []string{wordmark, gap, bar, gap, list}
 		} else {
 			parts = []string{wordmark, bar, list}
@@ -236,8 +236,8 @@ func composeLoadingBlock(view LoadingProgressView, w, h int, mode theme.Mode, co
 // never leave a terminal-bg island (the canvas-backfill in fillCanvas paints the
 // JoinVertical(Center) leading pad, and these styled blank rows keep the gap rows
 // themselves on canvas). Under NO_COLOR the rows are bare.
-func renderSectionGap(mode theme.Mode, colourless bool) string {
-	row := loadingStyle(mode, colourless).Render("")
+func renderSectionGap(th theme.Theme, colourless bool) string {
+	row := loadingStyle(th, colourless).Render("")
 	rows := make([]string, loadingSectionGap)
 	for i := range rows {
 		rows[i] = row
@@ -246,20 +246,20 @@ func renderSectionGap(mode theme.Mode, colourless bool) string {
 }
 
 // loadingStyle is the leaf canvas-paint style for the loading screen — a
-// Background(canvas) style for the mode, bare under NO_COLOR. It delegates to the
+// Background(canvas) style from the active theme, bare under NO_COLOR. It delegates to the
 // shared header.go source (headerCanvasBg) rather than re-implementing the rule,
 // so the leaf canvas-paint carve-out lives in exactly one place (mirroring how
 // SessionDelegate.rowBg delegates to the shared rowBgStyle free function).
-func loadingStyle(mode theme.Mode, colourless bool) lipgloss.Style {
-	return headerCanvasBg(mode, colourless)
+func loadingStyle(th theme.Theme, colourless bool) lipgloss.Style {
+	return headerCanvasBg(th, colourless)
 }
 
 // loadingFg is the leaf token-foreground-over-canvas style for the loading screen
 // (bare under NO_COLOR). It delegates to the shared header.go source (headerStyle)
 // rather than re-implementing the rule (mirroring SessionDelegate.rowToken's
 // delegation to the shared rowTokenStyle free function).
-func loadingFg(fg theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
-	return headerStyle(fg, mode, colourless)
+func loadingFg(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
+	return headerStyle(fg, th, colourless)
 }
 
 // renderLoadingWordmark renders the hero wordmark for the laid-out width and the
@@ -270,18 +270,18 @@ func loadingFg(fg theme.Token, mode theme.Mode, colourless bool) lipgloss.Style 
 // wordmark + caret. belowHeight is the rendered height of everything below the bar
 // (the tick-list plus, on the §10.5 error frame, the footer rows), used so the
 // banner only claims its 5 rows when h leaves room for the bar (1) + that block.
-func renderLoadingWordmark(w, h, belowHeight int, mode theme.Mode, colourless bool) string {
+func renderLoadingWordmark(w, h, belowHeight int, th theme.Theme, colourless bool) string {
 	blockFitsHeight := len(loadingWordmark)+1+belowHeight <= h
 	if w >= loadingBlockBannerWidth && blockFitsHeight {
-		return renderBlockWordmark(mode, colourless)
+		return renderBlockWordmark(th, colourless)
 	}
 	// Single-row letter-spaced wordmark + caret (header.go's fullWordmark), if it
 	// fits with the caret (one space + one cell).
 	full := lipgloss.Width(fullWordmark) + 1 + lipgloss.Width(headerCaret)
 	if w >= full {
-		return renderSingleRowWordmark(fullWordmark, mode, colourless)
+		return renderSingleRowWordmark(fullWordmark, th, colourless)
 	}
-	return renderSingleRowWordmark(headerCompactWordmark, mode, colourless)
+	return renderSingleRowWordmark(headerCompactWordmark, th, colourless)
 }
 
 // renderBlockWordmark renders the locked 5-row solid-block banner so the caret is
@@ -299,10 +299,10 @@ func renderLoadingWordmark(w, h, belowHeight int, mode theme.Mode, colourless bo
 //     path) jogged it on the wider bottom row, breaking it into a detached comma.
 //
 // The letters carry text.primary (bold); the caret carries accent.violet.
-func renderBlockWordmark(mode theme.Mode, colourless bool) string {
-	lettersStyle := loadingFg(theme.MV.TextPrimary, mode, colourless).Bold(true)
-	caretStyle := loadingFg(theme.MV.AccentViolet, mode, colourless)
-	pad := loadingStyle(mode, colourless)
+func renderBlockWordmark(th theme.Theme, colourless bool) string {
+	lettersStyle := loadingFg(th.TextPrimary, th, colourless).Bold(true)
+	caretStyle := loadingFg(th.AccentPrimary, th, colourless)
+	pad := loadingStyle(th, colourless)
 
 	maxWidth := blockBannerMaxRowWidth()
 
@@ -328,10 +328,10 @@ func renderBlockWordmark(mode theme.Mode, colourless bool) string {
 // renderSingleRowWordmark renders the narrow-degrade single-row wordmark: the
 // text.primary (bold) wordmark + the violet header caret (§3.1 form), reusing
 // header.go's glyphs so the degrade matches the shared chrome.
-func renderSingleRowWordmark(wordmark string, mode theme.Mode, colourless bool) string {
-	letters := loadingFg(theme.MV.TextPrimary, mode, colourless).Bold(true).Render(wordmark)
-	gap := loadingStyle(mode, colourless).Render(" ")
-	caret := loadingFg(theme.MV.AccentViolet, mode, colourless).Render(headerCaret)
+func renderSingleRowWordmark(wordmark string, th theme.Theme, colourless bool) string {
+	letters := loadingFg(th.TextPrimary, th, colourless).Bold(true).Render(wordmark)
+	gap := loadingStyle(th, colourless).Render(" ")
+	caret := loadingFg(th.AccentPrimary, th, colourless).Render(headerCaret)
 	return lipgloss.JoinHorizontal(lipgloss.Top, letters, gap, caret)
 }
 
@@ -344,10 +344,10 @@ func renderSingleRowWordmark(wordmark string, mode theme.Mode, colourless bool) 
 // backgrounds and renders the filled run as solid glyphs over the track glyphs on
 // the native bg (still a visible determinate bar via the block run, no colour
 // required).
-func renderLoadingBar(fraction float64, w, barWidth int, mode theme.Mode, colourless bool) string {
+func renderLoadingBar(fraction float64, w, barWidth int, th theme.Theme, colourless bool) string {
 	barW := min(barWidth, w)
 	if barW <= 0 {
-		return loadingStyle(mode, colourless).Render("")
+		return loadingStyle(th, colourless).Render("")
 	}
 	if fraction < 0 {
 		fraction = 0
@@ -365,11 +365,11 @@ func renderLoadingBar(fraction float64, w, barWidth int, mode theme.Mode, colour
 	}
 
 	filledStyle := lipgloss.NewStyle().
-		Foreground(theme.MV.AccentViolet.ColorFor(mode)).
-		Background(theme.MV.AccentViolet.ColorFor(mode))
+		Foreground(th.AccentPrimary.Color()).
+		Background(th.AccentPrimary.Color())
 	trackStyle := lipgloss.NewStyle().
-		Foreground(theme.MV.BgTrack.ColorFor(mode)).
-		Background(theme.MV.BgTrack.ColorFor(mode))
+		Foreground(th.BgSubtle.Color()).
+		Background(th.BgSubtle.Color())
 
 	filledRun := filledStyle.Render(strings.Repeat(loadingBarFilledGlyph, filled))
 	trackRun := trackStyle.Render(strings.Repeat(loadingBarTrackGlyph, barW-filled))
@@ -378,10 +378,10 @@ func renderLoadingBar(fraction float64, w, barWidth int, mode theme.Mode, colour
 
 // renderTickList renders the §10.3 5-row tick-list — a real list, one row per
 // friendly label — clamped to w so no row overflows (§2.7).
-func renderTickList(labels []LoadingLabel, w int, mode theme.Mode, colourless bool) string {
+func renderTickList(labels []LoadingLabel, w int, th theme.Theme, colourless bool) string {
 	rows := make([]string, 0, len(labels))
 	for _, l := range labels {
-		rows = append(rows, clampRow(renderTickRow(l, mode, colourless), w))
+		rows = append(rows, clampRow(renderTickRow(l, th, colourless), w))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
@@ -397,19 +397,19 @@ func renderTickList(labels []LoadingLabel, w int, mode theme.Mode, colourless bo
 // three, rows are SHED in increasing priority — spacer first, then the hint, then
 // the message — so the footer never overflows the height budget. A budget < 1
 // returns nil (the red ✗ on the failed step row carries the failure on its own).
-func renderErrorFooter(message string, w, budget int, mode theme.Mode, colourless bool) []string {
+func renderErrorFooter(message string, w, budget int, th theme.Theme, colourless bool) []string {
 	if budget < 1 {
 		return nil
 	}
-	messageRow := clampRow(loadingFg(theme.MV.StateRed, mode, colourless).Render(message), w)
+	messageRow := clampRow(loadingFg(th.StateDestructive, th, colourless).Render(message), w)
 	if budget == 1 {
 		return []string{messageRow} // message wins the single available row
 	}
-	hintRow := clampRow(loadingFg(theme.MV.TextFaint, mode, colourless).Render(loadingQuitHint), w)
+	hintRow := clampRow(loadingFg(th.TextFaint, th, colourless).Render(loadingQuitHint), w)
 	if budget == 2 {
 		return []string{messageRow, hintRow}
 	}
-	spacer := loadingStyle(mode, colourless).Render("")
+	spacer := loadingStyle(th, colourless).Render("")
 	return []string{spacer, messageRow, hintRow}
 }
 
@@ -433,19 +433,19 @@ func clampRow(row string, w int) string {
 //
 // The active row's counter is the task-5-4 "N/M" reformatted to the frame's
 // spaced "N / M" and painted text.detail.
-func renderTickRow(l LoadingLabel, mode theme.Mode, colourless bool) string {
-	glyph, glyphTok, labelTok, bold := tickRowTokens(l.State)
+func renderTickRow(l LoadingLabel, th theme.Theme, colourless bool) string {
+	glyph, glyphTok, labelTok, bold := tickRowTokens(l.State, th)
 
 	glyphCell := padGlyphSlot(glyph)
-	glyphRun := loadingFg(glyphTok, mode, colourless).Render(glyphCell)
-	gap := loadingStyle(mode, colourless).Render(loadingTickGap)
-	labelRun := loadingFg(labelTok, mode, colourless).Bold(bold).Render(l.Text)
+	glyphRun := loadingFg(glyphTok, th, colourless).Render(glyphCell)
+	gap := loadingStyle(th, colourless).Render(loadingTickGap)
+	labelRun := loadingFg(labelTok, th, colourless).Bold(bold).Render(l.Text)
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, glyphRun, gap, labelRun)
 
 	if counter := spacedCounter(l); counter != "" {
-		counterGap := loadingStyle(mode, colourless).Render("  ")
-		counterRun := loadingFg(theme.MV.TextDetail, mode, colourless).Render(counter)
+		counterGap := loadingStyle(th, colourless).Render("  ")
+		counterRun := loadingFg(th.TextMuted, th, colourless).Render(counter)
 		row = lipgloss.JoinHorizontal(lipgloss.Top, row, counterGap, counterRun)
 	}
 	return row
@@ -456,16 +456,16 @@ func renderTickRow(l LoadingLabel, mode theme.Mode, colourless bool) string {
 // LabelFailed row is the error-frame failed step: a state.red ✗ glyph with the
 // label ALSO in state.red so the failure reads as red/error (and stays
 // glyph-distinct under NO_COLOR via the ✗).
-func tickRowTokens(state LabelState) (glyph string, glyphTok, labelTok theme.Token, bold bool) {
+func tickRowTokens(state LabelState, th theme.Theme) (glyph string, glyphTok, labelTok theme.Token, bold bool) {
 	switch state {
 	case LabelDone:
-		return loadingGlyphDone, theme.MV.StateGreen, theme.MV.TextMutedBright, false
+		return loadingGlyphDone, th.StatePositive, th.TextTertiary, false
 	case LabelActive:
-		return loadingGlyphActive, theme.MV.AccentCyan, theme.MV.TextPrimary, true
+		return loadingGlyphActive, th.AccentMode, th.TextPrimary, true
 	case LabelFailed:
-		return loadingGlyphFailed, theme.MV.StateRed, theme.MV.StateRed, true
+		return loadingGlyphFailed, th.StateDestructive, th.StateDestructive, true
 	default:
-		return loadingGlyphPending, theme.MV.TextFaint, theme.MV.TextDim, false
+		return loadingGlyphPending, th.TextFaint, th.TextSubtle, false
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §6 composed Projects-page gate. These tests assert viewProjectList composes
@@ -21,9 +21,9 @@ import (
 // newProjectsPageTestModel builds a Model on the Projects page seeded with the
 // given projects at the given size and canvas mode, sized so pagination/footer
 // budgets are applied (mirroring newCanvasTestModel for the Projects page).
-func newProjectsPageTestModel(t *testing.T, w, h int, mode theme.Mode, projects []project.Project) Model {
+func newProjectsPageTestModel(t *testing.T, w, h int, th theme.Theme, projects []project.Project) Model {
 	t.Helper()
-	m := New(fakeLister{}, WithCanvasMode(mode))
+	m := New(fakeLister{}, WithCanvasMode(appearanceForTheme(t, th)))
 	m.termWidth = w
 	m.termHeight = h
 	m.activePage = PageProjects
@@ -47,7 +47,7 @@ func sampleProjects() []project.Project {
 // (state.green label + text.detail count + `/ to filter` hint), and the §6.3
 // condensed footer — none of the legacy chrome.
 func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
-	m := newProjectsPageTestModel(t, 90, 24, theme.Dark, sampleProjects())
+	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
 	view := m.viewProjectList()
 	visible := ansi.Strip(view)
 
@@ -59,10 +59,10 @@ func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 	if !strings.Contains(visible, "Projects") {
 		t.Errorf("composed Projects view missing the Projects section label:\n%s", visible)
 	}
-	if seq := tokenFgSeq(t, theme.MV.StateGreen, theme.Dark); !strings.Contains(view, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(view, seq) {
 		t.Errorf("composed Projects view missing the state.green label role sequence %q", seq)
 	}
-	countRun := headerStyle(theme.MV.TextDetail, theme.Dark, false).Render("4")
+	countRun := headerStyle(testDarkTheme(t).TextMuted, testDarkTheme(t), false).Render("4")
 	if !strings.Contains(view, countRun) {
 		t.Errorf("composed Projects view missing the text.detail count run for 4 projects:\n%s", view)
 	}
@@ -89,7 +89,7 @@ func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 // guard: the PORTAL wordmark, the `Projects` section-header label, and the selected
 // row's ▌ bar must all start at the SAME column — the content's left edge.
 func TestViewProjectList_HeaderSectionRowsShareLeftEdge(t *testing.T) {
-	m := newProjectsPageTestModel(t, 90, 24, theme.Dark, sampleProjects())
+	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
 	view := m.viewProjectList()
 
 	var wordmarkCol, sectionCol, barCol = -1, -1, -1
@@ -116,7 +116,7 @@ func TestViewProjectList_HeaderSectionRowsShareLeftEdge(t *testing.T) {
 // layer is preserved by the reskin: when a project modal is open the page is cleared
 // to the centred panel (no list/header/footer chrome composed behind it).
 func TestViewProjectList_ModalClearsToCanvas(t *testing.T) {
-	m := newProjectsPageTestModel(t, 90, 24, theme.Dark, sampleProjects())
+	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
 	m.modal = modalDeleteProject
 	m.pendingDeleteName = "portal"
 	view := m.viewProjectList()

@@ -23,8 +23,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/spawntest"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // burstPendingModel builds a resolved-supported multi-select model with every named
@@ -287,12 +287,12 @@ func TestBurstInputLock_OpeningBandPrecedence(t *testing.T) {
 // `Opening n/N…` (with the U+2026 ellipsis) in accent.violet, exactly one row, at
 // the full content width (a canvas-painted flex spacer pads the right).
 func TestOpeningBand_RendersVioletCounter(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		band := renderOpeningBand(1, 3, sectionHeaderWidth, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		band := renderOpeningBand(1, 3, sectionHeaderWidth, th, false)
 		if !strings.Contains(ansi.Strip(band), "Opening 1/3…") {
 			t.Errorf("band must read %q:\n%s", "Opening 1/3…", ansi.Strip(band))
 		}
-		violet := headerStyle(theme.MV.AccentViolet, mode, false).Render("Opening 1/3…")
+		violet := headerStyle(th.AccentPrimary, th, false).Render("Opening 1/3…")
 		if !strings.Contains(band, violet) {
 			t.Errorf("band missing the accent.violet %q run:\n%s", "Opening 1/3…", band)
 		}
@@ -302,7 +302,7 @@ func TestOpeningBand_RendersVioletCounter(t *testing.T) {
 		if got := lipgloss.Width(band); got != sectionHeaderWidth {
 			t.Errorf("band width = %d, want exactly %d (flex spacer to content width)", got, sectionHeaderWidth)
 		}
-		if seq := canvasSeq(t, mode); !strings.Contains(band, seq) {
+		if seq := canvasSeq(t, th); !strings.Contains(band, seq) {
 			t.Errorf("band does not paint the canvas background sequence %q:\n%s", seq, band)
 		}
 	}
@@ -312,15 +312,15 @@ func TestOpeningBand_RendersVioletCounter(t *testing.T) {
 // a colourless band carries no canvas background SGR and no foreground hue — the
 // `Opening n/N…` text survives on the terminal's native fg/bg.
 func TestOpeningBand_ColourlessDropsHueAndCanvas(t *testing.T) {
-	band := renderOpeningBand(2, 3, sectionHeaderWidth, theme.Dark, true)
+	band := renderOpeningBand(2, 3, sectionHeaderWidth, testDarkTheme(t), true)
 
 	if !strings.Contains(band, "Opening 2/3…") {
 		t.Errorf("colourless band dropped the text:\n%s", band)
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(band, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(band, seq) {
 		t.Errorf("colourless band still paints the canvas background sequence %q", seq)
 	}
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); strings.Contains(band, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(band, seq) {
 		t.Errorf("colourless band still emits the accent.violet foreground sequence %q", seq)
 	}
 }

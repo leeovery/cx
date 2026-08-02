@@ -8,7 +8,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // These tests pin the §9.1 cyan "peek mode" preview chrome (the full-screen
@@ -90,7 +89,7 @@ func TestPreviewPeekChrome_MarkerStyledAccentCyan(t *testing.T) {
 	m := newPeekPreviewModel(t, "work", groups, []byte("x\n"), 120, 24)
 
 	top := headerLine(m.View())
-	if !segmentCarriesForeground(top, "◉ preview", theme.MV.AccentCyan.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(top, "◉ preview", testDarkTheme(t).AccentMode.Color()) {
 		t.Errorf("`◉ preview` marker is not styled with accent.cyan; top=%q", top)
 	}
 }
@@ -104,7 +103,7 @@ func TestPreviewPeekChrome_SessionStyledTextPrimary(t *testing.T) {
 	m := newPeekPreviewModel(t, "aviva-proxy", groups, []byte("x\n"), 120, 24)
 
 	top := headerLine(m.View())
-	if !segmentCarriesForeground(top, "aviva-proxy", theme.MV.TextPrimary.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(top, "aviva-proxy", testDarkTheme(t).TextPrimary.Color()) {
 		t.Errorf("session name is not styled with text.primary; top=%q", top)
 	}
 }
@@ -118,7 +117,7 @@ func TestPreviewPeekChrome_CountersStyledTextDetail(t *testing.T) {
 	m := newPeekPreviewModel(t, "work", groups, []byte("x\n"), 120, 24)
 
 	top := headerLine(m.View())
-	if !segmentCarriesForeground(top, "Window 1/1 · Pane 1/1", theme.MV.TextDetail.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(top, "Window 1/1 · Pane 1/1", testDarkTheme(t).TextMuted.Color()) {
 		t.Errorf("counters are not styled with text.detail; top=%q", top)
 	}
 }
@@ -133,10 +132,10 @@ func TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail(t *testing.T) 
 	m := newPeekPreviewModel(t, "work", groups, []byte("x\n"), 120, 24)
 
 	foot := footerLine(m.View())
-	if !segmentCarriesForeground(foot, "←→", theme.MV.AccentBlue.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(foot, "←→", testDarkTheme(t).AccentKey.Color()) {
 		t.Errorf("footer `←→` glyph is not styled with accent.blue; foot=%q", foot)
 	}
-	if !segmentCarriesForeground(foot, "window", theme.MV.TextDetail.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(foot, "window", testDarkTheme(t).TextMuted.Color()) {
 		t.Errorf("footer `window` label is not styled with text.detail; foot=%q", foot)
 	}
 }
@@ -170,7 +169,7 @@ func TestPreviewPeekChrome_ContentFramedByAccentCyanBorder(t *testing.T) {
 
 	out := m.View()
 	cyanOpen := func() string {
-		s := lipgloss.NewStyle().Foreground(theme.MV.AccentCyan.ColorFor(theme.Dark)).Render("X")
+		s := lipgloss.NewStyle().Foreground(testDarkTheme(t).AccentMode.Color()).Render("X")
 		return s[:strings.Index(s, "X")]
 	}()
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"charm.land/bubbles/v2/list"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // §7.3 over-filtered no-matches state. When an ACTIVE non-empty filter query
@@ -62,8 +62,8 @@ func (m Model) sessionListNoMatches() bool {
 // SHARED renderEmptyStateBody centred-empty-state helper (the SAME centring +
 // sizing + token treatment the §11.1 empty states use), so the no-matches and
 // empty surfaces can never drift in layout while staying DISTINCT in content.
-func renderNoMatchesBody(query string, width, height int, mode theme.Mode, colourless bool) string {
-	return renderEmptyStateBody(noMatchesGlyph, formatNoMatchesMessage(query), noMatchesHint, width, height, mode, colourless)
+func renderNoMatchesBody(query string, width, height int, th theme.Theme, colourless bool) string {
+	return renderEmptyStateBody(noMatchesGlyph, formatNoMatchesMessage(query), noMatchesHint, width, height, th, colourless)
 }
 
 // noMatchesFooterEntries returns the §7.3 footer entries: the input-active footer
@@ -74,12 +74,12 @@ func renderNoMatchesBody(query string, width, height int, mode theme.Mode, colou
 // not the display copy — so rewording that label cannot silently re-admit it), so
 // the per-glyph colours (the accent.orange `type` action word, the text.detail `esc`
 // key + labels) stay byte-consistent with the input-active footer.
-func noMatchesFooterEntries() []filterFooterEntry {
-	return dropBrowseResults(filteringFooterEntries())
+func noMatchesFooterEntries(th theme.Theme) []filterFooterEntry {
+	return dropBrowseResults(filteringFooterEntries(th))
 }
 
 // renderNoMatchesFooter renders the §7.3 reduced input-active footer for the given
 // content width and resolved canvas mode (and the NO_COLOR carve-out).
-func renderNoMatchesFooter(width int, mode theme.Mode, colourless bool) string {
-	return renderFilterFooter(noMatchesFooterEntries(), width, mode, colourless)
+func renderNoMatchesFooter(width int, th theme.Theme, colourless bool) string {
+	return renderFilterFooter(noMatchesFooterEntries(th), width, th, colourless)
 }

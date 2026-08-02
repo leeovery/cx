@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/tmux"
 )
 
 // These tests pin the §9.1 peek-mode marker, the §9.3 footer nav-hint content
@@ -17,7 +17,7 @@ import (
 // space-separated (no middots), in descriptor order.
 func TestPreviewFooterCanonicalByteContent(t *testing.T) {
 	const want = "←→ window  ⇥ pane  ⏎ attach  ␣ back"
-	got := stripANSI(composePreviewFooterRow(200, theme.Dark, false))
+	got := stripANSI(composePreviewFooterRow(200, testDarkTheme(t), false))
 	if got != want {
 		t.Errorf("preview footer = %q, want %q", got, want)
 	}
@@ -27,7 +27,7 @@ func TestPreviewFooterCanonicalByteContent(t *testing.T) {
 // is SPACE-separated, never middot-separated (the verbose-bar middots were
 // dropped in the §9 restructure).
 func TestPreviewFooterNoMiddots(t *testing.T) {
-	got := stripANSI(composePreviewFooterRow(200, theme.Dark, false))
+	got := stripANSI(composePreviewFooterRow(200, testDarkTheme(t), false))
 	if strings.ContainsRune(got, '·') {
 		t.Errorf("preview footer contains a middot U+00B7; want space-separated only: %q", got)
 	}
@@ -39,7 +39,7 @@ func TestPreviewFooterNoMiddots(t *testing.T) {
 func TestPreviewFooterCompactGlyphsOnly(t *testing.T) {
 	// A content width too narrow for the labelled form (~38 cells) but wide
 	// enough for the full compact glyph form (13 cells) forces the compact path.
-	got := stripANSI(composePreviewFooterRow(20, theme.Dark, false))
+	got := stripANSI(composePreviewFooterRow(20, testDarkTheme(t), false))
 	const want = "←→  ⇥  ⏎  ␣"
 	if got != want {
 		t.Errorf("compact preview footer = %q, want %q", got, want)
@@ -58,18 +58,23 @@ func TestPreviewMarkerExactByteContent(t *testing.T) {
 	}
 }
 
-// TestPreviewBorderColorPointsAtAccentCyanToken pins that the §9.1 preview
-// chrome border resolves the accent.cyan §2.9 role token — NOT a raw light/dark
-// hex pair. The former explicit previewBorderColorDark `#7B95BD` is retired in
-// favour of the token (§2.9), so the cyan "peek mode" hue is owned by the single
-// token layer.
-func TestPreviewBorderColorPointsAtAccentCyanToken(t *testing.T) {
-	if previewBorderColorToken != theme.MV.AccentCyan {
-		t.Errorf("previewBorderColorToken = %#v, want theme.MV.AccentCyan %#v", previewBorderColorToken, theme.MV.AccentCyan)
+// TestPreviewBorderResolvesTheModeAccentToken pins that the §9.1 preview chrome
+// border resolves the accent.mode role token off the ACTIVE THEME — never a raw
+// hex, and never a token copied at package init (§11.2's named offender, whose
+// package-scope copy is gone and whose return TestNoPackageLevelThemeVar blocks).
+// The retired explicit border hex `#7B95BD` must not reappear either.
+func TestPreviewBorderResolvesTheModeAccentToken(t *testing.T) {
+	th := testDarkTheme(t)
+	m := newPeekPreviewModel(t, "work", []tmux.WindowGroup{
+		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
+	}, []byte("hello\n"), 80, 24)
+	m.th = th
+	frame := m.View()
+
+	if seq := tokenFgSeq(t, th.AccentMode); !strings.Contains(frame, seq) {
+		t.Errorf("preview frame does not draw its border from accent.mode (SGR %q)", seq)
 	}
-	// And the token's dark variant must NOT be the retired explicit hex — a
-	// regression back to #7B95BD would mean the re-target was reverted.
-	if previewBorderColorToken.Dark == "#7B95BD" {
-		t.Errorf("previewBorderColorToken.Dark = %q; the retired explicit border hex must not survive", previewBorderColorToken.Dark)
+	if th.AccentMode.Value == "#7B95BD" {
+		t.Errorf("accent.mode = %q; the retired explicit border hex must not survive", th.AccentMode.Value)
 	}
 }

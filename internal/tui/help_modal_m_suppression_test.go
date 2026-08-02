@@ -21,7 +21,6 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/spawn"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // multiSelectHelpLabel is the HelpAction label the `?` help body renders for the
@@ -68,7 +67,7 @@ func TestSessionsHelpKeymap_UnsupportedNotInMultiSelect_OmitsM(t *testing.T) {
 				t.Error("sessionsHelpKeymap() must OMIT the m entry when unsupported and not in multi-select")
 			}
 
-			body := ansi.Strip(helpModalBody(m.sessionsHelpKeymap(), theme.Dark, false))
+			body := ansi.Strip(helpModalBody(m.sessionsHelpKeymap(), testDarkTheme(t), false))
 			if strings.Contains(body, multiSelectHelpLabel) {
 				t.Errorf("rendered help body must omit %q when m is blocked:\n%s", multiSelectHelpLabel, body)
 			}
@@ -90,7 +89,7 @@ func TestSessionsHelpKeymap_Supported_ListsM(t *testing.T) {
 		t.Error("sessionsHelpKeymap() must LIST the m entry on a supported terminal (filter inert)")
 	}
 
-	body := ansi.Strip(helpModalBody(m.sessionsHelpKeymap(), theme.Dark, false))
+	body := ansi.Strip(helpModalBody(m.sessionsHelpKeymap(), testDarkTheme(t), false))
 	if !strings.Contains(body, multiSelectHelpLabel) {
 		t.Errorf("rendered help body must list %q on a supported terminal:\n%s", multiSelectHelpLabel, body)
 	}
@@ -123,7 +122,7 @@ func TestSessionsHelpKeymap_UnsupportedInMultiSelect_ListsM(t *testing.T) {
 				t.Error("sessionsHelpKeymap() must LIST m while in multi-select mode — the help never hides a working row-toggle")
 			}
 
-			body := ansi.Strip(helpModalBody(m.sessionsHelpKeymap(), theme.Dark, false))
+			body := ansi.Strip(helpModalBody(m.sessionsHelpKeymap(), testDarkTheme(t), false))
 			if !strings.Contains(body, multiSelectHelpLabel) {
 				t.Errorf("rendered help body must list %q while in multi-select mode:\n%s", multiSelectHelpLabel, body)
 			}
@@ -147,7 +146,7 @@ func TestSessionsFooter_NeverListsMultiSelect(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := unsupportedResolvedModel(t, tc.identity)
 
-			footer := ansi.Strip(renderSessionsFooter(sectionHeaderWidth, m.canvasMode, m.colourless))
+			footer := ansi.Strip(renderSessionsFooter(sectionHeaderWidth, m.activeTheme, m.colourless))
 			if strings.Contains(strings.ToLower(footer), "multi-select") {
 				t.Errorf("the condensed Sessions footer must never list m (non-Core):\n%s", footer)
 			}

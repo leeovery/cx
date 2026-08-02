@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // RestoreTerminalBackground restores the terminal's original background colour
@@ -42,20 +42,22 @@ func RestoreTerminalBackground(w io.Writer, m Model) {
 	if original == "" {
 		return
 	}
-	if sameHexColour(original, canvasHexFor(m.canvasMode)) {
+	if sameHexColour(original, canvasHexFor(m.activeTheme)) {
 		return
 	}
 	_, _ = io.WriteString(w, ansi.SetBackgroundColor(original))
 }
 
-// canvasHexFor returns the owned-canvas hex the model painted for the resolved
-// appearance — the exact value RestoreTerminalBackground must NOT echo back. It
-// mirrors theme.Token.ColorFor's mode branch for the canvas token.
-func canvasHexFor(mode theme.Mode) string {
-	if mode == theme.Light {
-		return theme.MV.Canvas.Light
-	}
-	return theme.MV.Canvas.Dark
+// canvasHexFor returns the owned-canvas hex a theme paints — the exact value
+// RestoreTerminalBackground must NOT echo back.
+//
+// It is theme-AGNOSTIC: it reads the canvas token off whatever theme it is handed
+// rather than reaching for a built-in, so no palette is hardcoded on the exit
+// path. Task 3-3 retires it in favour of a startup canvas hex retained on the
+// model, which is what anchors the comparison to the canvas in force during the
+// STARTUP window rather than whatever theme is active at exit.
+func canvasHexFor(th theme.Theme) string {
+	return th.Canvas.Value
 }
 
 // sameHexColour reports whether two OSC-11-style colour strings denote the same

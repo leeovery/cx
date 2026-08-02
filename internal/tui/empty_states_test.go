@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // This file is the §11.1 empty-states gate (task 4-5). It pins the MV treatment of
@@ -26,10 +26,10 @@ import (
 
 // emptySessionsModel builds a Sessions model with ZERO sessions and no active
 // filter (the §11.1 empty-sessions condition: Unfiltered state, empty list).
-func emptySessionsModel(t *testing.T, mode theme.Mode) Model {
+func emptySessionsModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	appearance := prefs.AppearanceDark
-	if mode == theme.Light {
+	if th == testLightTheme(t) {
 		appearance = prefs.AppearanceLight
 	}
 	m := Build(Deps{Lister: fakeLister{}, Appearance: appearance})
@@ -47,10 +47,10 @@ func emptySessionsModel(t *testing.T, mode theme.Mode) Model {
 
 // emptyProjectsModel builds a Projects-page model with ZERO projects and no active
 // filter (the §11.1 empty-projects condition).
-func emptyProjectsModel(t *testing.T, mode theme.Mode) Model {
+func emptyProjectsModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	appearance := prefs.AppearanceDark
-	if mode == theme.Light {
+	if th == testLightTheme(t) {
 		appearance = prefs.AppearanceLight
 	}
 	m := Build(Deps{Lister: fakeLister{}, Appearance: appearance})
@@ -73,8 +73,8 @@ func emptyProjectsModel(t *testing.T, mode theme.Mode) Model {
 // no active filter the body shows the centred `▌ ▌ ▌` block glyph, the
 // `No sessions yet` message, and the spec-exact hint.
 func TestEmptySessions_RendersGlyphMessageHint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := emptySessionsModel(t, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := emptySessionsModel(t, th)
 		vis := ansi.Strip(m.View().Content)
 
 		for _, want := range []string{
@@ -83,12 +83,12 @@ func TestEmptySessions_RendersGlyphMessageHint(t *testing.T) {
 			emptySessionsHint,
 		} {
 			if !strings.Contains(vis, want) {
-				t.Errorf("[%v] empty-sessions body missing %q:\n%s", mode, want, vis)
+				t.Errorf("[%v] empty-sessions body missing %q:\n%s", themeLabel(th), want, vis)
 			}
 		}
 		// The no-matches glyph/message must NOT appear (this is a distinct state).
 		if strings.Contains(vis, noMatchesGlyph) || strings.Contains(vis, "No sessions match") {
-			t.Errorf("[%v] empty-sessions state leaked the no-matches glyph/message:\n%s", mode, vis)
+			t.Errorf("[%v] empty-sessions state leaked the no-matches glyph/message:\n%s", themeLabel(th), vis)
 		}
 	}
 }
@@ -98,7 +98,7 @@ func TestEmptySessions_RendersGlyphMessageHint(t *testing.T) {
 // Sessions keymap descriptor (§12.1). The standard condensed footer's keys that are
 // NOT in this replaced set (navigate, attach, preview, switch view) must be absent.
 func TestEmptySessions_ReplacesFooterFromDescriptor(t *testing.T) {
-	m := emptySessionsModel(t, theme.Dark)
+	m := emptySessionsModel(t, testDarkTheme(t))
 	vis := ansi.Strip(m.View().Content)
 
 	for _, want := range []string{"n new in cwd", "x projects", "/ filter", "? help"} {
@@ -119,7 +119,7 @@ func TestEmptySessions_ReplacesFooterFromDescriptor(t *testing.T) {
 // the Sessions keymap descriptor: the labels are READ from the descriptor, not
 // hand-authored, so a label change in the descriptor flows through.
 func TestEmptySessions_FooterCopyFromDescriptor(t *testing.T) {
-	footer := renderEmptySessionsFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderEmptySessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
 
 	// The four entries' Action labels come straight off the descriptor.
@@ -140,20 +140,20 @@ func TestEmptySessions_FooterCopyFromDescriptor(t *testing.T) {
 // accent.blue, labels in text.detail, the ? glyph in accent.violet, over a 1px
 // border.footer top rule — every colour via its §2.9 token.
 func TestEmptySessions_FooterTokenColours(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		footer := renderEmptySessionsFooter(referenceFooterWidth, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		footer := renderEmptySessionsFooter(referenceFooterWidth, th, false)
 
-		if seq := tokenFgSeq(t, theme.MV.AccentBlue, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing accent.blue key-glyph role %q", mode, seq)
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] empty-sessions footer missing accent.blue key-glyph role %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing text.detail label role %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] empty-sessions footer missing text.detail label role %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.AccentViolet, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing accent.violet ? glyph role %q", mode, seq)
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] empty-sessions footer missing accent.violet ? glyph role %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.BorderFooter, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] empty-sessions footer missing border.footer rule role %q", mode, seq)
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] empty-sessions footer missing border.footer rule role %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -162,8 +162,8 @@ func TestEmptySessions_FooterTokenColours(t *testing.T) {
 // mirrors the sessions pattern — the centred block glyph, `No projects yet`, and the
 // open-a-directory hint, with the projects-relevant replaced footer.
 func TestEmptyProjects_RendersGlyphMessageHint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := emptyProjectsModel(t, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := emptyProjectsModel(t, th)
 		vis := ansi.Strip(m.View().Content)
 
 		for _, want := range []string{
@@ -172,7 +172,7 @@ func TestEmptyProjects_RendersGlyphMessageHint(t *testing.T) {
 			emptyProjectsHint,
 		} {
 			if !strings.Contains(vis, want) {
-				t.Errorf("[%v] empty-projects body missing %q:\n%s", mode, want, vis)
+				t.Errorf("[%v] empty-projects body missing %q:\n%s", themeLabel(th), want, vis)
 			}
 		}
 	}
@@ -183,7 +183,7 @@ func TestEmptyProjects_RendersGlyphMessageHint(t *testing.T) {
 // drawn from the Projects keymap descriptor — the Projects `x` is `sessions`, not
 // `projects`, so the descriptor wiring (not a hard-coded copy) is exercised.
 func TestEmptyProjects_ReplacesFooterFromProjectsDescriptor(t *testing.T) {
-	m := emptyProjectsModel(t, theme.Dark)
+	m := emptyProjectsModel(t, testDarkTheme(t))
 	vis := ansi.Strip(m.View().Content)
 
 	for _, want := range []string{"n new in cwd", "x sessions", "/ filter", "? help"} {
@@ -207,7 +207,7 @@ func TestEmptyProjects_ReplacesFooterFromProjectsDescriptor(t *testing.T) {
 // state never renders.
 func TestEmptyStates_OnlyRenderWithZeroItems(t *testing.T) {
 	// Sessions present -> no empty state.
-	m := filteringTestModel(t, theme.Dark)
+	m := filteringTestModel(t, testDarkTheme(t))
 	if m.sessionListEmpty() {
 		t.Errorf("sessionListEmpty()=true with sessions present, want false")
 	}
@@ -217,7 +217,7 @@ func TestEmptyStates_OnlyRenderWithZeroItems(t *testing.T) {
 	}
 
 	// Zero sessions, no filter -> empty state.
-	empty := emptySessionsModel(t, theme.Dark)
+	empty := emptySessionsModel(t, testDarkTheme(t))
 	if !empty.sessionListEmpty() {
 		t.Errorf("sessionListEmpty()=false with zero sessions and no filter, want true")
 	}
@@ -228,7 +228,7 @@ func TestEmptyStates_OnlyRenderWithZeroItems(t *testing.T) {
 // active query filters to zero). The two predicates are mutually exclusive.
 func TestEmptyStates_DistinctFromNoMatches(t *testing.T) {
 	// No-matches: items exist, active query -> no-matches true, empty false.
-	noMatch := enterNoMatches(t, theme.Dark, "zzqx")
+	noMatch := enterNoMatches(t, testDarkTheme(t), "zzqx")
 	if !noMatch.sessionListNoMatches() {
 		t.Fatalf("precondition: expected no-matches state")
 	}
@@ -241,7 +241,7 @@ func TestEmptyStates_DistinctFromNoMatches(t *testing.T) {
 	}
 
 	// Empty: zero items, no query -> empty true, no-matches false.
-	empty := emptySessionsModel(t, theme.Dark)
+	empty := emptySessionsModel(t, testDarkTheme(t))
 	if !empty.sessionListEmpty() {
 		t.Fatalf("precondition: expected empty-sessions state")
 	}
@@ -256,7 +256,7 @@ func TestEmptyStates_DistinctFromNoMatches(t *testing.T) {
 // state.
 func TestEmptyStates_NotRenderedWhileFiltering(t *testing.T) {
 	// Active filter with a non-empty query matching zero -> no-matches, not empty.
-	m := enterNoMatches(t, theme.Dark, "zzqx")
+	m := enterNoMatches(t, testDarkTheme(t), "zzqx")
 	if m.sessionListEmpty() {
 		t.Errorf("sessionListEmpty() must be false while a filter is active:\n")
 	}
@@ -265,17 +265,17 @@ func TestEmptyStates_NotRenderedWhileFiltering(t *testing.T) {
 // TestEmptyStates_ColourRoles asserts §2.9: the glyph reads text.faint, the message
 // text.primary, and the hint text.detail — pinned in exact mode-resolved SGR.
 func TestEmptyStates_ColourRoles(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, th, false)
 
-		if seq := tokenFgSeq(t, theme.MV.TextFaint, mode); !strings.Contains(body, seq) {
-			t.Errorf("[%v] empty-state glyph missing text.faint SGR %q:\n%s", mode, seq, escSeq(body))
+		if seq := tokenFgSeq(t, th.TextFaint); !strings.Contains(body, seq) {
+			t.Errorf("[%v] empty-state glyph missing text.faint SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(body, seq) {
-			t.Errorf("[%v] empty-state message missing text.primary SGR %q:\n%s", mode, seq, escSeq(body))
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(body, seq) {
+			t.Errorf("[%v] empty-state message missing text.primary SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(body, seq) {
-			t.Errorf("[%v] empty-state hint missing text.detail SGR %q:\n%s", mode, seq, escSeq(body))
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(body, seq) {
+			t.Errorf("[%v] empty-state hint missing text.detail SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
 	}
 }
@@ -284,29 +284,29 @@ func TestEmptyStates_ColourRoles(t *testing.T) {
 // empty-state body and footer render colourless on the native bg — no canvas SGR,
 // no foreground hue — while the glyph/message/hint/footer copy stay intact.
 func TestEmptyStates_ColourlessLegibleOnNativeBg(t *testing.T) {
-	body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, theme.Dark, true)
+	body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, testDarkTheme(t), true)
 	for _, want := range []string{emptySessionsGlyph, emptySessionsMessage, emptySessionsHint} {
 		if !ansiContains(body, want) {
 			t.Errorf("colourless empty-state body dropped %q:\n%s", want, ansi.Strip(body))
 		}
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(body, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(body, seq) {
 		t.Errorf("colourless empty-state body still paints the canvas background %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.TextFaint, theme.MV.TextPrimary, theme.MV.TextDetail} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(body, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).TextFaint, testDarkTheme(t).TextPrimary, testDarkTheme(t).TextMuted} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(body, seq) {
 			t.Errorf("colourless empty-state body still emits a foreground role %q", seq)
 		}
 	}
 
-	footer := renderEmptySessionsFooter(referenceFooterWidth, theme.Dark, true)
+	footer := renderEmptySessionsFooter(referenceFooterWidth, testDarkTheme(t), true)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
 	for _, want := range []string{"n new in cwd", "x projects", "/ filter", "? help"} {
 		if !strings.Contains(keyRow, want) {
 			t.Errorf("colourless empty-sessions footer dropped %q:\n%s", want, keyRow)
 		}
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(footer, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(footer, seq) {
 		t.Errorf("colourless empty-sessions footer still paints the canvas background %q", seq)
 	}
 }
@@ -316,7 +316,7 @@ func TestEmptyStates_ColourlessLegibleOnNativeBg(t *testing.T) {
 // rows), so the composed view never exceeds termHeight — the one-row-per-delegate
 // pagination invariant is unperturbed.
 func TestEmptyStates_OneRowPerDelegateInvariant(t *testing.T) {
-	m := emptySessionsModel(t, theme.Dark)
+	m := emptySessionsModel(t, testDarkTheme(t))
 	view := m.View().Content
 	if got := lipgloss.Height(view); got > m.termHeight {
 		t.Errorf("empty-sessions composed view height = %d, exceeds termHeight = %d:\n%s", got, m.termHeight, ansi.Strip(view))

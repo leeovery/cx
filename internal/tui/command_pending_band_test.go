@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // recordingCreator captures the dir + command CreateFromDir is called with, so the
@@ -54,7 +54,7 @@ func newCommandPendingTestModel(t *testing.T, w, h int, projects []project.Proje
 // the joined command in an accent.orange chip.
 func TestCommandBand_VioletBarCaretTextAndOrangeChip(t *testing.T) {
 	const w = 80
-	band := renderCommandBand([]string{"npm", "run", "dev"}, w, theme.Dark, false)
+	band := renderCommandBand([]string{"npm", "run", "dev"}, w, testDarkTheme(t), false)
 
 	stripped := ansi.Strip(band)
 	// Far-left ▌ bar.
@@ -75,12 +75,12 @@ func TestCommandBand_VioletBarCaretTextAndOrangeChip(t *testing.T) {
 	}
 
 	// Bar colour = accent.violet (§2.9).
-	violetSeq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark)
+	violetSeq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
 		t.Errorf("command band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
 	}
 	// Chip command colour = accent.orange (§2.9 / §11.4).
-	orangeSeq := tokenFgSeq(t, theme.MV.AccentOrange, theme.Dark)
+	orangeSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention)
 	if !strings.Contains(band, orangeSeq) {
 		t.Errorf("command band missing the accent.orange chip foreground sequence %q:\n%s", orangeSeq, band)
 	}
@@ -90,7 +90,7 @@ func TestCommandBand_VioletBarCaretTextAndOrangeChip(t *testing.T) {
 // the orange chip (strings.Join(command, " ")).
 func TestCommandBand_JoinsCommandSlice(t *testing.T) {
 	const w = 90
-	band := renderCommandBand([]string{"go", "test", "./..."}, w, theme.Dark, false)
+	band := renderCommandBand([]string{"go", "test", "./..."}, w, testDarkTheme(t), false)
 	stripped := ansi.Strip(band)
 	if !strings.Contains(stripped, "go test ./...") {
 		t.Errorf("command band must join the slice on spaces: %q", stripped)
@@ -110,8 +110,8 @@ func TestCommandBand_FixedTextConstant(t *testing.T) {
 // surface, distinguishing the §11.4 command band from the tint-less §11.3 signpost).
 func TestCommandBand_Tinted(t *testing.T) {
 	const w = 80
-	band := renderCommandBand([]string{"npm", "run", "dev"}, w, theme.Dark, false)
-	tintSeq := tokenBgSeq(t, theme.MV.BgSelection, theme.Dark)
+	band := renderCommandBand([]string{"npm", "run", "dev"}, w, testDarkTheme(t), false)
+	tintSeq := tokenBgSeq(t, testDarkTheme(t).BgSelection)
 	if !strings.Contains(band, tintSeq) {
 		t.Errorf("command band missing the bg.selection tint %q:\n%s", tintSeq, band)
 	}
@@ -127,7 +127,7 @@ func TestCommandBand_Tinted(t *testing.T) {
 // SGR colour sequences at all.
 func TestCommandBand_NoColorKeepsBarCaretAndChip(t *testing.T) {
 	const w = 80
-	band := renderCommandBand([]string{"npm", "run", "dev"}, w, theme.Dark, true)
+	band := renderCommandBand([]string{"npm", "run", "dev"}, w, testDarkTheme(t), true)
 
 	stripped := ansi.Strip(band)
 	if !strings.HasPrefix(stripped, noticeBarGlyph) {
@@ -151,10 +151,10 @@ func TestCommandBand_NoColorKeepsBarCaretAndChip(t *testing.T) {
 // accent.violet bar token and the bg.selection tint token from the closed §2.9
 // vocabulary (no literal hex at the call site).
 func TestCommandBandRole_BarAndTintTokens(t *testing.T) {
-	if got := bandCommand.barToken().Name; got != theme.MV.AccentViolet.Name {
+	if got := bandCommand.barToken(testDarkTheme(t)).Name; got != testDarkTheme(t).AccentPrimary.Name {
 		t.Errorf("bandCommand bar token = %q, want accent.violet", got)
 	}
-	if got := bandCommand.tintToken().Name; got != theme.MV.BgSelection.Name {
+	if got := bandCommand.tintToken(testDarkTheme(t)).Name; got != testDarkTheme(t).BgSelection.Name {
 		t.Errorf("bandCommand tint token = %q, want bg.selection", got)
 	}
 }
@@ -179,7 +179,7 @@ func TestViewProjectList_CommandPendingBandOverFullChrome(t *testing.T) {
 	if !strings.Contains(visible, "Projects") {
 		t.Errorf("command-pending view missing the Projects section header (chrome stripped?):\n%s", visible)
 	}
-	if seq := tokenFgSeq(t, theme.MV.StateGreen, theme.Dark); !strings.Contains(view, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(view, seq) {
 		t.Errorf("command-pending view missing the state.green section label role sequence %q", seq)
 	}
 	if !strings.Contains(visible, sectionFilterHint) {
@@ -242,7 +242,7 @@ func TestProjectBandHeight_TracksRenderedSlot(t *testing.T) {
 		t.Errorf("projectBandHeight = %d, want %d (measured off the rendered slot)", got, slotHeight)
 	}
 
-	noBand := newProjectsPageTestModel(t, 90, 30, theme.Dark, sampleProjects())
+	noBand := newProjectsPageTestModel(t, 90, 30, testDarkTheme(t), sampleProjects())
 	if got := noBand.projectBandHeight(); got != 0 {
 		t.Errorf("projectBandHeight (not command-pending) = %d, want 0", got)
 	}
@@ -360,24 +360,30 @@ func TestCommandPendingKeymap_Copy(t *testing.T) {
 // refactor (sourcing the footer from commandPendingKeymap via helpKeyGlyph instead of
 // the inline enter→⏎ rewrite) is proven byte-identical to the former []key.Binding
 // path. A single byte drift in any cell — glyph, colour, separator, spacer — fails.
+//
+// The DARK golden's top-rule foreground moved once, deliberately: §2.2 dropped
+// border.footer, so the rule now renders with the same token as the title rule —
+// 38;2;41;46;66 (#292E42) rather than 38;2;32;35;46 (#20232E). That is the whole
+// accepted visual change of the consolidation. The LIGHT golden is untouched: both
+// border tokens already carried the same light value.
 func TestCommandPendingFooter_ByteExact(t *testing.T) {
-	const wantDark = "\x1b[38;2;32;35;46;48;2;11;12;20m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\x1b[m\n\x1b[38;2;122;162;247;48;2;11;12;20m⏎\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mrun here\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mn\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mrun in cwd\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mesc\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mcancel\x1b[m\x1b[48;2;11;12;20m                                                                                                                    \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m?\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mhelp\x1b[m"
+	const wantDark = "\x1b[38;2;41;46;66;48;2;11;12;20m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\x1b[m\n\x1b[38;2;122;162;247;48;2;11;12;20m⏎\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mrun here\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mn\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mrun in cwd\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mesc\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mcancel\x1b[m\x1b[48;2;11;12;20m                                                                                                                    \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m?\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mhelp\x1b[m"
 	const wantLight = "\x1b[38;2;201;205;219;48;2;225;226;231m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\x1b[m\n\x1b[38;2;45;92;202;48;2;225;226;231m⏎\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mrun here\x1b[m\x1b[38;2;88;96;147;48;2;225;226;231m · \x1b[m\x1b[38;2;45;92;202;48;2;225;226;231mn\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mrun in cwd\x1b[m\x1b[38;2;88;96;147;48;2;225;226;231m · \x1b[m\x1b[38;2;45;92;202;48;2;225;226;231mesc\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mcancel\x1b[m\x1b[48;2;225;226;231m                                                                                                                    \x1b[m\x1b[38;2;138;63;209;48;2;225;226;231m?\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mhelp\x1b[m"
 	const wantNoColour = "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n⏎ run here · n run in cwd · esc cancel                                                                                                                    ? help"
 
 	tests := []struct {
 		name       string
-		mode       theme.Mode
+		th         theme.Theme
 		colourless bool
 		want       string
 	}{
-		{"dark", theme.Dark, false, wantDark},
-		{"light", theme.Light, false, wantLight},
-		{"no-colour", theme.Dark, true, wantNoColour},
+		{"dark", testDarkTheme(t), false, wantDark},
+		{"light", testLightTheme(t), false, wantLight},
+		{"no-colour", testDarkTheme(t), true, wantNoColour},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := renderCommandPendingFooter(160, tc.mode, tc.colourless)
+			got := renderCommandPendingFooter(160, tc.th, tc.colourless)
 			if got != tc.want {
 				t.Errorf("command-pending footer byte mismatch\n got: %q\nwant: %q", got, tc.want)
 			}

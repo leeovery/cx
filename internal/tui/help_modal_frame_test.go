@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // borderFgSeq returns the bare `38;2;r;g;b` foreground SGR parameter substring a
@@ -13,9 +13,9 @@ import (
 // FOREGROUND, so the panel frame's border.separator colour appears as that
 // token's foreground SGR core in the rendered modal — the same probe shape as
 // tokenFgSeq.
-func borderFgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
+func borderFgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
-	return tokenFgSeq(t, tok, m)
+	return tokenFgSeq(t, tok)
 }
 
 // TestHelpModalPanelBorderColour asserts FIX 3 for the help modal specifically:
@@ -23,14 +23,14 @@ func borderFgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
 func TestHelpModalPanelBorderColour(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 100, 30, tc.mode, false)
-			if seq := borderFgSeq(t, theme.MV.BorderSeparator, tc.mode); !strings.Contains(panel, seq) {
+			panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 100, 30, tc.th, false)
+			if seq := borderFgSeq(t, tc.th.Border); !strings.Contains(panel, seq) {
 				t.Errorf("help modal panel border must be border.separator SGR core %q (not white); missing in:\n%s", seq, panel)
 			}
 		})
@@ -38,19 +38,24 @@ func TestHelpModalPanelBorderColour(t *testing.T) {
 }
 
 // TestHelpModalDividerToken asserts the SINGLE-TONE frame: the header divider
-// under `? Keybindings` (and the whole frame) is drawn in border.separator, NOT
-// border.footer (the 2-tone footer leg was dropped). The two tokens are distinct
-// in dark mode (#292E42 vs #20232E), so the discrimination is done in dark.
+// under `? Keybindings` and the whole frame are drawn in THE border token — and,
+// since §2.2 consolidated border.separator and border.footer into that one role,
+// no second border hue exists for any frame glyph to drift onto.
 func TestHelpModalDividerToken(t *testing.T) {
-	content := renderHelpModalContent(sessionsKeymap(), theme.Dark, false)
-	sepSeq := tokenFgSeq(t, theme.MV.BorderSeparator, theme.Dark)
+	content := renderHelpModalContent(sessionsKeymap(), testDarkTheme(t), false)
+	sepSeq := tokenFgSeq(t, testDarkTheme(t).Border)
 	if !strings.Contains(content, sepSeq) {
-		t.Errorf("help frame + divider must be drawn in border.separator SGR core %q; missing in:\n%s", sepSeq, content)
+		t.Errorf("help frame + divider must be drawn in the border SGR core %q; missing in:\n%s", sepSeq, content)
 	}
-	// Single-tone: NO border.footer hue anywhere in the help panel.
-	footerSeq := tokenFgSeq(t, theme.MV.BorderFooter, theme.Dark)
-	if strings.Contains(content, footerSeq) {
-		t.Errorf("single-tone help frame must NOT use border.footer SGR core %q; found in:\n%s", footerSeq, content)
+	// Every frame glyph carries that one core: no other 24-bit foreground appears
+	// on a line made only of frame glyphs.
+	for line := range strings.SplitSeq(content, "\n") {
+		if bare := strings.TrimSpace(ansi.Strip(line)); bare == "" || strings.Trim(bare, panelRuleGlyph+panelFrameTeeLeft+panelFrameTeeRight+"╭╮╰╯") != "" {
+			continue
+		}
+		if !strings.Contains(line, sepSeq) {
+			t.Errorf("frame-only line is not drawn in the border SGR core %q: %q", sepSeq, line)
+		}
 	}
 }
 
@@ -58,7 +63,7 @@ func TestHelpModalDividerToken(t *testing.T) {
 // borders via real `├`/`┤` junctions (the hand-drawn frame). On the composed panel
 // the divider line starts with `├` and ends with `┤`, with `─` between.
 func TestHelpModalDividerJoined(t *testing.T) {
-	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 36, theme.Dark, false)
+	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 36, testDarkTheme(t), false)
 	var dividerRow string
 	for raw := range strings.SplitSeq(panel, "\n") {
 		// lipgloss.Place centres the panel, so trim BOTH the leading centring pad and
@@ -84,7 +89,7 @@ func TestHelpModalDividerJoined(t *testing.T) {
 // divider line is `├` + rule glyphs + `┤` with no inset gap, whereas the header/
 // body rows (between their `│` side borders) ARE inset.
 func TestHelpModalDividerConnectsToBorders(t *testing.T) {
-	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 36, theme.Dark, false)
+	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 36, testDarkTheme(t), false)
 	// Find the divider row: starts `├`, ends `┤`, all rule glyphs between.
 	var dividerRow string
 	for raw := range strings.SplitSeq(panel, "\n") {
@@ -130,7 +135,7 @@ func TestHelpModalDividerConnectsToBorders(t *testing.T) {
 // line is the immediate next line after the title — no blank between any of:
 // top-border / title / divider / first-body-row.
 func TestHelpModalFlushVerticalSpacing(t *testing.T) {
-	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 40, theme.Dark, false)
+	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 40, testDarkTheme(t), false)
 	lines := strings.Split(panel, "\n")
 
 	topIdx := -1
@@ -200,7 +205,7 @@ func neighbourhood(lines []string, idx int) []string {
 // (the project terminal-native convention, NOT the Paper px gaps). The rows for
 // "Move selection" and the next entry "Next / prev page" sit on adjacent lines.
 func TestHelpModalBodyContiguousRows(t *testing.T) {
-	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 40, theme.Dark, false)
+	panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 120, 40, testDarkTheme(t), false)
 	lines := strings.Split(panel, "\n")
 	moveIdx, nextIdx := -1, -1
 	for i, raw := range lines {

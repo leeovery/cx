@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §6 / §3.2 / §13.6 Projects section header: `Projects` (state.green) + a
@@ -25,13 +25,13 @@ const projectsHeaderWidth = 90
 func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			header := renderProjectsSectionHeader(14, projectsHeaderWidth, tc.mode, false)
+			header := renderProjectsSectionHeader(14, projectsHeaderWidth, tc.th, false)
 
 			if !strings.Contains(ansi.Strip(header), "Projects") {
 				t.Errorf("Projects header missing the %q label:\n%s", "Projects", header)
@@ -40,12 +40,12 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 				t.Errorf("Projects header missing the count %q:\n%s", "14", header)
 			}
 			// Label is state.green.
-			if seq := tokenFgSeq(t, theme.MV.StateGreen, tc.mode); !strings.Contains(header, seq) {
+			if seq := tokenFgSeq(t, tc.th.StatePositive); !strings.Contains(header, seq) {
 				t.Errorf("Projects header missing the state.green label role sequence %q", seq)
 			}
 			// The count VALUE renders verbatim inside its own text.detail run (so it is
 			// byte-identical and dim, at the same cap-height as the label).
-			countRun := headerStyle(theme.MV.TextDetail, tc.mode, false).Render("14")
+			countRun := headerStyle(tc.th.TextMuted, tc.th, false).Render("14")
 			if !strings.Contains(header, countRun) {
 				t.Errorf("Projects header missing the exact count 14 in a text.detail run:\n%s", header)
 			}
@@ -57,7 +57,7 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 // text.detail, right-aligned (left cluster + flex spacer + hint to the content
 // width), and the row is exactly the content width.
 func TestProjectsHeader_RightAlignedFilterHint(t *testing.T) {
-	header := renderProjectsSectionHeader(8, projectsHeaderWidth, theme.Dark, false)
+	header := renderProjectsSectionHeader(8, projectsHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(header, sectionFilterHint) {
 		t.Errorf("Projects header missing the %q hint:\n%s", sectionFilterHint, header)
 	}
@@ -76,16 +76,16 @@ func TestProjectsHeader_RightAlignedFilterHint(t *testing.T) {
 // wordmark — the content's left edge (col 0 of the inset region), with no leading
 // indent.
 func TestProjectsHeader_AlignsWithWordmark(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		const w = projectsHeaderWidth
-		wordmarkLine := strings.SplitN(renderHeaderBlock(w, mode, false), "\n", 2)[0]
+		wordmarkLine := strings.SplitN(renderHeaderBlock(w, th, false), "\n", 2)[0]
 		wordmarkCol := leadingPrintableCol(wordmarkLine)
 		if wordmarkCol != 0 {
-			t.Fatalf("[%v] PORTAL wordmark leading column = %d, want 0", mode, wordmarkCol)
+			t.Fatalf("[%v] PORTAL wordmark leading column = %d, want 0", themeLabel(th), wordmarkCol)
 		}
-		header := renderProjectsSectionHeader(3, w, mode, false)
+		header := renderProjectsSectionHeader(3, w, th, false)
 		if got := leadingPrintableCol(header); got != 0 {
-			t.Errorf("[%v] Projects header leading column = %d, want 0 (must align with the PORTAL wordmark at the content edge)", mode, got)
+			t.Errorf("[%v] Projects header leading column = %d, want 0 (must align with the PORTAL wordmark at the content edge)", themeLabel(th), got)
 		}
 	}
 }
@@ -93,12 +93,12 @@ func TestProjectsHeader_AlignsWithWordmark(t *testing.T) {
 // TestProjectsHeader_NarrowDegradeDropsHint asserts the §2.7 narrow degrade: below
 // the threshold the right `/ to filter` hint drops and the row never overflows.
 func TestProjectsHeader_NarrowDegradeDropsHint(t *testing.T) {
-	wide := renderProjectsSectionHeader(5, projectsHeaderWidth, theme.Dark, false)
+	wide := renderProjectsSectionHeader(5, projectsHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, sectionFilterHint) {
 		t.Fatalf("wide Projects header missing the hint:\n%s", wide)
 	}
 	const narrow = 14
-	narrowHeader := renderProjectsSectionHeader(5, narrow, theme.Dark, false)
+	narrowHeader := renderProjectsSectionHeader(5, narrow, testDarkTheme(t), false)
 	if strings.Contains(narrowHeader, sectionFilterHint) {
 		t.Errorf("narrow Projects header at width %d still shows the %q hint (degrade failed):\n%s", narrow, sectionFilterHint, narrowHeader)
 	}
@@ -113,15 +113,15 @@ func TestProjectsHeader_NarrowDegradeDropsHint(t *testing.T) {
 // (§2.5): a colourless Projects header carries no canvas background SGR and no
 // foreground hue — structure (label, count, hint) intact.
 func TestProjectsHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
-	header := renderProjectsSectionHeader(6, projectsHeaderWidth, theme.Dark, true)
+	header := renderProjectsSectionHeader(6, projectsHeaderWidth, testDarkTheme(t), true)
 	if !strings.Contains(ansi.Strip(header), "Projects") || !strings.Contains(ansi.Strip(header), "6") || !strings.Contains(header, sectionFilterHint) {
 		t.Errorf("colourless Projects header dropped structure:\n%s", header)
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(header, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(header, seq) {
 		t.Errorf("colourless Projects header still paints the canvas background sequence %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.StateGreen, theme.MV.TextDetail} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(header, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).StatePositive, testDarkTheme(t).TextMuted} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(header, seq) {
 			t.Errorf("colourless Projects header still emits a foreground role sequence %q", seq)
 		}
 	}

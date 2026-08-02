@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // TestRestoreTerminalBackground_CanvasEchoGuard is the regression for the
@@ -18,22 +18,22 @@ import (
 func TestRestoreTerminalBackground_CanvasEchoGuard(t *testing.T) {
 	cases := []struct {
 		name       string
-		mode       theme.Mode
+		th         theme.Theme
 		originalBg string
 	}{
-		{"dark exact", theme.Dark, theme.MV.Canvas.Dark},
-		{"dark uppercase", theme.Dark, strings.ToUpper(theme.MV.Canvas.Dark)},
-		{"dark trailing alpha", theme.Dark, theme.MV.Canvas.Dark + "ff"},
-		{"dark no hash", theme.Dark, strings.TrimPrefix(theme.MV.Canvas.Dark, "#")},
-		{"light exact", theme.Light, theme.MV.Canvas.Light},
+		{"dark exact", testDarkTheme(t), testDarkTheme(t).Canvas.Value},
+		{"dark uppercase", testDarkTheme(t), strings.ToUpper(testDarkTheme(t).Canvas.Value)},
+		{"dark trailing alpha", testDarkTheme(t), testDarkTheme(t).Canvas.Value + "ff"},
+		{"dark no hash", testDarkTheme(t), strings.TrimPrefix(testDarkTheme(t).Canvas.Value, "#")},
+		{"light exact", testLightTheme(t), testLightTheme(t).Canvas.Value},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var b strings.Builder
-			RestoreTerminalBackground(&b, Model{originalBg: tc.originalBg, canvasMode: tc.mode})
+			RestoreTerminalBackground(&b, Model{originalBg: tc.originalBg, activeTheme: tc.th})
 			if got := b.String(); got != "" {
-				t.Errorf("canvas-echo original %q (mode %v) must be skipped, but wrote %q",
-					tc.originalBg, tc.mode, got)
+				t.Errorf("canvas-echo original %q (canvas %v) must be skipped, but wrote %q",
+					tc.originalBg, tc.th.Canvas.Value, got)
 			}
 		})
 	}

@@ -191,7 +191,7 @@ func TestMultiSelectPreviewRoundTripKeepsSelection(t *testing.T) {
 	reader := &recordingReader{bytes: []byte("hi")}
 	// The refresh returns the unchanged list — nothing killed during preview.
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	m = markTwoFlatSessions(t, m, 0, 2) // mark alpha + charlie
 
@@ -238,7 +238,7 @@ func TestMultiSelectPrunesExternallyKilledSession(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 
 	// Mark alpha (index 0, killed) and charlie (index 2, survivor).
 	m = markTwoFlatSessions(t, m, 0, 2)
@@ -276,7 +276,7 @@ func TestMultiSelectMarkedSessionSurvivesBucketMove(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newSwitchViewTestModel(prefs.ModeByProject, nil, sessions, projects)
+	m := newSwitchViewTestModel(t, prefs.ModeByProject, nil, sessions, projects)
 
 	// Land the cursor on the (single) session row, then enter so mark-on-entry marks it.
 	rows := sessionRowIndices(m.sessionList.Items())

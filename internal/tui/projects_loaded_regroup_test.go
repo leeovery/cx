@@ -13,8 +13,10 @@ import (
 // SessionsMsg-before-ProjectsLoadedMsg startup ordering this fix targets. The
 // dir-resolver seam is intentionally left unwired (no WithDirResolver), so each
 // session's seeded Dir is grouped verbatim.
-func newProjectsLoadedRegroupModel(mode prefs.SessionListMode, sessions []tmux.Session) Model {
+func newProjectsLoadedRegroupModel(t *testing.T, mode prefs.SessionListMode, sessions []tmux.Session) Model {
+	t.Helper()
 	m := Model{
+		activeTheme:     testDarkTheme(t),
 		sessions:        sessions,
 		sessionList:     newSessionList(nil),
 		projectList:     newProjectList(),
@@ -35,7 +37,7 @@ func TestProjectsLoadedRegroup(t *testing.T) {
 		// Sessions ingested first; m.projects still nil → the initial render
 		// would have grouped the session into Unknown. ProjectsLoadedMsg must
 		// correct it WITHOUT pre-seeding m.projects.
-		m := newProjectsLoadedRegroupModel(prefs.ModeByProject, sessions)
+		m := newProjectsLoadedRegroupModel(t, prefs.ModeByProject, sessions)
 
 		updated, _ := m.Update(ProjectsLoadedMsg{Projects: projects})
 		got := updated.(Model)
@@ -61,7 +63,7 @@ func TestProjectsLoadedRegroup(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newProjectsLoadedRegroupModel(prefs.ModeByTag, sessions)
+		m := newProjectsLoadedRegroupModel(t, prefs.ModeByTag, sessions)
 
 		updated, _ := m.Update(ProjectsLoadedMsg{Projects: projects})
 		got := updated.(Model)
@@ -81,7 +83,7 @@ func TestProjectsLoadedRegroup(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newProjectsLoadedRegroupModel(prefs.ModeByProject, sessions)
+		m := newProjectsLoadedRegroupModel(t, prefs.ModeByProject, sessions)
 		m.termWidth, m.termHeight = 80, 24
 
 		updated, _ := m.Update(ProjectsLoadedMsg{Projects: projects})
@@ -103,7 +105,7 @@ func TestProjectsLoadedRegroup(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newProjectsLoadedRegroupModel(prefs.ModeFlat, sessions)
+		m := newProjectsLoadedRegroupModel(t, prefs.ModeFlat, sessions)
 		// Establish the initial flat render (as applySessions would have at
 		// startup) so we can assert ProjectsLoadedMsg leaves it untouched.
 		m.rebuildSessionList()
@@ -132,7 +134,7 @@ func TestProjectsLoadedRegroup(t *testing.T) {
 			{Name: "bravo", Dir: dirB},
 		}
 
-		m := newProjectsLoadedRegroupModel(prefs.ModeByProject, sessions)
+		m := newProjectsLoadedRegroupModel(t, prefs.ModeByProject, sessions)
 
 		// First load: only project A is known. B must land in Unknown.
 		updated, _ := m.Update(ProjectsLoadedMsg{Projects: []project.Project{{Path: dirA, Name: "Alpha"}}})
@@ -170,7 +172,7 @@ func TestProjectsLoadedRegroup(t *testing.T) {
 		dir := t.TempDir()
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 
-		m := newProjectsLoadedRegroupModel(prefs.ModeByProject, nil)
+		m := newProjectsLoadedRegroupModel(t, prefs.ModeByProject, nil)
 
 		updated, _ := m.Update(ProjectsLoadedMsg{Projects: projects})
 		got := updated.(Model)

@@ -7,7 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // openKillModal puts the model into the kill-confirm modal for the named session
@@ -27,7 +26,7 @@ func openKillModal(m *Model, name string) {
 // it. This is the visible effect of the plumbing task.
 func TestModalBlankScreen_ClearsListRowsBehindModal(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 
 	// Sanity: the live (no-modal) view DOES show the list rows and header, so the
 	// assertions below prove the modal cleared them (not that they were never
@@ -65,7 +64,7 @@ func TestModalBlankScreen_ClearsListRowsBehindModal(t *testing.T) {
 // border sits roughly centred, not flush at the top-left.
 func TestModalBlankScreen_CentresPanelUsingTerminalDims(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 	openKillModal(&m, "alpha")
 
 	frame := m.View().Content
@@ -103,19 +102,19 @@ func TestModalBlankScreen_CentresPanelUsingTerminalDims(t *testing.T) {
 // (no list rows). Verified for both dark and light canvases.
 func TestModalBlankScreen_PaintsOwnedCanvasBackdrop(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		mode theme.Mode
+		name       string
+		appearance canvasAppearance
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", appearanceDarkCanvas},
+		{"light", appearanceLightCanvas},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w, h = 90, 24
-			m := newCanvasTestModel(t, w, h, tc.mode)
+			m := newCanvasTestModel(t, w, h, tc.appearance)
 			openKillModal(&m, "alpha")
 
 			frame := m.View().Content
-			if seq := canvasSeq(t, tc.mode); !strings.Contains(frame, seq) {
+			if seq := canvasSeq(t, themeForAppearance(t, tc.appearance)); !strings.Contains(frame, seq) {
 				t.Errorf("modal frame does not contain the canvas background sequence %q (backdrop must be the owned canvas)", seq)
 			}
 		})
@@ -144,10 +143,10 @@ func TestModalBlankScreen_ColourlessClearsToNativeBg(t *testing.T) {
 		t.Errorf("colourless modal frame height = %d, want exactly %d", got, h)
 	}
 	// No painted canvas: neither the dark nor light canvas SGR may appear.
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(frame, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(frame, seq) {
 		t.Errorf("colourless modal frame must not contain the dark canvas SGR %q (native bg only)", seq)
 	}
-	if seq := canvasSeq(t, theme.Light); strings.Contains(frame, seq) {
+	if seq := canvasSeq(t, testLightTheme(t)); strings.Contains(frame, seq) {
 		t.Errorf("colourless modal frame must not contain the light canvas SGR %q (native bg only)", seq)
 	}
 	// The panel copy is still present and the list rows are still cleared.
@@ -166,7 +165,7 @@ func TestModalBlankScreen_ColourlessClearsToNativeBg(t *testing.T) {
 // WindowSizeMsg the cached terminal dimensions are 0, and the cleared canvas must
 // fall back to 80×24 (never zero-sized) just like every other owned-canvas page.
 func TestModalBlankScreen_ZeroDimsFallback(t *testing.T) {
-	m := newCanvasTestModel(t, 0, 0, theme.Dark)
+	m := newCanvasTestModel(t, 0, 0, appearanceDarkCanvas)
 	openKillModal(&m, "alpha")
 
 	frame := m.View().Content
@@ -186,7 +185,7 @@ func TestModalBlankScreen_ZeroDimsFallback(t *testing.T) {
 // view (the page behind the modal is gone, band and all).
 func TestModalBlankScreen_NoFlashBandLeaksIntoClearedView(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 	const flash = "session \"x\" no longer exists"
 	m.setFlash(flash)
 	if !strings.Contains(m.viewSessionList(), flash) {
@@ -205,7 +204,7 @@ func TestModalBlankScreen_NoFlashBandLeaksIntoClearedView(t *testing.T) {
 // modal inherits): the project list rows behind it are cleared.
 func TestModalBlankScreen_ProjectsDeleteClearsList(t *testing.T) {
 	const w, h = 90, 24
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	m.termWidth = w
 	m.termHeight = h
 	m.activePage = PageProjects

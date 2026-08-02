@@ -18,7 +18,7 @@ func TestPreviewAttachSelected_RecordsSessionOnModel(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	updated, _ := m.Update(previewAttachSelectedMsg{Session: "alpha"})
 
@@ -35,7 +35,7 @@ func TestPreviewAttachSelected_ReturnsTeaQuit(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	_, cmd := m.Update(previewAttachSelectedMsg{Session: "alpha"})
 
@@ -54,7 +54,7 @@ func TestPreviewAttachSelected_ParityWithSessionsPageEnterShape(t *testing.T) {
 	sessions := []tmux.Session{{Name: "bravo", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	updated, cmd := m.Update(previewAttachSelectedMsg{Session: "bravo"})
 	got, ok := updated.(Model)

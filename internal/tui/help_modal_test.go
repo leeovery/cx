@@ -6,15 +6,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // helpModelSessions builds a Sessions-page Model on a sized canvas for exercising
 // the ? help modal open/close dispatch and the render shell.
-func helpModelSessions(t *testing.T, mode theme.Mode) Model {
+func helpModelSessions(t *testing.T, appearance canvasAppearance) Model {
 	t.Helper()
-	m := New(fakeLister{}, WithCanvasMode(mode))
+	m := New(fakeLister{}, WithCanvasMode(appearance))
 	m.termWidth = 90
 	m.termHeight = 30
 	m.applySessions([]tmux.Session{
@@ -26,12 +26,12 @@ func helpModelSessions(t *testing.T, mode theme.Mode) Model {
 
 // helpModelProjects builds a Projects-page Model on a sized canvas for exercising
 // the ? help modal open/close dispatch and the render shell.
-func helpModelProjects(t *testing.T, mode theme.Mode) Model {
+func helpModelProjects(t *testing.T, appearance canvasAppearance) Model {
 	t.Helper()
 	projects := []project.Project{
 		{Path: "/p/one", Name: "one"},
 	}
-	m := New(fakeLister{}, WithCanvasMode(mode))
+	m := New(fakeLister{}, WithCanvasMode(appearance))
 	m.termWidth = 90
 	m.termHeight = 30
 	m.activePage = PageProjects
@@ -46,7 +46,7 @@ func helpModelProjects(t *testing.T, mode theme.Mode) Model {
 // fall-through to the list's own help toggle).
 func TestHelpModalOpen(t *testing.T) {
 	t.Run("it opens the help modal on ? for Sessions", func(t *testing.T) {
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		updated, _ := m.updateSessionList(tea.KeyPressMsg{Code: '?', Text: "?"})
 		m = updated.(Model)
 		if m.modal != modalHelp {
@@ -58,7 +58,7 @@ func TestHelpModalOpen(t *testing.T) {
 	})
 
 	t.Run("it opens the help modal on ? for Projects", func(t *testing.T) {
-		m := helpModelProjects(t, theme.Dark)
+		m := helpModelProjects(t, appearanceDarkCanvas)
 		updated, _ := m.updateProjectsPage(tea.KeyPressMsg{Code: '?', Text: "?"})
 		m = updated.(Model)
 		if m.modal != modalHelp {
@@ -74,7 +74,7 @@ func TestHelpModalOpen(t *testing.T) {
 		// modal — still consuming the key so the list's help is never toggled. The
 		// observable proof is that the list's built-in ShowHelp state is unchanged
 		// (still hidden) and OUR modal opened instead.
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		before := m.sessionList.ShowHelp()
 		updated, _ := m.updateSessionList(tea.KeyPressMsg{Code: '?', Text: "?"})
 		m = updated.(Model)
@@ -92,7 +92,7 @@ func TestHelpModalOpen(t *testing.T) {
 // clear-filter / quit while the modal is open.
 func TestHelpModalClose(t *testing.T) {
 	t.Run("it closes on ? toggle", func(t *testing.T) {
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		updated, _ := m.updateSessionList(tea.KeyPressMsg{Code: '?', Text: "?"})
 		m = updated.(Model)
@@ -102,7 +102,7 @@ func TestHelpModalClose(t *testing.T) {
 	})
 
 	t.Run("it closes on Esc", func(t *testing.T) {
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		updated, cmd := m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m = updated.(Model)
@@ -117,7 +117,7 @@ func TestHelpModalClose(t *testing.T) {
 	t.Run("it does not fall through to clear-filter on Esc (key-exclusive)", func(t *testing.T) {
 		// Edge case (§8.1): help open + a filter applied. Esc dismisses the help
 		// modal ONLY — the filter stays applied.
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		// Apply a filter: focus the input, type a query, commit to list-active.
 		m2, _ := m.updateSessionList(tea.KeyPressMsg{Code: '/', Text: "/"})
 		m = m2.(Model)
@@ -142,7 +142,7 @@ func TestHelpModalClose(t *testing.T) {
 	})
 
 	t.Run("it does not fall through to quit on Esc (key-exclusive, no filter)", func(t *testing.T) {
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		_, cmd := m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEscape})
 		if cmd != nil {
@@ -152,7 +152,7 @@ func TestHelpModalClose(t *testing.T) {
 
 	t.Run("it consumes all other keys while open (key-exclusive)", func(t *testing.T) {
 		// A non-dismiss key (q, which would otherwise quit) must be swallowed.
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		updated, cmd := m.updateSessionList(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		m = updated.(Model)
@@ -165,7 +165,7 @@ func TestHelpModalClose(t *testing.T) {
 	})
 
 	t.Run("it closes on ? toggle from Projects too", func(t *testing.T) {
-		m := helpModelProjects(t, theme.Dark)
+		m := helpModelProjects(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		updated, _ := m.updateProjectsPage(tea.KeyPressMsg{Code: '?', Text: "?"})
 		m = updated.(Model)
@@ -175,7 +175,7 @@ func TestHelpModalClose(t *testing.T) {
 	})
 
 	t.Run("it closes on Esc from Projects without falling through", func(t *testing.T) {
-		m := helpModelProjects(t, theme.Dark)
+		m := helpModelProjects(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		updated, cmd := m.updateProjectsPage(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m = updated.(Model)
@@ -193,7 +193,7 @@ func TestHelpModalClose(t *testing.T) {
 // including footer-core keys (the full reference, not just the footer overflow).
 func TestHelpModalContent(t *testing.T) {
 	t.Run("it generates the Sessions help content from the descriptor including footer-core keys", func(t *testing.T) {
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		view := m.viewSessionList()
 
@@ -222,7 +222,7 @@ func TestHelpModalContent(t *testing.T) {
 	t.Run("it includes a footer-core key in the Sessions help (complete keymap)", func(t *testing.T) {
 		// Edge case: the complete keymap must include keys ALSO in the footer.
 		// space/preview is a footer-core key; it must still appear in help.
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		view := m.viewSessionList()
 		if !strings.Contains(view, "Preview scrollback") {
@@ -236,7 +236,7 @@ func TestHelpModalContent(t *testing.T) {
 	})
 
 	t.Run("it generates the Projects help content from the descriptor including help-only keys", func(t *testing.T) {
-		m := helpModelProjects(t, theme.Dark)
+		m := helpModelProjects(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		view := m.viewProjectList()
 		// Help-only Projects keys (d/n/nav/q) must appear, plus the footer-core set.
@@ -259,9 +259,9 @@ func TestHelpModalContent(t *testing.T) {
 	t.Run("it does not list the ? help self-entry in the modal body", func(t *testing.T) {
 		// The reference omits the ? open key from the body (the panel's own header
 		// carries the dismiss hint instead).
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
-		body := helpModalBody(sessionsKeymap(), m.canvasMode, m.colourless)
+		body := helpModalBody(sessionsKeymap(), m.activeTheme, m.colourless)
 		if strings.Contains(body, "help") {
 			t.Errorf("help modal body must not list the ? help self-entry; got:\n%s", body)
 		}
@@ -273,7 +273,7 @@ func TestHelpModalContent(t *testing.T) {
 // slashed help-only forms via HelpKey). The footer reads the §3.4 glyph Key forms
 // `␣` / `⏎` / `↑↓` (no slash) and never shows the page `^↑/↓` (help-only).
 func TestHelpModalGlyphs(t *testing.T) {
-	body := helpModalBody(sessionsKeymap(), theme.Dark, false)
+	body := helpModalBody(sessionsKeymap(), testDarkTheme(t), false)
 	for _, glyph := range []string{"^↑/↓", "␣", "⏎", "↑/↓"} {
 		if !strings.Contains(body, glyph) {
 			t.Errorf("help body must show glyph %q; missing in:\n%s", glyph, body)
@@ -304,7 +304,7 @@ func TestHelpModalGlyphs(t *testing.T) {
 // help-modal exception — dismiss hint in the header).
 func TestHelpModalHeader(t *testing.T) {
 	t.Run("it renders the header ? Keybindings left and esc close right", func(t *testing.T) {
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		view := m.viewSessionList()
 		if !strings.Contains(view, "Keybindings") {
@@ -319,7 +319,7 @@ func TestHelpModalHeader(t *testing.T) {
 		// The §8.1 exception: the dismiss hint lives in the header, NOT a contextual
 		// footer. The other modals render `esc cancel`/`esc discard` in a footer; the
 		// help modal must not — its only dismiss copy is the header `esc close`.
-		m := helpModelSessions(t, theme.Dark)
+		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
 		view := m.viewSessionList()
 		for _, footerVerb := range []string{"esc cancel", "esc discard"} {
@@ -337,30 +337,30 @@ func TestHelpModalHeader(t *testing.T) {
 func TestHelpModalColourRoles(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			body := helpModalBody(sessionsKeymap(), tc.mode, false)
+			body := helpModalBody(sessionsKeymap(), tc.th, false)
 
 			wantTokens := map[string]theme.Token{
-				"accent.blue (key glyphs)":    theme.MV.AccentBlue,
-				"text.strong (action labels)": theme.MV.TextStrong,
+				"accent.blue (key glyphs)":    tc.th.AccentKey,
+				"text.strong (action labels)": tc.th.TextSecondary,
 			}
 			for label, tok := range wantTokens {
-				seq := tokenFgSeq(t, tok, tc.mode)
+				seq := tokenFgSeq(t, tok)
 				if !strings.Contains(body, seq) {
 					t.Errorf("help body must render %s via token SGR core %q; missing in:\n%s", label, seq, body)
 				}
 			}
 
-			header := helpModalHeader(60, tc.mode, false)
-			if seq := tokenFgSeq(t, theme.MV.TextPrimary, tc.mode); !strings.Contains(header, seq) {
+			header := helpModalHeader(60, tc.th, false)
+			if seq := tokenFgSeq(t, tc.th.TextPrimary); !strings.Contains(header, seq) {
 				t.Errorf("help header must render '? Keybindings' in text.primary SGR core %q; missing in:\n%s", seq, header)
 			}
-			if seq := tokenFgSeq(t, theme.MV.TextDetail, tc.mode); !strings.Contains(header, seq) {
+			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(header, seq) {
 				t.Errorf("help header must render 'esc close' in text.detail SGR core %q; missing in:\n%s", seq, header)
 			}
 		})
@@ -371,10 +371,10 @@ func TestHelpModalColourRoles(t *testing.T) {
 // state.red destructive role per the reference (the k glyph is the one destructive
 // glyph in the Sessions help). Glyph + colour, not colour alone (§2.2).
 func TestHelpModalDestructiveKill(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		body := helpModalBody(sessionsKeymap(), mode, false)
-		if seq := tokenFgSeq(t, theme.MV.StateRed, mode); !strings.Contains(body, seq) {
-			t.Errorf("mode %v: the kill (k) glyph must render in state.red; missing SGR core %q in:\n%s", mode, seq, body)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		body := helpModalBody(sessionsKeymap(), th, false)
+		if seq := tokenFgSeq(t, th.StateDestructive); !strings.Contains(body, seq) {
+			t.Errorf("theme %v: the kill (k) glyph must render in state.red; missing SGR core %q in:\n%s", themeLabel(th), seq, body)
 		}
 	}
 }
@@ -384,14 +384,14 @@ func TestHelpModalDestructiveKill(t *testing.T) {
 // are gone and the owned-canvas backdrop SGR is present (dark + light).
 func TestHelpModalBlankCanvas(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		mode theme.Mode
+		name       string
+		appearance canvasAppearance
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", appearanceDarkCanvas},
+		{"light", appearanceLightCanvas},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := helpModelSessions(t, tc.mode)
+			m := helpModelSessions(t, tc.appearance)
 			// Sanity: the live view shows the list rows.
 			if !strings.Contains(m.viewSessionList(), "alpha") {
 				t.Fatalf("pre-modal sanity: live view should contain a session row")
@@ -401,7 +401,7 @@ func TestHelpModalBlankCanvas(t *testing.T) {
 			if strings.Contains(frame, "bravo") {
 				t.Errorf("help modal must clear the list rows behind it; 'bravo' leaked:\n%s", frame)
 			}
-			if seq := canvasSeq(t, tc.mode); !strings.Contains(frame, seq) {
+			if seq := canvasSeq(t, themeForAppearance(t, tc.appearance)); !strings.Contains(frame, seq) {
 				t.Errorf("help modal backdrop must be the owned canvas SGR %q; missing", seq)
 			}
 		})

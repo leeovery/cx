@@ -2,7 +2,7 @@ package tui
 
 import (
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §8.6 delete-project confirm modal. A reskin (not a rewrite): the
@@ -41,23 +41,23 @@ const (
 //	         <blank>                      (the single "what" → "warning" separator)
 //	         Removes this project …       (record-only consequence, text.detail, wrapped)
 //	footer:  y delete   esc cancel        (glyphs accent.blue, labels text.detail)
-func renderDeleteModalContent(name, path string, mode theme.Mode, colourless bool) string {
+func renderDeleteModalContent(name, path string, th theme.Theme, colourless bool) string {
 	spec := destructiveConfirmSpec{
 		title:         deleteTitle,
 		targetName:    name,
-		extraBodyRows: []string{deleteModalPathRow(path, mode, colourless)},
+		extraBodyRows: []string{deleteModalPathRow(path, th, colourless)},
 		consequence:   deleteConsequence,
 		confirmKey:    deleteKeyConfirm,
 		confirmLabel:  deleteLabelConfirm,
 	}
-	return renderDestructiveConfirm(spec, mode, colourless)
+	return renderDestructiveConfirm(spec, th, colourless)
 }
 
 // deleteModalPathRow renders the project path in text.detail, truncated with an
 // ellipsis to destructiveBodyWidth so an over-long path never overflows the panel (the
 // §8.6 edge case — mirrors the rename modal's `was:` truncation). This is the delete
 // modal's distinct extra body row.
-func deleteModalPathRow(path string, mode theme.Mode, colourless bool) string {
+func deleteModalPathRow(path string, th theme.Theme, colourless bool) string {
 	visible := ansi.Truncate(path, destructiveBodyWidth, "…")
-	return headerStyle(theme.MV.TextDetail, mode, colourless).Render(visible)
+	return headerStyle(th.TextMuted, th, colourless).Render(visible)
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // This file is the net-new gate for the §7 MV filter-input reskin on the PROJECTS
@@ -25,29 +25,29 @@ import (
 // prompt, live query text, and block cursor all carry the accent.orange token in
 // both Dark and Light, with blink disabled. Pinned in exact mode-resolved SGR.
 func TestProjectsFilterInput_ColouredBranchOrange(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := New(fakeLister{}, WithCanvasMode(mode))
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := New(fakeLister{}, WithCanvasMode(appearanceForTheme(t, th)))
 
 		fi := m.projectList.FilterInput
 		if fi.Prompt != filterPromptPrefix {
-			t.Errorf("[%v] project FilterInput.Prompt = %q, want %q", mode, fi.Prompt, filterPromptPrefix)
+			t.Errorf("[%v] project FilterInput.Prompt = %q, want %q", themeLabel(th), fi.Prompt, filterPromptPrefix)
 		}
 
-		orange := tokenFgSeq(t, theme.MV.AccentOrange, mode)
+		orange := tokenFgSeq(t, th.AccentAttention)
 		styles := fi.Styles()
 
 		if seq := styles.Focused.Prompt.Render("x"); !strings.Contains(seq, orange) {
-			t.Errorf("[%v] project FilterInput Focused.Prompt missing accent.orange SGR %q (got %q)", mode, orange, escSeq(seq))
+			t.Errorf("[%v] project FilterInput Focused.Prompt missing accent.orange SGR %q (got %q)", themeLabel(th), orange, escSeq(seq))
 		}
 		if seq := styles.Focused.Text.Render("x"); !strings.Contains(seq, orange) {
-			t.Errorf("[%v] project FilterInput Focused.Text missing accent.orange SGR %q (got %q)", mode, orange, escSeq(seq))
+			t.Errorf("[%v] project FilterInput Focused.Text missing accent.orange SGR %q (got %q)", themeLabel(th), orange, escSeq(seq))
 		}
 		cursorProbe := lipgloss.NewStyle().Foreground(styles.Cursor.Color).Render("x")
 		if !strings.Contains(cursorProbe, orange) {
-			t.Errorf("[%v] project FilterInput Cursor.Color missing accent.orange SGR %q (got %q)", mode, orange, escSeq(cursorProbe))
+			t.Errorf("[%v] project FilterInput Cursor.Color missing accent.orange SGR %q (got %q)", themeLabel(th), orange, escSeq(cursorProbe))
 		}
 		if styles.Cursor.Blink {
-			t.Errorf("[%v] project FilterInput Cursor.Blink = true, want false (deterministic block cursor)", mode)
+			t.Errorf("[%v] project FilterInput Cursor.Blink = true, want false (deterministic block cursor)", themeLabel(th))
 		}
 	}
 }
@@ -68,8 +68,8 @@ func TestProjectsFilterInput_ColourlessBranchBare(t *testing.T) {
 
 	// No accent.orange SGR may be emitted by any of the input's styled runs (checked
 	// against BOTH mode variants of the token so neither hex can leak through).
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		orange := tokenFgSeq(t, theme.MV.AccentOrange, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		orange := tokenFgSeq(t, th.AccentAttention)
 		runs := map[string]string{
 			"Focused.Prompt": styles.Focused.Prompt.Render(filterPromptPrefix),
 			"Focused.Text":   styles.Focused.Text.Render("fab"),
@@ -77,7 +77,7 @@ func TestProjectsFilterInput_ColourlessBranchBare(t *testing.T) {
 		}
 		for name, run := range runs {
 			if strings.Contains(run, orange) {
-				t.Errorf("colourless project FilterInput %s leaked accent.orange SGR %q (%v): %q", name, orange, mode, escSeq(run))
+				t.Errorf("colourless project FilterInput %s leaked accent.orange SGR %q (%v): %q", name, orange, themeLabel(th), escSeq(run))
 			}
 		}
 	}

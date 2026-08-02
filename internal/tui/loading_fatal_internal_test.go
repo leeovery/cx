@@ -14,7 +14,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // failedMidProgress builds the accumulator at "steps 1–2 done, fatal pending at
@@ -30,14 +29,14 @@ func failedAtRegisteredHooks() LoadingProgressView {
 // glyph painted state.red, and the one-line message is painted state.red.
 func TestErrorFrame_FailedRowIsRedCross(t *testing.T) {
 	view := failedAtRegisteredHooks()
-	out := renderLoadingScreen(view, 80, 24, theme.Dark, false)
+	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
 	visible := ansi.Strip(out)
 
 	if !strings.Contains(visible, loadingGlyphFailed) {
 		t.Errorf("error frame missing the ✗ failed glyph:\n%s", visible)
 	}
 	// The failed row's ✗ glyph + label + the message line all carry state.red.
-	redSeq := tokenFgSeq(t, theme.MV.StateRed, theme.Dark)
+	redSeq := tokenFgSeq(t, testDarkTheme(t).StateDestructive)
 	if !strings.Contains(out, redSeq) {
 		t.Errorf("error frame did not paint anything state.red:\n%q", out)
 	}
@@ -55,7 +54,7 @@ func TestErrorFrame_FailedRowIsRedCross(t *testing.T) {
 // done (✓) and steps after stay pending (·) — they never ran.
 func TestErrorFrame_StepStatesAroundFailure(t *testing.T) {
 	view := failedAtRegisteredHooks()
-	out := renderLoadingScreen(view, 80, 24, theme.Dark, false)
+	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
 	visible := ansi.Strip(out)
 
 	// "Started tmux server" (step 1) completed before the failure → ✓ done.
@@ -79,7 +78,7 @@ func TestErrorFrame_StepStatesAroundFailure(t *testing.T) {
 func TestErrorFrame_NeverOverflowsHeight(t *testing.T) {
 	view := failedAtRegisteredHooks()
 	for _, dims := range [][2]int{{120, 40}, {80, 24}, {40, 12}, {30, 8}, {24, 7}, {20, 6}} {
-		out := renderLoadingScreen(view, dims[0], dims[1], theme.Dark, false)
+		out := renderLoadingScreen(view, dims[0], dims[1], testDarkTheme(t), false)
 		if h := lipgloss.Height(out); h > dims[1] {
 			t.Errorf("%dx%d: error frame height %d exceeds %d (overflow)", dims[0], dims[1], h, dims[1])
 		}

@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // Tests for the §11 shared notice-band primitive, the single-slot arbiter, and
@@ -51,7 +51,7 @@ func flattenNoticeBand(band string) string {
 // each of which must appear on its own line in the composed view.
 func viewHasNoticeMessage(t *testing.T, m Model, role noticeBandRole, message string) bool {
 	t.Helper()
-	band := renderNoticeBand(role, message, noticeBandOnBandText(role), m.contentWidth(), m.canvasMode, m.colourless)
+	band := renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
 	view := ansi.Strip(m.View().Content)
 	for line := range strings.SplitSeq(ansi.Strip(band), "\n") {
 		frag := strings.TrimRight(strings.TrimLeft(strings.TrimPrefix(line, noticeBarGlyph), " "), " ")
@@ -92,12 +92,12 @@ func TestRenderNoticeBand_LeftBarInRoleColour(t *testing.T) {
 		barTok    theme.Token
 		onBandTok theme.Token
 	}{
-		{"warning/orange", bandWarning, theme.MV.AccentOrange, theme.MV.TextOnWarning},
-		{"success/green", bandSuccess, theme.MV.StateGreen, theme.MV.TextStrong},
-		{"info/violet", bandInfo, theme.MV.AccentViolet, theme.MV.TextOnSelection},
+		{"warning/orange", bandWarning, testDarkTheme(t).AccentAttention, testDarkTheme(t).TextOnAttention},
+		{"success/green", bandSuccess, testDarkTheme(t).StatePositive, testDarkTheme(t).TextSecondary},
+		{"info/violet", bandInfo, testDarkTheme(t).AccentPrimary, testDarkTheme(t).TextOnSelection},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			band := renderNoticeBand(tc.role, msg, tc.onBandTok, w, theme.Dark, false)
+			band := renderNoticeBand(tc.role, msg, tc.onBandTok, w, testDarkTheme(t), false)
 
 			// Single line.
 			if h := lipgloss.Height(band); h != 1 {
@@ -117,12 +117,12 @@ func TestRenderNoticeBand_LeftBarInRoleColour(t *testing.T) {
 				t.Errorf("band missing the message %q: %q", msg, stripped)
 			}
 			// Bar colour = role token foreground.
-			barSeq := tokenFgSeq(t, tc.barTok, theme.Dark)
+			barSeq := tokenFgSeq(t, tc.barTok)
 			if !strings.Contains(band, barSeq) {
 				t.Errorf("band missing the %s bar foreground sequence %q:\n%s", tc.name, barSeq, band)
 			}
 			// Message colour = on-band text token foreground.
-			msgSeq := tokenFgSeq(t, tc.onBandTok, theme.Dark)
+			msgSeq := tokenFgSeq(t, tc.onBandTok)
 			if !strings.Contains(band, msgSeq) {
 				t.Errorf("band missing the on-band text foreground sequence %q:\n%s", msgSeq, band)
 			}
@@ -138,7 +138,7 @@ func TestRenderNoticeBand_NoColor(t *testing.T) {
 		w   = 60
 		msg = "nocolor-band-probe"
 	)
-	band := renderNoticeBand(bandInfo, msg, theme.MV.TextOnSelection, w, theme.Dark, true)
+	band := renderNoticeBand(bandInfo, msg, testDarkTheme(t).TextOnSelection, w, testDarkTheme(t), true)
 
 	// Bar glyph + message survive.
 	stripped := ansi.Strip(band)
@@ -162,7 +162,7 @@ func TestNoticeSlot_SingleBand_TransientFlashWins(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal"}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 80
 	m.termHeight = 24
 	m.rebuildSessionList()
@@ -189,7 +189,7 @@ func TestNoticeSlot_PersistentReturnsAfterFlashClear(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal"}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 80
 	m.termHeight = 24
 	m.rebuildSessionList()
@@ -215,7 +215,7 @@ func TestNoticeSlot_NeverBothBandsSimultaneously(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal"}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 80
 	m.termHeight = 24
 	m.rebuildSessionList()
@@ -387,7 +387,7 @@ const longBandMessage = byTagSignpostText
 // width (no right-edge overflow — the §11 narrow-terminal fix).
 func TestNoticeBand_WrapsLongMessage(t *testing.T) {
 	const w = 30
-	band := renderNoticeBand(bandInfo, longBandMessage, theme.MV.TextOnSelection, w, theme.Dark, false)
+	band := renderNoticeBand(bandInfo, longBandMessage, testDarkTheme(t).TextOnSelection, w, testDarkTheme(t), false)
 
 	lines := strings.Split(band, "\n")
 	if len(lines) < 2 {
@@ -411,12 +411,12 @@ func TestNoticeBand_BarOnEveryWrappedLine(t *testing.T) {
 	const w = 30
 
 	t.Run("coloured/role-bar-every-line", func(t *testing.T) {
-		band := renderNoticeBand(bandWarning, longBandMessage, theme.MV.TextOnWarning, w, theme.Dark, false)
+		band := renderNoticeBand(bandWarning, longBandMessage, testDarkTheme(t).TextOnAttention, w, testDarkTheme(t), false)
 		lines := strings.Split(band, "\n")
 		if len(lines) < 2 {
 			t.Fatalf("setup: message did not wrap (%d lines)", len(lines))
 		}
-		barSeq := tokenFgSeq(t, theme.MV.AccentOrange, theme.Dark)
+		barSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention)
 		for i, l := range lines {
 			if !strings.HasPrefix(ansi.Strip(l), noticeBarGlyph) {
 				t.Errorf("line %d does not start with the %q bar: %q", i, noticeBarGlyph, ansi.Strip(l))
@@ -428,7 +428,7 @@ func TestNoticeBand_BarOnEveryWrappedLine(t *testing.T) {
 	})
 
 	t.Run("nocolor/bar-glyph-every-line", func(t *testing.T) {
-		band := renderNoticeBand(bandWarning, longBandMessage, theme.MV.TextOnWarning, w, theme.Dark, true)
+		band := renderNoticeBand(bandWarning, longBandMessage, testDarkTheme(t).TextOnAttention, w, testDarkTheme(t), true)
 		lines := strings.Split(band, "\n")
 		if len(lines) < 2 {
 			t.Fatalf("setup: message did not wrap (%d lines)", len(lines))
@@ -452,7 +452,7 @@ func TestNoticeBand_ContinuationLinesAlignUnderMessage(t *testing.T) {
 	const w = 30
 	// A warning flash carries the ⚠ glyph, so the message starts at column 4
 	// (bar + gap + glyph + gap); continuation text must start at the same column.
-	band := renderNoticeBand(bandWarning, longBandMessage, theme.MV.TextOnWarning, w, theme.Dark, true)
+	band := renderNoticeBand(bandWarning, longBandMessage, testDarkTheme(t).TextOnAttention, w, testDarkTheme(t), true)
 	lines := strings.Split(ansi.Strip(band), "\n")
 	if len(lines) < 2 {
 		t.Fatalf("setup: message did not wrap (%d lines)", len(lines))
@@ -492,12 +492,12 @@ func TestNoticeBand_ContinuationLinesAlignUnderMessage(t *testing.T) {
 // terminal-bg island on any line (the §11.2 tint must span the multi-line band).
 func TestNoticeBand_FlashTintSpansEveryWrappedLine(t *testing.T) {
 	const w = 30
-	band := renderNoticeBand(bandWarning, longBandMessage, theme.MV.TextOnWarning, w, theme.Dark, false)
+	band := renderNoticeBand(bandWarning, longBandMessage, testDarkTheme(t).TextOnAttention, w, testDarkTheme(t), false)
 	lines := strings.Split(band, "\n")
 	if len(lines) < 2 {
 		t.Fatalf("setup: message did not wrap (%d lines)", len(lines))
 	}
-	tintSeq := tokenBgSeq(t, theme.MV.BgWarning, theme.Dark)
+	tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention)
 	for i, l := range lines {
 		if !strings.Contains(l, tintSeq) {
 			t.Errorf("wrapped line %d missing the bg.warning tint %q (no tint island allowed):\n%s", i, tintSeq, l)
@@ -514,7 +514,7 @@ func TestNoticeBand_FlashTintSpansEveryWrappedLine(t *testing.T) {
 // change).
 func TestNoticeBand_ShortMessageSingleLine(t *testing.T) {
 	const w = 60
-	band := renderNoticeBand(bandWarning, "short notice", theme.MV.TextOnWarning, w, theme.Dark, false)
+	band := renderNoticeBand(bandWarning, "short notice", testDarkTheme(t).TextOnAttention, w, testDarkTheme(t), false)
 	if h := lipgloss.Height(band); h != 1 {
 		t.Errorf("short message band height = %d, want 1 (single line)\n%s", h, band)
 	}
@@ -534,7 +534,7 @@ func TestSessionBandHeight_TracksWrappedLineCount(t *testing.T) {
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
 	// Narrow width so the long signpost wraps; tall enough that the list survives.
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 40
 	m.termHeight = 40
 	m.rebuildSessionList()
@@ -562,7 +562,7 @@ func TestNoticeBand_WrappedFrameHeightStaysTermH(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal"}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 40
 	m.termHeight = 40
 	m.applySessionListSize(m.termWidth, m.termHeight)

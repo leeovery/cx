@@ -90,7 +90,7 @@ func TestSpaceOnSessionsPage_PassesModelAttacherIntoPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hello")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	m.previewAttacher = attacher
 
 	updated, _ := m.Update(keySpaceMsg())

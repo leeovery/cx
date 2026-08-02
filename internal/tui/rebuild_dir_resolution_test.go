@@ -59,7 +59,7 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.dirReader = &fakeStamper{path: dir}
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -86,7 +86,7 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work", "infra"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.dirReader = &fakeStamper{path: dir}
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -113,7 +113,7 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
 		reader := &fakeStamper{path: dir}
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.dirReader = reader
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -137,7 +137,7 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
 		reader := &fakeStamper{path: dir}
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.dirReader = reader
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -159,7 +159,7 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
 		// Empty current_path => unresolvable: no cache, routes to Unknown.
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.dirReader = &fakeStamper{path: ""}
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -182,7 +182,7 @@ func TestRebuildSessionListDirResolution(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: ""}}
 
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		// dirReader / dirRunner left nil — no Option wired.
 
 		m.rebuildSessionList()

@@ -8,7 +8,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // This file is the §7.3 over-filtered no-matches gate (task 2-9b). It pins the MV
@@ -29,9 +29,9 @@ import (
 // enterNoMatches drives the model into the over-filtered no-matches state: the
 // fab* fixture loaded, `/` pressed, then a query typed that matches nothing. The
 // list is in Filtering (input-active) with zero visible items.
-func enterNoMatches(t *testing.T, mode theme.Mode, query string) Model {
+func enterNoMatches(t *testing.T, th theme.Theme, query string) Model {
 	t.Helper()
-	m := filteringTestModel(t, mode)
+	m := filteringTestModel(t, th)
 	m = pressSlash(t, m)
 	m = typeKeys(t, m, query)
 	if m.sessionList.FilterState() != list.Filtering {
@@ -47,8 +47,8 @@ func enterNoMatches(t *testing.T, mode theme.Mode, query string) Model {
 // matching zero sessions the body shows the centred null-set glyph, the
 // `No sessions match "<query>"` message, and the `⌫ to widen the search …` hint.
 func TestNoMatches_RendersGlyphMessageHint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := enterNoMatches(t, mode, "zzqx")
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := enterNoMatches(t, th, "zzqx")
 		vis := ansi.Strip(m.View().Content)
 
 		for _, want := range []string{
@@ -58,12 +58,12 @@ func TestNoMatches_RendersGlyphMessageHint(t *testing.T) {
 			"to clear the filter",
 		} {
 			if !strings.Contains(vis, want) {
-				t.Errorf("[%v] no-matches body missing %q:\n%s", mode, want, vis)
+				t.Errorf("[%v] no-matches body missing %q:\n%s", themeLabel(th), want, vis)
 			}
 		}
 		// The widen glyph is the ⌫ backspace glyph (reference), not the literal word.
 		if strings.Contains(vis, "backspace to widen") {
-			t.Errorf("[%v] widen hint must use the ⌫ glyph, not the word 'backspace':\n%s", mode, vis)
+			t.Errorf("[%v] widen hint must use the ⌫ glyph, not the word 'backspace':\n%s", themeLabel(th), vis)
 		}
 	}
 }
@@ -76,7 +76,7 @@ func TestNoMatches_InterpolatesQueryVerbatimWithLiteralQuotes(t *testing.T) {
 	// A query with a space and a dash to prove the wrapping is exactly two straight
 	// quotes around the verbatim query. None of the fab* fixture names contains
 	// "qz - " so it matches zero.
-	m := enterNoMatches(t, theme.Dark, "qz - x")
+	m := enterNoMatches(t, testDarkTheme(t), "qz - x")
 	vis := ansi.Strip(m.View().Content)
 
 	want := `No sessions match "qz - x"`
@@ -104,7 +104,7 @@ func TestNoMatches_InterpolatesQueryVerbatimWithLiteralQuotes(t *testing.T) {
 // WITHOUT the `browse results` entry (no results to browse) and NOT the list-active
 // footer.
 func TestNoMatches_FooterStaysInputActiveForm(t *testing.T) {
-	m := enterNoMatches(t, theme.Dark, "zzqx")
+	m := enterNoMatches(t, testDarkTheme(t), "zzqx")
 	vis := ansi.Strip(m.View().Content)
 
 	for _, want := range []string{"type to filter", "esc clear"} {
@@ -129,7 +129,7 @@ func TestNoMatches_FooterStaysInputActiveForm(t *testing.T) {
 // renders ONLY when the query matches zero — typing a query that DOES match shows
 // the normal list body, not the empty state.
 func TestNoMatches_DoesNotRenderWhenResultsExist(t *testing.T) {
-	m := filteringTestModel(t, theme.Dark)
+	m := filteringTestModel(t, testDarkTheme(t))
 	m = pressSlash(t, m)
 	m = typeKeys(t, m, "fab")
 	if got := len(m.sessionList.VisibleItems()); got == 0 {
@@ -152,7 +152,7 @@ func TestNoMatches_DoesNotRenderWhenResultsExist(t *testing.T) {
 func TestNoMatches_NotRenderedWithoutActiveQuery(t *testing.T) {
 	// Zero sessions, NO filter active (Unfiltered) — the §11.1 empty-sessions
 	// condition, NOT the §7.3 no-matches condition.
-	m := filteringTestModel(t, theme.Dark)
+	m := filteringTestModel(t, testDarkTheme(t))
 	m.applySessions(nil)
 	if m.sessionList.FilterState() != list.Unfiltered {
 		t.Fatalf("precondition: filter state = %v, want Unfiltered", m.sessionList.FilterState())
@@ -168,13 +168,13 @@ func TestNoMatches_NotRenderedWithoutActiveQuery(t *testing.T) {
 // detection predicate: an active non-empty query AND zero visible items.
 func TestNoMatches_OnlyRendersWithActiveNonEmptyQueryAndZeroItems(t *testing.T) {
 	// Active non-empty query, zero matches -> renders.
-	m := enterNoMatches(t, theme.Dark, "zzqx")
+	m := enterNoMatches(t, testDarkTheme(t), "zzqx")
 	if !m.sessionListNoMatches() {
 		t.Errorf("expected sessionListNoMatches()=true for active non-empty query with zero items")
 	}
 
 	// Active non-empty query WITH matches -> does not render.
-	withResults := filteringTestModel(t, theme.Dark)
+	withResults := filteringTestModel(t, testDarkTheme(t))
 	withResults = pressSlash(t, withResults)
 	withResults = typeKeys(t, withResults, "fab")
 	if withResults.sessionListNoMatches() {
@@ -182,7 +182,7 @@ func TestNoMatches_OnlyRendersWithActiveNonEmptyQueryAndZeroItems(t *testing.T) 
 	}
 
 	// No active query, zero sessions -> does not render (empty-sessions state).
-	empty := filteringTestModel(t, theme.Dark)
+	empty := filteringTestModel(t, testDarkTheme(t))
 	empty.applySessions(nil)
 	if empty.sessionListNoMatches() {
 		t.Errorf("expected sessionListNoMatches()=false without an active query (empty-sessions, not no-matches)")
@@ -196,7 +196,7 @@ func TestNoMatches_OnlyRendersWithActiveNonEmptyQueryAndZeroItems(t *testing.T) 
 // literal, so rewording that label cannot make this test pass or fail: it pins the
 // structural membership model, not the display string.
 func TestNoMatchesFooterEntries_ExcludesBrowseResultsStructurally(t *testing.T) {
-	got := noMatchesFooterEntries()
+	got := noMatchesFooterEntries(testDarkTheme(t))
 
 	// The no-matches footer must contain NO entry that is tagged as the
 	// browse-results entry — identified by the structural flag, never by label text.
@@ -208,7 +208,7 @@ func TestNoMatchesFooterEntries_ExcludesBrowseResultsStructurally(t *testing.T) 
 
 	// And it must equal the input-active set with exactly the browse-results entry
 	// dropped — proving it is composed from the shared entries, not an independent copy.
-	src := filteringFooterEntries()
+	src := filteringFooterEntries(testDarkTheme(t))
 	want := make([]filterFooterEntry, 0, len(src))
 	for _, e := range src {
 		if e.BrowseResults {
@@ -233,7 +233,7 @@ func TestNoMatchesFooterEntries_ExcludesBrowseResultsStructurally(t *testing.T) 
 // (the BrowseResults flag) still identifies and removes it — a label-string filter
 // would silently regain the entry under this rewording.
 func TestNoMatchesFooterEntries_DecoupledFromBrowseResultsCopy(t *testing.T) {
-	src := filteringFooterEntries()
+	src := filteringFooterEntries(testDarkTheme(t))
 
 	// Precondition: exactly one entry is structurally tagged browse-results.
 	tagged := 0
@@ -271,17 +271,17 @@ func TestNoMatchesFooterEntries_DecoupledFromBrowseResultsCopy(t *testing.T) {
 // TestNoMatches_ColourRoles asserts §2.9: the glyph reads text.faint, the message
 // text.primary, and the hint text.detail — pinned in exact mode-resolved SGR.
 func TestNoMatches_ColourRoles(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		body := renderNoMatchesBody("zzqx", filteringReskinWidth, 20, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		body := renderNoMatchesBody("zzqx", filteringReskinWidth, 20, th, false)
 
-		if seq := tokenFgSeq(t, theme.MV.TextFaint, mode); !strings.Contains(body, seq) {
-			t.Errorf("[%v] no-matches glyph missing text.faint SGR %q:\n%s", mode, seq, escSeq(body))
+		if seq := tokenFgSeq(t, th.TextFaint); !strings.Contains(body, seq) {
+			t.Errorf("[%v] no-matches glyph missing text.faint SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(body, seq) {
-			t.Errorf("[%v] no-matches message missing text.primary SGR %q:\n%s", mode, seq, escSeq(body))
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(body, seq) {
+			t.Errorf("[%v] no-matches message missing text.primary SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(body, seq) {
-			t.Errorf("[%v] no-matches hint missing text.detail SGR %q:\n%s", mode, seq, escSeq(body))
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(body, seq) {
+			t.Errorf("[%v] no-matches hint missing text.detail SGR %q:\n%s", themeLabel(th), seq, escSeq(body))
 		}
 	}
 }
@@ -291,7 +291,7 @@ func TestNoMatches_ColourRoles(t *testing.T) {
 // (the filter engine's backspace behaviour is unchanged — the hint just documents
 // it).
 func TestNoMatches_QueryWhittledToEmptyExitsState(t *testing.T) {
-	m := enterNoMatches(t, theme.Dark, "z")
+	m := enterNoMatches(t, testDarkTheme(t), "z")
 	if !m.sessionListNoMatches() {
 		t.Fatalf("precondition: expected no-matches state for query %q", "z")
 	}

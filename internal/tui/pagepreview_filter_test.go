@@ -65,7 +65,7 @@ func TestSpaceDuringSettingFilterInsertsLiteralSpaceIntoFilterValue(t *testing.T
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	m = startFiltering(t, m)
 	m = typeFilter(t, m, "pigeon")
@@ -97,7 +97,7 @@ func TestSpaceDuringSettingFilterDoesNotChangeActivePage(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	m = startFiltering(t, m)
 	m = typeFilter(t, m, "pigeon")
@@ -125,7 +125,7 @@ func TestSpaceAtStartOfFilterInputPassesThroughAsLiteralSpace(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	m = startFiltering(t, m)
 
@@ -160,7 +160,7 @@ func TestSpaceAfterEnterCommitOpensPreviewOnHighlightedMatch(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	m = startFiltering(t, m)
 	m = typeFilter(t, m, "pigeon")

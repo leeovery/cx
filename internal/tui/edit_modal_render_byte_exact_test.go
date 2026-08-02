@@ -116,6 +116,7 @@ func TestRenderEditProjectContent_ByteExact(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := Model{
+				activeTheme: testDarkTheme(t),
 				modal:       modalEditProject,
 				editProject: project.Project{Name: "flow-v1-api"},
 				editMode:    editModeNavigate,

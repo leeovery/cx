@@ -70,7 +70,7 @@ func TestSessionsView_NoFlashRow_WhenFlashTextEmpty(t *testing.T) {
 	// list view with that same in-place title swap applied — no flash row, footer
 	// composed below.
 	listView := m.applySectionHeader(m.sessionList.View())
-	footer := renderSessionsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+	footer := renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	want := m.fillCanvas(lipgloss.JoinVertical(lipgloss.Left, header, listView, footer))
 	if got != want {
 		t.Errorf("View() with empty flashText must equal fillCanvas(header + section-headed list.View() + manual footer)\nwant:\n%s\n\ngot:\n%s", want, got)

@@ -6,8 +6,8 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // Tests for task 5-4: the §5 multi-select mode footer. In the mode (filter not
@@ -26,7 +26,7 @@ import (
 // footerEntrySeparator ` · `. The footer is two rows (rule + entry row), so the entry
 // row is the LAST line.
 func TestMultiSelectFooter_ExactCopy(t *testing.T) {
-	footer := renderMultiSelectFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("multi-select footer must be 2 rows (rule + entry row), got %d:\n%s", len(lines), footer)
@@ -49,7 +49,7 @@ func TestMultiSelectFooter_CopyConstant(t *testing.T) {
 	}
 	// And the rendered footer's stripped entry row equals that same constant — the
 	// render is tied to the spec-pinned copy.
-	footer := renderMultiSelectFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	got := strings.TrimRight(footerVisible(lines[len(lines)-1]), " ")
 	if got != multiSelectFooterText {
@@ -61,7 +61,7 @@ func TestMultiSelectFooter_CopyConstant(t *testing.T) {
 // right-aligned `? help` anchor (unlike the standard/filter footers) — the delivered
 // frame has none, so neither the `? help` text nor the accent.violet `?` glyph appears.
 func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
-	footer := renderMultiSelectFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	vis := footerVisible(footer)
 	if strings.Contains(vis, "? help") {
 		t.Errorf("multi-select footer must NOT show a right-aligned '? help' anchor:\n%s", vis)
@@ -71,7 +71,7 @@ func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 	}
 	// The ? help glyph is the only accent.violet run in the standard footer; the
 	// multi-select footer drops the anchor, so no accent.violet must appear.
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); strings.Contains(footer, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(footer, seq) {
 		t.Errorf("multi-select footer must NOT carry the accent.violet ? glyph role sequence %q", seq)
 	}
 }
@@ -81,8 +81,8 @@ func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 // footer, so swapping it in is height-neutral against the reserved sessionFooterHeight
 // budget (the swap must not change the list height).
 func TestMultiSelectFooter_HeightNeutral(t *testing.T) {
-	ms := renderMultiSelectFooter(referenceFooterWidth, theme.Dark, false)
-	std := renderSessionsFooter(referenceFooterWidth, theme.Dark, false)
+	ms := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
+	std := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
 	if got, want := lipgloss.Height(ms), lipgloss.Height(std); got != want {
 		t.Errorf("multi-select footer height = %d, want %d (== standard footer, height-neutral)", got, want)
 	}
@@ -97,7 +97,7 @@ func TestMultiSelectFooter_HeightNeutral(t *testing.T) {
 // never overflowing the width.
 func TestMultiSelectFooter_NarrowDegradeOneLineEllipsis(t *testing.T) {
 	for _, w := range []int{56, 40, 30, 20, 12} {
-		footer := renderMultiSelectFooter(w, theme.Dark, false)
+		footer := renderMultiSelectFooter(w, testDarkTheme(t), false)
 		lines := strings.Split(footer, "\n")
 		if len(lines) != 2 {
 			t.Errorf("at width %d the footer has %d rows, want 2 (rule + single entry row, no wrap):\n%s", w, len(lines), footer)
@@ -113,7 +113,7 @@ func TestMultiSelectFooter_NarrowDegradeOneLineEllipsis(t *testing.T) {
 	// At a width that truncates the full cluster, the ellipsis marks the drop, the
 	// highest-priority leading entry survives, and the lowest-priority trailing entry
 	// drops first.
-	footer := footerVisible(renderMultiSelectFooter(30, theme.Dark, false))
+	footer := footerVisible(renderMultiSelectFooter(30, testDarkTheme(t), false))
 	if !strings.Contains(footer, "↑↓ navigate") {
 		t.Errorf("highest-priority entry 'navigate' must survive narrow truncation:\n%s", footer)
 	}
@@ -129,7 +129,7 @@ func TestMultiSelectFooter_NarrowDegradeOneLineEllipsis(t *testing.T) {
 // (§2.5): a colourless footer carries no canvas background SGR and no foreground hue —
 // it renders on the terminal's native fg/bg, the glyphs structurally intact.
 func TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues(t *testing.T) {
-	footer := renderMultiSelectFooter(referenceFooterWidth, theme.Dark, true)
+	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), true)
 
 	vis := footerVisible(footer)
 	for _, want := range []string{"↑↓ navigate", "m toggle", "␣ preview", "⏎ open", "esc cancel"} {
@@ -137,11 +137,11 @@ func TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues(t *testing.T) {
 			t.Errorf("colourless multi-select footer missing %q:\n%s", want, vis)
 		}
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(footer, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(footer, seq) {
 		t.Errorf("colourless footer still paints the canvas background sequence %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.AccentBlue, theme.MV.TextDetail, theme.MV.BorderFooter} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(footer, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentKey, testDarkTheme(t).TextMuted, testDarkTheme(t).Border} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(footer, seq) {
 			t.Errorf("colourless footer still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -151,16 +151,16 @@ func TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues(t *testing.T) {
 // labels in text.detail (the standard MV footer convention), over a border.footer top
 // rule — every colour via its §2.9 token, in both canvas modes.
 func TestMultiSelectFooter_TokenColours(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		footer := renderMultiSelectFooter(referenceFooterWidth, mode, false)
-		if seq := tokenFgSeq(t, theme.MV.AccentBlue, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer missing accent.blue key-glyph role sequence %q", mode, seq)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		footer := renderMultiSelectFooter(referenceFooterWidth, th, false)
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] footer missing accent.blue key-glyph role sequence %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer missing text.detail label role sequence %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] footer missing text.detail label role sequence %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.BorderFooter, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer missing border.footer rule role sequence %q", mode, seq)
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] footer missing border.footer rule role sequence %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -169,10 +169,10 @@ func TestMultiSelectFooter_TokenColours(t *testing.T) {
 // owned canvas background (leaf .Background(canvas)) so the pad gap is not a
 // terminal-bg island.
 func TestMultiSelectFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		footer := renderMultiSelectFooter(referenceFooterWidth, mode, false)
-		if seq := canvasSeq(t, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] footer does not paint the canvas background sequence %q:\n%s", mode, seq, footer)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		footer := renderMultiSelectFooter(referenceFooterWidth, th, false)
+		if seq := canvasSeq(t, th); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] footer does not paint the canvas background sequence %q:\n%s", themeLabel(th), seq, footer)
 		}
 	}
 }

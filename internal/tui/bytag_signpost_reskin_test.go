@@ -8,7 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // Tests for task 4-3: the "No tags yet" signpost reskin. The By-Tag zero-tags
@@ -31,7 +30,7 @@ func signpostModel(t *testing.T) Model {
 		{Name: "portal-abc", Dir: dir},
 		{Name: "portal-def", Dir: dir},
 	}
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 80
 	m.termHeight = 24
 	m.rebuildSessionList()
@@ -64,26 +63,26 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 		t.Errorf("signpost band missing the message %q: %q", byTagSignpostText, flat)
 	}
 	// Bar colour = accent.violet (§2.9).
-	violetSeq := tokenFgSeq(t, theme.MV.AccentViolet, m.canvasMode)
+	violetSeq := tokenFgSeq(t, m.activeTheme.AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
 		t.Errorf("signpost band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
 	}
 	// Message colour = text.on-selection (§2.9): the bright white co-tuned for the
 	// bg.selection tint the info band sits on (the same token the selected
 	// session-row name uses on that surface).
-	onSelectionSeq := tokenFgSeq(t, theme.MV.TextOnSelection, m.canvasMode)
+	onSelectionSeq := tokenFgSeq(t, m.activeTheme.TextOnSelection)
 	if !strings.Contains(band, onSelectionSeq) {
 		t.Errorf("signpost band missing the text.on-selection message foreground sequence %q:\n%s", onSelectionSeq, band)
 	}
 	// Tint = bg.selection (§2.9): the info band sits on the SAME subtle tint as the
 	// §11.4 command-pending banner — it must NOT regress to a flat/Canvas band.
-	selectionBgSeq := tokenBgSeq(t, theme.MV.BgSelection, m.canvasMode)
+	selectionBgSeq := tokenBgSeq(t, m.activeTheme.BgSelection)
 	if !strings.Contains(band, selectionBgSeq) {
 		t.Errorf("signpost band missing the bg.selection info-band tint %q (must not be flat):\n%s", selectionBgSeq, band)
 	}
 	// NOT the bg.warning flash tint (§11.3 info band is NOT a flash): the bg.warning
 	// background colour sequence must be ABSENT.
-	warnBgSeq := tokenBgSeq(t, theme.MV.BgWarning, m.canvasMode)
+	warnBgSeq := tokenBgSeq(t, m.activeTheme.BgAttention)
 	if strings.Contains(band, warnBgSeq) {
 		t.Errorf("signpost band carries the bg.warning flash tint %q (info band is not a flash):\n%s", warnBgSeq, band)
 	}
@@ -95,15 +94,15 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 // bg.selection. If either drifts (e.g. bandInfo regresses to Canvas, or a future
 // edit retints the command band) this fails before the visual divergence ships.
 func TestInfoBands_ShareSameTint(t *testing.T) {
-	if got := bandInfo.tintToken().Name; got != theme.MV.BgSelection.Name {
+	if got := bandInfo.tintToken(testDarkTheme(t)).Name; got != testDarkTheme(t).BgSelection.Name {
 		t.Errorf("bandInfo tint token = %q, want bg.selection (shared info-band tint)", got)
 	}
-	if got := bandCommand.tintToken().Name; got != theme.MV.BgSelection.Name {
+	if got := bandCommand.tintToken(testDarkTheme(t)).Name; got != testDarkTheme(t).BgSelection.Name {
 		t.Errorf("bandCommand tint token = %q, want bg.selection (shared info-band tint)", got)
 	}
-	if bandInfo.tintToken().Name != bandCommand.tintToken().Name {
+	if bandInfo.tintToken(testDarkTheme(t)).Name != bandCommand.tintToken(testDarkTheme(t)).Name {
 		t.Errorf("info bands diverge: bandInfo tint %q != bandCommand tint %q (must share one info-band tint)",
-			bandInfo.tintToken().Name, bandCommand.tintToken().Name)
+			bandInfo.tintToken(testDarkTheme(t)).Name, bandCommand.tintToken(testDarkTheme(t)).Name)
 	}
 }
 
@@ -142,7 +141,7 @@ func TestSignpostReskin_OnlyByTagZeroTags(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			m := newRebuildTestModel(c.mode, sessions, c.projects)
+			m := newRebuildTestModel(t, c.mode, sessions, c.projects)
 			m.termWidth = 80
 			m.termHeight = 24
 			m.rebuildSessionList()
@@ -173,7 +172,7 @@ func TestSignpostReskin_ZeroPaneReads(t *testing.T) {
 	}
 
 	stamper := &fakeStamper{path: dir}
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 80
 	m.termHeight = 24
 	m.dirReader = stamper
@@ -205,7 +204,7 @@ func TestSignpostReskin_GroupingMachineryUntouched(t *testing.T) {
 		{Name: "portal-def", Dir: dir},
 	}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.rebuildSessionList()
 
 	// The gate fired (zero tags anywhere).
@@ -268,7 +267,7 @@ func TestSignpostReskin_YieldsToFlashThenReturns(t *testing.T) {
 // the `▌` bar, its far-left position, and the message text — and carries no SGR
 // colour sequences at all.
 func TestSignpostReskin_NoColorKeepsBarAndPosition(t *testing.T) {
-	band := renderNoticeBand(bandInfo, byTagSignpostText, theme.MV.TextOnSelection, 60, theme.Dark, true)
+	band := renderNoticeBand(bandInfo, byTagSignpostText, testDarkTheme(t).TextOnSelection, 60, testDarkTheme(t), true)
 
 	stripped := ansi.Strip(band)
 	if !strings.HasPrefix(stripped, noticeBarGlyph) {

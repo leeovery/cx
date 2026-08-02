@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §6.3 condensed Projects footer gate. These tests pin the restyled Projects
@@ -24,7 +24,7 @@ import (
 // footer renders EXACTLY `⏎ new session` · `x sessions` · `e edit` · `/ filter`
 // as the left cluster, with a right-aligned `? help` pinned to the width.
 func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
-	footer := renderProjectsFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderProjectsFooter(referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("condensed Projects footer must be 2 rows (rule + key row), got %d:\n%s", len(lines), footer)
@@ -64,7 +64,7 @@ func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 // §6.3 condensed copy and NOT the Sessions footer copy: it must not leak Sessions
 // labels (`attach`, `switch view`, `preview`, `projects`).
 func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
-	keyRow := footerVisible(renderProjectsFooter(referenceFooterWidth, theme.Dark, false))
+	keyRow := footerVisible(renderProjectsFooter(referenceFooterWidth, testDarkTheme(t), false))
 	for _, banned := range []string{"attach", "switch view", "preview", "navigate", "projects"} {
 		if strings.Contains(keyRow, banned) {
 			t.Errorf("Projects footer leaked the Sessions copy %q:\n%s", banned, keyRow)
@@ -74,32 +74,32 @@ func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
 
 // TestProjectsFooter_TokenColours asserts key glyphs render in accent.blue, labels
 // in text.detail, and the ? glyph specifically in accent.violet, over a 1px
-// border.footer top rule — every colour via its §2.9 token (matching the
+// footer top rule — every colour via its role token (matching the
 // reference's per-glyph footer colours).
 func TestProjectsFooter_TokenColours(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			footer := renderProjectsFooter(referenceFooterWidth, tc.mode, false)
+			footer := renderProjectsFooter(referenceFooterWidth, tc.th, false)
 
-			if seq := tokenFgSeq(t, theme.MV.AccentBlue, tc.mode); !strings.Contains(footer, seq) {
+			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
 				t.Errorf("Projects footer missing accent.blue key-glyph role sequence %q", seq)
 			}
-			if seq := tokenFgSeq(t, theme.MV.TextDetail, tc.mode); !strings.Contains(footer, seq) {
+			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(footer, seq) {
 				t.Errorf("Projects footer missing text.detail label role sequence %q", seq)
 			}
 			// The ? glyph specifically is accent.violet (the right-aligned help anchor).
-			if seq := tokenFgSeq(t, theme.MV.AccentViolet, tc.mode); !strings.Contains(footer, seq) {
+			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(footer, seq) {
 				t.Errorf("Projects footer missing accent.violet ? glyph role sequence %q", seq)
 			}
-			// 1px border.footer top rule present.
-			if seq := tokenFgSeq(t, theme.MV.BorderFooter, tc.mode); !strings.Contains(footer, seq) {
-				t.Errorf("Projects footer missing the border.footer top rule role sequence %q", seq)
+			// 1px footer top rule present, drawn in the consolidated border token.
+			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(footer, seq) {
+				t.Errorf("Projects footer missing the border top-rule role sequence %q", seq)
 			}
 		})
 	}
@@ -109,7 +109,7 @@ func TestProjectsFooter_TokenColours(t *testing.T) {
 // (§2.5): a colourless Projects footer carries no canvas background SGR and no
 // foreground hue — the §6.3 copy stays structurally intact.
 func TestProjectsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
-	footer := renderProjectsFooter(referenceFooterWidth, theme.Dark, true)
+	footer := renderProjectsFooter(referenceFooterWidth, testDarkTheme(t), true)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
 
 	for _, want := range []string{"⏎ new session", "x sessions", "e edit", "/ filter", "? help"} {
@@ -117,11 +117,11 @@ func TestProjectsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 			t.Errorf("colourless Projects footer dropped the copy %q:\n%s", want, keyRow)
 		}
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(footer, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(footer, seq) {
 		t.Errorf("colourless Projects footer still paints the canvas background sequence %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.AccentBlue, theme.MV.TextDetail, theme.MV.AccentViolet} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(footer, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentKey, testDarkTheme(t).TextMuted, testDarkTheme(t).AccentPrimary} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(footer, seq) {
 			t.Errorf("colourless Projects footer still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -132,7 +132,7 @@ func TestProjectsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 // creates a session, it does NOT attach — and never leaks the Sessions `↵ attach`
 // copy. Filtering IS enabled on the Projects list, so this state is reachable.
 func TestProjectsFooter_FilterAppliedSaysNewSessionNotAttach(t *testing.T) {
-	footer := renderProjectsFilterAppliedFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderProjectsFilterAppliedFooter(referenceFooterWidth, testDarkTheme(t), false)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
 	if !strings.Contains(keyRow, "new session") {
 		t.Errorf("Projects list-active footer missing %q:\n%s", "new session", keyRow)
@@ -152,7 +152,7 @@ func TestProjectsFooter_FilterAppliedSaysNewSessionNotAttach(t *testing.T) {
 // (never wraps) and the ? help right anchor survives, the row never overflowing.
 func TestProjectsFooter_NarrowDegradeKeepsHelpAnchor(t *testing.T) {
 	const narrow = 24
-	footer := renderProjectsFooter(narrow, theme.Dark, false)
+	footer := renderProjectsFooter(narrow, testDarkTheme(t), false)
 	for i, line := range strings.Split(footer, "\n") {
 		if lw := lipgloss.Width(line); lw > narrow {
 			t.Errorf("narrow Projects footer line %d width = %d (overflow, want <= %d):\n%s", i, lw, narrow, ansi.Strip(line))

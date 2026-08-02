@@ -24,7 +24,7 @@ func TestRebuildSessionListResolutionGate(t *testing.T) {
 		}
 
 		stamper := &fakeStamper{path: t.TempDir()}
-		m := newRebuildTestModel(prefs.ModeFlat, sessions, nil)
+		m := newRebuildTestModel(t, prefs.ModeFlat, sessions, nil)
 		m.dirReader = stamper
 		m.dirRunner = &fakeDirRunner{gitRoot: t.TempDir()}
 
@@ -48,7 +48,7 @@ func TestRebuildSessionListResolutionGate(t *testing.T) {
 		}
 
 		stamper := &fakeStamper{path: dir}
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.dirReader = stamper
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -75,7 +75,7 @@ func TestRebuildSessionListResolutionGate(t *testing.T) {
 		}
 
 		stamper := &fakeStamper{path: dir}
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.dirReader = stamper
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 
@@ -95,7 +95,7 @@ func TestRebuildSessionListResolutionGate(t *testing.T) {
 		}
 
 		stamper := &fakeStamper{path: dir}
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.dirReader = stamper
 		m.dirRunner = &fakeDirRunner{gitRoot: dir}
 

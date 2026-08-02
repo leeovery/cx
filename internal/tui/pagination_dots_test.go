@@ -8,14 +8,14 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
-// appearanceForMode pins the persisted appearance that resolves to the given
-// canvas mode, so Build paints that mode from frame one (no OSC 11 detection).
-func appearanceForMode(mode theme.Mode) prefs.Appearance {
-	if mode == theme.Light {
+// appearanceForCanvas pins the persisted appearance that resolves to the given
+// canvas, so Build paints it from frame one (no OSC 11 detection).
+func appearanceForCanvas(appearance canvasAppearance) prefs.Appearance {
+	if appearance == appearanceLightCanvas {
 		return prefs.AppearanceLight
 	}
 	return prefs.AppearanceDark
@@ -25,13 +25,13 @@ func appearanceForMode(mode theme.Mode) prefs.Appearance {
 // deterministic sessions to span >1 page at the given terminal size, so the
 // height-driven paginator renders the dot row. The session set is built through
 // the production applySessions path so pagination is sized exactly as in prod.
-func newMultiPageSessionModel(t *testing.T, w, h int, mode theme.Mode, colourless bool) Model {
+func newMultiPageSessionModel(t *testing.T, w, h int, appearance canvasAppearance, colourless bool) Model {
 	t.Helper()
 	var sessions []tmux.Session
 	for i := range 60 {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
-	m := Build(Deps{Lister: fakeLister{}, Appearance: appearanceForMode(mode), NoColor: colourless})
+	m := Build(Deps{Lister: fakeLister{}, Appearance: appearanceForCanvas(appearance), NoColor: colourless})
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -67,21 +67,21 @@ func dotRowLine(t *testing.T, view string) (string, int) {
 func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := newMultiPageSessionModel(t, 120, 24, tc.mode, false)
+			m := newMultiPageSessionModel(t, 120, 24, appearanceForTheme(t, tc.th), false)
 			row, _ := dotRowLine(t, m.viewSessionList())
 
 			// Active dot: accent.violet foreground role sequence present.
-			if seq := tokenFgSeq(t, theme.MV.AccentViolet, tc.mode); !strings.Contains(row, seq) {
+			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(row, seq) {
 				t.Errorf("dot row missing active-dot accent.violet role sequence %q:\n%q", seq, row)
 			}
 			// Inactive dots: text.faint foreground role sequence present.
-			if seq := tokenFgSeq(t, theme.MV.TextFaint, tc.mode); !strings.Contains(row, seq) {
+			if seq := tokenFgSeq(t, tc.th.TextFaint); !strings.Contains(row, seq) {
 				t.Errorf("dot row missing inactive-dot text.faint role sequence %q:\n%q", seq, row)
 			}
 		})
@@ -94,9 +94,9 @@ func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 // the run preceding the first dot glyph must be accent.violet — distinct from the
 // text.faint used by the inactive dots that follow.
 func TestSessionsPaginationDots_ActiveDotIsViolet(t *testing.T) {
-	m := newMultiPageSessionModel(t, 120, 24, theme.Dark, false)
+	m := newMultiPageSessionModel(t, 120, 24, appearanceDarkCanvas, false)
 	row, _ := dotRowLine(t, m.viewSessionList())
-	violet := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark)
+	violet := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 
 	firstDot := strings.IndexByte(row, paginationDotGlyph[0])
 	if firstDot < 0 {
@@ -119,7 +119,7 @@ func TestSessionsPaginationDots_ActiveDotIsViolet(t *testing.T) {
 // edge by a non-trivial leading pad, not flush-left.
 func TestSessionsPaginationDots_CentredAboveFooter(t *testing.T) {
 	const w, h = 120, 24
-	m := newMultiPageSessionModel(t, w, h, theme.Dark, false)
+	m := newMultiPageSessionModel(t, w, h, appearanceDarkCanvas, false)
 	view := m.viewSessionList()
 	lines := strings.Split(view, "\n")
 
@@ -127,7 +127,7 @@ func TestSessionsPaginationDots_CentredAboveFooter(t *testing.T) {
 
 	// The dot row precedes the footer: the footer's 1px top rule + key row are the
 	// LAST two lines, so the dot row index must be strictly before them.
-	footer := renderSessionsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+	footer := renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	footerLines := lipgloss.Height(footer)
 	if dotIdx >= len(lines)-footerLines {
 		t.Errorf("dot row at line %d is not above the footer (footer occupies the last %d of %d lines)", dotIdx, footerLines, len(lines))
@@ -160,7 +160,7 @@ func TestSessionsPaginationDots_SuppressedOnSinglePage(t *testing.T) {
 		{Name: "bravo", Windows: 1},
 		{Name: "charlie", Windows: 1},
 	}
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -187,7 +187,7 @@ func TestSessionsPaginationDots_SuppressedOnSinglePage(t *testing.T) {
 // restyle is glyph styling only, never a count/behaviour change.
 func TestSessionsPaginationDots_PageCountAndPagingUnchanged(t *testing.T) {
 	const w, h = 120, 24
-	m := newMultiPageSessionModel(t, w, h, theme.Dark, false)
+	m := newMultiPageSessionModel(t, w, h, appearanceDarkCanvas, false)
 
 	// The dot count equals the paginator's TotalPages (one dot per page).
 	row, _ := dotRowLine(t, m.viewSessionList())
@@ -215,7 +215,7 @@ func TestSessionsPaginationDots_PageCountAndPagingUnchanged(t *testing.T) {
 // corners / the vertical/horizontal box rules) wraps the composed view.
 func TestSessionsPaginationDots_NoFullScreenFrame(t *testing.T) {
 	const w, h = 120, 24
-	m := newMultiPageSessionModel(t, w, h, theme.Dark, false)
+	m := newMultiPageSessionModel(t, w, h, appearanceDarkCanvas, false)
 	vis := ansi.Strip(m.viewSessionList())
 	// Box-drawing corners / sides that a full-screen frame would introduce.
 	for _, frameGlyph := range []string{"┌", "┐", "└", "┘", "│", "├", "┤"} {
@@ -229,10 +229,10 @@ func TestSessionsPaginationDots_NoFullScreenFrame(t *testing.T) {
 // the owned canvas background (leaf .Background(canvas)) so the centred row's pad
 // cells are not a terminal-bg island.
 func TestSessionsPaginationDots_PaintsCanvasNoEdgeBleed(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := newMultiPageSessionModel(t, 120, 24, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := newMultiPageSessionModel(t, 120, 24, appearanceForTheme(t, th), false)
 		row, _ := dotRowLine(t, m.viewSessionList())
-		if seq := canvasSeq(t, mode); !strings.Contains(row, seq) {
+		if seq := canvasSeq(t, th); !strings.Contains(row, seq) {
 			t.Errorf("dot row does not paint the canvas background sequence %q:\n%q", seq, row)
 		}
 	}
@@ -242,7 +242,7 @@ func TestSessionsPaginationDots_PaintsCanvasNoEdgeBleed(t *testing.T) {
 // carve-out (§2.5): the dot row carries no canvas background SGR and no
 // foreground hue — the dots render on the terminal's native fg/bg, glyphs intact.
 func TestSessionsPaginationDots_ColourlessDropsHueAndCanvas(t *testing.T) {
-	m := newMultiPageSessionModel(t, 120, 24, theme.Dark, true)
+	m := newMultiPageSessionModel(t, 120, 24, appearanceDarkCanvas, true)
 	row, _ := dotRowLine(t, m.viewSessionList())
 
 	// Structure preserved: the dot glyphs still print (one per page).
@@ -250,12 +250,12 @@ func TestSessionsPaginationDots_ColourlessDropsHueAndCanvas(t *testing.T) {
 		t.Errorf("colourless dot row glyph count = %d, want %d", got, m.sessionList.Paginator.TotalPages)
 	}
 	// No canvas background painted.
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(row, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(row, seq) {
 		t.Errorf("colourless dot row still paints the canvas background sequence %q:\n%q", seq, row)
 	}
 	// No foreground hue from either dot role.
-	for _, tok := range []theme.Token{theme.MV.AccentViolet, theme.MV.TextFaint} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(row, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentPrimary, testDarkTheme(t).TextFaint} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(row, seq) {
 			t.Errorf("colourless dot row still emits a foreground role sequence %q:\n%q", seq, row)
 		}
 	}

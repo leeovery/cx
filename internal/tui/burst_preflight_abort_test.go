@@ -34,8 +34,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/spawntest"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // TestBurstPreflightAbort_AbortsAtomicallyNoAdapterNoSelfAttach drives an
@@ -138,18 +138,18 @@ func TestBurstPreflightAbort_BannerNamesGoneSessionWithEscDismiss(t *testing.T) 
 // text.detail, on both the dark and light canvas.
 func TestPreflightAbortHeader_RedGlyphMessageDimHint(t *testing.T) {
 	const msg = "'fab-flowx-explore' is gone — nothing opened"
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		header := renderPreflightAbortHeader(msg, sectionHeaderWidth, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		header := renderPreflightAbortHeader(msg, sectionHeaderWidth, th, false)
 		wantLeft := flashWarningGlyph + " " + msg
 
 		if !strings.Contains(ansi.Strip(header), wantLeft) {
 			t.Errorf("abort banner missing %q:\n%s", wantLeft, ansi.Strip(header))
 		}
-		redRun := headerStyle(theme.MV.StateRed, mode, false).Render(wantLeft)
+		redRun := headerStyle(th.StateDestructive, th, false).Render(wantLeft)
 		if !strings.Contains(header, redRun) {
 			t.Errorf("abort banner missing the state.red %q run:\n%s", wantLeft, header)
 		}
-		detailRun := headerStyle(theme.MV.TextDetail, mode, false).Render("esc dismiss")
+		detailRun := headerStyle(th.TextMuted, th, false).Render("esc dismiss")
 		if !strings.Contains(header, detailRun) {
 			t.Errorf("abort banner missing the text.detail %q run:\n%s", "esc dismiss", header)
 		}
@@ -159,7 +159,7 @@ func TestPreflightAbortHeader_RedGlyphMessageDimHint(t *testing.T) {
 // TestPreflightAbortHeader_RightAlignedOneRow asserts the hint is right-anchored and
 // the single rendered row is exactly the content width (§3.5 pagination budget).
 func TestPreflightAbortHeader_RightAlignedOneRow(t *testing.T) {
-	header := renderPreflightAbortHeader("'x' is gone — nothing opened", sectionHeaderWidth, theme.Dark, false)
+	header := renderPreflightAbortHeader("'x' is gone — nothing opened", sectionHeaderWidth, testDarkTheme(t), false)
 
 	if got := lipgloss.Height(header); got != 1 {
 		t.Errorf("abort banner height = %d, want exactly 1 row:\n%s", got, header)
@@ -182,7 +182,7 @@ func TestPreflightAbortHeader_RightAlignedOneRow(t *testing.T) {
 // carve-out (§2.5): a colourless banner carries no canvas background SGR and no
 // foreground hue — the ⚠, the message, and `esc dismiss` survive on the native fg/bg.
 func TestPreflightAbortHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
-	header := renderPreflightAbortHeader("'x' is gone — nothing opened", sectionHeaderWidth, theme.Dark, true)
+	header := renderPreflightAbortHeader("'x' is gone — nothing opened", sectionHeaderWidth, testDarkTheme(t), true)
 	stripped := ansi.Strip(header)
 
 	for _, sub := range []string{flashWarningGlyph, "nothing opened", "esc dismiss"} {
@@ -190,11 +190,11 @@ func TestPreflightAbortHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 			t.Errorf("colourless abort banner dropped %q:\n%s", sub, stripped)
 		}
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(header, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(header, seq) {
 		t.Errorf("colourless abort banner still paints the canvas background %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.StateRed, theme.MV.TextDetail} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(header, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).StateDestructive, testDarkTheme(t).TextMuted} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(header, seq) {
 			t.Errorf("colourless abort banner still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -206,7 +206,7 @@ func TestPreflightAbortHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 // row keeps its violet ●.
 func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 	d := SessionDelegate{
-		Mode:        theme.Dark,
+		Theme:       testDarkTheme(t),
 		MultiSelect: true,
 		Selected:    markedSet("agentic-workflows-codify", "designlab-web-r8suyU"),
 		GoneFlagged: markedSet("fab-flowx-explore"),
@@ -233,7 +233,7 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 	if strings.Contains(strippedGone, attachedMarker) {
 		t.Errorf("gone row must NOT render the attached badge: %q", strippedGone)
 	}
-	if seq := tokenFgSeq(t, theme.MV.StateRed, theme.Dark); !strings.Contains(gone, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); !strings.Contains(gone, seq) {
 		t.Errorf("gone row missing the state.red role sequence %q: %q", seq, escSeq(gone))
 	}
 
@@ -245,7 +245,7 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 	if strings.Contains(ansi.Strip(survivor), flashWarningGlyph) {
 		t.Errorf("survivor row must not render the ⚠: %q", ansi.Strip(survivor))
 	}
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); !strings.Contains(survivor, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(survivor, seq) {
 		t.Errorf("survivor row missing the accent.violet ● role sequence %q: %q", seq, escSeq(survivor))
 	}
 }
@@ -260,8 +260,8 @@ func TestSessionRow_GoneFlaggedWidthByteUnchanged(t *testing.T) {
 		tmux.Session{Name: "fab-flowx-explore", Windows: 2, Attached: false},
 		tmux.Session{Name: "designlab-web-r8suyU", Windows: 3, Attached: true},
 	)
-	gone := renderRow(SessionDelegate{Mode: theme.Dark, MultiSelect: true, GoneFlagged: markedSet("fab-flowx-explore")}, w, items, 0, 1)
-	normal := renderRow(SessionDelegate{Mode: theme.Dark, MultiSelect: true}, w, items, 0, 1)
+	gone := renderRow(SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, GoneFlagged: markedSet("fab-flowx-explore")}, w, items, 0, 1)
+	normal := renderRow(SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true}, w, items, 0, 1)
 
 	if gw, nw := lipgloss.Width(gone), lipgloss.Width(normal); gw != nw || gw != w {
 		t.Errorf("gone row width changed by the flag: gone=%d normal=%d, want %d", gw, nw, w)
@@ -281,7 +281,7 @@ func TestSessionRow_GoneFlaggedWidthByteUnchanged(t *testing.T) {
 // the row: the ⚠ glyph and the `session gone` badge text survive with no state.red
 // hue and no canvas background.
 func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, Colourless: true, MultiSelect: true, GoneFlagged: markedSet("fab-flowx-explore")}
+	d := SessionDelegate{Theme: testDarkTheme(t), Colourless: true, MultiSelect: true, GoneFlagged: markedSet("fab-flowx-explore")}
 	items := flatItems(tmux.Session{Name: "fab-flowx-explore", Windows: 2, Attached: false})
 	out := renderRow(d, 80, items, 0, 0)
 	stripped := ansi.Strip(out)
@@ -292,10 +292,10 @@ func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
 	if !strings.Contains(stripped, goneBadge) {
 		t.Errorf("colourless gone row dropped the %q badge: %q", goneBadge, stripped)
 	}
-	if seq := tokenFgSeq(t, theme.MV.StateRed, theme.Dark); strings.Contains(out, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); strings.Contains(out, seq) {
 		t.Errorf("colourless gone row still emits the state.red fg %q", seq)
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(out, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(out, seq) {
 		t.Errorf("colourless gone row still paints the canvas background %q", seq)
 	}
 }
@@ -303,7 +303,7 @@ func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
 // TestSessionRow_HeaderNeverGoneFlagged asserts a HeaderItem never carries the gone
 // flag (the header render arm is untouched), mirroring the ● marker guard.
 func TestSessionRow_HeaderNeverGoneFlagged(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, MultiSelect: true, GoneFlagged: markedSet("work")}
+	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, GoneFlagged: markedSet("work")}
 	items := []list.Item{HeaderItem{Heading: "work", Count: 3, Key: "work"}}
 	out := renderRow(d, 80, items, 0, 0)
 	if strings.Contains(ansi.Strip(out), flashWarningGlyph) || strings.Contains(ansi.Strip(out), goneBadge) {

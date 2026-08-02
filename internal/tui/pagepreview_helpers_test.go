@@ -39,14 +39,14 @@ func newPreviewModelForHelpers(session string, groups []tmux.WindowGroup, window
 // footer use footerLineForTest. Tests that need to probe other header cascade
 // tiers call composePreviewHeaderRow directly with a tier-specific width.
 func chromeLineForTest(m previewModel) string {
-	return composePreviewHeaderRow(200, m.windowIdx, len(m.groups), m.paneIdx, len(m.currentGroup().PaneIndices), m.session, m.mode, m.colourless)
+	return composePreviewHeaderRow(200, m.windowIdx, len(m.groups), m.paneIdx, len(m.currentGroup().PaneIndices), m.session, m.th, m.colourless)
 }
 
 // footerLineForTest composes the §9.1 footer compartment (styled) at a fixed wide
 // content width of 200 so the full labelled nav hints render. Peer of
 // chromeLineForTest for footer-content assertions.
 func footerLineForTest(m previewModel) string {
-	return composePreviewFooterRow(200, m.mode, m.colourless)
+	return composePreviewFooterRow(200, m.th, m.colourless)
 }
 
 // firstLine returns the first '\n'-terminated line of s, or all of s if no
@@ -92,7 +92,7 @@ func footerLine(view string) string {
 // width — chromeLineForTest's fixed width of 200 would compose a different tier
 // and the comparison would fail.
 func chromeLineAtModelWidth(m previewModel) string {
-	return composePreviewHeaderRow(m.innerWidth(), m.windowIdx, len(m.groups), m.paneIdx, len(m.currentGroup().PaneIndices), m.session, m.mode, m.colourless)
+	return composePreviewHeaderRow(m.innerWidth(), m.windowIdx, len(m.groups), m.paneIdx, len(m.currentGroup().PaneIndices), m.session, m.th, m.colourless)
 }
 
 // newFramePreviewModel constructs a single-window single-pane previewModel

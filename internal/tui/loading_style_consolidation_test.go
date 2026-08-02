@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // Task spectrum-tui-design-8-5 consolidation gate. loadingFg / loadingStyle were
@@ -24,22 +24,22 @@ import (
 
 // preLoadingFg reproduces the ORIGINAL loadingFg inline logic verbatim — the
 // golden the consolidation must preserve.
-func preLoadingFg(fg theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
+func preLoadingFg(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
 	return lipgloss.NewStyle().
-		Foreground(fg.ColorFor(mode)).
-		Background(theme.MV.Canvas.ColorFor(mode))
+		Foreground(fg.Color()).
+		Background(th.Canvas.Color())
 }
 
 // preLoadingStyle reproduces the ORIGINAL loadingStyle inline logic verbatim —
 // the golden the consolidation must preserve.
-func preLoadingStyle(mode theme.Mode, colourless bool) lipgloss.Style {
+func preLoadingStyle(th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
-	return lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(mode))
+	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
 // TestLoadingFg_DelegatesToHeaderStyle asserts the consolidated loadingFg renders
@@ -48,19 +48,20 @@ func preLoadingStyle(mode theme.Mode, colourless bool) lipgloss.Style {
 // modes × colourless on/off. Pins that loadingFg no longer re-implements the leaf
 // paint — it routes through the header helper.
 func TestLoadingFg_DelegatesToHeaderStyle(t *testing.T) {
-	tokens := []theme.Token{theme.MV.TextPrimary, theme.MV.AccentViolet, theme.MV.StateRed, theme.MV.TextFaint}
-	for _, tok := range tokens {
-		for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	roles := []string{"text.primary", "accent.primary", "state.destructive", "text.faint"}
+	for _, role := range roles {
+		for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+			tok := tokenNamed(t, th, role)
 			for _, colourless := range []bool{false, true} {
-				want := headerStyle(tok, mode, colourless).Render("probe")
-				if got := loadingFg(tok, mode, colourless).Render("probe"); got != want {
-					t.Errorf("loadingFg(tok=%s mode=%v col=%v) = %q, want headerStyle %q",
-						tok.Name, mode, colourless, got, want)
+				want := headerStyle(tok, th, colourless).Render("probe")
+				if got := loadingFg(tok, th, colourless).Render("probe"); got != want {
+					t.Errorf("loadingFg(tok=%s th=%v col=%v) = %q, want headerStyle %q",
+						tok.Name, themeLabel(th), colourless, got, want)
 				}
-				pre := preLoadingFg(tok, mode, colourless).Render("probe")
+				pre := preLoadingFg(tok, th, colourless).Render("probe")
 				if want != pre {
-					t.Errorf("headerStyle(tok=%s mode=%v col=%v) = %q drifts from pre-refactor loadingFg %q",
-						tok.Name, mode, colourless, want, pre)
+					t.Errorf("headerStyle(tok=%s th=%v col=%v) = %q drifts from pre-refactor loadingFg %q",
+						tok.Name, themeLabel(th), colourless, want, pre)
 				}
 			}
 		}
@@ -72,17 +73,17 @@ func TestLoadingFg_DelegatesToHeaderStyle(t *testing.T) {
 // source) AND to the original inline loadingStyle logic, across both modes ×
 // colourless on/off.
 func TestLoadingStyle_DelegatesToHeaderCanvasBg(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
-			want := headerCanvasBg(mode, colourless).Render("  ")
-			if got := loadingStyle(mode, colourless).Render("  "); got != want {
-				t.Errorf("loadingStyle(mode=%v col=%v) = %q, want headerCanvasBg %q",
-					mode, colourless, got, want)
+			want := headerCanvasBg(th, colourless).Render("  ")
+			if got := loadingStyle(th, colourless).Render("  "); got != want {
+				t.Errorf("loadingStyle(th=%v col=%v) = %q, want headerCanvasBg %q",
+					themeLabel(th), colourless, got, want)
 			}
-			pre := preLoadingStyle(mode, colourless).Render("  ")
+			pre := preLoadingStyle(th, colourless).Render("  ")
 			if want != pre {
-				t.Errorf("headerCanvasBg(mode=%v col=%v) = %q drifts from pre-refactor loadingStyle %q",
-					mode, colourless, want, pre)
+				t.Errorf("headerCanvasBg(th=%v col=%v) = %q drifts from pre-refactor loadingStyle %q",
+					themeLabel(th), colourless, want, pre)
 			}
 		}
 	}
@@ -102,11 +103,11 @@ func TestLoadingScreen_ByteIdenticalAcrossConsolidation(t *testing.T) {
 		"loading-error":  errorFrameView(),
 	}
 	for name, view := range frames {
-		for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-			modeName := map[theme.Mode]string{theme.Dark: "dark", theme.Light: "light"}[mode]
+		for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+			modeName := map[theme.Theme]string{testDarkTheme(t): "dark", testLightTheme(t): "light"}[th]
 			for _, colourless := range []bool{false, true} {
 				want := loadingScreenGoldens[goldenKey{name, modeName, colourless}]
-				got := renderLoadingScreen(view, w, h, mode, colourless)
+				got := renderLoadingScreen(view, w, h, th, colourless)
 				if got != want {
 					t.Errorf("[%s %s col=%v] loading render drifted from pre-refactor golden\n got: %q\nwant: %q",
 						name, modeName, colourless, ansi.Strip(got), ansi.Strip(want))
@@ -118,7 +119,7 @@ func TestLoadingScreen_ByteIdenticalAcrossConsolidation(t *testing.T) {
 
 type goldenKey struct {
 	frame      string
-	mode       string
+	th         string
 	colourless bool
 }
 

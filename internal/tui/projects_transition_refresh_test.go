@@ -14,8 +14,10 @@ import (
 // lister to dispatch its re-group refresh against. projects seeds the cached
 // project records (consulted by the mode-aware re-render path) and mode sets
 // the active grouping mode.
-func newProjectsTransitionModel(lister SessionLister, projects []project.Project, mode prefs.SessionListMode) Model {
+func newProjectsTransitionModel(t *testing.T, lister SessionLister, projects []project.Project, mode prefs.SessionListMode) Model {
+	t.Helper()
 	m := Model{
+		activeTheme:     testDarkTheme(t),
 		projects:        projects,
 		projectIndex:    project.NewIndex(projects),
 		projectList:     newProjectList(),
@@ -50,7 +52,7 @@ func TestProjectsTransitionDispatchesRefresh(t *testing.T) {
 			lister := &stepListerStub{steps: [][]tmux.Session{{
 				{Name: "alpha", Windows: 1, Attached: false},
 			}}}
-			m := newProjectsTransitionModel(lister, nil, prefs.ModeFlat)
+			m := newProjectsTransitionModel(t, lister, nil, prefs.ModeFlat)
 
 			got, cmd := pressProjectsKey(t, m, key)
 
@@ -84,7 +86,7 @@ func TestProjectsTransitionRegroupsWithUpdatedTags(t *testing.T) {
 		{Name: "alpha", Windows: 1, Attached: false, Dir: "/p/one"},
 	}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := newProjectsTransitionModel(lister, projects, prefs.ModeByTag)
+	m := newProjectsTransitionModel(t, lister, projects, prefs.ModeByTag)
 
 	got, cmd := pressProjectsKey(t, m, 'x')
 	if cmd == nil {
@@ -123,7 +125,7 @@ func TestProjectsTransitionToleratesNilLister(t *testing.T) {
 	// §12.2: only x toggles the page now (the s alias is dropped).
 	for _, key := range []rune{'x'} {
 		t.Run(string(key), func(t *testing.T) {
-			m := newProjectsTransitionModel(nil, nil, prefs.ModeFlat)
+			m := newProjectsTransitionModel(t, nil, nil, prefs.ModeFlat)
 
 			got, cmd := pressProjectsKey(t, m, key)
 
@@ -143,7 +145,7 @@ func TestProjectsTransitionPreservesCommandPendingGuard(t *testing.T) {
 			lister := &stepListerStub{steps: [][]tmux.Session{{
 				{Name: "alpha", Windows: 1, Attached: false},
 			}}}
-			m := newProjectsTransitionModel(lister, nil, prefs.ModeFlat)
+			m := newProjectsTransitionModel(t, lister, nil, prefs.ModeFlat)
 			m.commandPending = true
 
 			got, cmd := pressProjectsKey(t, m, key)
@@ -168,7 +170,7 @@ func TestProjectsNonTransitionKeyDoesNotRefresh(t *testing.T) {
 	lister := &stepListerStub{steps: [][]tmux.Session{{
 		{Name: "alpha", Windows: 1, Attached: false},
 	}}}
-	m := newProjectsTransitionModel(lister, nil, prefs.ModeFlat)
+	m := newProjectsTransitionModel(t, lister, nil, prefs.ModeFlat)
 
 	got, cmd := pressProjectsKey(t, m, '?')
 

@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // projectNameBase carries the project name's NON-colour attribute (heavy/bold);
@@ -41,16 +41,16 @@ func (i ProjectItem) FilterValue() string {
 // bg.selection tint, with the name in text.on-selection and the path in
 // text.muted-bright; unselected rows carry neither bar nor tint.
 //
-// Mode is the resolved canvas appearance (§1): every run the delegate emits is
-// painted with the §2.9 role-token FOREGROUND resolved for this Mode over a
-// Background (canvas on a normal row, bg.selection on the selected row) for this
-// Mode, so each row reads correctly on the resolved canvas with no terminal-bg
-// island behind the styled text. The zero value is theme.Dark, so a bare
-// ProjectDelegate{} (the value used across the existing unit tests) paints the dark
-// canvas it was tuned for; the model sets Mode from its resolved canvasMode in
-// applyCanvasMode. Mirrors SessionDelegate.
+// Theme is the ACTIVE PALETTE (§3.4): every run the delegate emits is painted
+// with a role-token FOREGROUND from this theme over a Background (canvas on a
+// normal row, bg.selection on the selected row) from the same theme, so each row
+// reads correctly against the theme's own canvas with no terminal-bg island
+// behind the styled text. The model re-points it from its active theme in
+// applyProjectCanvasMode on every restyle, so it never caches a stale palette. A
+// zero-value Theme renders colourlessly through lipgloss.Color("")'s no-colour
+// sentinel. Mirrors SessionDelegate.
 type ProjectDelegate struct {
-	Mode theme.Mode
+	Theme theme.Theme
 	// Colourless is the NO_COLOR carve-out (§2.5): when set, the delegate paints NO
 	// canvas/selection background and NO foreground hue — every run renders on the
 	// terminal's native fg/bg. The two-line structure and the ▌ bar glyph are
@@ -75,16 +75,16 @@ func (d ProjectDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 // canvas (or a bare style under the NO_COLOR carve-out). Shared with
 // SessionDelegate so the selection-vs-canvas colour role lives in one place.
 func (d ProjectDelegate) rowBg(selected bool) lipgloss.Style {
-	return rowBgStyle(d.Mode, selected, d.Colourless)
+	return rowBgStyle(d.Theme, selected, d.Colourless)
 }
 
 // rowToken delegates to the shared rowTokenStyle free function (session_item.go),
 // binding the delegate's Mode and Colourless — base with the role token's
-// mode-resolved FOREGROUND over the row's background (bg.selection on the
+// FOREGROUND over the row's background (bg.selection on the
 // selected row, canvas otherwise; base unchanged under the NO_COLOR carve-out).
 // Shared with SessionDelegate.
 func (d ProjectDelegate) rowToken(base lipgloss.Style, fg theme.Token, selected bool) lipgloss.Style {
-	return rowTokenStyle(base, fg, d.Mode, selected, d.Colourless)
+	return rowTokenStyle(base, fg, d.Theme, selected, d.Colourless)
 }
 
 // Render renders a project item as two lines: the name (text.primary, heavy) on
@@ -111,11 +111,11 @@ func (d ProjectDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	// Name — text.primary (selected: text.on-selection), heavy. Path — text.detail
 	// (selected: text.muted-bright, the §2.9 path-on-selection token), dim.
-	nameTok := theme.MV.TextPrimary
-	pathTok := theme.MV.TextDetail
+	nameTok := d.Theme.TextPrimary
+	pathTok := d.Theme.TextMuted
 	if selected {
-		nameTok = theme.MV.TextOnSelection
-		pathTok = theme.MV.TextMutedBright
+		nameTok = d.Theme.TextOnSelection
+		pathTok = d.Theme.TextTertiary
 	}
 
 	line1 := d.renderRowLine(m, selected, d.rowToken(projectNameBase, nameTok, selected), pi.Project.Name)
@@ -138,7 +138,7 @@ func (d ProjectDelegate) renderRowLine(m list.Model, selected bool, textStyle li
 	// row, two blank cells otherwise — a fixed 2-cell column keeping the text at the
 	// same left edge whether or not the row is selected. Shared with the Session
 	// delegate via renderLeftBarColumn.
-	bar := renderLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, theme.MV.AccentViolet, true), selected)
+	bar := renderLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, d.Theme.AccentPrimary, true), selected)
 
 	// Flex text column. When the list has not been sized yet (Width() == 0, a
 	// directly-constructed model that renders before its first WindowSizeMsg) there

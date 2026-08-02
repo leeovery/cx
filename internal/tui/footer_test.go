@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // referenceFooterWidth is a content width wide enough that the §3.4 condensed
@@ -29,7 +29,7 @@ func footerVisible(s string) string {
 // lines (the 1px border.footer top rule + the single key row), so the key row is
 // the LAST line — the ? help must sit at its right edge.
 func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
-	footer := renderSessionsFooter(referenceFooterWidth, theme.Dark, false)
+	footer := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("condensed footer must be 2 rows (rule + key row), got %d:\n%s", len(lines), footer)
@@ -76,38 +76,32 @@ func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
 func TestSessionsFooter_TokenColours(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			footer := renderSessionsFooter(referenceFooterWidth, tc.mode, false)
+			footer := renderSessionsFooter(referenceFooterWidth, tc.th, false)
 
 			// Left-cluster key glyphs: accent.blue.
-			if seq := tokenFgSeq(t, theme.MV.AccentBlue, tc.mode); !strings.Contains(footer, seq) {
+			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing accent.blue key-glyph role sequence %q", seq)
 			}
 			// Labels (and separators): text.detail.
-			if seq := tokenFgSeq(t, theme.MV.TextDetail, tc.mode); !strings.Contains(footer, seq) {
+			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing text.detail label role sequence %q", seq)
 			}
 			// The ? glyph: accent.violet.
-			if seq := tokenFgSeq(t, theme.MV.AccentViolet, tc.mode); !strings.Contains(footer, seq) {
+			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing accent.violet ? role sequence %q", seq)
 			}
-			// The 1px top rule: border.footer (NOT border.separator).
-			if seq := tokenFgSeq(t, theme.MV.BorderFooter, tc.mode); !strings.Contains(footer, seq) {
-				t.Errorf("footer missing border.footer rule role sequence %q", seq)
-			}
-			// The footer rule must use border.footer, not the 2px header border.separator.
-			// The two tokens are DISTINCT in dark mode (separator #292E42 ≠ footer #20232E)
-			// but coincide in light mode (#C9CDDB), so the negative assertion only
-			// discriminates in dark — assert there.
-			if tc.mode == theme.Dark {
-				if seq := tokenFgSeq(t, theme.MV.BorderSeparator, tc.mode); strings.Contains(footer, seq) {
-					t.Errorf("footer must NOT use the 2px border.separator token (that is the header rule); found %q", seq)
-				}
+			// The 1px top rule: THE border token. §2.2 dropped border.footer, so the
+			// footer rule renders with the same token as the title rule — the one
+			// intended render delta of the consolidation (in dark it moves from
+			// #20232E to #292E42).
+			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(footer, seq) {
+				t.Errorf("footer missing the border rule role sequence %q", seq)
 			}
 		})
 	}
@@ -118,8 +112,8 @@ func TestSessionsFooter_TokenColours(t *testing.T) {
 // by the left-cluster key glyphs. The ? glyph SGR run must carry the violet
 // foreground, and there must be no accent.blue run on the "?" glyph itself.
 func TestSessionsFooter_HelpGlyphIsViolet(t *testing.T) {
-	footer := renderSessionsFooter(referenceFooterWidth, theme.Dark, false)
-	violet := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark)
+	footer := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
+	violet := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 
 	// Locate the "?" glyph in the styled string; the immediately-preceding SGR run
 	// opening must be the accent.violet foreground.
@@ -143,7 +137,7 @@ func TestSessionsFooter_HelpGlyphIsViolet(t *testing.T) {
 // TestSessionsFooter_OmitsHelpOnlyKeys asserts n/r/k/q and the Ctrl+↑/↓ paging
 // entry are NOT in the footer — they are help-only (the ? help modal, Phase 3).
 func TestSessionsFooter_OmitsHelpOnlyKeys(t *testing.T) {
-	footer := footerVisible(renderSessionsFooter(referenceFooterWidth, theme.Dark, false))
+	footer := footerVisible(renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false))
 	for _, banned := range []string{"new in cwd", "rename", "kill", "quit", "page", "Ctrl"} {
 		if strings.Contains(footer, banned) {
 			t.Errorf("footer must NOT show the help-only entry %q (it lives in ? help):\n%s", banned, footer)
@@ -156,7 +150,7 @@ func TestSessionsFooter_OmitsHelpOnlyKeys(t *testing.T) {
 // the footer shows exactly the descriptor's Core entries (by label) and nothing
 // that is not a Core descriptor entry.
 func TestSessionsFooter_SourcedFromKeymapDescriptor(t *testing.T) {
-	footer := footerVisible(renderSessionsFooter(referenceFooterWidth, theme.Dark, false))
+	footer := footerVisible(renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false))
 
 	for _, e := range sessionsKeymap() {
 		shown := strings.Contains(footer, e.Action)
@@ -189,7 +183,7 @@ func TestSessionsFooter_SourcedFromKeymapDescriptor(t *testing.T) {
 // (§2.5): a colourless footer carries no canvas background SGR and no foreground
 // hue — it renders on the terminal's native fg/bg, the glyphs structurally intact.
 func TestSessionsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
-	footer := renderSessionsFooter(referenceFooterWidth, theme.Dark, true)
+	footer := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), true)
 
 	// Structure preserved: every Core entry + the ? help still print.
 	vis := footerVisible(footer)
@@ -199,14 +193,14 @@ func TestSessionsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 		}
 	}
 	// No canvas background painted.
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(footer, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(footer, seq) {
 		t.Errorf("colourless footer still paints the canvas background sequence %q", seq)
 	}
 	// No foreground hue from any footer role (incl. the ? violet and the rule).
 	for _, tok := range []theme.Token{
-		theme.MV.AccentBlue, theme.MV.TextDetail, theme.MV.AccentViolet, theme.MV.BorderFooter,
+		testDarkTheme(t).AccentKey, testDarkTheme(t).TextMuted, testDarkTheme(t).AccentPrimary, testDarkTheme(t).Border,
 	} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(footer, seq) {
+		if seq := tokenFgSeq(t, tok); strings.Contains(footer, seq) {
 			t.Errorf("colourless footer still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -216,9 +210,9 @@ func TestSessionsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 // owned canvas background (leaf .Background(canvas)) so the right-aligned spacer
 // gap is not a terminal-bg island.
 func TestSessionsFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		footer := renderSessionsFooter(referenceFooterWidth, mode, false)
-		if seq := canvasSeq(t, mode); !strings.Contains(footer, seq) {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		footer := renderSessionsFooter(referenceFooterWidth, th, false)
+		if seq := canvasSeq(t, th); !strings.Contains(footer, seq) {
 			t.Errorf("footer does not paint the canvas background sequence %q:\n%s", seq, footer)
 		}
 	}
@@ -231,7 +225,7 @@ func TestSessionsFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
 // right anchor survives as long as possible.
 func TestSessionsFooter_NarrowTruncationNoWrap(t *testing.T) {
 	for _, w := range []int{90, 76, 60, 40, 24, 12} {
-		footer := renderSessionsFooter(w, theme.Dark, false)
+		footer := renderSessionsFooter(w, testDarkTheme(t), false)
 		lines := strings.Split(footer, "\n")
 		// Always exactly 2 rows: the rule + ONE key row. Never a third (wrapped) row.
 		if len(lines) != 2 {
@@ -260,7 +254,7 @@ func TestSessionsFooter_NarrowTruncationNoWrap(t *testing.T) {
 // view…) drop first, with an ellipsis marking the truncation.
 func TestSessionsFooter_NarrowTruncationKeepsHighestPriority(t *testing.T) {
 	// A width that fits a few leading entries + the ? help but not the full cluster.
-	footer := footerVisible(renderSessionsFooter(60, theme.Dark, false))
+	footer := footerVisible(renderSessionsFooter(60, testDarkTheme(t), false))
 	if !strings.Contains(footer, "↑↓ navigate") {
 		t.Errorf("highest-priority entry 'navigate' must survive truncation:\n%s", footer)
 	}
@@ -287,7 +281,7 @@ func TestSessionsFooterHeight_SubtractedFromListBudget(t *testing.T) {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
 
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -320,7 +314,7 @@ func TestSessionsFooterHeight_CountedAtEverySizeApplySite(t *testing.T) {
 
 	// Construction seed (New → applySessionListSize(80,24)) then a resize, then a
 	// rebuild.
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m = updated.(Model)
 	m.applySessions(sessions)

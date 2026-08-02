@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // This file is the §7 / §7.1 / §7.2 filtering-reskin gate (task 2-8). It pins the
@@ -35,7 +35,7 @@ const filteringReskinHeight = 40
 // mode, sized for rendering, loaded with the deterministic fab* session set
 // through the production applySessions path. The fab* names mirror the committed
 // Paper references so the rendered query matches "fab" filtering.
-func filteringTestModel(t *testing.T, mode theme.Mode) Model {
+func filteringTestModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	sessions := []tmux.Session{
 		{Name: "fab-flowx-explore", Windows: 2, Attached: true},
@@ -44,7 +44,7 @@ func filteringTestModel(t *testing.T, mode theme.Mode) Model {
 		{Name: "other-session", Windows: 1, Attached: false},
 	}
 	appearance := prefs.AppearanceDark
-	if mode == theme.Light {
+	if th == testLightTheme(t) {
 		appearance = prefs.AppearanceLight
 	}
 	m := Build(Deps{Lister: fakeLister{}, Appearance: appearance})
@@ -95,9 +95,9 @@ func pressSlash(t *testing.T, m Model) Model {
 
 // enterInputActive drives the model into the input-active state with the query
 // "fab" typed (cursor at end). The list is in Filtering.
-func enterInputActive(t *testing.T, mode theme.Mode) Model {
+func enterInputActive(t *testing.T, th theme.Theme) Model {
 	t.Helper()
-	m := filteringTestModel(t, mode)
+	m := filteringTestModel(t, th)
 	m = pressSlash(t, m)
 	m = typeKeys(t, m, "fab")
 	if m.sessionList.FilterState() != list.Filtering {
@@ -108,9 +108,9 @@ func enterInputActive(t *testing.T, mode theme.Mode) Model {
 
 // enterListActive drives the model into the list-active state: query "fab" typed,
 // then Enter to commit Filtering→FilterApplied (locked query, selectable rows).
-func enterListActive(t *testing.T, mode theme.Mode) Model {
+func enterListActive(t *testing.T, th theme.Theme) Model {
 	t.Helper()
-	m := enterInputActive(t, mode)
+	m := enterInputActive(t, th)
 	var model tea.Model = m
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	out := model.(Model)
@@ -124,21 +124,21 @@ func enterListActive(t *testing.T, mode theme.Mode) Model {
 // `/` prompt and the query text render in accent.orange. Pinned in exact
 // mode-resolved SGR so a token swap is caught.
 func TestFiltering_InputActiveQueryOrange(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := enterInputActive(t, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := enterInputActive(t, th)
 		view := m.View().Content
 
-		orange := tokenFgSeq(t, theme.MV.AccentOrange, mode)
+		orange := tokenFgSeq(t, th.AccentAttention)
 		if !strings.Contains(view, orange) {
-			t.Errorf("[%v] input-active view missing accent.orange filter SGR %q:\n%s", mode, orange, ansi.Strip(view))
+			t.Errorf("[%v] input-active view missing accent.orange filter SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(view))
 		}
 		// The visible query + `/` prefix are present in the rendered frame.
 		vis := ansi.Strip(view)
 		if !strings.Contains(vis, "/") {
-			t.Errorf("[%v] input-active view missing the `/` prefix:\n%s", mode, vis)
+			t.Errorf("[%v] input-active view missing the `/` prefix:\n%s", themeLabel(th), vis)
 		}
 		if !strings.Contains(vis, "fab") {
-			t.Errorf("[%v] input-active view missing the live query %q:\n%s", mode, "fab", vis)
+			t.Errorf("[%v] input-active view missing the live query %q:\n%s", themeLabel(th), "fab", vis)
 		}
 	}
 }
@@ -148,22 +148,22 @@ func TestFiltering_InputActiveQueryOrange(t *testing.T) {
 // cursor sits at end-of-text in the filter input instead (the input owns the
 // cursor; the list owns no selected row).
 func TestFiltering_InputActiveNoRowSelected(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := enterInputActive(t, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := enterInputActive(t, th)
 		view := m.View().Content
 
 		// No bg.selection tint may appear anywhere in the input-active frame — the
 		// definitive "no row selected" signal (the §3.3 selected-row band).
-		selBg := selectionBgParams(t, mode)
+		selBg := selectionBgParams(t, th)
 		if strings.Contains(view, selBg) {
-			t.Errorf("[%v] input-active frame must NOT paint a selected row (bg.selection %q present):\n%s", mode, selBg, escSeq(view))
+			t.Errorf("[%v] input-active frame must NOT paint a selected row (bg.selection %q present):\n%s", themeLabel(th), selBg, escSeq(view))
 		}
 		// And no violet selector bar glyph on a SESSION ROW (the §3.3 selection
 		// signal). The header wordmark also uses the ▌ caret, so scope the check to
 		// lines that carry a fab* session name — no such line may lead with the bar.
 		for line := range strings.SplitSeq(ansi.Strip(view), "\n") {
 			if strings.Contains(line, "fab") && strings.Contains(line, selectorBar) {
-				t.Errorf("[%v] input-active session row must NOT render the selector bar %q while typing:\n%s", mode, selectorBar, line)
+				t.Errorf("[%v] input-active session row must NOT render the selector bar %q while typing:\n%s", themeLabel(th), selectorBar, line)
 			}
 		}
 	}
@@ -173,7 +173,7 @@ func TestFiltering_InputActiveNoRowSelected(t *testing.T) {
 // `type to filter · ↵/↓ browse results · esc clear`, replacing the standard
 // condensed footer.
 func TestFiltering_InputActiveFooter(t *testing.T) {
-	m := enterInputActive(t, theme.Dark)
+	m := enterInputActive(t, testDarkTheme(t))
 	view := ansi.Strip(m.View().Content)
 
 	for _, want := range []string{"type to filter", "browse results", "esc clear"} {
@@ -191,17 +191,17 @@ func TestFiltering_InputActiveFooter(t *testing.T) {
 // filter-specific action word reads in accent.orange, the nav glyphs in
 // accent.blue, the labels in text.detail.
 func TestFiltering_InputActiveFooterColours(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		footer := renderFilteringFooter(filteringReskinWidth, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		footer := renderFilteringFooter(filteringReskinWidth, th, false)
 
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] input-active footer missing accent.orange action-word SGR %q", mode, seq)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] input-active footer missing accent.orange action-word SGR %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.AccentBlue, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] input-active footer missing accent.blue nav-glyph SGR %q", mode, seq)
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] input-active footer missing accent.blue nav-glyph SGR %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] input-active footer missing text.detail label SGR %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] input-active footer missing text.detail label SGR %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -210,17 +210,17 @@ func TestFiltering_InputActiveFooterColours(t *testing.T) {
 // (list-active) the query renders as a locked accent.orange `/ query` with NO
 // cursor — the cursor-less locked query signals the list is filtered.
 func TestFiltering_ListActiveLockedQueryOrange(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := enterListActive(t, mode)
-		header := renderFilterQueryHeader(m.sessionList.FilterValue(), filteringReskinWidth, mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := enterListActive(t, th)
+		header := renderFilterQueryHeader(m.sessionList.FilterValue(), filteringReskinWidth, th, false)
 
-		orange := tokenFgSeq(t, theme.MV.AccentOrange, mode)
+		orange := tokenFgSeq(t, th.AccentAttention)
 		if !strings.Contains(header, orange) {
-			t.Errorf("[%v] list-active locked query missing accent.orange SGR %q:\n%s", mode, orange, ansi.Strip(header))
+			t.Errorf("[%v] list-active locked query missing accent.orange SGR %q:\n%s", themeLabel(th), orange, ansi.Strip(header))
 		}
 		vis := ansi.Strip(header)
 		if !strings.Contains(vis, "/ fab") {
-			t.Errorf("[%v] list-active locked query = %q, want it to contain %q", mode, vis, "/ fab")
+			t.Errorf("[%v] list-active locked query = %q, want it to contain %q", themeLabel(th), vis, "/ fab")
 		}
 	}
 }
@@ -229,19 +229,19 @@ func TestFiltering_ListActiveLockedQueryOrange(t *testing.T) {
 // IS selected (the §3.3 violet bar + bg.selection band) but the filter input
 // itself carries NO background tint.
 func TestFiltering_ListActiveSelectedRowNoInputTint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := enterListActive(t, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := enterListActive(t, th)
 		view := m.View().Content
-		selBg := selectionBgParams(t, mode)
+		selBg := selectionBgParams(t, th)
 
 		// A row IS selected — the bg.selection band must be present somewhere.
 		if !strings.Contains(view, selBg) {
-			t.Errorf("[%v] list-active frame must paint a selected row (bg.selection %q absent):\n%s", mode, selBg, escSeq(view))
+			t.Errorf("[%v] list-active frame must paint a selected row (bg.selection %q absent):\n%s", themeLabel(th), selBg, escSeq(view))
 		}
 		// The locked query header itself carries no bg.selection tint.
-		header := renderFilterQueryHeader(m.sessionList.FilterValue(), filteringReskinWidth, mode, false)
+		header := renderFilterQueryHeader(m.sessionList.FilterValue(), filteringReskinWidth, th, false)
 		if strings.Contains(header, selBg) {
-			t.Errorf("[%v] list-active filter input must have NO bg tint (bg.selection %q present):\n%s", mode, selBg, escSeq(header))
+			t.Errorf("[%v] list-active filter input must have NO bg tint (bg.selection %q present):\n%s", themeLabel(th), selBg, escSeq(header))
 		}
 	}
 }
@@ -249,7 +249,7 @@ func TestFiltering_ListActiveSelectedRowNoInputTint(t *testing.T) {
 // TestFiltering_ListActiveFooter asserts §7.1: the list-active footer reads
 // `↵ attach · ↑↓ navigate · esc clear filter`.
 func TestFiltering_ListActiveFooter(t *testing.T) {
-	m := enterListActive(t, theme.Dark)
+	m := enterListActive(t, testDarkTheme(t))
 	view := ansi.Strip(m.View().Content)
 
 	for _, want := range []string{"attach", "navigate", "esc clear filter"} {
@@ -262,10 +262,10 @@ func TestFiltering_ListActiveFooter(t *testing.T) {
 // TestFiltering_ListActiveFooterClearIsOrange asserts §7.1: the `esc` clear-filter
 // key reads accent.orange in the list-active footer.
 func TestFiltering_ListActiveFooterClearIsOrange(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		footer := renderFilterAppliedFooter(filteringReskinWidth, mode, false)
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(footer, seq) {
-			t.Errorf("[%v] list-active footer `esc` clear-filter key missing accent.orange SGR %q", mode, seq)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		footer := renderFilterAppliedFooter(filteringReskinWidth, th, false)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(footer, seq) {
+			t.Errorf("[%v] list-active footer `esc` clear-filter key missing accent.orange SGR %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -282,7 +282,7 @@ func TestFiltering_EnterOrDownCommitsInputToList(t *testing.T) {
 		{"down", tea.KeyPressMsg{Code: tea.KeyDown}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := enterInputActive(t, theme.Dark)
+			m := enterInputActive(t, testDarkTheme(t))
 			var model tea.Model = m
 			model, _ = model.Update(tc.key)
 			out := model.(Model)
@@ -297,7 +297,7 @@ func TestFiltering_EnterOrDownCommitsInputToList(t *testing.T) {
 // BOTH the input-active and list-active modes (parity with the engine).
 func TestFiltering_EscClearsFromEitherMode(t *testing.T) {
 	t.Run("from input-active", func(t *testing.T) {
-		m := enterInputActive(t, theme.Dark)
+		m := enterInputActive(t, testDarkTheme(t))
 		var model tea.Model = m
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 		out := model.(Model)
@@ -306,7 +306,7 @@ func TestFiltering_EscClearsFromEitherMode(t *testing.T) {
 		}
 	})
 	t.Run("from list-active", func(t *testing.T) {
-		m := enterListActive(t, theme.Dark)
+		m := enterListActive(t, testDarkTheme(t))
 		var model tea.Model = m
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 		out := model.(Model)
@@ -321,7 +321,7 @@ func TestFiltering_EscClearsFromEitherMode(t *testing.T) {
 // This is preserved, not changed — a query removes every HeaderItem from the
 // visible set.
 func TestFiltering_TypingFlattensGroupedView(t *testing.T) {
-	m := filteringTestModel(t, theme.Dark)
+	m := filteringTestModel(t, testDarkTheme(t))
 	// Switch to a grouped mode so HeaderItems are present pre-filter.
 	m.sessionListMode = prefs.ModeByProject
 	(&m).rebuildSessionList()
@@ -352,7 +352,7 @@ func TestFiltering_TypingFlattensGroupedView(t *testing.T) {
 // character while input-active — it appends to the query rather than cycling the
 // grouping mode. The dispatch case sits below the SettingFilter() guard (task 2-1).
 func TestFiltering_SLiteralWhileInputActive(t *testing.T) {
-	m := filteringTestModel(t, theme.Dark)
+	m := filteringTestModel(t, testDarkTheme(t))
 	startMode := m.sessionListMode
 	m = pressSlash(t, m)
 	m = typeKeys(t, m, "s")
@@ -370,14 +370,14 @@ func TestFiltering_SLiteralWhileInputActive(t *testing.T) {
 // stays suppressed.
 func TestFiltering_NoMatchCountShown(t *testing.T) {
 	t.Run("input-active", func(t *testing.T) {
-		m := enterInputActive(t, theme.Dark)
+		m := enterInputActive(t, testDarkTheme(t))
 		vis := ansi.Strip(m.View().Content)
 		if strings.Contains(vis, "filtered") || strings.Contains(vis, "matched") {
 			t.Errorf("input-active frame shows a match-count:\n%s", vis)
 		}
 	})
 	t.Run("list-active", func(t *testing.T) {
-		m := enterListActive(t, theme.Dark)
+		m := enterListActive(t, testDarkTheme(t))
 		vis := ansi.Strip(m.View().Content)
 		if strings.Contains(vis, "filtered") || strings.Contains(vis, "matched") {
 			t.Errorf("list-active frame shows a match-count:\n%s", vis)

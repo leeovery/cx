@@ -48,7 +48,7 @@ func TestPreviewAttachBailFlipsToPageSessions(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	got, _ := pressSpaceThenBail(t, m, "alpha")
 
@@ -61,7 +61,7 @@ func TestPreviewAttachBailZerosPreviewModel(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	got, _ := pressSpaceThenBail(t, m, "alpha")
 
@@ -80,7 +80,7 @@ func TestPreviewAttachBailDispatchesRefreshCmd(t *testing.T) {
 	reader := &recordingReader{bytes: []byte("hi")}
 	postKill := []tmux.Session{{Name: "bravo", Windows: 1, Attached: false}}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	_, cmd := pressSpaceThenBail(t, m, "alpha")
 
@@ -116,7 +116,7 @@ func TestPreviewAttachBailPreservesSessionNameFromMessage(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	_, cmd := pressSpaceThenBail(t, m, "bravo")
 
@@ -145,7 +145,7 @@ func TestPreviewAttachBailNoListerStillEmitsTickCleanly(t *testing.T) {
 	sessions := []tmux.Session{{Name: "alpha", Windows: 1, Attached: false}}
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader) // no lister wired
+	m := modelWithSeams(t, sessions, enum, reader) // no lister wired
 
 	got, cmd := pressSpaceThenBail(t, m, "alpha")
 
@@ -174,7 +174,7 @@ func TestPreviewAttachBailToleratesListerErrorSilently(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{err: errors.New("boom")}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 
 	got, cmd := pressSpaceThenBail(t, m, "alpha")
 	if cmd == nil {
@@ -212,7 +212,7 @@ func TestPreviewAttachBailEmptySessionNameStillTransitions(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, cmd := pressSpaceThenBail(t, m, "")
 
@@ -243,7 +243,7 @@ func TestEscDismissPathUnchangedAfterBailHandlerAdded(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
 

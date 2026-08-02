@@ -31,8 +31,10 @@ var keyS = tea.KeyPressMsg{Code: 's', Text: "s"}
 
 // newSwitchViewTestModel builds a Model on the sessions page with a real
 // session list, the supplied mode + persister, and the given sessions/projects.
-func newSwitchViewTestModel(mode prefs.SessionListMode, persister ModePersister, sessions []tmux.Session, projects []project.Project) Model {
+func newSwitchViewTestModel(t *testing.T, mode prefs.SessionListMode, persister ModePersister, sessions []tmux.Session, projects []project.Project) Model {
+	t.Helper()
 	m := Model{
+		activeTheme:     testDarkTheme(t),
 		sessions:        sessions,
 		projects:        projects,
 		projectIndex:    project.NewIndex(projects),
@@ -68,7 +70,7 @@ func TestNextSessionListMode(t *testing.T) {
 func TestSwitchViewKey(t *testing.T) {
 	t.Run("cycles Flat to By Project to By Tag to Flat on successive s presses", func(t *testing.T) {
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
 
 		want := []prefs.SessionListMode{prefs.ModeByProject, prefs.ModeByTag, prefs.ModeFlat}
 		var cur tea.Model = m
@@ -83,7 +85,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 	t.Run("cycles unconditionally with zero live sessions", func(t *testing.T) {
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
 
 		updated, _ := m.Update(keyS)
 		if got := updated.(Model).sessionListMode; got != prefs.ModeByProject {
@@ -103,7 +105,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 		// Start in By Project; pressing s advances into By Tag even though no
 		// tags exist anywhere.
-		m := newSwitchViewTestModel(prefs.ModeByProject, persister, sessions, projects)
+		m := newSwitchViewTestModel(t, prefs.ModeByProject, persister, sessions, projects)
 
 		updated, _ := m.Update(keyS)
 		if got := updated.(Model).sessionListMode; got != prefs.ModeByTag {
@@ -113,7 +115,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 	t.Run("persists the new mode exactly once per s press", func(t *testing.T) {
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
 
 		updated, _ := m.Update(keyS)
 		if persister.calls != 1 {
@@ -135,7 +137,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 	t.Run("does not persist on a SessionsMsg refresh", func(t *testing.T) {
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeByProject, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeByProject, persister, nil, nil)
 
 		m.Update(SessionsMsg{Sessions: nil})
 		if persister.calls != 0 {
@@ -145,7 +147,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 	t.Run("treats s as a literal filter character while the filter input is focused", func(t *testing.T) {
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
 		// Drive the list into the actively-filtering state so SettingFilter() is true.
 		m.sessionList.SetFilterState(list.Filtering)
 
@@ -160,7 +162,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 	t.Run("advances the mode even when persistence fails", func(t *testing.T) {
 		persister := &fakeModePersister{saveErr: errors.New("disk full")}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
 
 		updated, _ := m.Update(keyS)
 		if got := updated.(Model).sessionListMode; got != prefs.ModeByProject {
@@ -172,7 +174,7 @@ func TestSwitchViewKey(t *testing.T) {
 	})
 
 	t.Run("tolerates a nil persister", func(t *testing.T) {
-		m := newSwitchViewTestModel(prefs.ModeFlat, nil, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, nil, nil, nil)
 
 		updated, _ := m.Update(keyS)
 		if got := updated.(Model).sessionListMode; got != prefs.ModeByProject {
@@ -188,7 +190,7 @@ func TestSwitchViewKey(t *testing.T) {
 
 		// Flat → By Project: after the press, a Portal header row leads the
 		// single session row.
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, sessions, projects)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, sessions, projects)
 
 		updated, _ := m.Update(keyS)
 		mm := updated.(Model)
@@ -214,7 +216,7 @@ func TestSwitchViewKey(t *testing.T) {
 			sessions = append(sessions, tmux.Session{Name: fmt.Sprintf("sess-%02d", i)})
 		}
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, sessions, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, sessions, nil)
 
 		if m.sessionList.Paginator.TotalPages < 2 {
 			t.Fatalf("test setup: want >1 page, got %d", m.sessionList.Paginator.TotalPages)

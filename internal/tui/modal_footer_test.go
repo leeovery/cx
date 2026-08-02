@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The golden strings below were CAPTURED from the PRE-refactor render functions (the
@@ -72,23 +72,23 @@ func TestRenderKeyHint(t *testing.T) {
 		key        string
 		label      string
 		keyTok     theme.Token
-		mode       theme.Mode
+		th         theme.Theme
 		colourless bool
 		want       string
 	}{
-		{"normal/dark/colour", "y", "kill", theme.MV.AccentBlue, theme.Dark, false, goldenKeyHintYKillDark},
-		{"normal/light/colour", "y", "kill", theme.MV.AccentBlue, theme.Light, false, goldenKeyHintYKillLight},
-		{"normal/dark/colourless", "y", "kill", theme.MV.AccentBlue, theme.Dark, true, goldenKeyHintYKillNoCol},
-		{"normal/light/colourless", "y", "kill", theme.MV.AccentBlue, theme.Light, true, goldenKeyHintYKillNoCol},
+		{"normal/dark/colour", "y", "kill", testDarkTheme(t).AccentKey, testDarkTheme(t), false, goldenKeyHintYKillDark},
+		{"normal/light/colour", "y", "kill", testLightTheme(t).AccentKey, testLightTheme(t), false, goldenKeyHintYKillLight},
+		{"normal/dark/colourless", "y", "kill", testDarkTheme(t).AccentKey, testDarkTheme(t), true, goldenKeyHintYKillNoCol},
+		{"normal/light/colourless", "y", "kill", testLightTheme(t).AccentKey, testLightTheme(t), true, goldenKeyHintYKillNoCol},
 
-		{"empty/dark/colour", "", "empty on save = delete", theme.MV.AccentBlue, theme.Dark, false, goldenKeyHintEmptyDark},
-		{"empty/light/colour", "", "empty on save = delete", theme.MV.AccentBlue, theme.Light, false, goldenKeyHintEmptyLight},
-		{"empty/dark/colourless", "", "empty on save = delete", theme.MV.AccentBlue, theme.Dark, true, goldenKeyHintEmptyNoCol},
-		{"empty/light/colourless", "", "empty on save = delete", theme.MV.AccentBlue, theme.Light, true, goldenKeyHintEmptyNoCol},
+		{"empty/dark/colour", "", "empty on save = delete", testDarkTheme(t).AccentKey, testDarkTheme(t), false, goldenKeyHintEmptyDark},
+		{"empty/light/colour", "", "empty on save = delete", testLightTheme(t).AccentKey, testLightTheme(t), false, goldenKeyHintEmptyLight},
+		{"empty/dark/colourless", "", "empty on save = delete", testDarkTheme(t).AccentKey, testDarkTheme(t), true, goldenKeyHintEmptyNoCol},
+		{"empty/light/colourless", "", "empty on save = delete", testLightTheme(t).AccentKey, testLightTheme(t), true, goldenKeyHintEmptyNoCol},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := renderKeyHint(tc.key, tc.label, tc.keyTok, tc.mode, tc.colourless)
+			got := renderKeyHint(tc.key, tc.label, tc.keyTok, tc.th, tc.colourless)
 			if got != tc.want {
 				t.Errorf("renderKeyHint(%q,%q) mismatch\n got: %q\nwant: %q", tc.key, tc.label, got, tc.want)
 			}
@@ -96,37 +96,37 @@ func TestRenderKeyHint(t *testing.T) {
 	}
 }
 
-// TestRenderBlueKeyHint asserts the shared accent.blue key-hint seam pins
-// theme.MV.AccentBlue: it must render byte-identically to renderKeyHint with an explicit
-// AccentBlue keyTok AND match the captured golden bytes across both modes and the
-// colourless carve-out. This is the SINGLE canonical blue-key-hint path the edit and
+// TestRenderBlueKeyHint asserts the shared key-hint seam pins the theme's
+// accent.key token: it must render byte-identically to renderKeyHint with an
+// explicit AccentKey keyTok AND match the captured golden bytes across both
+// canvases and the colourless carve-out. This is the SINGLE canonical blue-key-hint path the edit and
 // preview footers route through (replacing the five removed per-modal wrappers).
 func TestRenderBlueKeyHint(t *testing.T) {
 	cases := []struct {
 		name       string
 		key, label string
-		mode       theme.Mode
+		th         theme.Theme
 		colourless bool
 		want       string
 	}{
-		{"yKill/dark/colour", "y", "kill", theme.Dark, false, goldenKeyHintYKillDark},
-		{"yKill/light/colour", "y", "kill", theme.Light, false, goldenKeyHintYKillLight},
-		{"yKill/dark/colourless", "y", "kill", theme.Dark, true, goldenKeyHintYKillNoCol},
-		{"yKill/light/colourless", "y", "kill", theme.Light, true, goldenKeyHintYKillNoCol},
+		{"yKill/dark/colour", "y", "kill", testDarkTheme(t), false, goldenKeyHintYKillDark},
+		{"yKill/light/colour", "y", "kill", testLightTheme(t), false, goldenKeyHintYKillLight},
+		{"yKill/dark/colourless", "y", "kill", testDarkTheme(t), true, goldenKeyHintYKillNoCol},
+		{"yKill/light/colourless", "y", "kill", testLightTheme(t), true, goldenKeyHintYKillNoCol},
 
-		{"empty/dark/colour", "", "empty on save = delete", theme.Dark, false, goldenKeyHintEmptyDark},
-		{"empty/light/colour", "", "empty on save = delete", theme.Light, false, goldenKeyHintEmptyLight},
-		{"empty/dark/colourless", "", "empty on save = delete", theme.Dark, true, goldenKeyHintEmptyNoCol},
-		{"empty/light/colourless", "", "empty on save = delete", theme.Light, true, goldenKeyHintEmptyNoCol},
+		{"empty/dark/colour", "", "empty on save = delete", testDarkTheme(t), false, goldenKeyHintEmptyDark},
+		{"empty/light/colour", "", "empty on save = delete", testLightTheme(t), false, goldenKeyHintEmptyLight},
+		{"empty/dark/colourless", "", "empty on save = delete", testDarkTheme(t), true, goldenKeyHintEmptyNoCol},
+		{"empty/light/colourless", "", "empty on save = delete", testLightTheme(t), true, goldenKeyHintEmptyNoCol},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := renderBlueKeyHint(tc.key, tc.label, tc.mode, tc.colourless)
+			got := renderBlueKeyHint(tc.key, tc.label, tc.th, tc.colourless)
 			if got != tc.want {
 				t.Errorf("renderBlueKeyHint(%q,%q) golden mismatch\n got: %q\nwant: %q", tc.key, tc.label, got, tc.want)
 			}
 			// Pins AccentBlue: identical to the explicit-token renderKeyHint path.
-			if pinned := renderKeyHint(tc.key, tc.label, theme.MV.AccentBlue, tc.mode, tc.colourless); got != pinned {
+			if pinned := renderKeyHint(tc.key, tc.label, tc.th.AccentKey, tc.th, tc.colourless); got != pinned {
 				t.Errorf("renderBlueKeyHint(%q,%q) does not pin AccentBlue\n got: %q\nwant: %q", tc.key, tc.label, got, pinned)
 			}
 		})
@@ -140,28 +140,28 @@ func TestRenderConfirmCancelFooter(t *testing.T) {
 	cases := []struct {
 		name                                             string
 		confirmKey, confirmLabel, cancelKey, cancelLabel string
-		mode                                             theme.Mode
+		th                                               theme.Theme
 		colourless                                       bool
 		want                                             string
 	}{
-		{"kill/dark/colour", "y", "kill", "esc", "cancel", theme.Dark, false, goldenKillFooterDark},
-		{"kill/light/colour", "y", "kill", "esc", "cancel", theme.Light, false, goldenKillFooterLight},
-		{"kill/dark/colourless", "y", "kill", "esc", "cancel", theme.Dark, true, goldenKillFooterNoCol},
-		{"kill/light/colourless", "y", "kill", "esc", "cancel", theme.Light, true, goldenKillFooterNoCol},
+		{"kill/dark/colour", "y", "kill", "esc", "cancel", testDarkTheme(t), false, goldenKillFooterDark},
+		{"kill/light/colour", "y", "kill", "esc", "cancel", testLightTheme(t), false, goldenKillFooterLight},
+		{"kill/dark/colourless", "y", "kill", "esc", "cancel", testDarkTheme(t), true, goldenKillFooterNoCol},
+		{"kill/light/colourless", "y", "kill", "esc", "cancel", testLightTheme(t), true, goldenKillFooterNoCol},
 
-		{"delete/dark/colour", "y", "delete", "esc", "cancel", theme.Dark, false, goldenDeleteFooterDark},
-		{"delete/light/colour", "y", "delete", "esc", "cancel", theme.Light, false, goldenDeleteFooterLight},
-		{"delete/dark/colourless", "y", "delete", "esc", "cancel", theme.Dark, true, goldenDeleteFooterNoCol},
-		{"delete/light/colourless", "y", "delete", "esc", "cancel", theme.Light, true, goldenDeleteFooterNoCol},
+		{"delete/dark/colour", "y", "delete", "esc", "cancel", testDarkTheme(t), false, goldenDeleteFooterDark},
+		{"delete/light/colour", "y", "delete", "esc", "cancel", testLightTheme(t), false, goldenDeleteFooterLight},
+		{"delete/dark/colourless", "y", "delete", "esc", "cancel", testDarkTheme(t), true, goldenDeleteFooterNoCol},
+		{"delete/light/colourless", "y", "delete", "esc", "cancel", testLightTheme(t), true, goldenDeleteFooterNoCol},
 
-		{"rename/dark/colour", "⏎", "rename", "esc", "cancel", theme.Dark, false, goldenRenameFooterDark},
-		{"rename/light/colour", "⏎", "rename", "esc", "cancel", theme.Light, false, goldenRenameFooterLight},
-		{"rename/dark/colourless", "⏎", "rename", "esc", "cancel", theme.Dark, true, goldenRenameFooterNoCol},
-		{"rename/light/colourless", "⏎", "rename", "esc", "cancel", theme.Light, true, goldenRenameFooterNoCol},
+		{"rename/dark/colour", "⏎", "rename", "esc", "cancel", testDarkTheme(t), false, goldenRenameFooterDark},
+		{"rename/light/colour", "⏎", "rename", "esc", "cancel", testLightTheme(t), false, goldenRenameFooterLight},
+		{"rename/dark/colourless", "⏎", "rename", "esc", "cancel", testDarkTheme(t), true, goldenRenameFooterNoCol},
+		{"rename/light/colourless", "⏎", "rename", "esc", "cancel", testLightTheme(t), true, goldenRenameFooterNoCol},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := renderConfirmCancelFooter(tc.confirmKey, tc.confirmLabel, tc.cancelKey, tc.cancelLabel, tc.mode, tc.colourless)
+			got := renderConfirmCancelFooter(tc.confirmKey, tc.confirmLabel, tc.cancelKey, tc.cancelLabel, tc.th, tc.colourless)
 			if got != tc.want {
 				t.Errorf("renderConfirmCancelFooter mismatch\n got: %q\nwant: %q", got, tc.want)
 			}
@@ -175,8 +175,8 @@ func TestRenderConfirmCancelFooter(t *testing.T) {
 func TestFooterHintCallSitesByteIdentical(t *testing.T) {
 	modes := []struct {
 		name string
-		m    theme.Mode
-	}{{"dark", theme.Dark}, {"light", theme.Light}}
+		m    theme.Theme
+	}{{"dark", testDarkTheme(t)}, {"light", testLightTheme(t)}}
 
 	// previewFooterHint and editFooterGroup were deleted in favour of routing the
 	// Preview nav footer and the contextual edit footer through the shared

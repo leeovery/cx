@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // Lipgloss v2 changed where the colour profile is applied: Style.Render now
@@ -81,10 +80,10 @@ func TestPreviewView_HeaderSegmentsCarryRoleForegrounds(t *testing.T) {
 	m, _ = m.Update(tea.WindowSizeMsg{Width: wideWidth, Height: 24})
 
 	header := headerLine(m.View())
-	if !segmentCarriesForeground(header, "Window 1/1 · Pane 1/1", theme.MV.TextDetail.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(header, "Window 1/1 · Pane 1/1", testDarkTheme(t).TextMuted.Color()) {
 		t.Errorf("counters segment lacks text.detail foreground SGR; row=%q", header)
 	}
-	if !segmentCarriesForeground(header, "work", theme.MV.TextPrimary.ColorFor(theme.Dark)) {
+	if !segmentCarriesForeground(header, "work", testDarkTheme(t).TextPrimary.Color()) {
 		t.Errorf("session segment lacks text.primary foreground SGR; row=%q", header)
 	}
 }

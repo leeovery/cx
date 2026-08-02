@@ -56,7 +56,7 @@ func TestPreviewEscReturnsToSessionsPage(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	got := pressSpaceThenEsc(t, m)
 
@@ -78,7 +78,7 @@ func TestPreviewEscPreservesListCursor(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	m.sessionList.Select(3)
 	if got := m.sessionList.Index(); got != 3 {
 		t.Fatalf("test setup invariant: expected Index()=3 before Space, got %d", got)
@@ -102,7 +102,7 @@ func TestPreviewEscPreservesNoFilterState(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	if m.sessionList.IsFiltered() {
 		t.Fatalf("test setup invariant: expected IsFiltered()=false before Space")
 	}
@@ -130,7 +130,7 @@ func TestPreviewEscPreservesCommittedFilter(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	m.sessionList.SetFilterText("alpha")
 	m.sessionList.SetFilterState(list.FilterApplied)
 	if !m.sessionList.IsFiltered() {
@@ -162,7 +162,7 @@ func TestSecondEscClearsCommittedFilterViaListDefault(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	m.sessionList.SetFilterText("alpha")
 	m.sessionList.SetFilterState(list.FilterApplied)
 
@@ -199,7 +199,7 @@ func TestPreviewReopenAfterDismissConstructsFreshPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	// First open / dismiss cycle.
 	afterFirst := pressSpaceThenEsc(t, m)

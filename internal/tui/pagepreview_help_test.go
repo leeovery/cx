@@ -5,15 +5,15 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // newPreviewHelpModel constructs a single-window single-pane previewModel at a
 // roomy 80x24 with canned scrollback, then assigns the resolved canvas mode +
 // colourless flag the same way the Space handler propagates them. Used by the
 // §8.5/§9.3 Preview `?` help-overlay tests.
-func newPreviewHelpModel(t *testing.T, mode theme.Mode, colourless bool) previewModel {
+func newPreviewHelpModel(t *testing.T, th theme.Theme, colourless bool) previewModel {
 	t.Helper()
 	enum := &stubEnumerator{
 		groups: []tmux.WindowGroup{
@@ -25,7 +25,7 @@ func newPreviewHelpModel(t *testing.T, mode theme.Mode, colourless bool) preview
 	if !ok {
 		t.Fatalf("setup: expected ok=true from NewPreviewModel, got false")
 	}
-	m.mode = mode
+	m.th = th
 	m.colourless = colourless
 	return m
 }
@@ -45,7 +45,7 @@ func keyQuestionMark() tea.KeyPressMsg {
 // and the View then lists the COMPLETE Preview keymap from the descriptor —
 // scroll, ←→ window, Tab pane, Enter attach, Space/Esc back (§8.5/§12.1).
 func TestPreviewHelpOpensOnQuestionMark(t *testing.T) {
-	m := newPreviewHelpModel(t, theme.Dark, false)
+	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 
 	m, cmd := pressPreviewKey(t, m, keyQuestionMark())
 
@@ -75,7 +75,7 @@ func TestPreviewHelpOpensOnQuestionMark(t *testing.T) {
 // the preview chrome (the ◉ preview marker + the cyan border) is still present
 // behind the help panel; it must NOT route through the blank-screen path.
 func TestPreviewHelpOverlaysWithoutBlanking(t *testing.T) {
-	m := newPreviewHelpModel(t, theme.Dark, false)
+	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
 
 	view := stripANSI(m.View())
@@ -102,11 +102,11 @@ func TestPreviewHelpOverlaysWithoutBlanking(t *testing.T) {
 // copy: the help panel content is byte-identical to renderHelpModalContent over
 // the Preview descriptor.
 func TestPreviewHelpReusesGenericRenderer(t *testing.T) {
-	m := newPreviewHelpModel(t, theme.Dark, false)
+	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
 
 	view := stripANSI(m.View())
-	panel := stripANSI(renderHelpModalContent(previewKeymap(), m.mode, m.colourless))
+	panel := stripANSI(renderHelpModalContent(previewKeymap(), m.th, m.colourless))
 
 	for line := range strings.SplitSeq(panel, "\n") {
 		if strings.TrimSpace(line) == "" {
@@ -121,7 +121,7 @@ func TestPreviewHelpReusesGenericRenderer(t *testing.T) {
 // TestPreviewHelpTogglesClosedOnSecondQuestionMark asserts a second `?` closes
 // the help.
 func TestPreviewHelpTogglesClosedOnSecondQuestionMark(t *testing.T) {
-	m := newPreviewHelpModel(t, theme.Dark, false)
+	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
 	if !m.helpOpen {
 		t.Fatalf("setup invariant: first ? must open help")
@@ -145,7 +145,7 @@ func TestPreviewHelpTogglesClosedOnSecondQuestionMark(t *testing.T) {
 // TestPreviewHelpEscDismissesWithoutBackingOut asserts Esc dismisses the help
 // and does NOT trigger the preview-back path (no previewDismissedMsg).
 func TestPreviewHelpEscDismissesWithoutBackingOut(t *testing.T) {
-	m := newPreviewHelpModel(t, theme.Dark, false)
+	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
 	if !m.helpOpen {
 		t.Fatalf("setup invariant: ? must open help")
@@ -179,7 +179,7 @@ func TestPreviewHelpConsumesOtherKeysWhileOpen(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			m := newPreviewHelpModel(t, theme.Dark, false)
+			m := newPreviewHelpModel(t, testDarkTheme(t), false)
 			m, _ = pressPreviewKey(t, m, keyQuestionMark())
 			windowBefore, paneBefore := m.windowIdx, m.paneIdx
 
@@ -211,7 +211,7 @@ func TestPreviewBackResumesWhenHelpClosed(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			m := newPreviewHelpModel(t, theme.Dark, false)
+			m := newPreviewHelpModel(t, testDarkTheme(t), false)
 			if m.helpOpen {
 				t.Fatalf("setup invariant: help must start closed")
 			}
@@ -231,7 +231,7 @@ func TestPreviewBackResumesWhenHelpClosed(t *testing.T) {
 // TestPreviewHelpRendersColourlessUnderNoColor asserts the help overlay renders
 // colourless (no SGR foreground) under NO_COLOR, over a colourless preview.
 func TestPreviewHelpRendersColourlessUnderNoColor(t *testing.T) {
-	m := newPreviewHelpModel(t, theme.Dark, true)
+	m := newPreviewHelpModel(t, testDarkTheme(t), true)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
 
 	view := m.View()

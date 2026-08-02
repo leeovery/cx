@@ -8,13 +8,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 var (
 	// nameBase carries the session name's NON-colour attribute (bold); the
-	// delegate layers text.primary + Background(canvas) for the resolved mode
+	// delegate layers text.primary + Background(canvas) from the active theme
 	// (SessionDelegate.tokenStyle) so the colour pair is mode-matched.
 	nameBase = lipgloss.NewStyle().Bold(true)
 )
@@ -181,19 +181,21 @@ func (h HeaderItem) countText() string {
 
 // SessionDelegate implements list.ItemDelegate for rendering session items.
 //
-// Mode is the resolved canvas appearance (§1): every run the delegate emits —
-// cursor, name, the structural spacers, the window count, the attached marker,
-// and the dimmed group heading — is painted with the §2.9 role-token FOREGROUND
-// resolved for this Mode over a Background(canvas) for this Mode. So a content
-// row both reads correctly (the light variants on the light canvas, the dark
-// variants on the dark canvas) and carries the canvas colour on every cell (no
-// terminal-bg islands behind the styled text). The OUTER fill in View() then
-// pads each line-end and fills the empty rows. The zero value is theme.Dark, so
-// a bare SessionDelegate{} (the value used across the existing unit tests) paints
-// the dark canvas it was tuned for. New sets it from the model's resolved
-// canvasMode after the options apply.
+// Theme is the ACTIVE PALETTE (§3.4): every run the delegate emits — cursor,
+// name, the structural spacers, the window count, the attached marker, and the
+// dimmed group heading — is painted with a role-token FOREGROUND from this theme
+// over a Background(canvas) from the same theme. So a content row both reads
+// correctly (the theme's values against the theme's own canvas) and carries the
+// canvas colour on every cell (no terminal-bg islands behind the styled text).
+// The OUTER fill in View() then pads each line-end and fills the empty rows.
+//
+// The delegate is REBUILT from the model on every restyle (sessionDelegate), so
+// it never caches a stale palette — the completeness property §11.2 rests on. A
+// zero-value Theme renders through lipgloss.Color("")'s no-colour sentinel, which
+// is a silently colourless row rather than a compile error, so a hand-built
+// delegate that renders must carry one.
 type SessionDelegate struct {
-	Mode theme.Mode
+	Theme theme.Theme
 	// Colourless is the NO_COLOR carve-out (§2.5): when set, the delegate paints NO
 	// canvas background and NO foreground hue — every run renders on the terminal's
 	// native fg/bg. The row TEXT and column structure are unchanged, so state stays
@@ -239,14 +241,13 @@ func isSelected(set map[string]struct{}, name string) bool {
 // one place (mirroring how rowBg delegates to the shared rowBgStyle free
 // function and loadingStyle delegates to headerCanvasBg).
 func (d SessionDelegate) canvasBg() lipgloss.Style {
-	return headerCanvasBg(d.Mode, d.Colourless)
+	return headerCanvasBg(d.Theme, d.Colourless)
 }
 
-// tokenStyle returns base with the role token's mode-resolved FOREGROUND and the
-// mode-resolved Background(canvas) applied — the leaf paint of one run: correct
-// foreground for the resolved mode, sitting on the owned canvas. base carries
-// the non-colour attributes (Bold for the name); a zero base is fine for runs
-// that only need the colour pair.
+// tokenStyle returns base with the role token's FOREGROUND and the theme's
+// Background(canvas) applied — the leaf paint of one run: the role's colour
+// sitting on the owned canvas. base carries the non-colour attributes (Bold for
+// the name); a zero base is fine for runs that only need the colour pair.
 //
 // Under the NO_COLOR carve-out (§2.5) it returns base unchanged — no foreground
 // hue and no canvas background — so the run renders on the terminal's native
@@ -261,7 +262,7 @@ func (d SessionDelegate) canvasBg() lipgloss.Style {
 // the leaf token-over-canvas carve-out in exactly one place (mirroring how
 // rowToken delegates to rowTokenStyle and loadingFg delegates to headerStyle).
 func (d SessionDelegate) tokenStyle(base lipgloss.Style, fg theme.Token) lipgloss.Style {
-	return headerStyle(fg, d.Mode, d.Colourless).Inherit(base)
+	return headerStyle(fg, d.Theme, d.Colourless).Inherit(base)
 }
 
 // Height returns 1, matching the single-line item display. Both SessionItem and
@@ -300,8 +301,8 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		// rather than one uniform faint separator. No Faint(true) and no literal
 		// hex at the call site — both colours flow from §2.9 tokens. The same style
 		// renders a catch-all heading (Unknown / Untagged): they are HeaderItems too.
-		heading := d.tokenStyle(lipgloss.Style{}, theme.MV.TextDetail).Render(it.headingText())
-		count := d.tokenStyle(lipgloss.Style{}, theme.MV.TextDim).Render(it.countText())
+		heading := d.tokenStyle(lipgloss.Style{}, d.Theme.TextMuted).Render(it.headingText())
+		count := d.tokenStyle(lipgloss.Style{}, d.Theme.TextSubtle).Render(it.countText())
 		row = bg.Render(groupHeaderIndent) + heading + count
 	case SessionItem:
 		row = d.renderSessionRow(m, index, it)
@@ -329,32 +330,32 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 // Padding (slot fills, the name-flex tail, the gap) is rendered through this
 // style so every structural cell carries an explicit background — no
 // terminal-bg island opens up inside a selected row's tint or the canvas.
-func rowBgStyle(mode theme.Mode, selected, colourless bool) lipgloss.Style {
+func rowBgStyle(th theme.Theme, selected, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
 	if selected {
-		return lipgloss.NewStyle().Background(theme.MV.BgSelection.ColorFor(mode))
+		return lipgloss.NewStyle().Background(th.BgSelection.Color())
 	}
-	return lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(mode))
+	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
 // rowTokenStyle is the SHARED selected-row token style (both delegates route
-// through it): base with the role token's mode-resolved FOREGROUND over the
+// through it): base with the role token's FOREGROUND over the
 // row's background (bg.selection on the selected row, canvas otherwise). Under
 // the NO_COLOR carve-out it returns base unchanged (no hue, no background), so
 // base's non-colour attributes (Bold/Faint) still carry state glyph-distinctly
 // (§2.2). Homed here as a free function so the colour-role composition lives in
 // one place for both the Session and Project delegates.
-func rowTokenStyle(base lipgloss.Style, fg theme.Token, mode theme.Mode, selected, colourless bool) lipgloss.Style {
+func rowTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, selected, colourless bool) lipgloss.Style {
 	if colourless {
 		return base
 	}
-	styled := base.Foreground(fg.ColorFor(mode))
+	styled := base.Foreground(fg.Color())
 	if selected {
-		return styled.Background(theme.MV.BgSelection.ColorFor(mode))
+		return styled.Background(th.BgSelection.Color())
 	}
-	return styled.Background(theme.MV.Canvas.ColorFor(mode))
+	return styled.Background(th.Canvas.Color())
 }
 
 // renderLeftBarColumn renders the SHARED §3.3 left-bar selector column (both
@@ -420,14 +421,14 @@ func renderGoneLeftBarColumn(bg, markerStyle lipgloss.Style) string {
 // delegate's Mode and Colourless. Retained so the existing call sites keep their
 // terse d.rowBg(selected) form.
 func (d SessionDelegate) rowBg(selected bool) lipgloss.Style {
-	return rowBgStyle(d.Mode, selected, d.Colourless)
+	return rowBgStyle(d.Theme, selected, d.Colourless)
 }
 
 // rowToken delegates to the shared rowTokenStyle free function, binding the
 // delegate's Mode and Colourless. Retained so the existing call sites keep their
 // terse d.rowToken(...) form.
 func (d SessionDelegate) rowToken(base lipgloss.Style, fg theme.Token, selected bool) lipgloss.Style {
-	return rowTokenStyle(base, fg, d.Mode, selected, d.Colourless)
+	return rowTokenStyle(base, fg, d.Theme, selected, d.Colourless)
 }
 
 // renderSessionRow renders the §4.1 flat-row anatomy on the owned canvas:
@@ -484,22 +485,22 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	var bar string
 	switch {
 	case goneRow:
-		bar = renderGoneLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, theme.MV.StateRed, selected))
+		bar = renderGoneLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, d.Theme.StateDestructive, selected))
 	case marked:
-		bar = renderMarkedLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, theme.MV.AccentViolet, selected))
+		bar = renderMarkedLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, d.Theme.AccentPrimary, selected))
 	default:
-		bar = renderLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, theme.MV.AccentViolet, true), selected)
+		bar = renderLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, d.Theme.AccentPrimary, true), selected)
 	}
 
 	// Name — text.primary (selected: text.on-selection), bold (§4.1).
-	nameTok := theme.MV.TextPrimary
+	nameTok := d.Theme.TextPrimary
 	if selected {
-		nameTok = theme.MV.TextOnSelection
+		nameTok = d.Theme.TextOnSelection
 	}
 	// Window count — text.detail (selected: text.strong) (§4.1).
-	countTok := theme.MV.TextDetail
+	countTok := d.Theme.TextMuted
 	if selected {
-		countTok = theme.MV.TextStrong
+		countTok = d.Theme.TextSecondary
 	}
 	countText := windowLabel(it.Session.Windows)
 
@@ -539,7 +540,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	// + the right margin render as before.
 	var trailing string
 	if goneRow {
-		badge := d.rowToken(lipgloss.Style{}, theme.MV.StateRed, selected).Render(goneBadge)
+		badge := d.rowToken(lipgloss.Style{}, d.Theme.StateDestructive, selected).Render(goneBadge)
 		trailing = badge + bg.Render(padTo("", attachedSlotWidth+rowRightMargin-lipgloss.Width(goneBadge)))
 	} else {
 		// Attached marker — a fixed-width slot right of the count. "● attached" in
@@ -549,7 +550,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 		// the bullets and the counts stay column-aligned regardless of name length (§4.1).
 		attached := bg.Render(padTo("", attachedSlotWidth))
 		if it.Session.Attached {
-			attached = d.rowToken(lipgloss.Style{}, theme.MV.StateGreen, selected).Render(attachedMarker) +
+			attached = d.rowToken(lipgloss.Style{}, d.Theme.StatePositive, selected).Render(attachedMarker) +
 				bg.Render(padTo("", attachedSlotWidth-lipgloss.Width(attachedMarker)))
 		}
 		// The right margin insets the trailing columns from the content edge (§4.1) so

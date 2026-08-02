@@ -96,7 +96,7 @@ func TestMultiSelectByTagIdentity(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work", "infra"}}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.rebuildSessionList()
 
 	rows := sessionRowIndices(m.sessionList.Items())
@@ -136,7 +136,7 @@ func TestMultiSelectHeaderRowNoop(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.rebuildSessionList()
 
 	// Force the cursor onto the leading (non-selectable) header BEFORE entering, so

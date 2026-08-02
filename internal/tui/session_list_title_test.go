@@ -65,7 +65,7 @@ func TestSessionListTitleForMode(t *testing.T) {
 
 func TestSessionListTitleModeAware(t *testing.T) {
 	t.Run("shows Sessions for Flat mode", func(t *testing.T) {
-		m := newRebuildTestModel(prefs.ModeFlat, nil, nil)
+		m := newRebuildTestModel(t, prefs.ModeFlat, nil, nil)
 		m.rebuildSessionList()
 		if got := m.SessionListTitle(); got != "Sessions" {
 			t.Errorf("SessionListTitle() = %q, want %q", got, "Sessions")
@@ -73,7 +73,7 @@ func TestSessionListTitleModeAware(t *testing.T) {
 	})
 
 	t.Run("shows by project title for By Project mode", func(t *testing.T) {
-		m := newRebuildTestModel(prefs.ModeByProject, nil, nil)
+		m := newRebuildTestModel(t, prefs.ModeByProject, nil, nil)
 		m.rebuildSessionList()
 		if got := m.SessionListTitle(); got != "Sessions — by project" {
 			t.Errorf("SessionListTitle() = %q, want %q", got, "Sessions — by project")
@@ -81,7 +81,7 @@ func TestSessionListTitleModeAware(t *testing.T) {
 	})
 
 	t.Run("shows by tag title for By Tag mode", func(t *testing.T) {
-		m := newRebuildTestModel(prefs.ModeByTag, nil, nil)
+		m := newRebuildTestModel(t, prefs.ModeByTag, nil, nil)
 		m.rebuildSessionList()
 		if got := m.SessionListTitle(); got != "Sessions — by tag" {
 			t.Errorf("SessionListTitle() = %q, want %q", got, "Sessions — by tag")
@@ -90,7 +90,7 @@ func TestSessionListTitleModeAware(t *testing.T) {
 
 	t.Run("updates the title on a mode change", func(t *testing.T) {
 		persister := &fakeModePersister{}
-		m := newSwitchViewTestModel(prefs.ModeFlat, persister, nil, nil)
+		m := newSwitchViewTestModel(t, prefs.ModeFlat, persister, nil, nil)
 		if got := m.SessionListTitle(); got != "Sessions" {
 			t.Fatalf("pre-toggle SessionListTitle() = %q, want %q", got, "Sessions")
 		}
@@ -102,7 +102,7 @@ func TestSessionListTitleModeAware(t *testing.T) {
 	})
 
 	t.Run("updates the title on a SessionsMsg refresh", func(t *testing.T) {
-		m := newRebuildTestModel(prefs.ModeByTag, nil, nil)
+		m := newRebuildTestModel(t, prefs.ModeByTag, nil, nil)
 		m.rebuildSessionList()
 
 		updated, _ := m.Update(SessionsMsg{Sessions: []tmux.Session{{Name: "alpha"}}})
@@ -112,7 +112,7 @@ func TestSessionListTitleModeAware(t *testing.T) {
 	})
 
 	t.Run("preserves the current-session decoration alongside the mode suffix inside tmux", func(t *testing.T) {
-		m := newRebuildTestModel(prefs.ModeByTag, nil, nil)
+		m := newRebuildTestModel(t, prefs.ModeByTag, nil, nil)
 		m.insideTmux = true
 		m.currentSession = "foo"
 		m.rebuildSessionList()

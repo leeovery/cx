@@ -215,7 +215,7 @@ func TestBurstDispatch_MultiTagDedup(t *testing.T) {
 		{Name: "portal-abc", Dir: dir},
 		{Name: "other-xyz", Dir: dir2},
 	}
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.rebuildSessionList()
 
 	ack := &spawntest.FakeAckChannel{}

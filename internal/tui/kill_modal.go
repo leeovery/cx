@@ -3,7 +3,7 @@ package tui
 import (
 	"fmt"
 
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §8.3 kill-confirm modal. A reskin (not a rewrite): the confirm/cancel LOGIC
@@ -37,7 +37,7 @@ const (
 //	         <blank>                     (the single "what" → "warning" separator)
 //	         Ends the tmux session …     (consequence, text.detail, word-wrapped)
 //	footer:  y kill   esc cancel         (glyphs accent.blue, labels text.detail)
-func renderKillModalContent(name string, windows int, mode theme.Mode, colourless bool) string {
+func renderKillModalContent(name string, windows int, th theme.Theme, colourless bool) string {
 	spec := destructiveConfirmSpec{
 		title:        killTitle,
 		targetName:   name,
@@ -46,7 +46,7 @@ func renderKillModalContent(name string, windows int, mode theme.Mode, colourles
 		confirmKey:   killKeyConfirm,
 		confirmLabel: killLabelConfirm,
 	}
-	return renderDestructiveConfirm(spec, mode, colourless)
+	return renderDestructiveConfirm(spec, th, colourless)
 }
 
 // killWindowCount returns the `· N window(s)` count fragment with correct

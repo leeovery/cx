@@ -67,8 +67,9 @@ func (s *stepListerStub) ListSessions() ([]tmux.Session, error) {
 // modelWithSeamsAndLister is modelWithSeams plus a wired SessionLister so the
 // dismiss-time refresh dispatch has something to call. The model is otherwise
 // identical to modelWithSeams.
-func modelWithSeamsAndLister(sessions []tmux.Session, enum TmuxEnumerator, reader ScrollbackReader, lister SessionLister) Model {
-	m := modelWithSeams(sessions, enum, reader)
+func modelWithSeamsAndLister(t *testing.T, sessions []tmux.Session, enum TmuxEnumerator, reader ScrollbackReader, lister SessionLister) Model {
+	t.Helper()
+	m := modelWithSeams(t, sessions, enum, reader)
 	m.sessionLister = lister
 	return m
 }
@@ -165,7 +166,7 @@ func TestPreviewEscRefetchesSessionsList(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 	// Cursor on bravo (the survivor) so the previously-selected session
 	// still exists post-refresh.
 	m.sessionList.Select(1)
@@ -199,7 +200,7 @@ func TestExternallyKilledSessionNotInListAfterDismiss(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
 
@@ -227,7 +228,7 @@ func TestPreviewEscPreservesCursorWhenPreviousSessionStillExists(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 	m.sessionList.Select(1)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
@@ -259,7 +260,7 @@ func TestPreviewEscCursorFallsBackToNeighbourWhenPreviousSessionGone(t *testing.
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 	m.sessionList.Select(0)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
@@ -286,7 +287,7 @@ func TestPreviewEscRefreshIsObservablyNoOpWhenListUnchanged(t *testing.T) {
 	reader := &recordingReader{bytes: []byte("hi")}
 	// Refresh returns the same shape — observably no-op.
 	lister := &stepListerStub{steps: [][]tmux.Session{first}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 	m.sessionList.Select(1)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
@@ -314,7 +315,7 @@ func TestPreviewEscFilterStatePreservedAcrossDismissWithRefresh(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{first}}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 	m.sessionList.SetFilterText("alpha")
 	m.sessionList.SetFilterState(list.FilterApplied)
 	if !m.sessionList.IsFiltered() {
@@ -374,7 +375,7 @@ func TestDrainCmdThroughUpdateNilCmdReturnsModelUnchanged(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeamsAndLister(first, enum, reader, &stepListerStub{steps: [][]tmux.Session{first}})
+	m := modelWithSeamsAndLister(t, first, enum, reader, &stepListerStub{steps: [][]tmux.Session{first}})
 	before := visibleSessionNames(m)
 
 	out := drainCmdThroughUpdate(t, m, nil)
@@ -412,7 +413,7 @@ func TestDrainCmdThroughUpdateInvokesCmdAndFeedsResultThroughUpdate(t *testing.T
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeamsAndLister(first, enum, reader, &stepListerStub{steps: [][]tmux.Session{first}})
+	m := modelWithSeamsAndLister(t, first, enum, reader, &stepListerStub{steps: [][]tmux.Session{first}})
 
 	// Synthesize a cmd that emits a WindowSizeMsg — Update consumes this
 	// and writes to m.termWidth/m.termHeight, giving us an observable
@@ -444,7 +445,7 @@ func TestPreviewEscRefreshSilentOnListerError(t *testing.T) {
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{err: errors.New("boom")}
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
 

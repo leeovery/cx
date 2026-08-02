@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §3.1 shared header block: the PORTAL wordmark + violet block caret on the
@@ -79,28 +79,28 @@ func headerWidthOrFallback(width int) int {
 	return width
 }
 
-// headerStyle returns a leaf style carrying the role token's mode-resolved
-// FOREGROUND over the owned canvas Background for the mode — the header's leaf
+// headerStyle returns a leaf style carrying the role token's FOREGROUND
+// over the active theme's canvas Background — the header's leaf
 // paint (mirroring SessionDelegate.tokenStyle). Under the NO_COLOR carve-out it
 // returns a bare style (no hue, no canvas) so the run renders on the terminal's
 // native fg/bg.
-func headerStyle(fg theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
+func headerStyle(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
 	return lipgloss.NewStyle().
-		Foreground(fg.ColorFor(mode)).
-		Background(theme.MV.Canvas.ColorFor(mode))
+		Foreground(fg.Color()).
+		Background(th.Canvas.Color())
 }
 
 // headerCanvasBg returns the structural-spacer style: Background(canvas) for the
 // mode, or a bare style under the NO_COLOR carve-out (so the right-aligned
 // spacer gap is canvas-painted, not a terminal-bg island).
-func headerCanvasBg(mode theme.Mode, colourless bool) lipgloss.Style {
+func headerCanvasBg(th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
-	return lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(mode))
+	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
 // headerWordmarkFor selects the wordmark form for the given laid-out width: the
@@ -124,10 +124,10 @@ func headerShowsSubtitle(width int) bool {
 // border.separator (terminal 2px ≈ a heavy/thick horizontal rule, matching the
 // Paper frame weight). Under the NO_COLOR carve-out the rule keeps its glyphs but
 // drops the colour and the canvas, rendering on the terminal's native fg/bg.
-func headerSeparatorRule(width int, mode theme.Mode, colourless bool) string {
+func headerSeparatorRule(width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	rule := strings.Repeat(headerRuleGlyph, w)
-	return headerStyle(theme.MV.BorderSeparator, mode, colourless).Render(rule)
+	return headerStyle(th.Border, th, colourless).Render(rule)
 }
 
 // blankCanvasRow renders ONE full-width canvas-painted blank row: w spaces styled
@@ -137,8 +137,8 @@ func headerSeparatorRule(width int, mode theme.Mode, colourless bool) string {
 // the owned canvas with no terminal-bg island. Mirrors headerSeparatorRule's
 // structure, swapping the heavy rule glyph for a space and the rule colour for the
 // bare canvas-background style.
-func blankCanvasRow(w int, mode theme.Mode, colourless bool) string {
-	return headerCanvasBg(mode, colourless).Render(strings.Repeat(" ", w))
+func blankCanvasRow(w int, th theme.Theme, colourless bool) string {
+	return headerCanvasBg(th, colourless).Render(strings.Repeat(" ", w))
 }
 
 // renderHeaderBlock renders the §3.1 header block for the given terminal width and
@@ -174,11 +174,11 @@ func blankCanvasRow(w int, mode theme.Mode, colourless bool) string {
 //
 // The block never overflows: a width below the per-dimension thresholds drops the
 // subtitle then collapses the wordmark to its compact form (§2.7).
-func renderHeaderBlock(width int, mode theme.Mode, colourless bool) string {
+func renderHeaderBlock(width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
-	band := headerBand(w, mode, colourless)
-	rule := headerSeparatorRule(w, mode, colourless)
-	blank := blankCanvasRow(w, mode, colourless)
+	band := headerBand(w, th, colourless)
+	rule := headerSeparatorRule(w, th, colourless)
+	blank := blankCanvasRow(w, th, colourless)
 	return lipgloss.JoinVertical(lipgloss.Left, band, rule, blank)
 }
 
@@ -188,11 +188,11 @@ func renderHeaderBlock(width int, mode theme.Mode, colourless bool) string {
 // the gap). The band is always exactly w cells wide; if the left segment alone
 // already meets or exceeds w (a very narrow terminal) the right subtitle and the
 // spacer collapse so the band is clamped to w and never overflows.
-func headerBand(w int, mode theme.Mode, colourless bool) string {
-	wordmark := headerStyle(theme.MV.TextPrimary, mode, colourless).Bold(true).
+func headerBand(w int, th theme.Theme, colourless bool) string {
+	wordmark := headerStyle(th.TextPrimary, th, colourless).Bold(true).
 		Render(headerWordmarkFor(w))
-	caret := headerStyle(theme.MV.AccentViolet, mode, colourless).Render(headerCaret)
-	gap := headerCanvasBg(mode, colourless).Render(" ")
+	caret := headerStyle(th.AccentPrimary, th, colourless).Render(headerCaret)
+	gap := headerCanvasBg(th, colourless).Render(" ")
 	left := lipgloss.JoinHorizontal(lipgloss.Top, wordmark, gap, caret)
 
 	leftWidth := lipgloss.Width(left)
@@ -200,20 +200,20 @@ func headerBand(w int, mode theme.Mode, colourless bool) string {
 	// No subtitle (narrow degrade step 1) OR the left segment already fills the
 	// band: pad the left segment with canvas spaces out to w and return.
 	if !headerShowsSubtitle(w) || leftWidth >= w {
-		return headerPadRight(left, leftWidth, w, mode, colourless)
+		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
 
-	subtitle := headerStyle(theme.MV.TextDetail, mode, colourless).Render(headerSubtitle)
+	subtitle := headerStyle(th.TextMuted, th, colourless).Render(headerSubtitle)
 	subWidth := lipgloss.Width(subtitle)
 
 	// If the subtitle no longer fits beside the left segment (leaving room for at
 	// least one spacer cell), drop it rather than overflow.
 	if leftWidth+1+subWidth > w {
-		return headerPadRight(left, leftWidth, w, mode, colourless)
+		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
 
 	spacerWidth := w - leftWidth - subWidth
-	spacer := headerCanvasBg(mode, colourless).Render(strings.Repeat(" ", spacerWidth))
+	spacer := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", spacerWidth))
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, subtitle)
 }
 
@@ -235,6 +235,6 @@ func padRightWithStyle(seg string, segWidth, w int, fill lipgloss.Style) string 
 // without an edge-bleed island. A segment already at/over w is returned unchanged
 // (the band is clamped to w by construction at the call sites). It binds the canvas
 // fill and delegates the pad geometry to padRightWithStyle.
-func headerPadRight(seg string, segWidth, w int, mode theme.Mode, colourless bool) string {
-	return padRightWithStyle(seg, segWidth, w, headerCanvasBg(mode, colourless))
+func headerPadRight(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
+	return padRightWithStyle(seg, segWidth, w, headerCanvasBg(th, colourless))
 }

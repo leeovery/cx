@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // Tests for task 9-4: the §2.7 narrow-degrade fitter is unified across the standard
@@ -123,17 +122,17 @@ func TestFitClusterToWidth_EmptyClusterCount(t *testing.T) {
 // algorithm across every width regime, with the returned width never exceeding the
 // budget (the full width).
 func TestFitFilterCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
-	const mode = theme.Dark
+	th := testDarkTheme(t)
 	const colourless = false
-	entries := multiSelectFooterEntries()
+	entries := multiSelectFooterEntries(th)
 
-	sep := renderFooterDetail(footerEntrySeparator, mode, colourless)
-	ellipsis := renderFooterDetail(footerEllipsis, mode, colourless)
+	sep := renderFooterDetail(footerEntrySeparator, th, colourless)
+	ellipsis := renderFooterDetail(footerEllipsis, th, colourless)
 	render := func(n int) (string, int) {
-		cluster := renderFilterCluster(entries[:n], mode, colourless)
+		cluster := renderFilterCluster(entries[:n], th, colourless)
 		return cluster, lipgloss.Width(cluster)
 	}
-	fullWidth := lipgloss.Width(renderFilterCluster(entries, mode, colourless))
+	fullWidth := lipgloss.Width(renderFilterCluster(entries, th, colourless))
 
 	for _, tc := range []struct {
 		name string
@@ -147,7 +146,7 @@ func TestFitFilterCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// fitFilterCluster's budget is the full width (no right anchor reserved).
 			wantStr, wantWid := referenceFitCluster(len(entries), tc.w, render, sep, ellipsis)
-			gotStr, gotWid := fitFilterCluster(entries, tc.w, mode, colourless)
+			gotStr, gotWid := fitFilterCluster(entries, tc.w, th, colourless)
 			if gotStr != wantStr {
 				t.Errorf("fitFilterCluster string diverged from pre-refactor output:\ngot  %q\nwant %q", gotStr, wantStr)
 			}
@@ -167,17 +166,17 @@ func TestFitFilterCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 // renderer — byte-identical to the reference algorithm across every width regime, with
 // the returned width never exceeding the reserved budget.
 func TestFitLeftCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
-	const mode = theme.Dark
+	th := testDarkTheme(t)
 	const colourless = false
 	core, _ := splitFooterEntries(sessionsKeymap())
 
-	sep := renderFooterDetail(footerEntrySeparator, mode, colourless)
-	ellipsis := renderFooterDetail(footerEllipsis, mode, colourless)
+	sep := renderFooterDetail(footerEntrySeparator, th, colourless)
+	ellipsis := renderFooterDetail(footerEllipsis, th, colourless)
 	render := func(n int) (string, int) {
-		cluster := renderFooterCluster(core[:n], mode, colourless)
+		cluster := renderFooterCluster(core[:n], th, colourless)
 		return cluster, lipgloss.Width(cluster)
 	}
-	fullWidth := lipgloss.Width(renderFooterCluster(core, mode, colourless))
+	fullWidth := lipgloss.Width(renderFooterCluster(core, th, colourless))
 
 	for _, tc := range []struct {
 		name       string
@@ -198,7 +197,7 @@ func TestFitLeftCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 				budget = 0
 			}
 			wantStr, wantWid := referenceFitCluster(len(core), budget, render, sep, ellipsis)
-			gotStr, gotWid := fitLeftCluster(core, tc.w, tc.rightWidth, mode, colourless)
+			gotStr, gotWid := fitLeftCluster(core, tc.w, tc.rightWidth, th, colourless)
 			if gotStr != wantStr {
 				t.Errorf("fitLeftCluster string diverged from pre-refactor output:\ngot  %q\nwant %q", gotStr, wantStr)
 			}

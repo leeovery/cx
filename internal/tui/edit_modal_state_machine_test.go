@@ -109,8 +109,10 @@ func (e *smAliasEditor) DeleteAndSave(name, via string) (bool, error) {
 
 // smModel builds a Model with the edit modal open in navigate mode, the
 // given chip buffers seeded, and the supplied editors wired.
-func smModel(ed *smProjectEditor, al *smAliasEditor, aliases, tags []string) Model {
+func smModel(t *testing.T, ed *smProjectEditor, al *smAliasEditor, aliases, tags []string) Model {
+	t.Helper()
 	return Model{
+		activeTheme:   testDarkTheme(t),
 		modal:         modalEditProject,
 		editMode:      editModeNavigate,
 		editFocus:     editFieldName,
@@ -159,7 +161,7 @@ func typeRunes(t *testing.T, m Model, s string) Model {
 // === Navigate mode: field movement ===================================
 
 func TestSM_TabMovesBetweenFields(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 
 	m = smKey(t, m, keyTab)
 	if m.editFocus != editFieldAliases {
@@ -176,7 +178,7 @@ func TestSM_TabMovesBetweenFields(t *testing.T) {
 }
 
 func TestSM_ShiftTabMovesBackwards(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 
 	m = smKey(t, m, keyShiftTab)
 	if m.editFocus != editFieldTags {
@@ -194,7 +196,7 @@ func TestSM_ShiftTabMovesBackwards(t *testing.T) {
 
 func TestSM_EnteringChipFieldLandsOnAddSlot(t *testing.T) {
 	// Tab into Aliases (2 chips) must land on the trailing + add slot (index 2).
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a", "b"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a", "b"}, nil)
 	m.editAliasCursor = 0 // dirty value reset on entry
 
 	m = smKey(t, m, keyTab) // Name -> Aliases
@@ -206,7 +208,7 @@ func TestSM_EnteringChipFieldLandsOnAddSlot(t *testing.T) {
 	}
 
 	// Tab into Tags (1 chip) lands on the add slot (index 1).
-	m = smModel(&smProjectEditor{}, &smAliasEditor{}, nil, []string{"work"})
+	m = smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, []string{"work"})
 	m.editFocus = editFieldAliases
 	m.editTagCursor = 0
 	m = smKey(t, m, keyTab) // Aliases -> Tags
@@ -220,7 +222,7 @@ func TestSM_EnteringChipFieldLandsOnAddSlot(t *testing.T) {
 
 func TestSM_DownMovesBetweenFields(t *testing.T) {
 	// ↓ is an alias for Tab: Name -> Aliases -> Tags -> Name (wrap).
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 
 	m = smKey(t, m, keyDown)
 	if m.editFocus != editFieldAliases {
@@ -238,7 +240,7 @@ func TestSM_DownMovesBetweenFields(t *testing.T) {
 
 func TestSM_UpMovesBetweenFieldsBackwards(t *testing.T) {
 	// ↑ is an alias for Shift+Tab: Name -> Tags -> Aliases -> Name.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 
 	m = smKey(t, m, keyUp)
 	if m.editFocus != editFieldTags {
@@ -256,7 +258,7 @@ func TestSM_UpMovesBetweenFieldsBackwards(t *testing.T) {
 
 func TestSM_DownEnteringChipFieldLandsOnAddSlot(t *testing.T) {
 	// ↓ into a chip field lands on the trailing + add slot, mirroring Tab.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a", "b"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a", "b"}, nil)
 	m.editAliasCursor = 0 // dirty value reset on entry
 
 	m = smKey(t, m, keyDown) // Name -> Aliases
@@ -270,7 +272,7 @@ func TestSM_DownEnteringChipFieldLandsOnAddSlot(t *testing.T) {
 
 func TestSM_UpDownIgnoredInEditMode(t *testing.T) {
 	// In edit mode (one element live) ↑/↓ are ignored — focus and buffer untouched.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags)
 	m = smKey(t, m, keyEnter)
@@ -295,7 +297,7 @@ func TestSM_UpDownIgnoredInEditMode(t *testing.T) {
 func TestSM_LeftRightMovesAcrossChipsAndAddSlot(t *testing.T) {
 	// Aliases focused, on the + add slot (index 2). Left reaches the chips,
 	// right returns to the add slot, bounded at both ends.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a", "b"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a", "b"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = len(m.editAliases) // + add slot (2)
 
@@ -329,7 +331,7 @@ func TestSM_LeftRightMovesAcrossChipsAndAddSlot(t *testing.T) {
 
 func TestSM_XDeletesFocusedAliasImmediately(t *testing.T) {
 	al := &smAliasEditor{aliases: map[string]string{"a": "/p/one", "b": "/p/one"}}
-	m := smModel(&smProjectEditor{}, al, []string{"a", "b"}, nil)
+	m := smModel(t, &smProjectEditor{}, al, []string{"a", "b"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0 // on chip "a"
 
@@ -345,7 +347,7 @@ func TestSM_XDeletesFocusedAliasImmediately(t *testing.T) {
 
 func TestSM_XDeletesFocusedTagImmediately(t *testing.T) {
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, []string{"work", "home"})
+	m := smModel(t, ed, &smAliasEditor{}, nil, []string{"work", "home"})
 	m.editFocus = editFieldTags
 	m.editTagCursor = 1 // on chip "home"
 
@@ -362,7 +364,7 @@ func TestSM_XDeletesFocusedTagImmediately(t *testing.T) {
 
 func TestSM_XOnAddSlotIsNoOpInNavigate(t *testing.T) {
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, []string{"work"})
+	m := smModel(t, ed, &smAliasEditor{}, nil, []string{"work"})
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags) // + add slot
 
@@ -379,7 +381,7 @@ func TestSM_XOnAddSlotIsNoOpInNavigate(t *testing.T) {
 // === Entering edit mode ==============================================
 
 func TestSM_EnterOnNameEntersEditMode(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldName
 
 	m = smKey(t, m, keyEnter)
@@ -393,7 +395,7 @@ func TestSM_EOnNameEntersEditMode(t *testing.T) {
 	// `e` on the NAME field enters edit mode (mirroring Enter) — matching the
 	// `⏎/e edit` footer hint. Regression guard: `e` was previously wired only for
 	// chips, leaving the Name field reachable by Enter alone.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldName
 
 	m = smKey(t, m, runeKey("e"))
@@ -409,7 +411,7 @@ func TestSM_EOnNameEntersEditMode(t *testing.T) {
 func TestSM_EOnNameInEditModeIsLiteralChar(t *testing.T) {
 	// Once editing the Name, `e` is a literal character (the navigate-mode `e`
 	// shortcut must not fire), so it lands in the buffer at the cursor.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldName
 	m = smKey(t, m, keyEnter) // enter edit on Name (buffer="proj")
 
@@ -421,7 +423,7 @@ func TestSM_EOnNameInEditModeIsLiteralChar(t *testing.T) {
 }
 
 func TestSM_EnterOnChipEntersEditMode(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0 // on chip "a"
 
@@ -436,7 +438,7 @@ func TestSM_EnterOnChipEntersEditMode(t *testing.T) {
 }
 
 func TestSM_EOnChipEntersEditMode(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0
 
@@ -451,7 +453,7 @@ func TestSM_EOnChipEntersEditMode(t *testing.T) {
 }
 
 func TestSM_EnterOnAddSlotSpawnsNewEmptyChipInEditMode(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = len(m.editAliases) // + add slot
 
@@ -469,7 +471,7 @@ func TestSM_EnterOnAddSlotSpawnsNewEmptyChipInEditMode(t *testing.T) {
 }
 
 func TestSM_PlusOnAddSlotSpawnsNewEmptyChipInEditMode(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags) // + add slot
 
@@ -486,14 +488,14 @@ func TestSM_PlusOnAddSlotSpawnsNewEmptyChipInEditMode(t *testing.T) {
 func TestSM_LandingOnAddSlotIsNavigateOnly(t *testing.T) {
 	// Tab onto a chip field lands on the add slot but stays in NAVIGATE mode —
 	// it never auto-enters edit.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m = smKey(t, m, keyTab) // Name -> Aliases (add slot)
 	if m.editMode != editModeNavigate {
 		t.Errorf("editMode = %d, want navigate (landing on add slot must not auto-edit)", m.editMode)
 	}
 
 	// And arriving via right onto the add slot is also navigate-only.
-	m = smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
+	m = smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0
 	m = smKey(t, m, keyRight) // chip -> add slot
@@ -505,7 +507,7 @@ func TestSM_LandingOnAddSlotIsNavigateOnly(t *testing.T) {
 // === Edit mode: text cursor + typing =================================
 
 func TestSM_TypingEditsTheLiveValue(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags)
 	m = smKey(t, m, keyEnter) // spawn new chip in edit mode
@@ -521,7 +523,7 @@ func TestSM_TypingEditsTheLiveValue(t *testing.T) {
 }
 
 func TestSM_LeftRightMovesTextCursorInEditMode(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags)
 	m = smKey(t, m, keyEnter)
@@ -554,7 +556,7 @@ func TestSM_LeftRightMovesTextCursorInEditMode(t *testing.T) {
 func TestSM_TabIsIgnoredInEditMode(t *testing.T) {
 	// §8.2 treats Tab/Shift+Tab as navigate-mode field moves; in edit mode (one
 	// element live) they are ignored — focus and buffer are untouched.
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags)
 	m = smKey(t, m, keyEnter)
@@ -575,7 +577,7 @@ func TestSM_TabIsIgnoredInEditMode(t *testing.T) {
 }
 
 func TestSM_XInEditModeIsALiteralChar(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags)
 	m = smKey(t, m, keyEnter)
@@ -591,7 +593,7 @@ func TestSM_XInEditModeIsALiteralChar(t *testing.T) {
 
 func TestSM_CommitNamePersistsViaRename(t *testing.T) {
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, nil)
+	m := smModel(t, ed, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldName
 	m = smKey(t, m, keyEnter) // enter edit on Name (buffer="proj")
 	m = typeRunes(t, m, "X")  // -> "projX"
@@ -612,7 +614,7 @@ func TestSM_CommitNamePersistsViaRename(t *testing.T) {
 
 func TestSM_CommitNewAliasPersistsViaSetAndSave(t *testing.T) {
 	al := &smAliasEditor{aliases: map[string]string{}}
-	m := smModel(&smProjectEditor{}, al, nil, nil)
+	m := smModel(t, &smProjectEditor{}, al, nil, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0 // add slot (no chips)
 	m = smKey(t, m, keyEnter)
@@ -633,7 +635,7 @@ func TestSM_NewAliasCollisionWithAnotherProjectIsSilentRevert(t *testing.T) {
 	// "w" already maps to a DIFFERENT project path. The collision pre-check
 	// (Load then reject) must skip the SetAndSave and silently drop the chip.
 	al := &smAliasEditor{aliases: map[string]string{"w": "/p/other"}}
-	m := smModel(&smProjectEditor{}, al, nil, nil)
+	m := smModel(t, &smProjectEditor{}, al, nil, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0
 	m = smKey(t, m, keyEnter)
@@ -654,7 +656,7 @@ func TestSM_NewAliasCollisionWithAnotherProjectIsSilentRevert(t *testing.T) {
 
 func TestSM_CommitNewTagPersistsViaAddTag(t *testing.T) {
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, nil)
+	m := smModel(t, ed, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldTags
 	m.editTagCursor = 0 // add slot
 	m = smKey(t, m, keyEnter)
@@ -677,7 +679,7 @@ func TestSM_EditExistingAliasCommitsViaDeleteThenSet(t *testing.T) {
 	// Editing an existing alias chip to a new value deletes the old name and
 	// sets the new one (DeleteAndSave then SetAndSave).
 	al := &smAliasEditor{aliases: map[string]string{"a": "/p/one"}}
-	m := smModel(&smProjectEditor{}, al, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, al, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0
 	m = smKey(t, m, keyEnter) // edit chip "a"
@@ -702,7 +704,7 @@ func TestSM_EditExistingAliasCommitsViaDeleteThenSet(t *testing.T) {
 func TestSM_EditExistingTagCommitsViaRemoveThenAdd(t *testing.T) {
 	// Editing an existing tag chip to a new value removes the old and adds the new.
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, []string{"work"})
+	m := smModel(t, ed, &smAliasEditor{}, nil, []string{"work"})
 	m.editFocus = editFieldTags
 	m.editTagCursor = 0
 	m = smKey(t, m, keyEnter) // edit chip "work"
@@ -728,7 +730,7 @@ func TestSM_EditExistingTagCommitsViaRemoveThenAdd(t *testing.T) {
 
 func TestSM_ExistingChipCommittedEmptyIsDeleted(t *testing.T) {
 	al := &smAliasEditor{aliases: map[string]string{"a": "/p/one"}}
-	m := smModel(&smProjectEditor{}, al, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, al, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0
 	m = smKey(t, m, keyEnter)     // edit chip "a" (buffer "a")
@@ -748,7 +750,7 @@ func TestSM_ExistingChipCommittedEmptyIsDeleted(t *testing.T) {
 
 func TestSM_EmptyNameCommitRevertsToPrior(t *testing.T) {
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, nil)
+	m := smModel(t, ed, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldName
 	m = smKey(t, m, keyEnter) // edit Name (buffer "proj")
 	// Clear the whole name.
@@ -772,7 +774,7 @@ func TestSM_EmptyNameCommitRevertsToPrior(t *testing.T) {
 func TestSM_DuplicateChipCommitIsSilentNoOp(t *testing.T) {
 	// New tag chip committed with a value already present -> dedupe, no AddTag.
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, []string{"work"})
+	m := smModel(t, ed, &smAliasEditor{}, nil, []string{"work"})
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags) // add slot
 	m = smKey(t, m, keyEnter)
@@ -794,7 +796,7 @@ func TestSM_DuplicateChipCommitIsSilentNoOp(t *testing.T) {
 func TestSM_DuplicateTagIsCaseSensitive(t *testing.T) {
 	// "WORK" is distinct from a present "work" (case-sensitive) — appended.
 	ed := &smProjectEditor{}
-	m := smModel(ed, &smAliasEditor{}, nil, []string{"work"})
+	m := smModel(t, ed, &smAliasEditor{}, nil, []string{"work"})
 	m.editFocus = editFieldTags
 	m.editTagCursor = len(m.editTags)
 	m = smKey(t, m, keyEnter)
@@ -812,7 +814,7 @@ func TestSM_DuplicateTagIsCaseSensitive(t *testing.T) {
 }
 
 func TestSM_NewEmptyChipVanishesOnEsc(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = len(m.editAliases) // add slot
 	m = smKey(t, m, keyEnter)              // spawn new empty chip in edit mode
@@ -832,7 +834,7 @@ func TestSM_NewEmptyChipVanishesOnEsc(t *testing.T) {
 
 func TestSM_EscOnExistingChipDiscardsEditKeepsPriorValue(t *testing.T) {
 	al := &smAliasEditor{aliases: map[string]string{"a": "/p/one"}}
-	m := smModel(&smProjectEditor{}, al, []string{"a"}, nil)
+	m := smModel(t, &smProjectEditor{}, al, []string{"a"}, nil)
 	m.editFocus = editFieldAliases
 	m.editAliasCursor = 0
 	m = smKey(t, m, keyEnter) // edit chip "a"
@@ -856,7 +858,7 @@ func TestSM_EscInNavigateClosesWithoutDiscardingSavedWork(t *testing.T) {
 	// trigger a refresh (loadProjects cmd) — never discard the saved work.
 	ed := &smProjectEditor{}
 	al := &smAliasEditor{}
-	m := smModel(ed, al, nil, nil)
+	m := smModel(t, ed, al, nil, nil)
 	m.projectStore = smProjectStore{projects: []project.Project{{Path: "/p/one", Name: "proj"}}}
 	m.editFocus = editFieldTags
 	m.editTagCursor = 0
@@ -878,7 +880,7 @@ func TestSM_EscInNavigateClosesWithoutDiscardingSavedWork(t *testing.T) {
 }
 
 func TestSM_EscInNavigateWithNoChangesClosesWithoutRefresh(t *testing.T) {
-	m := smModel(&smProjectEditor{}, &smAliasEditor{}, nil, nil)
+	m := smModel(t, &smProjectEditor{}, &smAliasEditor{}, nil, nil)
 	m.editFocus = editFieldName
 
 	m, cmd := smKeyCmd(t, m, keyEsc)

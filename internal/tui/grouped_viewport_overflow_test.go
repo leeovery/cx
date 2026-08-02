@@ -36,6 +36,7 @@ func TestGroupedViewDoesNotOverflowViewport(t *testing.T) {
 
 	for _, mode := range []prefs.SessionListMode{prefs.ModeByProject, prefs.ModeByTag} {
 		m := Model{
+			activeTheme:     testDarkTheme(t),
 			sessions:        sessions,
 			projects:        projects,
 			projectIndex:    project.NewIndex(projects),

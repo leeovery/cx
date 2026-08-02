@@ -7,7 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/prefs"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §3.2 / §4.2 Sessions section header: directly under the §3.1 separator
@@ -90,9 +90,9 @@ const (
 // exactly width cells wide: the left cluster and the right hint are separated by a
 // canvas-painted flex spacer. Below the width at which the left cluster + a spacer
 // + the hint no longer fit, the right hint drops rather than overflow (§2.7).
-func renderSectionHeader(mode prefs.SessionListMode, insideTmux bool, currentSession string, count, width int, canvasMode theme.Mode, colourless bool) string {
-	left := sectionLeftCluster(mode, insideTmux, currentSession, count, canvasMode, colourless)
-	return renderSectionHeaderRow(left, width, canvasMode, colourless)
+func renderSectionHeader(mode prefs.SessionListMode, insideTmux bool, currentSession string, count, width int, th theme.Theme, colourless bool) string {
+	left := sectionLeftCluster(mode, insideTmux, currentSession, count, th, colourless)
+	return renderSectionHeaderRow(left, width, th, colourless)
 }
 
 // renderProjectsSectionHeader renders the §6 / §3.2 Projects section header: a
@@ -107,9 +107,9 @@ func renderSectionHeader(mode prefs.SessionListMode, insideTmux bool, currentSes
 // stay identical; only the left cluster (label text + label colour + count colour)
 // differs. Under the NO_COLOR carve-out (§2.5) every hue and the canvas drop; the
 // structure (label / count / hint) renders intact on the terminal's native fg/bg.
-func renderProjectsSectionHeader(count, width int, canvasMode theme.Mode, colourless bool) string {
-	left := projectsLeftCluster(count, canvasMode, colourless)
-	return renderSectionHeaderRow(left, width, canvasMode, colourless)
+func renderProjectsSectionHeader(count, width int, th theme.Theme, colourless bool) string {
+	left := projectsLeftCluster(count, th, colourless)
+	return renderSectionHeaderRow(left, width, th, colourless)
 }
 
 // renderMultiSelectHeader renders the §5 multi-select banner in the section-header
@@ -127,10 +127,10 @@ func renderProjectsSectionHeader(count, width int, canvasMode theme.Mode, colour
 // cancel`) differ. Under the NO_COLOR carve-out (§2.5) every hue and the canvas
 // drop; the `N selected` / `esc cancel` text renders intact on the terminal's
 // native fg/bg. The single rendered row is exactly one line.
-func renderMultiSelectHeader(count, width int, mode theme.Mode, colourless bool) string {
-	left := headerStyle(theme.MV.AccentViolet, mode, colourless).Render(strconv.Itoa(count) + " selected")
-	hint := headerStyle(theme.MV.TextDetail, mode, colourless).Render(multiSelectCancelHint)
-	return renderRightAnchoredSectionRow(left, hint, width, mode, colourless)
+func renderMultiSelectHeader(count, width int, th theme.Theme, colourless bool) string {
+	left := headerStyle(th.AccentPrimary, th, colourless).Render(strconv.Itoa(count) + " selected")
+	hint := headerStyle(th.TextMuted, th, colourless).Render(multiSelectCancelHint)
+	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
 // renderOpeningBand renders the §6.5 in-burst `Opening n/N…` pending affordance in
@@ -147,10 +147,10 @@ func renderMultiSelectHeader(count, width int, mode theme.Mode, colourless bool)
 //
 // Under the NO_COLOR carve-out (§2.5) every hue and the canvas drop; the `Opening
 // n/N…` text survives on the terminal's native fg/bg.
-func renderOpeningBand(done, total, width int, mode theme.Mode, colourless bool) string {
-	left := headerStyle(theme.MV.AccentViolet, mode, colourless).
+func renderOpeningBand(done, total, width int, th theme.Theme, colourless bool) string {
+	left := headerStyle(th.AccentPrimary, th, colourless).
 		Render(fmt.Sprintf("Opening %d/%d…", done, total))
-	return renderRightAnchoredSectionRow(left, "", width, mode, colourless)
+	return renderRightAnchoredSectionRow(left, "", width, th, colourless)
 }
 
 // renderUnsupportedHeader renders the §6.2 proactive unsupported terminal banner in
@@ -176,16 +176,16 @@ func renderOpeningBand(done, total, width int, mode theme.Mode, colourless bool)
 // Under the NO_COLOR carve-out (§2.5) every hue and the canvas drop; the `⚠`, the
 // label, the identity string, and `see docs` survive on the terminal's native fg/bg
 // (glyph-backed, never colour-only).
-func renderUnsupportedHeader(name, bundleID string, width int, mode theme.Mode, colourless bool) string {
-	left := unsupportedLeftCluster(name, bundleID, mode, colourless)
+func renderUnsupportedHeader(name, bundleID string, width int, th theme.Theme, colourless bool) string {
+	left := unsupportedLeftCluster(name, bundleID, th, colourless)
 	// The `see docs` hint carries an OSC 8 hyperlink to the custom-terminal docs page,
 	// emitted UNCONDITIONALLY — OSC 8 is orthogonal to colour, so it rides the
 	// NO_COLOR/colourless carve-out and degrades to the bare `see docs` word where the
 	// terminal does not render OSC 8 (never a printed URL/path — link-or-bare-word only).
-	hint := headerStyle(theme.MV.AccentBlue, mode, colourless).
+	hint := headerStyle(th.AccentKey, th, colourless).
 		Hyperlink(unsupportedDocsURL).
 		Render(unsupportedDocsHint)
-	return renderRightAnchoredSectionRow(left, hint, width, mode, colourless)
+	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
 // renderPreflightAbortHeader renders the §6.7 pre-flight abort banner in the
@@ -208,11 +208,11 @@ func renderUnsupportedHeader(name, bundleID string, width int, mode theme.Mode, 
 // Under the NO_COLOR carve-out (§2.5) every hue and the canvas drop; the `⚠`, the
 // message, and `esc dismiss` survive on the terminal's native fg/bg (glyph-backed,
 // never colour-only).
-func renderPreflightAbortHeader(message string, width int, mode theme.Mode, colourless bool) string {
-	left := headerStyle(theme.MV.StateRed, mode, colourless).
+func renderPreflightAbortHeader(message string, width int, th theme.Theme, colourless bool) string {
+	left := headerStyle(th.StateDestructive, th, colourless).
 		Render(flashWarningGlyph + " " + message)
-	hint := headerStyle(theme.MV.TextDetail, mode, colourless).Render(preflightAbortDismissHint)
-	return renderRightAnchoredSectionRow(left, hint, width, mode, colourless)
+	hint := headerStyle(th.TextMuted, th, colourless).Render(preflightAbortDismissHint)
+	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
 // unsupportedLeftCluster renders the §6.2 banner's left cluster flush at the
@@ -221,10 +221,10 @@ func renderPreflightAbortHeader(message string, width int, mode theme.Mode, colo
 // ` — <name> · <bundleID>` identity in text.detail (bundleID != "" always holds when
 // reached). The `⚠` glyph is shared with the §11.2 warning flash (flashWarningGlyph)
 // so the two warning surfaces stay glyph-consistent.
-func unsupportedLeftCluster(name, bundleID string, mode theme.Mode, colourless bool) string {
-	label := headerStyle(theme.MV.AccentOrange, mode, colourless).
+func unsupportedLeftCluster(name, bundleID string, th theme.Theme, colourless bool) string {
+	label := headerStyle(th.AccentAttention, th, colourless).
 		Render(flashWarningGlyph + " " + unsupportedLabel)
-	identity := headerStyle(theme.MV.TextDetail, mode, colourless).
+	identity := headerStyle(th.TextMuted, th, colourless).
 		Render(unsupportedIdentityDash + name + unsupportedIdentityMiddot + bundleID)
 	return lipgloss.JoinHorizontal(lipgloss.Top, label, identity)
 }
@@ -235,12 +235,12 @@ func unsupportedLeftCluster(name, bundleID string, mode theme.Mode, colourless b
 // both the Sessions and Projects section headers route through, so their
 // right-alignment and §2.7 narrow degrade can never drift from each other or from
 // the §5 multi-select banner (which shares the same core).
-func renderSectionHeaderRow(left string, width int, canvasMode theme.Mode, colourless bool) string {
+func renderSectionHeaderRow(left string, width int, th theme.Theme, colourless bool) string {
 	// The standard section header's fixed `/ to filter` right hint; the shared core
 	// (renderRightAnchoredSectionRow) owns the flex-spacer geometry and the §2.7
 	// degrade, so it is passed the rendered hint.
-	hint := headerStyle(theme.MV.TextDetail, canvasMode, colourless).Render(sectionFilterHint)
-	return renderRightAnchoredSectionRow(left, hint, width, canvasMode, colourless)
+	hint := headerStyle(th.TextMuted, th, colourless).Render(sectionFilterHint)
+	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
 // renderRightAnchoredSectionRow lays out a pre-rendered left cluster and a
@@ -252,7 +252,7 @@ func renderSectionHeaderRow(left string, width int, canvasMode theme.Mode, colou
 // renderSectionHeaderRow) and the §5 multi-select banner (`esc cancel` hint, via
 // renderMultiSelectHeader) route through, so their right-alignment, flex spacer, and
 // narrow degrade can never drift — only the left cluster and the hint text differ.
-func renderRightAnchoredSectionRow(left, hint string, width int, canvasMode theme.Mode, colourless bool) string {
+func renderRightAnchoredSectionRow(left, hint string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	leftWidth := lipgloss.Width(left)
 	hintWidth := lipgloss.Width(hint)
@@ -261,11 +261,11 @@ func renderRightAnchoredSectionRow(left, hint string, width int, canvasMode them
 	// hint no longer fits beside it leaving at least one spacer cell — drop the
 	// hint and pad the left cluster to width with canvas spaces.
 	if leftWidth >= w || leftWidth+1+hintWidth > w {
-		return headerPadRight(left, leftWidth, w, canvasMode, colourless)
+		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
 
 	spacerWidth := w - leftWidth - hintWidth
-	spacer := headerCanvasBg(canvasMode, colourless).Render(strings.Repeat(" ", spacerWidth))
+	spacer := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", spacerWidth))
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, hint)
 }
 
@@ -275,10 +275,10 @@ func renderRightAnchoredSectionRow(left, hint string, width int, canvasMode them
 // space right at the SAME cap-height (a plain run — no smaller / superscript
 // glyph), distinguished only by text.detail (§13.6). NO leading indent (mirrors
 // sectionLeftCluster). No mode suffix — the Projects list has a single view.
-func projectsLeftCluster(count int, canvasMode theme.Mode, colourless bool) string {
-	label := headerStyle(theme.MV.StateGreen, canvasMode, colourless).Render(projectsSectionLabel)
-	gap := headerCanvasBg(canvasMode, colourless).Render(" ")
-	countRun := headerStyle(theme.MV.TextDetail, canvasMode, colourless).Render(strconv.Itoa(count))
+func projectsLeftCluster(count int, th theme.Theme, colourless bool) string {
+	label := headerStyle(th.StatePositive, th, colourless).Render(projectsSectionLabel)
+	gap := headerCanvasBg(th, colourless).Render(" ")
+	countRun := headerStyle(th.TextMuted, th, colourless).Render(strconv.Itoa(count))
 	return lipgloss.JoinHorizontal(lipgloss.Top, label, gap, countRun)
 }
 
@@ -293,14 +293,14 @@ func projectsLeftCluster(count int, canvasMode theme.Mode, colourless bool) stri
 // group rows, not this section header. The suffix is the remainder of
 // sessionListTitleForMode after the fixed "Sessions" prefix, so the wording stays
 // byte-parity-identical.
-func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSession string, count int, canvasMode theme.Mode, colourless bool) string {
-	label := headerStyle(theme.MV.AccentCyan, canvasMode, colourless).Render(sectionLabel)
+func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSession string, count int, th theme.Theme, colourless bool) string {
+	label := headerStyle(th.AccentMode, th, colourless).Render(sectionLabel)
 
 	// The count sits one space right of the label, at the SAME font size (a plain
 	// run — no smaller / superscript glyph), distinguished only by state.green
 	// (§13.6 — shares the baseline / cap-height with the label).
-	gap := headerCanvasBg(canvasMode, colourless).Render(" ")
-	countRun := headerStyle(theme.MV.StateGreen, canvasMode, colourless).Render(strconv.Itoa(count))
+	gap := headerCanvasBg(th, colourless).Render(" ")
+	countRun := headerStyle(th.StatePositive, th, colourless).Render(strconv.Itoa(count))
 
 	cluster := lipgloss.JoinHorizontal(lipgloss.Top, label, gap, countRun)
 
@@ -308,7 +308,7 @@ func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSess
 	// sessionListTitleForMode emits after the fixed "Sessions" prefix — sourced
 	// from the single title producer so the wording stays byte-identical.
 	if suffix := sectionModeSuffix(mode, insideTmux, currentSession); suffix != "" {
-		suffixRun := headerStyle(theme.MV.TextDetail, canvasMode, colourless).Render(suffix)
+		suffixRun := headerStyle(th.TextMuted, th, colourless).Render(suffix)
 		cluster = lipgloss.JoinHorizontal(lipgloss.Top, cluster, suffixRun)
 	}
 	return cluster
@@ -333,11 +333,11 @@ const filterPromptPrefix = "/ "
 //
 // Under the NO_COLOR carve-out the hues and the canvas drop; the `/ query` text
 // renders on the terminal's native fg/bg (still structurally distinct).
-func renderFilterQueryHeader(query string, width int, mode theme.Mode, colourless bool) string {
+func renderFilterQueryHeader(query string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
-	run := headerStyle(theme.MV.AccentOrange, mode, colourless).Render(filterPromptPrefix + query)
+	run := headerStyle(th.AccentAttention, th, colourless).Render(filterPromptPrefix + query)
 	runWidth := lipgloss.Width(run)
-	return headerPadRight(run, runWidth, w, mode, colourless)
+	return headerPadRight(run, runWidth, w, th, colourless)
 }
 
 // sectionModeSuffix returns the section header's suffix text — the mode suffix

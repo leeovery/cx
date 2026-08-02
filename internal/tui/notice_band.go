@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §11 shared notice-band primitive + single-slot arbiter.
@@ -83,14 +83,14 @@ const commandBandText = "Pick a project to run"
 // barToken returns the §2.9 role token whose foreground paints the role's
 // left-bar. No literal hex survives here — the colour is sourced from the closed
 // MV vocabulary so a re-theme moves the band bars with every other element.
-func (r noticeBandRole) barToken() theme.Token {
+func (r noticeBandRole) barToken(th theme.Theme) theme.Token {
 	switch r {
 	case bandWarning:
-		return theme.MV.AccentOrange
+		return th.AccentAttention
 	case bandSuccess:
-		return theme.MV.StateGreen
+		return th.StatePositive
 	default: // bandInfo, bandCommand
-		return theme.MV.AccentViolet
+		return th.AccentPrimary
 	}
 }
 
@@ -104,12 +104,12 @@ func (r noticeBandRole) barToken() theme.Token {
 // same `▌` bar, same tint). This single shared mapping is the regression guard
 // that keeps the two info bands from drifting apart. The pairing is
 // closed-vocabulary only (no invented token, no literal hex).
-func (r noticeBandRole) tintToken() theme.Token {
+func (r noticeBandRole) tintToken(th theme.Theme) theme.Token {
 	switch r {
 	case bandInfo, bandCommand:
-		return theme.MV.BgSelection
+		return th.BgSelection
 	default: // bandWarning, bandSuccess
-		return theme.MV.BgWarning
+		return th.BgAttention
 	}
 }
 
@@ -134,24 +134,24 @@ func (r noticeBandRole) statusGlyph() string {
 // renders on the terminal's native bg. Every band cell (bar, glyph, message, the
 // gaps, and the right pad) is painted through this so the whole row is one
 // uniform tint with no terminal-bg island.
-func noticeBandTintStyle(tint theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
+func noticeBandTintStyle(tint theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
-	return lipgloss.NewStyle().Background(tint.ColorFor(mode))
+	return lipgloss.NewStyle().Background(tint.Color())
 }
 
 // noticeBandFgStyle returns the on-band FOREGROUND style: the supplied role token
 // over the band's tint background — the bar (role colour) and the on-band text /
 // glyph (onBandText) leg both paint through this so their cells carry the same
 // tint as the gaps. Under NO_COLOR it is a bare style (no hue, no tint).
-func noticeBandFgStyle(fg, tint theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
+func noticeBandFgStyle(fg, tint theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
 	return lipgloss.NewStyle().
-		Foreground(fg.ColorFor(mode)).
-		Background(tint.ColorFor(mode))
+		Foreground(fg.Color()).
+		Background(tint.Color())
 }
 
 // bandBase is the §11 info-band base treatment shared by EVERY band render path:
@@ -170,12 +170,12 @@ type bandBase struct {
 // newBandBase builds the shared info-band base for a role: the tint token + the
 // tint-painted `▌` bar and gap cells. The NO_COLOR carve-out (§2.5) is honoured by
 // the underlying style helpers, so under colourless the bar/gap carry no SGR.
-func newBandBase(role noticeBandRole, mode theme.Mode, colourless bool) bandBase {
-	tint := role.tintToken()
+func newBandBase(role noticeBandRole, th theme.Theme, colourless bool) bandBase {
+	tint := role.tintToken(th)
 	return bandBase{
 		tint: tint,
-		bar:  noticeBandFgStyle(role.barToken(), tint, mode, colourless).Render(noticeBarGlyph),
-		gap:  noticeBandTintStyle(tint, mode, colourless).Render(" "),
+		bar:  noticeBandFgStyle(role.barToken(th), tint, th, colourless).Render(noticeBarGlyph),
+		gap:  noticeBandTintStyle(tint, th, colourless).Render(" "),
 	}
 }
 
@@ -211,13 +211,13 @@ func newBandBase(role noticeBandRole, mode theme.Mode, colourless bool) bandBase
 // message text survive on the terminal's native fg/bg so the band's STATE stays
 // legible colourlessly (§2.2 — glyph-distinct, never colour-only). The bar survives
 // on every wrapped line.
-func renderNoticeBand(role noticeBandRole, message string, onBandText theme.Token, width int, mode theme.Mode, colourless bool) string {
+func renderNoticeBand(role noticeBandRole, message string, onBandText theme.Token, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
-	base := newBandBase(role, mode, colourless)
+	base := newBandBase(role, th, colourless)
 	tint := base.tint
 	gap := base.gap
 	bar := base.bar
-	fg := noticeBandFgStyle(onBandText, tint, mode, colourless)
+	fg := noticeBandFgStyle(onBandText, tint, th, colourless)
 
 	// Prefix laid out before the message on line 1: the `▌` bar + gap, plus (for the
 	// flashes) the status glyph + gap. The bar (1) + gap (1) [+ glyph (1) + gap (1)]
@@ -245,7 +245,7 @@ func renderNoticeBand(role noticeBandRole, message string, onBandText theme.Toke
 	barGapWidth := lipgloss.Width(noticeBarGlyph) + 1
 	var contIndent string
 	if prefixWidth > barGapWidth {
-		contIndent = noticeBandTintStyle(tint, mode, colourless).Render(strings.Repeat(" ", prefixWidth-barGapWidth))
+		contIndent = noticeBandTintStyle(tint, th, colourless).Render(strings.Repeat(" ", prefixWidth-barGapWidth))
 	}
 
 	lines := make([]string, 0, len(wrapped))
@@ -261,7 +261,7 @@ func renderNoticeBand(role noticeBandRole, message string, onBandText theme.Toke
 		segs = append(segs, fg.Render(text))
 
 		row := lipgloss.JoinHorizontal(lipgloss.Top, segs...)
-		lines = append(lines, noticeBandPadRight(row, lipgloss.Width(row), w, tint, mode, colourless))
+		lines = append(lines, noticeBandPadRight(row, lipgloss.Width(row), w, tint, th, colourless))
 	}
 
 	return strings.Join(lines, "\n")
@@ -289,16 +289,16 @@ const commandChipPadX = 1
 // drop; the `▌` bar, the `▸` caret, the text, and the chip command survive on the
 // terminal's native fg/bg, so the chip degrades to a colourless padded box still
 // distinguishable by position (§2.2 — never colour-only).
-func renderCommandBand(command []string, width int, mode theme.Mode, colourless bool) string {
+func renderCommandBand(command []string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
-	base := newBandBase(bandCommand, mode, colourless)
+	base := newBandBase(bandCommand, th, colourless)
 
-	caret := noticeBandFgStyle(bandCommand.barToken(), base.tint, mode, colourless).Render(commandBandCaret)
-	text := noticeBandFgStyle(theme.MV.TextOnSelection, base.tint, mode, colourless).Render(commandBandText)
-	chip := renderCommandChip(strings.Join(command, " "), mode, colourless)
+	caret := noticeBandFgStyle(bandCommand.barToken(th), base.tint, th, colourless).Render(commandBandCaret)
+	text := noticeBandFgStyle(th.TextOnSelection, base.tint, th, colourless).Render(commandBandText)
+	chip := renderCommandChip(strings.Join(command, " "), th, colourless)
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, base.bar, base.gap, caret, base.gap, text, base.gap, chip)
-	return noticeBandPadRight(row, lipgloss.Width(row), w, base.tint, mode, colourless)
+	return noticeBandPadRight(row, lipgloss.Width(row), w, base.tint, th, colourless)
 }
 
 // renderCommandChip renders the §11.4 command chip: the joined command in
@@ -306,14 +306,14 @@ func renderCommandBand(command []string, width int, mode theme.Mode, colourless 
 // commandChipPadX cells of horizontal padding each side, so it reads as a distinct
 // orange box ON the violet-tinted band. Under NO_COLOR all colours + the fill drop,
 // leaving a padded colourless box distinguishable by position.
-func renderCommandChip(command string, mode theme.Mode, colourless bool) string {
+func renderCommandChip(command string, th theme.Theme, colourless bool) string {
 	if colourless {
 		pad := strings.Repeat(" ", commandChipPadX)
 		return pad + command + pad
 	}
 	chip := lipgloss.NewStyle().
-		Foreground(theme.MV.AccentOrange.ColorFor(mode)).
-		Background(theme.MV.BgWarning.ColorFor(mode)).
+		Foreground(th.AccentAttention.Color()).
+		Background(th.BgAttention.Color()).
 		Padding(0, commandChipPadX).
 		Render(command)
 	return chip
@@ -325,8 +325,8 @@ func renderCommandChip(command string, mode theme.Mode, colourless bool) string 
 // (the band is clamped to w by construction at the call site). It binds the band's
 // tint fill and delegates the pad geometry to the shared padRightWithStyle (the
 // same core headerPadRight routes through, which pads with the canvas instead).
-func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, mode theme.Mode, colourless bool) string {
-	return padRightWithStyle(seg, segWidth, w, noticeBandTintStyle(tint, mode, colourless))
+func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.Theme, colourless bool) string {
+	return padRightWithStyle(seg, segWidth, w, noticeBandTintStyle(tint, th, colourless))
 }
 
 // activeNoticeBand is the §11 single-slot arbiter for the Sessions page: it
@@ -391,11 +391,11 @@ func flashBandRole(kind flashKind) noticeBandRole {
 // info signpost carries text.on-selection — the bright white co-tuned for the
 // bg.selection tint the info band sits on (the same token the selected
 // session-row name uses on that surface), so the message stays legible.
-func noticeBandOnBandText(role noticeBandRole) theme.Token {
+func noticeBandOnBandText(role noticeBandRole, th theme.Theme) theme.Token {
 	if role == bandInfo {
-		return theme.MV.TextOnSelection
+		return th.TextOnSelection
 	}
-	return theme.MV.TextOnWarning
+	return th.TextOnAttention
 }
 
 // renderActiveNoticeBand renders the arbitrated Sessions-page notice band for the
@@ -409,7 +409,7 @@ func (m Model) renderActiveNoticeBand() string {
 	if !ok {
 		return ""
 	}
-	return renderNoticeBand(role, message, noticeBandOnBandText(role), m.contentWidth(), m.canvasMode, m.colourless)
+	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
 }
 
 // renderSessionBandSlot renders the FULL §11 Sessions notice slot for the model's
@@ -432,6 +432,6 @@ func (m Model) renderSessionBandSlot() string {
 	if band == "" {
 		return ""
 	}
-	blank := blankCanvasRow(m.contentWidth(), m.canvasMode, m.colourless)
+	blank := blankCanvasRow(m.contentWidth(), m.activeTheme, m.colourless)
 	return lipgloss.JoinVertical(lipgloss.Left, band, blank)
 }

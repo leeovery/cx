@@ -13,18 +13,31 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
+
+// darkBuiltinTheme loads the shipped dark built-in — the palette a model
+// constructed without an explicit appearance renders with, and therefore the one
+// this package's SGR probes must be built from.
+func darkBuiltinTheme(t *testing.T) theme.Theme {
+	t.Helper()
+	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(theme.DefaultDarkSlug)
+	if !found || rejection != nil {
+		t.Fatalf("dark built-in %q did not load (found=%v)", theme.DefaultDarkSlug, found)
+	}
+	return loaded.Theme
+}
 
 // editFieldFocused reports whether the edit-modal field label renders with the
 // §13.1 focused colour (accent.violet) in the given view — the MV focus signal that
 // replaced the legacy `> ` indicator. The probe builds the violet foreground SGR
-// core (mode-default Dark, the harness canvas) and asserts the label line carries
+// core (the dark built-in, the harness canvas) and asserts the label line carries
 // it. label is the uppercase field label (NAME / ALIASES / TAGS).
-func editFieldFocused(view, label string) bool {
-	probe := lipgloss.NewStyle().Foreground(theme.MV.AccentViolet.ColorFor(theme.Dark)).Render("x")
+func editFieldFocused(t *testing.T, view, label string) bool {
+	t.Helper()
+	probe := lipgloss.NewStyle().Foreground(darkBuiltinTheme(t).AccentPrimary.Color()).Render("x")
 	start := strings.IndexByte(probe, '[')
 	end := strings.IndexByte(probe, 'm')
 	if start < 0 || end <= start {
@@ -4714,20 +4727,20 @@ func TestEditProject(t *testing.T) {
 
 		// Open lands on Name in navigate mode — the §13.1 focus signal is the NAME
 		// label rendered in accent.violet (the legacy `> ` indicator is gone).
-		if !editFieldFocused(model.View().Content, "NAME") {
+		if !editFieldFocused(t, model.View().Content, "NAME") {
 			t.Fatalf("open should focus Name, got:\n%s", model.View().Content)
 		}
 
 		// Tab moves focus to Aliases.
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-		if !editFieldFocused(model.View().Content, "ALIASES") {
+		if !editFieldFocused(t, model.View().Content, "ALIASES") {
 			t.Errorf("after Tab focus should be Aliases, got:\n%s", model.View().Content)
 		}
 
 		// Two more Tabs wrap Aliases → Tags → Name.
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // Aliases → Tags
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // Tags → Name
-		if !editFieldFocused(model.View().Content, "NAME") {
+		if !editFieldFocused(t, model.View().Content, "NAME") {
 			t.Errorf("after three Tabs focus should wrap to Name, got:\n%s", model.View().Content)
 		}
 	})

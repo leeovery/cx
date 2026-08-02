@@ -26,7 +26,7 @@ func TestModelViewRoutesPagePreviewToPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hello-from-preview\n")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	// Wider terminal so the §9.1 chrome cascade lands at tier 1 — the full
 	// marker + session + counters + verbose hints render when they all fit.
 	m.termWidth = 120

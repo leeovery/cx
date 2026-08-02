@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // bgState classifies the active SGR background after a (possibly empty) run of
@@ -81,9 +81,9 @@ func isNamedBg(p string) bool {
 // wantCanvasBgParams returns the raw background-parameter form (e.g.
 // "48;2;11;12;20") that the mode's canvas background renders as, derived from
 // lipgloss so the test pins the SAME bytes production paints.
-func wantCanvasBgParams(t *testing.T, m theme.Mode) string {
+func wantCanvasBgParams(t *testing.T, th theme.Theme) string {
 	t.Helper()
-	seq := canvasSeq(t, m) // e.g. "\x1b[48;2;11;12;20m"
+	seq := canvasSeq(t, th) // e.g. "\x1b[48;2;11;12;20m"
 	inner := strings.TrimSuffix(strings.TrimPrefix(seq, "\x1b["), "m")
 	if inner == "" {
 		t.Fatalf("could not derive canvas bg params from %q", seq)
@@ -140,16 +140,16 @@ func sgrParams(seq string) []string {
 // were rendering on the terminal default.
 func TestCanvasCellBackground_EveryInGridCellIsCanvas(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		mode theme.Mode
+		name       string
+		appearance canvasAppearance
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", appearanceDarkCanvas},
+		{"light", appearanceLightCanvas},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w, h = 90, 24
-			m := newCanvasTestModel(t, w, h, tc.mode)
-			canvasParams := wantCanvasBgParams(t, tc.mode)
+			m := newCanvasTestModel(t, w, h, tc.appearance)
+			canvasParams := wantCanvasBgParams(t, themeForAppearance(t, tc.appearance))
 
 			view := m.View().Content
 			lines := strings.Split(view, "\n")
@@ -185,7 +185,7 @@ func TestCanvasCellBackground_EveryInGridCellIsCanvas(t *testing.T) {
 // grid width.
 func TestCanvasCellBackground_TitleAndFooterGaps(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 
 	view := m.View().Content
 	lines := strings.Split(view, "\n")

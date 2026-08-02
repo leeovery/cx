@@ -9,7 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §6 / §6.2 Projects two-line row anatomy gate. These tests pin the restyled
@@ -45,8 +45,8 @@ func projectItems(specs ...project.Project) []list.Item {
 // lines — the name (text.primary, heavy/bold) on line 1, the path (text.detail,
 // dim) on line 2 — on an UNSELECTED row (so the base, non-selection tokens apply).
 func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := ProjectDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := ProjectDelegate{Theme: th}
 		items := projectItems(
 			project.Project{Name: "row-zero", Path: "/home/user/code/row-zero"},
 			project.Project{Name: "portal", Path: "/home/user/code/portal"},
@@ -56,28 +56,28 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 
 		lines := strings.Split(out, "\n")
 		if len(lines) != 2 {
-			t.Fatalf("[%v] project row must render exactly 2 lines, got %d:\n%q", mode, len(lines), out)
+			t.Fatalf("[%v] project row must render exactly 2 lines, got %d:\n%q", themeLabel(th), len(lines), out)
 		}
 		if !strings.Contains(ansi.Strip(lines[0]), "portal") {
-			t.Errorf("[%v] line 1 missing the project name 'portal': %q", mode, ansi.Strip(lines[0]))
+			t.Errorf("[%v] line 1 missing the project name 'portal': %q", themeLabel(th), ansi.Strip(lines[0]))
 		}
 		if !strings.Contains(ansi.Strip(lines[1]), "/home/user/code/portal") {
-			t.Errorf("[%v] line 2 missing the project path: %q", mode, ansi.Strip(lines[1]))
+			t.Errorf("[%v] line 2 missing the project path: %q", themeLabel(th), ansi.Strip(lines[1]))
 		}
 		// Name in text.primary, path in text.detail.
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(lines[0], seq) {
-			t.Errorf("[%v] name line missing text.primary fg %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(lines[0], seq) {
+			t.Errorf("[%v] name line missing text.primary fg %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(lines[1], seq) {
-			t.Errorf("[%v] path line missing text.detail fg %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(lines[1], seq) {
+			t.Errorf("[%v] path line missing text.detail fg %q", themeLabel(th), seq)
 		}
 		// The name is heavy/bold (SGR 1 in the name line's first style run).
-		boldName := lipgloss.NewStyle().Bold(true).Foreground(theme.MV.TextPrimary.ColorFor(mode)).Render("portal")
+		boldName := lipgloss.NewStyle().Bold(true).Foreground(testDarkTheme(t).TextPrimary.Color()).Render("portal")
 		if !strings.Contains(lines[0], "1;") && !strings.Contains(boldName, "1;") {
-			t.Errorf("[%v] precondition: bold name run should carry SGR bold", mode)
+			t.Errorf("[%v] precondition: bold name run should carry SGR bold", themeLabel(th))
 		}
 		if !strings.Contains(lines[0], "1;38;2") {
-			t.Errorf("[%v] name line missing the heavy/bold name run (SGR 1 + 24-bit fg): %q", mode, escSeq(lines[0]))
+			t.Errorf("[%v] name line missing the heavy/bold name run (SGR 1 + 24-bit fg): %q", themeLabel(th), escSeq(lines[0]))
 		}
 	}
 }
@@ -86,28 +86,28 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 // selection treatment: a full-height accent.violet ▌ left bar on BOTH lines of the
 // selected row, every structural cell tinted with bg.selection on BOTH lines.
 func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := ProjectDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := ProjectDelegate{Theme: th}
 		items := projectItems(project.Project{Name: "selected", Path: "/home/user/code/selected"})
 		out := renderProjectRow(d, 80, items, 0, 0)
 		lines := strings.Split(out, "\n")
 		if len(lines) != 2 {
-			t.Fatalf("[%v] selected row must render 2 lines, got %d:\n%q", mode, len(lines), out)
+			t.Fatalf("[%v] selected row must render 2 lines, got %d:\n%q", themeLabel(th), len(lines), out)
 		}
 
-		violet := tokenFgSeq(t, theme.MV.AccentViolet, mode)
-		bgParams := selectionBgParams(t, mode)
+		violet := tokenFgSeq(t, th.AccentPrimary)
+		bgParams := selectionBgParams(t, th)
 		for i, line := range lines {
 			// The ▌ bar is present on BOTH lines (the full-height bar), in accent.violet.
 			if !strings.Contains(ansi.Strip(line), "▌") {
-				t.Errorf("[%v] selected line %d missing the ▌ full-height bar: %q", mode, i, ansi.Strip(line))
+				t.Errorf("[%v] selected line %d missing the ▌ full-height bar: %q", themeLabel(th), i, ansi.Strip(line))
 			}
 			if !strings.Contains(line, violet) {
-				t.Errorf("[%v] selected line %d bar missing accent.violet fg %q", mode, i, violet)
+				t.Errorf("[%v] selected line %d bar missing accent.violet fg %q", themeLabel(th), i, violet)
 			}
 			// The bg.selection tint spans BOTH lines.
 			if !lineHasBgParams(line, bgParams) {
-				t.Errorf("[%v] selected line %d missing the bg.selection tint %q: %q", mode, i, bgParams, escSeq(line))
+				t.Errorf("[%v] selected line %d missing the bg.selection tint %q: %q", themeLabel(th), i, bgParams, escSeq(line))
 			}
 		}
 	}
@@ -117,17 +117,17 @@ func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 // selected-row foreground roles: the name becomes text.on-selection and the path
 // becomes text.muted-bright (the path-on-selection token).
 func TestProjectRow_SelectedNameOnSelectionPathMutedBright(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := ProjectDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := ProjectDelegate{Theme: th}
 		items := projectItems(project.Project{Name: "selected", Path: "/home/user/code/selected"})
 		out := renderProjectRow(d, 80, items, 0, 0)
 		lines := strings.Split(out, "\n")
 
-		if seq := tokenFgSeq(t, theme.MV.TextOnSelection, mode); !strings.Contains(lines[0], seq) {
-			t.Errorf("[%v] selected name missing text.on-selection fg %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextOnSelection); !strings.Contains(lines[0], seq) {
+			t.Errorf("[%v] selected name missing text.on-selection fg %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextMutedBright, mode); !strings.Contains(lines[1], seq) {
-			t.Errorf("[%v] selected path missing text.muted-bright fg %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextTertiary); !strings.Contains(lines[1], seq) {
+			t.Errorf("[%v] selected path missing text.muted-bright fg %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -136,24 +136,24 @@ func TestProjectRow_SelectedNameOnSelectionPathMutedBright(t *testing.T) {
 // unselected row carries neither the ▌ bar nor the bg.selection tint — it paints on
 // the plain canvas on both lines.
 func TestProjectRow_UnselectedHasNoBarOrTint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := ProjectDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := ProjectDelegate{Theme: th}
 		items := projectItems(
 			project.Project{Name: "row-zero", Path: "/home/user/code/row-zero"},
 			project.Project{Name: "row-one", Path: "/home/user/code/row-one"},
 		)
 		out := renderProjectRow(d, 80, items, 1, 0)
-		bgParams := selectionBgParams(t, mode)
-		canvasParams := wantCanvasBgParams(t, mode)
+		bgParams := selectionBgParams(t, th)
+		canvasParams := wantCanvasBgParams(t, th)
 		for i, line := range strings.Split(out, "\n") {
 			if strings.Contains(ansi.Strip(line), "▌") {
-				t.Errorf("[%v] unselected line %d must not carry the ▌ bar: %q", mode, i, ansi.Strip(line))
+				t.Errorf("[%v] unselected line %d must not carry the ▌ bar: %q", themeLabel(th), i, ansi.Strip(line))
 			}
 			if lineHasBgParams(line, bgParams) {
-				t.Errorf("[%v] unselected line %d must not carry the bg.selection tint %q: %q", mode, i, bgParams, escSeq(line))
+				t.Errorf("[%v] unselected line %d must not carry the bg.selection tint %q: %q", themeLabel(th), i, bgParams, escSeq(line))
 			}
 			if !lineHasBgParams(line, canvasParams) {
-				t.Errorf("[%v] unselected line %d missing the canvas paint %q: %q", mode, i, canvasParams, escSeq(line))
+				t.Errorf("[%v] unselected line %d missing the canvas paint %q: %q", themeLabel(th), i, canvasParams, escSeq(line))
 			}
 		}
 	}
@@ -221,11 +221,11 @@ func TestProjectRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 			Name: "agentic-workflows-codify",
 			Path: "/home/user/leeovery/Code/agentic-workflows",
 		})
-		for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-			out := renderProjectRow(ProjectDelegate{Mode: mode}, w, items, 0, 0)
+		for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+			out := renderProjectRow(ProjectDelegate{Theme: th}, w, items, 0, 0)
 			for i, line := range strings.Split(out, "\n") {
 				if lw := lipgloss.Width(line); lw > w {
-					t.Errorf("[w=%d %v] line %d width = %d, overflows the list width %d", w, mode, i, lw, w)
+					t.Errorf("[w=%d %v] line %d width = %d, overflows the list width %d", w, themeLabel(th), i, lw, w)
 				}
 			}
 		}
@@ -239,22 +239,22 @@ func TestProjectRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 // bar instead). The source-level guard is colour_literal_guard_test.go; this is the
 // render-level cross-check.
 func TestProjectRow_NoLegacyCursorOrColourLiterals(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := ProjectDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := ProjectDelegate{Theme: th}
 		items := projectItems(project.Project{Name: "portal", Path: "/home/user/code/portal"})
 		out := renderProjectRow(d, 80, items, 0, 0)
 
 		for _, banned := range []string{"38;5;212", "48;5;212"} {
 			if strings.Contains(out, banned) {
-				t.Errorf("[%v] delegate emitted a legacy ANSI-256 colour sequence %q: %q", mode, banned, escSeq(out))
+				t.Errorf("[%v] delegate emitted a legacy ANSI-256 colour sequence %q: %q", themeLabel(th), banned, escSeq(out))
 			}
 		}
 		if strings.Contains(out, "38;2;119;119;119") {
-			t.Errorf("[%v] delegate emitted the legacy #777777 grey: %q", mode, escSeq(out))
+			t.Errorf("[%v] delegate emitted the legacy #777777 grey: %q", themeLabel(th), escSeq(out))
 		}
 		// The selected row carries the ▌ bar, NOT a `> ` cursor prefix.
 		if strings.Contains(ansi.Strip(out), "> ") {
-			t.Errorf("[%v] selected row should use the ▌ bar, not a '> ' cursor: %q", mode, ansi.Strip(out))
+			t.Errorf("[%v] selected row should use the ▌ bar, not a '> ' cursor: %q", themeLabel(th), ansi.Strip(out))
 		}
 	}
 }
@@ -264,21 +264,21 @@ func TestProjectRow_NoLegacyCursorOrColourLiterals(t *testing.T) {
 // foreground hue — name + path text and the two-line structure intact, the bar
 // glyph still present for glyph-distinct selection (§2.2).
 func TestProjectRow_ColourlessDropsHueAndCanvas(t *testing.T) {
-	d := ProjectDelegate{Mode: theme.Dark, Colourless: true}
+	d := ProjectDelegate{Theme: testDarkTheme(t), Colourless: true}
 	items := projectItems(project.Project{Name: "portal", Path: "/home/user/code/portal"})
 	out := renderProjectRow(d, 80, items, 0, 0)
 
 	if !strings.Contains(ansi.Strip(out), "portal") || !strings.Contains(ansi.Strip(out), "/home/user/code/portal") {
 		t.Errorf("colourless row dropped structure: %q", ansi.Strip(out))
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(out, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(out, seq) {
 		t.Errorf("colourless row still paints the canvas background sequence %q", seq)
 	}
-	if bgParams := selectionBgParams(t, theme.Dark); lineHasBgParams(out, bgParams) {
+	if bgParams := selectionBgParams(t, testDarkTheme(t)); lineHasBgParams(out, bgParams) {
 		t.Errorf("colourless selected row still carries the bg.selection tint %q", bgParams)
 	}
-	for _, tok := range []theme.Token{theme.MV.TextPrimary, theme.MV.TextOnSelection, theme.MV.AccentViolet} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(out, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).TextPrimary, testDarkTheme(t).TextOnSelection, testDarkTheme(t).AccentPrimary} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(out, seq) {
 			t.Errorf("colourless row still emits a foreground role sequence %q", seq)
 		}
 	}

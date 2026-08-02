@@ -8,8 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // The §3.2/§4.2 Sessions section header: `Sessions` (accent.cyan) + count
@@ -28,13 +28,13 @@ const sectionHeaderWidth = 90
 func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			header := renderSectionHeader(prefs.ModeFlat, false, "", 7, sectionHeaderWidth, tc.mode, false)
+			header := renderSectionHeader(prefs.ModeFlat, false, "", 7, sectionHeaderWidth, tc.th, false)
 
 			if !strings.Contains(header, "Sessions") {
 				t.Errorf("section header missing the %q label:\n%s", "Sessions", header)
@@ -43,10 +43,10 @@ func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
 				t.Errorf("section header missing the count %q:\n%s", "7", header)
 			}
 			// Label is accent.cyan, count is state.green — each via its token.
-			if seq := tokenFgSeq(t, theme.MV.AccentCyan, tc.mode); !strings.Contains(header, seq) {
+			if seq := tokenFgSeq(t, tc.th.AccentMode); !strings.Contains(header, seq) {
 				t.Errorf("section header missing the accent.cyan label role sequence %q", seq)
 			}
-			if seq := tokenFgSeq(t, theme.MV.StateGreen, tc.mode); !strings.Contains(header, seq) {
+			if seq := tokenFgSeq(t, tc.th.StatePositive); !strings.Contains(header, seq) {
 				t.Errorf("section header missing the state.green count role sequence %q", seq)
 			}
 		})
@@ -63,12 +63,12 @@ func TestSectionHeader_ModeSuffixFromTitleFn(t *testing.T) {
 		if suffix == "" {
 			t.Fatalf("expected a non-empty mode suffix for %v, got title %q", mode, title)
 		}
-		header := renderSectionHeader(mode, false, "", 3, sectionHeaderWidth, theme.Dark, false)
+		header := renderSectionHeader(mode, false, "", 3, sectionHeaderWidth, testDarkTheme(t), false)
 		if !strings.Contains(header, strings.TrimSpace(suffix)) {
 			t.Errorf("section header for %v missing the suffix %q from sessionListTitleForMode:\n%s", mode, suffix, header)
 		}
 		// The suffix is rendered in text.detail.
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, theme.Dark); !strings.Contains(header, seq) {
+		if seq := tokenFgSeq(t, testDarkTheme(t).TextMuted); !strings.Contains(header, seq) {
 			t.Errorf("section header for %v missing the text.detail suffix role sequence %q", mode, seq)
 		}
 	}
@@ -79,7 +79,7 @@ func TestSectionHeader_ModeSuffixFromTitleFn(t *testing.T) {
 // a flex spacer to the content width), on flat, by-project, and by-tag.
 func TestSectionHeader_RightAlignedFilterHint(t *testing.T) {
 	for _, mode := range []prefs.SessionListMode{prefs.ModeFlat, prefs.ModeByProject, prefs.ModeByTag} {
-		header := renderSectionHeader(mode, false, "", 4, sectionHeaderWidth, theme.Dark, false)
+		header := renderSectionHeader(mode, false, "", 4, sectionHeaderWidth, testDarkTheme(t), false)
 		if !strings.Contains(header, sectionFilterHint) {
 			t.Errorf("section header for %v missing the %q hint:\n%s", mode, sectionFilterHint, header)
 		}
@@ -99,7 +99,7 @@ func TestSectionHeader_RightAlignedFilterHint(t *testing.T) {
 // TestSectionHeader_NoSwitchViewHint asserts the `s switch view` hint is NOT
 // duplicated in the section header — it lives in the footer only (§3.2).
 func TestSectionHeader_NoSwitchViewHint(t *testing.T) {
-	header := renderSectionHeader(prefs.ModeByTag, false, "", 4, sectionHeaderWidth, theme.Dark, false)
+	header := renderSectionHeader(prefs.ModeByTag, false, "", 4, sectionHeaderWidth, testDarkTheme(t), false)
 	if strings.Contains(header, "switch view") {
 		t.Errorf("section header must NOT duplicate the footer %q hint:\n%s", "s switch view", header)
 	}
@@ -110,7 +110,7 @@ func TestSectionHeader_NoSwitchViewHint(t *testing.T) {
 // sessionListTitleForMode so its wording is identical to the pre-reskin title.
 func TestSectionHeader_PreservesInsideTmuxDecoration(t *testing.T) {
 	const current = "my-project-x7k2m9"
-	header := renderSectionHeader(prefs.ModeFlat, true, current, 2, sectionHeaderWidth, theme.Dark, false)
+	header := renderSectionHeader(prefs.ModeFlat, true, current, 2, sectionHeaderWidth, testDarkTheme(t), false)
 	want := "(current: " + current + ")"
 	if !strings.Contains(header, want) {
 		t.Errorf("section header dropped the inside-tmux decoration %q:\n%s", want, header)
@@ -122,14 +122,14 @@ func TestSectionHeader_PreservesInsideTmuxDecoration(t *testing.T) {
 // `/ to filter` hint drops, and the row never overflows the width.
 func TestSectionHeader_NarrowDegradeDropsHint(t *testing.T) {
 	// Wide: hint present.
-	wide := renderSectionHeader(prefs.ModeFlat, false, "", 5, sectionHeaderWidth, theme.Dark, false)
+	wide := renderSectionHeader(prefs.ModeFlat, false, "", 5, sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, sectionFilterHint) {
 		t.Fatalf("wide section header missing the hint:\n%s", wide)
 	}
 
 	// Narrow: a width that cannot hold the left cluster + a spacer + the hint.
 	const narrow = 14
-	narrowHeader := renderSectionHeader(prefs.ModeFlat, false, "", 5, narrow, theme.Dark, false)
+	narrowHeader := renderSectionHeader(prefs.ModeFlat, false, "", 5, narrow, testDarkTheme(t), false)
 	if strings.Contains(narrowHeader, sectionFilterHint) {
 		t.Errorf("narrow section header at width %d still shows the %q hint (degrade failed):\n%s", narrow, sectionFilterHint, narrowHeader)
 	}
@@ -154,7 +154,7 @@ func TestSectionHeader_CountValueAndSuffixByteIdentical(t *testing.T) {
 		{prefs.ModeByProject, 8},
 		{prefs.ModeByTag, 15},
 	} {
-		header := renderSectionHeader(tc.mode, false, "", tc.count, sectionHeaderWidth, theme.Dark, false)
+		header := renderSectionHeader(tc.mode, false, "", tc.count, sectionHeaderWidth, testDarkTheme(t), false)
 		// The mode-suffix text is the sessionListTitleForMode remainder (parity).
 		title := sessionListTitleForMode(tc.mode, false, "")
 		if suffix := strings.TrimSpace(strings.TrimPrefix(title, "Sessions")); suffix != "" && !strings.Contains(header, suffix) {
@@ -163,7 +163,7 @@ func TestSectionHeader_CountValueAndSuffixByteIdentical(t *testing.T) {
 		// The exact count value is rendered inside its own state.green run — build
 		// the same run the implementation emits (state.green fg over the canvas) and
 		// assert it appears verbatim, so the count value is byte-identical and green.
-		countRun := headerStyle(theme.MV.StateGreen, theme.Dark, false).Render(itoa(tc.count))
+		countRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render(itoa(tc.count))
 		if !strings.Contains(header, countRun) {
 			t.Errorf("section header for %v missing the exact count %d in a state.green run:\n%s", tc.mode, tc.count, header)
 		}
@@ -174,16 +174,16 @@ func TestSectionHeader_CountValueAndSuffixByteIdentical(t *testing.T) {
 // (§2.5): a colourless section header carries no canvas background SGR and no
 // foreground hue — structure (label, count, suffix, hint) intact.
 func TestSectionHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
-	header := renderSectionHeader(prefs.ModeByTag, false, "", 6, sectionHeaderWidth, theme.Dark, true)
+	header := renderSectionHeader(prefs.ModeByTag, false, "", 6, sectionHeaderWidth, testDarkTheme(t), true)
 
 	if !strings.Contains(header, "Sessions") || !strings.Contains(header, "6") || !strings.Contains(header, sectionFilterHint) {
 		t.Errorf("colourless section header dropped structure:\n%s", header)
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(header, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(header, seq) {
 		t.Errorf("colourless section header still paints the canvas background sequence %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.AccentCyan, theme.MV.StateGreen, theme.MV.TextDetail} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(header, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentMode, testDarkTheme(t).StatePositive, testDarkTheme(t).TextMuted} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(header, seq) {
 			t.Errorf("colourless section header still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -193,7 +193,7 @@ func TestSectionHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 // the owned canvas background (leaf .Background(canvas)) so the right-aligned
 // spacer gap is canvas-painted, not a terminal-bg island.
 func TestSectionHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, mode := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		header := renderSectionHeader(prefs.ModeFlat, false, "", 3, sectionHeaderWidth, mode, false)
 		if seq := canvasSeq(t, mode); !strings.Contains(header, seq) {
 			t.Errorf("section header does not paint the canvas background sequence %q:\n%s", seq, header)
@@ -207,11 +207,11 @@ func TestSectionHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 // the visible session count, and the right-aligned `/ to filter` hint — while the
 // title FIELD (m.sessionList.Title) keeps its parity value.
 func TestViewSessionList_ReplacesTitleWithSectionHeader(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, theme.Dark) // 3 sessions (alpha/bravo/charlie)
+	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas) // 3 sessions (alpha/bravo/charlie)
 	view := m.viewSessionList()
 
 	// The section header's count (3) renders in a state.green run.
-	countRun := headerStyle(theme.MV.StateGreen, theme.Dark, false).Render("3")
+	countRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render("3")
 	if !strings.Contains(view, countRun) {
 		t.Errorf("composed Sessions view missing the state.green count run for 3 visible sessions:\n%s", view)
 	}
@@ -220,7 +220,7 @@ func TestViewSessionList_ReplacesTitleWithSectionHeader(t *testing.T) {
 		t.Errorf("composed Sessions view missing the %q hint:\n%s", sectionFilterHint, view)
 	}
 	// The `Sessions` label is painted in accent.cyan (the replaced title line).
-	if seq := tokenFgSeq(t, theme.MV.AccentCyan, theme.Dark); !strings.Contains(view, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentMode); !strings.Contains(view, seq) {
 		t.Errorf("composed Sessions view missing the accent.cyan label role sequence %q", seq)
 	}
 	// Parity: the title FIELD is unchanged.
@@ -242,7 +242,7 @@ func TestViewSessionList_SectionHeaderCountMatchesVisible(t *testing.T) {
 	view := m.viewSessionList()
 
 	// Two sessions are visible (alpha is the current session, excluded).
-	twoRun := headerStyle(theme.MV.StateGreen, theme.Dark, false).Render("2")
+	twoRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render("2")
 	if !strings.Contains(view, twoRun) {
 		t.Errorf("composed view section-header count should be 2 (alpha excluded inside tmux):\n%s", view)
 	}
@@ -256,7 +256,7 @@ func TestViewSessionList_SectionHeaderCountMatchesVisible(t *testing.T) {
 // overwrite the filter input row while the filter is being typed (FilterState ==
 // Filtering): the title row is the live filter input then, not the section header.
 func TestViewSessionList_FilterInputNotReplaced(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, theme.Dark)
+	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
 	m.sessionList.SetFilterState(list.Filtering)
 	view := m.viewSessionList()
 
@@ -287,21 +287,21 @@ func leadingPrintableCol(line string) int {
 func TestSectionHeader_AlignsWithHeaderWordmark(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w = sectionHeaderWidth
 
-			headerFirstLine := strings.SplitN(renderHeaderBlock(w, tc.mode, false), "\n", 2)[0]
+			headerFirstLine := strings.SplitN(renderHeaderBlock(w, tc.th, false), "\n", 2)[0]
 			wordmarkCol := leadingPrintableCol(headerFirstLine)
 			if wordmarkCol != 0 {
 				t.Fatalf("PORTAL wordmark leading column = %d, want 0 (flush at the content edge)", wordmarkCol)
 			}
 
-			section := renderSectionHeader(prefs.ModeFlat, false, "", 3, w, tc.mode, false)
+			section := renderSectionHeader(prefs.ModeFlat, false, "", 3, w, tc.th, false)
 			sectionCol := leadingPrintableCol(section)
 			if sectionCol != 0 {
 				t.Errorf("section header `Sessions` leading column = %d, want 0 (no extra indent; must align with the PORTAL wordmark at the content edge)", sectionCol)
@@ -321,7 +321,7 @@ func TestSectionHeader_AlignsWithHeaderWordmark(t *testing.T) {
 // (they sit after the ▌ bar column); that is correct and is not what this guard
 // measures.
 func TestViewSessionList_HeaderSectionCursorShareLeftEdge(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, theme.Dark)
+	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
 	view := m.viewSessionList()
 
 	var wordmarkCol, sectionCol, cursorCol = -1, -1, -1
@@ -364,7 +364,7 @@ func isBlankRow(line string) bool {
 // sees it. It exists because a flush-chrome spacing miss slipped through the
 // element-scoped checks; locking the composed sequence stops a silent regress.
 func TestViewSessionList_HeaderZoneVerticalRhythm(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, theme.Dark) // 3 sessions: alpha/bravo/charlie
+	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas) // 3 sessions: alpha/bravo/charlie
 	lines := strings.Split(m.viewSessionList(), "\n")
 
 	// Locate each landmark row by its visible content.

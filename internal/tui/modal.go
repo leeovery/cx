@@ -3,7 +3,7 @@ package tui
 import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // modalState tracks which modal overlay is currently active.
@@ -47,8 +47,8 @@ func placeModalOnClearedCanvas(panel string, width, height int) string {
 // the divider can carry real junctions into the side frame and the vertical spacing
 // is flush (zero blank rows). The frame is SINGLE-TONE border.separator, mode- and
 // colourless-aware. The same lipgloss.Place centres it on the inset region.
-func renderHelpModalOnClearedCanvas(entries []keymapEntry, width, height int, mode theme.Mode, colourless bool) string {
-	panel := renderHelpModalContent(entries, mode, colourless)
+func renderHelpModalOnClearedCanvas(entries []keymapEntry, width, height int, th theme.Theme, colourless bool) string {
+	panel := renderHelpModalContent(entries, th, colourless)
 	return placeModalOnClearedCanvas(panel, width, height)
 }
 
@@ -57,8 +57,8 @@ func renderHelpModalOnClearedCanvas(entries []keymapEntry, width, height int, mo
 // modal wrapper but with the kill modal's own hand-drawn single-tone joined panel
 // (renderKillModalContent — the SAME frame the help modal uses, three compartments
 // instead of two).
-func renderKillModalOnClearedCanvas(name string, windows int, width, height int, mode theme.Mode, colourless bool) string {
-	panel := renderKillModalContent(name, windows, mode, colourless)
+func renderKillModalOnClearedCanvas(name string, windows int, width, height int, th theme.Theme, colourless bool) string {
+	panel := renderKillModalContent(name, windows, th, colourless)
 	return placeModalOnClearedCanvas(panel, width, height)
 }
 
@@ -68,8 +68,8 @@ func renderKillModalOnClearedCanvas(name string, windows int, width, height int,
 // joined panel (renderDeleteModalContent — the SAME frame the kill modal uses, three
 // compartments). The confirm/cancel LOGIC is unchanged (updateDeleteProjectModal);
 // only the rendering is reskinned.
-func renderDeleteModalOnClearedCanvas(name, path string, width, height int, mode theme.Mode, colourless bool) string {
-	panel := renderDeleteModalContent(name, path, mode, colourless)
+func renderDeleteModalOnClearedCanvas(name, path string, width, height int, th theme.Theme, colourless bool) string {
+	panel := renderDeleteModalContent(name, path, th, colourless)
 	return placeModalOnClearedCanvas(panel, width, height)
 }
 
@@ -80,8 +80,8 @@ func renderDeleteModalOnClearedCanvas(name, path string, width, height int, mode
 // compartments with the orange-outlined input box nested in the body). The rename
 // flow LOGIC (updateRenameModal / renameAndRefresh) is unchanged — only the
 // rendering is reskinned.
-func renderRenameModalOnClearedCanvas(input textinput.Model, oldName string, width, height int, mode theme.Mode, colourless bool) string {
-	panel := renderRenameModalContent(input, oldName, mode, colourless)
+func renderRenameModalOnClearedCanvas(input textinput.Model, oldName string, width, height int, th theme.Theme, colourless bool) string {
+	panel := renderRenameModalContent(input, oldName, th, colourless)
 	return placeModalOnClearedCanvas(panel, width, height)
 }
 
@@ -93,7 +93,7 @@ func renderRenameModalOnClearedCanvas(input textinput.Model, oldName string, wid
 // fully framed it is placed directly — there is NO lipgloss auto-border wrap that
 // would add a redundant second border. The edit-modal LOGIC (updateEditProjectModal)
 // is unchanged — only the rendering is reskinned.
-func renderEditModalOnClearedCanvas(m Model, width, height int, mode theme.Mode, colourless bool) string {
+func renderEditModalOnClearedCanvas(m Model, width, height int, th theme.Theme, colourless bool) string {
 	panel := m.renderEditProjectContent()
 	return placeModalOnClearedCanvas(panel, width, height)
 }

@@ -2,7 +2,7 @@ package tui
 
 import (
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // modal_footer.go owns the SINGLE canonical implementation of the footer key-hint
@@ -35,23 +35,23 @@ type footerHintGroup struct {
 //
 // An empty key takes the label-only fast path (no glyph, no gap) — the form the edit
 // footer's `empty on save = delete` consequence note collapses onto.
-func renderKeyHint(key, label string, keyTok theme.Token, mode theme.Mode, colourless bool) string {
-	labelSeg := headerStyle(theme.MV.TextDetail, mode, colourless).Render(label)
+func renderKeyHint(key, label string, keyTok theme.Token, th theme.Theme, colourless bool) string {
+	labelSeg := headerStyle(th.TextMuted, th, colourless).Render(label)
 	if key == "" {
 		return labelSeg
 	}
-	keySeg := headerStyle(keyTok, mode, colourless).Render(key)
-	gap := headerCanvasBg(mode, colourless).Render(" ")
+	keySeg := headerStyle(keyTok, th, colourless).Render(key)
+	gap := headerCanvasBg(th, colourless).Render(" ")
 	return lipgloss.JoinHorizontal(lipgloss.Top, keySeg, gap, labelSeg)
 }
 
 // renderBlueKeyHint renders one `<key> <label>` footer hint with the key glyph pinned
 // to accent.blue — the SINGLE canonical accent.blue key-hint path. It is a thin pin over
-// renderKeyHint that fixes keyTok to theme.MV.AccentBlue so the contextual edit footer
+// renderKeyHint that fixes keyTok to the theme's accent.key token so the contextual edit footer
 // and the Preview nav footer (the two live accent.blue call sites) share one seam rather
 // than each re-authoring the token. An empty key takes renderKeyHint's label-only path.
-func renderBlueKeyHint(key, label string, mode theme.Mode, colourless bool) string {
-	return renderKeyHint(key, label, theme.MV.AccentBlue, mode, colourless)
+func renderBlueKeyHint(key, label string, th theme.Theme, colourless bool) string {
+	return renderKeyHint(key, label, th.AccentKey, th, colourless)
 }
 
 // renderConfirmCancelFooter renders the two-hint modal footer row: the confirm hint,
@@ -59,10 +59,10 @@ func renderBlueKeyHint(key, label string, mode theme.Mode, colourless bool) stri
 // hints via renderKeyHint with accent.blue key glyphs. The three modal footer rows
 // (kill y/kill·esc/cancel, delete y/delete·esc/cancel, rename ⏎/rename·esc/cancel)
 // route through here, passing their per-modal key/label constants as arguments.
-func renderConfirmCancelFooter(confirmKey, confirmLabel, cancelKey, cancelLabel string, mode theme.Mode, colourless bool) string {
-	confirm := renderKeyHint(confirmKey, confirmLabel, theme.MV.AccentBlue, mode, colourless)
-	gap := headerCanvasBg(mode, colourless).Render(modalFooterGap)
-	cancel := renderKeyHint(cancelKey, cancelLabel, theme.MV.AccentBlue, mode, colourless)
+func renderConfirmCancelFooter(confirmKey, confirmLabel, cancelKey, cancelLabel string, th theme.Theme, colourless bool) string {
+	confirm := renderKeyHint(confirmKey, confirmLabel, th.AccentKey, th, colourless)
+	gap := headerCanvasBg(th, colourless).Render(modalFooterGap)
+	cancel := renderKeyHint(cancelKey, cancelLabel, th.AccentKey, th, colourless)
 	return lipgloss.JoinHorizontal(lipgloss.Top, confirm, gap, cancel)
 }
 

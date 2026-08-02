@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // tokenFgSeq returns the bare `38;2;r;g;b` foreground SGR parameter substring for
@@ -16,9 +16,9 @@ import (
 // background (and sometimes bold) into ONE SGR sequence, so the standalone
 // `\x1b[...m` wrapper never appears verbatim — the colour role is asserted by the
 // `38;2;...` core, which is present regardless of the other params merged in.
-func tokenFgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
+func tokenFgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Foreground(tok.ColorFor(m)).Render("x")
+	probe := lipgloss.NewStyle().Foreground(tok.Color()).Render("x")
 	// probe is like "\x1b[38;2;192;202;245mx\x1b[m"; slice out the params between
 	// the CSI "[" and the final "m".
 	start := strings.IndexByte(probe, '[')
@@ -33,9 +33,9 @@ func tokenFgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
 // a role token in the given mode — the background analogue of tokenFgSeq, used to
 // assert a tint IS or is NOT painted (e.g. the §11.3 info band must NOT carry the
 // bg.warning flash tint).
-func tokenBgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
+func tokenBgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Background(tok.ColorFor(m)).Render("x")
+	probe := lipgloss.NewStyle().Background(tok.Color()).Render("x")
 	start := strings.IndexByte(probe, '[')
 	end := strings.IndexByte(probe, 'm')
 	if start < 0 || end <= start {
@@ -51,14 +51,14 @@ func tokenBgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
 func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w = 80
-			header := renderHeaderBlock(w, tc.mode, false)
+			header := renderHeaderBlock(w, tc.th, false)
 
 			// Wordmark glyphs are present, letter-spaced (a space between each glyph).
 			if !strings.Contains(header, "P O R T A L") {
@@ -79,17 +79,17 @@ func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
 				role string
 				tok  theme.Token
 			}{
-				{"text.primary wordmark", theme.MV.TextPrimary},
-				{"accent.violet caret", theme.MV.AccentViolet},
-				{"text.detail subtitle", theme.MV.TextDetail},
+				{"text.primary wordmark", tc.th.TextPrimary},
+				{"accent.violet caret", tc.th.AccentPrimary},
+				{"text.detail subtitle", tc.th.TextMuted},
 			} {
-				if seq := tokenFgSeq(t, want.tok, tc.mode); !strings.Contains(header, seq) {
+				if seq := tokenFgSeq(t, want.tok); !strings.Contains(header, seq) {
 					t.Errorf("header missing the %s foreground role sequence %q", want.role, seq)
 				}
 			}
 			// The 2px rule is drawn with the border.separator colour (used as a
 			// foreground for the heavy rule glyphs).
-			if seq := tokenFgSeq(t, theme.MV.BorderSeparator, tc.mode); !strings.Contains(header, seq) {
+			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(header, seq) {
 				t.Errorf("header missing the border.separator rule role sequence %q", seq)
 			}
 
@@ -126,7 +126,7 @@ func visibleContent(line string) string {
 // so it cannot silently regress.
 func TestHeaderBlock_VerticalRhythm(t *testing.T) {
 	const w = 80
-	header := renderHeaderBlock(w, theme.Dark, false)
+	header := renderHeaderBlock(w, testDarkTheme(t), false)
 	lines := strings.Split(header, "\n")
 
 	if len(lines) != 3 {
@@ -161,16 +161,16 @@ func TestHeaderBlock_VerticalRhythm(t *testing.T) {
 // same rows carry no canvas SGR (native bg).
 func TestHeaderBlock_BlankRowsPaintCanvas(t *testing.T) {
 	const w = 80
-	header := renderHeaderBlock(w, theme.Dark, false)
+	header := renderHeaderBlock(w, testDarkTheme(t), false)
 	lines := strings.Split(header, "\n")
-	seq := canvasSeq(t, theme.Dark)
+	seq := canvasSeq(t, testDarkTheme(t))
 	for _, idx := range []int{2} {
 		if !strings.Contains(lines[idx], seq) {
 			t.Errorf("blank row %d does not paint the canvas background sequence %q: %q", idx, seq, lines[idx])
 		}
 	}
 
-	colourless := renderHeaderBlock(w, theme.Dark, true)
+	colourless := renderHeaderBlock(w, testDarkTheme(t), true)
 	clLines := strings.Split(colourless, "\n")
 	if len(clLines) != 3 {
 		t.Fatalf("colourless header block has %d lines, want 3", len(clLines))
@@ -187,8 +187,8 @@ func TestHeaderBlock_BlankRowsPaintCanvas(t *testing.T) {
 // the Paper frame weight — the reference shows one thin full-width line).
 func TestHeaderBlock_SeparatorRule(t *testing.T) {
 	const w = 80
-	header := renderHeaderBlock(w, theme.Dark, false)
-	rule := headerSeparatorRule(w, theme.Dark, false)
+	header := renderHeaderBlock(w, testDarkTheme(t), false)
+	rule := headerSeparatorRule(w, testDarkTheme(t), false)
 	if got := lipgloss.Height(rule); got != 1 {
 		t.Errorf("separator rule height = %d, want 1 (single full-width heavy rule matching the frame)", got)
 	}
@@ -210,7 +210,7 @@ func TestHeaderBlock_SeparatorRule(t *testing.T) {
 // threshold the wordmark collapses to its compact form. Short-but-wide keeps the
 // full wordmark (width is the only driver here).
 func TestHeaderBlock_NarrowDegradeProgressive(t *testing.T) {
-	full := renderHeaderBlock(120, theme.Dark, false)
+	full := renderHeaderBlock(120, testDarkTheme(t), false)
 	if !strings.Contains(full, "P O R T A L") {
 		t.Errorf("wide header missing full wordmark:\n%s", full)
 	}
@@ -219,7 +219,7 @@ func TestHeaderBlock_NarrowDegradeProgressive(t *testing.T) {
 	}
 
 	// Step 1: just below the subtitle threshold — subtitle drops, wordmark stays.
-	noSub := renderHeaderBlock(headerSubtitleMinWidth-1, theme.Dark, false)
+	noSub := renderHeaderBlock(headerSubtitleMinWidth-1, testDarkTheme(t), false)
 	if strings.Contains(noSub, "session manager") {
 		t.Errorf("header at width %d still shows the subtitle (step-1 drop failed):\n%s", headerSubtitleMinWidth-1, noSub)
 	}
@@ -228,7 +228,7 @@ func TestHeaderBlock_NarrowDegradeProgressive(t *testing.T) {
 	}
 
 	// Step 2: below the wordmark threshold — wordmark collapses to compact.
-	compact := renderHeaderBlock(headerWordmarkMinWidth-1, theme.Dark, false)
+	compact := renderHeaderBlock(headerWordmarkMinWidth-1, testDarkTheme(t), false)
 	if strings.Contains(compact, "P O R T A L") {
 		t.Errorf("header at width %d still shows the full letter-spaced wordmark (compact collapse failed):\n%s", headerWordmarkMinWidth-1, compact)
 	}
@@ -242,7 +242,7 @@ func TestHeaderBlock_NarrowDegradeProgressive(t *testing.T) {
 // requested width (no line wider than the terminal).
 func TestHeaderBlock_NeverOverflowsAtMinWidth(t *testing.T) {
 	for _, w := range []int{minTerminalWidth, headerWordmarkMinWidth - 1, headerSubtitleMinWidth - 1, 20, 8} {
-		header := renderHeaderBlock(w, theme.Dark, false)
+		header := renderHeaderBlock(w, testDarkTheme(t), false)
 		for i, line := range strings.Split(header, "\n") {
 			if lw := lipgloss.Width(line); lw > w {
 				t.Errorf("at width %d, header line %d width = %d (overflow)", w, i, lw)
@@ -257,14 +257,14 @@ func TestHeaderBlock_NeverOverflowsAtMinWidth(t *testing.T) {
 func TestHeaderBlock_PaintsOnCanvasNoEdgeBleed(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			header := renderHeaderBlock(80, tc.mode, false)
-			seq := canvasSeq(t, tc.mode)
+			header := renderHeaderBlock(80, tc.th, false)
+			seq := canvasSeq(t, tc.th)
 			if !strings.Contains(header, seq) {
 				t.Errorf("header does not paint the canvas background sequence %q:\n%s", seq, header)
 			}
@@ -276,7 +276,7 @@ func TestHeaderBlock_PaintsOnCanvasNoEdgeBleed(t *testing.T) {
 // (§2.5): a colourless header carries no canvas background SGR and no foreground
 // hue — it renders on the terminal's native fg/bg, structure intact.
 func TestHeaderBlock_ColourlessDropsHueAndCanvas(t *testing.T) {
-	header := renderHeaderBlock(80, theme.Dark, true)
+	header := renderHeaderBlock(80, testDarkTheme(t), true)
 
 	// Structure preserved: wordmark + caret + subtitle + rule all present.
 	if !strings.Contains(header, "P O R T A L") {
@@ -286,12 +286,12 @@ func TestHeaderBlock_ColourlessDropsHueAndCanvas(t *testing.T) {
 		t.Errorf("colourless header missing subtitle:\n%s", header)
 	}
 	// No canvas background painted.
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(header, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(header, seq) {
 		t.Errorf("colourless header still paints the canvas background sequence %q", seq)
 	}
 	// No foreground hue from any header role.
-	for _, tok := range []theme.Token{theme.MV.TextPrimary, theme.MV.AccentViolet, theme.MV.TextDetail, theme.MV.BorderSeparator} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(header, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).TextPrimary, testDarkTheme(t).AccentPrimary, testDarkTheme(t).TextMuted, testDarkTheme(t).Border} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(header, seq) {
 			t.Errorf("colourless header still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -300,7 +300,7 @@ func TestHeaderBlock_ColourlessDropsHueAndCanvas(t *testing.T) {
 // TestHeaderBlock_ZeroWidthFallsBackTo80 asserts a zero/unset width falls back to
 // 80 so the header still composes (mirroring fillCanvas / viewLoading).
 func TestHeaderBlock_ZeroWidthFallsBackTo80(t *testing.T) {
-	header := renderHeaderBlock(0, theme.Dark, false)
+	header := renderHeaderBlock(0, testDarkTheme(t), false)
 	for i, line := range strings.Split(header, "\n") {
 		if lw := lipgloss.Width(line); lw != 80 {
 			t.Errorf("zero-width header line %d width = %d, want 80 fallback", i, lw)
@@ -323,7 +323,7 @@ func TestHeaderHeight_EqualsThreeRows(t *testing.T) {
 		{"colourless", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+			m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 			m.colourless = tc.colourless
 			if got := m.headerHeight(w); got != 3 {
 				t.Errorf("headerHeight(%d) = %d, want 3 (band, rule, 1 blank)", w, got)
@@ -336,7 +336,7 @@ func TestHeaderHeight_EqualsThreeRows(t *testing.T) {
 // header block ABOVE the bubbles/list title — the header is the first visible
 // chrome, the list title sits below it.
 func TestViewSessionList_ComposesHeaderFirst(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, theme.Dark)
+	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
 	view := m.viewSessionList()
 
 	portalIdx := strings.Index(view, "P O R T A L")
@@ -363,12 +363,12 @@ func TestHeaderHeight_SubtractedFromListBudget(t *testing.T) {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
 
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
 
-	headerH := lipgloss.Height(renderHeaderBlock(w, theme.Dark, false))
+	headerH := lipgloss.Height(renderHeaderBlock(w, testDarkTheme(t), false))
 	if headerH <= 0 {
 		t.Fatalf("header height = %d, want > 0", headerH)
 	}
@@ -394,7 +394,7 @@ func TestHeaderHeight_CountedAtEverySizeApplySite(t *testing.T) {
 	}
 
 	// Construction seed (New → applySessionListSize(80,24)) then a resize.
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m = updated.(Model)
 	m.applySessions(sessions) // rebuild path

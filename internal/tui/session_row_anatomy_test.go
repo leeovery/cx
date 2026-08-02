@@ -8,8 +8,8 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // The §4.1 flat-row anatomy gate. These tests pin the restyled SessionDelegate
@@ -49,9 +49,9 @@ func visibleColOf(line, sub string) int {
 // selectionBgParams returns the raw background-parameter form (e.g.
 // "48;2;208;198;240") that the mode's bg.selection tint renders as, derived from
 // lipgloss so the test pins the SAME bytes production paints.
-func selectionBgParams(t *testing.T, m theme.Mode) string {
+func selectionBgParams(t *testing.T, th theme.Theme) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Background(theme.MV.BgSelection.ColorFor(m)).Render(" ")
+	probe := lipgloss.NewStyle().Background(th.BgSelection.Color()).Render(" ")
 	inner := strings.TrimSuffix(strings.TrimPrefix(probe[:strings.IndexByte(probe, ' ')], "\x1b["), "m")
 	if inner == "" {
 		t.Fatalf("could not derive bg.selection params from %q", probe)
@@ -165,25 +165,25 @@ func TestSessionRow_EmptyAttachedSlotPreservesAlignment(t *testing.T) {
 // (accent.violet foreground), every structural cell tints with bg.selection, and
 // the name renders in text.on-selection.
 func TestSessionRow_SelectedShowsVioletBarTintAndOnSelectionName(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		items := flatItems(tmux.Session{Name: "selected-row", Windows: 2, Attached: false})
 		out := renderRow(d, 80, items, 0, 0)
 
 		// The ▌ selector bar glyph is present and rendered in accent.violet.
 		if !strings.Contains(ansi.Strip(out), "▌") {
-			t.Errorf("[%v] selected row missing the ▌ selector bar: %q", mode, ansi.Strip(out))
+			t.Errorf("[%v] selected row missing the ▌ selector bar: %q", themeLabel(th), ansi.Strip(out))
 		}
-		if seq := tokenFgSeq(t, theme.MV.AccentViolet, mode); !strings.Contains(out, seq) {
-			t.Errorf("[%v] selected bar missing accent.violet fg %q", mode, seq)
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(out, seq) {
+			t.Errorf("[%v] selected bar missing accent.violet fg %q", themeLabel(th), seq)
 		}
 		// The row is tinted with bg.selection (not the plain canvas).
-		if params := selectionBgParams(t, mode); !lineHasBgParams(out, params) {
-			t.Errorf("[%v] selected row missing the bg.selection tint %q: %q", mode, params, escSeq(out))
+		if params := selectionBgParams(t, th); !lineHasBgParams(out, params) {
+			t.Errorf("[%v] selected row missing the bg.selection tint %q: %q", themeLabel(th), params, escSeq(out))
 		}
 		// The name renders in text.on-selection.
-		if seq := tokenFgSeq(t, theme.MV.TextOnSelection, mode); !strings.Contains(out, seq) {
-			t.Errorf("[%v] selected name missing text.on-selection fg %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextOnSelection); !strings.Contains(out, seq) {
+			t.Errorf("[%v] selected name missing text.on-selection fg %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -192,8 +192,8 @@ func TestSessionRow_SelectedShowsVioletBarTintAndOnSelectionName(t *testing.T) {
 // unselected row carries neither the ▌ bar nor the bg.selection tint — it paints
 // on the plain canvas.
 func TestSessionRow_UnselectedHasNoBarOrTint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		items := flatItems(
 			tmux.Session{Name: "row-zero", Windows: 1, Attached: false},
 			tmux.Session{Name: "row-one", Windows: 1, Attached: false},
@@ -202,14 +202,14 @@ func TestSessionRow_UnselectedHasNoBarOrTint(t *testing.T) {
 		out := renderRow(d, 80, items, 1, 0)
 
 		if strings.Contains(ansi.Strip(out), "▌") {
-			t.Errorf("[%v] unselected row must not carry the ▌ bar: %q", mode, ansi.Strip(out))
+			t.Errorf("[%v] unselected row must not carry the ▌ bar: %q", themeLabel(th), ansi.Strip(out))
 		}
-		if params := selectionBgParams(t, mode); lineHasBgParams(out, params) {
-			t.Errorf("[%v] unselected row must not carry the bg.selection tint %q: %q", mode, params, escSeq(out))
+		if params := selectionBgParams(t, th); lineHasBgParams(out, params) {
+			t.Errorf("[%v] unselected row must not carry the bg.selection tint %q: %q", themeLabel(th), params, escSeq(out))
 		}
 		// It does paint the canvas.
-		if params := wantCanvasBgParams(t, mode); !lineHasBgParams(out, params) {
-			t.Errorf("[%v] unselected row missing the canvas paint %q: %q", mode, params, escSeq(out))
+		if params := wantCanvasBgParams(t, th); !lineHasBgParams(out, params) {
+			t.Errorf("[%v] unselected row missing the canvas paint %q: %q", themeLabel(th), params, escSeq(out))
 		}
 	}
 }
@@ -222,31 +222,31 @@ func TestSessionRow_UnselectedHasNoBarOrTint(t *testing.T) {
 // canvas (the numeric floor is gated in theme/contrast_test.go), so no per-context
 // on-selection override is needed.
 func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		items := flatItems(
 			tmux.Session{Name: "attached-selected", Windows: 1, Attached: true},
 			tmux.Session{Name: "attached-unselected", Windows: 1, Attached: true},
 		)
 
-		green := tokenFgSeq(t, theme.MV.StateGreen, mode)
-		onSelName := tokenFgSeq(t, theme.MV.TextOnSelection, mode)
+		green := tokenFgSeq(t, th.StatePositive)
+		onSelName := tokenFgSeq(t, th.TextOnSelection)
 
 		// Selected row (cursor on row 0): attached marker in state.green, NOT
 		// recoloured to the text.on-selection name colour.
 		sel := renderRow(d, 80, items, 0, 0)
 		if !strings.Contains(sel, green) {
-			t.Errorf("[%v] selected attached marker missing state.green fg %q", mode, green)
+			t.Errorf("[%v] selected attached marker missing state.green fg %q", themeLabel(th), green)
 		}
 		// The marker is its own green run, distinct from the name's text.on-selection.
-		if mode == theme.Light && green == onSelName {
+		if th == testLightTheme(t) && green == onSelName {
 			t.Fatalf("[light] test precondition broken: state.green == text.on-selection")
 		}
 
 		// Unselected attached row (cursor on row 0, render row 1): same state.green.
 		uns := renderRow(d, 80, items, 1, 0)
 		if !strings.Contains(uns, green) {
-			t.Errorf("[%v] unselected attached marker missing state.green fg %q", mode, green)
+			t.Errorf("[%v] unselected attached marker missing state.green fg %q", themeLabel(th), green)
 		}
 	}
 }
@@ -255,8 +255,8 @@ func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
 // role: the window count renders in text.strong on the selected row (text.detail
 // on unselected).
 func TestSessionRow_SelectedCountInTextStrong(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		items := flatItems(
 			tmux.Session{Name: "row-zero", Windows: 4, Attached: false},
 			tmux.Session{Name: "row-one", Windows: 4, Attached: false},
@@ -265,14 +265,14 @@ func TestSessionRow_SelectedCountInTextStrong(t *testing.T) {
 		sel := renderRow(d, 80, items, 0, 0)
 		uns := renderRow(d, 80, items, 1, 0)
 
-		strong := tokenFgSeq(t, theme.MV.TextStrong, mode)
-		detail := tokenFgSeq(t, theme.MV.TextDetail, mode)
+		strong := tokenFgSeq(t, th.TextSecondary)
+		detail := tokenFgSeq(t, th.TextMuted)
 
 		if !strings.Contains(sel, strong) {
-			t.Errorf("[%v] selected-row count missing text.strong fg %q", mode, strong)
+			t.Errorf("[%v] selected-row count missing text.strong fg %q", themeLabel(th), strong)
 		}
 		if !strings.Contains(uns, detail) {
-			t.Errorf("[%v] unselected-row count missing text.detail fg %q", mode, detail)
+			t.Errorf("[%v] unselected-row count missing text.detail fg %q", themeLabel(th), detail)
 		}
 	}
 }
@@ -321,10 +321,10 @@ func TestSessionRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 			{Name: "agentic-workflows-code-based-that-is-quite-long", Windows: 12, Attached: true},
 		} {
 			items := flatItems(sess)
-			for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-				out := renderRow(SessionDelegate{Mode: mode}, w, items, 0, 0)
+			for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+				out := renderRow(SessionDelegate{Theme: th}, w, items, 0, 0)
 				if got := lipgloss.Width(out); got > w {
-					t.Errorf("[w=%d %v %q] row width = %d, overflows the list width %d", w, mode, sess.Name, got, w)
+					t.Errorf("[w=%d %v %q] row width = %d, overflows the list width %d", w, themeLabel(th), sess.Name, got, w)
 				}
 			}
 		}
@@ -357,20 +357,20 @@ func TestSessionRow_FlatIsNameOnly(t *testing.T) {
 // the grey hex #777777 — that the reskin removed. (The source-level guard is
 // colour_literal_guard_test.go; this is the render-level cross-check.)
 func TestSessionRow_NoRawAnsiColourLiterals(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		items := flatItems(tmux.Session{Name: "alpha", Windows: 3, Attached: true})
 		out := renderRow(d, 80, items, 0, 0)
 
 		// The legacy ANSI-256 index colours render as "38;5;212" / "38;5;76".
 		for _, banned := range []string{"38;5;212", "38;5;76", "48;5;212", "48;5;76"} {
 			if strings.Contains(out, banned) {
-				t.Errorf("[%v] delegate emitted a legacy ANSI-256 colour sequence %q: %q", mode, banned, escSeq(out))
+				t.Errorf("[%v] delegate emitted a legacy ANSI-256 colour sequence %q: %q", themeLabel(th), banned, escSeq(out))
 			}
 		}
 		// The legacy grey hex #777777 == rgb(119,119,119) → "38;2;119;119;119".
 		if strings.Contains(out, "38;2;119;119;119") {
-			t.Errorf("[%v] delegate emitted the legacy #777777 grey: %q", mode, escSeq(out))
+			t.Errorf("[%v] delegate emitted the legacy #777777 grey: %q", themeLabel(th), escSeq(out))
 		}
 	}
 }

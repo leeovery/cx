@@ -5,7 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // §11.1 empty states. When a list is GENUINELY empty — zero items AND no active
@@ -53,17 +53,17 @@ const emptyProjectsHint = "Press n to start one in the current directory · x fo
 // the glyph/message/hint legible on the terminal's native fg/bg. Both the §11.1
 // empty states and the §7.3 no-matches state route through here, so the centring +
 // sizing + token treatment can never drift between them.
-func renderEmptyStateBody(glyph, message, hint string, width, height int, mode theme.Mode, colourless bool) string {
+func renderEmptyStateBody(glyph, message, hint string, width, height int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
-	g := headerStyle(theme.MV.TextFaint, mode, colourless).Render(glyph)
-	msg := headerStyle(theme.MV.TextPrimary, mode, colourless).Bold(true).Render(message)
-	h := headerStyle(theme.MV.TextDetail, mode, colourless).Render(hint)
+	g := headerStyle(th.TextFaint, th, colourless).Render(glyph)
+	msg := headerStyle(th.TextPrimary, th, colourless).Bold(true).Render(message)
+	h := headerStyle(th.TextMuted, th, colourless).Render(hint)
 	stack := lipgloss.JoinVertical(lipgloss.Center, g, "", msg, h)
 	return lipgloss.Place(
 		w, height,
 		lipgloss.Center, lipgloss.Center,
 		stack,
-		lipgloss.WithWhitespaceStyle(headerCanvasBg(mode, colourless)),
+		lipgloss.WithWhitespaceStyle(headerCanvasBg(th, colourless)),
 	)
 }
 
@@ -99,7 +99,7 @@ func (m Model) projectListEmpty() bool {
 // replaceListBodyWithNoMatches.
 func (m Model) replaceListBodyWithEmptyState(listView string, listHeight int, glyph, message, hint string) string {
 	bodyHeight := max(listHeight-1, 1) // minus the title row
-	body := renderEmptyStateBody(glyph, message, hint, m.contentWidth(), bodyHeight, m.canvasMode, m.colourless)
+	body := renderEmptyStateBody(glyph, message, hint, m.contentWidth(), bodyHeight, m.activeTheme, m.colourless)
 	idx := strings.IndexByte(listView, '\n')
 	if idx < 0 {
 		// Degenerate single-line listView (no body to replace): append the body.
@@ -146,10 +146,10 @@ func emptyFooterDescriptor(keymap []keymapEntry) []keymapEntry {
 // `n new in cwd · x projects · / filter · ? help` — the four relevant Sessions
 // bindings selected from the Sessions keymap descriptor (§12.1) and rendered through
 // the SAME condensed-footer machinery (key glyphs accent.blue, labels text.detail,
-// the ? glyph accent.violet, over the 1px border.footer rule). It FULLY REPLACES the
+// the ? glyph accent.violet, over the 1px footer rule). It FULLY REPLACES the
 // standard footer for the empty-sessions state.
-func renderEmptySessionsFooter(width int, mode theme.Mode, colourless bool) string {
-	return renderCondensedFooter(emptyFooterDescriptor(sessionsKeymap()), width, mode, colourless)
+func renderEmptySessionsFooter(width int, th theme.Theme, colourless bool) string {
+	return renderCondensedFooter(emptyFooterDescriptor(sessionsKeymap()), width, th, colourless)
 }
 
 // renderEmptyProjectsFooter renders the §11.1 empty-projects footer:
@@ -157,6 +157,6 @@ func renderEmptySessionsFooter(width int, mode theme.Mode, colourless bool) stri
 // selected from the Projects keymap descriptor (§12.1). Because the labels come from
 // the descriptor, the Projects `x` reads `sessions` (not `projects`), mirroring the
 // pattern through the SAME machinery.
-func renderEmptyProjectsFooter(width int, mode theme.Mode, colourless bool) string {
-	return renderCondensedFooter(emptyFooterDescriptor(projectsKeymap()), width, mode, colourless)
+func renderEmptyProjectsFooter(width int, th theme.Theme, colourless bool) string {
+	return renderCondensedFooter(emptyFooterDescriptor(projectsKeymap()), width, th, colourless)
 }

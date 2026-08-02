@@ -13,8 +13,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // This file is the §5.1 grouped-reskin gate (task 2-9). It pins the RENDER-ONLY
@@ -44,29 +44,29 @@ func renderHeaderRow(d SessionDelegate, width int, h HeaderItem) string {
 // separately-styled runs, not one faint run. Pinned in exact mode-resolved SGR so
 // a token swap (or a regression back to a single faint run) is caught.
 func TestGroupHeading_TextDetailHeadingWithTextDimCount(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		out := renderHeaderRow(d, 80, HeaderItem{Heading: "Portal", Count: 2, Key: "/p/portal"})
 
-		detail := tokenFgSeq(t, theme.MV.TextDetail, mode)
-		dim := tokenFgSeq(t, theme.MV.TextDim, mode)
+		detail := tokenFgSeq(t, th.TextMuted)
+		dim := tokenFgSeq(t, th.TextSubtle)
 
 		if !strings.Contains(out, detail) {
-			t.Errorf("[%v] heading missing text.detail fg %q: %q", mode, detail, escSeq(out))
+			t.Errorf("[%v] heading missing text.detail fg %q: %q", themeLabel(th), detail, escSeq(out))
 		}
 		if !strings.Contains(out, dim) {
-			t.Errorf("[%v] count missing text.dim fg %q: %q", mode, dim, escSeq(out))
+			t.Errorf("[%v] count missing text.dim fg %q: %q", themeLabel(th), dim, escSeq(out))
 		}
 		// The two runs must be DISTINCT — a precondition that the heading and the
 		// count are not painted with one shared style.
 		if detail == dim {
-			t.Fatalf("[%v] test precondition broken: text.detail == text.dim", mode)
+			t.Fatalf("[%v] test precondition broken: text.muted == text.subtle", themeLabel(th))
 		}
 
 		// The visible text keeps the "Heading ··· N" shape.
 		vis := ansi.Strip(out)
 		if want := "Portal " + groupSeparator + " 2"; !strings.Contains(vis, want) {
-			t.Errorf("[%v] heading text = %q, want it to contain %q", mode, vis, want)
+			t.Errorf("[%v] heading text = %q, want it to contain %q", themeLabel(th), vis, want)
 		}
 	}
 }
@@ -76,11 +76,11 @@ func TestGroupHeading_TextDetailHeadingWithTextDimCount(t *testing.T) {
 // sits before the count digits — so the heading word is detail and the count is
 // dim, not the reverse and not one run spanning both.
 func TestGroupHeading_HeadingRunCarriesDetailCountRunCarriesDim(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark}
+	d := SessionDelegate{Theme: testDarkTheme(t)}
 	out := renderHeaderRow(d, 80, HeaderItem{Heading: "Portal", Count: 7, Key: "/p/portal"})
 
-	detail := tokenFgSeq(t, theme.MV.TextDetail, theme.Dark)
-	dim := tokenFgSeq(t, theme.MV.TextDim, theme.Dark)
+	detail := tokenFgSeq(t, testDarkTheme(t).TextMuted)
+	dim := tokenFgSeq(t, testDarkTheme(t).TextSubtle)
 
 	// In the raw (un-stripped) output the heading glyphs must appear under a
 	// text.detail SGR and the count digit under a text.dim SGR.
@@ -112,12 +112,12 @@ func TestGroupHeading_HeadingRunCarriesDetailCountRunCarriesDim(t *testing.T) {
 // token render carries no such leading faint param. (The source call-site no
 // longer references Faint at all; this is the render-level cross-check.)
 func TestGroupHeading_NoFaintAttributeAtCallSite(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
 		out := renderHeaderRow(d, 80, HeaderItem{Heading: "Work", Count: 3, Key: "/p/work"})
 		for _, faint := range []string{"[2;38", "[2;48", "[2m"} {
 			if strings.Contains(out, faint) {
-				t.Errorf("[%v] heading still emits a leading faint SGR param %q (want two token runs, no faint): %q", mode, faint, escSeq(out))
+				t.Errorf("[%v] heading still emits a leading faint SGR param %q (want two token runs, no faint): %q", themeLabel(th), faint, escSeq(out))
 			}
 		}
 	}
@@ -202,21 +202,21 @@ func TestGroupHeading_IndentsToColTwo(t *testing.T) {
 // heading style (text.detail heading + text.dim count) as a resolvable group's
 // heading — they are HeaderItems too.
 func TestCatchAllHeadings_UseSameHeadingStyle(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		d := SessionDelegate{Mode: mode}
-		detail := tokenFgSeq(t, theme.MV.TextDetail, mode)
-		dim := tokenFgSeq(t, theme.MV.TextDim, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := SessionDelegate{Theme: th}
+		detail := tokenFgSeq(t, th.TextMuted)
+		dim := tokenFgSeq(t, th.TextSubtle)
 
 		for _, heading := range []string{"Unknown", "Untagged"} {
 			out := renderHeaderRow(d, 80, HeaderItem{Heading: heading, Count: 3, Key: heading})
 			if !strings.Contains(out, detail) {
-				t.Errorf("[%v] catch-all %q heading missing text.detail fg %q: %q", mode, heading, detail, escSeq(out))
+				t.Errorf("[%v] catch-all %q heading missing text.detail fg %q: %q", themeLabel(th), heading, detail, escSeq(out))
 			}
 			if !strings.Contains(out, dim) {
-				t.Errorf("[%v] catch-all %q count missing text.dim fg %q: %q", mode, heading, dim, escSeq(out))
+				t.Errorf("[%v] catch-all %q count missing text.dim fg %q: %q", themeLabel(th), heading, dim, escSeq(out))
 			}
 			if got := visibleColOf(out, heading); got != 2 {
-				t.Errorf("[%v] catch-all %q heading at col %d, want 2 (same indent as resolvable groups)", mode, heading, got)
+				t.Errorf("[%v] catch-all %q heading at col %d, want 2 (same indent as resolvable groups)", themeLabel(th), heading, got)
 			}
 		}
 	}
@@ -290,10 +290,10 @@ func TestGroupedRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 		grouped := []list.Item{
 			SessionItem{Session: tmux.Session{Name: "a-fairly-long-grouped-session-name", Windows: 9, Attached: true}, GroupKey: "/p/portal", GroupHeading: "Portal"},
 		}
-		for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-			out := renderRow(SessionDelegate{Mode: mode}, w, grouped, 0, 0)
+		for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+			out := renderRow(SessionDelegate{Theme: th}, w, grouped, 0, 0)
 			if got := lipgloss.Width(out); got > w {
-				t.Errorf("[w=%d %v] grouped row width = %d, overflows the list width", w, mode, got)
+				t.Errorf("[w=%d %v] grouped row width = %d, overflows the list width", w, themeLabel(th), got)
 			}
 		}
 	}
@@ -413,6 +413,7 @@ func TestNoTagsSignpostPathUnchanged(t *testing.T) {
 	sessions := []tmux.Session{{Name: "portal-1", Dir: dir}}
 
 	m := Model{
+		activeTheme:     testDarkTheme(t),
 		sessions:        sessions,
 		projects:        projects,
 		projectIndex:    project.NewIndex(projects),

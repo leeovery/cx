@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 const (
@@ -36,8 +36,8 @@ const (
 // whose EVERY glyph — corners, sides, and the compartment dividers — renders in the
 // caller-supplied borderToken (single-tone: the 2-tone footer leg of §8.1 was
 // dropped in task 3-4), with the dividers joined to the side borders via real ├/┤
-// junctions. The modals pass theme.MV.BorderSeparator (grey); the preview passes
-// theme.MV.AccentCyan (the "peek mode" hue, §9.1).
+// junctions. The modals pass the theme's border token (grey); the preview
+// passes its accent.mode token (the "peek mode" hue, §9.1).
 //
 // Input is a list of compartments, each a slice of already-styled content rows (at
 // their natural width). The helper:
@@ -56,7 +56,7 @@ const (
 // like every other row (not bare). Every assembled line is exactly innerWidth+2
 // cells, so the frame columns align top to bottom. The frame is mode- and
 // colourless-aware via the shared panelFrameStyle / panelInsetRow primitives.
-func renderJoinedPanel(compartments [][]string, borderToken theme.Token, mode theme.Mode, colourless bool) string {
+func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	contentWidth := 0
 	totalRows := 0
 	for _, comp := range compartments {
@@ -71,55 +71,55 @@ func renderJoinedPanel(compartments [][]string, borderToken theme.Token, mode th
 
 	// top + bottom borders + one divider per gap between compartments + every row.
 	rows := make([]string, 0, totalRows+len(compartments)+1)
-	rows = append(rows, panelFrameTop(innerWidth, borderToken, mode, colourless))
+	rows = append(rows, panelFrameTop(innerWidth, borderToken, th, colourless))
 	for i, comp := range compartments {
 		if i > 0 {
-			rows = append(rows, panelFrameDivider(innerWidth, borderToken, mode, colourless))
+			rows = append(rows, panelFrameDivider(innerWidth, borderToken, th, colourless))
 		}
 		for _, r := range comp {
-			row := panelInsetRow(r, contentWidth, mode, colourless)
-			rows = append(rows, panelFrameContentLine(row, borderToken, mode, colourless))
+			row := panelInsetRow(r, contentWidth, th, colourless)
+			rows = append(rows, panelFrameContentLine(row, borderToken, th, colourless))
 		}
 	}
-	rows = append(rows, panelFrameBottom(innerWidth, borderToken, mode, colourless))
+	rows = append(rows, panelFrameBottom(innerWidth, borderToken, th, colourless))
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 // panelFrameStyle returns the single-tone frame paint: the borderToken foreground
-// for the mode, or a bare style (native fg) under the NO_COLOR carve-out — so the
+// from the active theme, or a bare style (native fg) under the NO_COLOR carve-out — so the
 // frame glyphs survive colourless but carry no hue. NO background is set (the frame
 // glyphs sit on whatever the placed canvas supplies). The modals pass
-// theme.MV.BorderSeparator; the §9.1 preview passes theme.MV.AccentCyan.
-func panelFrameStyle(borderToken theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
+// the border token; the §9.1 preview passes accent.mode.
+func panelFrameStyle(borderToken theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
-	return lipgloss.NewStyle().Foreground(borderToken.ColorFor(mode))
+	return lipgloss.NewStyle().Foreground(borderToken.Color())
 }
 
 // panelFrameTop renders the top border line: `╭` + `─`×w + `╮`, all in borderToken.
-func panelFrameTop(w int, borderToken theme.Token, mode theme.Mode, colourless bool) string {
+func panelFrameTop(w int, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	line := panelFrameTopLeft + strings.Repeat(panelRuleGlyph, w) + panelFrameTopRight
-	return panelFrameStyle(borderToken, mode, colourless).Render(line)
+	return panelFrameStyle(borderToken, th, colourless).Render(line)
 }
 
 // panelFrameBottom renders the bottom border line: `╰` + `─`×w + `╯`.
-func panelFrameBottom(w int, borderToken theme.Token, mode theme.Mode, colourless bool) string {
+func panelFrameBottom(w int, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	line := panelFrameBottomLeft + strings.Repeat(panelRuleGlyph, w) + panelFrameBottomRight
-	return panelFrameStyle(borderToken, mode, colourless).Render(line)
+	return panelFrameStyle(borderToken, th, colourless).Render(line)
 }
 
 // panelFrameDivider renders the joined compartment divider: `├` + `─`×w + `┤`, all
 // in borderToken (single-tone). The `├`/`┤` tees visibly join the side borders.
-func panelFrameDivider(w int, borderToken theme.Token, mode theme.Mode, colourless bool) string {
+func panelFrameDivider(w int, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	line := panelFrameTeeLeft + strings.Repeat(panelRuleGlyph, w) + panelFrameTeeRight
-	return panelFrameStyle(borderToken, mode, colourless).Render(line)
+	return panelFrameStyle(borderToken, th, colourless).Render(line)
 }
 
 // panelFrameContentLine wraps a content row (already exactly w cells wide) with the
 // left/right `│` side borders (in borderToken), yielding a w+2 cell frame line.
-func panelFrameContentLine(row string, borderToken theme.Token, mode theme.Mode, colourless bool) string {
-	side := panelFrameStyle(borderToken, mode, colourless).Render(panelFrameSide)
+func panelFrameContentLine(row string, borderToken theme.Token, th theme.Theme, colourless bool) string {
+	side := panelFrameStyle(borderToken, th, colourless).Render(panelFrameSide)
 	return lipgloss.JoinHorizontal(lipgloss.Top, side, row, side)
 }
 
@@ -128,8 +128,8 @@ func panelFrameContentLine(row string, borderToken theme.Token, mode theme.Mode,
 // content out to contentWidth, so every header/body row is exactly innerWidth cells
 // (contentWidth + 2·panelRowInset) — the divider's width. The inset and pad are canvas-
 // painted so the row carries the owned canvas with no terminal-bg island.
-func panelInsetRow(row string, contentWidth int, mode theme.Mode, colourless bool) string {
-	inset := headerCanvasBg(mode, colourless).Render(strings.Repeat(" ", panelRowInset))
-	padded := headerPadRight(row, lipgloss.Width(row), contentWidth, mode, colourless)
+func panelInsetRow(row string, contentWidth int, th theme.Theme, colourless bool) string {
+	inset := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", panelRowInset))
+	padded := headerPadRight(row, lipgloss.Width(row), contentWidth, th, colourless)
 	return lipgloss.JoinHorizontal(lipgloss.Top, inset, padded, inset)
 }

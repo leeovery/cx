@@ -9,7 +9,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // The §5 multi-select marker gate. These tests pin the selection ● the delegate
@@ -36,7 +35,7 @@ func markedSet(names ...string) map[string]struct{} {
 // row renders the ● at the far-left of the fixed 2-cell left-bar column in
 // accent.violet (dark canvas), while an unmarked row in the same set renders no ●.
 func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, MultiSelect: true, Selected: markedSet("alpha")}
+	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(
 		tmux.Session{Name: "alpha", Windows: 1, Attached: false},
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
@@ -47,7 +46,7 @@ func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 	if col := visibleColOf(marked, multiSelectMarker); col != 0 {
 		t.Errorf("marked row ● should sit at the left-bar col 0, got col %d: %q", col, ansi.Strip(marked))
 	}
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); !strings.Contains(marked, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(marked, seq) {
 		t.Errorf("marked ● missing accent.violet fg %q: %q", seq, escSeq(marked))
 	}
 
@@ -62,7 +61,7 @@ func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 // MultiSelect flag: a populated Selected set with MultiSelect == false renders no
 // ● (the mode is off, so the set is inert).
 func TestSessionRow_NoBulletWhenMultiSelectFalse(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, MultiSelect: false, Selected: markedSet("alpha")}
+	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: false, Selected: markedSet("alpha")}
 	items := flatItems(
 		tmux.Session{Name: "alpha", Windows: 1, Attached: false},
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
@@ -79,7 +78,7 @@ func TestSessionRow_NoBulletWhenMultiSelectFalse(t *testing.T) {
 // the ▌ selector in the shared left-bar column, and its violet is carried on the
 // selection tint).
 func TestSessionRow_CursorRowMarkedShowsBandAndBullet(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, MultiSelect: true, Selected: markedSet("alpha")}
+	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(tmux.Session{Name: "alpha", Windows: 2, Attached: false})
 
 	// Cursor ON alpha (selected) AND alpha is marked.
@@ -93,11 +92,11 @@ func TestSessionRow_CursorRowMarkedShowsBandAndBullet(t *testing.T) {
 		t.Errorf("cursor+marked row must render ● not the ▌ selector: %q", ansi.Strip(out))
 	}
 	// The bg.selection band still spans the row.
-	if params := selectionBgParams(t, theme.Dark); !lineHasBgParams(out, params) {
+	if params := selectionBgParams(t, testDarkTheme(t)); !lineHasBgParams(out, params) {
 		t.Errorf("cursor+marked row missing the bg.selection tint %q: %q", params, escSeq(out))
 	}
 	// The ● is violet.
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); !strings.Contains(out, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(out, seq) {
 		t.Errorf("cursor+marked ● missing accent.violet fg %q: %q", seq, escSeq(out))
 	}
 }
@@ -112,8 +111,8 @@ func TestSessionRow_MarkedAlignmentByteUnchanged(t *testing.T) {
 	sess := tmux.Session{Name: "alpha", Windows: 3, Attached: true}
 	items := flatItems(sess, tmux.Session{Name: "bravo", Windows: 1})
 
-	marked := renderRow(SessionDelegate{Mode: theme.Dark, MultiSelect: true, Selected: markedSet("alpha")}, w, items, 0, 1)
-	unmarked := renderRow(SessionDelegate{Mode: theme.Dark, MultiSelect: true, Selected: markedSet("bravo")}, w, items, 0, 1)
+	marked := renderRow(SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("alpha")}, w, items, 0, 1)
+	unmarked := renderRow(SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("bravo")}, w, items, 0, 1)
 
 	for _, sub := range []string{"alpha", "window", "attached"} {
 		mc, uc := visibleColOf(marked, sub), visibleColOf(unmarked, sub)
@@ -138,7 +137,7 @@ func TestSessionRow_ByTagMarkedBulletOnEveryRow(t *testing.T) {
 		SessionItem{Session: sess, GroupKey: "work", GroupHeading: "work"},
 		SessionItem{Session: sess, GroupKey: "infra", GroupHeading: "infra"},
 	}
-	d := SessionDelegate{Mode: theme.Dark, MultiSelect: true, Selected: markedSet("portal-abc")}
+	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("portal-abc")}
 
 	// Render each row unselected (cursor parked on the other row).
 	for _, tc := range []struct{ index, sel int }{{0, 1}, {1, 0}} {
@@ -159,7 +158,7 @@ func TestSessionRow_ByTagMarkedBulletOnEveryRow(t *testing.T) {
 // even while the delegate is in multi-select mode (the header render arm is
 // untouched by the marker logic).
 func TestSessionRow_HeaderNeverRendersBullet(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, MultiSelect: true, Selected: markedSet("work")}
+	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("work")}
 	items := []list.Item{HeaderItem{Heading: "work", Count: 3, Key: "work"}}
 	out := renderRow(d, 80, items, 0, 0)
 	if strings.Contains(ansi.Strip(out), multiSelectMarker) {
@@ -205,7 +204,7 @@ func TestMultiSelectMarkerReflectsSetLive(t *testing.T) {
 // but emits NO violet hue and NO canvas/selection background — glyph-backed, never
 // colour-only.
 func TestSessionRow_MarkedColourlessGlyphSurvivesNoHue(t *testing.T) {
-	d := SessionDelegate{Mode: theme.Dark, Colourless: true, MultiSelect: true, Selected: markedSet("alpha")}
+	d := SessionDelegate{Theme: testDarkTheme(t), Colourless: true, MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(
 		tmux.Session{Name: "alpha", Windows: 1, Attached: false},
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
@@ -217,13 +216,13 @@ func TestSessionRow_MarkedColourlessGlyphSurvivesNoHue(t *testing.T) {
 	if !strings.Contains(ansi.Strip(out), multiSelectMarker) {
 		t.Errorf("colourless marked row dropped the ● glyph: %q", ansi.Strip(out))
 	}
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); strings.Contains(out, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(out, seq) {
 		t.Errorf("colourless ● still emits the accent.violet fg %q: %q", seq, escSeq(out))
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(out, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(out, seq) {
 		t.Errorf("colourless marked row still paints the canvas background %q: %q", seq, escSeq(out))
 	}
-	if params := selectionBgParams(t, theme.Dark); lineHasBgParams(out, params) {
+	if params := selectionBgParams(t, testDarkTheme(t)); lineHasBgParams(out, params) {
 		t.Errorf("colourless marked+selected row still carries the bg.selection tint %q: %q", params, escSeq(out))
 	}
 }

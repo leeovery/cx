@@ -7,8 +7,8 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // Task spectrum-tui-design-9-3 consolidation gate. SessionDelegate.canvasBg /
@@ -31,23 +31,23 @@ import (
 
 // preCanvasBg reproduces the ORIGINAL SessionDelegate.canvasBg inline logic
 // verbatim — the golden the consolidation must preserve.
-func preCanvasBg(mode theme.Mode, colourless bool) lipgloss.Style {
+func preCanvasBg(th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
 	}
-	return lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(mode))
+	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
 // preTokenStyle reproduces the ORIGINAL SessionDelegate.tokenStyle inline logic
 // verbatim (base + token foreground over canvas, base unchanged under NO_COLOR) —
 // the golden the consolidation must preserve.
-func preTokenStyle(base lipgloss.Style, fg theme.Token, mode theme.Mode, colourless bool) lipgloss.Style {
+func preTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return base
 	}
 	return base.
-		Foreground(fg.ColorFor(mode)).
-		Background(theme.MV.Canvas.ColorFor(mode))
+		Foreground(fg.Color()).
+		Background(th.Canvas.Color())
 }
 
 // TestSessionCanvasBg_DelegatesToHeaderCanvasBg asserts the consolidated
@@ -55,18 +55,18 @@ func preTokenStyle(base lipgloss.Style, fg theme.Token, mode theme.Mode, colourl
 // header.go source) AND to the original inline canvasBg logic, across both modes ×
 // colourless on/off. Pins that canvasBg no longer re-implements the leaf paint.
 func TestSessionCanvasBg_DelegatesToHeaderCanvasBg(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
-			d := SessionDelegate{Mode: mode, Colourless: colourless}
-			want := headerCanvasBg(mode, colourless).Render("  ")
+			d := SessionDelegate{Theme: th, Colourless: colourless}
+			want := headerCanvasBg(th, colourless).Render("  ")
 			if got := d.canvasBg().Render("  "); got != want {
-				t.Errorf("canvasBg(mode=%v col=%v) = %q, want headerCanvasBg %q",
-					mode, colourless, got, want)
+				t.Errorf("canvasBg(th=%v col=%v) = %q, want headerCanvasBg %q",
+					themeLabel(th), colourless, got, want)
 			}
-			pre := preCanvasBg(mode, colourless).Render("  ")
+			pre := preCanvasBg(th, colourless).Render("  ")
 			if want != pre {
-				t.Errorf("headerCanvasBg(mode=%v col=%v) = %q drifts from pre-refactor canvasBg %q",
-					mode, colourless, want, pre)
+				t.Errorf("headerCanvasBg(th=%v col=%v) = %q drifts from pre-refactor canvasBg %q",
+					themeLabel(th), colourless, want, pre)
 			}
 		}
 	}
@@ -79,25 +79,26 @@ func TestSessionCanvasBg_DelegatesToHeaderCanvasBg(t *testing.T) {
 // colourless on/off × an empty base and a Bold base. Pins that tokenStyle no longer
 // re-implements the leaf token-over-canvas paint.
 func TestSessionTokenStyle_DelegatesToHeaderStyle(t *testing.T) {
-	tokens := []theme.Token{theme.MV.TextDetail, theme.MV.TextDim, theme.MV.TextPrimary, theme.MV.StateGreen}
+	roles := []string{"text.muted", "text.subtle", "text.primary", "state.positive"}
 	bases := map[string]lipgloss.Style{
 		"empty": lipgloss.Style{},
 		"bold":  lipgloss.NewStyle().Bold(true),
 	}
 	for baseName, base := range bases {
-		for _, tok := range tokens {
-			for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+		for _, role := range roles {
+			for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+				tok := tokenNamed(t, th, role)
 				for _, colourless := range []bool{false, true} {
-					d := SessionDelegate{Mode: mode, Colourless: colourless}
-					want := headerStyle(tok, mode, colourless).Inherit(base).Render("probe")
+					d := SessionDelegate{Theme: th, Colourless: colourless}
+					want := headerStyle(tok, th, colourless).Inherit(base).Render("probe")
 					if got := d.tokenStyle(base, tok).Render("probe"); got != want {
-						t.Errorf("tokenStyle(base=%s tok=%s mode=%v col=%v) = %q, want headerStyle.Inherit %q",
-							baseName, tok.Name, mode, colourless, got, want)
+						t.Errorf("tokenStyle(base=%s tok=%s th=%v col=%v) = %q, want headerStyle.Inherit %q",
+							baseName, tok.Name, themeLabel(th), colourless, got, want)
 					}
-					pre := preTokenStyle(base, tok, mode, colourless).Render("probe")
+					pre := preTokenStyle(base, tok, th, colourless).Render("probe")
 					if want != pre {
-						t.Errorf("headerStyle(base=%s tok=%s mode=%v col=%v) = %q drifts from pre-refactor tokenStyle %q",
-							baseName, tok.Name, mode, colourless, want, pre)
+						t.Errorf("headerStyle(base=%s tok=%s th=%v col=%v) = %q drifts from pre-refactor tokenStyle %q",
+							baseName, tok.Name, themeLabel(th), colourless, want, pre)
 					}
 				}
 			}
@@ -115,7 +116,7 @@ func TestSessionTokenStyle_DelegatesToHeaderStyle(t *testing.T) {
 // consolidation is caught verbatim.
 func TestSessionDelegateRender_ByteIdenticalAcrossConsolidation(t *testing.T) {
 	const w = 80
-	modeNames := map[theme.Mode]string{theme.Dark: "dark", theme.Light: "light"}
+	modeNames := map[theme.Theme]string{testDarkTheme(t): "dark", testLightTheme(t): "light"}
 
 	header := HeaderItem{Heading: "Portal", Count: 2, Key: "/p/portal"}
 	sessions := []list.Item{
@@ -123,10 +124,10 @@ func TestSessionDelegateRender_ByteIdenticalAcrossConsolidation(t *testing.T) {
 		SessionItem{Session: tmux.Session{Name: "work", Windows: 1, Attached: false}, GroupKey: "/p/portal", GroupHeading: "Portal"},
 	}
 
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
-			d := SessionDelegate{Mode: mode, Colourless: colourless}
-			modeName := modeNames[mode]
+			d := SessionDelegate{Theme: th, Colourless: colourless}
+			modeName := modeNames[th]
 
 			hm := list.New([]list.Item{header}, d, w, 10)
 			var hb bytes.Buffer
@@ -143,21 +144,21 @@ func TestSessionDelegateRender_ByteIdenticalAcrossConsolidation(t *testing.T) {
 	}
 }
 
-func assertSessionGolden(t *testing.T, frame, mode string, colourless bool, got string) {
+func assertSessionGolden(t *testing.T, frame, th string, colourless bool, got string) {
 	t.Helper()
-	want, ok := sessionStyleGoldens[sessionStyleGoldenKey{frame, mode, colourless}]
+	want, ok := sessionStyleGoldens[sessionStyleGoldenKey{frame, th, colourless}]
 	if !ok {
-		t.Fatalf("no golden for {%s %s col=%v}", frame, mode, colourless)
+		t.Fatalf("no golden for {%s %s col=%v}", frame, th, colourless)
 	}
 	if got != want {
 		t.Errorf("[%s %s col=%v] delegate render drifted from pre-refactor golden\n got: %q\nwant: %q",
-			frame, mode, colourless, ansi.Strip(got), ansi.Strip(want))
+			frame, th, colourless, ansi.Strip(got), ansi.Strip(want))
 	}
 }
 
 type sessionStyleGoldenKey struct {
 	frame      string
-	mode       string
+	th         string
 	colourless bool
 }
 

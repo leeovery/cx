@@ -22,8 +22,8 @@ import (
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/spawn"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // page tracks which page the TUI is currently displaying.
@@ -240,16 +240,32 @@ type Model struct {
 	// (skip detection + first-paint wait) is a later task. AppearanceAuto is the
 	// zero-value default, so an omitted option leaves the model in auto.
 	appearance prefs.Appearance
-	// canvasMode is the RESOLVED light/dark appearance the owned canvas (§1) is
-	// painted for — distinct from appearance (the pref). The leaf row/footer
-	// styles take their Background(canvas) from it and the outer full-terminal
-	// fill in View() sources its whitespace background from it, so both layers
-	// always agree. theme.Dark is the zero value (the §2.6 no-answer fallback),
-	// so an unconfigured model paints the dark canvas. It is the painted mirror
-	// of gate.mode: every resolution (OSC 11 reply, timeout, or pin) syncs it via
-	// applyResolvedMode, so the existing render path (View / applyCanvasMode)
-	// keeps reading a single mode field.
-	canvasMode theme.Mode
+	// canvasMode is the RESOLVED light/dark answer the owned canvas (§1) is
+	// painted for — distinct from appearance (the pref). appearanceDarkCanvas is
+	// the zero value (the §8.8 no-answer fallback), so an unconfigured model
+	// paints the dark canvas. It is the painted mirror of gate.appearance: every
+	// resolution (OSC 11 reply, timeout, or pin) syncs it via syncResolvedMode,
+	// and it is what selects activeTheme from the built-in pair.
+	canvasMode canvasAppearance
+	// activeTheme is the palette EVERY renderer paints from (§3.4). The model
+	// holds it and passes it where a light/dark mode used to be passed, so
+	// anything taking the theme as a parameter re-derives per frame — the
+	// completeness property §11.2 rests on. There is deliberately NO
+	// package-level mutable theme state to replace the retired built-in var: it
+	// would put
+	// order-dependent state on the render path in a suite that already forbids
+	// t.Parallel().
+	//
+	// Its source is TRANSITIONAL: builtinPair below holds the two embedded
+	// built-ins and canvasMode selects between them. Task 3-2 replaces the pair
+	// with the injected nomination; this field and its threading do not change.
+	activeTheme theme.Theme
+	// builtinPair is the transitional theme source — the two embedded built-ins
+	// the gate's light/dark answer selects between. New seeds the dark member
+	// before the options apply so a model constructed without Build is still
+	// themed (an empty Theme would resolve through lipgloss.Color("")'s no-colour
+	// sentinel: a SILENT colourless render, not a compile error).
+	builtinPair builtinThemePair
 	// gate is the §2.6 detect-or-timeout first-paint mechanism and the SINGLE
 	// source of truth for whether the real canvas may paint (modeResolved()
 	// reads it). In auto mode Build opens its detect-or-timeout window via arm()
@@ -257,7 +273,7 @@ type Model struct {
 	// appearanceTimeoutMsg fires first; a pinned appearance (light/dark) and a
 	// directly constructed model are already resolved (the zero-value gate is
 	// resolved), so detection and the wait are skipped. canvasMode mirrors
-	// gate.mode for the render path (see syncResolvedMode).
+	// gate.appearance for the render path (see syncResolvedMode).
 	gate appearanceGate
 	// colourless is the SINGLE NO_COLOR carve-out flag (§2.5). It is set once at
 	// construction from Deps.NoColor (the cmd layer reads os.Getenv("NO_COLOR");
@@ -843,14 +859,14 @@ func WithAppearance(appearance prefs.Appearance) Option {
 // not be combined with a non-auto appearance (the pin would win the gate
 // re-init in New); both light and dark canvases are owned-canvas paths, so a
 // direct override and an appearance pin are mutually exclusive ways to land the
-// same resolved mode.
-func WithCanvasMode(mode theme.Mode) Option {
+// same resolved canvas.
+func WithCanvasMode(appearance canvasAppearance) Option {
 	return func(m *Model) {
-		m.canvasMode = mode
+		m.canvasMode = appearance
 		// pinned=true (and pending=false, the zero value) so the gate is resolved
 		// and New's gate-init guard preserves this direct override instead of
 		// rebuilding an auto gate over it.
-		m.gate = appearanceGate{mode: mode, pinned: true}
+		m.gate = appearanceGate{appearance: appearance, pinned: true}
 	}
 }
 
@@ -1030,13 +1046,13 @@ func WithInitialCursor(name string) Option {
 }
 
 // canvasHelpStyles backgrounds the bubbles/list HelpStyle wrapper through
-// Background(canvas) for the resolved mode, so the footer (a leaf surface of the
+// Background(canvas) from the active theme, so the footer (a leaf surface of the
 // foundation Sessions screen, §1) renders on the owned canvas. The footer glyphs
 // and labels themselves are rendered by the descriptor-driven renderCondensedFooter
 // path (see footer.go), which paints its own canvas; this only ensures the
 // HelpStyle wrapper around the footer area carries the canvas background too.
-func canvasHelpStyles(l *list.Model, mode theme.Mode) {
-	canvas := theme.MV.Canvas.ColorFor(mode)
+func canvasHelpStyles(l *list.Model, th theme.Theme) {
+	canvas := th.Canvas.Color()
 	l.Styles.HelpStyle = l.Styles.HelpStyle.Background(canvas)
 }
 
@@ -1051,7 +1067,7 @@ func colourlessHelpStyles(l *list.Model) {
 
 // canvasPaginationDots re-points the §3.5 height-driven paginator's dot glyph
 // styles onto the §2.9 role tokens AND paints each (plus the dot row's wrapper)
-// through Background(canvas) for the resolved mode: the active page dot in
+// through Background(canvas) from the active theme: the active page dot in
 // accent.violet, the inactive dots in text.faint. The bubbles/list paginator is
 // kept as the engine (§14.1) — only the dot glyph styling and the centred,
 // canvas-painted placement change; the page count / per-page / paging keys are
@@ -1061,14 +1077,14 @@ func colourlessHelpStyles(l *list.Model) {
 // .String() into Paginator.ActiveDot / InactiveDot ONCE at construction, so after
 // restyling the styles the rendered dots are re-fed into the live paginator here.
 // The dots keep the engine's bullet glyph (SetString) — only the colour changes.
-func canvasPaginationDots(l *list.Model, mode theme.Mode) {
-	canvas := theme.MV.Canvas.ColorFor(mode)
+func canvasPaginationDots(l *list.Model, th theme.Theme) {
+	canvas := th.Canvas.Color()
 	l.Styles.ActivePaginationDot = lipgloss.NewStyle().
-		Foreground(theme.MV.AccentViolet.ColorFor(mode)).
+		Foreground(th.AccentPrimary.Color()).
 		Background(canvas).
 		SetString(paginationDotGlyph)
 	l.Styles.InactivePaginationDot = lipgloss.NewStyle().
-		Foreground(theme.MV.TextFaint.ColorFor(mode)).
+		Foreground(th.TextFaint.Color()).
 		Background(canvas).
 		SetString(paginationDotGlyph)
 	l.Paginator.ActiveDot = l.Styles.ActivePaginationDot.String()
@@ -1193,11 +1209,20 @@ func newProjectList() list.Model {
 // New creates a Model that fetches sessions from the given SessionLister.
 // Optional dependencies are configured via functional options.
 func New(lister SessionLister, opts ...Option) Model {
+	pair := loadBuiltinThemePair()
 	m := Model{
 		sessionLister: lister,
 		sessionList:   newSessionList(nil),
 		projectList:   newProjectList(),
 		activePage:    PageSessions,
+		builtinPair:   pair,
+		// Seed the active palette from the DARK built-in before the options apply,
+		// so a model constructed without Build is still themed. An empty Theme
+		// would resolve through lipgloss.Color("")'s no-colour sentinel — a
+		// silently colourless render with no compile error and no failing
+		// assertion — which is exactly the hazard this seed closes. Every path
+		// that resolves an appearance re-selects from builtinPair below.
+		activeTheme: pair.selectFor(appearanceDarkCanvas),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1256,13 +1281,15 @@ func (m Model) modeResolved() bool {
 	return m.gate.resolved()
 }
 
-// syncResolvedMode mirrors the gate's resolved mode onto the model's painted
-// canvasMode and re-applies the leaf canvas styles. It is called after every gate
-// transition (arm, OSC 11 reply, timeout, or pin) so the existing render path
-// keeps reading m.canvasMode while the gate owns the single-resolution race. It
-// is a no-op for the leaf styles when the mode is unchanged, but always cheap.
+// syncResolvedMode mirrors the gate's resolved answer onto the model's painted
+// canvasMode, selects the ACTIVE PALETTE that answer names, and re-applies the
+// leaf canvas styles. It is called after every gate transition (arm, OSC 11 reply,
+// timeout, or pin) so the existing render path keeps reading one field while the
+// gate owns the single-resolution race. It is a no-op for the leaf styles when
+// nothing changed, but always cheap.
 func (m *Model) syncResolvedMode() {
-	m.canvasMode = m.gate.mode
+	m.canvasMode = m.gate.appearance
+	m.activeTheme = m.builtinPair.selectFor(m.canvasMode)
 	m.applyCanvasMode()
 }
 
@@ -1281,7 +1308,7 @@ func (m *Model) syncResolvedMode() {
 // refreshSessionDelegate cannot drift on which fields the delegate carries.
 func (m *Model) sessionDelegate() SessionDelegate {
 	return SessionDelegate{
-		Mode:        m.canvasMode,
+		Theme:       m.activeTheme,
 		Colourless:  m.colourless,
 		MultiSelect: m.multiSelectMode,
 		Selected:    m.selectedSessions,
@@ -1335,13 +1362,13 @@ func (m *Model) applyCanvasMode() {
 		return
 	}
 	m.sessionList.SetDelegate(m.sessionDelegate())
-	canvasHelpStyles(&m.sessionList, m.canvasMode)
-	canvasPaginationDots(&m.sessionList, m.canvasMode)
+	canvasHelpStyles(&m.sessionList, m.activeTheme)
+	canvasPaginationDots(&m.sessionList, m.activeTheme)
 	// Background the title bar so its leading left-pad cells (bubbles/list's
 	// TitleBar PaddingLeft) are canvas rather than the terminal background. The
 	// "Sessions" title box keeps its own colour (the wordmark/header chrome
 	// restyle is Phase 2); this only paints the padding around it.
-	canvas := theme.MV.Canvas.ColorFor(m.canvasMode)
+	canvas := m.activeTheme.Canvas.Color()
 	// PaddingBottom(1) is the §3.2 section-header BOTTOM gap (Sessions → first
 	// session row). It makes the title bar 2 lines (line 0 = "Sessions…", line 1 =
 	// the blank gap row, which inherits the canvas Background so it is canvas-painted
@@ -1365,17 +1392,17 @@ func (m *Model) applyCanvasMode() {
 // blank gap row on line 1, the SAME contract applySectionHeader relies on).
 func (m *Model) applyProjectCanvasMode() {
 	if m.colourless {
-		m.projectList.SetDelegate(ProjectDelegate{Mode: m.canvasMode, Colourless: true})
+		m.projectList.SetDelegate(ProjectDelegate{Theme: m.activeTheme, Colourless: true})
 		colourlessHelpStyles(&m.projectList)
 		colourlessPaginationDots(&m.projectList)
 		m.projectList.Styles.TitleBar = m.projectList.Styles.TitleBar.UnsetBackground().PaddingLeft(0).PaddingBottom(1)
 		m.projectList.Styles.Title = m.projectList.Styles.Title.UnsetBackground().UnsetForeground()
 		return
 	}
-	m.projectList.SetDelegate(ProjectDelegate{Mode: m.canvasMode})
-	canvasHelpStyles(&m.projectList, m.canvasMode)
-	canvasPaginationDots(&m.projectList, m.canvasMode)
-	canvas := theme.MV.Canvas.ColorFor(m.canvasMode)
+	m.projectList.SetDelegate(ProjectDelegate{Theme: m.activeTheme})
+	canvasHelpStyles(&m.projectList, m.activeTheme)
+	canvasPaginationDots(&m.projectList, m.activeTheme)
+	canvas := m.activeTheme.Canvas.Color()
 	m.projectList.Styles.TitleBar = m.projectList.Styles.TitleBar.Background(canvas).PaddingLeft(0).PaddingBottom(1)
 	m.projectList.Styles.Title = m.projectList.Styles.Title.UnsetBackground().UnsetForeground()
 }
@@ -1421,7 +1448,7 @@ func (m *Model) styleListFilterInput(l *list.Model) {
 		l.FilterInput.SetStyles(styles)
 		return
 	}
-	orange := theme.MV.AccentOrange.ColorFor(m.canvasMode)
+	orange := m.activeTheme.AccentAttention.Color()
 	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(orange)
 	styles.Focused.Text = lipgloss.NewStyle().Foreground(orange)
 	styles.Cursor.Color = orange
@@ -1434,11 +1461,18 @@ func NewModelWithSessions(sessions []tmux.Session) Model {
 	items := ToListItems(sessions)
 	l := newSessionList(items)
 	pl := newProjectList()
+	pair := loadBuiltinThemePair()
 	m := Model{
 		sessions:    sessions,
 		sessionList: l,
 		projectList: pl,
 		activePage:  PageSessions,
+		builtinPair: pair,
+		// Seed the active palette exactly as New does, and for the same reason: a
+		// zero Theme resolves through lipgloss.Color("")'s no-colour sentinel, so
+		// a model built here would render SILENTLY colourless rather than failing
+		// to compile.
+		activeTheme: pair.selectFor(appearanceDarkCanvas),
 		// The zero-value gate is already resolved to the dark canvas (pending is
 		// false by default), so this directly constructed test model paints
 		// immediately — the detect-or-timeout first-paint window is opened only by
@@ -1471,7 +1505,7 @@ func (m *Model) applyListSize(l *list.Model, width, height, reserved int) {
 		centrePaginationRow(l, lipgloss.NewStyle())
 		return
 	}
-	centrePaginationRow(l, lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(m.canvasMode)))
+	centrePaginationRow(l, lipgloss.NewStyle().Background(m.activeTheme.Canvas.Color()))
 }
 
 // applySessionListSize is the per-page wrapper that owns the §3.4 Sessions
@@ -1512,7 +1546,7 @@ func (m *Model) applySessionListSize(width, height int) {
 // height already reserved, this keeps the one-row-per-delegate pagination invariant
 // exact.
 func (m Model) sessionFooterHeight(width int) int {
-	return lipgloss.Height(renderSessionsFooter(width, m.canvasMode, m.colourless))
+	return lipgloss.Height(renderSessionsFooter(width, m.activeTheme, m.colourless))
 }
 
 // sessionBandHeight returns the rendered height of the SINGLE arbitrated notice
@@ -1559,7 +1593,7 @@ func (m *Model) applyProjectListSize(width, height int) {
 // width/mode the render uses so the budget and the viewProjectList render agree
 // exactly.
 func (m Model) projectFooterHeight(width int) int {
-	return lipgloss.Height(renderProjectsFooter(width, m.canvasMode, m.colourless))
+	return lipgloss.Height(renderProjectsFooter(width, m.activeTheme, m.colourless))
 }
 
 // projectBandHeight returns the rendered height of the §11.4 command-pending notice
@@ -3380,7 +3414,7 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Propagate the resolved canvas mode + NO_COLOR carve-out so the
 			// §9.1 cyan peek-mode chrome resolves the right token variant (and
 			// drops hue under NO_COLOR, §9.2).
-			pmodel.mode = m.canvasMode
+			pmodel.th = m.activeTheme
 			pmodel.colourless = m.colourless
 			m.preview = pmodel
 			m.activePage = pagePreview
@@ -3858,7 +3892,7 @@ func (m Model) View() tea.View {
 	// per-line backfill now paints every interior cell with an explicit canvas
 	// SGR, so mosh/Blink (which ignore OSC 11) no longer bleed the terminal theme
 	// through mid-line gaps. This stays as a belt-and-braces gutter fill only.
-	v.BackgroundColor = theme.MV.Canvas.ColorFor(m.canvasMode)
+	v.BackgroundColor = m.activeTheme.Canvas.Color()
 	return v
 }
 
@@ -4007,8 +4041,8 @@ func (m Model) fillCanvas(view string) string {
 		content := fillColourless(view, contentW, contentH)
 		return insetColourless(content, w, h, contentW, contentH)
 	}
-	canvas := lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(m.canvasMode))
-	canvasBg := canvasBgParams(theme.MV.Canvas.ColorFor(m.canvasMode))
+	canvas := lipgloss.NewStyle().Background(m.activeTheme.Canvas.Color())
+	canvasBg := canvasBgParams(m.activeTheme.Canvas.Color())
 	parser := ansi.NewParser() // one instance reused across every line this frame
 
 	lines := strings.Split(view, "\n")
@@ -4383,7 +4417,7 @@ func (m Model) viewLoading() string {
 		view,
 		m.contentWidth(),
 		m.contentHeight(),
-		m.canvasMode,
+		m.activeTheme,
 		m.colourless,
 	)
 }
@@ -4410,18 +4444,18 @@ func (m Model) viewProjectList() string {
 		// (the SAME frame the kill modal uses) — ▲ Delete project? / <name> + <path> +
 		// record-only consequence / y delete · esc cancel. The confirm/cancel LOGIC is
 		// unchanged (updateDeleteProjectModal); only the rendering is reskinned.
-		return renderDeleteModalOnClearedCanvas(m.pendingDeleteName, m.pendingDeletePath, m.contentWidth(), m.contentHeight(), m.canvasMode, m.colourless)
+		return renderDeleteModalOnClearedCanvas(m.pendingDeleteName, m.pendingDeletePath, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	case modalEditProject:
 		// §8.2/§13.1: the MV two-mode edit-project modal is its OWN hand-drawn
 		// single-tone joined panel (renderEditProjectContent), placed directly on the
 		// cleared canvas via renderEditModalOnClearedCanvas — the already-framed panel
 		// is placed without any lipgloss auto-border wrap that would add a redundant
 		// second border.
-		return renderEditModalOnClearedCanvas(m, m.contentWidth(), m.contentHeight(), m.canvasMode, m.colourless)
+		return renderEditModalOnClearedCanvas(m, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	case modalHelp:
 		// §8.5 per-page help: the Projects keymap descriptor, descriptor-driven, in
 		// the help modal's own zero-h-padding panel (FIX 4).
-		return renderHelpModalOnClearedCanvas(projectsKeymap(), m.contentWidth(), m.contentHeight(), m.canvasMode, m.colourless)
+		return renderHelpModalOnClearedCanvas(projectsKeymap(), m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	}
 	listView := m.projectList.View()
 	// §6 / §3.2: replace the plain bubbles/list title line with the restyled
@@ -4442,7 +4476,7 @@ func (m Model) viewProjectList() string {
 		listView = m.replaceListBodyWithEmptyState(listView, m.projectList.Height(), emptyProjectsGlyph, emptyProjectsMessage, emptyProjectsHint)
 	}
 	// §6.3 condensed footer: the §6.3 Projects keymap copy over the shared 1px
-	// border.footer rule (or the §11.4 command-pending footer while a command is
+	// footer rule (or the §11.4 command-pending footer while a command is
 	// pending — renderProjectsFooterForFilterState arbitrates). Its height is reserved
 	// out of the list's budget by applyProjectListSize (resolved against the SAME
 	// contentWidth) so the composed view stays within termH.
@@ -4476,7 +4510,7 @@ func (m Model) renderProjectCommandBand() string {
 	if !m.commandPending {
 		return ""
 	}
-	return renderCommandBand(m.command, m.contentWidth(), m.canvasMode, m.colourless)
+	return renderCommandBand(m.command, m.contentWidth(), m.activeTheme, m.colourless)
 }
 
 // renderProjectBandSlot renders the FULL §11.4 Projects notice slot for the model's
@@ -4495,7 +4529,7 @@ func (m Model) renderProjectBandSlot() string {
 	if band == "" {
 		return ""
 	}
-	blank := blankCanvasRow(m.contentWidth(), m.canvasMode, m.colourless)
+	blank := blankCanvasRow(m.contentWidth(), m.activeTheme, m.colourless)
 	return lipgloss.JoinVertical(lipgloss.Left, band, blank)
 }
 
@@ -4515,14 +4549,14 @@ func (m Model) applyProjectsSectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderFilterQueryHeader(
 			m.projectList.FilterValue(),
 			m.contentWidth(),
-			m.canvasMode,
+			m.activeTheme,
 			m.colourless,
 		))
 	}
 	return replaceHeaderLine(listView, renderProjectsSectionHeader(
 		m.visibleProjectRowCount(),
 		m.contentWidth(),
-		m.canvasMode,
+		m.activeTheme,
 		m.colourless,
 	))
 }
@@ -4538,33 +4572,33 @@ func (m Model) visibleProjectRowCount() int {
 // the correct variant for the current filter mode (§7.1), mirroring the Sessions
 // page: while the filter input is active the input-active footer renders, once
 // committed the list-active footer renders, otherwise the standard condensed
-// Projects footer renders. All three are two rows over the SAME border.footer rule,
+// Projects footer renders. All three are two rows over the SAME footer rule,
 // so the swap is height-neutral against the reserved budget.
 func (m Model) renderProjectsFooterForFilterState() string {
 	switch m.projectList.FilterState() {
 	case list.Filtering:
-		return renderFilteringFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderFilteringFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	case list.FilterApplied:
 		// Projects-specific list-active footer: Enter on Projects is "new session",
 		// not "attach" — do not leak the Sessions filterAppliedFooter copy here.
-		return renderProjectsFilterAppliedFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderProjectsFilterAppliedFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	default:
 		// §11.4: the command-pending Projects footer (`⏎ run here · n run in cwd ·
 		// esc cancel`) replaces the standard §6.3 condensed footer while a command is
 		// pending — but only outside an active filter mode (the contextual filter
 		// footers above still own the filter states).
 		if m.commandPending {
-			return renderCommandPendingFooter(m.contentWidth(), m.canvasMode, m.colourless)
+			return renderCommandPendingFooter(m.contentWidth(), m.activeTheme, m.colourless)
 		}
 		// §11.1 empty-projects state: the standard footer is FULLY REPLACED by the
 		// projects-relevant keys (`n new in cwd · x sessions · / filter · ? help`),
 		// drawn from the Projects keymap descriptor. Two-row footer over the SAME
-		// border.footer rule, so the swap is height-neutral against the reserved
+		// footer rule, so the swap is height-neutral against the reserved
 		// budget. Gated AFTER command-pending so the command-pending footer wins.
 		if m.projectListEmpty() {
-			return renderEmptyProjectsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+			return renderEmptyProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 		}
-		return renderProjectsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	}
 }
 
@@ -4592,21 +4626,21 @@ func (m Model) viewSessionList() string {
 		// SAME frame the help modal uses) — ▲ Kill session? / <name> · N window(s) +
 		// consequence / y kill · esc cancel. The confirm/cancel LOGIC is unchanged
 		// (updateKillConfirmModal); only the rendering is reskinned.
-		return renderKillModalOnClearedCanvas(m.pendingKillName, m.pendingKillWindows, m.contentWidth(), m.contentHeight(), m.canvasMode, m.colourless)
+		return renderKillModalOnClearedCanvas(m.pendingKillName, m.pendingKillWindows, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	case modalRename:
 		// §8.4 rename modal: the MV hand-drawn single-tone joined panel (the SAME
 		// frame the help/kill modals use) — Rename session header / NEW NAME label +
 		// violet-outlined input box + was: <old name> / ⏎ rename · esc cancel footer.
 		// The rename flow LOGIC is unchanged (updateRenameModal / renameAndRefresh);
 		// only the rendering is reskinned.
-		return renderRenameModalOnClearedCanvas(m.renameInput, m.renameTarget, m.contentWidth(), m.contentHeight(), m.canvasMode, m.colourless)
+		return renderRenameModalOnClearedCanvas(m.renameInput, m.renameTarget, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	case modalHelp:
 		// §8.5 per-page help: the Sessions keymap descriptor, descriptor-driven, in
 		// the help modal's own zero-h-padding panel (FIX 4). §4: the descriptor is
 		// filtered through m.sessionsHelpKeymap(), which drops the `m` multi-select
 		// row when it is blocked (unsupported terminal, not already in the mode) —
 		// the static sessionsKeymap() constant is unchanged.
-		return renderHelpModalOnClearedCanvas(m.sessionsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.canvasMode, m.colourless)
+		return renderHelpModalOnClearedCanvas(m.sessionsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	}
 	listView := m.sessionList.View()
 	// §3.2 / §4.2: replace the plain bubbles/list title line with the restyled
@@ -4640,7 +4674,7 @@ func (m Model) viewSessionList() string {
 		listView = m.replaceListBodyWithEmptyState(listView, m.sessionList.Height(), emptySessionsGlyph, emptySessionsMessage, emptySessionsHint)
 	}
 	// §3.4 condensed footer: a single row of the Core keymap keys (sourced from the
-	// task 2-1 descriptor) over a 1px border.footer rule, replacing the manual
+	// task 2-1 descriptor) over a 1px footer rule, replacing the manual
 	// three-column footer for Sessions. Its height is folded out of the list's budget
 	// by applySessionListSize (m.sessionFooterHeight) — resolved against the SAME
 	// contentWidth — so the composed view stays within termH and the
@@ -4648,7 +4682,7 @@ func (m Model) viewSessionList() string {
 	//
 	// §7.1: while a filter mode is active the standard footer is REPLACED by one of
 	// the two contextual filter footers (input-active vs list-active). All three
-	// footers are exactly two rows (the shared border.footer rule + one entry row),
+	// footers are exactly two rows (the shared footer rule + one entry row),
 	// so the swap is height-neutral — the budget reserved by sessionFooterHeight
 	// holds regardless of filter mode.
 	footer := m.renderSessionsFooterForFilterState()
@@ -4685,7 +4719,7 @@ func (m Model) viewSessionList() string {
 // (`type to filter · ↵/↓ browse results · esc clear`); once committed
 // (FilterState == FilterApplied) the list-active footer renders
 // (`↵ attach · ↑↓ navigate · esc clear filter`). Otherwise the standard condensed
-// footer renders. All three are two rows over the SAME border.footer rule, so the
+// footer renders. All three are two rows over the SAME footer rule, so the
 // swap is height-neutral against the reserved sessionFooterHeight budget.
 func (m Model) renderSessionsFooterForFilterState() string {
 	// §7.3 over-filtered no-matches state keeps the footer in the input-active form,
@@ -4693,16 +4727,16 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	// are no results to browse). It takes precedence over the plain Filtering footer
 	// so the reduced entry set renders whenever the active query matches zero.
 	if m.sessionListNoMatches() {
-		return renderNoMatchesFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderNoMatchesFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	}
 	// §11.1 empty-sessions state: the standard footer is FULLY REPLACED by the keys
 	// relevant with no sessions (`n new in cwd · x projects · / filter · ? help`),
 	// drawn from the Sessions keymap descriptor. It is a two-row footer over the SAME
-	// border.footer rule, so the swap is height-neutral against the reserved
+	// footer rule, so the swap is height-neutral against the reserved
 	// sessionFooterHeight budget. The empty state is Unfiltered, so this guard sits
 	// before the filter-state switch (which only handles Filtering/FilterApplied).
 	if m.sessionListEmpty() {
-		return renderEmptySessionsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderEmptySessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	}
 	// §5 multi-select mode owns the footer (takes over the standard footer) but yields
 	// to the focused filter footer: while the `/` input is focused (FilterState ==
@@ -4711,16 +4745,16 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	// FilterApplied-in-mode — the multi-select footer renders. So Filtering is checked
 	// FIRST, then the mode, then the plain FilterApplied/standard footers.
 	if m.sessionList.FilterState() == list.Filtering {
-		return renderFilteringFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderFilteringFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	}
 	if m.multiSelectMode {
-		return renderMultiSelectFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderMultiSelectFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	}
 	switch m.sessionList.FilterState() {
 	case list.FilterApplied:
-		return renderFilterAppliedFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderFilterAppliedFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	default:
-		return renderSessionsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+		return renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	}
 }
 
@@ -4729,7 +4763,7 @@ func (m Model) renderSessionsFooterForFilterState() string {
 // single render entry point so the composed-view render and the height-budget
 // computation (headerHeight) resolve the header against the SAME width/mode.
 func (m Model) renderHeader() string {
-	return renderHeaderBlock(m.contentWidth(), m.canvasMode, m.colourless)
+	return renderHeaderBlock(m.contentWidth(), m.activeTheme, m.colourless)
 }
 
 // unsupportedBannerActive reports whether the §6.2 proactive unsupported-terminal
@@ -4833,7 +4867,7 @@ func (m Model) applySectionHeader(listView string) string {
 			m.burstDone,
 			m.burstTotal,
 			m.contentWidth(),
-			m.canvasMode,
+			m.activeTheme,
 			m.colourless,
 		))
 	}
@@ -4853,7 +4887,7 @@ func (m Model) applySectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderPreflightAbortHeader(
 			m.abortBannerText,
 			m.contentWidth(),
-			m.canvasMode,
+			m.activeTheme,
 			m.colourless,
 		))
 	}
@@ -4866,7 +4900,7 @@ func (m Model) applySectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderMultiSelectHeader(
 			len(m.selectedSessions),
 			m.contentWidth(),
-			m.canvasMode,
+			m.activeTheme,
 			m.colourless,
 		))
 	}
@@ -4886,7 +4920,7 @@ func (m Model) applySectionHeader(listView string) string {
 			m.detectIdentity.Name,
 			m.detectIdentity.BundleID,
 			m.contentWidth(),
-			m.canvasMode,
+			m.activeTheme,
 			m.colourless,
 		))
 	}
@@ -4894,7 +4928,7 @@ func (m Model) applySectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderFilterQueryHeader(
 			m.sessionList.FilterValue(),
 			m.contentWidth(),
-			m.canvasMode,
+			m.activeTheme,
 			m.colourless,
 		))
 	}
@@ -4904,7 +4938,7 @@ func (m Model) applySectionHeader(listView string) string {
 		m.currentSession,
 		m.visibleSessionRowCount(),
 		m.contentWidth(),
-		m.canvasMode,
+		m.activeTheme,
 		m.colourless,
 	))
 }
@@ -4933,7 +4967,7 @@ func (m Model) visibleSessionRowCount() int {
 // render uses (via the shared headerWidthOrFallback fallback), so the budget and
 // the render agree exactly.
 func (m Model) headerHeight(width int) int {
-	return lipgloss.Height(renderHeaderBlock(width, m.canvasMode, m.colourless))
+	return lipgloss.Height(renderHeaderBlock(width, m.activeTheme, m.colourless))
 }
 
 // replaceListBodyWithNoMatches swaps the list BODY (every row below the
@@ -4947,7 +4981,7 @@ func (m Model) replaceListBodyWithNoMatches(listView string) string {
 	bodyHeight := max(
 		// minus the title/filter row
 		m.sessionList.Height()-1, 1)
-	body := renderNoMatchesBody(m.sessionList.FilterValue(), m.contentWidth(), bodyHeight, m.canvasMode, m.colourless)
+	body := renderNoMatchesBody(m.sessionList.FilterValue(), m.contentWidth(), bodyHeight, m.activeTheme, m.colourless)
 	idx := strings.IndexByte(listView, '\n')
 	if idx < 0 {
 		// Degenerate single-line listView (no body to replace): append the body.

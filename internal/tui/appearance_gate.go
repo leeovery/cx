@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/prefs"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // appearanceDetectTimeout is the upper bound on how long the first real paint
@@ -30,9 +29,33 @@ const appearanceDetectTimeout = 50 * time.Millisecond
 // already resolved (the loser of the race never re-resolves — no flip).
 type appearanceTimeoutMsg struct{}
 
+// canvasAppearance is the gate's light/dark answer — which of the two canvases
+// Portal paints.
+//
+// It is an unexported internal/tui concept rather than anything the token layer
+// carries: a theme is ONE palette and is itself light or dark (§3.1, §4.7), so
+// there is no variant for a theme to resolve and nothing for the token package to
+// name. What survives is the QUESTION the detect-or-timeout gate answers, and it
+// belongs where the gate lives.
+//
+// Its ZERO VALUE is dark, deliberately and load-bearingly: dark is §8.8's
+// no-answer fallback, so an unresolved gate — and any directly constructed model —
+// already carries the answer Portal falls back to. A bare bool would invert that
+// silently, making the fallback "light" the moment anyone forgot to set it.
+type canvasAppearance int
+
+const (
+	// appearanceDarkCanvas is the no-answer fallback and MUST stay first, so it is
+	// the zero value.
+	appearanceDarkCanvas canvasAppearance = iota
+	// appearanceLightCanvas is the answer an OSC 11 reply reporting a light
+	// terminal background resolves to.
+	appearanceLightCanvas
+)
+
 // appearanceGate is the reusable detect-or-timeout first-paint mechanism (§2.6 /
-// §10.2). It owns the resolved canvas mode and the "may the real canvas paint
-// yet?" flag, so a page that gates its first paint (the foundation Sessions
+// §10.2). It owns the resolved canvas appearance and the "may the real canvas
+// paint yet?" flag, so a page that gates its first paint (the foundation Sessions
 // screen now; the §10 cold-path loading page in Phase 5) shares one resolution
 // path rather than re-implementing the race.
 //
@@ -47,11 +70,11 @@ type appearanceTimeoutMsg struct{}
 // and detection + its first-paint wait are skipped — exactly like a pin, but for
 // a different reason (no hue at all, rather than a chosen mode).
 type appearanceGate struct {
-	// mode is the resolved light/dark canvas the owned canvas (§1) is painted
-	// for. Dark is the zero value (the §2.6 no-answer fallback), so an unresolved
-	// auto gate already carries the fallback canvas; it is simply not painted
-	// until the gate resolves.
-	mode theme.Mode
+	// appearance is the resolved light/dark canvas the owned canvas (§1) is
+	// painted for. appearanceDarkCanvas is the zero value (the §8.8 no-answer
+	// fallback), so an unresolved auto gate already carries the fallback answer;
+	// it is simply not painted until the gate resolves.
+	appearance canvasAppearance
 	// pending reports whether the detect-or-timeout window is OPEN (the first real
 	// paint must wait). It is named negatively on purpose: the zero value (false)
 	// means "not pending" = resolved, so a zero-value gate (a struct-literal test
@@ -65,9 +88,9 @@ type appearanceGate struct {
 	// colourless marks the NO_COLOR carve-out (§2.5). A colourless gate is never
 	// armed (arm is a no-op) and is constructed already resolved, so detection and
 	// the first-paint wait are skipped entirely — there is no canvas to select. It
-	// is independent of mode: under NO_COLOR no canvas is painted at all, so the
-	// resolved mode is irrelevant (the render path reads m.colourless to suppress
-	// the paint).
+	// is independent of appearance: under NO_COLOR no canvas is painted at all, so
+	// the resolved answer is irrelevant (the render path reads m.colourless to
+	// suppress the paint).
 	colourless bool
 }
 
@@ -78,31 +101,31 @@ func (g appearanceGate) resolved() bool {
 }
 
 // newAppearanceGate builds the gate for the given appearance preference (§2.6).
-// A pinned light/dark appearance resolves immediately (mode set, pinned=true,
-// not pending) so the correct canvas paints from frame one with no detection and
-// no wait. Auto is constructed RESOLVED to the dark fallback so a directly
-// constructed model paints immediately; production opens the detect-or-timeout
-// window explicitly via arm() (see Build), which only un-resolves a non-pinned
-// gate.
+// A pinned light/dark appearance resolves immediately (appearance set,
+// pinned=true, not pending) so the correct canvas paints from frame one with no
+// detection and no wait. Auto is constructed RESOLVED to the dark fallback so a
+// directly constructed model paints immediately; production opens the
+// detect-or-timeout window explicitly via arm() (see Build), which only
+// un-resolves a non-pinned gate.
 func newAppearanceGate(appearance prefs.Appearance) appearanceGate {
 	switch appearance {
 	case prefs.AppearanceLight:
-		return appearanceGate{mode: theme.Light, pinned: true}
+		return appearanceGate{appearance: appearanceLightCanvas, pinned: true}
 	case prefs.AppearanceDark:
-		return appearanceGate{mode: theme.Dark, pinned: true}
+		return appearanceGate{appearance: appearanceDarkCanvas, pinned: true}
 	default:
 		// Auto: resolved to the dark fallback by default (pending=false); arm()
 		// opens the detect-or-timeout window.
-		return appearanceGate{mode: theme.Dark}
+		return appearanceGate{appearance: appearanceDarkCanvas}
 	}
 }
 
 // newColourlessGate builds the gate for the NO_COLOR carve-out (§2.5 / §2.6). It
 // is constructed already resolved (pending=false) and unarmable (colourless=true,
 // so arm() is a no-op), so detection and the first-paint wait are skipped — there
-// is no canvas to select. The mode is the dark zero value but is never consumed:
-// the render path reads m.colourless and paints no canvas at all, so the resolved
-// mode is irrelevant.
+// is no canvas to select. The appearance is the dark zero value but is never
+// consumed for a paint: the render path reads m.colourless and paints no canvas at
+// all, so the resolved answer is irrelevant.
 func newColourlessGate() appearanceGate {
 	return appearanceGate{colourless: true}
 }
@@ -138,29 +161,30 @@ func (g appearanceGate) timeoutCmd() tea.Cmd {
 // It is a no-op (returning false) once already resolved, so a late timeout that
 // lost the race never re-resolves — no second resolution, no flip.
 func (g *appearanceGate) resolveDark() bool {
-	return g.resolve(theme.Dark)
+	return g.resolve(appearanceDarkCanvas)
 }
 
-// resolveFromDark resolves an open gate from an OSC 11 reply: dark→Dark,
-// light→Light (§2.6). It reports whether this call performed the resolution and
-// is a no-op (returning false) once already resolved, so a late reply that lost
-// the race never flips the painted canvas.
+// resolveFromDark resolves an open gate from an OSC 11 reply: a dark terminal
+// background resolves to the dark canvas, a light one to the light canvas (§2.6).
+// It reports whether this call performed the resolution and is a no-op (returning
+// false) once already resolved, so a late reply that lost the race never flips the
+// painted canvas.
 func (g *appearanceGate) resolveFromDark(isDark bool) bool {
 	if isDark {
-		return g.resolve(theme.Dark)
+		return g.resolve(appearanceDarkCanvas)
 	}
-	return g.resolve(theme.Light)
+	return g.resolve(appearanceLightCanvas)
 }
 
-// resolve is the single-resolution core: it sets the mode and closes the window
-// on the FIRST call only (i.e. while the window is open / pending), returning
-// true when it performed the resolution and false otherwise. This is the no-flip
-// invariant — the canvas mode is fixed exactly once per open window.
-func (g *appearanceGate) resolve(mode theme.Mode) bool {
+// resolve is the single-resolution core: it sets the appearance and closes the
+// window on the FIRST call only (i.e. while the window is open / pending),
+// returning true when it performed the resolution and false otherwise. This is the
+// no-flip invariant — the canvas is fixed exactly once per open window.
+func (g *appearanceGate) resolve(appearance canvasAppearance) bool {
 	if g.resolved() {
 		return false
 	}
-	g.mode = mode
+	g.appearance = appearance
 	g.pending = false
 	return true
 }

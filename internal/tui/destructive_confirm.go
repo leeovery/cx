@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // destructive_confirm.go owns the SINGLE destructive-confirm panel grammar shared by
@@ -82,20 +82,20 @@ type destructiveConfirmSpec struct {
 // Vertical spacing is terminal-native FLUSH (the help/kill/delete convention): every
 // compartment's content is flush to its dividers; the ONE blank row inside the body is
 // the deliberate semantic separator between the target and the warning.
-func renderDestructiveConfirm(spec destructiveConfirmSpec, mode theme.Mode, colourless bool) string {
-	header := []string{destructiveHeaderRow(spec.title, mode, colourless)}
-	body := destructiveBodyRows(spec, mode, colourless)
-	footer := []string{destructiveFooterRow(spec.confirmKey, spec.confirmLabel, mode, colourless)}
-	return renderJoinedPanel([][]string{header, body, footer}, theme.MV.BorderSeparator, mode, colourless)
+func renderDestructiveConfirm(spec destructiveConfirmSpec, th theme.Theme, colourless bool) string {
+	header := []string{destructiveHeaderRow(spec.title, th, colourless)}
+	body := destructiveBodyRows(spec, th, colourless)
+	footer := []string{destructiveFooterRow(spec.confirmKey, spec.confirmLabel, th, colourless)}
+	return renderJoinedPanel([][]string{header, body, footer}, th.Border, th, colourless)
 }
 
 // destructiveHeaderRow renders `▲ <Title>` — the ▲ glyph and the title text both in
 // state.red and bold (glyph + colour + bold, §2.2). Under NO_COLOR the state.red hue
 // drops (native fg) but the glyph + bold remain so the destructive signal survives.
-func destructiveHeaderRow(title string, mode theme.Mode, colourless bool) string {
-	style := headerStyle(theme.MV.StateRed, mode, colourless).Bold(true)
+func destructiveHeaderRow(title string, th theme.Theme, colourless bool) string {
+	style := headerStyle(th.StateDestructive, th, colourless).Bold(true)
 	glyph := style.Render(destructiveTitleGlyph)
-	gap := headerCanvasBg(mode, colourless).Render(" ")
+	gap := headerCanvasBg(th, colourless).Render(" ")
 	titleSeg := style.Render(title)
 	return lipgloss.JoinHorizontal(lipgloss.Top, glyph, gap, titleSeg)
 }
@@ -103,14 +103,14 @@ func destructiveHeaderRow(title string, mode theme.Mode, colourless bool) string
 // destructiveBodyRows builds the body compartment: the target name row (with an optional
 // same-line trailer), any extra body rows, ONE blank separator row, then the
 // word-wrapped consequence line(s).
-func destructiveBodyRows(spec destructiveConfirmSpec, mode theme.Mode, colourless bool) []string {
-	rows := []string{destructiveNameRow(spec.targetName, spec.nameTrailer, mode, colourless)}
+func destructiveBodyRows(spec destructiveConfirmSpec, th theme.Theme, colourless bool) []string {
+	rows := []string{destructiveNameRow(spec.targetName, spec.nameTrailer, th, colourless)}
 	rows = append(rows, spec.extraBodyRows...)
 	// The single blank row separating the "what" (target) from the "warning"
 	// (consequence) — the body's only blank, canvas-painted so it carries no
 	// terminal-bg island.
-	rows = append(rows, headerCanvasBg(mode, colourless).Render(""))
-	rows = append(rows, destructiveConsequenceRows(spec.consequence, mode, colourless)...)
+	rows = append(rows, headerCanvasBg(th, colourless).Render(""))
+	rows = append(rows, destructiveConsequenceRows(spec.consequence, th, colourless)...)
 	return rows
 }
 
@@ -118,13 +118,13 @@ func destructiveBodyRows(spec destructiveConfirmSpec, mode theme.Mode, colourles
 // emphasis). When trailer is non-empty it appends `  <trailer>` in text.detail on the
 // same line (the kill modal's `· N window(s)` count); an empty trailer renders the name
 // alone (the delete modal's name row).
-func destructiveNameRow(name, trailer string, mode theme.Mode, colourless bool) string {
-	nameSeg := headerStyle(theme.MV.StateRed, mode, colourless).Bold(true).Render(name)
+func destructiveNameRow(name, trailer string, th theme.Theme, colourless bool) string {
+	nameSeg := headerStyle(th.StateDestructive, th, colourless).Bold(true).Render(name)
 	if trailer == "" {
 		return nameSeg
 	}
-	gap := headerCanvasBg(mode, colourless).Render("  ")
-	trailerSeg := headerStyle(theme.MV.TextDetail, mode, colourless).Render(trailer)
+	gap := headerCanvasBg(th, colourless).Render("  ")
+	trailerSeg := headerStyle(th.TextMuted, th, colourless).Render(trailer)
 	return lipgloss.JoinHorizontal(lipgloss.Top, nameSeg, gap, trailerSeg)
 }
 
@@ -132,9 +132,9 @@ func destructiveNameRow(name, trailer string, mode theme.Mode, colourless bool) 
 // and renders each wrapped line in text.detail — so the panel grows to the body width
 // and the consequence reads across the wrapped lines of the §8.3/§8.6 reference. The
 // single word-wrap loop shared by both modals.
-func destructiveConsequenceRows(text string, mode theme.Mode, colourless bool) []string {
+func destructiveConsequenceRows(text string, th theme.Theme, colourless bool) []string {
 	wrapped := ansi.Wordwrap(text, destructiveBodyWidth, "")
-	style := headerStyle(theme.MV.TextDetail, mode, colourless)
+	style := headerStyle(th.TextMuted, th, colourless)
 	lines := strings.Split(wrapped, "\n")
 	rows := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -147,6 +147,6 @@ func destructiveConsequenceRows(text string, mode theme.Mode, colourless bool) [
 // accent.blue, the labels in text.detail, via the shared renderConfirmCancelFooter so
 // the confirm/cancel footer shape lives in one place. The cancel hint is always
 // `esc cancel`.
-func destructiveFooterRow(confirmKey, confirmLabel string, mode theme.Mode, colourless bool) string {
-	return renderConfirmCancelFooter(confirmKey, confirmLabel, destructiveKeyCancel, destructiveLabelCancel, mode, colourless)
+func destructiveFooterRow(confirmKey, confirmLabel string, th theme.Theme, colourless bool) string {
+	return renderConfirmCancelFooter(confirmKey, confirmLabel, destructiveKeyCancel, destructiveLabelCancel, th, colourless)
 }

@@ -9,7 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // initCmds executes a tea.Cmd and returns every leaf message it produces,
@@ -141,9 +140,9 @@ func TestBackgroundColorMsg_NilColorLeavesEmpty(t *testing.T) {
 // asserted byte-identical before and after a BackgroundColorMsg is routed
 // through Update.
 func TestBackgroundColorMsg_DoesNotChangeRenderedFrame(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, appearance := range []canvasAppearance{appearanceDarkCanvas, appearanceLightCanvas} {
 		const w, h = 90, 24
-		base := newCanvasTestModel(t, w, h, mode)
+		base := newCanvasTestModel(t, w, h, appearance)
 		before := base.View().Content
 
 		updated, _ := base.Update(tea.BackgroundColorMsg{
@@ -152,7 +151,7 @@ func TestBackgroundColorMsg_DoesNotChangeRenderedFrame(t *testing.T) {
 		after := updated.(Model).View().Content
 
 		if before != after {
-			t.Errorf("mode %v: View().Content changed after a BackgroundColorMsg — the async capture must not perturb the frame (determinism)", mode)
+			t.Errorf("canvas %v: View().Content changed after a BackgroundColorMsg — the async capture must not perturb the frame (determinism)", appearance)
 		}
 	}
 }
@@ -166,10 +165,10 @@ func TestFirstPaint_NotGatedOnBackgroundQuery(t *testing.T) {
 	const w, h = 90, 24
 
 	// No response ever arrives.
-	noResponse := newCanvasTestModel(t, w, h, theme.Dark).View().Content
+	noResponse := newCanvasTestModel(t, w, h, appearanceDarkCanvas).View().Content
 
 	// A response arrives (the only difference is originalBg is captured).
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 	updated, _ := m.Update(tea.BackgroundColorMsg{
 		Color: color.RGBA{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff},
 	})

@@ -14,7 +14,7 @@ import (
 
 // sessionsFooterString renders the §3.4 condensed sessions footer for m.
 func sessionsFooterString(m Model) string {
-	return renderSessionsFooter(m.contentWidth(), m.canvasMode, m.colourless)
+	return renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 }
 
 func TestSessionsFooter_ShowsSwitchViewHint(t *testing.T) {
@@ -77,7 +77,7 @@ func TestProjectsFooter_NoSwitchViewHint(t *testing.T) {
 	m.activePage = PageProjects
 	m.termWidth = 120
 
-	footer := footerVisible(renderProjectsFooter(m.contentWidth(), m.canvasMode, m.colourless))
+	footer := footerVisible(renderProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless))
 	if strings.Contains(footer, "switch view") {
 		t.Errorf("projects footer must NOT contain %q, got:\n%s", "switch view", footer)
 	}
@@ -99,7 +99,7 @@ func TestCommandPendingFooter_NoSwitchViewHint(t *testing.T) {
 	m.activePage = PageProjects
 	m.commandPending = true
 
-	footer := footerVisible(renderCommandPendingFooter(m.contentWidth(), m.canvasMode, m.colourless))
+	footer := footerVisible(renderCommandPendingFooter(m.contentWidth(), m.activeTheme, m.colourless))
 	if strings.Contains(footer, "switch view") {
 		t.Errorf("command-pending footer must NOT contain %q, got:\n%s", "switch view", footer)
 	}

@@ -11,12 +11,10 @@ import (
 )
 
 // centralisedColourSites enumerates every NON-test production .go file in the
-// internal/tui package (the package directory only — the theme/ subpackage, the
-// sole sanctioned home for raw colour values, is excluded by globbing the package
-// dir rather than recursing). It is the §2.9 "closed vocabulary, no literal hex at
-// call sites" rule made executable: after the §2.9 role-token migration none of
+// internal/tui package (the package directory only, not recursing). It is the
+// "closed vocabulary, no literal hex at call sites" rule made executable: none of
 // these render files may construct a colour from a raw hex / ANSI-index literal —
-// every colour must flow from a theme token.
+// every colour must flow from a token on the model's active theme.
 //
 // It is a GLOB (not a hand-maintained list) so no render file can be silently
 // omitted from coverage as later phases add renderers — the guard's coverage grows
@@ -45,9 +43,8 @@ func centralisedColourSites(t *testing.T) []string {
 // TestNoRawColourLiteralAtCentralisedSites parses every production render file in
 // internal/tui (via the centralisedColourSites glob) and fails if any
 // lipgloss.Color(...) call is passed a raw string/int literal (a hex like "#777777"
-// or an ANSI index like "212"/76). The only sanctioned home for raw colour values is
-// internal/tui/theme (excluded — it is a subpackage, not in the package-dir glob) —
-// every call site must reference a token.
+// or an ANSI index like "212"/76). Raw colour values live in the embedded .theme
+// FILES and nowhere in Go at all — every call site must reference a token.
 func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
 	for _, name := range centralisedColourSites(t) {
 		t.Run(name, func(t *testing.T) {
@@ -82,7 +79,7 @@ func TestNoRawColourLiteralAtCentralisedSites(t *testing.T) {
 						}
 					}
 					pos := fset.Position(lit.Pos())
-					t.Errorf("%s:%d constructs lipgloss.Color(%q) from a raw colour literal; reference an internal/tui/theme token instead", name, pos.Line, raw)
+					t.Errorf("%s:%d constructs lipgloss.Color(%q) from a raw colour literal; reference a token on the active theme instead", name, pos.Line, raw)
 				}
 				return true
 			})

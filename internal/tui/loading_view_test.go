@@ -19,7 +19,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // midRestoreProgress builds the reference mid-restore accumulator state: steps
@@ -44,7 +43,7 @@ func midRestoreProgress() LoadingProgress {
 // step-list.
 func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 	view := midRestoreProgress().View()
-	out := renderLoadingScreen(view, 80, 24, theme.Dark, false)
+	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
 	visible := ansi.Strip(out)
 
 	// The five locked banner rows are present verbatim (the wordmark segments).
@@ -73,13 +72,13 @@ func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 	// The wordmark block letters carry text.primary; the caret bar carries
 	// accent.violet; the filled bar carries the accent.violet background; the
 	// track carries the bg.track background.
-	if !strings.Contains(out, tokenFgSeq(t, theme.MV.TextPrimary, theme.Dark)) {
+	if !strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).TextPrimary)) {
 		t.Error("loading screen does not paint the wordmark in text.primary")
 	}
-	if !strings.Contains(out, tokenBgSeq(t, theme.MV.AccentViolet, theme.Dark)) {
+	if !strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).AccentPrimary)) {
 		t.Error("loading screen does not paint the filled bar with the accent.violet background")
 	}
-	if !strings.Contains(out, tokenBgSeq(t, theme.MV.BgTrack, theme.Dark)) {
+	if !strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).BgSubtle)) {
 		t.Error("loading screen does not paint the bar track with the bg.track background")
 	}
 }
@@ -133,10 +132,10 @@ func firstBarLine(lines []string) string {
 // The bar's rendered width must equal the block wordmark's rendered width so the
 // bar reads as the logo's full-length underline.
 func TestLoadingScreen_BarWidthEqualsWordmarkWidth(t *testing.T) {
-	wordmark := renderBlockWordmark(theme.Dark, false)
+	wordmark := renderBlockWordmark(testDarkTheme(t), false)
 	wordmarkW := lipgloss.Width(wordmark)
 
-	bar := renderLoadingBar(midRestoreProgress().View().BarFraction, 80, wordmarkW, theme.Dark, false)
+	bar := renderLoadingBar(midRestoreProgress().View().BarFraction, 80, wordmarkW, testDarkTheme(t), false)
 	barW := lipgloss.Width(bar)
 
 	if barW != wordmarkW {
@@ -152,7 +151,7 @@ func TestLoadingScreen_BarWidthEqualsWordmarkWidth(t *testing.T) {
 // JoinVertical(Center) so its centre aligns with theirs — i.e. it is NOT
 // left-flush.
 func TestLoadingScreen_BlockColumnIsCentered(t *testing.T) {
-	block := composeLoadingBlock(midRestoreProgress().View(), 80, 24, theme.Dark, false)
+	block := composeLoadingBlock(midRestoreProgress().View(), 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(block, "\n")
 	blockWidth := lipgloss.Width(block)
 
@@ -191,7 +190,7 @@ func TestLoadingScreen_BlockColumnIsCentered(t *testing.T) {
 // and the bar, and two between the bar and the list (the design's ~34px gap ≈ 2
 // terminal rows, up from the former 1-row gap).
 func TestLoadingScreen_SectionGapsAreTwoRows(t *testing.T) {
-	block := composeLoadingBlock(midRestoreProgress().View(), 80, 24, theme.Dark, false)
+	block := composeLoadingBlock(midRestoreProgress().View(), 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(block, "\n")
 
 	// The bar is the unique row that is a CONTIGUOUS run of block glyphs (filled +
@@ -245,7 +244,7 @@ func TestLoadingScreen_SectionGapsAreTwoRows(t *testing.T) {
 // so it is independent of the outer centring.
 func TestLoadingScreen_TickRowsLeftAlignedWithinList(t *testing.T) {
 	view := midRestoreProgress().View()
-	list := renderTickList(view.Labels, 80, theme.Dark, false)
+	list := renderTickList(view.Labels, 80, testDarkTheme(t), false)
 	for i, line := range strings.Split(list, "\n") {
 		if pad := blockLeadingPad(line); pad != 0 {
 			t.Errorf("tick row %d is not left-flush within the list block: leading pad = %d (icons must share a column)", i, pad)
@@ -271,7 +270,7 @@ func errorFrameView() LoadingProgressView {
 // message in the pre-fix Left join).
 func TestLoadingScreen_ErrorFrameCentredComposition(t *testing.T) {
 	view := errorFrameView()
-	block := composeLoadingBlock(view, 80, 24, theme.Dark, false)
+	block := composeLoadingBlock(view, 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(block, "\n")
 	blockWidth := lipgloss.Width(block)
 
@@ -316,7 +315,7 @@ func TestLoadingScreen_ErrorFrameCentredComposition(t *testing.T) {
 func TestLoadingScreen_ErrorFrameNeverOverflowsHeight(t *testing.T) {
 	view := errorFrameView()
 	for _, h := range []int{24, 14, 12, 9, 7, 6} {
-		out := renderLoadingScreen(view, 80, h, theme.Dark, false)
+		out := renderLoadingScreen(view, 80, h, testDarkTheme(t), false)
 		if got := lipgloss.Height(out); got > h {
 			t.Errorf("height %d: error frame is %d rows tall (overflow)", h, got)
 		}
@@ -340,13 +339,13 @@ func TestLoadingScreen_CentredPaddingCarriesCanvasNoIslands(t *testing.T) {
 		{"error", errorFrameView()},
 	} {
 		t.Run(frame.name, func(t *testing.T) {
-			mode := theme.Light
+			th := testLightTheme(t)
 			placed := lipgloss.Place(80, 24, lipgloss.Center, lipgloss.Center,
-				composeLoadingBlock(frame.view, 80, 24, mode, false))
+				composeLoadingBlock(frame.view, 80, 24, th, false))
 
-			canvasBg := canvasBgParams(theme.MV.Canvas.ColorFor(mode))
+			canvasBg := canvasBgParams(th.Canvas.Color())
 			parser := ansi.NewParser()
-			canvas := lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(mode))
+			canvas := lipgloss.NewStyle().Background(th.Canvas.Color())
 
 			for i, raw := range strings.Split(placed, "\n") {
 				// Mirror the production fillCanvas per-line treatment.
@@ -392,7 +391,7 @@ func bareCanvasRun(line string) string {
 // joining ONE 5-row caret column horizontally — so the caret glyph must land on
 // the SAME column on every one of the five banner rows.
 func TestLoadingScreen_CaretIsFlushAcrossBannerRows(t *testing.T) {
-	block := ansi.Strip(renderBlockWordmark(theme.Dark, false))
+	block := ansi.Strip(renderBlockWordmark(testDarkTheme(t), false))
 	lines := strings.Split(block, "\n")
 	if len(lines) != len(loadingWordmark) {
 		t.Fatalf("block banner has %d rows, want %d", len(lines), len(loadingWordmark))
@@ -442,36 +441,36 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 	}
 
 	// Each row is rendered with the matching glyph + label token.
-	doneRow := renderTickRow(LoadingLabel{Text: LabelStartedTmuxServer, State: LabelDone}, theme.Dark, false)
+	doneRow := renderTickRow(LoadingLabel{Text: LabelStartedTmuxServer, State: LabelDone}, testDarkTheme(t), false)
 	if !strings.Contains(ansi.Strip(doneRow), loadingGlyphDone) {
 		t.Errorf("done row missing %q glyph: %q", loadingGlyphDone, ansi.Strip(doneRow))
 	}
-	if !strings.Contains(doneRow, tokenFgSeq(t, theme.MV.StateGreen, theme.Dark)) {
+	if !strings.Contains(doneRow, tokenFgSeq(t, testDarkTheme(t).StatePositive)) {
 		t.Error("done glyph not painted state.green")
 	}
-	if !strings.Contains(doneRow, tokenFgSeq(t, theme.MV.TextMutedBright, theme.Dark)) {
+	if !strings.Contains(doneRow, tokenFgSeq(t, testDarkTheme(t).TextTertiary)) {
 		t.Error("done label not painted text.muted-bright")
 	}
 
-	activeRow := renderTickRow(LoadingLabel{Text: LabelRestoringSessions, State: LabelActive, Counter: "8/12"}, theme.Dark, false)
+	activeRow := renderTickRow(LoadingLabel{Text: LabelRestoringSessions, State: LabelActive, Counter: "8/12"}, testDarkTheme(t), false)
 	if !strings.Contains(ansi.Strip(activeRow), loadingGlyphActive) {
 		t.Errorf("active row missing %q glyph: %q", loadingGlyphActive, ansi.Strip(activeRow))
 	}
-	if !strings.Contains(activeRow, tokenFgSeq(t, theme.MV.AccentCyan, theme.Dark)) {
+	if !strings.Contains(activeRow, tokenFgSeq(t, testDarkTheme(t).AccentMode)) {
 		t.Error("active glyph not painted accent.cyan")
 	}
-	if !strings.Contains(activeRow, tokenFgSeq(t, theme.MV.TextPrimary, theme.Dark)) {
+	if !strings.Contains(activeRow, tokenFgSeq(t, testDarkTheme(t).TextPrimary)) {
 		t.Error("active label not painted text.primary")
 	}
 
-	pendingRow := renderTickRow(LoadingLabel{Text: LabelReplayingScrollback, State: LabelPending}, theme.Dark, false)
+	pendingRow := renderTickRow(LoadingLabel{Text: LabelReplayingScrollback, State: LabelPending}, testDarkTheme(t), false)
 	if !strings.Contains(ansi.Strip(pendingRow), loadingGlyphPending) {
 		t.Errorf("pending row missing %q glyph: %q", loadingGlyphPending, ansi.Strip(pendingRow))
 	}
-	if !strings.Contains(pendingRow, tokenFgSeq(t, theme.MV.TextFaint, theme.Dark)) {
+	if !strings.Contains(pendingRow, tokenFgSeq(t, testDarkTheme(t).TextFaint)) {
 		t.Error("pending glyph not painted text.faint")
 	}
-	if !strings.Contains(pendingRow, tokenFgSeq(t, theme.MV.TextDim, theme.Dark)) {
+	if !strings.Contains(pendingRow, tokenFgSeq(t, testDarkTheme(t).TextSubtle)) {
 		t.Error("pending label not painted text.dim")
 	}
 }
@@ -481,7 +480,7 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 // and never on any other label.
 func TestLoadingScreen_CounterSpacedOnlyOnActiveRestore(t *testing.T) {
 	view := midRestoreProgress().View()
-	out := renderLoadingScreen(view, 80, 24, theme.Dark, false)
+	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
 	visible := ansi.Strip(out)
 
 	if !strings.Contains(visible, "8 / 12") {
@@ -491,7 +490,7 @@ func TestLoadingScreen_CounterSpacedOnlyOnActiveRestore(t *testing.T) {
 	if strings.Contains(visible, "8/12") {
 		t.Errorf("loading screen rendered the un-spaced counter %q; want %q", "8/12", "8 / 12")
 	}
-	if !strings.Contains(out, tokenFgSeq(t, theme.MV.TextDetail, theme.Dark)) {
+	if !strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).TextMuted)) {
 		t.Error("counter not painted text.detail")
 	}
 	// Exactly one counter on the whole screen (only the active restore row).
@@ -508,7 +507,7 @@ func TestLoadingScreen_SuppressesCounterWhenM0(t *testing.T) {
 		// Step 6 completes with RestoreM==0 (no per-session events) — empty restore.
 		p = p.Apply(BootstrapProgressMsg{Index: i})
 	}
-	out := renderLoadingScreen(p.View(), 80, 24, theme.Dark, false)
+	out := renderLoadingScreen(p.View(), 80, 24, testDarkTheme(t), false)
 	visible := ansi.Strip(out)
 
 	if strings.Contains(visible, "/") {
@@ -521,7 +520,7 @@ func TestLoadingScreen_SuppressesCounterWhenM0(t *testing.T) {
 // text swap.
 func TestLoadingScreen_IsRealListNotInPlaceSwap(t *testing.T) {
 	view := midRestoreProgress().View()
-	out := renderLoadingScreen(view, 80, 24, theme.Dark, false)
+	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
 	lines := strings.Split(ansi.Strip(out), "\n")
 
 	seen := map[string]int{}
@@ -559,7 +558,7 @@ func TestViewLoading_PaintsCanvasFromFrameOneGated(t *testing.T) {
 	if held.modeResolved() {
 		t.Fatal("gate resolved prematurely; expected the first-paint window to be open")
 	}
-	if strings.Contains(held.View().Content, tokenBgSeq(t, theme.MV.Canvas, theme.Dark)) {
+	if strings.Contains(held.View().Content, tokenBgSeq(t, testDarkTheme(t).Canvas)) {
 		t.Error("loading page painted the canvas before the gate resolved (paint-then-flip risk)")
 	}
 
@@ -570,7 +569,7 @@ func TestViewLoading_PaintsCanvasFromFrameOneGated(t *testing.T) {
 	if !resolved.modeResolved() {
 		t.Fatal("gate did not resolve on the timeout")
 	}
-	if !strings.Contains(resolved.View().Content, tokenBgSeq(t, theme.MV.Canvas, theme.Dark)) {
+	if !strings.Contains(resolved.View().Content, tokenBgSeq(t, testDarkTheme(t).Canvas)) {
 		t.Error("loading page did not paint the dark canvas after the gate resolved")
 	}
 }
@@ -618,7 +617,7 @@ func TestLoading_TransitionDualGated(t *testing.T) {
 func TestLoadingScreen_DegradesNarrowWithoutOverflow(t *testing.T) {
 	view := midRestoreProgress().View()
 	for _, w := range []int{80, 37, 30, 18, 12, 8} {
-		out := renderLoadingScreen(view, w, 24, theme.Dark, false)
+		out := renderLoadingScreen(view, w, 24, testDarkTheme(t), false)
 		for i, line := range strings.Split(out, "\n") {
 			if lw := lipgloss.Width(line); lw > w {
 				t.Errorf("width %d: line %d overflows (%d cells):\n%q", w, i, lw, ansi.Strip(line))
@@ -632,26 +631,26 @@ func TestLoadingScreen_DegradesNarrowWithoutOverflow(t *testing.T) {
 
 	// At/above the ~37-cell block width the 5-row banner is used; below it the
 	// single-row wordmark; narrower still the compact wordmark.
-	wide := ansi.Strip(renderLoadingScreen(view, 80, 24, theme.Dark, false))
+	wide := ansi.Strip(renderLoadingScreen(view, 80, 24, testDarkTheme(t), false))
 	if !strings.Contains(wide, blockSignature) {
 		t.Error("wide terminal should render the 5-row block banner")
 	}
-	atThreshold := ansi.Strip(renderLoadingScreen(view, loadingBlockBannerWidth, 24, theme.Dark, false))
+	atThreshold := ansi.Strip(renderLoadingScreen(view, loadingBlockBannerWidth, 24, testDarkTheme(t), false))
 	if !strings.Contains(atThreshold, blockSignature) {
 		t.Errorf("terminal at the block width (%d) should render the 5-row block banner", loadingBlockBannerWidth)
 	}
-	justBelow := ansi.Strip(renderLoadingScreen(view, loadingBlockBannerWidth-1, 24, theme.Dark, false))
+	justBelow := ansi.Strip(renderLoadingScreen(view, loadingBlockBannerWidth-1, 24, testDarkTheme(t), false))
 	if strings.Contains(justBelow, blockSignature) {
 		t.Errorf("terminal one cell below the block width (%d) should NOT render the block banner", loadingBlockBannerWidth-1)
 	}
-	mid := ansi.Strip(renderLoadingScreen(view, 18, 24, theme.Dark, false))
+	mid := ansi.Strip(renderLoadingScreen(view, 18, 24, testDarkTheme(t), false))
 	if strings.Contains(mid, blockSignature) {
 		t.Error("narrow terminal should NOT render the block banner (degrade to single-row)")
 	}
 	if !strings.Contains(mid, fullWordmark) {
 		t.Errorf("narrow terminal should degrade to the single-row wordmark %q:\n%s", fullWordmark, mid)
 	}
-	compact := ansi.Strip(renderLoadingScreen(view, 8, 24, theme.Dark, false))
+	compact := ansi.Strip(renderLoadingScreen(view, 8, 24, testDarkTheme(t), false))
 	if strings.Contains(compact, fullWordmark) {
 		t.Error("very narrow terminal should NOT render the letter-spaced wordmark")
 	}
@@ -670,7 +669,7 @@ func TestLoadingScreen_DegradesNarrowWithoutOverflow(t *testing.T) {
 func TestLoadingScreen_ShortNoOverflow(t *testing.T) {
 	view := midRestoreProgress().View()
 	for _, h := range []int{24, 13, 12, 8, 6} {
-		out := renderLoadingScreen(view, 80, h, theme.Dark, false)
+		out := renderLoadingScreen(view, 80, h, testDarkTheme(t), false)
 		if got := lipgloss.Height(out); got > h {
 			t.Errorf("height %d: loading screen is %d rows tall (overflow)", h, got)
 		}
@@ -678,7 +677,7 @@ func TestLoadingScreen_ShortNoOverflow(t *testing.T) {
 
 	// At a short-but-fits height the wordmark is dropped (the bar + list floor),
 	// but the step-list still renders all five rows.
-	short := ansi.Strip(renderLoadingScreen(view, 80, 6, theme.Dark, false))
+	short := ansi.Strip(renderLoadingScreen(view, 80, 6, testDarkTheme(t), false))
 	for _, label := range labelOrder {
 		if !strings.Contains(short, label) {
 			t.Errorf("short terminal dropped step-list label %q (the list must never be cut):\n%s", label, short)
@@ -691,16 +690,16 @@ func TestLoadingScreen_ShortNoOverflow(t *testing.T) {
 // glyph (✓/◐/·) so the screen is usable colourless.
 func TestLoadingScreen_ColourlessNoCanvasGlyphDistinct(t *testing.T) {
 	view := midRestoreProgress().View()
-	out := renderLoadingScreen(view, 80, 24, theme.Dark, true)
+	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), true)
 
 	// No canvas background and no hue SGR survive the colourless path.
-	if strings.Contains(out, tokenBgSeq(t, theme.MV.Canvas, theme.Dark)) {
+	if strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).Canvas)) {
 		t.Error("colourless loading screen painted the canvas background")
 	}
-	if strings.Contains(out, tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark)) {
+	if strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).AccentPrimary)) {
 		t.Error("colourless loading screen painted an accent.violet hue")
 	}
-	if strings.Contains(out, tokenBgSeq(t, theme.MV.AccentViolet, theme.Dark)) {
+	if strings.Contains(out, tokenBgSeq(t, testDarkTheme(t).AccentPrimary)) {
 		t.Error("colourless loading screen painted the violet bar fill")
 	}
 

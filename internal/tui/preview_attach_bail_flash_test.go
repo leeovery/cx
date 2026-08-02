@@ -66,7 +66,7 @@ func TestPreviewAttachBail_SetsFlashWithExactSpecWording(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, _ := pressSpaceThenBail(t, m, "foo")
 
@@ -81,7 +81,7 @@ func TestPreviewAttachBail_FlashUsesLiteralDoubleQuotesAroundName(t *testing.T) 
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, _ := pressSpaceThenBail(t, m, "alpha")
 
@@ -98,7 +98,7 @@ func TestPreviewAttachBail_FlashHasNoTrailingPunctuation(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, _ := pressSpaceThenBail(t, m, "foo")
 
@@ -117,7 +117,7 @@ func TestPreviewAttachBail_BumpsFlashGen(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	if m.flashGen != 0 {
 		t.Fatalf("setup invariant: want flashGen=0, got %d", m.flashGen)
@@ -135,7 +135,7 @@ func TestPreviewAttachBail_ReturnsBatchWithRefreshAndTick(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	_, cmd := pressSpaceThenBail(t, m, "foo")
 	if cmd == nil {
@@ -165,7 +165,7 @@ func TestPreviewAttachBail_TickCapturesPostBumpFlashGen(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, cmd := pressSpaceThenBail(t, m, "foo")
 	if cmd == nil {
@@ -199,7 +199,7 @@ func TestPreviewAttachBail_FlashVisibleBeforeRefreshResolves(t *testing.T) {
 	reader := &recordingReader{bytes: []byte("hi")}
 	postKill := []tmux.Session{{Name: "bar", Windows: 1, Attached: false}}
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 	m.termWidth = 80
 	m.termHeight = 24
 
@@ -221,7 +221,7 @@ func TestPreviewAttachBail_SpecialCharsInNamePreservedVerbatim(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, _ := pressSpaceThenBail(t, m, weird)
 
@@ -244,7 +244,7 @@ func TestPreviewAttachBail_EmptySessionNameDoesNotPanic(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	got, cmd := pressSpaceThenBail(t, m, "")
 	if got.activePage != PageSessions {
@@ -269,7 +269,7 @@ func TestPreviewAttachBail_BailHandlerNotUsingTeaSequence(t *testing.T) {
 	enum := newSinglePaneEnumerator()
 	reader := &recordingReader{bytes: []byte("hi")}
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
 	_, cmd := pressSpaceThenBail(t, m, "foo")
 	if cmd == nil {

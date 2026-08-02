@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/spawn"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §6.2 proactive unsupported terminal banner: a filter-line analogue that
@@ -45,13 +45,13 @@ func unsupportedResolvedModel(t *testing.T, identity spawn.Identity) Model {
 func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, tc.mode, false)
+			header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, tc.th, false)
 
 			// The exact visible left cluster + separators from the delivered frame.
 			const wantVisible = "⚠ unsupported terminal — Apple Terminal · com.apple.Terminal"
@@ -67,17 +67,17 @@ func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 			}
 
 			// The `⚠ unsupported terminal` label run is accent.orange (amber).
-			amberRun := headerStyle(theme.MV.AccentOrange, tc.mode, false).Render(flashWarningGlyph + " " + "unsupported terminal")
+			amberRun := headerStyle(tc.th.AccentAttention, tc.th, false).Render(flashWarningGlyph + " " + "unsupported terminal")
 			if !strings.Contains(header, amberRun) {
 				t.Errorf("banner missing the accent.orange label run:\n%s", header)
 			}
 			// The identity run is dim text.detail.
-			dimRun := headerStyle(theme.MV.TextDetail, tc.mode, false).Render(" — Apple Terminal · com.apple.Terminal")
+			dimRun := headerStyle(tc.th.TextMuted, tc.th, false).Render(" — Apple Terminal · com.apple.Terminal")
 			if !strings.Contains(header, dimRun) {
 				t.Errorf("banner missing the text.detail identity run:\n%s", header)
 			}
 			// The `see docs` hint is accent.blue and carries the OSC 8 hyperlink wrapper.
-			blueRun := headerStyle(theme.MV.AccentBlue, tc.mode, false).Hyperlink(unsupportedDocsURL).Render("see docs")
+			blueRun := headerStyle(tc.th.AccentKey, tc.th, false).Hyperlink(unsupportedDocsURL).Render("see docs")
 			if !strings.Contains(header, blueRun) {
 				t.Errorf("banner missing the hyperlinked accent.blue %q run:\n%s", "see docs", header)
 			}
@@ -89,7 +89,7 @@ func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 // right-aligned (the left cluster and the hint are separated by a flex spacer to
 // the content width) and the single rendered row is exactly the content width.
 func TestUnsupportedHeader_RightAlignedSeeDocs(t *testing.T) {
-	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, theme.Dark, false)
+	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, testDarkTheme(t), false)
 
 	labelIdx := strings.Index(header, "unsupported terminal")
 	hintIdx := strings.LastIndex(header, "see docs")
@@ -114,7 +114,7 @@ func TestUnsupportedHeader_ExactlyOneRow(t *testing.T) {
 	}{
 		{"named", "com.apple.Terminal"},
 	} {
-		header := renderUnsupportedHeader("Apple Terminal", tc.bundleID, sectionHeaderWidth, theme.Dark, false)
+		header := renderUnsupportedHeader("Apple Terminal", tc.bundleID, sectionHeaderWidth, testDarkTheme(t), false)
 		if got := lipgloss.Height(header); got != 1 {
 			t.Errorf("%s banner height = %d, want exactly 1 row:\n%s", tc.name, got, header)
 		}
@@ -129,7 +129,7 @@ func TestUnsupportedHeader_ExactlyOneRow(t *testing.T) {
 // header's own left cluster), so the degrade width must still admit the cluster.
 func TestUnsupportedHeader_NarrowDegradeDropsHint(t *testing.T) {
 	// Wide: hint present.
-	wide := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, theme.Dark, false)
+	wide := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, "see docs") {
 		t.Fatalf("wide banner missing the hint:\n%s", wide)
 	}
@@ -137,7 +137,7 @@ func TestUnsupportedHeader_NarrowDegradeDropsHint(t *testing.T) {
 
 	// Narrow: admits the left cluster but not the cluster + a spacer + `see docs`.
 	narrow := clusterWidth + 4
-	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", narrow, theme.Dark, false)
+	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", narrow, testDarkTheme(t), false)
 	if strings.Contains(header, "see docs") {
 		t.Errorf("narrow banner at width %d still shows the %q hint (degrade failed):\n%s", narrow, "see docs", header)
 	}
@@ -157,7 +157,7 @@ func TestUnsupportedHeader_NarrowDegradeDropsHint(t *testing.T) {
 // hue — the `⚠`, the label, the identity, and `see docs` survive on the terminal's
 // native fg/bg (glyph-backed, never colour-only).
 func TestUnsupportedHeader_ColourlessGlyphBacked(t *testing.T) {
-	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, theme.Dark, true)
+	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, testDarkTheme(t), true)
 
 	stripped := ansi.Strip(header)
 	for _, want := range []string{"⚠", "unsupported terminal", "Apple Terminal", "com.apple.Terminal", "see docs"} {
@@ -165,11 +165,11 @@ func TestUnsupportedHeader_ColourlessGlyphBacked(t *testing.T) {
 			t.Errorf("colourless banner dropped %q:\n%s", want, stripped)
 		}
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(header, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(header, seq) {
 		t.Errorf("colourless banner still paints the canvas background sequence %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.AccentOrange, theme.MV.TextDetail, theme.MV.AccentBlue} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(header, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentAttention, testDarkTheme(t).TextMuted, testDarkTheme(t).AccentKey} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(header, seq) {
 			t.Errorf("colourless banner still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -179,9 +179,9 @@ func TestUnsupportedHeader_ColourlessGlyphBacked(t *testing.T) {
 // owned canvas background (leaf .Background(canvas)) so the right-aligned spacer
 // gap is canvas-painted, not a terminal-bg island.
 func TestUnsupportedHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, mode, false)
-		if seq := canvasSeq(t, mode); !strings.Contains(header, seq) {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, th, false)
+		if seq := canvasSeq(t, th); !strings.Contains(header, seq) {
 			t.Errorf("banner does not paint the canvas background sequence %q:\n%s", seq, header)
 		}
 	}
@@ -208,7 +208,7 @@ func TestApplySectionHeader_UnsupportedShowsBanner(t *testing.T) {
 		t.Errorf("unsupported section-header row must NOT show the standard %q header:\n%s", "Sessions", first)
 	}
 	// The label cluster is painted amber (accent.orange).
-	if seq := tokenFgSeq(t, theme.MV.AccentOrange, m.canvasMode); !strings.Contains(bannerFirstLine(m), seq) {
+	if seq := tokenFgSeq(t, m.activeTheme.AccentAttention); !strings.Contains(bannerFirstLine(m), seq) {
 		t.Errorf("unsupported banner missing the accent.orange fg sequence %q:\n%s", seq, bannerFirstLine(m))
 	}
 }

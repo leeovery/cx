@@ -7,8 +7,8 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // renameModalContains reports whether the rendered rename modal contains substring
@@ -36,7 +36,7 @@ func newRenameInput(value string) textinput.Model {
 // so a layout regression (a box overrunning the frame, a missing badge, a wrong
 // glyph) fails loudly. The render is deterministic once ANSI is stripped.
 func TestRenameModal_ByteExact(t *testing.T) {
-	got := ansi.Strip(renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", theme.Dark, false))
+	got := ansi.Strip(renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", testDarkTheme(t), false))
 	want := "╭──────────────────────────────────────────────────╮\n" +
 		"│  Rename session                     ◉ EDIT MODE  │\n" +
 		"├──────────────────────────────────────────────────┤\n" +
@@ -56,13 +56,13 @@ func TestRenameModal_ByteExact(t *testing.T) {
 // TestRenameModal_Header asserts the §8.4 header `Rename session` rendered in
 // text.primary (the non-destructive modal title colour).
 func TestRenameModal_Header(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		if !renameModalContains(content, "Rename session") {
-			t.Errorf("[%v] header must read 'Rename session'; got:\n%s", mode, content)
+			t.Errorf("[%v] header must read 'Rename session'; got:\n%s", themeLabel(th), content)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] header 'Rename session' must render in text.primary SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] header 'Rename session' must render in text.primary SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -72,14 +72,14 @@ func TestRenameModal_Header(t *testing.T) {
 // editing (§13.1), so the badge is always present (unlike the edit modal, which
 // gates it on editMode).
 func TestRenameModal_EditModeBadge(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		if !renameModalContains(content, "◉ EDIT MODE") {
-			t.Errorf("[%v] header must show the `◉ EDIT MODE` badge; got:\n%s", mode, content)
+			t.Errorf("[%v] header must show the `◉ EDIT MODE` badge; got:\n%s", themeLabel(th), content)
 		}
 		seg := labelSegment(t, content, "EDIT MODE")
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(seg, seq) {
-			t.Errorf("[%v] `◉ EDIT MODE` badge must render in accent.orange SGR core %q; seg=%q", mode, seq, seg)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(seg, seq) {
+			t.Errorf("[%v] `◉ EDIT MODE` badge must render in accent.orange SGR core %q; seg=%q", themeLabel(th), seq, seg)
 		}
 	}
 }
@@ -90,8 +90,8 @@ func TestRenameModal_EditModeBadge(t *testing.T) {
 // spacer must separate it from the `Rename session` title (so it sits in the far
 // corner). Mirrors the edit modal's badge right-align assertion.
 func TestRenameModal_EditModeBadgeRightAligned(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		var headerLine string
 		for line := range strings.SplitSeq(ansi.Strip(content), "\n") {
 			if strings.Contains(line, "Rename session") {
@@ -100,23 +100,23 @@ func TestRenameModal_EditModeBadgeRightAligned(t *testing.T) {
 			}
 		}
 		if headerLine == "" {
-			t.Fatalf("[%v] header line not found; content:\n%s", mode, ansi.Strip(content))
+			t.Fatalf("[%v] header line not found; content:\n%s", themeLabel(th), ansi.Strip(content))
 		}
 		trimmed := strings.TrimRight(headerLine, " │")
 		if !strings.HasSuffix(trimmed, "◉ EDIT MODE") {
-			t.Errorf("[%v] `◉ EDIT MODE` must be right-aligned (trailing) in the header; got line:\n%q", mode, headerLine)
+			t.Errorf("[%v] `◉ EDIT MODE` must be right-aligned (trailing) in the header; got line:\n%q", themeLabel(th), headerLine)
 		}
 		titleIdx := strings.Index(headerLine, "Rename session")
 		badgeIdx := strings.Index(headerLine, "◉ EDIT MODE")
 		if titleIdx < 0 || badgeIdx < 0 || badgeIdx <= titleIdx {
-			t.Fatalf("[%v] header must read title then far-right badge; got:\n%q", mode, headerLine)
+			t.Fatalf("[%v] header must read title then far-right badge; got:\n%q", themeLabel(th), headerLine)
 		}
 		gap := badgeIdx - (titleIdx + len("Rename session"))
 		if gap < 10 {
-			t.Errorf("[%v] badge must be far-right with a wide flexible gap after the title (gap=%d); got:\n%q", mode, gap, headerLine)
+			t.Errorf("[%v] badge must be far-right with a wide flexible gap after the title (gap=%d); got:\n%q", themeLabel(th), gap, headerLine)
 		}
 		if badgeIdx < len(headerLine)/2 {
-			t.Errorf("[%v] badge must sit in the right half of the header (corner), idx=%d lineLen=%d; got:\n%q", mode, badgeIdx, len(headerLine), headerLine)
+			t.Errorf("[%v] badge must sit in the right half of the header (corner), idx=%d lineLen=%d; got:\n%q", themeLabel(th), badgeIdx, len(headerLine), headerLine)
 		}
 	}
 }
@@ -125,13 +125,13 @@ func TestRenameModal_EditModeBadgeRightAligned(t *testing.T) {
 // accent.violet (the focused-field label colour — the input is the live editing
 // element).
 func TestRenameModal_NewNameLabel(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		if !renameModalContains(content, "NEW NAME") {
-			t.Errorf("[%v] body must contain the 'NEW NAME' label; got:\n%s", mode, content)
+			t.Errorf("[%v] body must contain the 'NEW NAME' label; got:\n%s", themeLabel(th), content)
 		}
-		if seq := tokenFgSeq(t, theme.MV.AccentViolet, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] 'NEW NAME' label must render in accent.violet SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] 'NEW NAME' label must render in accent.violet SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -139,13 +139,13 @@ func TestRenameModal_NewNameLabel(t *testing.T) {
 // TestRenameModal_InputValue asserts the typed value renders in text.primary inside
 // the input box.
 func TestRenameModal_InputValue(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		if !renameModalContains(content, "aviva-proxy") {
-			t.Errorf("[%v] input must contain the typed value 'aviva-proxy'; got:\n%s", mode, content)
+			t.Errorf("[%v] input must contain the typed value 'aviva-proxy'; got:\n%s", themeLabel(th), content)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] input value must render in text.primary SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] input value must render in text.primary SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -155,16 +155,16 @@ func TestRenameModal_InputValue(t *testing.T) {
 // accent.orange foreground (so the block fills orange), making the input the live
 // editing element.
 func TestRenameModal_OrangeBlockCursor(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		// The bubbles cursor renders its block via SGR 7 (reverse) over the cursor
 		// colour foreground — assert both the reverse attr and the orange hue are
 		// present so the block cursor is orange, not the default.
 		if !strings.Contains(content, "\x1b[7m") && !strings.Contains(content, ";7m") && !strings.Contains(content, "[7;") {
-			t.Errorf("[%v] input cursor must be a reverse block (SGR 7); got:\n%s", mode, content)
+			t.Errorf("[%v] input cursor must be a reverse block (SGR 7); got:\n%s", themeLabel(th), content)
 		}
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] block cursor must carry accent.orange SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
+			t.Errorf("[%v] block cursor must carry accent.orange SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -174,8 +174,8 @@ func TestRenameModal_OrangeBlockCursor(t *testing.T) {
 // the shared renderInputBox helper (§13.1: transparent fill, no recessed-input
 // token — the outline is the only treatment).
 func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		// The input box draws its own rounded outline rows (corners + sides), distinct
 		// from the panel frame. Find the row carrying the value, then assert its
 		// preceding and following rows are box outline rows (top/bottom edges).
@@ -191,19 +191,19 @@ func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
 			}
 		}
 		if valueIdx <= 0 || valueIdx >= len(lines)-1 {
-			t.Fatalf("[%v] could not locate the input value row; content:\n%s", mode, content)
+			t.Fatalf("[%v] could not locate the input value row; content:\n%s", themeLabel(th), content)
 		}
 		top := ansi.Strip(lines[valueIdx-1])
 		bottom := ansi.Strip(lines[valueIdx+1])
 		if !strings.ContainsAny(top, "╭─╮") {
-			t.Errorf("[%v] row above the input value must be the box top edge (rounded outline); got %q", mode, top)
+			t.Errorf("[%v] row above the input value must be the box top edge (rounded outline); got %q", themeLabel(th), top)
 		}
 		if !strings.ContainsAny(bottom, "╰─╯") {
-			t.Errorf("[%v] row below the input value must be the box bottom edge (rounded outline); got %q", mode, bottom)
+			t.Errorf("[%v] row below the input value must be the box bottom edge (rounded outline); got %q", themeLabel(th), bottom)
 		}
 		// The box outline is accent.orange (the editing state of the shared helper).
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] input box outline must render in accent.orange SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
+			t.Errorf("[%v] input box outline must render in accent.orange SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -211,13 +211,13 @@ func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
 // TestRenameModal_WasLine asserts the `was: <old name>` context line renders in
 // text.detail from the rename target.
 func TestRenameModal_WasLine(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		if !renameModalContains(content, "was: aviva-proxy-qNyfEO") {
-			t.Errorf("[%v] body must contain 'was: aviva-proxy-qNyfEO'; got:\n%s", mode, content)
+			t.Errorf("[%v] body must contain 'was: aviva-proxy-qNyfEO'; got:\n%s", themeLabel(th), content)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] 'was:' line must render in text.detail SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
+			t.Errorf("[%v] 'was:' line must render in text.detail SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -226,18 +226,18 @@ func TestRenameModal_WasLine(t *testing.T) {
 // esc key glyphs in accent.blue, the rename/cancel labels in text.detail. The
 // dismiss key lives in the footer as `esc cancel` (§8.1).
 func TestRenameModal_Footer(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", mode, false)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
 		for _, frag := range []string{"⏎ rename", "esc cancel"} {
 			if !renameModalContains(content, frag) {
-				t.Errorf("[%v] footer must contain %q; got:\n%s", mode, frag, content)
+				t.Errorf("[%v] footer must contain %q; got:\n%s", themeLabel(th), frag, content)
 			}
 		}
-		if seq := tokenFgSeq(t, theme.MV.AccentBlue, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
+			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer labels must render in text.detail SGR core %q; missing in:\n%s", mode, seq, content)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
+			t.Errorf("[%v] footer labels must render in text.detail SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
 	}
 }
@@ -245,7 +245,7 @@ func TestRenameModal_Footer(t *testing.T) {
 // TestRenameModal_NoLitralEnterArrow asserts the footer uses the ⏎ glyph (matching
 // the help modal + Projects footer), NOT the legacy ↵.
 func TestRenameModal_NoLitralEnterArrow(t *testing.T) {
-	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", theme.Dark, false)
+	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", testDarkTheme(t), false)
 	if renameModalContains(content, "↵") {
 		t.Errorf("footer must use ⏎ not the legacy ↵; got:\n%s", content)
 	}
@@ -255,7 +255,7 @@ func TestRenameModal_NoLitralEnterArrow(t *testing.T) {
 // the shared single-tone joined panel: three compartments (header / body / footer)
 // → two joined ├───┤ dividers, every frame glyph in border.separator.
 func TestRenameModal_SingleToneJoinedPanel(t *testing.T) {
-	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", theme.Dark, false)
+	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", testDarkTheme(t), false)
 
 	dividerCount := 0
 	for raw := range strings.SplitSeq(content, "\n") {
@@ -271,12 +271,9 @@ func TestRenameModal_SingleToneJoinedPanel(t *testing.T) {
 	if dividerCount != 2 {
 		t.Errorf("rename modal must carry exactly 2 joined dividers (3 compartments); got %d", dividerCount)
 	}
-	// Single-tone: the panel frame uses border.separator, never border.footer.
-	if seq := tokenFgSeq(t, theme.MV.BorderSeparator, theme.Dark); !strings.Contains(content, seq) {
-		t.Errorf("rename modal frame must be drawn in border.separator SGR core %q; missing", seq)
-	}
-	if seq := tokenFgSeq(t, theme.MV.BorderFooter, theme.Dark); strings.Contains(content, seq) {
-		t.Errorf("single-tone rename modal must NOT use border.footer SGR core %q", seq)
+	// Single-tone: the panel frame carries the one border token (§2.2).
+	if seq := tokenFgSeq(t, testDarkTheme(t).Border); !strings.Contains(content, seq) {
+		t.Errorf("rename modal frame must be drawn in the border SGR core %q; missing", seq)
 	}
 }
 
@@ -284,7 +281,7 @@ func TestRenameModal_SingleToneJoinedPanel(t *testing.T) {
 // label, then the input box (3 rows: top edge, value, bottom edge), then the `was:`
 // context line — flush, no Paper px gaps.
 func TestRenameModal_BodyLayout(t *testing.T) {
-	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", theme.Dark, false)
+	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", testDarkTheme(t), false)
 	lines := strings.Split(content, "\n")
 
 	labelIdx, valueIdx, wasIdx := -1, -1, -1
@@ -321,7 +318,7 @@ func TestRenameModal_BodyLayout(t *testing.T) {
 // survives (frame glyphs, the input box outline, the labels/copy) but no role hue
 // is painted — every state reads from structure, not colour.
 func TestRenameModal_Colourless(t *testing.T) {
-	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", theme.Dark, true)
+	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", testDarkTheme(t), true)
 	// The copy + structure survive (the `◉ EDIT MODE` badge text is part of the
 	// structural signal — state never colour-only, §2.2).
 	for _, frag := range []string{"Rename session", "◉ EDIT MODE", "NEW NAME", "aviva-proxy", "was: aviva-proxy-qNyfEO", "⏎ rename", "esc cancel"} {
@@ -335,8 +332,8 @@ func TestRenameModal_Colourless(t *testing.T) {
 	}
 	// No role hues painted: not accent.orange, accent.violet, accent.blue,
 	// text.detail, or text.primary.
-	for _, tok := range []theme.Token{theme.MV.AccentOrange, theme.MV.AccentViolet, theme.MV.AccentBlue, theme.MV.TextDetail, theme.MV.TextPrimary, theme.MV.BorderSeparator} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(content, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentAttention, testDarkTheme(t).AccentPrimary, testDarkTheme(t).AccentKey, testDarkTheme(t).TextMuted, testDarkTheme(t).TextPrimary, testDarkTheme(t).Border} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(content, seq) {
 			t.Errorf("colourless rename modal must NOT paint the %s hue %q", tok.Name, seq)
 		}
 	}
@@ -347,7 +344,7 @@ func TestRenameModal_Colourless(t *testing.T) {
 // `was:` row width must not exceed the panel's body width.
 func TestRenameModal_LongOldNameTruncates(t *testing.T) {
 	longName := strings.Repeat("really-long-session-name-segment-", 6) + "end"
-	content := renderRenameModalContent(newRenameInput("short"), longName, theme.Dark, false)
+	content := renderRenameModalContent(newRenameInput("short"), longName, testDarkTheme(t), false)
 	lines := strings.Split(content, "\n")
 
 	var wasLine string

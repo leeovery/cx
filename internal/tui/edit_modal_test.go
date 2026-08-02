@@ -7,7 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // editModalStrip returns the rendered edit-project modal with ANSI stripped — for
@@ -29,8 +29,10 @@ func reverseBlockPresent(content string) bool {
 // editModalModel builds an edit-project modal Model in navigate mode with the given
 // focus + chips, mirroring the reference data (project flow-v1-api, aliases
 // [fapi, v1], tags [Fabric, api]) unless overridden.
-func editModalModel(focus editField, aliasCur, tagCur int) Model {
+func editModalModel(t *testing.T, focus editField, aliasCur, tagCur int) Model {
+	t.Helper()
 	return Model{
+		activeTheme:     testDarkTheme(t),
 		modal:           modalEditProject,
 		editProject:     project.Project{Name: "flow-v1-api"},
 		editMode:        editModeNavigate,
@@ -46,19 +48,19 @@ func editModalModel(focus editField, aliasCur, tagCur int) Model {
 // TestEditModal_Header asserts the `Edit Project <name>` header: "Edit Project" in
 // text.primary, the project name in text.detail.
 func TestEditModal_Header(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldName, 0, 0)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldName, 0, 0)
 		content := m.renderEditProjectContent()
 		if !strings.Contains(ansi.Strip(content), "Edit Project flow-v1-api") {
-			t.Errorf("[%v] header must read 'Edit Project flow-v1-api'; got:\n%s", mode, editModalStrip(m))
+			t.Errorf("[%v] header must read 'Edit Project flow-v1-api'; got:\n%s", themeLabel(th), editModalStrip(m))
 		}
-		m.canvasMode = mode
+		m.activeTheme = th
 		content = m.renderEditProjectContent()
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] 'Edit Project' must render in text.primary SGR core %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] 'Edit Project' must render in text.primary SGR core %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] header <name> must render in text.detail SGR core %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
+			t.Errorf("[%v] header <name> must render in text.detail SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -66,7 +68,7 @@ func TestEditModal_Header(t *testing.T) {
 // TestEditModal_SingleBundledModal asserts ONE modal carries all three fields
 // (NAME + ALIASES + TAGS), in order.
 func TestEditModal_SingleBundledModal(t *testing.T) {
-	m := editModalModel(editFieldName, 0, 0)
+	m := editModalModel(t, editFieldName, 0, 0)
 	out := editModalStrip(m)
 	nameIdx := strings.Index(out, "NAME")
 	aliasIdx := strings.Index(out, "ALIASES")
@@ -82,26 +84,26 @@ func TestEditModal_SingleBundledModal(t *testing.T) {
 // TestEditModal_FocusedFieldLabelViolet asserts the focused field's label renders
 // in accent.violet while the others render in text.detail.
 func TestEditModal_FocusedFieldLabelViolet(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		violet := tokenFgSeq(t, theme.MV.AccentViolet, mode)
-		detail := tokenFgSeq(t, theme.MV.TextDetail, mode)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		violet := tokenFgSeq(t, th.AccentPrimary)
+		detail := tokenFgSeq(t, th.TextMuted)
 
 		// Name focused: the NAME label segment carries violet.
-		m := editModalModel(editFieldName, 0, 0)
-		m.canvasMode = mode
+		m := editModalModel(t, editFieldName, 0, 0)
+		m.activeTheme = th
 		if seg := labelSegment(t, m.renderEditProjectContent(), "NAME"); !strings.Contains(seg, violet) {
-			t.Errorf("[%v] focused NAME label must be accent.violet; seg=%q", mode, seg)
+			t.Errorf("[%v] focused NAME label must be accent.violet; seg=%q", themeLabel(th), seg)
 		}
 		// And the unfocused ALIASES label is text.detail (not violet).
 		if seg := labelSegment(t, m.renderEditProjectContent(), "ALIASES"); !strings.Contains(seg, detail) || strings.Contains(seg, violet) {
-			t.Errorf("[%v] unfocused ALIASES label must be text.detail (not violet); seg=%q", mode, seg)
+			t.Errorf("[%v] unfocused ALIASES label must be text.detail (not violet); seg=%q", themeLabel(th), seg)
 		}
 
 		// Tags focused: TAGS violet, NAME detail.
-		mt := editModalModel(editFieldTags, 0, 0)
-		mt.canvasMode = mode
+		mt := editModalModel(t, editFieldTags, 0, 0)
+		mt.activeTheme = th
 		if seg := labelSegment(t, mt.renderEditProjectContent(), "TAGS"); !strings.Contains(seg, violet) {
-			t.Errorf("[%v] focused TAGS label must be accent.violet; seg=%q", mode, seg)
+			t.Errorf("[%v] focused TAGS label must be accent.violet; seg=%q", themeLabel(th), seg)
 		}
 	}
 }
@@ -123,13 +125,13 @@ func labelSegment(t *testing.T, content, label string) string {
 // the Name field is NOT focused, draws a border.separator (grey) rounded box with no
 // background fill.
 func TestEditModal_NameInputNeverFilled_GreyUnfocused(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldAliases, 0, 0) // aliases focused → name unfocused
-		m.canvasMode = mode
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldAliases, 0, 0) // aliases focused → name unfocused
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		assertNoFill(t, content, mode, "name-input-unfocused")
-		if seq := tokenFgSeq(t, theme.MV.BorderSeparator, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] unfocused NAME box border must be border.separator (grey) SGR core %q", mode, seq)
+		assertNoFill(t, content, th, "name-input-unfocused")
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(content, seq) {
+			t.Errorf("[%v] unfocused NAME box border must be border.separator (grey) SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -137,13 +139,13 @@ func TestEditModal_NameInputNeverFilled_GreyUnfocused(t *testing.T) {
 // TestEditModal_NameInputFocusedViolet asserts the NAME input box border is
 // accent.violet when the Name field is focused in navigate mode, with no fill.
 func TestEditModal_NameInputFocusedViolet(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldName, 0, 0)
-		m.canvasMode = mode
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldName, 0, 0)
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		assertNoFill(t, content, mode, "name-input-focused")
-		if seq := tokenFgSeq(t, theme.MV.AccentViolet, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] focused NAME box border must be accent.violet SGR core %q", mode, seq)
+		assertNoFill(t, content, th, "name-input-focused")
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] focused NAME box border must be accent.violet SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -151,19 +153,19 @@ func TestEditModal_NameInputFocusedViolet(t *testing.T) {
 // TestEditModal_NameInputEditingOrangeWithCursor asserts the NAME input box border
 // is accent.orange + a live cursor when the Name field is being edited in place.
 func TestEditModal_NameInputEditingOrangeWithCursor(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldName, 0, 0)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldName, 0, 0)
 		m.editMode = editModeEdit
 		m.editBuffer = "flow-v1-api"
 		m.editCursor = len([]rune("flow-v1-api"))
-		m.canvasMode = mode
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		assertNoFill(t, content, mode, "name-input-editing")
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] editing NAME box border must be accent.orange SGR core %q", mode, seq)
+		assertNoFill(t, content, th, "name-input-editing")
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
+			t.Errorf("[%v] editing NAME box border must be accent.orange SGR core %q", themeLabel(th), seq)
 		}
 		if !reverseBlockPresent(content) {
-			t.Errorf("[%v] editing NAME input must carry a live block cursor (SGR 7)", mode)
+			t.Errorf("[%v] editing NAME input must carry a live block cursor (SGR 7)", themeLabel(th))
 		}
 	}
 }
@@ -171,20 +173,20 @@ func TestEditModal_NameInputEditingOrangeWithCursor(t *testing.T) {
 // TestEditModal_ChipNormalGreyNoCross asserts a normal (non-focused) chip is a
 // border.separator (grey) bordered box, never filled, never green, with NO inline ✕.
 func TestEditModal_ChipNormalGreyNoCross(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		// Name focused so the chips are unfocused/normal.
-		m := editModalModel(editFieldName, 0, 0)
-		m.canvasMode = mode
+		m := editModalModel(t, editFieldName, 0, 0)
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		assertNoFill(t, content, mode, "chip-normal")
+		assertNoFill(t, content, th, "chip-normal")
 		assertNoCross(t, content)
-		assertNoGreen(t, content, mode)
-		if seq := tokenFgSeq(t, theme.MV.BorderSeparator, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] normal chip border must be border.separator (grey) SGR core %q", mode, seq)
+		assertNoGreen(t, content, th)
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(content, seq) {
+			t.Errorf("[%v] normal chip border must be border.separator (grey) SGR core %q", themeLabel(th), seq)
 		}
 		// Chips render in text.primary.
-		if seq := tokenFgSeq(t, theme.MV.TextPrimary, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] chip text must be text.primary SGR core %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] chip text must be text.primary SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -192,15 +194,15 @@ func TestEditModal_ChipNormalGreyNoCross(t *testing.T) {
 // TestEditModal_ChipFocusedVioletNoCross asserts a focused chip is an accent.violet
 // bordered box, never filled, no ✕.
 func TestEditModal_ChipFocusedVioletNoCross(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldTags, 0, 0) // Tags focused, cursor on chip 0 (Fabric)
-		m.canvasMode = mode
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldTags, 0, 0) // Tags focused, cursor on chip 0 (Fabric)
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		assertNoFill(t, content, mode, "chip-focused")
+		assertNoFill(t, content, th, "chip-focused")
 		assertNoCross(t, content)
-		assertNoGreen(t, content, mode)
-		if seq := tokenFgSeq(t, theme.MV.AccentViolet, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] focused chip border must be accent.violet SGR core %q", mode, seq)
+		assertNoGreen(t, content, th)
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(content, seq) {
+			t.Errorf("[%v] focused chip border must be accent.violet SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -208,37 +210,37 @@ func TestEditModal_ChipFocusedVioletNoCross(t *testing.T) {
 // TestEditModal_ChipEditingOrangeCursorNoCross asserts an editing chip is an
 // accent.orange bordered box + live cursor, no ✕.
 func TestEditModal_ChipEditingOrangeCursorNoCross(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldTags, 0, 0)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldTags, 0, 0)
 		m.editMode = editModeEdit
 		m.editBuffer = "Fabric"
 		m.editCursor = len([]rune("Fabric"))
-		m.canvasMode = mode
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		assertNoFill(t, content, mode, "chip-editing")
+		assertNoFill(t, content, th, "chip-editing")
 		assertNoCross(t, content)
-		assertNoGreen(t, content, mode)
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] editing chip border must be accent.orange SGR core %q", mode, seq)
+		assertNoGreen(t, content, th)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
+			t.Errorf("[%v] editing chip border must be accent.orange SGR core %q", themeLabel(th), seq)
 		}
 		if !reverseBlockPresent(content) {
-			t.Errorf("[%v] editing chip must carry a live block cursor (SGR 7)", mode)
+			t.Errorf("[%v] editing chip must carry a live block cursor (SGR 7)", themeLabel(th))
 		}
 	}
 }
 
 // TestEditModal_AddSlotFaint asserts the trailing `+ add` slot renders in text.faint.
 func TestEditModal_AddSlotFaint(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldName, 0, 0)
-		m.canvasMode = mode
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldName, 0, 0)
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
 		if !strings.Contains(ansi.Strip(content), "+ add") {
-			t.Errorf("[%v] modal must render a `+ add` slot; got:\n%s", mode, ansi.Strip(content))
+			t.Errorf("[%v] modal must render a `+ add` slot; got:\n%s", themeLabel(th), ansi.Strip(content))
 		}
 		seg := addSlotSegment(t, content)
-		if seq := tokenFgSeq(t, theme.MV.TextFaint, mode); !strings.Contains(seg, seq) {
-			t.Errorf("[%v] `+ add` slot must be text.faint SGR core %q; seg=%q", mode, seq, seg)
+		if seq := tokenFgSeq(t, th.TextFaint); !strings.Contains(seg, seq) {
+			t.Errorf("[%v] `+ add` slot must be text.faint SGR core %q; seg=%q", themeLabel(th), seq, seg)
 		}
 	}
 }
@@ -258,26 +260,26 @@ func addSlotSegment(t *testing.T, content string) string {
 // TestEditModal_EditModeIndicatorOnlyWhileEditing asserts `◉ EDIT MODE`
 // (accent.orange) renders ONLY while editing, and is absent in navigate mode.
 func TestEditModal_EditModeIndicatorOnlyWhileEditing(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		// Navigate: no indicator.
-		nav := editModalModel(editFieldName, 0, 0)
-		nav.canvasMode = mode
+		nav := editModalModel(t, editFieldName, 0, 0)
+		nav.activeTheme = th
 		if strings.Contains(ansi.Strip(nav.renderEditProjectContent()), "EDIT MODE") {
-			t.Errorf("[%v] navigate mode must NOT show `◉ EDIT MODE`", mode)
+			t.Errorf("[%v] navigate mode must NOT show `◉ EDIT MODE`", themeLabel(th))
 		}
 
 		// Editing: indicator present in accent.orange.
-		ed := editModalModel(editFieldTags, 0, 0)
+		ed := editModalModel(t, editFieldTags, 0, 0)
 		ed.editMode = editModeEdit
 		ed.editBuffer = "Fabric"
-		ed.canvasMode = mode
+		ed.activeTheme = th
 		content := ed.renderEditProjectContent()
 		if !strings.Contains(ansi.Strip(content), "◉ EDIT MODE") {
-			t.Errorf("[%v] editing must show `◉ EDIT MODE`; got:\n%s", mode, ansi.Strip(content))
+			t.Errorf("[%v] editing must show `◉ EDIT MODE`; got:\n%s", themeLabel(th), ansi.Strip(content))
 		}
 		seg := labelSegment(t, content, "EDIT MODE")
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(seg, seq) {
-			t.Errorf("[%v] `◉ EDIT MODE` must be accent.orange SGR core %q; seg=%q", mode, seq, seg)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(seg, seq) {
+			t.Errorf("[%v] `◉ EDIT MODE` must be accent.orange SGR core %q; seg=%q", themeLabel(th), seq, seg)
 		}
 	}
 }
@@ -288,11 +290,11 @@ func TestEditModal_EditModeIndicatorOnlyWhileEditing(t *testing.T) {
 // the `Edit Project` title must precede it with a gap, so the header spans the full
 // panel width. In navigate the badge is absent (its slot blank).
 func TestEditModal_EditModeBadgeRightAligned(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldTags, 0, 0)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldTags, 0, 0)
 		m.editMode = editModeEdit
 		m.editBuffer = "Fabric"
-		m.canvasMode = mode
+		m.activeTheme = th
 
 		headerLine := headerLineOf(t, m.renderEditProjectContent())
 		// The badge sits at the right: after trimming the panel's right border/inset,
@@ -300,12 +302,12 @@ func TestEditModal_EditModeBadgeRightAligned(t *testing.T) {
 		// from the `Edit Project flow-v1-api` title (so it is far-right, not inline).
 		trimmed := strings.TrimRight(headerLine, " │")
 		if !strings.HasSuffix(trimmed, "◉ EDIT MODE") {
-			t.Errorf("[%v] `◉ EDIT MODE` must be right-aligned (trailing) in the header; got line:\n%q", mode, headerLine)
+			t.Errorf("[%v] `◉ EDIT MODE` must be right-aligned (trailing) in the header; got line:\n%q", themeLabel(th), headerLine)
 		}
 		titleIdx := strings.Index(headerLine, "Edit Project flow-v1-api")
 		badgeIdx := strings.Index(headerLine, "◉ EDIT MODE")
 		if titleIdx < 0 || badgeIdx < 0 || badgeIdx <= titleIdx {
-			t.Fatalf("[%v] header must read title then far-right badge; got:\n%q", mode, headerLine)
+			t.Fatalf("[%v] header must read title then far-right badge; got:\n%q", themeLabel(th), headerLine)
 		}
 		// A wide gap (the flexible spacer) must separate the title end from the badge —
 		// confirming the badge is in the far CORNER, not packed inline right after the
@@ -314,10 +316,10 @@ func TestEditModal_EditModeBadgeRightAligned(t *testing.T) {
 		// header line — its start index past the line's midpoint.
 		gap := badgeIdx - (titleIdx + len("Edit Project flow-v1-api"))
 		if gap < 10 {
-			t.Errorf("[%v] badge must be far-right with a wide flexible gap after the title (gap=%d); got:\n%q", mode, gap, headerLine)
+			t.Errorf("[%v] badge must be far-right with a wide flexible gap after the title (gap=%d); got:\n%q", themeLabel(th), gap, headerLine)
 		}
 		if badgeIdx < len(headerLine)/2 {
-			t.Errorf("[%v] badge must sit in the right half of the header (corner), idx=%d lineLen=%d; got:\n%q", mode, badgeIdx, len(headerLine), headerLine)
+			t.Errorf("[%v] badge must sit in the right half of the header (corner), idx=%d lineLen=%d; got:\n%q", themeLabel(th), badgeIdx, len(headerLine), headerLine)
 		}
 	}
 }
@@ -340,46 +342,46 @@ func headerLineOf(t *testing.T, content string) string {
 // must NOT resize the modal (the "jaggedy" resize bug). The panel width is the
 // width of any frame line (all are equal by construction).
 func TestEditModal_PanelWidthStableAcrossModes(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		nav := editModalModel(editFieldName, 0, 0)
-		nav.canvasMode = mode
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		nav := editModalModel(t, editFieldName, 0, 0)
+		nav.activeTheme = th
 		navWidth := lipgloss.Width(nav.renderEditProjectContent())
 
 		// Editing the NAME field.
-		nameEdit := editModalModel(editFieldName, 0, 0)
+		nameEdit := editModalModel(t, editFieldName, 0, 0)
 		nameEdit.editMode = editModeEdit
 		nameEdit.editBuffer = "flow-v1-api"
 		nameEdit.editCursor = len([]rune("flow-v1-api"))
-		nameEdit.canvasMode = mode
+		nameEdit.activeTheme = th
 		if w := lipgloss.Width(nameEdit.renderEditProjectContent()); w != navWidth {
-			t.Errorf("[%v] name-edit panel width %d != navigate width %d (entering edit must not resize)", mode, w, navWidth)
+			t.Errorf("[%v] name-edit panel width %d != navigate width %d (entering edit must not resize)", themeLabel(th), w, navWidth)
 		}
 
 		// Editing a CHIP (Tags).
-		chipEdit := editModalModel(editFieldTags, 0, 0)
+		chipEdit := editModalModel(t, editFieldTags, 0, 0)
 		chipEdit.editMode = editModeEdit
 		chipEdit.editBuffer = "Fabric"
 		chipEdit.editCursor = len([]rune("Fabric"))
-		chipEdit.canvasMode = mode
+		chipEdit.activeTheme = th
 		if w := lipgloss.Width(chipEdit.renderEditProjectContent()); w != navWidth {
-			t.Errorf("[%v] chip-edit panel width %d != navigate width %d (entering edit must not resize)", mode, w, navWidth)
+			t.Errorf("[%v] chip-edit panel width %d != navigate width %d (entering edit must not resize)", themeLabel(th), w, navWidth)
 		}
 
 		// A chip mid-string cursor must not change the width either.
-		chipMid := editModalModel(editFieldTags, 0, 0)
+		chipMid := editModalModel(t, editFieldTags, 0, 0)
 		chipMid.editMode = editModeEdit
 		chipMid.editBuffer = "Fabric"
 		chipMid.editCursor = 2 // cursor over a mid-value rune
-		chipMid.canvasMode = mode
+		chipMid.activeTheme = th
 		if w := lipgloss.Width(chipMid.renderEditProjectContent()); w != navWidth {
-			t.Errorf("[%v] chip-edit (mid cursor) panel width %d != navigate width %d", mode, w, navWidth)
+			t.Errorf("[%v] chip-edit (mid cursor) panel width %d != navigate width %d", themeLabel(th), w, navWidth)
 		}
 	}
 }
 
 // TestEditModal_NameFocusedFooter asserts the Name-focused (navigate) footer copy.
 func TestEditModal_NameFocusedFooter(t *testing.T) {
-	m := editModalModel(editFieldName, 0, 0)
+	m := editModalModel(t, editFieldName, 0, 0)
 	out := editModalStrip(m)
 	want := "⏎/e edit · ⇥ next field · esc close"
 	if !strings.Contains(out, want) {
@@ -389,7 +391,7 @@ func TestEditModal_NameFocusedFooter(t *testing.T) {
 
 // TestEditModal_ChipFocusedFooter asserts the chip-focused (navigate) footer copy.
 func TestEditModal_ChipFocusedFooter(t *testing.T) {
-	m := editModalModel(editFieldTags, 0, 0)
+	m := editModalModel(t, editFieldTags, 0, 0)
 	out := editModalStrip(m)
 	want := "⏎/e edit · x remove · ←→ move · ⇥ next field · esc close"
 	if !strings.Contains(out, want) {
@@ -402,7 +404,7 @@ func TestEditModal_ChipFocusedFooter(t *testing.T) {
 // footer (no `x remove` / `←→ move`), since there is nothing to remove or move.
 func TestEditModal_AddSlotFocusedFooter(t *testing.T) {
 	// Tags focused, cursor on the trailing + add slot (index == len(tags)).
-	m := editModalModel(editFieldTags, 0, 2)
+	m := editModalModel(t, editFieldTags, 0, 2)
 	out := editModalStrip(m)
 	want := "⏎/e edit · ⇥ next field · esc close"
 	if !strings.Contains(out, want) {
@@ -417,7 +419,7 @@ func TestEditModal_AddSlotFocusedFooter(t *testing.T) {
 // hint group and the consequence note (the layout/alignment is asserted separately
 // by TestEditModal_EditingFooterConsequenceRightAligned).
 func TestEditModal_EditingFooter(t *testing.T) {
-	m := editModalModel(editFieldTags, 0, 0)
+	m := editModalModel(t, editFieldTags, 0, 0)
 	m.editMode = editModeEdit
 	m.editBuffer = "Fabric"
 	out := editModalStrip(m)
@@ -440,11 +442,11 @@ func TestEditModal_EditingFooter(t *testing.T) {
 // is right-aligned, not just the last left-packed group). Measured in display cells,
 // not bytes — the ⏎ / ←→ glyphs are multi-byte.
 func TestEditModal_EditingFooterConsequenceRightAligned(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldTags, 0, 0)
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldTags, 0, 0)
 		m.editMode = editModeEdit
 		m.editBuffer = "Fabric"
-		m.canvasMode = mode
+		m.activeTheme = th
 
 		footerLine := footerLineOf(t, m.renderEditProjectContent())
 		leftGroup := "⏎ save · esc discard · ←→ cursor"
@@ -453,14 +455,14 @@ func TestEditModal_EditingFooterConsequenceRightAligned(t *testing.T) {
 		// The consequence note must be the trailing content (after trimming the panel's
 		// side border/inset) — i.e. right-aligned to the panel's content edge.
 		if trimmed := strings.TrimRight(footerLine, " │"); !strings.HasSuffix(trimmed, consequence) {
-			t.Errorf("[%v] consequence note must be right-aligned (trailing) in the footer; got line:\n%q", mode, footerLine)
+			t.Errorf("[%v] consequence note must be right-aligned (trailing) in the footer; got line:\n%q", themeLabel(th), footerLine)
 		}
 		// The left group must lead the footer content (before the consequence note).
 		if !strings.Contains(footerLine, leftGroup) {
-			t.Fatalf("[%v] footer must carry the left hint group %q; got:\n%q", mode, leftGroup, footerLine)
+			t.Fatalf("[%v] footer must carry the left hint group %q; got:\n%q", themeLabel(th), leftGroup, footerLine)
 		}
 		if li, ci := strings.Index(footerLine, leftGroup), strings.Index(footerLine, consequence); ci <= li {
-			t.Fatalf("[%v] footer must read left group then far-right consequence note; got:\n%q", mode, footerLine)
+			t.Fatalf("[%v] footer must read left group then far-right consequence note; got:\n%q", themeLabel(th), footerLine)
 		}
 		// The spacer between the left group and the consequence note must exceed the
 		// inline ` · ` separator (3 cells) — confirming a flexible right-align gap, not a
@@ -469,7 +471,7 @@ func TestEditModal_EditingFooterConsequenceRightAligned(t *testing.T) {
 		body := footerBetween(t, footerLine, leftGroup, consequence)
 		if gap := lipgloss.Width(body); gap <= lipgloss.Width(footerEntrySeparator) {
 			t.Errorf("[%v] spacer between left group and consequence note (%d cells) must exceed the inline separator (%d cells) — note must be right-aligned; got:\n%q",
-				mode, gap, lipgloss.Width(footerEntrySeparator), footerLine)
+				themeLabel(th), gap, lipgloss.Width(footerEntrySeparator), footerLine)
 		}
 	}
 }
@@ -502,15 +504,15 @@ func footerLineOf(t *testing.T, content string) string {
 // TestEditModal_FooterKeyGlyphsBlue asserts footer key glyphs render in accent.blue
 // and labels in text.detail.
 func TestEditModal_FooterKeyGlyphsBlue(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldName, 0, 0)
-		m.canvasMode = mode
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldName, 0, 0)
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
-		if seq := tokenFgSeq(t, theme.MV.AccentBlue, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q", mode, seq)
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
+			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q", themeLabel(th), seq)
 		}
-		if seq := tokenFgSeq(t, theme.MV.TextDetail, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] footer labels must render in text.detail SGR core %q", mode, seq)
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(content, seq) {
+			t.Errorf("[%v] footer labels must render in text.detail SGR core %q", themeLabel(th), seq)
 		}
 	}
 }
@@ -518,7 +520,7 @@ func TestEditModal_FooterKeyGlyphsBlue(t *testing.T) {
 // TestEditModal_UsesEnterGlyphNotLegacy asserts the footer uses ⏎ (U+23CE) and never
 // the legacy ↵.
 func TestEditModal_UsesEnterGlyphNotLegacy(t *testing.T) {
-	m := editModalModel(editFieldName, 0, 0)
+	m := editModalModel(t, editFieldName, 0, 0)
 	out := editModalStrip(m)
 	if !strings.Contains(out, "⏎") {
 		t.Errorf("footer must use ⏎ (U+23CE); got:\n%s", out)
@@ -531,7 +533,7 @@ func TestEditModal_UsesEnterGlyphNotLegacy(t *testing.T) {
 // TestEditModal_NoLegacyGrammar asserts the legacy [x] / Add: / [Enter] Save
 // rendering is gone.
 func TestEditModal_NoLegacyGrammar(t *testing.T) {
-	m := editModalModel(editFieldTags, 0, 0)
+	m := editModalModel(t, editFieldTags, 0, 0)
 	out := editModalStrip(m)
 	for _, legacy := range []string{"[x]", "Add:", "[Enter]", "(none)"} {
 		if strings.Contains(out, legacy) {
@@ -543,7 +545,7 @@ func TestEditModal_NoLegacyGrammar(t *testing.T) {
 // TestEditModal_ZeroChipFieldOnlyAddSlot asserts a field with zero chips renders
 // only the `+ add` slot (no chip boxes), and the focused-field label stays violet.
 func TestEditModal_ZeroChipFieldOnlyAddSlot(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := Model{
 			modal:       modalEditProject,
 			editProject: project.Project{Name: "flow-v1-api"},
@@ -552,22 +554,22 @@ func TestEditModal_ZeroChipFieldOnlyAddSlot(t *testing.T) {
 			editName:    "flow-v1-api",
 			editAliases: []string{"fapi"},
 			editTags:    nil, // zero tags
-			canvasMode:  mode,
+			activeTheme: th,
 		}
 		content := m.renderEditProjectContent()
 		out := ansi.Strip(content)
 		// The TAGS block must carry `+ add` but no chip text.
 		tagsIdx := strings.Index(out, "TAGS")
 		if tagsIdx < 0 {
-			t.Fatalf("[%v] missing TAGS label; got:\n%s", mode, out)
+			t.Fatalf("[%v] missing TAGS label; got:\n%s", themeLabel(th), out)
 		}
 		tail := out[tagsIdx:]
 		if !strings.Contains(tail, "+ add") {
-			t.Errorf("[%v] zero-chip TAGS must still show `+ add`; got:\n%s", mode, tail)
+			t.Errorf("[%v] zero-chip TAGS must still show `+ add`; got:\n%s", themeLabel(th), tail)
 		}
 		// Focused-field label still violet.
-		if seg := labelSegment(t, content, "TAGS"); !strings.Contains(seg, tokenFgSeq(t, theme.MV.AccentViolet, mode)) {
-			t.Errorf("[%v] zero-chip focused TAGS label must stay accent.violet; seg=%q", mode, seg)
+		if seg := labelSegment(t, content, "TAGS"); !strings.Contains(seg, tokenFgSeq(t, th.AccentPrimary)) {
+			t.Errorf("[%v] zero-chip focused TAGS label must stay accent.violet; seg=%q", themeLabel(th), seg)
 		}
 	}
 }
@@ -575,20 +577,20 @@ func TestEditModal_ZeroChipFieldOnlyAddSlot(t *testing.T) {
 // TestEditModal_NewEmptyChipEditingOrangeCursor asserts a brand-new empty chip
 // spawned in edit (on the + add slot) renders an orange border + cursor, no ✕.
 func TestEditModal_NewEmptyChipEditingOrangeCursor(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldTags, 0, 2) // cursor on add slot
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldTags, 0, 2) // cursor on add slot
 		m.editMode = editModeEdit
 		m.editIsNewChip = true
 		m.editBuffer = ""
 		m.editCursor = 0
-		m.canvasMode = mode
+		m.activeTheme = th
 		content := m.renderEditProjectContent()
 		assertNoCross(t, content)
-		if seq := tokenFgSeq(t, theme.MV.AccentOrange, mode); !strings.Contains(content, seq) {
-			t.Errorf("[%v] brand-new editing chip must have an accent.orange border", mode)
+		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
+			t.Errorf("[%v] brand-new editing chip must have an accent.orange border", themeLabel(th))
 		}
 		if !reverseBlockPresent(content) {
-			t.Errorf("[%v] brand-new editing chip must carry a live cursor", mode)
+			t.Errorf("[%v] brand-new editing chip must carry a live cursor", themeLabel(th))
 		}
 	}
 }
@@ -599,7 +601,7 @@ func TestEditModal_NewEmptyChipEditingOrangeCursor(t *testing.T) {
 // colour-only, §2.2).
 func TestEditModal_NoColorStateViaBorderAndCursor(t *testing.T) {
 	// Focused (navigate): border present, no EDIT MODE text, no cursor.
-	focused := editModalModel(editFieldTags, 0, 0)
+	focused := editModalModel(t, editFieldTags, 0, 0)
 	focused.colourless = true
 	fout := focused.renderEditProjectContent()
 	if !strings.Contains(ansi.Strip(fout), "┌") && !strings.Contains(ansi.Strip(fout), "╭") {
@@ -610,7 +612,7 @@ func TestEditModal_NoColorStateViaBorderAndCursor(t *testing.T) {
 	}
 
 	// Editing: border present, EDIT MODE text present, cursor present.
-	editing := editModalModel(editFieldTags, 0, 0)
+	editing := editModalModel(t, editFieldTags, 0, 0)
 	editing.editMode = editModeEdit
 	editing.editBuffer = "Fabric"
 	editing.editCursor = len([]rune("Fabric"))
@@ -630,12 +632,12 @@ func TestEditModal_NoColorStateViaBorderAndCursor(t *testing.T) {
 // ╭───╮ top and the NAME input box's ╭───╮ — so a nested outer box (a third ╭) is a
 // regression. The chip boxes use SQUARE corners (┌), so they never add a ╭.
 func TestEditModal_SinglePanelOnClearedCanvas(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		m := editModalModel(editFieldName, 0, 0)
-		m.canvasMode = mode
-		placed := ansi.Strip(renderEditModalOnClearedCanvas(m, 100, 40, mode, false))
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		m := editModalModel(t, editFieldName, 0, 0)
+		m.activeTheme = th
+		placed := ansi.Strip(renderEditModalOnClearedCanvas(m, 100, 40, th, false))
 		if got := strings.Count(placed, "╭"); got != 2 {
-			t.Errorf("[%v] single-panel edit modal must have exactly 2 rounded top-corners (joined panel + NAME box), got %d; a nested outer box is a regression:\n%s", mode, got, placed)
+			t.Errorf("[%v] single-panel edit modal must have exactly 2 rounded top-corners (joined panel + NAME box), got %d; a nested outer box is a regression:\n%s", themeLabel(th), got, placed)
 		}
 	}
 }
@@ -643,18 +645,18 @@ func TestEditModal_SinglePanelOnClearedCanvas(t *testing.T) {
 // TestEditModal_NoGreenEver asserts state.green is never used on a chip in any
 // state (normal / focused / editing).
 func TestEditModal_NoGreenEver(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		states := []Model{
-			editModalModel(editFieldName, 0, 0), // chips normal
-			editModalModel(editFieldTags, 0, 0), // a chip focused
+			editModalModel(t, editFieldName, 0, 0), // chips normal
+			editModalModel(t, editFieldTags, 0, 0), // a chip focused
 		}
-		editing := editModalModel(editFieldTags, 0, 0)
+		editing := editModalModel(t, editFieldTags, 0, 0)
 		editing.editMode = editModeEdit
 		editing.editBuffer = "Fabric"
 		states = append(states, editing)
 		for i, m := range states {
-			m.canvasMode = mode
-			assertNoGreenLabelled(t, m.renderEditProjectContent(), mode, i)
+			m.activeTheme = th
+			assertNoGreenLabelled(t, m.renderEditProjectContent(), th, i)
 		}
 	}
 }
@@ -664,27 +666,27 @@ func TestEditModal_NoGreenEver(t *testing.T) {
 // A fill would show up as a background SGR (48;2;...) for a colour OTHER than the
 // owned canvas. The panel/inset rows legitimately carry the canvas background, so
 // only NON-canvas backgrounds are a violation.
-func assertNoFill(t *testing.T, content string, mode theme.Mode, label string) {
+func assertNoFill(t *testing.T, content string, th theme.Theme, label string) {
 	t.Helper()
-	canvasBg := bgSeq(t, theme.MV.Canvas, mode)
+	canvasBg := bgSeq(t, th.Canvas)
 	for _, forbidden := range []theme.Token{
-		theme.MV.AccentViolet, theme.MV.AccentOrange, theme.MV.BorderSeparator,
-		theme.MV.BgSelection, theme.MV.StateGreen,
+		th.AccentPrimary, th.AccentAttention, th.Border,
+		th.BgSelection, th.StatePositive,
 	} {
-		seq := bgSeq(t, forbidden, mode)
+		seq := bgSeq(t, forbidden)
 		if seq == canvasBg {
 			continue
 		}
 		if strings.Contains(content, seq) {
-			t.Errorf("[%v/%s] modal must not fill (found %s background SGR %q)", mode, label, forbidden.Name, seq)
+			t.Errorf("[%v/%s] modal must not fill (found %s background SGR %q)", themeLabel(th), label, forbidden.Name, seq)
 		}
 	}
 }
 
 // bgSeq returns the bare `48;2;r;g;b` background SGR parameter substring for a token.
-func bgSeq(t *testing.T, tok theme.Token, m theme.Mode) string {
+func bgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Background(tok.ColorFor(m)).Render("x")
+	probe := lipgloss.NewStyle().Background(tok.Color()).Render("x")
 	start := strings.IndexByte(probe, '[')
 	end := strings.IndexByte(probe, 'm')
 	if start < 0 || end <= start {
@@ -704,9 +706,9 @@ func assertNoCross(t *testing.T, content string) {
 
 // assertNoGreen fails if state.green is present anywhere in the rendered content
 // (chips are never green).
-func assertNoGreen(t *testing.T, content string, mode theme.Mode) {
+func assertNoGreen(t *testing.T, content string, th theme.Theme) {
 	t.Helper()
-	assertNoGreenLabelled(t, content, mode, 0)
+	assertNoGreenLabelled(t, content, th, 0)
 }
 
 // TestEditModalFooterRow_ByteExact pins the full-ANSI rendered output of the edit
@@ -721,26 +723,26 @@ func TestEditModalFooterRow_ByteExact(t *testing.T) {
 	const wantEditDark = "\x1b[38;2;122;162;247;48;2;11;12;20m⏎\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20msave\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mesc\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mdiscard\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20m←→\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mcursor\x1b[m\x1b[48;2;11;12;20m    \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mempty on save = delete\x1b[m"
 
 	t.Run("navigate-name-focused dark", func(t *testing.T) {
-		m := editModalModel(editFieldName, 0, 0)
-		if got := m.editModalFooterRow(theme.Dark, false); got != wantNavDark {
+		m := editModalModel(t, editFieldName, 0, 0)
+		if got := m.editModalFooterRow(testDarkTheme(t), false); got != wantNavDark {
 			t.Errorf("navigate footer byte mismatch\n got: %q\nwant: %q", got, wantNavDark)
 		}
 	})
 
 	t.Run("editing-in-place dark", func(t *testing.T) {
-		m := editModalModel(editFieldTags, 0, 0)
+		m := editModalModel(t, editFieldTags, 0, 0)
 		m.editMode = editModeEdit
 		m.editBuffer = "Fabric"
 		m.editCursor = len([]rune("Fabric"))
-		if got := m.editModalFooterRow(theme.Dark, false); got != wantEditDark {
+		if got := m.editModalFooterRow(testDarkTheme(t), false); got != wantEditDark {
 			t.Errorf("editing footer byte mismatch\n got: %q\nwant: %q", got, wantEditDark)
 		}
 	})
 }
 
-func assertNoGreenLabelled(t *testing.T, content string, mode theme.Mode, idx int) {
+func assertNoGreenLabelled(t *testing.T, content string, th theme.Theme, idx int) {
 	t.Helper()
-	if seq := tokenFgSeq(t, theme.MV.StateGreen, mode); strings.Contains(content, seq) {
-		t.Errorf("[%v/state%d] state.green must never appear on a chip; SGR core %q present", mode, idx, seq)
+	if seq := tokenFgSeq(t, th.StatePositive); strings.Contains(content, seq) {
+		t.Errorf("[%v/state%d] state.green must never appear on a chip; SGR core %q present", themeLabel(th), idx, seq)
 	}
 }

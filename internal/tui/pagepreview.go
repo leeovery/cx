@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -24,15 +24,6 @@ const previewMarker = "◉ preview"
 // (tier 2 → tier 3). Below this minimum a truncated name reads as garbage rather
 // than a recognisable name. Per §9.1 header width-cascade.
 const minSessionNameCells = 8
-
-// previewBorderColorToken is the §2.9 role token the §9.1 preview chrome
-// (the full-screen joined panel's cyan border + dividers) resolves. The cyan
-// "peek mode" hue is owned by the single token layer (no raw hex at the call
-// site); the mode-resolved colour is computed per-render from the model's
-// resolved canvas mode, mirroring every other mode-aware token. It is threaded
-// into renderJoinedPanel as the panel's single-tone border token (the modals
-// pass theme.MV.BorderSeparator instead).
-var previewBorderColorToken = theme.MV.AccentCyan
 
 // previewFrameOverhead is the total number of frame rows AND frame columns the
 // §9.1 full-screen joined panel occupies around the body compartment:
@@ -209,28 +200,28 @@ func selectPreviewHeaderTier(width int, session string, windowIdx, windowCount, 
 // colourless (no foreground SGR) but the structure stays present. The row's
 // natural width is <= contentWidth (the cascade fits it); renderJoinedPanel's
 // panelInsetRow pads it to the uniform frame width.
-func composePreviewHeaderRow(contentWidth, windowIdx, windowCount, paneIdx, paneCount int, session string, mode theme.Mode, colourless bool) string {
+func composePreviewHeaderRow(contentWidth, windowIdx, windowCount, paneIdx, paneCount int, session string, th theme.Theme, colourless bool) string {
 	// Degenerate widths: the marker itself (9 cells) exceeds the body width — clip
 	// the marker to contentWidth (cells) and render that alone so the panel still
 	// fills exactly the terminal width and never overflows.
 	if contentWidth < lipgloss.Width(previewMarker) {
 		clipped := truncateToCells(previewMarker, contentWidth)
-		return headerStyle(theme.MV.AccentCyan, mode, colourless).Render(clipped)
+		return headerStyle(th.AccentMode, th, colourless).Render(clipped)
 	}
 
 	segs := selectPreviewHeaderTier(contentWidth, session, windowIdx, windowCount, paneIdx, paneCount)
-	gap := headerCanvasBg(mode, colourless).Render(chromeSegSpace)
+	gap := headerCanvasBg(th, colourless).Render(chromeSegSpace)
 
-	row := headerStyle(theme.MV.AccentCyan, mode, colourless).Render(segs.marker)
+	row := headerStyle(th.AccentMode, th, colourless).Render(segs.marker)
 	// The session segment (and its leading gap) is omitted when the cascade
 	// truncated it to empty, so the marker-alone row stays exactly marker-wide
 	// and the panel never overflows the body width.
 	if segs.session != "" {
-		sessionSeg := headerStyle(theme.MV.TextPrimary, mode, colourless).Render(segs.session)
+		sessionSeg := headerStyle(th.TextPrimary, th, colourless).Render(segs.session)
 		row = lipgloss.JoinHorizontal(lipgloss.Top, row, gap, sessionSeg)
 	}
 	if segs.counters != "" {
-		counters := headerStyle(theme.MV.TextDetail, mode, colourless).Render(segs.counters)
+		counters := headerStyle(th.TextMuted, th, colourless).Render(segs.counters)
 		row = lipgloss.JoinHorizontal(lipgloss.Top, row, gap, counters)
 	}
 	return row
@@ -265,21 +256,21 @@ func previewFooterGroups() []footerHintGroup {
 //     widths). At least the first glyph renders whenever any width is available.
 //
 // Under the NO_COLOR carve-out the hues drop but the structure stays present.
-func composePreviewFooterRow(contentWidth int, mode theme.Mode, colourless bool) string {
+func composePreviewFooterRow(contentWidth int, th theme.Theme, colourless bool) string {
 	groups := previewFooterGroups()
 
-	full := previewFooterFromGroups(groups, true, mode, colourless)
+	full := previewFooterFromGroups(groups, true, th, colourless)
 	if lipgloss.Width(full) <= contentWidth {
 		return full
 	}
-	compact := previewFooterFromGroups(groups, false, mode, colourless)
+	compact := previewFooterFromGroups(groups, false, th, colourless)
 	if lipgloss.Width(compact) <= contentWidth {
 		return compact
 	}
 	// Too narrow for even the compact form — drop trailing glyph groups until the
 	// remainder fits (or only the first glyph remains).
 	for n := len(groups) - 1; n >= 1; n-- {
-		trimmed := previewFooterFromGroups(groups[:n], false, mode, colourless)
+		trimmed := previewFooterFromGroups(groups[:n], false, th, colourless)
 		if lipgloss.Width(trimmed) <= contentWidth {
 			return trimmed
 		}
@@ -287,20 +278,20 @@ func composePreviewFooterRow(contentWidth int, mode theme.Mode, colourless bool)
 	// Degenerate widths: even a single glyph overflows — clip the first glyph to
 	// contentWidth (cells) so the footer row never exceeds the body width.
 	clipped := truncateToCells(groups[0].key, contentWidth)
-	return headerStyle(theme.MV.AccentBlue, mode, colourless).Render(clipped)
+	return headerStyle(th.AccentKey, th, colourless).Render(clipped)
 }
 
 // previewFooterFromGroups renders the footer groups joined by previewFooterGap.
 // When labelled is true each group is `<glyph accent.blue> <label text.detail>`;
 // when false only the accent.blue glyph renders (the compact cascade form).
-func previewFooterFromGroups(groups []footerHintGroup, labelled bool, mode theme.Mode, colourless bool) string {
-	gap := headerCanvasBg(mode, colourless).Render(previewFooterGap)
+func previewFooterFromGroups(groups []footerHintGroup, labelled bool, th theme.Theme, colourless bool) string {
+	gap := headerCanvasBg(th, colourless).Render(previewFooterGap)
 	rendered := make([]string, 0, len(groups))
 	for _, g := range groups {
 		if labelled {
-			rendered = append(rendered, renderBlueKeyHint(g.key, g.label, mode, colourless))
+			rendered = append(rendered, renderBlueKeyHint(g.key, g.label, th, colourless))
 		} else {
-			rendered = append(rendered, headerStyle(theme.MV.AccentBlue, mode, colourless).Render(g.key))
+			rendered = append(rendered, headerStyle(th.AccentKey, th, colourless).Render(g.key))
 		}
 	}
 	return strings.Join(rendered, gap)
@@ -329,11 +320,12 @@ type previewModel struct {
 	viewport   viewport.Model
 	width      int
 	height     int
-	// mode is the resolved light/dark canvas the §9.1 peek-mode chrome is
-	// painted for. The zero value (theme.Dark) is the parity-preserving
-	// dark-default; the parent model assigns m.canvasMode onto it after
-	// construction so the cyan frame + top bar resolve the right variant.
-	mode theme.Mode
+	// th is the ACTIVE PALETTE the §9.1 peek-mode chrome is painted from. The
+	// parent model assigns m.activeTheme onto it after construction so the
+	// accent.mode frame + top bar are drawn from the same theme as every other
+	// surface. A zero value renders through lipgloss.Color("")'s no-colour
+	// sentinel, which is why the assignment is not optional.
+	th theme.Theme
 	// colourless is the §2.5 NO_COLOR carve-out flag mirrored from the parent
 	// model. When set the chrome drops its hue (no foreground SGR) but keeps
 	// the structure — marker, session, counters, hints, frame glyphs (§9.2).
@@ -386,6 +378,13 @@ func NewPreviewModel(session string, enumerator TmuxEnumerator, reader Scrollbac
 		viewport: viewport.New(viewport.WithWidth(innerW), viewport.WithHeight(innerH)),
 		width:    width,
 		height:   height,
+		// Seed the DARK built-in, mirroring New's seed of Model.activeTheme and
+		// for the same reason: a zero Theme renders through
+		// lipgloss.Color("")'s no-colour sentinel — silently colourless, with no
+		// compile error. The parent assigns its active theme immediately after
+		// construction, so this is only ever the value a directly constructed
+		// preview renders with.
+		th: defaultDarkTheme(),
 	}
 
 	// Single dispatcher shared with the window/pane cycle handlers (←/→, Tab)
@@ -693,9 +692,9 @@ func (m previewModel) View() string {
 		m.windowIdx, len(m.groups),
 		m.paneIdx, len(m.currentGroup().PaneIndices),
 		m.session,
-		m.mode, m.colourless,
+		m.th, m.colourless,
 	)
-	footer := composePreviewFooterRow(contentWidth, m.mode, m.colourless)
+	footer := composePreviewFooterRow(contentWidth, m.th, m.colourless)
 
 	// The body rows are the untouched captured ANSI — split per line so each is a
 	// compartment row (renderJoinedPanel insets + side-borders each). injectSGRResets
@@ -704,8 +703,8 @@ func (m previewModel) View() string {
 
 	preview := renderJoinedPanel(
 		[][]string{{header}, body, {footer}},
-		previewBorderColorToken,
-		m.mode, m.colourless,
+		m.th.AccentMode,
+		m.th, m.colourless,
 	)
 
 	// §8.5/§9.3: the `?` help OVERLAYS the preview without blanking it — the
@@ -713,7 +712,7 @@ func (m previewModel) View() string {
 	// panel is composited centred ON TOP (NOT the §8.1 cleared-canvas path the
 	// Sessions/Projects help uses). Skipped on the common closed path.
 	if m.helpOpen {
-		return overlayHelpOnPreview(preview, previewKeymap(), m.mode, m.colourless)
+		return overlayHelpOnPreview(preview, previewKeymap(), m.th, m.colourless)
 	}
 	return preview
 }
@@ -728,8 +727,8 @@ func (m previewModel) View() string {
 // the Sessions/Projects help modals use, so the three help surfaces never drift.
 // Colourless flows through unchanged — the panel is composited verbatim over the
 // colourless preview with no new hue.
-func overlayHelpOnPreview(preview string, entries []keymapEntry, mode theme.Mode, colourless bool) string {
-	panel := renderHelpModalContent(entries, mode, colourless)
+func overlayHelpOnPreview(preview string, entries []keymapEntry, th theme.Theme, colourless bool) string {
+	panel := renderHelpModalContent(entries, th, colourless)
 
 	bgW := lipgloss.Width(preview)
 	bgH := lipgloss.Height(preview)

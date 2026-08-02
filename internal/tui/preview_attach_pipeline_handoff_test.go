@@ -52,7 +52,7 @@ func TestPreviewAttachIntegration_ConnectInvokedAfterQuit(t *testing.T) {
 	}
 
 	// Now simulate the model receiving that message.
-	m := modelWithSeams(nil, &stubEnumerator{}, &recordingReader{})
+	m := modelWithSeams(t, nil, &stubEnumerator{}, &recordingReader{})
 	updated, cmd := m.Update(sel)
 	got := updated.(Model)
 	if got.Selected() != "foo" {

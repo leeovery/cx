@@ -59,7 +59,7 @@ func TestKillRefreshUnderFilterPreservesFilteredList(t *testing.T) {
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
 	killer := &killerStub{}
 
-	m := modelWithSeamsAndLister(first, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 	m.sessionKiller = killer
 
 	// Commit a filter narrowing the visible list to {alpha, alphabet}.

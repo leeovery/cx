@@ -17,13 +17,15 @@ func keySpaceMsg() tea.KeyPressMsg {
 // modelWithSeams returns a Model on the Sessions page seeded with the given
 // sessions and the given enumerator/reader seam values. The Model is sized so
 // SettingFilter() and SelectedItem() behave as in production.
-func modelWithSeams(sessions []tmux.Session, enum TmuxEnumerator, reader ScrollbackReader) Model {
+func modelWithSeams(t *testing.T, sessions []tmux.Session, enum TmuxEnumerator, reader ScrollbackReader) Model {
+	t.Helper()
 	items := ToListItems(sessions)
 	l := newSessionList(items)
 	l.SetSize(80, 24)
 	pl := newProjectList()
 	pl.SetSize(80, 24)
 	return Model{
+		activeTheme: testDarkTheme(t),
 		sessions:    sessions,
 		sessionList: l,
 		projectList: pl,
@@ -46,7 +48,7 @@ func TestSpaceOnSessionsPageTransitionsToPagePreviewWhenHighlighted(t *testing.T
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	updated, cmd := m.Update(keySpaceMsg())
 
@@ -75,7 +77,7 @@ func TestSpaceOnSessionsPageNoOpWhenListEmpty(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{}
-	m := modelWithSeams(nil, enum, reader)
+	m := modelWithSeams(t, nil, enum, reader)
 
 	updated, cmd := m.Update(keySpaceMsg())
 
@@ -104,7 +106,7 @@ func TestSpaceOnSessionsPageNoOpWhenSelectedItemNil(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	// Apply a filter that matches nothing so the visible list is empty and
 	// SelectedItem() returns nil. Filter must be applied (committed), not
 	// SettingFilter, so we route through the existing key handler.
@@ -138,7 +140,7 @@ func TestSpaceOnSessionsPageRemainsOnSessionsWhenEnumerationFails(t *testing.T) 
 	}
 	enum := &stubEnumerator{err: errStub("boom")}
 	reader := &recordingReader{}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	updated, cmd := m.Update(keySpaceMsg())
 
@@ -163,7 +165,7 @@ func TestSpaceOnSessionsPageRemainsOnSessionsWhenEnumerationEmpty(t *testing.T) 
 	}
 	enum := &stubEnumerator{groups: nil}
 	reader := &recordingReader{}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	updated, cmd := m.Update(keySpaceMsg())
 
@@ -189,7 +191,7 @@ func TestSpaceDuringSettingFilterDoesNotCallNewPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 	// Open the filter-input mode on the underlying bubbles/list so
 	// SettingFilter() returns true. The list's "/" rune key opens it.
 	updatedList, _ := m.sessionList.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
@@ -220,7 +222,7 @@ func TestSpaceOnLoadingPageDoesNotCallNewPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{}
-	m := modelWithSeams(nil, enum, reader)
+	m := modelWithSeams(t, nil, enum, reader)
 	m.activePage = PageLoading
 
 	updated, _ := m.Update(keySpaceMsg())
@@ -244,7 +246,7 @@ func TestSpaceOnProjectsPageDoesNotCallNewPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{}
-	m := modelWithSeams(nil, enum, reader)
+	m := modelWithSeams(t, nil, enum, reader)
 	m.activePage = PageProjects
 
 	updated, _ := m.Update(keySpaceMsg())
@@ -271,7 +273,7 @@ func TestPagePreviewRoutesUpdateToPreviewModel(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hello")}
-	m := modelWithSeams(sessions, enum, reader)
+	m := modelWithSeams(t, sessions, enum, reader)
 
 	// Transition to pagePreview via Space.
 	updated, _ := m.Update(keySpaceMsg())

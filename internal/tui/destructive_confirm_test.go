@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // Pre-refactor goldens — captured from the ORIGINAL renderKillModalContent /
@@ -36,18 +36,18 @@ func TestKillDeleteModalContent_ByteIdenticalGolden(t *testing.T) {
 	t.Run("kill", func(t *testing.T) {
 		cases := []struct {
 			label      string
-			mode       theme.Mode
+			th         theme.Theme
 			colourless bool
 			want       string
 		}{
-			{"dark", theme.Dark, false, goldenKillModalDarkCol},
-			{"light", theme.Light, false, goldenKillModalLightCol},
-			{"dark colourless", theme.Dark, true, goldenKillModalNoCol},
-			{"light colourless", theme.Light, true, goldenKillModalNoCol},
+			{"dark", testDarkTheme(t), false, goldenKillModalDarkCol},
+			{"light", testLightTheme(t), false, goldenKillModalLightCol},
+			{"dark colourless", testDarkTheme(t), true, goldenKillModalNoCol},
+			{"light colourless", testLightTheme(t), true, goldenKillModalNoCol},
 		}
 		for _, tc := range cases {
 			t.Run(tc.label, func(t *testing.T) {
-				got := renderKillModalContent(killName, killWindows, tc.mode, tc.colourless)
+				got := renderKillModalContent(killName, killWindows, tc.th, tc.colourless)
 				if got != tc.want {
 					t.Errorf("kill modal drift\n got: %q\nwant: %q", got, tc.want)
 				}
@@ -58,18 +58,18 @@ func TestKillDeleteModalContent_ByteIdenticalGolden(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		cases := []struct {
 			label      string
-			mode       theme.Mode
+			th         theme.Theme
 			colourless bool
 			want       string
 		}{
-			{"dark", theme.Dark, false, goldenDeleteModalDarkCol},
-			{"light", theme.Light, false, goldenDeleteModalLightCol},
-			{"dark colourless", theme.Dark, true, goldenDeleteModalNoCol},
-			{"light colourless", theme.Light, true, goldenDeleteModalNoCol},
+			{"dark", testDarkTheme(t), false, goldenDeleteModalDarkCol},
+			{"light", testLightTheme(t), false, goldenDeleteModalLightCol},
+			{"dark colourless", testDarkTheme(t), true, goldenDeleteModalNoCol},
+			{"light colourless", testLightTheme(t), true, goldenDeleteModalNoCol},
 		}
 		for _, tc := range cases {
 			t.Run(tc.label, func(t *testing.T) {
-				got := renderDeleteModalContent(delName, delPath, tc.mode, tc.colourless)
+				got := renderDeleteModalContent(delName, delPath, tc.th, tc.colourless)
 				if got != tc.want {
 					t.Errorf("delete modal drift\n got: %q\nwant: %q", got, tc.want)
 				}
@@ -92,18 +92,18 @@ func TestRenderDestructiveConfirm_KillSpec(t *testing.T) {
 	}
 	cases := []struct {
 		label      string
-		mode       theme.Mode
+		th         theme.Theme
 		colourless bool
 		want       string
 	}{
-		{"dark", theme.Dark, false, goldenKillModalDarkCol},
-		{"light", theme.Light, false, goldenKillModalLightCol},
-		{"dark colourless", theme.Dark, true, goldenKillModalNoCol},
-		{"light colourless", theme.Light, true, goldenKillModalNoCol},
+		{"dark", testDarkTheme(t), false, goldenKillModalDarkCol},
+		{"light", testLightTheme(t), false, goldenKillModalLightCol},
+		{"dark colourless", testDarkTheme(t), true, goldenKillModalNoCol},
+		{"light colourless", testLightTheme(t), true, goldenKillModalNoCol},
 	}
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
-			got := renderDestructiveConfirm(spec, tc.mode, tc.colourless)
+			got := renderDestructiveConfirm(spec, tc.th, tc.colourless)
 			if got != tc.want {
 				t.Errorf("kill spec drift\n got: %q\nwant: %q", got, tc.want)
 			}
@@ -118,7 +118,7 @@ func TestRenderDestructiveConfirm_DeleteSpec(t *testing.T) {
 	spec := destructiveConfirmSpec{
 		title:         deleteTitle,
 		targetName:    "flow-v1-api",
-		extraBodyRows: []string{deleteModalPathRow("/Users/leeovery/Code/fabric/flow-v1-api", theme.Dark, false)},
+		extraBodyRows: []string{deleteModalPathRow("/Users/leeovery/Code/fabric/flow-v1-api", testDarkTheme(t), false)},
 		consequence:   deleteConsequence,
 		confirmKey:    deleteKeyConfirm,
 		confirmLabel:  deleteLabelConfirm,
@@ -126,19 +126,19 @@ func TestRenderDestructiveConfirm_DeleteSpec(t *testing.T) {
 	// extraBodyRows are already-styled rows; re-style per mode/colourless inside each case.
 	cases := []struct {
 		label      string
-		mode       theme.Mode
+		th         theme.Theme
 		colourless bool
 		want       string
 	}{
-		{"dark", theme.Dark, false, goldenDeleteModalDarkCol},
-		{"light", theme.Light, false, goldenDeleteModalLightCol},
-		{"dark colourless", theme.Dark, true, goldenDeleteModalNoCol},
-		{"light colourless", theme.Light, true, goldenDeleteModalNoCol},
+		{"dark", testDarkTheme(t), false, goldenDeleteModalDarkCol},
+		{"light", testLightTheme(t), false, goldenDeleteModalLightCol},
+		{"dark colourless", testDarkTheme(t), true, goldenDeleteModalNoCol},
+		{"light colourless", testLightTheme(t), true, goldenDeleteModalNoCol},
 	}
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
-			spec.extraBodyRows = []string{deleteModalPathRow("/Users/leeovery/Code/fabric/flow-v1-api", tc.mode, tc.colourless)}
-			got := renderDestructiveConfirm(spec, tc.mode, tc.colourless)
+			spec.extraBodyRows = []string{deleteModalPathRow("/Users/leeovery/Code/fabric/flow-v1-api", tc.th, tc.colourless)}
+			got := renderDestructiveConfirm(spec, tc.th, tc.colourless)
 			if got != tc.want {
 				t.Errorf("delete spec drift\n got: %q\nwant: %q", got, tc.want)
 			}
@@ -175,7 +175,7 @@ func TestDestructiveConsequenceRows_WordWrapAt52(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rows := destructiveConsequenceRows(tc.text, theme.Dark, false)
+			rows := destructiveConsequenceRows(tc.text, testDarkTheme(t), false)
 			if len(rows) != len(tc.want) {
 				t.Fatalf("want %d wrapped lines, got %d: %v", len(tc.want), len(rows), rows)
 			}

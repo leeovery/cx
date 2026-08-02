@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // keymap_dispatch_guard_test.go closes the descriptor↔dispatch drift gap that
@@ -328,7 +327,7 @@ func sessionsGuardModel(t *testing.T) Model {
 // handlePreviewKey directly.
 func previewGuardModel(t *testing.T) previewModel {
 	t.Helper()
-	return newPreviewHelpModel(t, theme.Dark, false)
+	return newPreviewHelpModel(t, testDarkTheme(t), false)
 }
 
 // sessionsGuardCreator is a non-nil session creator so the n new-in-cwd probe

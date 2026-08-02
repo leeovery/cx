@@ -7,8 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // darkBg / lightBg are deterministic OSC 11 BackgroundColorMsg payloads. The
@@ -53,21 +53,31 @@ func assertBlankFrame(t *testing.T, m Model) {
 	}
 }
 
-func assertPaintedCanvas(t *testing.T, m Model, mode theme.Mode) {
+func assertPaintedCanvas(t *testing.T, m Model, appearance canvasAppearance) {
 	t.Helper()
 	if !m.modeResolved() {
-		t.Fatalf("modeResolved = false, want true (mode must be resolved before the real paint)")
+		t.Fatalf("modeResolved = false, want true (the canvas must be resolved before the real paint)")
 	}
-	if m.canvasMode != mode {
-		t.Errorf("canvasMode = %v, want %v", m.canvasMode, mode)
+	if m.canvasMode != appearance {
+		t.Errorf("canvasMode = %v, want %v", m.canvasMode, appearance)
 	}
 	view := m.View().Content
 	if !strings.Contains(view, "Sessions") {
 		t.Errorf("resolved View did not paint the real content (no 'Sessions' title)")
 	}
-	if seq := canvasSeq(t, mode); !strings.Contains(view, seq) {
-		t.Errorf("resolved View does not contain the %v canvas background sequence %q", mode, seq)
+	if seq := canvasSeq(t, themeForAppearance(t, appearance)); !strings.Contains(view, seq) {
+		t.Errorf("resolved View does not contain the %v canvas background sequence %q", appearance, seq)
 	}
+}
+
+// themeForAppearance returns the built-in the gate's answer selects — the
+// test-side mirror of the model's builtinThemePair.
+func themeForAppearance(t *testing.T, appearance canvasAppearance) theme.Theme {
+	t.Helper()
+	if appearance == appearanceLightCanvas {
+		return testLightTheme(t)
+	}
+	return testDarkTheme(t)
 }
 
 // TestAutoDetectsDark: auto + a dark BackgroundColorMsg resolves canvasMode Dark,
@@ -78,7 +88,7 @@ func TestAutoDetectsDark(t *testing.T) {
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(darkBg)
-	assertPaintedCanvas(t, updated.(Model), theme.Dark)
+	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
 }
 
 // TestAutoDetectsLight: auto + a light BackgroundColorMsg resolves canvasMode
@@ -88,7 +98,7 @@ func TestAutoDetectsLight(t *testing.T) {
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(lightBg)
-	assertPaintedCanvas(t, updated.(Model), theme.Light)
+	assertPaintedCanvas(t, updated.(Model), appearanceLightCanvas)
 }
 
 // TestNoPaintThenFlip: before resolution the View is the neutral blank frame
@@ -101,19 +111,19 @@ func TestNoPaintThenFlip(t *testing.T) {
 	// OSC 11 answers dark first → resolves dark, paints.
 	updated, _ := m.Update(darkBg)
 	resolved := updated.(Model)
-	assertPaintedCanvas(t, resolved, theme.Dark)
+	assertPaintedCanvas(t, resolved, appearanceDarkCanvas)
 
 	// A late timeout (the loser of the race) must be ignored — the mode is
 	// already resolved, so it must not flip to anything.
 	after, _ := resolved.Update(appearanceTimeoutMsg{})
-	if after.(Model).canvasMode != theme.Dark {
-		t.Errorf("a late timeout flipped canvasMode to %v, want it pinned at Dark (no second resolution)", after.(Model).canvasMode)
+	if after.(Model).canvasMode != appearanceDarkCanvas {
+		t.Errorf("a late timeout flipped canvasMode to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).canvasMode)
 	}
 
 	// And a late, conflicting BackgroundColorMsg (light) must not flip either.
 	after2, _ := after.(Model).Update(lightBg)
-	if after2.(Model).canvasMode != theme.Dark {
-		t.Errorf("a late light BackgroundColorMsg flipped canvasMode to %v, want it pinned at Dark (no flip)", after2.(Model).canvasMode)
+	if after2.(Model).canvasMode != appearanceDarkCanvas {
+		t.Errorf("a late light BackgroundColorMsg flipped canvasMode to %v, want it pinned at the dark canvas (no flip)", after2.(Model).canvasMode)
 	}
 }
 
@@ -124,7 +134,7 @@ func TestTimeoutFallsBackToDark(t *testing.T) {
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(appearanceTimeoutMsg{})
-	assertPaintedCanvas(t, updated.(Model), theme.Dark)
+	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
 }
 
 // TestPinLightSkipsDetection: appearance Light pins the mode and skips detection
@@ -132,7 +142,7 @@ func TestTimeoutFallsBackToDark(t *testing.T) {
 // from frame one, and Init issues NO timeout tick.
 func TestPinLightSkipsDetection(t *testing.T) {
 	m := detectModel(t, prefs.AppearanceLight)
-	assertPaintedCanvas(t, m, theme.Light)
+	assertPaintedCanvas(t, m, appearanceLightCanvas)
 	assertNoTimeoutTick(t, m)
 }
 
@@ -141,7 +151,7 @@ func TestPinLightSkipsDetection(t *testing.T) {
 // timeout tick from Init.
 func TestPinDarkSkipsDetection(t *testing.T) {
 	m := detectModel(t, prefs.AppearanceDark)
-	assertPaintedCanvas(t, m, theme.Dark)
+	assertPaintedCanvas(t, m, appearanceDarkCanvas)
 	assertNoTimeoutTick(t, m)
 }
 
@@ -153,7 +163,7 @@ func TestColorFGBGNeverOverridesOSC11(t *testing.T) {
 	m := detectModel(t, prefs.AppearanceAuto)
 
 	updated, _ := m.Update(darkBg)
-	assertPaintedCanvas(t, updated.(Model), theme.Dark)
+	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
 }
 
 // TestMisdetectionLegibleNotBroken: a mis-detected terminal resolves to the
@@ -167,7 +177,7 @@ func TestMisdetectionLegibleNotBroken(t *testing.T) {
 	// mode but fully legible, not blank, not crashed.
 	updated, _ := m.Update(lightBg)
 	resolved := updated.(Model)
-	assertPaintedCanvas(t, resolved, theme.Light)
+	assertPaintedCanvas(t, resolved, appearanceLightCanvas)
 	view := resolved.View().Content
 	if strings.TrimSpace(view) == "" {
 		t.Errorf("mis-detected canvas rendered blank, want a legible (wrong-mode) screen")
@@ -215,7 +225,7 @@ func TestBuildArmsAutoGate(t *testing.T) {
 		}
 		// Resolving via an OSC 11 reply paints the detected canvas.
 		updated, _ := m.Update(lightBg)
-		if !updated.(Model).modeResolved() || updated.(Model).canvasMode != theme.Light {
+		if !updated.(Model).modeResolved() || updated.(Model).canvasMode != appearanceLightCanvas {
 			t.Errorf("Build(auto) did not resolve to the OSC 11-detected canvas; resolved=%v mode=%v",
 				updated.(Model).modeResolved(), updated.(Model).canvasMode)
 		}
@@ -226,8 +236,8 @@ func TestBuildArmsAutoGate(t *testing.T) {
 		if !m.modeResolved() {
 			t.Errorf("Build(light pin) is unresolved; want immediate resolution (no gate, no wait)")
 		}
-		if m.canvasMode != theme.Light {
-			t.Errorf("Build(light pin) canvasMode = %v, want theme.Light", m.canvasMode)
+		if m.canvasMode != appearanceLightCanvas {
+			t.Errorf("Build(light pin) canvasMode = %v, want testLightTheme(t)", themeLabel(m.activeTheme))
 		}
 	})
 
@@ -236,8 +246,8 @@ func TestBuildArmsAutoGate(t *testing.T) {
 		if !m.modeResolved() {
 			t.Errorf("Build(dark pin) is unresolved; want immediate resolution (no gate, no wait)")
 		}
-		if m.canvasMode != theme.Dark {
-			t.Errorf("Build(dark pin) canvasMode = %v, want theme.Dark", m.canvasMode)
+		if m.canvasMode != appearanceDarkCanvas {
+			t.Errorf("Build(dark pin) canvasMode = %v, want testDarkTheme(t)", themeLabel(m.activeTheme))
 		}
 	})
 }

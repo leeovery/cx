@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // This file pins the shared right-anchored footer row assembler
@@ -30,12 +29,12 @@ const rightAnchoredCanvasWidth = 120
 // exactly w cells wide and the anchor ends flush at the right edge.
 func TestAssembleRightAnchoredRow_WideEmitsClusterSpacerAnchor(t *testing.T) {
 	const w = rightAnchoredCanvasWidth
-	left := renderFooterDetail("left", theme.Dark, false)
+	left := renderFooterDetail("left", testDarkTheme(t), false)
 	leftWidth := lipgloss.Width(left)
-	rightSeg := renderFooterDetail("? help", theme.Dark, false)
+	rightSeg := renderFooterDetail("? help", testDarkTheme(t), false)
 	rightWidth := lipgloss.Width(rightSeg)
 
-	row := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, theme.Dark, false)
+	row := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, testDarkTheme(t), false)
 
 	if got := lipgloss.Width(row); got != w {
 		t.Errorf("wide row width = %d, want exactly %d", got, w)
@@ -60,9 +59,9 @@ func TestAssembleRightAnchoredRow_WideEmitsClusterSpacerAnchor(t *testing.T) {
 // must equal headerPadRight(left, leftWidth, w, ...) exactly (byte-identical
 // degrade), and must NOT contain the right anchor.
 func TestAssembleRightAnchoredRow_NarrowDegradePadsLeftAndReturns(t *testing.T) {
-	left := renderFooterDetail("left", theme.Dark, false)
+	left := renderFooterDetail("left", testDarkTheme(t), false)
 	leftWidth := lipgloss.Width(left)
-	rightSeg := renderFooterDetail("? help", theme.Dark, false)
+	rightSeg := renderFooterDetail("? help", testDarkTheme(t), false)
 	rightWidth := lipgloss.Width(rightSeg)
 
 	// A width at/below the degrade boundary: leftWidth+1+rightWidth > w.
@@ -71,9 +70,9 @@ func TestAssembleRightAnchoredRow_NarrowDegradePadsLeftAndReturns(t *testing.T) 
 		t.Fatalf("test setup: width %d is not at/below the degrade boundary", w)
 	}
 
-	row := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, theme.Dark, false)
+	row := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, testDarkTheme(t), false)
 
-	want := headerPadRight(left, leftWidth, w, theme.Dark, false)
+	want := headerPadRight(left, leftWidth, w, testDarkTheme(t), false)
 	if row != want {
 		t.Errorf("narrow-degrade row != headerPadRight(left, …):\n got=%q\nwant=%q", row, want)
 	}
@@ -87,12 +86,12 @@ func TestAssembleRightAnchoredRow_NarrowDegradePadsLeftAndReturns(t *testing.T) 
 // the fit test (mirrors the original "no right entry" branch).
 func TestAssembleRightAnchoredRow_NoRightAnchorPadsLeft(t *testing.T) {
 	const w = rightAnchoredCanvasWidth
-	left := renderFooterDetail("left", theme.Dark, false)
+	left := renderFooterDetail("left", testDarkTheme(t), false)
 	leftWidth := lipgloss.Width(left)
 
-	row := assembleRightAnchoredRow(left, leftWidth, "", 0, w, theme.Dark, false)
+	row := assembleRightAnchoredRow(left, leftWidth, "", 0, w, testDarkTheme(t), false)
 
-	want := headerPadRight(left, leftWidth, w, theme.Dark, false)
+	want := headerPadRight(left, leftWidth, w, testDarkTheme(t), false)
 	if row != want {
 		t.Errorf("no-anchor row != headerPadRight(left, …):\n got=%q\nwant=%q", row, want)
 	}
@@ -111,7 +110,7 @@ func TestAssembleRightAnchoredRow_NoRightAnchorPadsLeft(t *testing.T) {
 // out-of-scope behaviour is unchanged here. This test pins only the degrade that
 // the assembler owns: at the boundary, BOTH footers drop the right anchor.
 func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T) {
-	const mode = theme.Dark
+	th := testDarkTheme(t)
 
 	// The right anchor is the shared sessionsKeymap ? help, sourced identically by
 	// both row functions; its rendered width derives the degrade boundary.
@@ -119,7 +118,7 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 	if helpEntry == nil {
 		t.Fatal("sessionsKeymap must carry the right-aligned ? help anchor")
 	}
-	rightWidth := lipgloss.Width(renderFooterEntry(*helpEntry, theme.MV.AccentViolet, mode, false))
+	rightWidth := lipgloss.Width(renderFooterEntry(*helpEntry, th.AccentPrimary, th, false))
 
 	// Each footer is driven through assembleRightAnchoredRow with its OWN rendered
 	// left cluster. To prove the SHARED degrade, feed every footer's left cluster
@@ -127,11 +126,11 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 	// (leftWidth+1+rightWidth > w) and assert the assembler drops the anchor and
 	// returns exactly headerPadRight(left, leftWidth, w, …) — byte-identical degrade
 	// regardless of which footer's cluster it is.
-	rightSeg := renderFooterEntry(*helpEntry, theme.MV.AccentViolet, mode, false)
+	rightSeg := renderFooterEntry(*helpEntry, th.AccentPrimary, th, false)
 	clusters := map[string]string{
-		"standard":  renderFooterCluster(core, mode, false),
-		"filtering": renderFilterCluster(filteringFooterEntries(), mode, false),
-		"applied":   renderFilterCluster(filterAppliedFooterEntries(), mode, false),
+		"standard":  renderFooterCluster(core, th, false),
+		"filtering": renderFilterCluster(filteringFooterEntries(th), th, false),
+		"applied":   renderFilterCluster(filterAppliedFooterEntries(th), th, false),
 	}
 	for name, left := range clusters {
 		leftWidth := lipgloss.Width(left)
@@ -140,8 +139,8 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 			t.Fatalf("[%s] setup width %d is not at/below the degrade boundary", name, w)
 		}
 
-		got := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, mode, false)
-		want := headerPadRight(left, leftWidth, w, mode, false)
+		got := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, th, false)
+		want := headerPadRight(left, leftWidth, w, th, false)
 		if got != want {
 			t.Errorf("[%s w=%d] assembler degrade != headerPadRight(left, …):\n got=%q\nwant=%q", name, w, got, want)
 		}
@@ -157,9 +156,9 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 	// three drop the anchor.
 	const tinyWidth = 6
 	renders := map[string]string{
-		"standard":  lastLine(renderSessionsFooter(tinyWidth, mode, false)),
-		"filtering": lastLine(renderFilteringFooter(tinyWidth, mode, false)),
-		"applied":   lastLine(renderFilterAppliedFooter(tinyWidth, mode, false)),
+		"standard":  lastLine(renderSessionsFooter(tinyWidth, th, false)),
+		"filtering": lastLine(renderFilteringFooter(tinyWidth, th, false)),
+		"applied":   lastLine(renderFilterAppliedFooter(tinyWidth, th, false)),
 	}
 	for name, row := range renders {
 		if strings.Contains(footerVisible(row), "? help") {

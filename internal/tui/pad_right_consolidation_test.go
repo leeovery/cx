@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // Task spectrum-tui-design-10-1 consolidation gate. headerPadRight (header.go) and
@@ -21,21 +21,21 @@ import (
 
 // preHeaderPadRight reproduces the ORIGINAL headerPadRight inline body verbatim —
 // the golden the consolidation must preserve.
-func preHeaderPadRight(seg string, segWidth, w int, mode theme.Mode, colourless bool) string {
+func preHeaderPadRight(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
 	if segWidth >= w {
 		return seg
 	}
-	pad := headerCanvasBg(mode, colourless).Render(strings.Repeat(" ", w-segWidth))
+	pad := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", w-segWidth))
 	return lipgloss.JoinHorizontal(lipgloss.Top, seg, pad)
 }
 
 // preNoticeBandPadRight reproduces the ORIGINAL noticeBandPadRight inline body
 // verbatim — the golden the consolidation must preserve.
-func preNoticeBandPadRight(seg string, segWidth, w int, tint theme.Token, mode theme.Mode, colourless bool) string {
+func preNoticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.Theme, colourless bool) string {
 	if segWidth >= w {
 		return seg
 	}
-	pad := noticeBandTintStyle(tint, mode, colourless).Render(strings.Repeat(" ", w-segWidth))
+	pad := noticeBandTintStyle(tint, th, colourless).Render(strings.Repeat(" ", w-segWidth))
 	return lipgloss.JoinHorizontal(lipgloss.Top, seg, pad)
 }
 
@@ -45,22 +45,22 @@ func preNoticeBandPadRight(seg string, segWidth, w int, tint theme.Token, mode t
 func TestPadRightWithStyle_ReturnsSegUnchangedWhenFull(t *testing.T) {
 	const seg = "PORTAL"
 	segWidth := lipgloss.Width(seg)
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
 			fills := map[string]lipgloss.Style{
-				"canvas": headerCanvasBg(mode, colourless),
-				"tint":   noticeBandTintStyle(theme.MV.BgSelection, mode, colourless),
+				"canvas": headerCanvasBg(th, colourless),
+				"tint":   noticeBandTintStyle(th.BgSelection, th, colourless),
 			}
 			for name, fill := range fills {
 				// segWidth == w
 				if got := padRightWithStyle(seg, segWidth, segWidth, fill); got != seg {
-					t.Errorf("padRightWithStyle(%s, w==segWidth, mode=%v col=%v) = %q, want unchanged %q",
-						name, mode, colourless, got, seg)
+					t.Errorf("padRightWithStyle(%s, w==segWidth, th=%v col=%v) = %q, want unchanged %q",
+						name, themeLabel(th), colourless, got, seg)
 				}
 				// segWidth > w
 				if got := padRightWithStyle(seg, segWidth, segWidth-2, fill); got != seg {
-					t.Errorf("padRightWithStyle(%s, w<segWidth, mode=%v col=%v) = %q, want unchanged %q",
-						name, mode, colourless, got, seg)
+					t.Errorf("padRightWithStyle(%s, w<segWidth, th=%v col=%v) = %q, want unchanged %q",
+						name, themeLabel(th), colourless, got, seg)
 				}
 			}
 		}
@@ -74,22 +74,22 @@ func TestPadRightWithStyle_JoinsStyledPadOfCorrectWidth(t *testing.T) {
 	const seg = "hi"
 	segWidth := lipgloss.Width(seg)
 	const w = 10
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
 			cases := map[string]lipgloss.Style{
-				"canvas": headerCanvasBg(mode, colourless),
-				"tint":   noticeBandTintStyle(theme.MV.BgSelection, mode, colourless),
+				"canvas": headerCanvasBg(th, colourless),
+				"tint":   noticeBandTintStyle(th.BgSelection, th, colourless),
 			}
 			for name, fill := range cases {
 				want := lipgloss.JoinHorizontal(lipgloss.Top, seg, fill.Render(strings.Repeat(" ", w-segWidth)))
 				got := padRightWithStyle(seg, segWidth, w, fill)
 				if got != want {
-					t.Errorf("padRightWithStyle(%s, mode=%v col=%v) = %q, want %q",
-						name, mode, colourless, got, want)
+					t.Errorf("padRightWithStyle(%s, th=%v col=%v) = %q, want %q",
+						name, themeLabel(th), colourless, got, want)
 				}
 				if width := lipgloss.Width(got); width != w {
-					t.Errorf("padRightWithStyle(%s, mode=%v col=%v) width = %d, want %d",
-						name, mode, colourless, width, w)
+					t.Errorf("padRightWithStyle(%s, th=%v col=%v) width = %d, want %d",
+						name, themeLabel(th), colourless, width, w)
 				}
 			}
 		}
@@ -103,13 +103,13 @@ func TestHeaderPadRight_DelegatesToPadRightWithStyle(t *testing.T) {
 	const seg = "PORTAL ▌"
 	segWidth := lipgloss.Width(seg)
 	for _, w := range []int{0, segWidth - 1, segWidth, segWidth + 1, 40, 80} {
-		for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+		for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 			for _, colourless := range []bool{false, true} {
-				want := preHeaderPadRight(seg, segWidth, w, mode, colourless)
-				got := headerPadRight(seg, segWidth, w, mode, colourless)
+				want := preHeaderPadRight(seg, segWidth, w, th, colourless)
+				got := headerPadRight(seg, segWidth, w, th, colourless)
 				if got != want {
-					t.Errorf("headerPadRight(w=%d mode=%v col=%v) = %q, want pre-refactor %q",
-						w, mode, colourless, got, want)
+					t.Errorf("headerPadRight(w=%d th=%v col=%v) = %q, want pre-refactor %q",
+						w, themeLabel(th), colourless, got, want)
 				}
 			}
 		}
@@ -122,16 +122,17 @@ func TestHeaderPadRight_DelegatesToPadRightWithStyle(t *testing.T) {
 func TestNoticeBandPadRight_DelegatesToPadRightWithStyle(t *testing.T) {
 	const seg = "▌ no tags yet"
 	segWidth := lipgloss.Width(seg)
-	tints := []theme.Token{theme.MV.BgSelection, theme.MV.BgWarning}
-	for _, tint := range tints {
+	tintRoles := []string{"bg.selection", "bg.attention"}
+	for _, tintRole := range tintRoles {
 		for _, w := range []int{0, segWidth - 1, segWidth, segWidth + 1, 40, 80} {
-			for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
+			for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+				tint := tokenNamed(t, th, tintRole)
 				for _, colourless := range []bool{false, true} {
-					want := preNoticeBandPadRight(seg, segWidth, w, tint, mode, colourless)
-					got := noticeBandPadRight(seg, segWidth, w, tint, mode, colourless)
+					want := preNoticeBandPadRight(seg, segWidth, w, tint, th, colourless)
+					got := noticeBandPadRight(seg, segWidth, w, tint, th, colourless)
 					if got != want {
-						t.Errorf("noticeBandPadRight(tint=%s w=%d mode=%v col=%v) = %q, want pre-refactor %q",
-							tint.Name, w, mode, colourless, got, want)
+						t.Errorf("noticeBandPadRight(tint=%s w=%d th=%v col=%v) = %q, want pre-refactor %q",
+							tint.Name, w, themeLabel(th), colourless, got, want)
 					}
 				}
 			}

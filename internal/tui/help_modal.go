@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §8.5 per-page `?` help modal — a NEW modal type (§14.4): a generic
@@ -72,27 +72,27 @@ const (
 // borders. Every assembled line is exactly W+2 cells wide (W = contentWidth +
 // 2·panelRowInset), so the frame columns align. Generated entirely from the
 // descriptor — no hand-authored copy.
-func renderHelpModalContent(entries []keymapEntry, mode theme.Mode, colourless bool) string {
-	bodyRows := helpModalBodyRows(entries, mode, colourless)
+func renderHelpModalContent(entries []keymapEntry, th theme.Theme, colourless bool) string {
+	bodyRows := helpModalBodyRows(entries, th, colourless)
 
 	// The content width the divider and every inset row share: the widest of the
 	// header band and the body rows. The header is then laid out to this width so
 	// `esc close` right-aligns to the same edge the longest body row reaches. The
 	// title MUST be pre-laid-out here (not inside renderJoinedPanel) because its own
 	// width depends on contentWidth — the right-aligned `esc close` fills to it.
-	contentWidth := lipgloss.Width(helpModalHeader(0, mode, colourless))
+	contentWidth := lipgloss.Width(helpModalHeader(0, th, colourless))
 	for _, r := range bodyRows {
 		if w := lipgloss.Width(r); w > contentWidth {
 			contentWidth = w
 		}
 	}
-	title := helpModalHeader(contentWidth, mode, colourless)
+	title := helpModalHeader(contentWidth, th, colourless)
 
 	// Two compartments — the header band over the contiguous keymap rows — drawn by
 	// the shared single-tone joined panel (the SAME frame the kill modal uses): one
 	// joined ├───┤ divider between them, FLUSH vertical spacing, single-tone
 	// border.separator throughout.
-	return renderJoinedPanel([][]string{{title}, bodyRows}, theme.MV.BorderSeparator, mode, colourless)
+	return renderJoinedPanel([][]string{{title}, bodyRows}, th.Border, th, colourless)
 }
 
 // helpModalHeader renders the header row: `? Keybindings` on the LEFT (the `?`
@@ -102,14 +102,14 @@ func renderHelpModalContent(entries []keymapEntry, mode theme.Mode, colourless b
 // at or below the header's natural width (e.g. width 0, the natural-width probe),
 // it renders at its natural width with a single canvas spacer between the title and
 // the dismiss hint — never dropping the hint, never wrapping.
-func helpModalHeader(width int, mode theme.Mode, colourless bool) string {
-	glyph := headerStyle(theme.MV.AccentViolet, mode, colourless).Bold(true).Render(helpTitleGlyph)
-	gap := headerCanvasBg(mode, colourless).Render(" ")
-	title := headerStyle(theme.MV.TextPrimary, mode, colourless).Bold(true).Render(helpTitle)
+func helpModalHeader(width int, th theme.Theme, colourless bool) string {
+	glyph := headerStyle(th.AccentPrimary, th, colourless).Bold(true).Render(helpTitleGlyph)
+	gap := headerCanvasBg(th, colourless).Render(" ")
+	title := headerStyle(th.TextPrimary, th, colourless).Bold(true).Render(helpTitle)
 	left := lipgloss.JoinHorizontal(lipgloss.Top, glyph, gap, title)
 	leftWidth := lipgloss.Width(left)
 
-	dismiss := headerStyle(theme.MV.TextDetail, mode, colourless).Render(helpDismissHint)
+	dismiss := headerStyle(th.TextMuted, th, colourless).Render(helpDismissHint)
 	dismissWidth := lipgloss.Width(dismiss)
 
 	// Natural width: left segment + one spacer cell + the dismiss hint. At or below
@@ -120,15 +120,15 @@ func helpModalHeader(width int, mode theme.Mode, colourless bool) string {
 	if width > naturalWidth {
 		spacerWidth = width - leftWidth - dismissWidth
 	}
-	spacer := headerCanvasBg(mode, colourless).Render(strings.Repeat(" ", spacerWidth))
+	spacer := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", spacerWidth))
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, dismiss)
 }
 
 // helpModalBody renders the two-column keymap body from the descriptor as a single
 // joined block (used by tests that assert the body content/colours). Production
 // composition uses helpModalBodyRows so each row can be inset individually.
-func helpModalBody(entries []keymapEntry, mode theme.Mode, colourless bool) string {
-	return lipgloss.JoinVertical(lipgloss.Left, helpModalBodyRows(entries, mode, colourless)...)
+func helpModalBody(entries []keymapEntry, th theme.Theme, colourless bool) string {
+	return lipgloss.JoinVertical(lipgloss.Left, helpModalBodyRows(entries, th, colourless)...)
 }
 
 // helpModalBodyRows renders the two-column keymap body from the descriptor as one
@@ -138,14 +138,14 @@ func helpModalBody(entries []keymapEntry, mode theme.Mode, colourless bool) stri
 // EXCEPT the `?` help self-entry (a help modal does not list its own open key; the
 // dismiss hint is in the header). The longer HelpAction label is preferred, falling
 // back to the terse footer Action when absent.
-func helpModalBodyRows(entries []keymapEntry, mode theme.Mode, colourless bool) []string {
+func helpModalBodyRows(entries []keymapEntry, th theme.Theme, colourless bool) []string {
 	rows := make([]string, 0, len(entries))
 	for _, e := range entries {
 		// Skip the ? help self-entry — the open key is not listed in its own modal.
 		if e.RightAligned {
 			continue
 		}
-		rows = append(rows, helpModalRow(e, mode, colourless))
+		rows = append(rows, helpModalRow(e, th, colourless))
 	}
 	return rows
 }
@@ -154,21 +154,21 @@ func helpModalBodyRows(entries []keymapEntry, mode theme.Mode, colourless bool) 
 // fixed-width left column (accent.blue, or state.red for the destructive kill/
 // delete key — §2.9 reserves red for destructive actions), a fixed gap, then the
 // action label in text.strong.
-func helpModalRow(e keymapEntry, mode theme.Mode, colourless bool) string {
-	keyTok := theme.MV.AccentBlue
+func helpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
+	keyTok := th.AccentKey
 	if isDestructiveHelpKey(e) {
-		keyTok = theme.MV.StateRed
+		keyTok = th.StateDestructive
 	}
-	key := headerStyle(keyTok, mode, colourless).Bold(true).Render(helpKeyGlyph(e))
+	key := headerStyle(keyTok, th, colourless).Bold(true).Render(helpKeyGlyph(e))
 	keyWidth := lipgloss.Width(key)
 	// Pad the key column to a fixed width so labels share a left edge. The pad is
 	// canvas-painted so the column gap is not a terminal-bg island.
 	pad := ""
 	if keyWidth < helpKeyColumnWidth {
-		pad = headerCanvasBg(mode, colourless).Render(strings.Repeat(" ", helpKeyColumnWidth-keyWidth))
+		pad = headerCanvasBg(th, colourless).Render(strings.Repeat(" ", helpKeyColumnWidth-keyWidth))
 	}
-	gap := headerCanvasBg(mode, colourless).Render(helpColumnGap)
-	label := headerStyle(theme.MV.TextStrong, mode, colourless).Render(helpActionLabel(e))
+	gap := headerCanvasBg(th, colourless).Render(helpColumnGap)
+	label := headerStyle(th.TextSecondary, th, colourless).Render(helpActionLabel(e))
 	return lipgloss.JoinHorizontal(lipgloss.Top, key, pad, gap, label)
 }
 

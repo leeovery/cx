@@ -5,16 +5,16 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // canvasSeq is the SGR background sequence for a given mode's canvas token. The
 // outer fill and the leaf styles must both paint THIS exact background, so the
 // rendered frame is searched for it.
-func canvasSeq(t *testing.T, m theme.Mode) string {
+func canvasSeq(t *testing.T, th theme.Theme) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Background(theme.MV.Canvas.ColorFor(m)).Render(" ")
+	probe := lipgloss.NewStyle().Background(th.Canvas.Color()).Render(" ")
 	// Strip the trailing reset + the space so we keep just the opening SGR.
 	idx := strings.IndexByte(probe, ' ')
 	if idx <= 0 {
@@ -25,12 +25,12 @@ func canvasSeq(t *testing.T, m theme.Mode) string {
 
 // TestCanvasMode_DefaultsToDark pins the injectable-mode seam default. With no
 // option applied the resolved canvas mode is Dark (the §2.6 no-answer fallback
-// and the zero value of theme.Mode), so an unconfigured model paints the dark
+// and the zero value of theme.Theme), so an unconfigured model paints the dark
 // canvas it was tuned for.
 func TestCanvasMode_DefaultsToDark(t *testing.T) {
 	m := New(fakeLister{})
-	if m.canvasMode != theme.Dark {
-		t.Errorf("canvasMode = %v, want theme.Dark (default)", m.canvasMode)
+	if m.canvasMode != appearanceDarkCanvas {
+		t.Errorf("canvasMode = %v, want testDarkTheme(t) (default)", themeLabel(m.activeTheme))
 	}
 }
 
@@ -38,16 +38,16 @@ func TestCanvasMode_DefaultsToDark(t *testing.T) {
 // mode in here without touching the View() wrap point.
 func TestWithCanvasMode(t *testing.T) {
 	t.Run("injects Light", func(t *testing.T) {
-		m := New(fakeLister{}, WithCanvasMode(theme.Light))
-		if m.canvasMode != theme.Light {
-			t.Errorf("canvasMode = %v, want theme.Light", m.canvasMode)
+		m := New(fakeLister{}, WithCanvasMode(appearanceLightCanvas))
+		if m.canvasMode != appearanceLightCanvas {
+			t.Errorf("canvasMode = %v, want testLightTheme(t)", themeLabel(m.activeTheme))
 		}
 	})
 
 	t.Run("injects Dark explicitly", func(t *testing.T) {
-		m := New(fakeLister{}, WithCanvasMode(theme.Dark))
-		if m.canvasMode != theme.Dark {
-			t.Errorf("canvasMode = %v, want theme.Dark", m.canvasMode)
+		m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+		if m.canvasMode != appearanceDarkCanvas {
+			t.Errorf("canvasMode = %v, want testDarkTheme(t)", themeLabel(m.activeTheme))
 		}
 	})
 }
@@ -58,15 +58,15 @@ func TestWithCanvasMode(t *testing.T) {
 // background sequence present (no edge bleed, no unpainted rows).
 func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		mode theme.Mode
+		name       string
+		appearance canvasAppearance
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", appearanceDarkCanvas},
+		{"light", appearanceLightCanvas},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w, h = 90, 24
-			m := newCanvasTestModel(t, w, h, tc.mode)
+			m := newCanvasTestModel(t, w, h, tc.appearance)
 
 			view := m.View().Content
 
@@ -79,7 +79,7 @@ func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 					t.Errorf("line %d width = %d, want exactly %d (padded to termW, no edge bleed)", i, lw, w)
 				}
 			}
-			if seq := canvasSeq(t, tc.mode); !strings.Contains(view, seq) {
+			if seq := canvasSeq(t, themeForAppearance(t, tc.appearance)); !strings.Contains(view, seq) {
 				t.Errorf("rendered frame does not contain the canvas background sequence %q", seq)
 			}
 		})
@@ -93,7 +93,7 @@ func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 // painting.
 func TestOuterFill_OutsideListHeightBudget(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 
 	// The inner composed view (no outer fill) and the list's page item count
 	// are the budget the paginator computed. Applying the outer fill must not
@@ -125,7 +125,7 @@ func TestOuterFill_OutsideListHeightBudget(t *testing.T) {
 // text is present.
 func TestOuterFill_RePadsToTermHOnVerticalChange(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 
 	baseFrame := lipgloss.Height(m.View().Content)
 
@@ -160,7 +160,7 @@ func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
 	for i := range 40 {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
-	m := New(fakeLister{}, WithCanvasMode(theme.Dark))
+	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -183,7 +183,7 @@ func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
 // case falls back to exactly 80x24 (matching viewLoading) so the fill never
 // sizes to zero and blanks the screen.
 func TestOuterFill_ZeroSizeFallback(t *testing.T) {
-	m := newCanvasTestModel(t, 0, 0, theme.Dark)
+	m := newCanvasTestModel(t, 0, 0, appearanceDarkCanvas)
 
 	view := m.View().Content
 
@@ -199,17 +199,17 @@ func TestOuterFill_ZeroSizeFallback(t *testing.T) {
 }
 
 // newCanvasTestModel builds a production-shaped Sessions model with the given
-// terminal size and canvas mode, loaded with the deterministic flat session set
+// terminal size and canvas answer, loaded with the deterministic flat session set
 // through the production applySessions path (SetItems → re-size) so pagination
 // is sized exactly as it is in production.
-func newCanvasTestModel(t *testing.T, w, h int, mode theme.Mode) Model {
+func newCanvasTestModel(t *testing.T, w, h int, appearance canvasAppearance) Model {
 	t.Helper()
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 3, Attached: true},
 		{Name: "bravo", Windows: 1, Attached: false},
 		{Name: "charlie", Windows: 2, Attached: false},
 	}
-	m := New(fakeLister{}, WithCanvasMode(mode))
+	m := New(fakeLister{}, WithCanvasMode(appearance))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)

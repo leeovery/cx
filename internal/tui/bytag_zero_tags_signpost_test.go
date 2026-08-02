@@ -39,7 +39,7 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
 		if !m.byTagSignpost {
@@ -55,7 +55,7 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}, {Name: "portal-def", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
 		got := m.sessionList.Items()
@@ -85,7 +85,7 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 		persister := &fakeModePersister{}
 
-		m := newSwitchViewTestModel(prefs.ModeByTag, persister, sessions, projects)
+		m := newSwitchViewTestModel(t, prefs.ModeByTag, persister, sessions, projects)
 		if !m.byTagSignpost {
 			t.Fatalf("setup invariant: byTagSignpost = false, want true (signposted By Tag state)")
 		}
@@ -110,7 +110,7 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 
 		// Reopen-persisted path: an initial ModeByTag injected with zero-tag
 		// projects. The first re-render must show the signpost.
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
 		if !m.byTagSignpost {
@@ -137,7 +137,7 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
 		if m.byTagSignpost {
@@ -161,7 +161,7 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
 		if m.byTagSignpost {

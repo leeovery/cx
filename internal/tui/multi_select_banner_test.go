@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // The §5 multi-select banner: a filter-line analogue that REPLACES the standard
@@ -31,13 +31,13 @@ import (
 func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			header := renderMultiSelectHeader(3, sectionHeaderWidth, tc.mode, false)
+			header := renderMultiSelectHeader(3, sectionHeaderWidth, tc.th, false)
 
 			if !strings.Contains(header, "3 selected") {
 				t.Errorf("banner missing the %q cluster:\n%s", "3 selected", header)
@@ -47,11 +47,11 @@ func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 			}
 			// The `N selected` cluster is accent.violet, the `esc cancel` hint is
 			// text.detail — assert the exact styled runs appear verbatim.
-			violetRun := headerStyle(theme.MV.AccentViolet, tc.mode, false).Render("3 selected")
+			violetRun := headerStyle(tc.th.AccentPrimary, tc.th, false).Render("3 selected")
 			if !strings.Contains(header, violetRun) {
 				t.Errorf("banner missing the accent.violet %q run:\n%s", "3 selected", header)
 			}
-			detailRun := headerStyle(theme.MV.TextDetail, tc.mode, false).Render(multiSelectCancelHint)
+			detailRun := headerStyle(tc.th.TextMuted, tc.th, false).Render(multiSelectCancelHint)
 			if !strings.Contains(header, detailRun) {
 				t.Errorf("banner missing the text.detail %q run:\n%s", multiSelectCancelHint, header)
 			}
@@ -63,7 +63,7 @@ func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 // right-aligned (the left cluster and the hint are separated by a flex spacer to
 // the content width) and the single rendered row is exactly the content width.
 func TestMultiSelectHeader_RightAlignedCancelHint(t *testing.T) {
-	header := renderMultiSelectHeader(2, sectionHeaderWidth, theme.Dark, false)
+	header := renderMultiSelectHeader(2, sectionHeaderWidth, testDarkTheme(t), false)
 
 	countIdx := strings.Index(header, "2 selected")
 	hintIdx := strings.LastIndex(header, multiSelectCancelHint)
@@ -83,7 +83,7 @@ func TestMultiSelectHeader_RightAlignedCancelHint(t *testing.T) {
 // delegate pagination budget (§3.5).
 func TestMultiSelectHeader_ExactlyOneRow(t *testing.T) {
 	for _, count := range []int{0, 1, 42} {
-		header := renderMultiSelectHeader(count, sectionHeaderWidth, theme.Dark, false)
+		header := renderMultiSelectHeader(count, sectionHeaderWidth, testDarkTheme(t), false)
 		if got := lipgloss.Height(header); got != 1 {
 			t.Errorf("banner for count %d height = %d, want exactly 1 row:\n%s", count, got, header)
 		}
@@ -94,12 +94,12 @@ func TestMultiSelectHeader_ExactlyOneRow(t *testing.T) {
 // `0 selected` (the banner renders even with an empty set — it is a mode
 // affordance, not a count-gated element).
 func TestMultiSelectHeader_ZeroSelected(t *testing.T) {
-	header := renderMultiSelectHeader(0, sectionHeaderWidth, theme.Dark, false)
+	header := renderMultiSelectHeader(0, sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(ansi.Strip(header), "0 selected") {
 		t.Errorf("banner for N=0 must read %q:\n%s", "0 selected", ansi.Strip(header))
 	}
 	// Still accent.violet, still right-anchored with the hint.
-	violetRun := headerStyle(theme.MV.AccentViolet, theme.Dark, false).Render("0 selected")
+	violetRun := headerStyle(testDarkTheme(t).AccentPrimary, testDarkTheme(t), false).Render("0 selected")
 	if !strings.Contains(header, violetRun) {
 		t.Errorf("N=0 banner missing the accent.violet %q run:\n%s", "0 selected", header)
 	}
@@ -115,14 +115,14 @@ func TestMultiSelectHeader_ZeroSelected(t *testing.T) {
 // core).
 func TestMultiSelectHeader_NarrowDegradeDropsHint(t *testing.T) {
 	// Wide: hint present.
-	wide := renderMultiSelectHeader(3, sectionHeaderWidth, theme.Dark, false)
+	wide := renderMultiSelectHeader(3, sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, multiSelectCancelHint) {
 		t.Fatalf("wide banner missing the hint:\n%s", wide)
 	}
 
 	// Narrow: a width that cannot hold `N selected` + a spacer + `esc cancel`.
 	const narrow = 14
-	narrowHeader := renderMultiSelectHeader(3, narrow, theme.Dark, false)
+	narrowHeader := renderMultiSelectHeader(3, narrow, testDarkTheme(t), false)
 	if strings.Contains(narrowHeader, multiSelectCancelHint) {
 		t.Errorf("narrow banner at width %d still shows the %q hint (degrade failed):\n%s", narrow, multiSelectCancelHint, narrowHeader)
 	}
@@ -141,16 +141,16 @@ func TestMultiSelectHeader_NarrowDegradeDropsHint(t *testing.T) {
 // hue — the `N selected` / `esc cancel` text survives on the terminal's native
 // fg/bg.
 func TestMultiSelectHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
-	header := renderMultiSelectHeader(3, sectionHeaderWidth, theme.Dark, true)
+	header := renderMultiSelectHeader(3, sectionHeaderWidth, testDarkTheme(t), true)
 
 	if !strings.Contains(header, "3 selected") || !strings.Contains(header, multiSelectCancelHint) {
 		t.Errorf("colourless banner dropped structure:\n%s", header)
 	}
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(header, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(header, seq) {
 		t.Errorf("colourless banner still paints the canvas background sequence %q", seq)
 	}
-	for _, tok := range []theme.Token{theme.MV.AccentViolet, theme.MV.TextDetail} {
-		if seq := tokenFgSeq(t, tok, theme.Dark); strings.Contains(header, seq) {
+	for _, tok := range []theme.Token{testDarkTheme(t).AccentPrimary, testDarkTheme(t).TextMuted} {
+		if seq := tokenFgSeq(t, tok); strings.Contains(header, seq) {
 			t.Errorf("colourless banner still emits a foreground role sequence %q", seq)
 		}
 	}
@@ -160,9 +160,9 @@ func TestMultiSelectHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 // owned canvas background (leaf .Background(canvas)) so the right-aligned spacer
 // gap is canvas-painted, not a terminal-bg island.
 func TestMultiSelectHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
-	for _, mode := range []theme.Mode{theme.Dark, theme.Light} {
-		header := renderMultiSelectHeader(3, sectionHeaderWidth, mode, false)
-		if seq := canvasSeq(t, mode); !strings.Contains(header, seq) {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		header := renderMultiSelectHeader(3, sectionHeaderWidth, th, false)
+		if seq := canvasSeq(t, th); !strings.Contains(header, seq) {
 			t.Errorf("banner does not paint the canvas background sequence %q:\n%s", seq, header)
 		}
 	}
@@ -204,7 +204,7 @@ func TestApplySectionHeader_MultiSelectShowsBanner(t *testing.T) {
 	if strings.Contains(first, "Sessions") {
 		t.Errorf("multi-select section-header row must NOT show the standard %q header:\n%s", "Sessions", ansi.Strip(first))
 	}
-	if seq := tokenFgSeq(t, theme.MV.AccentViolet, theme.Dark); !strings.Contains(first, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); !strings.Contains(first, seq) {
 		t.Errorf("banner count cluster missing the accent.violet fg %q:\n%s", seq, first)
 	}
 }
@@ -307,7 +307,7 @@ func TestApplySectionHeader_ByTagMultiMembershipCountsOnce(t *testing.T) {
 	projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work", "infra"}}}
 	sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-	m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+	m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 	m.termWidth = 80
 	m.termHeight = 24
 	m.rebuildSessionList()

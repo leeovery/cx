@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/tmux"
-	"github.com/leeovery/portal/internal/tui/theme"
 )
 
 // colourlessTestModel builds a production-shaped Sessions model in the colourless
@@ -38,21 +37,79 @@ func colourlessTestModel(t *testing.T, w, h int) Model {
 // native background.
 func frameHasAnyBackgroundSGR(t *testing.T, frame string) bool {
 	t.Helper()
+	return frameEverActivates(t, frame, sgrBackgroundActive)
+}
+
+// frameHasAnyForegroundSGR reports whether the rendered frame ever activates an
+// explicit foreground-colour SGR (an extended 38;2;… / 38;5;… foreground, or a
+// named 30-37 / 90-97 foreground). It is the foreground counterpart of
+// frameHasAnyBackgroundSGR — together the two cover both halves of the NO_COLOR
+// carve-out, so no token's value can reach the writer in either slot.
+//
+// Extended-colour runs are consumed WHOLE (via production's
+// consumeExtendedColorRun, the same primitive sgrBackgroundActive uses) so a
+// background channel value that happens to equal a named foreground code can
+// never be misread as a foreground change.
+func frameHasAnyForegroundSGR(t *testing.T, frame string) bool {
+	t.Helper()
+	return frameEverActivates(t, frame, sgrForegroundActive)
+}
+
+// frameEverActivates walks the frame's SGR sequences in order, folding each into
+// the running "is this slot explicitly coloured?" flag with fold, and reports
+// whether the flag was ever raised.
+//
+// The walk is shared by the fg and bg scanners so the two halves of the NO_COLOR
+// carve-out are checked by the identical traversal — only the fold differs.
+// Scanning in order (rather than substring-matching) is what makes a later reset
+// count: a colour that is set and then cleared still means a token reached the
+// writer, and it is the RAISE that is reported, never the final state.
+func frameEverActivates(t *testing.T, frame string, fold func(bool, []string) bool) bool {
+	t.Helper()
 	parser := ansi.NewParser()
 	src := []byte(frame)
 	state := byte(0)
-	bgActive := false
+	active := false
 	for len(src) > 0 {
 		seq, _, n, newState := ansi.DecodeSequence(src, state, parser)
 		s := string(seq)
 		if strings.HasPrefix(s, "\x1b[") && strings.HasSuffix(s, "m") {
-			bgActive = sgrBackgroundActive(bgActive, sgrParamsList(s))
-			if bgActive {
+			active = fold(active, sgrParamsList(s))
+			if active {
 				return true
 			}
 		}
 		state = newState
 		src = src[n:]
+	}
+	return false
+}
+
+// sgrForegroundActive folds an SGR sequence's parameters into the running "is an
+// explicit foreground active?" flag — the mirror of production's
+// sgrBackgroundActive, with the fg and bg roles swapped.
+func sgrForegroundActive(active bool, params []string) bool {
+	for i := 0; i < len(params); i++ {
+		switch p := params[i]; {
+		case p == "" || p == "0" || p == "39":
+			active = false
+		case p == "38":
+			active = true
+			i = consumeExtendedColorRun(params, i)
+		case p == "48":
+			i = consumeExtendedColorRun(params, i)
+		case isNamedForeground(p):
+			active = true
+		}
+	}
+	return active
+}
+
+func isNamedForeground(p string) bool {
+	switch p {
+	case "30", "31", "32", "33", "34", "35", "36", "37",
+		"90", "91", "92", "93", "94", "95", "96", "97":
+		return true
 	}
 	return false
 }
@@ -119,11 +176,28 @@ func TestColourless_FillEmitsNoCanvasBackground(t *testing.T) {
 		t.Errorf("colourless frame emits a background-colour SGR; want none (native bg, no painted canvas)")
 	}
 	// And specifically: neither the dark nor the light canvas sequence appears.
-	if seq := canvasSeq(t, theme.Dark); strings.Contains(frame, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); strings.Contains(frame, seq) {
 		t.Errorf("colourless frame contains the dark canvas background sequence %q", seq)
 	}
-	if seq := canvasSeq(t, theme.Light); strings.Contains(frame, seq) {
+	if seq := canvasSeq(t, testLightTheme(t)); strings.Contains(frame, seq) {
 		t.Errorf("colourless frame contains the light canvas background sequence %q", seq)
+	}
+}
+
+// TestColourless_NoTokenReachesTheWriter asserts the OTHER half of the carve-out:
+// no token's value reaches the writer at all under NO_COLOR — not as a background
+// (the canvas), and not as a foreground either. A theme is a set of token values,
+// so the colourless path is only honest if every one of them is dropped before the
+// frame is written; a colourless branch that still emitted a token's hue as a
+// foreground would leave Portal imposing colour on a terminal that asked for none.
+func TestColourless_NoTokenReachesTheWriter(t *testing.T) {
+	frame := colourlessTestModel(t, 90, 24).View().Content
+
+	if frameHasAnyForegroundSGR(t, frame) {
+		t.Errorf("colourless frame emits a foreground-colour SGR; want none (no token may reach the writer)")
+	}
+	if frameHasAnyBackgroundSGR(t, frame) {
+		t.Errorf("colourless frame emits a background-colour SGR; want none (no token may reach the writer)")
 	}
 }
 
@@ -193,7 +267,7 @@ func TestColourless_NavigationParity(t *testing.T) {
 // NO_COLOR changes only rendering, never the filter engine.
 func TestColourless_FilterParity(t *testing.T) {
 	colourless := colourlessTestModel(t, 90, 24)
-	coloured := newCanvasTestModel(t, 90, 24, theme.Dark)
+	coloured := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
 
 	// "charl" is a contiguous prefix of charlie only, so the applied filter
 	// genuinely narrows the list to a single row.
@@ -239,12 +313,12 @@ func equalStrings(a, b []string) bool {
 // (the canvas background sequence is present and View sets the OSC 11 bg).
 func TestColourless_ColouredPathUnaffected(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, theme.Dark)
+	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
 	v := m.View()
 	if v.BackgroundColor == nil {
 		t.Errorf("coloured View.BackgroundColor = nil, want the canvas colour set (coloured path must still paint)")
 	}
-	if seq := canvasSeq(t, theme.Dark); !strings.Contains(v.Content, seq) {
+	if seq := canvasSeq(t, testDarkTheme(t)); !strings.Contains(v.Content, seq) {
 		t.Errorf("coloured frame missing the dark canvas background sequence %q (coloured path must still paint)", seq)
 	}
 }

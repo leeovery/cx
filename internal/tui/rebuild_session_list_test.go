@@ -13,8 +13,10 @@ import (
 // the supplied sessions/projects/mode, sized so SetItems behaves as in
 // production. It bypasses the seam constructors so each test can drive the
 // mode-aware re-render core directly.
-func newRebuildTestModel(mode prefs.SessionListMode, sessions []tmux.Session, projects []project.Project) Model {
+func newRebuildTestModel(t *testing.T, mode prefs.SessionListMode, sessions []tmux.Session, projects []project.Project) Model {
+	t.Helper()
 	m := Model{
+		activeTheme:     testDarkTheme(t),
 		sessions:        sessions,
 		projects:        projects,
 		projectIndex:    project.NewIndex(projects),
@@ -33,7 +35,7 @@ func TestRebuildSessionList(t *testing.T) {
 			{Name: "alpha"},
 			{Name: "bravo"},
 		}
-		m := newRebuildTestModel(prefs.ModeFlat, sessions, nil)
+		m := newRebuildTestModel(t, prefs.ModeFlat, sessions, nil)
 
 		m.rebuildSessionList()
 
@@ -55,7 +57,7 @@ func TestRebuildSessionList(t *testing.T) {
 			{Name: "alpha", Windows: 2, Attached: true},
 			{Name: "bravo", Windows: 1},
 		}
-		m := newRebuildTestModel(prefs.ModeFlat, sessions, nil)
+		m := newRebuildTestModel(t, prefs.ModeFlat, sessions, nil)
 
 		m.rebuildSessionList()
 
@@ -77,7 +79,7 @@ func TestRebuildSessionList(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.rebuildSessionList()
 
 		items := m.sessionList.Items()
@@ -103,7 +105,7 @@ func TestRebuildSessionList(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work", "infra"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
 		items := m.sessionList.Items()
@@ -130,13 +132,13 @@ func TestRebuildSessionList(t *testing.T) {
 
 		// Same sessions, but no cached projects: the session cannot resolve and
 		// lands in the Unknown catch-all. With cached projects it resolves.
-		without := newRebuildTestModel(prefs.ModeByProject, sessions, nil)
+		without := newRebuildTestModel(t, prefs.ModeByProject, sessions, nil)
 		without.rebuildSessionList()
 		if !sessionRows(without.sessionList.Items())[0].CatchAll {
 			t.Fatalf("without cached projects: expected Unknown catch-all item")
 		}
 
-		with := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		with := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		with.rebuildSessionList()
 		si := sessionRows(with.sessionList.Items())[0]
 		if si.CatchAll {
@@ -150,7 +152,7 @@ func TestRebuildSessionList(t *testing.T) {
 	t.Run("produces an empty list for zero live sessions in every mode", func(t *testing.T) {
 		modes := []prefs.SessionListMode{prefs.ModeFlat, prefs.ModeByProject, prefs.ModeByTag}
 		for _, mode := range modes {
-			m := newRebuildTestModel(mode, nil, nil)
+			m := newRebuildTestModel(t, mode, nil, nil)
 			m.rebuildSessionList()
 			if got := len(m.sessionList.Items()); got != 0 {
 				t.Errorf("mode %v: len(items) = %d, want 0", mode, got)
@@ -163,7 +165,7 @@ func TestRebuildSessionList(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByTag, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 		first := append([]list.Item(nil), m.sessionList.Items()...)
 
@@ -187,7 +189,7 @@ func TestRebuildSessionList(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m.activePage = PageSessions
 
 		updated, _ := m.Update(SessionsMsg{Sessions: sessions})
@@ -208,7 +210,7 @@ func TestRebuildSessionList(t *testing.T) {
 
 	t.Run("excludes the current session when inside tmux", func(t *testing.T) {
 		sessions := []tmux.Session{{Name: "alpha"}, {Name: "current"}}
-		m := newRebuildTestModel(prefs.ModeFlat, sessions, nil)
+		m := newRebuildTestModel(t, prefs.ModeFlat, sessions, nil)
 		m.insideTmux = true
 		m.currentSession = "current"
 
@@ -238,7 +240,7 @@ func TestWithInsideTmuxRoutesThroughRebuild(t *testing.T) {
 		// matching project. The old direct-push path (SetItems(ToListItems(...)))
 		// would render these flat; routing through rebuildSessionList must group
 		// them and still exclude the current session.
-		m := newRebuildTestModel(prefs.ModeByProject, sessions, projects)
+		m := newRebuildTestModel(t, prefs.ModeByProject, sessions, projects)
 		m = m.WithInsideTmux("current")
 
 		rows := sessionRows(m.sessionList.Items())
@@ -259,7 +261,7 @@ func TestWithInsideTmuxRoutesThroughRebuild(t *testing.T) {
 
 	t.Run("preserves construction behaviour: empty sessions yields empty list and mode-aware inside-tmux title", func(t *testing.T) {
 		// Construction ordering: m.sessions is empty when WithInsideTmux runs.
-		m := newRebuildTestModel(prefs.ModeByTag, nil, nil)
+		m := newRebuildTestModel(t, prefs.ModeByTag, nil, nil)
 		m = m.WithInsideTmux("current")
 
 		if got := len(m.sessionList.Items()); got != 0 {
@@ -278,7 +280,7 @@ func TestWithInsideTmuxRoutesThroughRebuild(t *testing.T) {
 			{Name: "current"},
 			{Name: "bravo"},
 		}
-		m := newRebuildTestModel(prefs.ModeFlat, sessions, nil)
+		m := newRebuildTestModel(t, prefs.ModeFlat, sessions, nil)
 		m = m.WithInsideTmux("current")
 
 		items := m.sessionList.Items()

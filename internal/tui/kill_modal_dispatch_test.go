@@ -25,7 +25,7 @@ func killDispatchModel(t *testing.T) (Model, *killerStub) {
 	// killAndRefresh re-lists sessions after the kill, so a lister is required for
 	// the `y` parity path (draining the cmd) not to nil-deref.
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
-	m := modelWithSeamsAndLister(sessions, enum, reader, lister)
+	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 	killer := &killerStub{}
 	m.sessionKiller = killer
 	return m, killer

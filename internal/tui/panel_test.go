@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // TestJoinedPanel_SingleToneJoinedFrame asserts the shared single-tone joined
@@ -16,10 +16,10 @@ import (
 func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		mode theme.Mode
+		th   theme.Theme
 	}{
-		{"dark", theme.Dark},
-		{"light", theme.Light},
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			compartments := [][]string{
@@ -27,27 +27,20 @@ func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
 				{"body line one", "body line two"},
 				{"footer"},
 			}
-			panel := renderJoinedPanel(compartments, theme.MV.BorderSeparator, tc.mode, false)
+			panel := renderJoinedPanel(compartments, tc.th.Border, tc.th, false)
 
 			// Frame glyphs present.
 			if !strings.ContainsAny(panel, "╭╮╰╯") {
 				t.Errorf("panel must carry the rounded corner glyphs; got:\n%s", panel)
 			}
 			// Single-tone: every frame glyph is border.separator.
-			sepSeq := tokenFgSeq(t, theme.MV.BorderSeparator, tc.mode)
+			sepSeq := tokenFgSeq(t, tc.th.Border)
 			if !strings.Contains(panel, sepSeq) {
 				t.Errorf("panel frame must be drawn in border.separator SGR core %q; missing in:\n%s", sepSeq, panel)
 			}
-			// NO border.footer hue. The two tokens collide in LIGHT mode (both
-			// #C9CDDB per §2.9), so the discrimination is only meaningful in dark
-			// (#292E42 separator vs #20232E footer) — mirror the help modal's
-			// TestHelpModalDividerToken which checks dark only for the same reason.
-			if tc.mode == theme.Dark {
-				footerSeq := tokenFgSeq(t, theme.MV.BorderFooter, tc.mode)
-				if strings.Contains(panel, footerSeq) {
-					t.Errorf("single-tone panel must NOT use border.footer SGR core %q; found in:\n%s", footerSeq, panel)
-				}
-			}
+			// §2.2 consolidated the two border tokens into one, so there is no
+			// second border hue a frame glyph could drift onto — the positive
+			// assertion above is the whole single-tone contract now.
 		})
 	}
 }
@@ -59,14 +52,14 @@ func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
 // modals can share the helper with distinct single-tone frames.
 func TestJoinedPanel_BorderTokenParameterised(t *testing.T) {
 	compartments := [][]string{{"header"}, {"body"}, {"footer"}}
-	panel := renderJoinedPanel(compartments, theme.MV.AccentCyan, theme.Dark, false)
+	panel := renderJoinedPanel(compartments, testDarkTheme(t).AccentMode, testDarkTheme(t), false)
 
-	cyanSeq := tokenFgSeq(t, theme.MV.AccentCyan, theme.Dark)
+	cyanSeq := tokenFgSeq(t, testDarkTheme(t).AccentMode)
 	if !strings.Contains(panel, cyanSeq) {
 		t.Errorf("panel with accent.cyan border token must paint the frame in accent.cyan SGR core %q; missing in:\n%s", cyanSeq, panel)
 	}
 	// The grey separator hue must NOT appear when cyan was requested.
-	sepSeq := tokenFgSeq(t, theme.MV.BorderSeparator, theme.Dark)
+	sepSeq := tokenFgSeq(t, testDarkTheme(t).Border)
 	if strings.Contains(panel, sepSeq) {
 		t.Errorf("cyan-token panel must NOT carry the border.separator hue %q; found in:\n%s", sepSeq, panel)
 	}
@@ -82,7 +75,7 @@ func TestJoinedPanel_DividersJoinSideBorders(t *testing.T) {
 		{"body"},
 		{"footer"},
 	}
-	panel := renderJoinedPanel(compartments, theme.MV.BorderSeparator, theme.Dark, false)
+	panel := renderJoinedPanel(compartments, testDarkTheme(t).Border, testDarkTheme(t), false)
 
 	dividerCount := 0
 	for raw := range strings.SplitSeq(panel, "\n") {
@@ -112,7 +105,7 @@ func TestJoinedPanel_UniformWidth(t *testing.T) {
 		{"a much longer body row that sets the width"},
 		{"foot"},
 	}
-	panel := renderJoinedPanel(compartments, theme.MV.BorderSeparator, theme.Dark, false)
+	panel := renderJoinedPanel(compartments, testDarkTheme(t).Border, testDarkTheme(t), false)
 	lines := strings.Split(panel, "\n")
 	want := ansi.StringWidth(lines[0])
 	for i, line := range lines {
@@ -130,7 +123,7 @@ func TestJoinedPanel_RowsAreInsetDividersAreNot(t *testing.T) {
 		{"title row"},
 		{"content row"},
 	}
-	panel := renderJoinedPanel(compartments, theme.MV.BorderSeparator, theme.Dark, false)
+	panel := renderJoinedPanel(compartments, testDarkTheme(t).Border, testDarkTheme(t), false)
 
 	var contentRow string
 	for raw := range strings.SplitSeq(panel, "\n") {
@@ -154,11 +147,11 @@ func TestJoinedPanel_RowsAreInsetDividersAreNot(t *testing.T) {
 // glyphs but paints no border.separator hue (native fg).
 func TestJoinedPanel_Colourless(t *testing.T) {
 	compartments := [][]string{{"header"}, {"body"}, {"footer"}}
-	panel := renderJoinedPanel(compartments, theme.MV.BorderSeparator, theme.Dark, true)
+	panel := renderJoinedPanel(compartments, testDarkTheme(t).Border, testDarkTheme(t), true)
 	if !strings.ContainsAny(panel, "╭╮╰╯├┤") {
 		t.Errorf("colourless panel must keep the frame glyphs; got:\n%s", panel)
 	}
-	if seq := tokenFgSeq(t, theme.MV.BorderSeparator, theme.Dark); strings.Contains(panel, seq) {
+	if seq := tokenFgSeq(t, testDarkTheme(t).Border); strings.Contains(panel, seq) {
 		t.Errorf("colourless panel must NOT paint the border.separator hue %q", seq)
 	}
 }

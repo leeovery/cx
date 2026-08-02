@@ -4,7 +4,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/tui/theme"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The §8.4 rename-session modal. A reskin (not a rewrite): the rename flow LOGIC
@@ -65,11 +65,11 @@ const (
 // body row is flush to its dividers; the input box's three rows are its own outline,
 // not blank padding. The input is styled here (value text.primary, orange block
 // cursor) — its input SEMANTICS are untouched.
-func renderRenameModalContent(input textinput.Model, oldName string, mode theme.Mode, colourless bool) string {
-	header := []string{renameModalHeaderRow(mode, colourless)}
-	body := renameModalBodyRows(input, oldName, mode, colourless)
-	footer := []string{renameModalFooterRow(mode, colourless)}
-	return renderJoinedPanel([][]string{header, body, footer}, theme.MV.BorderSeparator, mode, colourless)
+func renderRenameModalContent(input textinput.Model, oldName string, th theme.Theme, colourless bool) string {
+	header := []string{renameModalHeaderRow(th, colourless)}
+	body := renameModalBodyRows(input, oldName, th, colourless)
+	footer := []string{renameModalFooterRow(th, colourless)}
+	return renderJoinedPanel([][]string{header, body, footer}, th.Border, th, colourless)
 }
 
 // renameModalHeaderRow renders `Rename session` (text.primary, the non-destructive
@@ -78,9 +78,9 @@ func renderRenameModalContent(input textinput.Model, oldName string, mode theme.
 // editing, so the badge is always shown (via the shared renderHeaderWithBadge,
 // matching the edit modal's right-align technique). The header is pinned to the
 // panel content width so the badge sits in the panel's right corner.
-func renameModalHeaderRow(mode theme.Mode, colourless bool) string {
-	title := headerStyle(theme.MV.TextPrimary, mode, colourless).Bold(true).Render(renameTitle)
-	return renderHeaderWithBadge(title, renamePanelContentWidth(), true, mode, colourless)
+func renameModalHeaderRow(th theme.Theme, colourless bool) string {
+	title := headerStyle(th.TextPrimary, th, colourless).Bold(true).Render(renameTitle)
+	return renderHeaderWithBadge(title, renamePanelContentWidth(), true, th, colourless)
 }
 
 // renamePanelContentWidth returns the rename modal's panel content width — the span
@@ -95,17 +95,17 @@ func renamePanelContentWidth() int {
 // renameModalBodyRows builds the body compartment rows: the NEW NAME label, the
 // three-row orange input box (top edge / value+cursor / bottom edge), then the
 // truncated `was: <old name>` context line.
-func renameModalBodyRows(input textinput.Model, oldName string, mode theme.Mode, colourless bool) []string {
-	rows := []string{renameModalLabelRow(mode, colourless)}
-	rows = append(rows, renameModalInputBoxRows(input, mode, colourless)...)
-	rows = append(rows, renameModalWasRow(oldName, mode, colourless))
+func renameModalBodyRows(input textinput.Model, oldName string, th theme.Theme, colourless bool) []string {
+	rows := []string{renameModalLabelRow(th, colourless)}
+	rows = append(rows, renameModalInputBoxRows(input, th, colourless)...)
+	rows = append(rows, renameModalWasRow(oldName, th, colourless))
 	return rows
 }
 
 // renameModalLabelRow renders the `NEW NAME` field label in accent.violet (the
 // §13.1 focused-field label colour — the input is the live editing element).
-func renameModalLabelRow(mode theme.Mode, colourless bool) string {
-	return headerStyle(theme.MV.AccentViolet, mode, colourless).Render(renameFieldLabel)
+func renameModalLabelRow(th theme.Theme, colourless bool) string {
+	return headerStyle(th.AccentPrimary, th, colourless).Render(renameFieldLabel)
 }
 
 // renameModalInputBoxRows renders the border-defined input box through the SHARED
@@ -119,9 +119,9 @@ func renameModalLabelRow(mode theme.Mode, colourless bool) string {
 //
 // Each rendered line is one body row for renderJoinedPanel (which expects single-line
 // rows). Under NO_COLOR the hues drop to the native fg and the box structure survives.
-func renameModalInputBoxRows(input textinput.Model, mode theme.Mode, colourless bool) []string {
-	value := renameInputView(input, mode, colourless)
-	return renderInputBox(value, inputBoxEditing, true, renameInputInnerWidth, mode, colourless)
+func renameModalInputBoxRows(input textinput.Model, th theme.Theme, colourless bool) []string {
+	value := renameInputView(input, th, colourless)
+	return renderInputBox(value, inputBoxEditing, true, renameInputInnerWidth, th, colourless)
 }
 
 // renameInputView styles the textinput to the MV palette (value text.primary, orange
@@ -133,7 +133,7 @@ func renameModalInputBoxRows(input textinput.Model, mode theme.Mode, colourless 
 // a blinked-off gap). The cursor is accent.orange to match the box's editing state
 // (the §13.1 editing colour). Under the NO_COLOR carve-out every hue drops: the value
 // renders on the native fg and the cursor falls back to a bare reverse block.
-func renameInputView(input textinput.Model, mode theme.Mode, colourless bool) string {
+func renameInputView(input textinput.Model, th theme.Theme, colourless bool) string {
 	input.Prompt = ""
 	styles := input.Styles()
 	if colourless {
@@ -143,8 +143,8 @@ func renameInputView(input textinput.Model, mode theme.Mode, colourless bool) st
 		input.SetStyles(styles)
 		return input.View()
 	}
-	styles.Focused.Text = lipgloss.NewStyle().Foreground(theme.MV.TextPrimary.ColorFor(mode))
-	styles.Cursor.Color = theme.MV.AccentOrange.ColorFor(mode)
+	styles.Focused.Text = lipgloss.NewStyle().Foreground(th.TextPrimary.Color())
+	styles.Cursor.Color = th.AccentAttention.Color()
 	styles.Cursor.Blink = false
 	input.SetStyles(styles)
 	return input.View()
@@ -153,18 +153,18 @@ func renameInputView(input textinput.Model, mode theme.Mode, colourless bool) st
 // renameModalWasRow renders the `was: <old name>` context line in text.detail. The
 // old name is truncated with an ellipsis to the box's inner width so an over-long
 // name never overflows the panel (the §8.4 edge case).
-func renameModalWasRow(oldName string, mode theme.Mode, colourless bool) string {
+func renameModalWasRow(oldName string, th theme.Theme, colourless bool) string {
 	// The prefix is fixed-width; the name truncates within the remaining budget so the
 	// whole line fits the box's inner width.
 	nameBudget := max(renameInputInnerWidth-lipgloss.Width(renameWasPrefix), 1)
 	name := ansi.Truncate(oldName, nameBudget, "…")
-	return headerStyle(theme.MV.TextDetail, mode, colourless).Render(renameWasPrefix + name)
+	return headerStyle(th.TextMuted, th, colourless).Render(renameWasPrefix + name)
 }
 
 // renameModalFooterRow renders `⏎ rename   esc cancel` — the ⏎/esc key glyphs in
 // accent.blue, the rename/cancel labels in text.detail (§8.4). The dismiss key
 // lives in the footer (§8.1) as `esc cancel`. The ⏎ glyph matches the help modal +
 // Projects footer.
-func renameModalFooterRow(mode theme.Mode, colourless bool) string {
-	return renderConfirmCancelFooter(renameKeyConfirm, renameLabelConfirm, renameKeyCancel, renameLabelCancel, mode, colourless)
+func renameModalFooterRow(th theme.Theme, colourless bool) string {
+	return renderConfirmCancelFooter(renameKeyConfirm, renameLabelConfirm, renameKeyCancel, renameLabelCancel, th, colourless)
 }
