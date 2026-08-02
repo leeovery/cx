@@ -24,9 +24,9 @@ import (
 // would build it — because "the constructor is correct" is exactly the vacuous
 // pass a once-assigned cache produces.
 //
-// The swap is driven through the EXISTING restyle path (there is no live theme-
-// swap entry point yet; the panel's is a later task), so what is proven here is
-// the mechanism §11.1 names, not a test-only setter.
+// The swap is driven through Model.ApplyTheme — the live theme-swap entry point
+// the panel's arrow-preview, open and close use — so what is proven here is the
+// production mechanism §11.1 names, not a test-only setter.
 //
 // No standing structural guard lives here by design (§13.4): recognising "this is
 // a cached style" in the AST is not mechanically well-defined, so the protection
@@ -129,13 +129,12 @@ func newRestyleProbeModel(t *testing.T, before theme.Theme) Model {
 	return m
 }
 
-// restyleTo re-points the model's active palette and drives the PRODUCTION
-// restyle path over it — applyCanvasMode, which fans out to
+// restyleTo swaps the model's active palette through the PRODUCTION entry point,
+// ApplyTheme, which drives applyCanvasMode and its fan-out to
 // applyProjectCanvasMode and styleFilterInput. This is the mechanism §11.1 names
 // as the theme-swap path; nothing here is a test-only setter.
 func restyleTo(m *Model, after theme.Theme) {
-	m.activeTheme = after
-	m.applyCanvasMode()
+	m.ApplyTheme(after)
 }
 
 // probedList names one of the two bubbles/list instances the restyle path owns.

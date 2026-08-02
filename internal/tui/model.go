@@ -1420,6 +1420,38 @@ func (m *Model) refreshSessionDelegate() {
 	m.sessionList.SetDelegate(m.sessionDelegate())
 }
 
+// ApplyTheme swaps the palette every renderer paints from, mid-session, and
+// re-points the once-assigned caches onto it. It is the SINGLE live theme-swap
+// entry point — the PRODUCTION one Phase 8's slide-over panel drives from its
+// arrow-preview, from panel open (when a mid-session file edit changed or
+// invalidated the active theme, §9.2) and from panel close (Esc, and the forced
+// close that takes the same path, §9.8). It is deliberately NOT a test-only
+// setter: §13.4's completeness guard drives this exact call so what it proves is
+// the mechanism the panel uses, not a parallel one built for the test.
+//
+// It is the §11.1 RESTYLE and nothing else. Three things it must NOT do, each
+// asserted in apply_theme_test.go rather than left to this comment:
+//
+//   - NO rebuildSessionList. That is §11.1's expensive path — it re-derives the
+//     item list and, in grouped modes, runs the lazy per-session tmux pane reads
+//     (the known ~0.5s By-Project cost at ~38 sessions). Nothing heavy may sit on
+//     a path the panel takes on every arrow keypress.
+//   - NO file read. The panel's enumeration parse is retained for the panel's
+//     lifetime precisely so arrowing previews from values already in hand (§5.8);
+//     the palette arrives here as a loaded value, so there is nothing to re-read.
+//   - NO write to startupCanvasHex. That is frozen at gate resolution BY DESIGN
+//     (§11.4): the exit-time canvas restore must compare against the canvas in
+//     force during the STARTUP window, never against whatever theme is active at
+//     exit. Moving it here would be the bug that mechanic's guard exists to catch.
+//
+// Swapping to the theme already active is a legal no-op, and repeated swaps are
+// idempotent per swap: the restyle is a pure re-point from the current palette,
+// so it carries no accumulating state.
+func (m *Model) ApplyTheme(th theme.Theme) {
+	m.activeTheme = th
+	m.applyCanvasMode()
+}
+
 // applyCanvasMode is THE restyle path (§11.1): it re-points every colour-bearing
 // value that is assigned once rather than re-derived per frame, from the model's
 // current active palette. Anything that takes the theme as a parameter re-derives

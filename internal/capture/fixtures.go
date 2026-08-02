@@ -90,6 +90,34 @@ type Fixture struct {
 	// by the loading-error fixture; its zero value (FailedStep==0) means "no fatal"
 	// and the receiver streams progress-then-blocks as usual.
 	fatalEvent tui.BootstrapFatalMsg
+	// captureKeys is the POST-LOAD key script that carries the fixture from its
+	// loaded state to its CAPTURED one — the same sequence the fixture's tape
+	// typed, declared once here so the two cannot drift.
+	//
+	// The tapes were deleted in Phase 3 (§13.2 retires them as scaffolding along
+	// with the reference images), so this IS the sole surviving declaration of
+	// those sequences; they were recovered from git history to populate it.
+	//
+	// Most fixtures reach their captured state through a SEED and need no script.
+	// Three do not: `projects` types `x` (it opens on Sessions, the production
+	// no-arg default, and the capture is of the Projects page), `preview-screen`
+	// presses Space (opening the §9 overlay on the default-selected session), and
+	// `sessions-empty` types `x` (with zero sessions the model default-routes to
+	// Projects, so the empty-SESSIONS state is reached by switching back).
+	//
+	// Without the script those three render as the wrong screen entirely, and
+	// §13.4's guard — which enumerates fixtures and never names them — would report
+	// coverage of the Projects page, the preview overlay and the empty state while
+	// having rendered none of them.
+	captureKeys []tea.KeyPressMsg
+	// noColor renders the fixture under the §2.5 NO_COLOR carve-out. NO fixture
+	// sets it today — the colourless captures are taken by running the whole tool
+	// with NO_COLOR set, which capturetool reads and injects itself — but it is
+	// declared so a fixture that pins the carve-out is possible, and so
+	// Fixture.Colourless has a value to read: §13.4 excludes colourless fixtures
+	// from the swap-and-diff guard, and that exclusion is meant to be structural
+	// rather than a hand-maintained name list.
+	noColor bool
 }
 
 // Deps maps the fixture onto the shared tui.Deps seam set. Every tmux seam is a
@@ -121,6 +149,7 @@ func (f *Fixture) Deps() tui.Deps {
 		Command:             f.command,
 		CWD:                 "/home/user",
 		ServerStarted:       f.serverStarted,
+		NoColor:             f.noColor,
 		// Wire the loading-screen progress receiver only when the fixture seeds
 		// events — it streams the seeded mid-restore sequence then blocks so the
 		// loading page never dismisses (no terminal BootstrapCompleteMsg). The
@@ -253,6 +282,10 @@ func sessionsEmptyFixture() *Fixture {
 		Lister:       &fakeLister{sessions: nil},
 		projectStore: &fakeProjectStore{projects: nil},
 		initialMode:  prefs.ModeFlat,
+		// With ZERO sessions the default-page rule routes the model to Projects, so
+		// `x` is what lands it on the empty SESSIONS screen this fixture exists to
+		// show. The rule is a one-time init flag, so the switch sticks.
+		captureKeys: []tea.KeyPressMsg{keyRune('x')},
 	}
 }
 
@@ -648,6 +681,9 @@ func projectsFixture() *Fixture {
 			"v1":   flowPath,
 		}},
 		initialMode: prefs.ModeFlat,
+		// The fixture opens on Sessions (the production no-arg default); `x` is the
+		// real user path to the Projects page this fixture captures.
+		captureKeys: []tea.KeyPressMsg{keyRune('x')},
 	}
 }
 
@@ -712,6 +748,9 @@ func previewScreenFixture() *Fixture {
 		initialMode:      prefs.ModeFlat,
 		scrollback:       scrollback,
 		enumeratorGroups: []tmux.WindowGroup{{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0}}},
+		// Space on the default-selected session is what opens the §9 preview overlay
+		// this fixture captures.
+		captureKeys: []tea.KeyPressMsg{{Code: tea.KeySpace}},
 	}
 }
 
