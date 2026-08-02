@@ -1104,6 +1104,32 @@ func colourlessHelpStyles(l *list.Model) {
 	l.Styles.HelpStyle = l.Styles.HelpStyle.UnsetBackground()
 }
 
+// canvasNoItemsStyle re-points bubbles/list's own zero-items body style
+// (Styles.NoItems) onto the §2.9 role tokens: text.muted over the canvas.
+//
+// It is re-pointed rather than unset (the choice stripListTitleColours makes)
+// because this one REACHES A RENDERED FRAME. viewProjectList replaces the empty
+// list body with Portal's own §11.1 empty state only when a command is NOT
+// pending, so the command-pending + zero-projects frame falls through to
+// bubbles/list's populatedView, which renders its own `No saved projects.` line
+// through this style. Left alone it would paint that line in the library's
+// hardcoded grey — a colour belonging to no theme, and one no fixture renders, so
+// the §13.4 swap-and-diff guard cannot see it either. text.muted is the token for
+// de-emphasised body copy, which is what that line is.
+func canvasNoItemsStyle(l *list.Model, th theme.Theme) {
+	l.Styles.NoItems = lipgloss.NewStyle().
+		Foreground(th.TextMuted.Color()).
+		Background(th.Canvas.Color())
+}
+
+// colourlessNoItemsStyle strips the zero-items body style for the NO_COLOR
+// carve-out (§2.5): no canvas background and no foreground hue, so the line
+// renders on the terminal's native fg/bg. It stays legible without hue because it
+// is plain words, not a colour-only state signal (§2.2).
+func colourlessNoItemsStyle(l *list.Model) {
+	l.Styles.NoItems = lipgloss.NewStyle()
+}
+
 // canvasPaginationDots re-points the §3.5 height-driven paginator's dot glyph
 // styles onto the §2.9 role tokens AND paints each (plus the dot row's wrapper)
 // through Background(canvas) from the active theme: the active page dot in
@@ -1369,14 +1395,6 @@ func (m *Model) captureStartupCanvasHex() {
 	m.startupCanvasHex = m.activeTheme.Canvas.Value
 }
 
-// applyCanvasMode re-points the foundation Sessions screen's leaf styles at the
-// model's resolved canvasMode: the session row delegate paints every run through
-// Background(canvas) (SessionDelegate.Mode), and the keymap footer's help styles
-// carry the same canvas background. newSessionList builds with the Dark default
-// before the WithCanvasMode option is known; this runs once in New after the
-// options apply, so the first frame paints the correct canvas. Scope is the
-// foundation Sessions screen (per the canvas task); the projects screen's leaf
-// restyle is a later phase, and the outer fill in View() paints around it.
 // sessionDelegate constructs the SessionDelegate for the current model state: the
 // resolved canvas Mode + NO_COLOR carve-out, plus the §5 multi-select fields
 // (MultiSelect gate + the live selectedSessions set) and the §6-7 goneFlagged set.
@@ -1402,6 +1420,61 @@ func (m *Model) refreshSessionDelegate() {
 	m.sessionList.SetDelegate(m.sessionDelegate())
 }
 
+// applyCanvasMode is THE restyle path (§11.1): it re-points every colour-bearing
+// value that is assigned once rather than re-derived per frame, from the model's
+// current active palette. Anything that takes the theme as a parameter re-derives
+// itself on the next frame and needs nothing here; anything that CACHES a colour
+// needs a line here or it silently keeps the previous theme's colours until
+// something else re-renders it.
+//
+// It runs from New (after the options apply, so the first frame paints the right
+// canvas) and after every gate transition, and it fans out to
+// applyProjectCanvasMode (the Projects screen's leaf styles) and styleFilterInput
+// (both lists' filter inputs). It is O(1) — no I/O, no list content touched, and
+// deliberately NOT a rebuild.
+//
+// What it re-points, on BOTH lists: the row delegate, the bubbles/list-owned help
+// style, the zero-items body style, the two pagination dot styles PLUS the
+// rendered Paginator dot strings list.New snapshots off them at construction, the
+// title bar, the centred pagination wrapper, the title box (unset — see
+// stripListTitleColours) and the filter input's style set. Plus the §9 preview's
+// copied palette. Each of those is pinned by an assertion in
+// restyle_repoint_test.go.
+//
+// RECORDED RESIDUE — colour-bearing values assigned once that this path
+// deliberately does NOT re-point. Each keeps its origin palette forever, so the
+// reason is stated PER VALUE rather than as one blanket "none of these renders"
+// claim: a blanket claim is exactly what let Styles.NoItems sit in this record
+// while reaching a real frame. A future sweep should re-check the specific
+// reason, not the generalisation.
+//
+//   - internal/capture's contrast-validation swatch (swatch.go) takes its whole
+//     palette per invocation of the offline harness and renders one theme per run,
+//     so it has no swap to observe.
+//   - Model.startupCanvasHex is frozen at the moment the gate resolves BY DESIGN
+//     (§11.4): the exit-time canvas restore must compare against the canvas in
+//     force during the startup window, never the active one, so re-pointing it
+//     here would be the bug.
+//   - bubbles/list's StatusBar set (StatusBar, StatusEmpty, StatusBarActiveFilter,
+//     StatusBarFilterCount) and DividerDot: statusView is their only consumer, and
+//     the status bar is disabled on both lists via SetShowStatusBar(false).
+//   - bubbles/list's Spinner, and the spinner.Model.Style list.New copies it onto
+//     at construction: the spinner is composed into the title bar only while
+//     showSpinner is true, and Portal never calls StartSpinner / ToggleSpinner.
+//   - bubbles/list's Help — its own help.Model, whose help.New() defaults (built
+//     inside list.New) carry their OWN colour-bearing styles, Help.Styles.*: the
+//     built-in help renderer is disabled on both lists via SetShowHelp(false),
+//     because Portal renders the descriptor-driven footer itself (footer.go).
+//   - bubbles/list's Styles.Filter: dead in bubbles v2. DefaultStyles builds it
+//     and nothing ever applies it — styleListFilterInput owns the FilterInput's
+//     styles outright, through the input's own SetStyles.
+//   - bubbles/list's ArabicPagination: NOT structurally unreachable —
+//     paginationView falls back to it when the rendered dot row is wider than the
+//     list, above ~116 pages at 120 columns. Practically unreachable, not provably
+//     so; it is recorded on that weaker footing deliberately.
+//
+// Styles.DefaultFilterCharacterMatch is deliberately absent from that record: it
+// is Underline(true) and nothing else, so it is not a colour-bearing value at all.
 func (m *Model) applyCanvasMode() {
 	// NO_COLOR carve-out (§2.5): paint no canvas at all. The delegate drops its
 	// Background(canvas) leaf paint (Colourless), the footer help styles drop their
@@ -1410,9 +1483,16 @@ func (m *Model) applyCanvasMode() {
 	// is stripped FREE by the writer layer (colorprofile honours NO_COLOR), so
 	// state stays glyph-distinct (§2.2).
 	m.styleFilterInput()
+	// The §9 preview holds a WHOLE PALETTE copied onto it once, by the Space
+	// handler that opens the page — the only surface outside the two lists that
+	// caches a colour-bearing value rather than re-deriving it per frame. Re-point
+	// it here, from the same active palette, so the preview's chrome can never be
+	// left painting the theme that happened to be live when it was opened.
+	m.preview.th = m.activeTheme
 	if m.colourless {
 		m.sessionList.SetDelegate(m.sessionDelegate())
 		colourlessHelpStyles(&m.sessionList)
+		colourlessNoItemsStyle(&m.sessionList)
 		colourlessPaginationDots(&m.sessionList)
 		// PaddingBottom(1) is the §3.2 section-header BOTTOM gap (Sessions → first
 		// session row). It makes the title bar 2 lines (line 0 = "Sessions…", line 1
@@ -1428,22 +1508,16 @@ func (m *Model) applyCanvasMode() {
 		// `/ query` at the SAME column as the wordmark / section header / list rows /
 		// the list-active locked query (the hint-to-query swap reads cleanly).
 		m.sessionList.Styles.TitleBar = m.sessionList.Styles.TitleBar.UnsetBackground().PaddingLeft(0).PaddingBottom(1)
-		// Strip the bubbles/list default Title box colours (its violet 48;5;62
-		// background + bright foreground) so "Sessions" renders on the terminal's
-		// native fg/bg — the title is a leaf canvas-dependent surface too. The
-		// coloured path leaves this default box untouched (the wordmark/header chrome
-		// restyle is Phase 2); under NO_COLOR it must carry no background SGR.
-		m.sessionList.Styles.Title = m.sessionList.Styles.Title.UnsetBackground().UnsetForeground()
+		m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
 		m.applyProjectCanvasMode()
 		return
 	}
 	m.sessionList.SetDelegate(m.sessionDelegate())
 	canvasHelpStyles(&m.sessionList, m.activeTheme)
+	canvasNoItemsStyle(&m.sessionList, m.activeTheme)
 	canvasPaginationDots(&m.sessionList, m.activeTheme)
 	// Background the title bar so its leading left-pad cells (bubbles/list's
-	// TitleBar PaddingLeft) are canvas rather than the terminal background. The
-	// "Sessions" title box keeps its own colour (the wordmark/header chrome
-	// restyle is Phase 2); this only paints the padding around it.
+	// TitleBar PaddingLeft) are canvas rather than the terminal background.
 	canvas := m.activeTheme.Canvas.Color()
 	// PaddingBottom(1) is the §3.2 section-header BOTTOM gap (Sessions → first
 	// session row). It makes the title bar 2 lines (line 0 = "Sessions…", line 1 =
@@ -1455,7 +1529,22 @@ func (m *Model) applyCanvasMode() {
 	// PaddingLeft(0): see the colourless branch above — drops the default left pad so
 	// the live filter input aligns flush with every other content line.
 	m.sessionList.Styles.TitleBar = m.sessionList.Styles.TitleBar.Background(canvas).PaddingLeft(0).PaddingBottom(1)
+	m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
 	m.applyProjectCanvasMode()
+}
+
+// stripListTitleColours drops the bubbles/list default Title box colours (its
+// hardcoded ANSI-256 violet 48;5;62 background + 38;5;230 foreground) so the
+// title box carries NO colour from any palette.
+//
+// It is unset rather than re-pointed because nothing paints the title box: the
+// section-header surgery (applySectionHeader / applyProjectsSectionHeader)
+// replaces the whole title line before it is ever composed, so there is no token
+// for it to carry. Unsetting is what keeps a third-party default palette — a
+// colour belonging to no theme — out of a themed model, on BOTH the coloured and
+// the NO_COLOR path and for BOTH lists.
+func stripListTitleColours(title lipgloss.Style) lipgloss.Style {
+	return title.UnsetBackground().UnsetForeground()
 }
 
 // applyProjectCanvasMode re-points the §6 Projects screen's leaf styles at the
@@ -1470,17 +1559,19 @@ func (m *Model) applyProjectCanvasMode() {
 	if m.colourless {
 		m.projectList.SetDelegate(ProjectDelegate{Theme: m.activeTheme, Colourless: true})
 		colourlessHelpStyles(&m.projectList)
+		colourlessNoItemsStyle(&m.projectList)
 		colourlessPaginationDots(&m.projectList)
 		m.projectList.Styles.TitleBar = m.projectList.Styles.TitleBar.UnsetBackground().PaddingLeft(0).PaddingBottom(1)
-		m.projectList.Styles.Title = m.projectList.Styles.Title.UnsetBackground().UnsetForeground()
+		m.projectList.Styles.Title = stripListTitleColours(m.projectList.Styles.Title)
 		return
 	}
 	m.projectList.SetDelegate(ProjectDelegate{Theme: m.activeTheme})
 	canvasHelpStyles(&m.projectList, m.activeTheme)
+	canvasNoItemsStyle(&m.projectList, m.activeTheme)
 	canvasPaginationDots(&m.projectList, m.activeTheme)
 	canvas := m.activeTheme.Canvas.Color()
 	m.projectList.Styles.TitleBar = m.projectList.Styles.TitleBar.Background(canvas).PaddingLeft(0).PaddingBottom(1)
-	m.projectList.Styles.Title = m.projectList.Styles.Title.UnsetBackground().UnsetForeground()
+	m.projectList.Styles.Title = stripListTitleColours(m.projectList.Styles.Title)
 }
 
 // styleFilterInput restyles BOTH the Sessions and Projects bubbles/list
