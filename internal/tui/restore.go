@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/theme"
 )
 
 // RestoreTerminalBackground restores the terminal's original background colour
@@ -24,40 +23,50 @@ import (
 // and lets Bubble Tea's own OSC 111 reset stand. Any write error is ignored —
 // terminal restoration must never fail the caller's exit path.
 //
-// CANVAS-ECHO GUARD. The §2.6 OSC 11 query is async and non-gating, so it RACES
-// the canvas set: on some terminals (timing-dependent — a heavier first render
-// widens the window) the OSC 11 reply reflects the background AFTER our canvas
-// set landed, and OriginalBackground() comes back as the canvas colour itself.
-// Setting that back would re-paint the canvas AFTER Bubble Tea's OSC 111 reset,
-// leaving the owned canvas stuck (the no-tags-signpost capture exposed this in
-// Ghostty). So when the captured "original" resolves to the canvas we set, skip
-// the set-back and let the OSC 111 reset stand (it restores correctly). Terminals
-// that ignore OSC 111 report a genuine original — not the canvas — so they still
-// get the set-back.
+// Under the NO_COLOR carve-out (§2.5 / §9.10) it writes NOTHING AT ALL. Portal
+// paints no canvas and sets no OSC 11 background there, so there is nothing to
+// restore — and the set-back would not be free: the OSC 11 query is issued under
+// every setting shape, so an original IS captured, and explicitly setting a
+// terminal's own reported RGB back is idempotent in RGB terms but not a no-op on
+// a transparent or blurred background, which it would make opaque. The startup
+// canvas hex is still captured as normal under NO_COLOR (§9.10) — defined and
+// unused.
+//
+// CANVAS-ECHO GUARD — DO NOT DROP THIS GUARD. The OSC 11 query is async and
+// non-gating, so it RACES the canvas set: on some terminals (timing-dependent — a
+// heavier first render widens the window) the OSC 11 reply reflects the background
+// AFTER our canvas set landed, and OriginalBackground() comes back as the canvas
+// colour itself. Setting that back would re-paint the canvas AFTER Bubble Tea's
+// OSC 111 reset, leaving the owned canvas stuck (the no-tags-signpost capture
+// exposed this in Ghostty). So when the captured "original" resolves to the canvas
+// we set, skip the set-back and let the OSC 111 reset stand (it restores
+// correctly). Terminals that ignore OSC 111 report a genuine original — not the
+// canvas — so they still get the set-back.
+//
+// THE COMPARISON IS ANCHORED TO THE RETAINED STARTUP CANVAS HEX (§11.4) — the
+// canvas in force during the STARTUP window, captured on the model when the gate
+// selected the active member — and NEVER to the active theme. Under a switchable
+// theme those diverge two ways, and both leave a colour the user never chose stuck
+// in their terminal after Portal exits: a theme committed mid-session, and a quit
+// with an uncommitted preview active (the panel's previewed theme is the model's
+// active one). Re-deriving the comparison from a theme at exit reintroduces both.
+// It needs no new race handling: the query is issued once from Init, so a later
+// theme switch issues no new query and creates no new race (§11.3).
 //
 // Both program-launch sites (cmd/capturetool and cmd/open.go) call this with the
 // program's output writer after p.Run() returns, so they restore identically.
 func RestoreTerminalBackground(w io.Writer, m Model) {
+	if m.colourless {
+		return
+	}
 	original := m.OriginalBackground()
 	if original == "" {
 		return
 	}
-	if sameHexColour(original, canvasHexFor(m.activeTheme)) {
+	if sameHexColour(original, m.startupCanvasHex) {
 		return
 	}
 	_, _ = io.WriteString(w, ansi.SetBackgroundColor(original))
-}
-
-// canvasHexFor returns the owned-canvas hex a theme paints — the exact value
-// RestoreTerminalBackground must NOT echo back.
-//
-// It is theme-AGNOSTIC: it reads the canvas token off whatever theme it is handed
-// rather than reaching for a built-in, so no palette is hardcoded on the exit
-// path. Task 3-3 retires it in favour of a startup canvas hex retained on the
-// model, which is what anchors the comparison to the canvas in force during the
-// STARTUP window rather than whatever theme is active at exit.
-func canvasHexFor(th theme.Theme) string {
-	return th.Canvas.Value
 }
 
 // sameHexColour reports whether two OSC-11-style colour strings denote the same

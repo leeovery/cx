@@ -379,6 +379,27 @@ type Model struct {
 	// Capture is ASYNC and NON-GATING: the first paint never waits on this.
 	originalBg string
 
+	// startupCanvasHex is the canvas hex of the theme the GATE SELECTED, captured
+	// at the single moment the gate resolves — which is also the moment the first
+	// frame is composed (§8.4), so it is defined for every frame that exists.
+	//
+	// It is what RestoreTerminalBackground's canvas-echo guard compares against,
+	// and holding it on the model is the whole point (§11.4): the comparison must
+	// be against the canvas in force during the STARTUP window, never against
+	// whatever theme is active at exit. A mid-session commit, or a quit with an
+	// uncommitted preview, moves activeTheme; neither may move this.
+	//
+	// It is taken from activeTheme.Canvas.Value — the parsed, canonical value —
+	// rather than from a re-read of the nomination, because under an adaptive pair
+	// the two differ until the gate resolves.
+	//
+	// EMPTY while the gate is still open: the pre-resolution frame paints no canvas
+	// and sets no OSC 11 background, so a Portal that dies in that window painted
+	// nothing and has nothing to restore. sameHexColour reports false for an empty
+	// value, so the set-back is emitted to the terminal's own original — a harmless
+	// no-op write.
+	startupCanvasHex string
+
 	// bgReplyArrived records that an OSC 11 reply reached Update AT ALL, which is
 	// a different fact from originalBg being non-empty: a no-answer-shaped reply
 	// (nil Color) leaves the hex empty while still being an answer that arrived.
@@ -1317,12 +1338,35 @@ func (m Model) hasNomination() bool {
 // With NO nomination injected there is nothing to select, so the active palette
 // is left at New's dark built-in seed rather than overwritten with the zero Theme
 // an empty nomination would hand back — which renders silently colourless.
+//
+// It is also where §11.4's startup canvas hex is retained, because this is the one
+// place the active member is selected: a constant (or absent) nomination selects at
+// construction, an adaptive pair when the gate resolves.
 func (m *Model) syncResolvedMode() {
 	m.canvasMode = m.gate.appearance
 	if m.hasNomination() {
 		m.activeTheme = m.nomination.Select(m.canvasMode == appearanceDarkCanvas)
 	}
+	m.captureStartupCanvasHex()
 	m.applyCanvasMode()
+}
+
+// captureStartupCanvasHex retains the canvas of the theme the gate SELECTED, for
+// RestoreTerminalBackground's canvas-echo guard to compare against on exit
+// (§11.4). It is taken from the active palette rather than from a re-read of the
+// nomination: under an adaptive pair those differ until the gate answers.
+//
+// The retained value is a pure function of the gate's state, so it cannot drift:
+// while the detect-or-timeout window is OPEN there is no selected member and no
+// painted canvas (View holds the neutral blank frame and sets no OSC 11
+// background), so the hex is empty — including across an arm() that re-opens a
+// window a directly constructed model had already resolved.
+func (m *Model) captureStartupCanvasHex() {
+	if !m.gate.resolved() {
+		m.startupCanvasHex = ""
+		return
+	}
+	m.startupCanvasHex = m.activeTheme.Canvas.Value
 }
 
 // applyCanvasMode re-points the foundation Sessions screen's leaf styles at the
