@@ -43,6 +43,12 @@ import (
 //     subject and always report green (self-defeating). Exempt, doctor
 //     observes raw state, starts nothing (a down server is reported honestly,
 //     not silently started), and heals nothing.
+//   - theme: `portal theme export <slug>` prints a theme file to stdout and
+//     nothing else. Printing a file must not start a tmux server, ensure the
+//     saver or run restore — the verb resolves a slug against the embedded
+//     built-in set and then the themes directory, reads no prefs and writes
+//     nothing, so every step of bootstrap would be work done for a command
+//     that touches no tmux state at all.
 //   - uninstall: the runtime-only teardown (Bootstrap Exemption). It kills the
 //     _portal-saver daemon and unregisters the global hooks; if bootstrap ran
 //     first it would EnsureServer / RegisterHooks / EnsureSaver / Restore and
@@ -64,6 +70,7 @@ var skipTmuxCheck = map[string]bool{
 	"hook":       true,
 	"init":       true,
 	"state":      true,
+	"theme":      true,
 	"uninstall":  true,
 	"version":    true,
 }
