@@ -222,6 +222,7 @@ var wantExports = []string{
 	"Rejection.Error",
 	"Result",
 	"SlugFromFilename",
+	"StripControl",
 	"Theme",
 	"Theme.All",
 	"Token",

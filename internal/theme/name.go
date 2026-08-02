@@ -1,6 +1,11 @@
 package theme
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
+)
 
 // themeExtension is the one extension a theme file carries (§5.3). It is
 // compared by exact bytes and never case-folded — see SlugFromFilename.
@@ -67,6 +72,46 @@ func ValidSlug(s string) bool {
 		}
 	}
 	return true
+}
+
+// StripControl removes ANSI escape sequences and control characters from a
+// theme name that will be ECHOED BACK to the user, leaving a value that renders
+// as one line of ordinary text.
+//
+// It is applied AT THE POINT THE VALUE IS READ, never at the point it is drawn
+// (§9.5). That is what makes it a property of the value rather than of one
+// surface, so every consumer inherits it: the stripped value is the one that is
+// charset-checked, used as a path component, sorted by and displayed.
+//
+// THE REUSE CONTRACT IS TWO CALL SITES, and they are deliberately separate:
+//
+//   - A slug read from `prefs.json` (§9.5), which reaches the panel row and
+//     doctor's advisory line.
+//   - The argument to `portal theme export` (§12.1). Export never reads prefs
+//     (§10.5), so it is not covered by the rule above and needs its own site —
+//     but §14A echoes the argument back on stderr, and an argument can carry a
+//     pasted escape exactly as a prefs value can.
+//
+// Both halves of the removal are load-bearing and neither subsumes the other.
+// The escape-sequence pass is a terminal-grammar parse, not a byte filter:
+// dropping the ESC of `\x1b[31m` alone would leave a printable `[31m` in the
+// message, which no control-character pass would then remove. The
+// control-character pass is what catches a bare newline or tab, which open no
+// sequence and so mean nothing to the parser — and a newline is the one that
+// would split a §14A frame into two lines, the second looking like a message
+// Portal never wrote.
+//
+// IT NORMALISES NOTHING ELSE (§5.2). A value that is merely wrong — the wrong
+// case, an illegal punctuation mark, a traversal attempt — arrives at the
+// charset check unaltered, so it is reported as what the user typed rather than
+// as a quietly corrected version of it.
+func StripControl(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, ansi.Strip(s))
 }
 
 // SlugFromFilename derives a theme's slug from one directory entry's base name,

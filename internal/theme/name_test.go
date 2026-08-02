@@ -268,3 +268,96 @@ func TestSlugFromFilename_RejectsLeadingHyphenStem(t *testing.T) {
 		})
 	}
 }
+
+// TestStripControl_RemovesAnsiEscapes pins that a whole escape SEQUENCE goes,
+// not merely its ESC byte.
+//
+// Stripping the ESC alone would leave `[31m` behind — printable, so it survives
+// any control-character pass, and it would then be echoed into §14A's message as
+// if the user had typed it. The sequence is the unit, which is why this composes
+// the terminal-grammar parser rather than filtering bytes.
+func TestStripControl_RemovesAnsiEscapes(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "an SGR colour sequence", in: "\x1b[31mnord\x1b[0m", want: "nord"},
+		{name: "a cursor-move sequence", in: "no\x1b[2Krd", want: "nord"},
+		{name: "an OSC sequence", in: "\x1b]0;title\x07nord", want: "nord"},
+		// A trailing ESC has nothing to terminate it, so it is the one shape
+		// that isolates the byte itself. An ESC anywhere else is deliberately
+		// NOT tested as a lone byte: `\x1br` is a complete two-byte escape
+		// sequence, so a parser that removed only the ESC and kept the `r`
+		// would be the wrong one — the sequence is the unit.
+		{name: "a trailing escape", in: "nord\x1b", want: "nord"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := theme.StripControl(tt.in); got != tt.want {
+				t.Errorf("StripControl(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestStripControl_RemovesControlCharacters pins the other half: the bare C0
+// characters a paste carries, which an escape-sequence parser leaves in place
+// because they open no sequence.
+//
+// The newline is the one that matters most — §14A's frames are single lines, and
+// a value carrying one would split a refusal in two, with the second half
+// looking like a message Portal never wrote.
+func TestStripControl_RemovesControlCharacters(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "a newline", in: "no\nrd", want: "nord"},
+		{name: "a carriage return", in: "no\rrd", want: "nord"},
+		{name: "a tab", in: "no\trd", want: "nord"},
+		{name: "a NUL", in: "no\x00rd", want: "nord"},
+		{name: "a delete", in: "no\x7frd", want: "nord"},
+		{name: "a trailing newline", in: "nord\n", want: "nord"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := theme.StripControl(tt.in); got != tt.want {
+				t.Errorf("StripControl(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestStripControl_LeavesEverythingElseAlone pins the negative half: stripping
+// is not normalising (§5.2).
+//
+// A value that is merely WRONG — the wrong case, an illegal punctuation mark, a
+// traversal attempt — must reach the charset check unaltered, so it is reported
+// as the thing the user typed rather than as a quietly corrected version of it.
+// Only what cannot be echoed is removed.
+func TestStripControl_LeavesEverythingElseAlone(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+	}{
+		{name: "a valid slug", in: "nord-lee"},
+		{name: "the wrong case", in: "Nord"},
+		{name: "a leading hyphen", in: "-nord"},
+		{name: "a traversal attempt", in: "../evil"},
+		{name: "a space", in: "nord lee"},
+		{name: "a multi-byte rune", in: "nørd"},
+		{name: "the empty string", in: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := theme.StripControl(tt.in); got != tt.in {
+				t.Errorf("StripControl(%q) = %q, want it unchanged — stripping is not normalising", tt.in, got)
+			}
+		})
+	}
+}

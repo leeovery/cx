@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -15,7 +16,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 
+	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
@@ -99,16 +102,26 @@ func validThemeSource(t *testing.T) []byte {
 	return source
 }
 
+// useThemesDir points PORTAL_THEMES_DIR at a fresh empty directory and returns
+// it. An empty-but-present directory is the unknown-slug state: the directory
+// resolves and reads, and the composed filename simply is not in it.
+func useThemesDir(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	t.Setenv("PORTAL_THEMES_DIR", dir)
+	return dir
+}
+
 // seedThemesDir writes one drop-in into a fresh themes directory, points
 // PORTAL_THEMES_DIR at it, and returns the directory.
 func seedThemesDir(t *testing.T, slug string, source []byte) string {
 	t.Helper()
 
-	dir := t.TempDir()
+	dir := useThemesDir(t)
 	if err := os.WriteFile(filepath.Join(dir, slug+".theme"), source, 0o644); err != nil {
 		t.Fatalf("seed %s.theme: %v", slug, err)
 	}
-	t.Setenv("PORTAL_THEMES_DIR", dir)
 	return dir
 }
 
@@ -222,15 +235,14 @@ func lastBytes(b []byte) string {
 	return string(b)
 }
 
-// scrambledThemeSource builds a valid drop-in whose keys are in no canonical
-// order and whose comments are interleaved between them.
+// themeKeyLines returns the built-in's `key = value` lines, comments and blanks
+// dropped.
 //
-// It is derived from a built-in — the key lines reversed, a comment and a blank
-// line between each — so the fixture is guaranteed to parse and restates no hex
-// value in Go. Reversal is deliberate: §2.7 makes file ordering carry nothing,
-// so a re-serialising implementation would be free to emit its own order, and
-// this is the fixture that catches it doing so.
-func scrambledThemeSource(t *testing.T) []byte {
+// Every fixture below is derived from them rather than hand-written, so no hex
+// value is restated in Go and a fixture cannot drift out of validity as the
+// token vocabulary evolves. It fails on a degenerate built-in so no derived
+// fixture can be vacuous.
+func themeKeyLines(t *testing.T) []string {
 	t.Helper()
 
 	var pairs []string
@@ -242,8 +254,23 @@ func scrambledThemeSource(t *testing.T) []byte {
 		pairs = append(pairs, text)
 	}
 	if len(pairs) < 2 {
-		t.Fatalf("built-in yielded %d key lines — a scrambled-order fixture needs at least two", len(pairs))
+		t.Fatalf("built-in yielded %d key lines — the fixtures derived from them need at least two", len(pairs))
 	}
+	return pairs
+}
+
+// scrambledThemeSource builds a valid drop-in whose keys are in no canonical
+// order and whose comments are interleaved between them.
+//
+// It is derived from a built-in — the key lines reversed, a comment and a blank
+// line between each — so the fixture is guaranteed to parse and restates no hex
+// value in Go. Reversal is deliberate: §2.7 makes file ordering carry nothing,
+// so a re-serialising implementation would be free to emit its own order, and
+// this is the fixture that catches it doing so.
+func scrambledThemeSource(t *testing.T) []byte {
+	t.Helper()
+
+	pairs := slices.Clone(themeKeyLines(t))
 	slices.Reverse(pairs)
 
 	var b strings.Builder
@@ -292,17 +319,8 @@ func TestThemeExport_IsNotAReserialisation(t *testing.T) {
 // separates "never reads it" from "reads it, then falls back", which the first
 // two cannot tell apart.
 func TestThemeExport_BuiltinNeverReadsThemesDirectory(t *testing.T) {
-	seedUnreadableThemesDir := func(t *testing.T) {
-		t.Helper()
-		dir := seedThemesDir(t, "nord-lee", validThemeSource(t))
-		if err := os.Chmod(dir, 0o000); err != nil {
-			t.Fatalf("chmod 0000 %s: %v", dir, err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
-	}
-
 	t.Run("a built-in resolves through an unreadable themes directory", func(t *testing.T) {
-		seedUnreadableThemesDir(t)
+		unreadableThemesDir(t, "nord-lee")
 		want := validThemeSource(t)
 
 		run := execThemeExport(t, theme.DefaultDarkSlug)
@@ -316,7 +334,7 @@ func TestThemeExport_BuiltinNeverReadsThemesDirectory(t *testing.T) {
 	})
 
 	t.Run("the directory really is unreadable", func(t *testing.T) {
-		seedUnreadableThemesDir(t)
+		unreadableThemesDir(t, "nord-lee")
 
 		run := execThemeExport(t, "nord-lee")
 
@@ -409,26 +427,37 @@ func TestThemeExport_ExactArgsOne(t *testing.T) {
 // the zero-record assertions are evidence about export rather than about a
 // deaf harness.
 func TestThemeExport_EmitsNoThemeEvents(t *testing.T) {
-	declaresNothing := func(*testing.T) []byte { return []byte("# a file that declares nothing\n") }
-
-	// source is nil where the case seeds no drop-in at all, which is the state
-	// the built-in, unknown-slug and bad-name cases each need.
+	// seed is nil where the case needs no themes directory at all, which is the
+	// state the built-in, unknown-slug and bad-name cases each want.
 	cases := []struct {
-		name   string
-		slug   string
-		source func(*testing.T) []byte
+		name string
+		slug string
+		seed func(*testing.T)
 	}{
 		{name: "a built-in", slug: theme.DefaultDarkSlug},
-		{name: "a valid drop-in", slug: "nord-lee", source: validThemeSource},
-		{name: "an invalid drop-in", slug: "nord-lee", source: declaresNothing},
+		{
+			name: "a valid drop-in",
+			slug: "nord-lee",
+			seed: func(t *testing.T) { seedThemesDir(t, "nord-lee", validThemeSource(t)) },
+		},
+		{
+			name: "an invalid drop-in",
+			slug: "nord-lee",
+			seed: func(t *testing.T) { seedThemesDir(t, "nord-lee", missingTokenSource(t)) },
+		},
 		{name: "an unknown slug", slug: "no-such-theme"},
 		{name: "a slug failing the charset check", slug: "Nord"},
+		{
+			name: "an unreadable drop-in",
+			slug: "mine",
+			seed: func(t *testing.T) { unreadableThemeFile(t, "mine") },
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.source != nil {
-				seedThemesDir(t, tc.slug, tc.source(t))
+			if tc.seed != nil {
+				tc.seed(t)
 			}
 
 			sink := &logtest.Sink{}
@@ -581,5 +610,572 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 		if after := snapshotTree(t, root); !maps.Equal(after, before) {
 			t.Errorf("the config tree changed:\nbefore: %v\nafter:  %v", before, after)
 		}
+	})
+}
+
+// themeSourceFromLines renders a set of `key = value` lines as one theme file.
+func themeSourceFromLines(lines []string) []byte {
+	return []byte(strings.Join(lines, "\n") + "\n")
+}
+
+// duplicateKeySource is a `bad syntax` drop-in: the built-in's lines with its
+// first key repeated at the end, which §6.2's rung 4 refuses at the SECOND
+// occurrence.
+func duplicateKeySource(t *testing.T) []byte {
+	t.Helper()
+
+	lines := themeKeyLines(t)
+	return themeSourceFromLines(append(slices.Clone(lines), lines[0]))
+}
+
+// badColourSource is a `bad colour` drop-in: one key's value replaced by a word
+// that still lexes as a well-formed `key = value` pair, so the file clears rung
+// 4 intact and fails on the value at rung 5.
+func badColourSource(t *testing.T) []byte {
+	t.Helper()
+
+	lines := slices.Clone(themeKeyLines(t))
+	key, _, _ := strings.Cut(lines[0], "=")
+	lines[0] = strings.TrimSpace(key) + " = blue"
+	return themeSourceFromLines(lines)
+}
+
+// missingTokenSource is a `missing tokens` drop-in: the built-in's lines with
+// one dropped, so the file parses and every value it DOES declare is
+// well-formed — which is what carries it past rungs 4 and 5 to the presence
+// check.
+func missingTokenSource(t *testing.T) []byte {
+	t.Helper()
+
+	return themeSourceFromLines(themeKeyLines(t)[1:])
+}
+
+// unreadableThemeFile seeds a valid drop-in and then makes THE FILE unreadable,
+// returning its path.
+func unreadableThemeFile(t *testing.T, slug string) string {
+	t.Helper()
+
+	path := filepath.Join(seedThemesDir(t, slug, validThemeSource(t)), slug+".theme")
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatalf("chmod 0000 %s: %v", path, err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	return path
+}
+
+// unreadableThemesDir seeds a valid drop-in and then makes THE DIRECTORY
+// unreadable, returning the directory.
+//
+// The mode is restored on cleanup because t.TempDir's own RemoveAll cannot
+// descend into a mode-0000 directory, and cleanups run last-registered-first.
+func unreadableThemesDir(t *testing.T, slug string) string {
+	t.Helper()
+
+	dir := seedThemesDir(t, slug, validThemeSource(t))
+	if err := os.Chmod(dir, 0o000); err != nil {
+		t.Fatalf("chmod 0000 %s: %v", dir, err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	return dir
+}
+
+// osReadError returns the error the OS reports for reading path, and fails the
+// test if the read SUCCEEDS — a fixture that is actually readable would make
+// every `could not be read` assertion over it evidence about the wrong thing.
+func osReadError(t *testing.T, path string) error {
+	t.Helper()
+
+	if _, err := os.ReadFile(path); err != nil {
+		return err
+	}
+	t.Fatalf("reading %s succeeded — the unreadable fixture is readable, so the assertion over it would be vacuous", path)
+	return nil
+}
+
+// requireDeniedRead is osReadError for the mode-0000 fixtures, with the
+// root-user escape closed: mode 0000 denies nothing to root, and the read then
+// fails (if at all) as ABSENT — which is the very distinction these tests exist
+// to pin, so a denial that is really an absence must fail loudly rather than
+// quietly assert the opposite frame.
+func requireDeniedRead(t *testing.T, path string) error {
+	t.Helper()
+
+	err := osReadError(t, path)
+	if os.IsNotExist(err) {
+		t.Fatalf("reading %s reports %v — the fixture must be unreadable, not absent", path, err)
+	}
+	return err
+}
+
+// requireExportRefusal fails unless the run refused with EXACTLY §14A's pinned
+// frame and wrote nothing to stdout.
+//
+// Both halves are the contract. The frame is compared whole rather than by
+// substring because it IS the user's entire answer, and the four classes send
+// them to four different places. The empty stdout is asserted alongside it
+// because export is a pipe-into-a-file tool: a byte on the wrong stream lands
+// inside the theme file the user just created.
+func requireExportRefusal(t *testing.T, run themeExportRun, want string) {
+	t.Helper()
+
+	if run.err == nil {
+		t.Fatalf("theme export succeeded, want the refusal %q", want)
+	}
+	if got := run.err.Error(); got != want {
+		t.Errorf("refusal = %q, want §14A's frame %q", got, want)
+	}
+	if len(run.stdout) != 0 {
+		t.Errorf("stdout = %q, want nothing — a redirect would capture the refusal into the user's theme file", run.stdout)
+	}
+}
+
+// requireOrdinaryError fails unless err is what main.classify maps to exit 1
+// with its message PRINTED.
+//
+// classify has exactly four arms, so ruling out three pins the fourth: a
+// *bootstrap.FatalError exits 1 but suppresses stderr (Execute already printed
+// it), a silent-exit sentinel exits 1 printing nothing, and a *UsageError exits
+// 2. §12.1 fixes export's failure exit code at 1 for every class, with the
+// reason string on stderr doing the discriminating — so an export refusal must
+// be none of the three.
+func requireOrdinaryError(t *testing.T, err error) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("theme export returned nil, want a refusal")
+	}
+
+	var fatal *bootstrap.FatalError
+	if errors.As(err, &fatal) {
+		t.Errorf("refusal %q is a *bootstrap.FatalError — classify would suppress its message", err)
+	}
+	if IsSilentExitError(err) {
+		t.Errorf("refusal %q is a silent-exit sentinel — classify would print nothing, and the reason string is the whole answer", err)
+	}
+	var usage *UsageError
+	if errors.As(err, &usage) {
+		t.Errorf("refusal %q is a *UsageError — classify would exit 2, and §12.1 fixes every failure class at 1", err)
+	}
+}
+
+// themeExportFailure is one of §14A's four refusal classes as a fixture: the
+// state that provokes it, and the argument that reaches it.
+type themeExportFailure struct {
+	name string
+	slug string
+	seed func(t *testing.T)
+}
+
+// themeExportFailures enumerates the four classes ONCE, so the exit-code and
+// empty-stdout guarantees are stated over the closed set rather than over
+// whichever cases a later reader happened to copy.
+func themeExportFailures() []themeExportFailure {
+	return []themeExportFailure{
+		{
+			name: "an unknown slug",
+			slug: "no-such-theme",
+			seed: func(t *testing.T) { useThemesDir(t) },
+		},
+		{
+			name: "an invalid drop-in",
+			slug: "mine",
+			seed: func(t *testing.T) { seedThemesDir(t, "mine", missingTokenSource(t)) },
+		},
+		{
+			name: "a slug failing the charset check",
+			slug: "Nord",
+			seed: func(t *testing.T) { useThemesDir(t) },
+		},
+		{
+			name: "an unreadable drop-in",
+			slug: "mine",
+			seed: func(t *testing.T) { unreadableThemeFile(t, "mine") },
+		},
+	}
+}
+
+// TestThemeExport_UnknownSlugFrame: it refuses an unknown slug with the pinned
+// frame.
+//
+// §14A: `no theme named <slug>`. The reason BEHIND the case is §6.2's `not
+// found`, but the label is deliberately not printed — the frame is a sentence
+// about the name the user typed, which is the thing they have to go and fix.
+func TestThemeExport_UnknownSlugFrame(t *testing.T) {
+	t.Run("with an empty themes directory", func(t *testing.T) {
+		useThemesDir(t)
+
+		requireExportRefusal(t, execThemeExport(t, "nope"), "no theme named nope")
+	})
+
+	t.Run("with an absent themes directory", func(t *testing.T) {
+		t.Setenv("PORTAL_THEMES_DIR", filepath.Join(t.TempDir(), "never-created"))
+
+		requireExportRefusal(t, execThemeExport(t, "nope"), "no theme named nope")
+	})
+}
+
+// TestThemeExport_InvalidDropInFrame: it refuses an invalid drop-in with its
+// reason.
+//
+// §14A: `theme <slug> is not valid: <reason>`, where the reason is §6.2's terse
+// label VERBATIM. The table is the three content reasons a by-name read can
+// reach, and each fixture is derived from a built-in so a wrong fixture surfaces
+// as the wrong reason in the message rather than passing quietly.
+func TestThemeExport_InvalidDropInFrame(t *testing.T) {
+	cases := []struct {
+		name   string
+		source func(*testing.T) []byte
+		want   string
+	}{
+		{name: "a duplicate key", source: duplicateKeySource, want: "theme mine is not valid: bad syntax"},
+		{name: "a bad hex", source: badColourSource, want: "theme mine is not valid: bad colour"},
+		{name: "a missing token", source: missingTokenSource, want: "theme mine is not valid: missing tokens"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			seedThemesDir(t, "mine", tc.source(t))
+
+			requireExportRefusal(t, execThemeExport(t, "mine"), tc.want)
+		})
+	}
+}
+
+// TestThemeExport_BadNameFrame: it refuses a charset-failing slug as bad name.
+//
+// §14A: `theme <slug> is not valid: bad name`, NOT `no theme named <slug>` —
+// telling a user their file is missing when they typed an illegal name sends
+// them looking in the wrong place (§12.1).
+//
+// The arguments arrive after `--`. A bare `-nord` never reaches the command at
+// all: pflag claims it as a shorthand cluster and fails, which is Cobra's usage
+// error and outside these four frames exactly as an arity violation is. The
+// last subtest pins that boundary rather than leaving it to be discovered.
+func TestThemeExport_BadNameFrame(t *testing.T) {
+	t.Run("the argument is echoed back in the frame", func(t *testing.T) {
+		cases := []struct {
+			name string
+			arg  string
+			want string
+		}{
+			{name: "a traversal attempt", arg: "../evil", want: "theme ../evil is not valid: bad name"},
+			{name: "a leading hyphen", arg: "-nord", want: "theme -nord is not valid: bad name"},
+			{name: "the wrong case", arg: "Nord", want: "theme Nord is not valid: bad name"},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				useThemesDir(t)
+
+				requireExportRefusal(t, execThemeExport(t, "--", tc.arg), tc.want)
+			})
+		}
+	})
+
+	// The sharp one: a themes directory nested one level down, with a valid
+	// theme sitting in its PARENT. If the argument were ever joined onto the
+	// directory, `../evil` would resolve to that file and its bytes would land
+	// on stdout — which is the traversal §5.2's charset rule exists to stop.
+	t.Run("no path is composed from the argument", func(t *testing.T) {
+		root := t.TempDir()
+		escaped := validThemeSource(t)
+		if err := os.WriteFile(filepath.Join(root, "evil.theme"), escaped, 0o644); err != nil {
+			t.Fatalf("seed evil.theme: %v", err)
+		}
+		nested := filepath.Join(root, "themes")
+		if err := os.MkdirAll(nested, 0o755); err != nil {
+			t.Fatalf("create nested themes dir: %v", err)
+		}
+		t.Setenv("PORTAL_THEMES_DIR", nested)
+
+		run := execThemeExport(t, "--", "../evil")
+
+		requireExportRefusal(t, run, "theme ../evil is not valid: bad name")
+		if bytes.Contains(run.stdout, escaped) {
+			t.Error("stdout carries the escape target's bytes — a path was composed from the argument")
+		}
+	})
+
+	// The charset check runs ahead of the themes directory being LOCATED, not
+	// merely ahead of it being read: with no env var, no XDG_CONFIG_HOME and no
+	// HOME, any implementation that resolved the directory first would surface
+	// that failure instead of the bad-name frame.
+	t.Run("the charset check runs before the directory is located", func(t *testing.T) {
+		t.Setenv("PORTAL_THEMES_DIR", "")
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("HOME", "")
+		if _, err := themesDirPath(); err == nil {
+			t.Fatal("themesDirPath resolved with no env var, no XDG_CONFIG_HOME and no HOME — this subtest would be vacuous")
+		}
+
+		requireExportRefusal(t, execThemeExport(t, "Nord"), "theme Nord is not valid: bad name")
+	})
+
+	t.Run("a bare leading hyphen is Cobra's usage error, not a frame", func(t *testing.T) {
+		useThemesDir(t)
+
+		run := execThemeExport(t, "-nord")
+
+		if run.err == nil {
+			t.Error("theme export -nord returned nil, want pflag's shorthand-cluster error")
+		}
+		if len(run.stdout) != 0 {
+			t.Errorf("stdout = %q, want nothing", run.stdout)
+		}
+	})
+}
+
+// TestThemeExport_UnreadableFrame: it refuses an unreadable file or directory
+// with the OS error.
+//
+// §14A keeps this frame SEPARATE from `is not valid` on purpose: nothing was
+// read, so "is not valid" would describe a judgement that was never made. The
+// expected OS error is obtained by performing the same read from the test, so
+// the assertion pins "verbatim" without hard-coding a platform's wording.
+func TestThemeExport_UnreadableFrame(t *testing.T) {
+	t.Run("an unreadable file", func(t *testing.T) {
+		osErr := requireDeniedRead(t, unreadableThemeFile(t, "mine"))
+
+		requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
+	})
+
+	t.Run("an unreadable directory", func(t *testing.T) {
+		dir := unreadableThemesDir(t, "mine")
+		osErr := requireDeniedRead(t, filepath.Join(dir, "mine.theme"))
+
+		requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
+	})
+
+	// A themes directory that cannot even be LOCATED lands in this same frame
+	// (§5.5): from the user's side it is the identical fact — the theme could
+	// not be read, and here is the system's reason. Surfacing the resolution
+	// error raw instead would put a fifth, unpinned sentence on a surface §14A
+	// closes at four, which is exactly what this subtest makes impossible.
+	//
+	// The expectation is derived from themesDirPath's own error rather than
+	// spelling out `$HOME is not defined`, for the same reason the two subtests
+	// above source their wording from the OS: the frame's contract is that the
+	// system's reason rides through verbatim, not that it reads any particular
+	// way on any particular platform.
+	t.Run("a themes directory that cannot be located", func(t *testing.T) {
+		t.Setenv("PORTAL_THEMES_DIR", "")
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("HOME", "")
+		_, err := themesDirPath()
+		if err == nil {
+			t.Fatal("themesDirPath resolved with no env var, no XDG_CONFIG_HOME and no HOME — this subtest would be vacuous")
+		}
+
+		requireExportRefusal(t, execThemeExport(t, "nord-lee"), "theme nord-lee could not be read: "+err.Error())
+	})
+}
+
+// TestThemeExport_AbsentIsNotUnreadable: it distinguishes absent from
+// unreadable.
+//
+// §12.1's row, inherited from §5.5: `not found` sends the user to check the
+// filename, `unreadable` sends them to check permissions — and against a themes
+// directory they cannot read, permissions is the actual problem. Printing "no
+// theme named nord-lee" about a file that plainly exists is the misdirection
+// this test exists to make impossible.
+//
+// The dangling symlink is the case that separates "the read failed with ENOENT"
+// from "there is nothing at this name": the read reports ENOENT either way, and
+// only the name's own existence tells them apart.
+func TestThemeExport_AbsentIsNotUnreadable(t *testing.T) {
+	t.Run("an absent file is no theme named", func(t *testing.T) {
+		useThemesDir(t)
+
+		requireExportRefusal(t, execThemeExport(t, "nope"), "no theme named nope")
+	})
+
+	t.Run("an unreadable directory is could not be read", func(t *testing.T) {
+		dir := unreadableThemesDir(t, "mine")
+		osErr := requireDeniedRead(t, filepath.Join(dir, "nope.theme"))
+
+		requireExportRefusal(t, execThemeExport(t, "nope"), "theme nope could not be read: "+osErr.Error())
+	})
+
+	t.Run("a dangling symlink is could not be read", func(t *testing.T) {
+		dir := useThemesDir(t)
+		path := filepath.Join(dir, "mine.theme")
+		if err := os.Symlink(filepath.Join(dir, "no-such-target"), path); err != nil {
+			t.Fatalf("symlink %s: %v", path, err)
+		}
+		osErr := osReadError(t, path)
+		if !os.IsNotExist(osErr) {
+			t.Fatalf("reading the dangling link reports %v, want a not-exist error — this case would not exercise the distinction", osErr)
+		}
+
+		requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
+	})
+}
+
+// TestThemeExport_ArgumentIsControlStripped: it control-strips the echoed
+// argument.
+//
+// §9.5 extends the prefs rule to the CLI argument, at the point export READS it
+// — export never reads prefs (§10.5), so it is not covered by that rule and
+// needs its own site. §14A echoes the argument back on stderr, and an argument
+// can carry a pasted escape exactly as a prefs value can.
+//
+// Both halves are asserted: the whole frame, so the stripped value is the one
+// the user is shown, and the absence of any control character, so a pasted
+// newline cannot split one refusal into two lines with the second looking like a
+// message Portal never wrote.
+func TestThemeExport_ArgumentIsControlStripped(t *testing.T) {
+	cases := []struct {
+		name string
+		arg  string
+		want string
+	}{
+		{name: "a pasted newline", arg: "no\npe", want: "no theme named nope"},
+		{name: "a pasted tab", arg: "no\tpe", want: "no theme named nope"},
+		{name: "a pasted ANSI escape", arg: "\x1b[31mnope\x1b[0m", want: "no theme named nope"},
+		{name: "a trailing newline on a charset failure", arg: "Nord\n", want: "theme Nord is not valid: bad name"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			useThemesDir(t)
+
+			run := execThemeExport(t, "--", tc.arg)
+
+			requireExportRefusal(t, run, tc.want)
+			for _, r := range run.err.Error() {
+				if unicode.IsControl(r) {
+					t.Fatalf("refusal %q carries the control character %q — the message must stay one line of ordinary text", run.err, r)
+				}
+			}
+		})
+	}
+}
+
+// TestThemeExport_AllFailuresExitOne: it exits one for every failure class.
+//
+// §12.1: "Failure exit code: 1 for every failure class… the reason string on
+// stderr is what discriminates, and distinguishing unknown-slug from
+// invalid-file numerically buys nothing scriptable."
+func TestThemeExport_AllFailuresExitOne(t *testing.T) {
+	for _, tc := range themeExportFailures() {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.seed(t)
+
+			requireOrdinaryError(t, execThemeExport(t, tc.slug).err)
+		})
+	}
+}
+
+// TestThemeExport_StdoutIsEmptyOnFailure: it writes nothing to stdout on
+// failure.
+//
+// The published workflow is `portal theme export nord > …/nord-lee.theme`, so a
+// byte on the wrong stream is a byte inside the file the user just created.
+// Nothing is written before validation succeeds.
+//
+// The last subtest keeps the rest honest: a command that wrote to stdout on NO
+// path would pass every assertion above.
+func TestThemeExport_StdoutIsEmptyOnFailure(t *testing.T) {
+	for _, tc := range themeExportFailures() {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.seed(t)
+
+			run := execThemeExport(t, tc.slug)
+
+			if run.err == nil {
+				t.Fatalf("theme export %s succeeded, want a refusal", tc.slug)
+			}
+			if len(run.stdout) != 0 {
+				t.Errorf("stdout = %q, want nothing", run.stdout)
+			}
+		})
+	}
+
+	t.Run("the success path does write to stdout", func(t *testing.T) {
+		run := execThemeExport(t, theme.DefaultDarkSlug)
+
+		if run.err != nil {
+			t.Fatalf("theme export %s returned %v", theme.DefaultDarkSlug, run.err)
+		}
+		if len(run.stdout) == 0 {
+			t.Fatal("the success path wrote nothing — the empty-stdout assertions above would be vacuous")
+		}
+	})
+}
+
+// TestThemeExport_ReservedAndFilenameReasonsAreUnreachable: it can never report
+// reserved name or a filename bad name.
+//
+// Two of §6.2's reasons cannot arise on export's by-name path, and the
+// impossibility is pinned rather than assumed — an unreachable arm is only
+// unreachable while the thing that makes it so still holds.
+//
+//   - `reserved name` is decided from a slug that collides with a built-in, and
+//     a built-in slug resolves to the BUILT-IN first (§8.4), so the file is never
+//     opened and the rung is never reached.
+//   - A filename `bad name` is decided from the composed base name, which is
+//     always `<valid-slug>.theme` — the argument cleared §5.2's charset rule
+//     before any path was composed, and the extension is a constant.
+func TestThemeExport_ReservedAndFilenameReasonsAreUnreachable(t *testing.T) {
+	t.Run("a colliding drop-in never reports reserved name", func(t *testing.T) {
+		slugs := theme.BuiltinSlugs()
+		if len(slugs) == 0 {
+			t.Fatal("BuiltinSlugs() is empty — every assertion below would be vacuous")
+		}
+
+		for _, slug := range slugs {
+			t.Run(slug, func(t *testing.T) {
+				shadow := scrambledThemeSource(t)
+				seedThemesDir(t, slug, shadow)
+				want, found := theme.BuiltinBytes(slug)
+				if !found {
+					t.Fatalf("BuiltinBytes(%q) reports not found", slug)
+				}
+				if bytes.Equal(shadow, want) {
+					t.Fatal("the shadowing file equals the built-in — it would not distinguish the two")
+				}
+
+				run := execThemeExport(t, slug)
+
+				if run.err != nil {
+					t.Fatalf("theme export %s returned %v, want the built-in's bytes — a colliding file must never be reached", slug, run.err)
+				}
+				if !bytes.Equal(run.stdout, want) {
+					t.Errorf("theme export %s wrote the drop-in's bytes, want the embedded ones", slug)
+				}
+			})
+		}
+	})
+
+	// The structural half: every argument that survives the charset check
+	// composes a base name the filename rules accept, so LoadFile's first rung
+	// cannot fire from this path whatever the user typed.
+	t.Run("a composed filename always clears the filename rules", func(t *testing.T) {
+		slugs := []string{"a", "0", "nord", "nord-lee", "nord-", "n0rd-2", strings.Repeat("x", 200)}
+
+		for _, slug := range slugs {
+			t.Run(slug, func(t *testing.T) {
+				if !theme.ValidSlug(slug) {
+					t.Fatalf("ValidSlug(%q) = false — the fixture is not a slug export would compose a path from", slug)
+				}
+
+				got, rejection := theme.SlugFromFilename(slug + themeFileExtension)
+
+				if rejection != nil {
+					t.Fatalf("SlugFromFilename(%q) = %v, want no rejection — the composed filename is always <valid-slug>.theme", slug+themeFileExtension, rejection)
+				}
+				if got != slug {
+					t.Errorf("SlugFromFilename(%q) = %q, want %q", slug+themeFileExtension, got, slug)
+				}
+			})
+		}
+	})
+
+	// And the observable half: a valid-but-absent slug takes the unknown-slug
+	// frame, never a bad-name one.
+	t.Run("a valid absent slug is unknown, never bad name", func(t *testing.T) {
+		useThemesDir(t)
+
+		requireExportRefusal(t, execThemeExport(t, "nord-"), "no theme named nord-")
 	})
 }
