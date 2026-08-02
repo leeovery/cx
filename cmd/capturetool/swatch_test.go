@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 // does. It is resolved as a tea.Model so vhs can drive it.
 func TestResolveProgramContrastValidation(t *testing.T) {
 	t.Run("a built-in slug pins the swatch", func(t *testing.T) {
-		m, err := resolveProgram(capture.ContrastValidationFixture, "dark", "tokyo-night")
+		m, err := resolveProgram(capture.ContrastValidationFixture, "tokyo-night", io.Discard)
 		if err != nil {
 			t.Fatalf("resolveProgram(contrast-validation, tokyo-night): %v", err)
 		}
@@ -34,18 +35,32 @@ func TestResolveProgramContrastValidation(t *testing.T) {
 		// The expectation is sourced from the loader rather than hardcoded, so a
 		// deliberate re-tint of tokyo-night's canvas moves the assertion with it
 		// (mirroring TestResolveTheme_DefaultsToTokyoNight).
-		want, rejection, found := newThemeLoader().LoadBuiltin("tokyo-night")
-		if !found || rejection != nil {
-			t.Fatalf("LoadBuiltin(tokyo-night) found=%v rejection=%v", found, rejection)
-		}
-		title := fmt.Sprintf("CONTRAST VALIDATION — canvas %s", want.Theme.Canvas.Value)
+		want := builtinForTest(t, "tokyo-night")
+		title := fmt.Sprintf("CONTRAST VALIDATION — canvas %s", want.Canvas.Value)
 		if content := m.View().Content; !strings.Contains(content, title) {
 			t.Errorf("the swatch does not render tokyo-night's palette: no %q in its view\n--- view ---\n%s", title, content)
 		}
 	})
 
+	t.Run("an explicit path pins the swatch too", func(t *testing.T) {
+		// The swatch is the surface a light theme's pinned tints are signed off
+		// on (§7.5, §13.5), so a drop-in author must be able to point it at their
+		// own file — the whole reason --theme takes a path (§13.3).
+		path := writeThemeFile(t, t.TempDir(), "mytheme.theme", withTokenValue(themeFileLines(), "canvas", "#1a2b3c"))
+
+		m, err := resolveProgram(capture.ContrastValidationFixture, path, io.Discard)
+		if err != nil {
+			t.Fatalf("resolveProgram(contrast-validation, %q): %v", path, err)
+		}
+
+		const title = "CONTRAST VALIDATION — canvas #1A2B3C"
+		if content := m.View().Content; !strings.Contains(content, title) {
+			t.Errorf("the swatch does not render the file's palette: no %q in its view\n--- view ---\n%s", title, content)
+		}
+	})
+
 	t.Run("an unknown theme is an error", func(t *testing.T) {
-		m, err := resolveProgram(capture.ContrastValidationFixture, "dark", "not-a-theme")
+		m, err := resolveProgram(capture.ContrastValidationFixture, "not-a-theme", io.Discard)
 		if err == nil {
 			t.Fatal("resolveProgram(contrast-validation, not-a-theme) returned nil error, want error")
 		}
@@ -53,24 +68,15 @@ func TestResolveProgramContrastValidation(t *testing.T) {
 			t.Error("resolveProgram returned a model alongside its error — nothing must render")
 		}
 	})
-
-	t.Run("the swatch ignores --appearance", func(t *testing.T) {
-		// --appearance drives the tui.Build path only: a theme carries its own
-		// canvas, so there is no mode left for the swatch to pin.
-		if _, err := resolveProgram(capture.ContrastValidationFixture, "purple", "tokyo-night"); err != nil {
-			t.Fatalf("resolveProgram(contrast-validation, appearance=purple): %v", err)
-		}
-	})
 }
 
-// TestResolveProgramSessionsFixture verifies the existing sessions-flat fixture
-// still resolves through the same dispatch (a tui.Model is a tea.Model) via
-// --appearance, so the swatch's move to --theme is additive and does not regress
-// the production capture path.
+// TestResolveProgramSessionsFixture verifies the sessions-flat fixture still
+// resolves through the same dispatch (a tui.Model is a tea.Model), so the two
+// branches share one entry point and one theme.
 func TestResolveProgramSessionsFixture(t *testing.T) {
-	m, err := resolveProgram("sessions-flat", "dark", defaultThemeSlug)
+	m, err := resolveProgram("sessions-flat", defaultThemeSlug, io.Discard)
 	if err != nil {
-		t.Fatalf("resolveProgram(sessions-flat, dark): %v", err)
+		t.Fatalf("resolveProgram(sessions-flat, %s): %v", defaultThemeSlug, err)
 	}
 	if m == nil {
 		t.Fatal("resolveProgram returned a nil model")

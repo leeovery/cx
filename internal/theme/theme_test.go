@@ -183,9 +183,10 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // enumeration added Entry and Enumerate, the `theme` log component added the
 // EventLogger seam with the NewLoader that injects it, the embedded built-in
 // set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, §7.6's build-time
-// guarantee added DefaultDarkSlug and DefaultLightSlug, and §8.4's loaded
-// nomination added Nomination with its two constructors and three accessors.
-// Nothing on the removed list ever returns to it.
+// guarantee added DefaultDarkSlug and DefaultLightSlug, §8.4's loaded nomination
+// added Nomination with its two constructors and three accessors, and §13.3's
+// explicit-path input added LoadPath alongside LoadFile. Nothing on the removed
+// list ever returns to it.
 //
 // Nomination's arrival is the one addition that could be mistaken for the
 // removed surface returning: it holds a light and a dark Theme. It is not — the
@@ -215,6 +216,7 @@ var wantExports = []string{
 	"Loader.Enumerate",
 	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
+	"Loader.LoadPath",
 	"NewEventLogger",
 	"NewLoader",
 	"Nomination",

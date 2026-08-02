@@ -155,6 +155,48 @@ func (l Loader) LoadFile(path string) (Result, *Rejection) {
 	return Result{Slug: slug, Theme: built, Source: data}, nil
 }
 
+// LoadPath loads the theme file at path as an EXPLICIT INPUT, returning its
+// palette or exactly one Rejection from §6.2's four CONTENT rungs — `unreadable`,
+// `bad syntax`, `bad colour`, `missing tokens` — in that order.
+//
+// It runs neither filename rung and derives NO SLUG, which is the whole
+// difference from LoadFile. A path handed in by a caller is an input rather than
+// a directory entry: nothing enumerated it, nothing will resolve it by name
+// again, and §3.2 gives a Theme no identity field — so a theme loaded this way
+// simply has none, and the Result's Slug is empty. Judging such a file by its
+// filename would reject `~/work/mytheme.txt` for a rule that exists to keep the
+// THEMES DIRECTORY unambiguous (§5.2, §5.4), where this file does not live.
+//
+// Its caller is `capturetool --theme <path>` (§13.3), the only visual-verification
+// route a drop-in author has. The filename reasons still MATTER to that author —
+// a fatal name is worth catching before the file reaches the themes directory —
+// but they are the caller's warning to emit from the basename, not this
+// function's verdict to refuse on.
+//
+// Rungs 3 to 6 are the same code LoadFile and LoadBuiltin run (parseThemeBytes,
+// preceded by the same read), so a file judged here and the same file judged as a
+// directory entry can differ only in the two rungs deliberately skipped.
+//
+// The receiver is unused for the same reason LoadBuiltin's is: neither the
+// reserved-slug set nor the event seam bears on an input the caller named itself
+// (§12.3 emits for the directory enumeration, not for a file handed in). It stays
+// a method so a caller reaches every entry point through the one Loader it holds.
+//
+// On rejection the Result is the zero value, exactly as LoadFile's is.
+func (l Loader) LoadPath(path string) (Result, *Rejection) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Result{}, unreadable(err)
+	}
+
+	built, rejection := parseThemeBytes(data)
+	if rejection != nil {
+		return Result{}, rejection
+	}
+
+	return Result{Theme: built, Source: data}, nil
+}
+
 // parseThemeBytes turns one theme file's bytes into the Theme they describe, or
 // into exactly one of §6.2's last three rungs — `bad syntax`, `bad colour`,
 // `missing tokens` — in that order.

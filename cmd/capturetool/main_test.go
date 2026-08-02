@@ -1,6 +1,18 @@
 package main
 
+// Tests in this file read NO_COLOR and MUST NOT use t.Parallel.
+
 import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
+	"io"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,76 +23,65 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestResolveModel verifies the capture tool resolves a fixture name into a real
-// production tui.Model via the shared tui.Build constructor — without opening a
-// tmux server or touching config (the fixture is fully in-memory).
-func TestResolveModel(t *testing.T) {
-	t.Run("known fixture builds a sessions-page model", func(t *testing.T) {
-		m, err := resolveModel("sessions-flat", "dark")
-		if err != nil {
-			t.Fatalf("resolveModel(sessions-flat): %v", err)
-		}
-		if m.ActivePage() != tui.PageSessions {
-			t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
-		}
-	})
+// TestFlags_AreFixtureAndThemeOnly pins §13.3's flag surface: --appearance is
+// REMOVED, not kept alongside --theme, and --theme defaults to the shipped dark
+// built-in.
+//
+// It is a source guard because flag registration happens in main(), which no test
+// runs — a surviving --appearance would compile, parse and be honoured forever
+// with nothing failing. The registered names are read from the AST rather than
+// grepped, so a doc comment explaining what --theme replaced cannot satisfy or
+// break the assertion.
+func TestFlags_AreFixtureAndThemeOnly(t *testing.T) {
+	flags := registeredStringFlags(t)
 
-	t.Run("unknown fixture is an error that lists the available fixtures", func(t *testing.T) {
-		_, err := resolveModel("nope", "dark")
-		if err == nil {
-			t.Fatal("resolveModel(nope) returned nil error, want error")
-		}
-		if !strings.Contains(err.Error(), "sessions-flat") {
-			t.Errorf("error %q does not list the available fixtures", err.Error())
-		}
-	})
+	names := make([]string, 0, len(flags))
+	for name := range flags {
+		names = append(names, name)
+	}
+	slices.Sort(names)
 
-	t.Run("empty fixture name is an error", func(t *testing.T) {
-		if _, err := resolveModel("", "dark"); err == nil {
-			t.Fatal("resolveModel(\"\") returned nil error, want error")
-		}
-	})
-
-	t.Run("invalid appearance is an error", func(t *testing.T) {
-		if _, err := resolveModel("sessions-flat", "purple"); err == nil {
-			t.Fatal("resolveModel with appearance=purple returned nil error, want error")
-		}
-	})
+	if want := []string{"fixture", "theme"}; !slices.Equal(names, want) {
+		t.Errorf("registered flags = %v, want %v — a theme IS the mode, so there is no appearance left to pin (§13.3)", names, want)
+	}
+	if got, want := flags["theme"], "defaultThemeSlug"; got != want {
+		t.Errorf("--theme default = %s, want the %s constant", got, want)
+	}
 }
 
-// TestResolveAppearanceSlug verifies the --appearance flag maps to the built-in
-// slug whose palette the harness pins as a CONSTANT nomination (§13.3). A
-// constant skips the gate entirely — no OSC 11 detection, no first-paint wait —
-// which is what keeps a capture byte-deterministic.
-//
-// The flag survives exactly one more task: 3-4 replaces it with --theme, which
-// takes a slug or a path directly.
-func TestResolveAppearanceSlug(t *testing.T) {
-	t.Run("dark names the shipped dark built-in", func(t *testing.T) {
-		got, err := resolveAppearanceSlug("dark")
-		if err != nil {
-			t.Fatalf("resolveAppearanceSlug(dark): %v", err)
-		}
-		if got != theme.DefaultDarkSlug {
-			t.Errorf("resolveAppearanceSlug(dark) = %q, want %q", got, theme.DefaultDarkSlug)
-		}
-	})
+// registeredStringFlags returns every flag.String the harness registers, mapped
+// from its name to the source expression of its default value.
+func registeredStringFlags(t *testing.T) map[string]string {
+	t.Helper()
 
-	t.Run("light names the shipped light built-in", func(t *testing.T) {
-		got, err := resolveAppearanceSlug("light")
-		if err != nil {
-			t.Fatalf("resolveAppearanceSlug(light): %v", err)
-		}
-		if got != theme.DefaultLightSlug {
-			t.Errorf("resolveAppearanceSlug(light) = %q, want %q", got, theme.DefaultLightSlug)
-		}
-	})
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "main.go", nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
 
-	t.Run("invalid value is an error", func(t *testing.T) {
-		if _, err := resolveAppearanceSlug("purple"); err == nil {
-			t.Fatal("resolveAppearanceSlug(purple) returned nil error, want error")
+	flags := map[string]string{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 2 {
+			return true
 		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != "String" {
+			return true
+		}
+		pkg, ok := selector.X.(*ast.Ident)
+		if !ok || pkg.Name != "flag" {
+			return true
+		}
+		name, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || name.Kind != token.STRING {
+			return true
+		}
+		flags[strings.Trim(name.Value, `"`)] = types.ExprString(call.Args[1])
+		return true
 	})
+	return flags
 }
 
 // TestResolveTheme_DefaultsToTokyoNight pins the built-in --theme resolves to
@@ -94,7 +95,7 @@ func TestResolveTheme_DefaultsToTokyoNight(t *testing.T) {
 		t.Fatalf("defaultThemeSlug = %q, want tokyo-night (the shipped dark default)", defaultThemeSlug)
 	}
 
-	got, err := resolveTheme(newThemeLoader(), defaultThemeSlug)
+	got, err := resolveTheme(newThemeLoader(), defaultThemeSlug, io.Discard)
 	if err != nil {
 		t.Fatalf("resolveTheme(%s): %v", defaultThemeSlug, err)
 	}
@@ -108,13 +109,43 @@ func TestResolveTheme_DefaultsToTokyoNight(t *testing.T) {
 	}
 }
 
+// TestThemeArg_SlugVersusPath pins §13.3's discrimination rule: the argument is a
+// PATH if it carries a path separator OR ends in `.theme`, and a built-in SLUG
+// otherwise.
+//
+// The separator half is the load-bearing one. Without it `./mytheme.txt` — a real
+// file that plainly exists — classifies as a slug and is rejected as an unknown
+// built-in, naming the wrong problem entirely.
+func TestThemeArg_SlugVersusPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		arg    string
+		isPath bool
+	}{
+		{name: "a bare slug", arg: "nord"},
+		{name: "a bare .theme filename", arg: "nord.theme", isPath: true},
+		{name: "a relative .theme path", arg: "./nord.theme", isPath: true},
+		{name: "an absolute .theme path", arg: "/abs/nord.theme", isPath: true},
+		{name: "a nested path with no extension", arg: "sub/dir/x", isPath: true},
+		{name: "a relative path with an unexpected extension", arg: "./mytheme.txt", isPath: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isThemePath(tt.arg); got != tt.isPath {
+				t.Errorf("isThemePath(%q) = %v, want %v", tt.arg, got, tt.isPath)
+			}
+		})
+	}
+}
+
 // TestResolveTheme_UnknownSlugIsAnError asserts a slug naming no built-in is a
 // hard error carrying the slug, never a silent fall back to some other palette.
 //
 // Rendering the wrong theme at a visual gate is precisely the failure this tool
 // exists to prevent (§13.3), so an unknown slug must render nothing at all.
 func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
-	got, err := resolveTheme(newThemeLoader(), "not-a-theme")
+	got, err := resolveTheme(newThemeLoader(), "not-a-theme", io.Discard)
 	if err == nil {
 		t.Fatal("resolveTheme(not-a-theme) returned nil error, want an error")
 	}
@@ -126,17 +157,17 @@ func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_InvalidThemeIsAnErrorNotAFallback asserts a slug that DOES
+// TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback asserts a slug that DOES
 // name a built-in whose file fails validation is a hard error carrying the §6.2
 // reason — again never a fallback.
 //
 // §7.6's build-time guarantee makes this unreachable through the shipped set, so
 // the rejection arrives through an injected loader rather than by breaking a
 // shipped file.
-func TestResolveTheme_InvalidThemeIsAnErrorNotAFallback(t *testing.T) {
+func TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback(t *testing.T) {
 	rejection := &theme.Rejection{Reason: theme.ReasonMissingTokens, Detail: "missing canvas, border"}
 
-	got, err := resolveTheme(rejectingLoader{rejection: rejection}, "tokyo-night")
+	got, err := resolveTheme(rejectingLoader{rejection: rejection}, "tokyo-night", io.Discard)
 	if err == nil {
 		t.Fatal("resolveTheme returned nil error for a rejected built-in, want an error rather than a fallback")
 	}
@@ -150,8 +181,9 @@ func TestResolveTheme_InvalidThemeIsAnErrorNotAFallback(t *testing.T) {
 	}
 }
 
-// rejectingLoader is a built-in loader that reports every slug as a known
-// built-in whose file the §6.2 ladder refused.
+// rejectingLoader is a theme loader that refuses everything: every slug is a
+// known built-in whose file the §6.2 ladder refused, and every path is refused
+// with the same rejection.
 type rejectingLoader struct {
 	rejection *theme.Rejection
 }
@@ -162,23 +194,390 @@ func (l rejectingLoader) LoadBuiltin(string) (theme.Result, *theme.Rejection, bo
 	return theme.Result{}, l.rejection, true
 }
 
+// LoadPath returns the canned rejection and no palette.
+func (l rejectingLoader) LoadPath(string) (theme.Result, *theme.Rejection) {
+	return theme.Result{}, l.rejection
+}
+
+// TestResolveTheme_PathContentReasonsAreHardErrors pins §13.3's contract for an
+// explicit path: ONLY the four content reasons apply, and each is a hard error
+// carrying its §6.2 reason rather than a fallback.
+//
+// The files are staged and loaded for real — this is the one place the harness's
+// path branch meets the ladder, and a fake loader would prove only that the fake
+// was wired up.
+func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, dir string) string
+		wantReason theme.Reason
+	}{
+		{
+			name:       "a duplicate key",
+			wantReason: theme.ReasonBadSyntax,
+			setup: func(t *testing.T, dir string) string {
+				return writeThemeFile(t, dir, "broken.theme", append(themeFileLines(), "text.primary = #010203"))
+			},
+		},
+		{
+			name:       "a bad hex",
+			wantReason: theme.ReasonBadColour,
+			setup: func(t *testing.T, dir string) string {
+				return writeThemeFile(t, dir, "broken.theme", withTokenValue(themeFileLines(), "canvas", "blue"))
+			},
+		},
+		{
+			name:       "a missing token",
+			wantReason: theme.ReasonMissingTokens,
+			setup: func(t *testing.T, dir string) string {
+				return writeThemeFile(t, dir, "broken.theme", withoutTokenLine(themeFileLines(), "bg.subtle"))
+			},
+		},
+		{
+			name:       "an absent file",
+			wantReason: theme.ReasonUnreadable,
+			setup: func(t *testing.T, dir string) string {
+				return filepath.Join(dir, "absent.theme")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := tt.setup(t, t.TempDir())
+
+			got, err := resolveTheme(newThemeLoader(), path, io.Discard)
+
+			if err == nil {
+				t.Fatalf("resolveTheme(%q) returned nil error, want the hard error %q", path, tt.wantReason)
+			}
+			if !strings.Contains(err.Error(), string(tt.wantReason)) {
+				t.Errorf("error %q does not carry the §6.2 reason %q", err.Error(), tt.wantReason)
+			}
+			if got != (theme.Theme{}) {
+				t.Error("resolveTheme returned a palette alongside its error")
+			}
+		})
+	}
+}
+
+// TestResolveTheme_NoFallbackOnFailure pins the consequence of every failure
+// above: NOTHING renders. Not the default theme, not the built-in the slug nearly
+// named — no model at all, on either branch of the harness.
+//
+// This is the failure the tool exists to prevent (§13.3): a visual gate whose
+// whole job is judging colours cannot be handed a frame of some other palette,
+// and a silent fallback is indistinguishable from a correct capture to a reviewer.
+func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
+	dir := t.TempDir()
+
+	args := []struct {
+		name string
+		arg  string
+	}{
+		{name: "an unknown slug", arg: "not-a-theme"},
+		{name: "a broken file", arg: writeThemeFile(t, dir, "broken.theme", withTokenValue(themeFileLines(), "canvas", "blue"))},
+		{name: "an absent file", arg: filepath.Join(dir, "absent.theme")},
+	}
+
+	fixtures := []string{"sessions-flat", capture.ContrastValidationFixture}
+
+	for _, ta := range args {
+		t.Run(ta.name, func(t *testing.T) {
+			got, err := resolveTheme(newThemeLoader(), ta.arg, io.Discard)
+			if err == nil {
+				t.Fatalf("resolveTheme(%q) returned nil error", ta.arg)
+			}
+			if got != (theme.Theme{}) {
+				t.Errorf("resolveTheme(%q) fell back to %+v, want the zero palette", ta.arg, got)
+			}
+
+			for _, fixture := range fixtures {
+				m, err := resolveProgram(fixture, ta.arg, io.Discard)
+				if err == nil {
+					t.Errorf("resolveProgram(%s, %q) returned nil error", fixture, ta.arg)
+				}
+				if m != nil {
+					t.Errorf("resolveProgram(%s, %q) returned a model alongside its error — nothing must render", fixture, ta.arg)
+				}
+			}
+		})
+	}
+}
+
+// TestResolveTheme_PathBadNameWarnsWithoutBlocking pins the first of the two
+// filename reasons on the path form: a fatal filename WARNS on stderr and renders
+// anyway.
+//
+// Warning rather than blocking is what the flag's stated purpose demands (§13.3):
+// this is the only visual-verification route a drop-in author has, so it is the
+// one place a fatal name is worth catching before the file reaches the themes
+// directory — and refusing to render would leave them with no route at all.
+//
+// Both §5.2 causes are covered, because both are `bad name` and both warn with the
+// one line — capturetool is not doctor, which is where §14A's per-cause lines live.
+func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
+	tests := []struct {
+		name string
+		base string
+	}{
+		{name: "an upper-case stem", base: "Nord.THEME"},
+		{name: "an unexpected extension", base: "mytheme.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeThemeFile(t, t.TempDir(), tt.base, themeFileLines())
+			var warnings bytes.Buffer
+
+			got, err := resolveTheme(newThemeLoader(), path, &warnings)
+
+			if err != nil {
+				t.Fatalf("resolveTheme(%q) = %v, want the theme rendered despite its name", path, err)
+			}
+			if got == (theme.Theme{}) {
+				t.Error("resolveTheme returned the zero palette for a valid file")
+			}
+			want := fmt.Sprintf("capturetool: warning: %s: bad name — a themes-directory file must be named <slug>.theme, lowercase (rendering it anyway)\n", tt.base)
+			if warnings.String() != want {
+				t.Errorf("warnings = %q, want %q", warnings.String(), want)
+			}
+		})
+	}
+}
+
+// TestResolveTheme_PathReservedNameWarnsWithoutBlocking pins the second: a file
+// whose basename yields a BUILT-IN's slug warns and renders.
+//
+// The candidate slug exists solely to produce this line (§13.3) and is never used
+// as identity — the theme it names is still the one the file declared, and the
+// Result carries no slug at all.
+//
+// Blocking would break the workflow §12.1 publishes: `portal theme export` writes
+// a built-in out under its own name, so an exported theme IS a reserved slug right
+// up until the user renames it.
+func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
+	const base = "nord.theme"
+	if !slices.Contains(theme.BuiltinSlugs(), "nord") {
+		t.Fatalf("nord is not a built-in (%v) — the fixture cannot collide", theme.BuiltinSlugs())
+	}
+
+	path := writeThemeFile(t, t.TempDir(), base, themeFileLines())
+	var warnings bytes.Buffer
+
+	got, err := resolveTheme(newThemeLoader(), path, &warnings)
+
+	if err != nil {
+		t.Fatalf("resolveTheme(%q) = %v, want the theme rendered despite its name", path, err)
+	}
+	if got == (theme.Theme{}) {
+		t.Error("resolveTheme returned the zero palette for a valid file")
+	}
+	// The rendered palette is the FILE's, not the built-in's — the candidate slug
+	// produced a warning and nothing else.
+	builtin, _, _ := newThemeLoader().LoadBuiltin("nord")
+	if got == builtin.Theme {
+		t.Error("resolveTheme rendered the built-in nord palette, want the file's own — the candidate slug is not identity")
+	}
+	want := "capturetool: warning: nord.theme: reserved name — \"nord\" is a built-in slug, so a file with this name is ignored in the themes directory (rendering it anyway)\n"
+	if warnings.String() != want {
+		t.Errorf("warnings = %q, want %q", warnings.String(), want)
+	}
+}
+
+// TestResolveTheme_SlugFormNeverWarns pins the other half of §13.3's "path form
+// only": a SLUG argument names a built-in by design, so neither filename reason
+// applies to it.
+//
+// `nord` is the case that makes this non-trivial rather than incidental: it IS a
+// built-in slug, so a reserved-name check applied to the slug form would fire on
+// the normal, documented invocation and warn every user about the thing they
+// asked for.
+func TestResolveTheme_SlugFormNeverWarns(t *testing.T) {
+	for _, slug := range theme.BuiltinSlugs() {
+		t.Run(slug, func(t *testing.T) {
+			var warnings bytes.Buffer
+
+			if _, err := resolveTheme(newThemeLoader(), slug, &warnings); err != nil {
+				t.Fatalf("resolveTheme(%s): %v", slug, err)
+			}
+
+			if warnings.Len() != 0 {
+				t.Errorf("--theme %s warned %q, want silence — a slug names a built-in by design", slug, warnings.String())
+			}
+		})
+	}
+}
+
+// TestResolveModel verifies the capture tool resolves a fixture name into a real
+// production tui.Model via the shared tui.Build constructor — without opening a
+// tmux server or touching config (the fixture is fully in-memory).
+func TestResolveModel(t *testing.T) {
+	pinned := builtinForTest(t, defaultThemeSlug)
+
+	t.Run("known fixture builds a sessions-page model", func(t *testing.T) {
+		m, err := resolveModel("sessions-flat", pinned)
+		if err != nil {
+			t.Fatalf("resolveModel(sessions-flat): %v", err)
+		}
+		if m.ActivePage() != tui.PageSessions {
+			t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
+		}
+	})
+
+	t.Run("unknown fixture is an error that lists the available fixtures", func(t *testing.T) {
+		_, err := resolveModel("nope", pinned)
+		if err == nil {
+			t.Fatal("resolveModel(nope) returned nil error, want error")
+		}
+		if !strings.Contains(err.Error(), "sessions-flat") {
+			t.Errorf("error %q does not list the available fixtures", err.Error())
+		}
+	})
+
+	t.Run("empty fixture name is an error", func(t *testing.T) {
+		if _, err := resolveModel("", pinned); err == nil {
+			t.Fatal("resolveModel(\"\") returned nil error, want error")
+		}
+	})
+}
+
+// TestResolveModel_PassesConstantNomination pins the shape §13.3 requires of every
+// tui.Build capture: the CONSTANT nomination, never an adaptive pair.
+//
+// A constant is what makes a capture byte-deterministic — no OSC 11 detection, no
+// first-paint wait, the palette named on the command line and no other. Both
+// halves are observable on the FIRST frame and both are asserted: an adaptive
+// nomination would hold the neutral blank frame (BackgroundColor nil) until a
+// reply that never arrives outside a running program, and a nomination carrying
+// anything but the resolved theme would paint a different canvas.
+//
+// The theme is loaded from a PATH, so the assertion cannot pass on the built-in
+// the model seeds itself with when nothing is injected.
+func TestResolveModel_PassesConstantNomination(t *testing.T) {
+	pinned := pathThemeForTest(t, "#1A2B3C")
+
+	m, err := resolveModel("sessions-flat", pinned)
+	if err != nil {
+		t.Fatalf("resolveModel(sessions-flat): %v", err)
+	}
+
+	got := m.View().BackgroundColor
+	if got == nil {
+		t.Fatal("the first frame painted no canvas — the nomination is not constant (an adaptive pair holds the blank frame)")
+	}
+	if want := pinned.Canvas.Color(); got != want {
+		t.Errorf("canvas = %v, want the pinned theme's %v", got, want)
+	}
+}
+
+// TestResolveModel_NoColorWinsOverTheme pins the §2.5 carve-out's precedence on
+// the fixture path: NO_COLOR is read after the theme resolves and WINS over it,
+// because a colourless render has no canvas to select.
+//
+// The pinned theme is a path theme with a canvas hex no built-in carries, so the
+// negative assertion is about the resolved palette rather than about colour in
+// general — and the positive control proves the same call paints it when NO_COLOR
+// is absent.
+func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
+	pinned := pathThemeForTest(t, "#1A2B3C")
+
+	t.Run("NO_COLOR renders the colourless native-bg frame", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "1")
+
+		m, err := resolveModel("sessions-flat", pinned)
+		if err != nil {
+			t.Fatalf("resolveModel(sessions-flat): %v", err)
+		}
+
+		if bg := m.View().BackgroundColor; bg != nil {
+			t.Errorf("View().BackgroundColor = %v, want nil — NO_COLOR sets no canvas", bg)
+		}
+		if content := m.View().Content; strings.Contains(content, "48;2;") {
+			t.Errorf("the colourless frame emits a background SGR:\n%q", content)
+		}
+	})
+
+	t.Run("without NO_COLOR the pinned theme paints", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "")
+		if err := os.Unsetenv("NO_COLOR"); err != nil {
+			t.Fatalf("unset NO_COLOR: %v", err)
+		}
+
+		m, err := resolveModel("sessions-flat", pinned)
+		if err != nil {
+			t.Fatalf("resolveModel(sessions-flat): %v", err)
+		}
+
+		if got, want := m.View().BackgroundColor, pinned.Canvas.Color(); got != want {
+			t.Errorf("canvas = %v, want the pinned theme's %v", got, want)
+		}
+	})
+}
+
+// TestResolveProgram_ThemeDrivesBothBranches pins §13.3's "one flag, both
+// branches": the tui.Build fixture path and the standalone contrast-validation
+// swatch render the SAME resolved theme.
+//
+// They are deliberately different render paths — the swatch does not route
+// through tui.Build, which is what lets it take a whole palette before the render
+// layer does — so nothing else pins that one input reaches both. A wrong-variable
+// slip at either call site is silent: the tool exits 0 having captured a frame of
+// some other theme, at a gate whose entire job is judging colours the tests cannot.
+func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
+	path := writeThemeFile(t, t.TempDir(), "mytheme.theme", withTokenValue(themeFileLines(), "canvas", "#1a2b3c"))
+
+	pinned, err := resolveTheme(newThemeLoader(), path, io.Discard)
+	if err != nil {
+		t.Fatalf("resolveTheme(%q): %v", path, err)
+	}
+
+	fixture, err := resolveProgram("sessions-flat", path, io.Discard)
+	if err != nil {
+		t.Fatalf("resolveProgram(sessions-flat, %q): %v", path, err)
+	}
+	if got, want := fixture.(tui.Model).View().BackgroundColor, pinned.Canvas.Color(); got != want {
+		t.Errorf("the fixture canvas = %v, want the resolved theme's %v", got, want)
+	}
+
+	swatch, err := resolveProgram(capture.ContrastValidationFixture, path, io.Discard)
+	if err != nil {
+		t.Fatalf("resolveProgram(contrast-validation, %q): %v", path, err)
+	}
+	title := fmt.Sprintf("CONTRAST VALIDATION — canvas %s", pinned.Canvas.Value)
+	if content := swatch.View().Content; !strings.Contains(content, title) {
+		t.Errorf("the swatch does not render the resolved theme: no %q in its view\n--- view ---\n%s", title, content)
+	}
+}
+
 // TestCaptureTool_ThemeResolutionIsSilent asserts resolving a theme writes
-// NOTHING to the log.
+// NOTHING to the log — through either branch, and on failure as well as success.
 //
 // capturetool is §12.3's fifth caller and neither uses nor diagnoses a theme —
 // it is an offline renderer whose output is a frame — so the loader is handed
-// log.Discard and the `theme` component stays empty on this path. The positive
-// control proves the assertion is not vacuous: a component logger emitting
-// through the same swapped handler IS captured.
+// log.Discard and the `theme` component stays empty on this path. The stderr
+// warnings are not log records either: they go to the injected writer. The
+// positive control proves the assertion is not vacuous: a component logger
+// emitting through the same swapped handler IS captured.
 func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
-	if _, err := resolveProgram(capture.ContrastValidationFixture, "dark", defaultThemeSlug); err != nil {
+	dir := t.TempDir()
+	reserved := writeThemeFile(t, dir, "nord.theme", themeFileLines())
+	broken := writeThemeFile(t, dir, "broken.theme", withTokenValue(themeFileLines(), "canvas", "blue"))
+
+	if _, err := resolveProgram(capture.ContrastValidationFixture, defaultThemeSlug, io.Discard); err != nil {
 		t.Fatalf("resolveProgram(contrast-validation, %s): %v", defaultThemeSlug, err)
 	}
-	if _, err := resolveProgram(capture.ContrastValidationFixture, "dark", "not-a-theme"); err == nil {
+	if _, err := resolveProgram(capture.ContrastValidationFixture, reserved, io.Discard); err != nil {
+		t.Fatalf("resolveProgram(contrast-validation, %s): %v", reserved, err)
+	}
+	if _, err := resolveProgram(capture.ContrastValidationFixture, "not-a-theme", io.Discard); err == nil {
 		t.Fatal("resolveProgram with an unknown theme returned nil error")
+	}
+	if _, err := resolveProgram(capture.ContrastValidationFixture, broken, io.Discard); err == nil {
+		t.Fatal("resolveProgram with a broken theme file returned nil error")
 	}
 
 	if got := sink.Records(); len(got) != 0 {
@@ -189,4 +588,79 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 	if got := sink.Records(); len(got) != 1 {
 		t.Fatalf("the positive control emitted %d records, want 1 — the sink is not wired to the theme component", len(got))
 	}
+}
+
+// builtinForTest resolves one embedded built-in's palette, failing the test if it
+// will not load.
+func builtinForTest(t *testing.T, slug string) theme.Theme {
+	t.Helper()
+
+	result, rejection, found := newThemeLoader().LoadBuiltin(slug)
+	if !found || rejection != nil {
+		t.Fatalf("LoadBuiltin(%s) found=%v rejection=%v", slug, found, rejection)
+	}
+	return result.Theme
+}
+
+// pathThemeForTest stages a valid theme file carrying the given canvas value and
+// returns the palette resolved from its PATH.
+//
+// The canvas is caller-chosen so an assertion against it cannot pass on a
+// built-in's palette — including the dark built-in a model seeds itself with when
+// no nomination is injected.
+func pathThemeForTest(t *testing.T, canvas string) theme.Theme {
+	t.Helper()
+
+	path := writeThemeFile(t, t.TempDir(), "mytheme.theme", withTokenValue(themeFileLines(), "canvas", canvas))
+	pinned, err := resolveTheme(newThemeLoader(), path, io.Discard)
+	if err != nil {
+		t.Fatalf("resolveTheme(%q): %v", path, err)
+	}
+	return pinned
+}
+
+// themeFileLines renders a complete, valid theme file: one `key = value` line per
+// §2.4 token, in table order, each carrying a distinct value.
+//
+// The names come from TokenNames() rather than a restatement, so a vocabulary
+// change moves these fixtures with it.
+func themeFileLines() []string {
+	names := theme.TokenNames()
+	lines := make([]string, 0, len(names))
+	for i, name := range names {
+		lines = append(lines, fmt.Sprintf("%s = #abcd%02x", name, i+1))
+	}
+	return lines
+}
+
+// withTokenValue returns the lines with the named key's value replaced, in the
+// same file order.
+func withTokenValue(lines []string, key, value string) []string {
+	replaced := slices.Clone(lines)
+	for i, line := range replaced {
+		if strings.HasPrefix(line, key+" = ") {
+			replaced[i] = key + " = " + value
+		}
+	}
+	return replaced
+}
+
+// withoutTokenLine returns the lines with the named key's line removed — a file
+// that never declared it.
+func withoutTokenLine(lines []string, key string) []string {
+	return slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
+		return strings.HasPrefix(line, key+" = ")
+	})
+}
+
+// writeThemeFile writes lines as a file named base inside dir and returns its
+// path.
+func writeThemeFile(t *testing.T, dir, base string, lines []string) string {
+	t.Helper()
+
+	path := filepath.Join(dir, base)
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	return path
 }

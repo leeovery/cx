@@ -378,6 +378,144 @@ func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 	}
 }
 
+// TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung pins what an EXPLICIT PATH is:
+// an input, not a directory entry. §6.2's two filename rungs are not run, and no
+// slug is derived — §3.2 gives a Theme no identity field, so a theme loaded from
+// a path has none.
+//
+// Every file below is perfectly valid content behind a name LoadFile refuses, and
+// each case asserts that refusal alongside the acceptance. That pairing is the
+// whole test: without it a passing LoadPath would be indistinguishable from a
+// LoadFile whose fixtures happened to have legal names.
+//
+// The reserved case carries an INJECTED reserved set, so the rung it skips is the
+// one a directory entry would certainly hit rather than a hypothetical.
+func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
+	reserving := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}, "tokyo-night": {}}}
+
+	tests := []struct {
+		name             string
+		loader           theme.Loader
+		base             string
+		wantFileRejected theme.Reason
+	}{
+		{
+			name:             "an upper-case stem",
+			loader:           theme.Loader{},
+			base:             "Nord.theme",
+			wantFileRejected: theme.ReasonBadName,
+		},
+		{
+			name:             "a shouted extension",
+			loader:           theme.Loader{},
+			base:             "nord.THEME",
+			wantFileRejected: theme.ReasonBadName,
+		},
+		{
+			name:             "an unexpected extension",
+			loader:           theme.Loader{},
+			base:             "mytheme.txt",
+			wantFileRejected: theme.ReasonBadName,
+		},
+		{
+			name:             "a reserved slug",
+			loader:           reserving,
+			base:             "nord.theme",
+			wantFileRejected: theme.ReasonReservedName,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeTheme(t, t.TempDir(), tt.base, themeLines())
+
+			if _, rejection := tt.loader.LoadFile(path); rejection == nil || rejection.Reason != tt.wantFileRejected {
+				t.Fatalf("LoadFile(%q) = %v, want %q — the fixture does not exercise a filename rung", path, rejection, tt.wantFileRejected)
+			}
+
+			got, rejection := tt.loader.LoadPath(path)
+
+			if rejection != nil {
+				t.Fatalf("LoadPath(%q) rejected the file: %v", path, rejection)
+			}
+			if got.Slug != "" {
+				t.Errorf("LoadPath(%q).Slug = %q, want empty — an explicit path yields no identity", path, got.Slug)
+			}
+			if tokens, want := got.Theme.All(), wantThemeTokens(); !slices.Equal(tokens, want) {
+				t.Errorf("theme = %+v, want %+v", tokens, want)
+			}
+			if want, err := os.ReadFile(path); err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			} else if !slices.Equal(got.Source, want) {
+				t.Errorf("Source = %q, want the file's bytes %q", got.Source, want)
+			}
+		})
+	}
+}
+
+// TestLoadPath_RunsTheContentRungs pins the other half: the four rungs that read
+// the file DO apply, in §6.2's order, with the same reasons and the same §14A
+// details LoadFile produces.
+//
+// Only the content reasons are reachable, which is what makes the harness's
+// hard-error contract (§13.3) exhaustive: `bad syntax`, `bad colour`,
+// `missing tokens` and `unreadable` are everything a path can be wrong in.
+func TestLoadPath_RunsTheContentRungs(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, dir string) (path, wantDetail string)
+		wantReason theme.Reason
+	}{
+		{
+			name:       "a duplicate key",
+			wantReason: theme.ReasonBadSyntax,
+			setup: func(t *testing.T, dir string) (string, string) {
+				// 19 token lines, so the appended duplicate lands on line 20.
+				lines := append(themeLines(), "text.primary = #010203")
+				return writeTheme(t, dir, "nord-lee.theme", lines), "line 20: duplicate key text.primary"
+			},
+		},
+		{
+			name:       "a bad colour",
+			wantReason: theme.ReasonBadColour,
+			setup: func(t *testing.T, dir string) (string, string) {
+				lines := withValue(themeLines(), "canvas", "blue")
+				return writeTheme(t, dir, "nord-lee.theme", lines), "canvas = blue"
+			},
+		},
+		{
+			name:       "a missing token",
+			wantReason: theme.ReasonMissingTokens,
+			setup: func(t *testing.T, dir string) (string, string) {
+				lines := withoutKey(themeLines(), "bg.subtle")
+				return writeTheme(t, dir, "nord-lee.theme", lines), "missing bg.subtle"
+			},
+		},
+		{
+			name:       "an unreadable file",
+			wantReason: theme.ReasonUnreadable,
+			setup: func(t *testing.T, dir string) (string, string) {
+				path := writeUnreadableTheme(t, dir, "nord-lee.theme")
+				_, readErr := os.ReadFile(path)
+				if readErr == nil {
+					t.Fatalf("os.ReadFile(%q) succeeded, the fixture is not unreadable", path)
+				}
+				return path, readErr.Error()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, wantDetail := tt.setup(t, t.TempDir())
+
+			got, rejection := theme.Loader{}.LoadPath(path)
+
+			requireLoadRejection(t, got, rejection, tt.wantReason, wantDetail)
+		})
+	}
+}
+
 // loadCase is one staged file plus the verdict the ladder must reach on it. An
 // empty wantReason means the file loads.
 type loadCase struct {
@@ -568,8 +706,12 @@ func writeDanglingThemeLink(t *testing.T, dir, base string) string {
 	return path
 }
 
-// requireLoadRejection fails the test unless LoadFile rejected with the one
+// requireLoadRejection fails the test unless the load rejected with the one
 // expected reason and the complete §14A detail.
+//
+// It serves both loader entry points — LoadFile's full ladder and LoadPath's
+// content half — because the rejection contract is the same on either: exactly
+// one reason, the whole §14A detail, and the zero Result alongside it.
 //
 // It also pins the invariants every rejection from the ladder shares: no
 // populated Result comes back alongside one — never a slug, never a partial
@@ -583,10 +725,10 @@ func requireLoadRejection(t *testing.T, got theme.Result, rejection *theme.Rejec
 	t.Helper()
 
 	if rejection == nil {
-		t.Fatalf("LoadFile() accepted the file as %+v, want the rejection %q: %s", got, wantReason, wantDetail)
+		t.Fatalf("the loader accepted the file as %+v, want the rejection %q: %s", got, wantReason, wantDetail)
 	}
 	if !reflect.DeepEqual(got, theme.Result{}) {
-		t.Errorf("LoadFile() returned %+v alongside a rejection, want the zero Result", got)
+		t.Errorf("the loader returned %+v alongside a rejection, want the zero Result", got)
 	}
 	if rejection.Reason != wantReason {
 		t.Errorf("rejection reason = %q, want %q", rejection.Reason, wantReason)
