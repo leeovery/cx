@@ -6,6 +6,36 @@ import (
 	"strings"
 )
 
+// DefaultDarkSlug and DefaultLightSlug name the two built-ins Portal resolves
+// when nothing else answers. They serve BOTH roles, and it is the same two
+// values in each:
+//
+//   - §8.3's SHIPPED ADAPTIVE PAIR — `theme_dark = tokyo-night`,
+//     `theme_light = tokyo-night-day` — already nominated, so a brand-new user
+//     gets whichever matches their terminal with nothing to configure.
+//   - §8.5's PER-SLOT MODE-MATCHED FALLBACK — an unloadable `theme_dark` falls
+//     to DefaultDarkSlug, an unloadable `theme_light` to DefaultLightSlug, and
+//     an unloadable constant `theme` to DefaultDarkSlug.
+//
+// That the two roles hold the same values is load-bearing rather than
+// incidental. §8.3's second reason for shipping a pair — "it degrades to the
+// alternative", a constant dark default — is true ONLY because an unresolvable
+// slot lands on the theme the shipped default already nominates. So CHANGING
+// THESE VALUES, OR ADOPTING A SINGLE FIXED FALLBACK, SILENTLY INVALIDATES
+// §8.3's degrades-to-a-constant-dark-default argument: nothing stops compiling,
+// no floor moves, and the reasoning simply stops holding.
+//
+// They are PRODUCTION constants rather than test-file literals because Phase 5
+// consumes them on both paths, and because §7.6's build-time guarantee is
+// precisely the claim that these two values resolve WITHIN the embedded set —
+// a renamed built-in file or a typo here leaves every embedded theme valid
+// while every fallback path becomes unresolvable, which is why embedded_test.go
+// asserts resolution separately from validity.
+const (
+	DefaultDarkSlug  = "tokyo-night"
+	DefaultLightSlug = "tokyo-night-day"
+)
+
 // builtinDir is the embedded set's directory within builtinFS. It is also the
 // prefix of every name in that filesystem, since go:embed keeps the pattern's
 // own path.

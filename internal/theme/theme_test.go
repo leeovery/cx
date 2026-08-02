@@ -181,9 +181,15 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // reason vocabulary, the name rules added ValidSlug, SlugFromFilename and the
 // bad-name causes, the §6.2 ladder added Loader, Result and LoadFile,
 // enumeration added Entry and Enumerate, the `theme` log component added the
-// EventLogger seam with the NewLoader that injects it, and the embedded
-// built-in set added BuiltinBytes, BuiltinSlugs and LoadBuiltin. Nothing on the
-// removed list ever returns to it.
+// EventLogger seam with the NewLoader that injects it, the embedded built-in
+// set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, and §7.6's build-time
+// guarantee added DefaultDarkSlug and DefaultLightSlug. Nothing on the removed
+// list ever returns to it.
+//
+// The exact-equality check is also what pins the negative half of §7.6: there
+// is no exported eager-validation helper, because validation is not
+// startup-eager and no caller is offered a "check the built-ins now" entry
+// point to put one on a cold path.
 var wantExports = []string{
 	"BadNameCause",
 	"BadNameExtension",
@@ -191,6 +197,8 @@ var wantExports = []string{
 	"BadNameSlug",
 	"BuiltinBytes",
 	"BuiltinSlugs",
+	"DefaultDarkSlug",
+	"DefaultLightSlug",
 	"Entry",
 	"EventLogger",
 	"EventLogger.DirectoryUnusable",
