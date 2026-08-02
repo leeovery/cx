@@ -14,7 +14,7 @@ import (
 // the ? help modal open/close dispatch and the render shell.
 func helpModelSessions(t *testing.T, appearance canvasAppearance) Model {
 	t.Helper()
-	m := New(fakeLister{}, WithCanvasMode(appearance))
+	m := New(fakeLister{}, WithThemeNomination(testBuiltinPair(t)), WithCanvasMode(appearance))
 	m.termWidth = 90
 	m.termHeight = 30
 	m.applySessions([]tmux.Session{
@@ -31,7 +31,7 @@ func helpModelProjects(t *testing.T, appearance canvasAppearance) Model {
 	projects := []project.Project{
 		{Path: "/p/one", Name: "one"},
 	}
-	m := New(fakeLister{}, WithCanvasMode(appearance))
+	m := New(fakeLister{}, WithThemeNomination(testBuiltinPair(t)), WithCanvasMode(appearance))
 	m.termWidth = 90
 	m.termHeight = 30
 	m.activePage = PageProjects

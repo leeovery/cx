@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
@@ -19,23 +18,24 @@ var (
 	lightBg = tea.BackgroundColorMsg{Color: color.RGBA{R: 0xe1, G: 0xe2, B: 0xe7, A: 0xff}}
 )
 
-// detectModel builds an appearance-driven Sessions model sized for rendering,
-// with the deterministic flat session set ingested through the production path,
-// and opens the detect-or-timeout window exactly as production (Build) does via
-// armAppearanceDetection. In auto mode that holds the first paint on
-// detection-or-timeout; a pinned appearance stays resolved (arm is a no-op).
-func detectModel(t *testing.T, appearance prefs.Appearance) Model {
+// detectModel builds a Sessions model for the given loaded nomination through
+// the PRODUCTION chokepoint (Build, which opens the detect-or-timeout window),
+// sized for rendering with the deterministic flat session set ingested through
+// the production path.
+//
+// The nomination's SHAPE decides what the gate does: an adaptive pair holds the
+// first paint on detection-or-timeout, a constant stays resolved (arm is a no-op).
+func detectModel(t *testing.T, n theme.Nomination) Model {
 	t.Helper()
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 3, Attached: true},
 		{Name: "bravo", Windows: 1, Attached: false},
 		{Name: "charlie", Windows: 2, Attached: false},
 	}
-	m := New(fakeLister{}, WithAppearance(appearance))
+	m := Build(Deps{Lister: fakeLister{}, Theme: n})
 	m.termWidth = 90
 	m.termHeight = 24
 	m.applySessions(sessions)
-	m.armAppearanceDetection()
 	return m
 }
 
@@ -53,6 +53,10 @@ func assertBlankFrame(t *testing.T, m Model) {
 	}
 }
 
+// assertPaintedCanvas asserts an ADAPTIVE model resolved to the given answer and
+// painted the member that answer names. It is adaptive-only by construction: a
+// constant derives no answer, so its canvasMode stays at the dark zero value
+// whatever palette it paints (assertActiveTheme is that path's assertion).
 func assertPaintedCanvas(t *testing.T, m Model, appearance canvasAppearance) {
 	t.Helper()
 	if !m.modeResolved() {
@@ -70,8 +74,8 @@ func assertPaintedCanvas(t *testing.T, m Model, appearance canvasAppearance) {
 	}
 }
 
-// themeForAppearance returns the built-in the gate's answer selects — the
-// test-side mirror of the model's builtinThemePair.
+// themeForAppearance returns the built-in the gate's answer selects out of the
+// shipped pair — the test-side mirror of theme.Nomination.Select.
 func themeForAppearance(t *testing.T, appearance canvasAppearance) theme.Theme {
 	t.Helper()
 	if appearance == appearanceLightCanvas {
@@ -80,21 +84,21 @@ func themeForAppearance(t *testing.T, appearance canvasAppearance) theme.Theme {
 	return testDarkTheme(t)
 }
 
-// TestAutoDetectsDark: auto + a dark BackgroundColorMsg resolves canvasMode Dark,
-// marks resolved, and paints the dark canvas. Before the message the frame is the
-// neutral blank (no pre-resolution real paint).
-func TestAutoDetectsDark(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceAuto)
+// TestAdaptiveDetectsDark: an adaptive pair + a dark BackgroundColorMsg resolves
+// canvasMode Dark, marks resolved, and paints the dark canvas. Before the message
+// the frame is the neutral blank (no pre-resolution real paint).
+func TestAdaptiveDetectsDark(t *testing.T) {
+	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(darkBg)
 	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
 }
 
-// TestAutoDetectsLight: auto + a light BackgroundColorMsg resolves canvasMode
-// Light and paints the light canvas.
-func TestAutoDetectsLight(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceAuto)
+// TestAdaptiveDetectsLight: an adaptive pair + a light BackgroundColorMsg
+// resolves canvasMode Light and paints the light canvas.
+func TestAdaptiveDetectsLight(t *testing.T) {
+	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(lightBg)
@@ -105,7 +109,7 @@ func TestAutoDetectsLight(t *testing.T) {
 // (not a painted canvas); after resolution it is the correct canvas; and a later
 // message never re-resolves the mode (no second resolution, no flip).
 func TestNoPaintThenFlip(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceAuto)
+	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
 
 	// OSC 11 answers dark first → resolves dark, paints.
@@ -130,29 +134,11 @@ func TestNoPaintThenFlip(t *testing.T) {
 // TestTimeoutFallsBackToDark: the timeout fires before any BackgroundColorMsg, so
 // the mode resolves to the dark fallback and paints.
 func TestTimeoutFallsBackToDark(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceAuto)
+	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(appearanceTimeoutMsg{})
 	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
-}
-
-// TestPinLightSkipsDetection: appearance Light pins the mode and skips detection
-// + the gate — the model is resolved at construction and paints the light canvas
-// from frame one, and Init issues NO timeout tick.
-func TestPinLightSkipsDetection(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceLight)
-	assertPaintedCanvas(t, m, appearanceLightCanvas)
-	assertNoTimeoutTick(t, m)
-}
-
-// TestPinDarkSkipsDetection: appearance Dark pins the mode and skips detection +
-// the gate — resolved at construction, paints the dark canvas from frame one, no
-// timeout tick from Init.
-func TestPinDarkSkipsDetection(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceDark)
-	assertPaintedCanvas(t, m, appearanceDarkCanvas)
-	assertNoTimeoutTick(t, m)
 }
 
 // TestColorFGBGNeverOverridesOSC11: even with COLORFGBG advertising a light
@@ -160,7 +146,7 @@ func TestPinDarkSkipsDetection(t *testing.T) {
 // must never override the OSC 11 reply.
 func TestColorFGBGNeverOverridesOSC11(t *testing.T) {
 	t.Setenv("COLORFGBG", "0;15") // fg black on bg white → "light" by the weak hint
-	m := detectModel(t, prefs.AppearanceAuto)
+	m := detectModel(t, testBuiltinPair(t))
 
 	updated, _ := m.Update(darkBg)
 	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
@@ -171,7 +157,7 @@ func TestColorFGBGNeverOverridesOSC11(t *testing.T) {
 // dark) — the canvas still paints (not blank, not crashed); the contrast floor
 // holds against whichever canvas is painted (§2.3).
 func TestMisdetectionLegibleNotBroken(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceAuto)
+	m := detectModel(t, testBuiltinPair(t))
 
 	// The terminal mis-reports light. The model paints the light canvas — wrong
 	// mode but fully legible, not blank, not crashed.
@@ -185,21 +171,22 @@ func TestMisdetectionLegibleNotBroken(t *testing.T) {
 }
 
 // assertNoTimeoutTick drains Init's batched cmds and asserts none of them
-// produces an appearanceTimeoutMsg — the pin path must not arm the detection
-// timeout (it skips the wait entirely).
+// produces an appearanceTimeoutMsg — a CONSTANT nomination must not arm the
+// detection timeout (it skips the gate and the wait entirely).
 func assertNoTimeoutTick(t *testing.T, m Model) {
 	t.Helper()
 	for _, msg := range initCmds(t, m.Init()) {
 		if _, ok := msg.(appearanceTimeoutMsg); ok {
-			t.Errorf("Init armed a detection timeout on a pinned appearance, want none (the wait is skipped)")
+			t.Errorf("Init armed a detection timeout on a constant nomination, want none (the wait is skipped)")
 		}
 	}
 }
 
-// TestAutoArmsTimeoutTick: in auto mode Init arms the detect-or-timeout tick so a
-// non-responding terminal still resolves to the dark fallback.
-func TestAutoArmsTimeoutTick(t *testing.T) {
-	m := detectModel(t, prefs.AppearanceAuto)
+// TestAdaptiveArmsTimeoutTick: under an adaptive pair Init arms the
+// detect-or-timeout tick so a non-responding terminal still resolves to the dark
+// fallback.
+func TestAdaptiveArmsTimeoutTick(t *testing.T) {
+	m := detectModel(t, testBuiltinPair(t))
 	found := false
 	for _, msg := range initCmds(t, m.Init()) {
 		if _, ok := msg.(appearanceTimeoutMsg); ok {
@@ -208,46 +195,6 @@ func TestAutoArmsTimeoutTick(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("Init did not arm the detect-or-timeout tick in auto mode (the no-answer fallback would never fire)")
+		t.Errorf("Init did not arm the detect-or-timeout tick under an adaptive pair (the no-answer fallback would never fire)")
 	}
-}
-
-// TestBuildArmsAutoGate pins the PRODUCTION wiring: Build (the cmd/open.go +
-// capture-harness chokepoint) opens the detect-or-timeout window for an auto
-// appearance (the live picker holds the blank frame until OSC 11 resolves) while
-// a pinned light/dark appearance paints from frame one. This is the swap of the
-// canvas-mode source from the temporary injected mode to real resolution.
-func TestBuildArmsAutoGate(t *testing.T) {
-	t.Run("auto appearance gates the first paint", func(t *testing.T) {
-		m := Build(Deps{Lister: fakeLister{}, Appearance: prefs.AppearanceAuto})
-		if m.modeResolved() {
-			t.Errorf("Build(auto) is resolved at construction; want the detect-or-timeout gate open (unresolved)")
-		}
-		// Resolving via an OSC 11 reply paints the detected canvas.
-		updated, _ := m.Update(lightBg)
-		if !updated.(Model).modeResolved() || updated.(Model).canvasMode != appearanceLightCanvas {
-			t.Errorf("Build(auto) did not resolve to the OSC 11-detected canvas; resolved=%v mode=%v",
-				updated.(Model).modeResolved(), updated.(Model).canvasMode)
-		}
-	})
-
-	t.Run("pinned light appearance paints from frame one", func(t *testing.T) {
-		m := Build(Deps{Lister: fakeLister{}, Appearance: prefs.AppearanceLight})
-		if !m.modeResolved() {
-			t.Errorf("Build(light pin) is unresolved; want immediate resolution (no gate, no wait)")
-		}
-		if m.canvasMode != appearanceLightCanvas {
-			t.Errorf("Build(light pin) canvasMode = %v, want testLightTheme(t)", themeLabel(m.activeTheme))
-		}
-	})
-
-	t.Run("pinned dark appearance paints from frame one", func(t *testing.T) {
-		m := Build(Deps{Lister: fakeLister{}, Appearance: prefs.AppearanceDark})
-		if !m.modeResolved() {
-			t.Errorf("Build(dark pin) is unresolved; want immediate resolution (no gate, no wait)")
-		}
-		if m.canvasMode != appearanceDarkCanvas {
-			t.Errorf("Build(dark pin) canvasMode = %v, want testDarkTheme(t)", themeLabel(m.activeTheme))
-		}
-	})
 }

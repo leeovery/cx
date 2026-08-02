@@ -26,7 +26,7 @@ import (
 // both Dark and Light, with blink disabled. Pinned in exact mode-resolved SGR.
 func TestProjectsFilterInput_ColouredBranchOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
-		m := New(fakeLister{}, WithCanvasMode(appearanceForTheme(t, th)))
+		m := New(fakeLister{}, WithThemeNomination(theme.ConstantNomination(th)))
 
 		fi := m.projectList.FilterInput
 		if fi.Prompt != filterPromptPrefix {

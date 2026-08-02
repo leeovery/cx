@@ -182,21 +182,29 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // bad-name causes, the §6.2 ladder added Loader, Result and LoadFile,
 // enumeration added Entry and Enumerate, the `theme` log component added the
 // EventLogger seam with the NewLoader that injects it, the embedded built-in
-// set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, and §7.6's build-time
-// guarantee added DefaultDarkSlug and DefaultLightSlug. Nothing on the removed
-// list ever returns to it.
+// set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, §7.6's build-time
+// guarantee added DefaultDarkSlug and DefaultLightSlug, and §8.4's loaded
+// nomination added Nomination with its two constructors and three accessors.
+// Nothing on the removed list ever returns to it.
+//
+// Nomination's arrival is the one addition that could be mistaken for the
+// removed surface returning: it holds a light and a dark Theme. It is not — the
+// pairing is the shape of the SETTING, held outside any theme, and neither
+// member is a variant of the other (§3.1, §8.2).
 //
 // The exact-equality check is also what pins the negative half of §7.6: there
 // is no exported eager-validation helper, because validation is not
 // startup-eager and no caller is offered a "check the built-ins now" entry
 // point to put one on a cold path.
 var wantExports = []string{
+	"AdaptivePair",
 	"BadNameCause",
 	"BadNameExtension",
 	"BadNameNone",
 	"BadNameSlug",
 	"BuiltinBytes",
 	"BuiltinSlugs",
+	"ConstantNomination",
 	"DefaultDarkSlug",
 	"DefaultLightSlug",
 	"Entry",
@@ -209,6 +217,10 @@ var wantExports = []string{
 	"Loader.LoadFile",
 	"NewEventLogger",
 	"NewLoader",
+	"Nomination",
+	"Nomination.Constant",
+	"Nomination.IsConstant",
+	"Nomination.Select",
 	"Pair",
 	"Reason",
 	"ReasonBadColour",

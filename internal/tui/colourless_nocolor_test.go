@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -135,10 +134,17 @@ func TestColourless_SingleFlagFromDeps(t *testing.T) {
 
 // TestColourless_SkipsDetectionAndFirstPaintWait asserts that under NO_COLOR the
 // appearance gate resolves IMMEDIATELY: there is no canvas to select, so the
-// model is resolved at construction (no blank-frame wait), and Init issues NO
-// OSC 11 query and NO detect-or-timeout tick.
+// model is resolved at construction (no blank-frame wait) and Init arms NO
+// detect-or-timeout tick.
+//
+// The OSC 11 QUERY is deliberately not part of that: §8.8 issues it under every
+// shape, NO_COLOR included, because restore.go and §9.3's conversion need the
+// reply independently of detection. TestGate_QueryIssuedRegardlessOfSettingShape
+// covers it — and covers it correctly, by matching the query cmd's own message
+// type, which is the unexported request marker rather than the
+// tea.BackgroundColorMsg RESPONSE the program runtime later synthesises.
 func TestColourless_SkipsDetectionAndFirstPaintWait(t *testing.T) {
-	m := Build(Deps{Lister: fakeLister{}, NoColor: true, Appearance: prefs.AppearanceAuto})
+	m := Build(Deps{Lister: fakeLister{}, NoColor: true, Theme: testBuiltinPair(t)})
 
 	if !m.modeResolved() {
 		t.Errorf("colourless model is unresolved; want immediate resolution (no canvas to select, no first-paint wait)")
@@ -147,9 +153,6 @@ func TestColourless_SkipsDetectionAndFirstPaintWait(t *testing.T) {
 	for _, msg := range initCmds(t, m.Init()) {
 		if _, ok := msg.(appearanceTimeoutMsg); ok {
 			t.Errorf("colourless Init armed a detect-or-timeout tick; want none (detection skipped)")
-		}
-		if _, ok := msg.(tea.BackgroundColorMsg); ok {
-			t.Errorf("colourless Init issued an OSC 11 background query; want none (no canvas to restore/select)")
 		}
 	}
 }

@@ -235,45 +235,48 @@ type Model struct {
 	projectIndex    project.Index
 	sessionListMode prefs.SessionListMode
 	modePersister   ModePersister
-	// appearance is the persisted colour-scheme preference read once at TUI
-	// construction (WithAppearance). The model only stores it here; honouring it
-	// (skip detection + first-paint wait) is a later task. AppearanceAuto is the
-	// zero-value default, so an omitted option leaves the model in auto.
-	appearance prefs.Appearance
-	// canvasMode is the RESOLVED light/dark answer the owned canvas (§1) is
-	// painted for — distinct from appearance (the pref). appearanceDarkCanvas is
-	// the zero value (the §8.8 no-answer fallback), so an unconfigured model
+	// nomination is the LOADED theme setting injected at construction
+	// (WithThemeNomination) — one Theme under a constant, both under an adaptive
+	// pair (§8.4). It is the model's whole theme INPUT: it replaces the
+	// appearance pref that used to be injected here, because a theme IS the mode
+	// and there is no mode left to pin (§13.3).
+	//
+	// Its zero value is neither state, and that is the honest "nothing was
+	// injected" sentinel: a model constructed without Build keeps New's
+	// dark-built-in seed rather than selecting a zero Theme out of an empty
+	// nomination.
+	nomination theme.Nomination
+	// canvasMode is the light/dark answer the gate resolved. appearanceDarkCanvas
+	// is the zero value (the §8.8 no-answer fallback), so an unconfigured model
 	// paints the dark canvas. It is the painted mirror of gate.appearance: every
-	// resolution (OSC 11 reply, timeout, or pin) syncs it via syncResolvedMode,
-	// and it is what selects activeTheme from the built-in pair.
+	// resolution (OSC 11 reply, timeout) syncs it via syncResolvedMode, and it is
+	// what selects the active member out of an ADAPTIVE nomination.
+	//
+	// Under a constant (or no) nomination it is that standing fallback and
+	// nothing more — no question was asked, so it must never be read as a fact
+	// about the terminal.
 	canvasMode canvasAppearance
 	// activeTheme is the palette EVERY renderer paints from (§3.4). The model
 	// holds it and passes it where a light/dark mode used to be passed, so
 	// anything taking the theme as a parameter re-derives per frame — the
 	// completeness property §11.2 rests on. There is deliberately NO
 	// package-level mutable theme state to replace the retired built-in var: it
-	// would put
-	// order-dependent state on the render path in a suite that already forbids
-	// t.Parallel().
+	// would put order-dependent state on the render path in a suite that already
+	// forbids t.Parallel().
 	//
-	// Its source is TRANSITIONAL: builtinPair below holds the two embedded
-	// built-ins and canvasMode selects between them. Task 3-2 replaces the pair
-	// with the injected nomination; this field and its threading do not change.
+	// New seeds it with the dark built-in before the options apply, so a model
+	// constructed without Build is still themed (an empty Theme would resolve
+	// through lipgloss.Color("")'s no-colour sentinel: a SILENT colourless render,
+	// not a compile error). Applying a nomination overwrites the seed.
 	activeTheme theme.Theme
-	// builtinPair is the transitional theme source — the two embedded built-ins
-	// the gate's light/dark answer selects between. New seeds the dark member
-	// before the options apply so a model constructed without Build is still
-	// themed (an empty Theme would resolve through lipgloss.Color("")'s no-colour
-	// sentinel: a SILENT colourless render, not a compile error).
-	builtinPair builtinThemePair
 	// gate is the §2.6 detect-or-timeout first-paint mechanism and the SINGLE
 	// source of truth for whether the real canvas may paint (modeResolved()
-	// reads it). In auto mode Build opens its detect-or-timeout window via arm()
-	// and it resolves on whichever of the OSC 11 BackgroundColorMsg or the
-	// appearanceTimeoutMsg fires first; a pinned appearance (light/dark) and a
-	// directly constructed model are already resolved (the zero-value gate is
-	// resolved), so detection and the wait are skipped. canvasMode mirrors
-	// gate.appearance for the render path (see syncResolvedMode).
+	// reads it). Under an ADAPTIVE nomination Build opens its detect-or-timeout
+	// window via arm() and it resolves on whichever of the OSC 11
+	// BackgroundColorMsg or the appearanceTimeoutMsg fires first; a constant
+	// nomination, a nomination-less model and the NO_COLOR carve-out are already
+	// resolved and unarmable, so detection and the wait are skipped. canvasMode
+	// mirrors gate.appearance for the render path (see syncResolvedMode).
 	gate appearanceGate
 	// colourless is the SINGLE NO_COLOR carve-out flag (§2.5). It is set once at
 	// construction from Deps.NoColor (the cmd layer reads os.Getenv("NO_COLOR");
@@ -373,11 +376,20 @@ type Model struct {
 	// OSC 111 reset (mosh/Blink) still honour the set, so the canvas colour does
 	// not stick after Portal quits.
 	//
-	// Capture is ASYNC and NON-GATING: the first paint never waits on this. The
-	// detect-or-timeout first-paint gate and the auto-appearance resolution that
-	// consume this captured value are a later task (1-7) — only the fire-and-
-	// forget capture lives here.
+	// Capture is ASYNC and NON-GATING: the first paint never waits on this.
 	originalBg string
+
+	// bgReplyArrived records that an OSC 11 reply reached Update AT ALL, which is
+	// a different fact from originalBg being non-empty: a no-answer-shaped reply
+	// (nil Color) leaves the hex empty while still being an answer that arrived.
+	//
+	// The pair is what makes the reply CLASSIFIABLE later by a consumer that did
+	// not observe the arrival — task 9-6's mid-session constant → adaptive
+	// conversion (§9.3), which must distinguish "the terminal said light" from
+	// "nothing ever came back". It is retained under EVERY setting shape because
+	// the query is issued under every shape: a constant asks no light/dark
+	// question, so nothing here is ever turned into an answer at construction.
+	bgReplyArrived bool
 
 	// Preview page seams and live model. enumerator and reader are
 	// constructor-injected at TUI startup (wired in task 2-7) — declared
@@ -836,30 +848,36 @@ func WithModePersister(p ModePersister) Option {
 	}
 }
 
-// WithAppearance sets the persisted colour-scheme preference (auto/light/dark) the
-// model opens with. Production wiring reads it from prefs.json (via cmd/open.go's
-// loadPrefsStore + Store.LoadAppearance, tolerant to AppearanceAuto) and injects it
-// here, sibling to WithInitialMode. The model only STORES the value at this point;
-// honouring it (skip detection + first-paint wait) is a later task. AppearanceAuto
-// is the zero-value default, so omitting the option leaves the model in auto.
-func WithAppearance(appearance prefs.Appearance) Option {
+// WithThemeNomination injects the LOADED theme setting the model renders from
+// (§8.4): one Theme under a constant, both under an adaptive pair. It is the
+// injection §13.3 puts where a light/dark appearance used to go — a theme is the
+// mode, so there is no mode left to pin.
+//
+// The nomination's SHAPE decides the first paint. A constant paints from frame
+// one with no detection and no wait; a pair carries no active member and holds
+// the first paint until the gate selects one. Omitting the option leaves the zero
+// nomination, which is neither state: the model keeps New's dark built-in seed
+// and, having nothing to select between, paints immediately.
+//
+// Production wiring is cmd/open.go (via Build); the offline capture harness
+// always passes the CONSTANT shape, which is what keeps its frames un-gated and
+// byte-deterministic.
+func WithThemeNomination(n theme.Nomination) Option {
 	return func(m *Model) {
-		m.appearance = appearance
+		m.nomination = n
 	}
 }
 
-// WithCanvasMode is the test/capture-only DIRECT override of the resolved canvas
-// mode (§1): it pins canvasMode AND marks the appearance gate already resolved,
-// so the model paints that exact canvas from frame one with no OSC 11 detection
-// and no first-paint wait. It exists so tests and the offline capture harness can
-// render a deterministic mode without driving the async detection race.
+// WithCanvasMode is the test/capture-only DIRECT override of the gate's light/dark
+// ANSWER (§1): it pins canvasMode AND marks the gate already resolved, so the
+// model paints from frame one with no OSC 11 detection and no first-paint wait. It
+// exists so tests can render a deterministic member of an adaptive pair without
+// driving the async detection race.
 //
-// PRODUCTION never uses this seam — cmd/open.go drives the mode through the
-// appearance pref + OSC 11 detection (the appearance gate). When used, it must
-// not be combined with a non-auto appearance (the pin would win the gate
-// re-init in New); both light and dark canvases are owned-canvas paths, so a
-// direct override and an appearance pin are mutually exclusive ways to land the
-// same resolved canvas.
+// PRODUCTION never uses this seam — cmd/open.go drives the answer through OSC 11
+// detection (the appearance gate). It pins the ANSWER, not the palette: paired
+// with an adaptive nomination it selects that member, and paired with a constant
+// it changes nothing at all (a constant ignores the answer by design).
 func WithCanvasMode(appearance canvasAppearance) Option {
 	return func(m *Model) {
 		m.canvasMode = appearance
@@ -1209,20 +1227,18 @@ func newProjectList() list.Model {
 // New creates a Model that fetches sessions from the given SessionLister.
 // Optional dependencies are configured via functional options.
 func New(lister SessionLister, opts ...Option) Model {
-	pair := loadBuiltinThemePair()
 	m := Model{
 		sessionLister: lister,
 		sessionList:   newSessionList(nil),
 		projectList:   newProjectList(),
 		activePage:    PageSessions,
-		builtinPair:   pair,
 		// Seed the active palette from the DARK built-in before the options apply,
 		// so a model constructed without Build is still themed. An empty Theme
 		// would resolve through lipgloss.Color("")'s no-colour sentinel — a
 		// silently colourless render with no compile error and no failing
-		// assertion — which is exactly the hazard this seed closes. Every path
-		// that resolves an appearance re-selects from builtinPair below.
-		activeTheme: pair.selectFor(appearanceDarkCanvas),
+		// assertion — which is exactly the hazard this seed closes. An injected
+		// nomination overwrites it in syncResolvedMode below.
+		activeTheme: defaultDarkTheme(),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1232,41 +1248,41 @@ func New(lister SessionLister, opts ...Option) Model {
 	// 3-9 injects the persisted mode via an Option, so opening in By Tag must
 	// paint "Sessions — by tag" on the first frame.
 	m.sessionList.Title = sessionListTitleForMode(m.sessionListMode, m.insideTmux, m.currentSession)
-	// Initialise the §2.6 detect-or-timeout gate from the appearance pref now that
-	// WithAppearance has run. A pinned light/dark appearance resolves the canvas
-	// mode immediately (paint from frame one, no detection, no wait); auto is
-	// constructed RESOLVED to the dark fallback so a directly constructed model
-	// (tests, non-program callers) paints immediately. PRODUCTION opens the
-	// detect-or-timeout window explicitly via Build → arm (only for auto), so the
-	// live picker gates the first paint while a direct New(...) does not.
+	// Initialise the §2.6 detect-or-timeout gate from the SHAPE of the nomination
+	// now that WithThemeNomination has run. A constant (or absent) nomination
+	// resolves immediately — paint from frame one, no detection, no wait — while
+	// an adaptive pair is constructed RESOLVED to the dark fallback so a directly
+	// constructed model (tests, non-program callers) still paints. PRODUCTION
+	// opens the detect-or-timeout window explicitly via Build → arm, which only
+	// opens on an adaptive pair, so the live picker gates the first paint while a
+	// direct New(...) does not.
 	//
-	// The NO_COLOR carve-out (§2.5) wins over both the appearance pin and the auto
-	// gate: under NO_COLOR there is no canvas to select, so the gate is colourless
-	// (already resolved, unarmable) and detection + its first-paint wait are
-	// skipped. Checked first so the WithColourless option short-circuits the
-	// appearance-driven gate construction below.
+	// The NO_COLOR carve-out (§2.5) wins over every shape: under NO_COLOR there is
+	// no canvas to select, so the gate is colourless (already resolved, unarmable)
+	// and detection + its first-paint wait are skipped. Checked first so the
+	// WithColourless option short-circuits the shape-driven construction below.
 	if m.colourless {
 		m.gate = newColourlessGate()
-	} else if m.appearance != prefs.AppearanceAuto || !m.gate.pinned {
-		// WithCanvasMode is a test/capture-only DIRECT override: when it was applied
-		// in the options loop it set its own resolved gate AND left appearance at the
-		// auto zero value, so reconstructing the gate from auto would discard that
-		// override. Guard against that — only (re)build the gate from appearance when
-		// WithCanvasMode did NOT pin a mode (the common path), or when an explicit
-		// non-auto appearance was passed (a pin must win over a stray default gate).
-		m.gate = newAppearanceGate(m.appearance)
+	} else if !m.gate.pinned {
+		// WithCanvasMode is a test/capture-only DIRECT override of the ANSWER: when
+		// it was applied in the options loop it set its own resolved gate, and
+		// rebuilding from the nomination's shape would discard it. Guard against
+		// that — only build from the shape when WithCanvasMode did NOT pin an answer
+		// (the production path).
+		m.gate = newNominationGate(m.nomination)
 	}
 	m.syncResolvedMode()
 	return m
 }
 
 // armAppearanceDetection opens the §2.6 detect-or-timeout first-paint window on
-// an auto gate (a no-op when the appearance is pinned or a WithCanvasMode capture
-// override is in force). It is the production entry point — Build calls it so the
-// live picker holds the neutral blank frame until OSC 11 detection or the timeout
-// resolves the mode. A directly constructed model (tests, non-program callers)
-// never calls this, so it paints immediately. The method re-syncs the painted
-// fields so View observes the now-unresolved state.
+// an adaptive gate (a no-op on a constant or absent nomination, under NO_COLOR,
+// and when a WithCanvasMode override is in force). It is the production entry
+// point — Build calls it so the live picker holds the neutral blank frame until
+// OSC 11 detection or the timeout selects the member. A directly constructed
+// model (tests, non-program callers) never calls this, so it paints immediately.
+// The method re-syncs the painted fields so View observes the now-unresolved
+// state.
 func (m *Model) armAppearanceDetection() {
 	m.gate.arm()
 	m.syncResolvedMode()
@@ -1276,20 +1292,36 @@ func (m *Model) armAppearanceDetection() {
 // single read View uses to decide between the neutral blank frame and the real
 // canvas. It delegates to the gate so there is no duplicated flag to keep in
 // sync: a zero-value gate (a directly constructed test model) is resolved, an
-// armed auto gate is unresolved until OSC 11 or the timeout fires.
+// armed adaptive gate is unresolved until OSC 11 or the timeout fires.
 func (m Model) modeResolved() bool {
 	return m.gate.resolved()
 }
 
+// hasNomination reports whether a loaded theme setting was injected.
+//
+// The zero Nomination is neither of §8.2's two states, which is what makes it a
+// reliable sentinel: an injected constant or pair can never equal it, so
+// "nothing was injected" is decidable from the value alone rather than from a
+// second flag that could drift out of step with it.
+func (m Model) hasNomination() bool {
+	return m.nomination != (theme.Nomination{})
+}
+
 // syncResolvedMode mirrors the gate's resolved answer onto the model's painted
-// canvasMode, selects the ACTIVE PALETTE that answer names, and re-applies the
-// leaf canvas styles. It is called after every gate transition (arm, OSC 11 reply,
-// timeout, or pin) so the existing render path keeps reading one field while the
-// gate owns the single-resolution race. It is a no-op for the leaf styles when
-// nothing changed, but always cheap.
+// canvasMode, selects the ACTIVE PALETTE the nomination names for that answer,
+// and re-applies the leaf canvas styles. It is called after every gate transition
+// (arm, OSC 11 reply, timeout) so the existing render path keeps reading one field
+// while the gate owns the single-resolution race. It is a no-op for the leaf
+// styles when nothing changed, but always cheap.
+//
+// With NO nomination injected there is nothing to select, so the active palette
+// is left at New's dark built-in seed rather than overwritten with the zero Theme
+// an empty nomination would hand back — which renders silently colourless.
 func (m *Model) syncResolvedMode() {
 	m.canvasMode = m.gate.appearance
-	m.activeTheme = m.builtinPair.selectFor(m.canvasMode)
+	if m.hasNomination() {
+		m.activeTheme = m.nomination.Select(m.canvasMode == appearanceDarkCanvas)
+	}
 	m.applyCanvasMode()
 }
 
@@ -1461,18 +1493,16 @@ func NewModelWithSessions(sessions []tmux.Session) Model {
 	items := ToListItems(sessions)
 	l := newSessionList(items)
 	pl := newProjectList()
-	pair := loadBuiltinThemePair()
 	m := Model{
 		sessions:    sessions,
 		sessionList: l,
 		projectList: pl,
 		activePage:  PageSessions,
-		builtinPair: pair,
 		// Seed the active palette exactly as New does, and for the same reason: a
 		// zero Theme resolves through lipgloss.Color("")'s no-colour sentinel, so
 		// a model built here would render SILENTLY colourless rather than failing
 		// to compile.
-		activeTheme: pair.selectFor(appearanceDarkCanvas),
+		activeTheme: defaultDarkTheme(),
 		// The zero-value gate is already resolved to the dark canvas (pending is
 		// false by default), so this directly constructed test model paints
 		// immediately — the detect-or-timeout first-paint window is opened only by
@@ -2159,25 +2189,24 @@ func (m Model) Init() tea.Cmd {
 	// tea.BackgroundColorMsg response is stored in Update. This is ASYNC and
 	// NON-GATING: it is batched alongside whatever Init already returns, never
 	// gating the first paint, and a missing response simply leaves originalBg
-	// empty. It is distinct from canvasMode (Portal's chosen canvas); 1-7 will
-	// later consume the captured value for auto-appearance resolution.
+	// empty.
+	//
+	// The query is issued REGARDLESS OF THE SETTING SHAPE (§8.8) — a constant
+	// skips the GATE, never the QUERY, and so does the NO_COLOR carve-out. Two
+	// things depend on it beyond detection: restore.go's original-background
+	// capture, and §9.3's mid-session constant → adaptive conversion, which works
+	// without a new query, race or gate precisely because the reply is already in
+	// hand. A shape that skipped it would break both, silently and only on that
+	// shape.
 	requestBg := tea.Cmd(tea.RequestBackgroundColor)
 
-	// NO_COLOR carve-out (§2.5 / §2.6): Portal paints no canvas, so there is no
-	// OSC 11 set to undo on exit and no canvas to detect — skip the background
-	// query entirely. The detect-or-timeout tick is already suppressed (the
-	// colourless gate is resolved, so timeoutCmd returns nil), but nil-ing
-	// requestBg too means colourless issues NO OSC 11 query at all.
-	if m.colourless {
-		requestBg = nil
-	}
-
-	// Arm the §2.6 detect-or-timeout deadline. The gate returns nil for a pinned
-	// (already-resolved) appearance — the pin path skips the wait entirely — and
-	// an appearanceTimeoutMsg tick for an unresolved auto gate so a non-responding
-	// terminal still resolves to the dark fallback. Batched alongside the OSC 11
-	// query so the two race; whichever fires first resolves the mode (Update),
-	// the loser is ignored (no flip). A nil cmd is harmless inside tea.Batch.
+	// Arm the §2.6 detect-or-timeout deadline. The gate returns nil for an
+	// already-resolved gate — a constant nomination, no nomination, or NO_COLOR
+	// all skip the wait entirely — and an appearanceTimeoutMsg tick for an
+	// unresolved adaptive gate so a non-responding terminal still resolves to the
+	// dark fallback. Batched alongside the OSC 11 query so the two race; whichever
+	// fires first resolves the answer (Update), the loser is ignored (no flip). A
+	// nil cmd is harmless inside tea.Batch.
 	detectTimeout := m.gate.timeoutCmd()
 
 	if m.commandPending {
@@ -2241,22 +2270,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle cross-view messages regardless of view state
 	switch msg := msg.(type) {
 	case tea.BackgroundColorMsg:
-		// Two independent jobs ride this one message:
+		// Two independent jobs ride this one message, and the ORDER is the point:
+		// the reply is RETAINED unconditionally, and only then offered to the gate.
 		//
-		// 1. Capture the terminal's ORIGINAL background for restore-on-exit. The
-		//    query was issued from Init; this stores the hex form so the launch
-		//    sites can SET it back on quit (terminals that ignore the OSC 111
-		//    reset still honour the set). The nil guard is required —
-		//    BackgroundColorMsg.String() panics on a nil Color (a no-answer),
-		//    which leaves originalBg empty.
+		// 1. Retain the terminal's ORIGINAL background, plus the fact a reply
+		//    arrived at all. restore-on-exit needs the hex so the launch sites can
+		//    SET it back on quit (terminals that ignore the OSC 111 reset still
+		//    honour the set), and §9.3's mid-session conversion needs both halves
+		//    so task 9-6 can classify a reply this launch never asked a question
+		//    of. The nil guard is required — BackgroundColorMsg.String() panics on
+		//    a nil Color (a no-answer) — which is exactly why the arrival is
+		//    tracked separately rather than inferred from a non-empty hex.
 		//
-		// 2. Resolve the §2.6 appearance gate in AUTO mode. msg.IsDark() is
-		//    nil-safe (nil → dark), so a no-answer-shaped reply collapses to the
-		//    dark fallback. resolveFromDark is the single-resolution core: it is a
-		//    no-op once the gate already resolved (a pinned appearance, or the
-		//    timeout already won the race), so a late OSC 11 reply never flips the
-		//    painted canvas. COLORFGBG is deliberately NOT consulted here — OSC 11
-		//    is authoritative; the weak COLORFGBG hint must never override it.
+		// 2. Offer it to the §2.6 gate. msg.IsDark() is nil-safe (nil → dark), so a
+		//    no-answer-shaped reply collapses to the dark fallback. resolveFromDark
+		//    is the single-resolution core: it is a no-op once the gate already
+		//    resolved (a constant nomination, or the timeout already won the race),
+		//    so a late OSC 11 reply is still consumed by step 1 yet never re-themes.
+		//    COLORFGBG is deliberately NOT consulted here — OSC 11 is authoritative;
+		//    the weak COLORFGBG hint must never override it.
+		m.bgReplyArrived = true
 		if msg.Color != nil {
 			m.originalBg = msg.String()
 		}
@@ -3857,13 +3890,14 @@ func (m Model) handleSessionListEnter() (tea.Model, tea.Cmd) {
 // (viewLoading / viewProjectList / viewSessionList / preview.View) a plain
 // string builder, so the render logic is unchanged from v1 (parity).
 func (m Model) View() tea.View {
-	// §2.6 / §10.2 first-paint gate: in auto mode, hold the real canvas/content
-	// paint until the appearance gate resolves (the OSC 11 reply or the timeout).
-	// Painting the real canvas before the mode is decided would risk a visible
-	// flip — a defect. The wait is tens of ms (appearanceDetectTimeout), invisible
-	// against the multi-hundred-ms bootstrap, so the user never sees the blank.
-	// A pinned appearance constructs the gate already resolved, so this branch is
-	// never taken for light/dark pins — they paint from frame one.
+	// §2.6 / §10.2 first-paint gate: under an ADAPTIVE pair, hold the real
+	// canvas/content paint until the gate resolves (the OSC 11 reply or the
+	// timeout). Painting before the member is selected would risk a visible flip —
+	// and under split that flip swaps a whole named theme, not one palette's
+	// variant. The wait is tens of ms (appearanceDetectTimeout), invisible against
+	// the multi-hundred-ms bootstrap, so the user never sees the blank. A CONSTANT
+	// nomination constructs the gate already resolved, so this branch is never
+	// taken for one — it paints from frame one.
 	//
 	// Scope: the gate holds EVERY owned-canvas surface, including the §10 cold-path
 	// loading page (§10.2 canvas-flip avoidance) — it paints the resolved (or
@@ -3897,7 +3931,7 @@ func (m Model) View() tea.View {
 }
 
 // blankFrame is the neutral pre-resolution frame held by the §2.6 first-paint
-// gate while the appearance is still being detected. It paints NO canvas
+// gate while an adaptive pair's member is still being detected. It paints NO canvas
 // background — the light/dark mode is undecided, so committing to either canvas
 // here is exactly the flip the gate exists to avoid. It is a FULL-terminal block
 // of plain spaces (no SGR, no content inset — there is no content to inset yet),

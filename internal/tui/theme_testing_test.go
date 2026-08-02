@@ -104,6 +104,18 @@ func tokenNamed(t *testing.T, th theme.Theme, name string) theme.Token {
 	return theme.Token{}
 }
 
+// testConstantFor is the CONSTANT nomination painting the built-in that the given
+// canvas answer names.
+//
+// It is how a test pins a palette from frame one now that there is no light/dark
+// appearance to pin: a constant skips the gate entirely (§8.8), so the model is
+// resolved at construction and the frame is un-gated — the same property the
+// capture harness relies on.
+func testConstantFor(t *testing.T, appearance canvasAppearance) theme.Nomination {
+	t.Helper()
+	return theme.ConstantNomination(themeForAppearance(t, appearance))
+}
+
 // appearanceForTheme returns the gate answer that selects th from the built-in
 // pair — the inverse of themeForAppearance, for the tests that drive a model
 // through WithCanvasMode (which pins the ANSWER, from which the model re-derives

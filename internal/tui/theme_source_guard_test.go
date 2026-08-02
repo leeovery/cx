@@ -64,17 +64,14 @@ func TestOldThemeSubpackageIsGone(t *testing.T) {
 //	CAUGHT  var x = theme.Token{Name: ..., Value: ...}          (initialiser selector)
 //	CAUGHT  var x = defaultDarkTheme().AccentMode               (in-package source call)
 //	CAUGHT  var x = defaultDarkTheme()                          (in-package source call)
-//	CAUGHT  var x = loadBuiltinThemePair()                      (source call, via local struct)
-//	CAUGHT  var x builtinThemePair                              (declared local theme-bearing type)
+//	CAUGHT  var x Model                                         (declared local theme-bearing type)
 //	CAUGHT  var x = lipgloss.NewStyle().Foreground(defaultDarkTheme().AccentMode.Color())
 //	QUIET   var x = 4                                           (negative control)
 //	QUIET   var x = someNonThemeFunc()                          (negative control)
 //
 // The in-package arm is structural, not name-based: themeSources derives the
 // source set from the declarations themselves, so a theme accessor named without
-// the word "theme" is still caught. Its one known blind spot is a var initialised
-// by a METHOD call (`somePair.selectFor(...)`), which needs a package-scope
-// receiver that these same arms already reject.
+// the word "theme" is still caught.
 func TestNoPackageLevelThemeVar(t *testing.T) {
 	names := centralisedColourSites(t)
 	fset := token.NewFileSet()
@@ -119,9 +116,9 @@ func parseProductionFiles(t *testing.T, fset *token.FileSet, names []string) map
 
 // themeSources is the in-package vocabulary that yields theme data without ever
 // writing `theme.` at the call site: the local struct types carrying theme fields
-// (builtinThemePair) and the functions whose results carry theme data either
-// directly (defaultDarkTheme, loadBuiltinTheme) or through one of those types
-// (loadBuiltinThemePair).
+// (Model, which holds both the active Theme and the injected Nomination) and the
+// functions whose results carry theme data either directly (defaultDarkTheme,
+// loadBuiltinTheme) or through one of those types (New, NewModelWithSessions).
 type themeSources struct {
 	types map[string]bool
 	funcs map[string]bool
@@ -131,10 +128,13 @@ type themeSources struct {
 // declarations, in two ordered passes: every theme-bearing struct type first
 // (a function may return a type declared in another file), then every function
 // whose results carry theme data directly or through one of those types — the
-// single transitive step that reaches loadBuiltinThemePair.
+// single transitive step that reaches the model constructors.
 //
 // Methods are collected alongside plain functions; a method name is inert here,
-// because the matching arm only fires on a bare-identifier call.
+// because the matching arm only fires on a bare-identifier call. Its one known
+// blind spot is therefore a var initialised by a METHOD call
+// (`someNomination.Select(...)`), which needs a package-scope receiver that these
+// same arms already reject.
 func collectThemeSources(files map[string]*ast.File) themeSources {
 	sources := themeSources{types: map[string]bool{}, funcs: map[string]bool{}}
 	for _, file := range files {

@@ -23,7 +23,7 @@ import (
 // budgets are applied (mirroring newCanvasTestModel for the Projects page).
 func newProjectsPageTestModel(t *testing.T, w, h int, th theme.Theme, projects []project.Project) Model {
 	t.Helper()
-	m := New(fakeLister{}, WithCanvasMode(appearanceForTheme(t, th)))
+	m := New(fakeLister{}, WithThemeNomination(theme.ConstantNomination(th)))
 	m.termWidth = w
 	m.termHeight = h
 	m.activePage = PageProjects

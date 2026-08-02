@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // TestNoColorEnabled pins the no-color.org convention the cmd layer reads: the
@@ -64,10 +64,11 @@ func TestBuildTUIModel_NoColorSuppressesCanvas(t *testing.T) {
 	t.Run("coloured path still paints the canvas background", func(t *testing.T) {
 		cfg := defaultTestTUIConfig()
 		cfg.noColor = false
-		// Pin the appearance so the gate resolves at construction (the auto gate
-		// would hold the blank frame until OSC 11 resolves, which never fires in a
-		// non-program test) — then the coloured path paints its canvas immediately.
-		cfg.appearance = prefs.AppearanceDark
+		// Pin a CONSTANT nomination so the gate resolves at construction (an
+		// adaptive pair would hold the blank frame until OSC 11 resolves, which
+		// never fires in a non-program test) — then the coloured path paints its
+		// canvas immediately.
+		cfg.theme = theme.ConstantNomination(builtinThemeForTest(t, theme.DefaultDarkSlug))
 
 		m := buildTUIModel(cfg, "", nil)
 

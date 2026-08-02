@@ -4,7 +4,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // appearanceDetectTimeout is the upper bound on how long the first real paint
@@ -23,10 +23,11 @@ import (
 const appearanceDetectTimeout = 50 * time.Millisecond
 
 // appearanceTimeoutMsg is the detect-or-timeout deadline message. It is emitted
-// by the tea.Tick armed in Init (auto mode only) after appearanceDetectTimeout.
-// When it wins the race against the OSC 11 BackgroundColorMsg, the appearance
-// gate resolves to the dark fallback (§2.6). It is ignored once the mode is
-// already resolved (the loser of the race never re-resolves — no flip).
+// by the tea.Tick armed in Init (adaptive pair only) after
+// appearanceDetectTimeout. When it wins the race against the OSC 11
+// BackgroundColorMsg, the gate resolves to the dark fallback (§2.6). It is
+// ignored once the gate is already resolved (the loser of the race never
+// re-resolves — no flip).
 type appearanceTimeoutMsg struct{}
 
 // canvasAppearance is the gate's light/dark answer — which of the two canvases
@@ -63,27 +64,38 @@ const (
 // or the timeout fires FIRST resolves the mode and flips resolved to true; every
 // later signal is ignored, so the canvas is painted exactly once and never flips.
 //
-// A pinned appearance (light/dark, §2.6 override) constructs the gate already
-// resolved and unarmable — detection and the timeout wait are skipped entirely.
-// The NO_COLOR carve-out (§2.5 / §2.6) does the same via colourless: under
-// NO_COLOR there is no canvas to select, so the gate is resolved and unarmable
-// and detection + its first-paint wait are skipped — exactly like a pin, but for
-// a different reason (no hue at all, rather than a chosen mode).
+// Its SHAPE is decided by the theme setting's shape (§8.8). Only an ADAPTIVE
+// nomination has a light/dark question to answer, so only an adaptive gate is
+// armable; a CONSTANT nomination constructs the gate already resolved and
+// unarmable — detection and the timeout wait are skipped entirely, which is the
+// real startup win §8.8 records. The NO_COLOR carve-out (§2.5 / §2.6) does the
+// same via colourless: under NO_COLOR there is no canvas to select, so the gate
+// is resolved and unarmable — like a constant, but for a different reason (no hue
+// at all, rather than a chosen palette).
 type appearanceGate struct {
 	// appearance is the resolved light/dark canvas the owned canvas (§1) is
 	// painted for. appearanceDarkCanvas is the zero value (the §8.8 no-answer
-	// fallback), so an unresolved auto gate already carries the fallback answer;
-	// it is simply not painted until the gate resolves.
+	// fallback), so an unresolved adaptive gate already carries the fallback
+	// answer; it is simply not painted until the gate resolves.
+	//
+	// On a gate that was never armed — a constant nomination, a nomination-less
+	// model — the value is that standing fallback and NOTHING ELSE. It is not
+	// detection-derived and must never be read as "the terminal is dark": no
+	// question was asked. What the terminal actually reported is retained
+	// separately on the model (originalBg + the arrival flag) for task 9-6.
 	appearance canvasAppearance
 	// pending reports whether the detect-or-timeout window is OPEN (the first real
 	// paint must wait). It is named negatively on purpose: the zero value (false)
 	// means "not pending" = resolved, so a zero-value gate (a struct-literal test
-	// model) paints immediately. arm() opens the window (pending=true) on an auto
-	// gate; the OSC 11 reply or the timeout closes it. resolved() is the positive
-	// read used everywhere else.
+	// model) paints immediately. arm() opens the window (pending=true) on an
+	// adaptive gate; the OSC 11 reply or the timeout closes it. resolved() is the
+	// positive read used everywhere else.
 	pending bool
-	// pinned marks a light/dark appearance override. A pinned gate is never armed
-	// (arm is a no-op), so the pin's mode survives and no timeout tick is issued.
+	// pinned marks a gate with NOTHING TO DETECT: a constant nomination (§8.2 —
+	// detection is never consulted), a model constructed with no nomination at all
+	// (nothing to select between), or the test/capture WithCanvasMode override. A
+	// pinned gate is never armed (arm is a no-op), so its answer survives and no
+	// timeout tick is issued.
 	pinned bool
 	// colourless marks the NO_COLOR carve-out (§2.5). A colourless gate is never
 	// armed (arm is a no-op) and is constructed already resolved, so detection and
@@ -100,42 +112,51 @@ func (g appearanceGate) resolved() bool {
 	return !g.pending
 }
 
-// newAppearanceGate builds the gate for the given appearance preference (§2.6).
-// A pinned light/dark appearance resolves immediately (appearance set,
-// pinned=true, not pending) so the correct canvas paints from frame one with no
-// detection and no wait. Auto is constructed RESOLVED to the dark fallback so a
-// directly constructed model paints immediately; production opens the
-// detect-or-timeout window explicitly via arm() (see Build), which only
-// un-resolves a non-pinned gate.
-func newAppearanceGate(appearance prefs.Appearance) appearanceGate {
-	switch appearance {
-	case prefs.AppearanceLight:
-		return appearanceGate{appearance: appearanceLightCanvas, pinned: true}
-	case prefs.AppearanceDark:
-		return appearanceGate{appearance: appearanceDarkCanvas, pinned: true}
-	default:
-		// Auto: resolved to the dark fallback by default (pending=false); arm()
-		// opens the detect-or-timeout window.
-		return appearanceGate{appearance: appearanceDarkCanvas}
+// newNominationGate builds the gate for the SHAPE of a loaded theme setting
+// (§8.4 / §8.8).
+//
+// An ADAPTIVE pair is the only shape with a question to answer, so it is the only
+// armable gate. It is constructed RESOLVED to the dark fallback (pending=false)
+// so a directly constructed model paints immediately; production opens the
+// detect-or-timeout window explicitly via arm() (see Build), which is what holds
+// the live picker's first paint until the answer lands.
+//
+// Every other shape is pinned — resolved and unarmable, painting from frame one
+// with no detection and no wait:
+//
+//   - A CONSTANT nomination, because detection is never consulted for one (§8.2).
+//   - A ZERO nomination, i.e. a model nobody handed a theme. There is nothing to
+//     select between, so waiting for an answer would gate the first paint on a
+//     question whose outcome cannot change what is painted (New's dark built-in
+//     seed).
+//
+// Its answer is the dark zero value in both pinned cases, and is NOT
+// detection-derived — see appearanceGate.appearance.
+func newNominationGate(n theme.Nomination) appearanceGate {
+	if n.IsConstant() || n == (theme.Nomination{}) {
+		return appearanceGate{pinned: true}
 	}
+	return appearanceGate{}
 }
 
 // newColourlessGate builds the gate for the NO_COLOR carve-out (§2.5 / §2.6). It
 // is constructed already resolved (pending=false) and unarmable (colourless=true,
 // so arm() is a no-op), so detection and the first-paint wait are skipped — there
-// is no canvas to select. The appearance is the dark zero value but is never
-// consumed for a paint: the render path reads m.colourless and paints no canvas at
-// all, so the resolved answer is irrelevant.
+// is no canvas to select. The appearance is the dark zero value: §9.10 makes that
+// the standing no-answer fallback selecting the active member, which is why the
+// theme machinery below the render layer still runs unchanged under NO_COLOR
+// (both nominated themes loaded, one selected) even though nothing is painted.
 func newColourlessGate() appearanceGate {
 	return appearanceGate{colourless: true}
 }
 
-// arm opens the detect-or-timeout window on a non-pinned (auto) gate: it marks
-// the gate pending so View holds the neutral blank frame and Init issues the
-// timeout tick, until the OSC 11 reply or the timeout resolves it. It is a no-op
-// on a pinned gate (the pin keeps painting from frame one). Production (Build)
-// arms the gate for auto appearance; the foundation Sessions screen and the §10
-// loading page (Phase 5) share this one mechanism.
+// arm opens the detect-or-timeout window on a non-pinned (adaptive) gate: it
+// marks the gate pending so View holds the neutral blank frame and Init issues
+// the timeout tick, until the OSC 11 reply or the timeout resolves it. It is a
+// no-op on a pinned gate (which keeps painting from frame one). Production
+// (Build) arms the gate for every construction; only an adaptive nomination
+// actually opens a window. The foundation Sessions screen and the §10 loading
+// page (Phase 5) share this one mechanism.
 func (g *appearanceGate) arm() {
 	if g.pinned || g.colourless {
 		return
@@ -144,9 +165,9 @@ func (g *appearanceGate) arm() {
 }
 
 // timeoutCmd is the tea.Cmd that arms the detect-or-timeout deadline tick. It
-// returns nil for an already-resolved gate (a pin, or an auto gate whose window
-// is not open) so no spurious wait is issued; for an open (pending) gate it
-// schedules the appearanceTimeoutMsg after appearanceDetectTimeout.
+// returns nil for an already-resolved gate (a constant, or an adaptive gate whose
+// window is not open) so no spurious wait is issued; for an open (pending) gate
+// it schedules the appearanceTimeoutMsg after appearanceDetectTimeout.
 func (g appearanceGate) timeoutCmd() tea.Cmd {
 	if g.resolved() {
 		return nil

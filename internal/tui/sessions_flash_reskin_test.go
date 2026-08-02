@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -296,7 +295,6 @@ func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 	}
 	m := Build(Deps{
 		Lister:       reskinStubLister{sessions: sessions},
-		Appearance:   prefs.AppearanceDark,
 		InitialFlash: msg,
 	})
 	// Drive the live program's first messages: size, then the session ingestion.

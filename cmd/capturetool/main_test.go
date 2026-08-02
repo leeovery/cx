@@ -7,7 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
@@ -49,34 +48,37 @@ func TestResolveModel(t *testing.T) {
 	})
 }
 
-// TestResolveAppearance verifies the --appearance flag maps to the pinned
-// prefs.Appearance the model resolves the owned canvas from. The harness drives
-// the pin path (no OSC 11 detection / no first-paint wait), so the captured
-// canvas is deterministic while still exercising the real §2.6 resolution.
-func TestResolveAppearance(t *testing.T) {
-	t.Run("dark pins AppearanceDark", func(t *testing.T) {
-		got, err := resolveAppearance("dark")
+// TestResolveAppearanceSlug verifies the --appearance flag maps to the built-in
+// slug whose palette the harness pins as a CONSTANT nomination (§13.3). A
+// constant skips the gate entirely — no OSC 11 detection, no first-paint wait —
+// which is what keeps a capture byte-deterministic.
+//
+// The flag survives exactly one more task: 3-4 replaces it with --theme, which
+// takes a slug or a path directly.
+func TestResolveAppearanceSlug(t *testing.T) {
+	t.Run("dark names the shipped dark built-in", func(t *testing.T) {
+		got, err := resolveAppearanceSlug("dark")
 		if err != nil {
-			t.Fatalf("resolveAppearance(dark): %v", err)
+			t.Fatalf("resolveAppearanceSlug(dark): %v", err)
 		}
-		if got != prefs.AppearanceDark {
-			t.Errorf("resolveAppearance(dark) = %v, want AppearanceDark", got)
+		if got != theme.DefaultDarkSlug {
+			t.Errorf("resolveAppearanceSlug(dark) = %q, want %q", got, theme.DefaultDarkSlug)
 		}
 	})
 
-	t.Run("light pins AppearanceLight", func(t *testing.T) {
-		got, err := resolveAppearance("light")
+	t.Run("light names the shipped light built-in", func(t *testing.T) {
+		got, err := resolveAppearanceSlug("light")
 		if err != nil {
-			t.Fatalf("resolveAppearance(light): %v", err)
+			t.Fatalf("resolveAppearanceSlug(light): %v", err)
 		}
-		if got != prefs.AppearanceLight {
-			t.Errorf("resolveAppearance(light) = %v, want AppearanceLight", got)
+		if got != theme.DefaultLightSlug {
+			t.Errorf("resolveAppearanceSlug(light) = %q, want %q", got, theme.DefaultLightSlug)
 		}
 	})
 
 	t.Run("invalid value is an error", func(t *testing.T) {
-		if _, err := resolveAppearance("purple"); err == nil {
-			t.Fatal("resolveAppearance(purple) returned nil error, want error")
+		if _, err := resolveAppearanceSlug("purple"); err == nil {
+			t.Fatal("resolveAppearanceSlug(purple) returned nil error, want error")
 		}
 	})
 }

@@ -119,7 +119,7 @@ func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
 	// filter input narrows VisibleItems via the standard typeKeys drain: a raw
 	// struct-literal model batches a cursor-blink cmd with the FilterMatchesMsg,
 	// which the shared drain does not unwrap, so it would never narrow.
-	m := Build(Deps{Lister: fakeLister{}, Appearance: prefs.AppearanceDark})
+	m := Build(Deps{Lister: fakeLister{}})
 	m.termWidth = filteringReskinWidth
 	m.termHeight = filteringReskinHeight
 	m.applySessions([]tmux.Session{

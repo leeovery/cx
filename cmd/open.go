@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/session"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/state"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
 	"github.com/spf13/cobra"
@@ -28,6 +29,24 @@ import (
 // reconstructable from portal.log. internal/resolver stays a pure, log-free
 // library: the binding and emission live only here.
 var resolveLogger = log.For("resolve")
+
+// themeLogger binds the "theme" log component once for the whole cmd package (a
+// spec-governed amendment to the closed taxonomy, §12.3, with `spawn` and
+// `resolve` as direct precedent).
+//
+// The component is legitimately emitted from more than one PACKAGE — the loader
+// in internal/theme, the §10.5 translation and the §8.9 theme persister here —
+// because CLAUDE.md's rule is bind once per PACKAGE, which `spawn` and
+// `bootstrap` already span several files under. This is that one binding for
+// cmd: every theme seam constructed here is handed this logger, and nothing else
+// in the package calls log.For("theme").
+//
+// Emission is the CALLER's decision, not the loader's (§12.3): a real component
+// logger goes where a theme is USED — TUI construction, and later the panel and
+// the persister — while `portal doctor`, `portal theme export` and capturetool
+// pass log.Discard() because the component records where a theme is used, never
+// where one is diagnosed.
+var themeLogger = log.For("theme")
 
 // openTUIFunc is the function used to launch the TUI. Tests override it via
 // t.Cleanup-restored assignment to capture arguments without launching the
@@ -651,8 +670,14 @@ type tuiConfig struct {
 	dirReader       session.PaneCurrentPathReader
 	dirRunner       resolver.CommandRunner
 	initialMode     prefs.SessionListMode
-	appearance      prefs.Appearance
-	modePersister   tui.ModePersister
+	// theme is the LOADED theme setting the model renders from (§8.4) — one
+	// palette under a constant, both under an adaptive pair. It replaces the
+	// light/dark appearance this struct used to carry: a theme IS the mode, so
+	// there is no mode left to pin (§13.3). Its zero value is neither state,
+	// which leaves a model on tui.New's dark built-in seed — the shape every
+	// test config that does not care about theming carries.
+	theme         theme.Nomination
+	modePersister tui.ModePersister
 	// detector + resolve are the §6 async host-terminal detection seams. Built
 	// once at TUI construction (detector over the shared *tmux.Client; resolve from
 	// the config-aware buildResolver, terminals.json loaded once) and threaded into
@@ -699,6 +724,64 @@ func noColorEnabled() bool {
 	return ok && v != ""
 }
 
+// newThemeLoader returns the loader every theme read on the TUI-construction
+// path goes through, carrying the package's `theme` component logger (§12.3).
+//
+// Constructed per call rather than held package-level, because a Loader owns the
+// event logger's per-process dedup state: one loader per TUI construction is one
+// dedup scope per launch, which is what §5.5 requires of the construction-time
+// read and the panel's later enumeration in the same process.
+func newThemeLoader() theme.Loader {
+	return theme.NewLoader(theme.NewEventLogger(themeLogger))
+}
+
+// nominationForAppearance maps the surviving legacy `appearance` pref onto the
+// theme setting §10.2 says it means — IN MEMORY ONLY. Nothing is written here.
+//
+// The mapping is exact, which is what makes it cheap: `dark` meant "always dark
+// regardless of terminal", and the new equivalent is a CONSTANT theme, so a user
+// who pinned a mode keeps a pinned theme and detection stays off for them exactly
+// as it was. `auto` needs no translation at all — ignoring it lands on the shipped
+// adaptive pair, which is what `auto` already meant — so it is the default arm
+// rather than a case, and an unrecognised value (which prefs already collapses to
+// auto) lands there too.
+//
+// Both slugs resolve out of the EMBEDDED SET, so this reads no themes directory
+// and no path: §8.4's resolution order makes a built-in slug never touch the
+// directory, which is what keeps construction free of config discovery.
+//
+// This is the read half of §10.5 only. The persisted translation — the write, its
+// `theme_migrated` marker and the `theme: appearance migrated` event — belongs to
+// Phase 6, as does prefs-sourced resolution and §8.5's fallback (Phase 5). What is
+// here is deliberately the half that can never flip a user to the wrong theme.
+func nominationForAppearance(loader theme.Loader, appearance prefs.Appearance) theme.Nomination {
+	switch appearance {
+	case prefs.AppearanceDark:
+		return theme.ConstantNomination(loadBuiltinOrZero(loader, theme.DefaultDarkSlug))
+	case prefs.AppearanceLight:
+		return theme.ConstantNomination(loadBuiltinOrZero(loader, theme.DefaultLightSlug))
+	default:
+		return theme.AdaptivePair(
+			loadBuiltinOrZero(loader, theme.DefaultLightSlug),
+			loadBuiltinOrZero(loader, theme.DefaultDarkSlug),
+		)
+	}
+}
+
+// loadBuiltinOrZero loads one built-in by slug, returning the zero Theme if the
+// embedded set somehow does not carry it or its file does not parse.
+//
+// There is deliberately NO fallback beneath it: §7.6 makes a broken built-in
+// impossible at BUILD time — the embedded set is parsed and validated by a unit
+// test, and both default slugs are asserted to resolve within it — so a failure
+// here would mean a binary shipped with a broken default. §8.5's per-slot fallback
+// is for a NOMINATED theme that will not load, which is Phase 5's path; inventing
+// an interim one here would be a second, unspecified resolution policy.
+func loadBuiltinOrZero(loader theme.Loader, slug string) theme.Theme {
+	loaded, _, _ := loader.LoadBuiltin(slug)
+	return loaded.Theme
+}
+
 // buildTUIModel constructs a tui.Model from the given config and parameters by
 // mapping the cmd-local tuiConfig onto the shared tui.Deps seam set and
 // delegating to tui.Build — the single model-construction chokepoint shared with
@@ -722,7 +805,7 @@ func buildTUIModel(cfg tuiConfig, initialFilter string, command []string) tui.Mo
 		ModePersister:    cfg.modePersister,
 		CWD:              cfg.cwd,
 		InitialMode:      cfg.initialMode,
-		Appearance:       cfg.appearance,
+		Theme:            cfg.theme,
 		InitialFilter:    initialFilter,
 		Command:          command,
 		ServerStarted:    cfg.serverStarted,
@@ -839,16 +922,21 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	if prefsStore != nil {
 		initialMode, _ = prefsStore.Load()
 	}
-	// Read the persisted appearance preference from the SAME prefsStore instance.
-	// LoadAppearance is tolerant — every degenerate case collapses to AppearanceAuto
-	// — so the discarded error is acceptable: a read failure can only yield Auto,
-	// which is the default detection behaviour anyway. The value is honoured
-	// downstream: a `light`/`dark` pin skips detection + the first-paint wait via
-	// Build → armAppearanceDetection (§2.6).
+	// Read the surviving legacy appearance preference from the SAME prefsStore
+	// instance. LoadAppearance is tolerant — every degenerate case collapses to
+	// AppearanceAuto — so the discarded error is acceptable: a read failure can
+	// only yield Auto, which maps to the shipped adaptive pair, the default
+	// behaviour anyway.
 	appearance := prefs.AppearanceAuto
 	if prefsStore != nil {
 		appearance, _ = prefsStore.LoadAppearance()
 	}
+	// Map it onto the loaded theme setting the model renders from (§10.2), IN
+	// MEMORY ONLY — nothing is written back, and prefs.Appearance survives
+	// untouched. A pin becomes a CONSTANT nomination, which paints from frame one
+	// with no detection and no first-paint wait; auto becomes the adaptive pair,
+	// whose member the §2.6 gate selects before anything is painted.
+	nomination := nominationForAppearance(newThemeLoader(), appearance)
 
 	// Resolve the connector once. It is used post-TUI by processTUIResult
 	// for both Sessions-page Enter and Preview-page Enter. Both
@@ -894,7 +982,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		dirReader:     client,
 		dirRunner:     &resolver.RealCommandRunner{},
 		initialMode:   initialMode,
-		appearance:    appearance,
+		theme:         nomination,
 		cwd:           cwd,
 		serverStarted: serverStarted,
 		// §6 async host-terminal detection seams, from the shared builder: the

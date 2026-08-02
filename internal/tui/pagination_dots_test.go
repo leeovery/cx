@@ -7,19 +7,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
-
-// appearanceForCanvas pins the persisted appearance that resolves to the given
-// canvas, so Build paints it from frame one (no OSC 11 detection).
-func appearanceForCanvas(appearance canvasAppearance) prefs.Appearance {
-	if appearance == appearanceLightCanvas {
-		return prefs.AppearanceLight
-	}
-	return prefs.AppearanceDark
-}
 
 // newMultiPageSessionModel builds a production-shaped Sessions model with enough
 // deterministic sessions to span >1 page at the given terminal size, so the
@@ -31,7 +21,7 @@ func newMultiPageSessionModel(t *testing.T, w, h int, appearance canvasAppearanc
 	for i := range 60 {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
-	m := Build(Deps{Lister: fakeLister{}, Appearance: appearanceForCanvas(appearance), NoColor: colourless})
+	m := Build(Deps{Lister: fakeLister{}, Theme: testConstantFor(t, appearance), NoColor: colourless})
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)

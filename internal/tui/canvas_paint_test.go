@@ -209,7 +209,7 @@ func newCanvasTestModel(t *testing.T, w, h int, appearance canvasAppearance) Mod
 		{Name: "bravo", Windows: 1, Attached: false},
 		{Name: "charlie", Windows: 2, Attached: false},
 	}
-	m := New(fakeLister{}, WithCanvasMode(appearance))
+	m := New(fakeLister{}, WithThemeNomination(testBuiltinPair(t)), WithCanvasMode(appearance))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)

@@ -547,8 +547,9 @@ func TestLoadingScreen_IsRealListNotInPlaceSwap(t *testing.T) {
 // gate resolves the loading page shows the neutral blank frame; once resolved it
 // paints the canvas-backed loading screen.
 func TestViewLoading_PaintsCanvasFromFrameOneGated(t *testing.T) {
-	m := New(fakeLister{}, WithServerStarted(true))
-	// Arm the auto gate so the first-paint window is OPEN (no pin).
+	m := New(fakeLister{}, WithServerStarted(true), WithThemeNomination(testBuiltinPair(t)))
+	// Arm the adaptive gate so the first-paint window is OPEN (a constant has
+	// nothing to detect, so its gate never opens).
 	m.armAppearanceDetection()
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})

@@ -43,11 +43,7 @@ func filteringTestModel(t *testing.T, th theme.Theme) Model {
 		{Name: "fabric-lk26UG", Windows: 1, Attached: false},
 		{Name: "other-session", Windows: 1, Attached: false},
 	}
-	appearance := prefs.AppearanceDark
-	if th == testLightTheme(t) {
-		appearance = prefs.AppearanceLight
-	}
-	m := Build(Deps{Lister: fakeLister{}, Appearance: appearance})
+	m := Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(th)})
 	m.termWidth = filteringReskinWidth
 	m.termHeight = filteringReskinHeight
 	m.applySessions(sessions)

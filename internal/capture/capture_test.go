@@ -9,8 +9,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -180,11 +180,11 @@ func TestLoadingErrorFixture(t *testing.T) {
 		t.Fatalf("FixtureByName(loading-error): %v", err)
 	}
 
-	// Pin the dark appearance (as the capturetool does for --appearance dark) so the
+	// Pass the CONSTANT nomination shape (as the capturetool does) so the
 	// detect-or-timeout first-paint gate is already resolved and View() paints the
 	// real frame rather than the neutral held blank.
 	deps := fx.Deps()
-	deps.Appearance = prefs.AppearanceDark
+	deps.Theme = theme.ConstantNomination(darkBuiltin(t))
 	m := tui.Build(deps)
 	if m.ActivePage() != tui.PageLoading {
 		t.Errorf("ActivePage() = %d, want PageLoading (the loading-error fixture must park on the loading page)", m.ActivePage())
@@ -1100,4 +1100,19 @@ func TestFakeSeamsAreInert(t *testing.T) {
 	if _, err := d.Reader.Tail("any-pane-key"); err != nil {
 		t.Errorf("Reader.Tail returned %v, want nil", err)
 	}
+}
+
+// darkBuiltin loads the shipped dark built-in — the palette capturetool pins by
+// default — failing on anything but a clean parse (§7.6 makes a rejection here a
+// build-time impossibility).
+func darkBuiltin(t *testing.T) theme.Theme {
+	t.Helper()
+	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(theme.DefaultDarkSlug)
+	if !found {
+		t.Fatalf("built-in %q not found in the embedded set", theme.DefaultDarkSlug)
+	}
+	if rejection != nil {
+		t.Fatalf("built-in %q was rejected: %s", theme.DefaultDarkSlug, rejection.Reason)
+	}
+	return loaded.Theme
 }

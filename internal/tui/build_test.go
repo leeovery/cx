@@ -136,7 +136,6 @@ func TestBuild(t *testing.T) {
 				{Name: "designlab-web-r8suyU", Windows: 3},
 			}},
 			InitialMode:        prefs.ModeFlat,
-			Appearance:         prefs.AppearanceDark,
 			InitialMultiSelect: []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"},
 			InitialGoneFlagged: []string{"fab-flowx-explore"},
 		})

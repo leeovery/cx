@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/prefs"
 )
 
 // TestCanvasAppearance_ZeroValueIsDark pins the gate's light/dark answer as an
@@ -25,56 +24,6 @@ func TestCanvasAppearance_ZeroValueIsDark(t *testing.T) {
 	var g appearanceGate
 	if g.appearance != appearanceDarkCanvas {
 		t.Errorf("zero appearanceGate.appearance = %v, want appearanceDarkCanvas", g.appearance)
-	}
-}
-
-// TestActiveTheme_SelectedByGateAppearance pins §3.4's plumbing: the model holds
-// the ACTIVE Theme, and its transitional source is the embedded built-in pair
-// selected by the gate's light/dark answer. A dark reply must yield the dark
-// built-in's palette, a light reply the light built-in's.
-func TestActiveTheme_SelectedByGateAppearance(t *testing.T) {
-	t.Run("a dark OSC 11 reply selects the dark built-in", func(t *testing.T) {
-		m := detectModel(t, prefs.AppearanceAuto)
-		updated, _ := m.Update(darkBg)
-		assertActiveTheme(t, updated.(Model), testDarkTheme(t).Canvas.Value)
-	})
-
-	t.Run("a light OSC 11 reply selects the light built-in", func(t *testing.T) {
-		m := detectModel(t, prefs.AppearanceAuto)
-		updated, _ := m.Update(lightBg)
-		assertActiveTheme(t, updated.(Model), testLightTheme(t).Canvas.Value)
-	})
-
-	t.Run("the no-answer timeout selects the dark built-in", func(t *testing.T) {
-		m := detectModel(t, prefs.AppearanceAuto)
-		updated, _ := m.Update(appearanceTimeoutMsg{})
-		assertActiveTheme(t, updated.(Model), testDarkTheme(t).Canvas.Value)
-	})
-
-	t.Run("a model constructed without Build is still themed", func(t *testing.T) {
-		assertActiveTheme(t, New(fakeLister{}), testDarkTheme(t).Canvas.Value)
-	})
-}
-
-// TestPinnedAppearance_SelectsEquivalentBuiltin pins the phase boundary: the
-// surviving `appearance` pref still selects a canvas from frame one, and under
-// split that canvas is the EQUIVALENT BUILT-IN rather than a variant of one theme.
-func TestPinnedAppearance_SelectsEquivalentBuiltin(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		appearance prefs.Appearance
-		wantCanvas string
-	}{
-		{"light pin renders the light built-in", prefs.AppearanceLight, testLightThemeCanvas},
-		{"dark pin renders the dark built-in", prefs.AppearanceDark, testDarkThemeCanvas},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := Build(Deps{Lister: fakeLister{}, Appearance: tc.appearance})
-			if !m.modeResolved() {
-				t.Fatalf("a pinned appearance left the gate unresolved; want frame-one paint")
-			}
-			assertActiveTheme(t, m, tc.wantCanvas)
-		})
 	}
 }
 

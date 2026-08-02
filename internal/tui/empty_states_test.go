@@ -7,7 +7,6 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -28,11 +27,7 @@ import (
 // filter (the §11.1 empty-sessions condition: Unfiltered state, empty list).
 func emptySessionsModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
-	appearance := prefs.AppearanceDark
-	if th == testLightTheme(t) {
-		appearance = prefs.AppearanceLight
-	}
-	m := Build(Deps{Lister: fakeLister{}, Appearance: appearance})
+	m := Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(th)})
 	m.termWidth = filteringReskinWidth
 	m.termHeight = filteringReskinHeight
 	m.applySessions(nil)
@@ -49,11 +44,7 @@ func emptySessionsModel(t *testing.T, th theme.Theme) Model {
 // filter (the §11.1 empty-projects condition).
 func emptyProjectsModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
-	appearance := prefs.AppearanceDark
-	if th == testLightTheme(t) {
-		appearance = prefs.AppearanceLight
-	}
-	m := Build(Deps{Lister: fakeLister{}, Appearance: appearance})
+	m := Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(th)})
 	m.termWidth = filteringReskinWidth
 	m.termHeight = filteringReskinHeight
 	m.applySessions(nil)
