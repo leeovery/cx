@@ -80,6 +80,16 @@ type OpenDeps struct {
 	// back to a real @portal-spawn- server-option channel over the shared tmux
 	// client. See writeAckMarker and the spec § Hidden --ack flag.
 	AckWriter spawn.AckWriter
+	// ThemeLoader is the loader TUI construction resolves the persisted theme
+	// setting through. When nil, buildThemeLoader builds the production one (the
+	// embedded built-in set, this package's `theme` component logger).
+	//
+	// It exists for ONE state, and because that state is otherwise unreachable
+	// (§7.6): a binary whose embedded set cannot supply the theme a slot falls back
+	// to. A test injects a loader carrying a BuiltinSource that omits or corrupts a
+	// fallback slug — the seam theme.Loader declares for exactly this — so the
+	// fatal openTUI returns on that path is a path something has actually run.
+	ThemeLoader *theme.Loader
 }
 
 // SessionConnector connects the user to a tmux session.
@@ -735,51 +745,68 @@ func newThemeLoader() theme.Loader {
 	return theme.NewLoader(theme.NewEventLogger(themeLogger))
 }
 
-// nominationForAppearance maps the surviving legacy `appearance` pref onto the
-// theme setting §10.2 says it means — IN MEMORY ONLY. Nothing is written here.
-//
-// The mapping is exact, which is what makes it cheap: `dark` meant "always dark
-// regardless of terminal", and the new equivalent is a CONSTANT theme, so a user
-// who pinned a mode keeps a pinned theme and detection stays off for them exactly
-// as it was. `auto` needs no translation at all — ignoring it lands on the shipped
-// adaptive pair, which is what `auto` already meant — so it is the default arm
-// rather than a case, and an unrecognised value (which prefs already collapses to
-// auto) lands there too.
-//
-// Both slugs resolve out of the EMBEDDED SET, so this reads no themes directory
-// and no path: §8.4's resolution order makes a built-in slug never touch the
-// directory, which is what keeps construction free of config discovery.
-//
-// This is the read half of §10.5 only. The persisted translation — the write, its
-// `theme_migrated` marker and the `theme: appearance migrated` event — belongs to
-// Phase 6, as does prefs-sourced resolution and §8.5's fallback (Phase 5). What is
-// here is deliberately the half that can never flip a user to the wrong theme.
-func nominationForAppearance(loader theme.Loader, appearance prefs.Appearance) theme.Nomination {
-	switch appearance {
-	case prefs.AppearanceDark:
-		return theme.ConstantNomination(loadBuiltinOrZero(loader, theme.DefaultDarkSlug))
-	case prefs.AppearanceLight:
-		return theme.ConstantNomination(loadBuiltinOrZero(loader, theme.DefaultLightSlug))
-	default:
-		return theme.AdaptivePair(
-			loadBuiltinOrZero(loader, theme.DefaultLightSlug),
-			loadBuiltinOrZero(loader, theme.DefaultDarkSlug),
-		)
+// buildThemeLoader returns the loader TUI construction resolves the persisted
+// theme setting through: openDeps.ThemeLoader when injected (staging §7.6's
+// broken binary), otherwise the production one. It is the buildAckWriter shape,
+// for the same reason — the seam is a testing concern, so the production path
+// stays a plain constructor call.
+func buildThemeLoader() theme.Loader {
+	if openDeps != nil && openDeps.ThemeLoader != nil {
+		return *openDeps.ThemeLoader
 	}
+	return newThemeLoader()
 }
 
-// loadBuiltinOrZero loads one built-in by slug, returning the zero Theme if the
-// embedded set somehow does not carry it or its file does not parse.
+// themeNomination resolves the theme setting persisted in prefs.json into the
+// LOADED nomination the model renders from (§8.4): prefs' three raw keys →
+// §8.2's two-state setting → one loaded palette under a constant, two under an
+// adaptive pair, with §8.5's mode-matched default standing in for any slot that
+// will not load.
 //
-// There is deliberately NO fallback beneath it: §7.6 makes a broken built-in
-// impossible at BUILD time — the embedded set is parsed and validated by a unit
-// test, and both default slugs are asserted to resolve within it — so a failure
-// here would mean a binary shipped with a broken default. §8.5's per-slot fallback
-// is for a NOMINATED theme that will not load, which is Phase 5's path; inventing
-// an interim one here would be a second, unspecified resolution policy.
-func loadBuiltinOrZero(loader theme.Loader, slug string) theme.Theme {
-	loaded, _, _ := loader.LoadBuiltin(slug)
-	return loaded.Theme
+// It is the ONE construction-time theme read. prefsStore is the same instance
+// that serves the initial grouping mode and that Phase 6's persister writes
+// through, so prefs.json is read once per process — and a nil store (its path
+// could not be resolved) is tolerated exactly as the grouping mode tolerates it:
+// zero keys are the shipped adaptive pair, which is what an unconfigured install
+// renders anyway.
+//
+// EVERY DEGENERATE READ YIELDS EMPTY KEYS, so the discarded LoadThemeKeys error is
+// acceptable for the same reason Load's is: a missing, empty or corrupt prefs.json
+// cannot yield anything but the shipped pair, and failing the launch over it would
+// make an unreadable preferences file fatal to opening the picker.
+//
+// THE TWO FAILURE SHAPES ARE DIFFERENT AND ARE HANDLED DIFFERENTLY. A themes
+// directory that will not RESOLVE degrades to the empty string, which the resolver
+// reads as "there is no directory to look in" — built-ins still resolve, a drop-in
+// slug takes §8.5's fallback, and the picker opens. ResolveNomination's error is
+// §7.6's fatal (the FALLBACK itself did not resolve), which is returned so the
+// caller constructs nothing.
+func themeNomination(prefsStore *prefs.Store, loader theme.Loader) (theme.Nomination, error) {
+	var keys prefs.ThemeKeys
+	if prefsStore != nil {
+		keys, _ = prefsStore.LoadThemeKeys()
+	}
+
+	// The control-stripped raw keys ride alongside the setting, and are
+	// deliberately NOT threaded onto the model here: Phase 8 owns the constructor
+	// slot and every consumer of it (§8.4's badge table, the `not found` and
+	// charset-rejected rows, §14A's confirm), and half-wiring the value would put a
+	// second source of truth for "which slug is persisted" in the tree ahead of the
+	// surfaces that read it.
+	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+
+	// A themes-directory path that cannot be resolved AT ALL degrades to the empty
+	// directory rather than blocking the launch. themesDirPath already answers with
+	// "" on failure, so the discarded error is the degradation: the embedded set is
+	// reachable with no path at all (§8.4's ordering), so a built-in nomination is
+	// unaffected and a drop-in one falls back and reports.
+	themesDir, _ := themesDirPath()
+
+	resolution, err := loader.ResolveNomination(setting, themesDir)
+	if err != nil {
+		return theme.Nomination{}, err
+	}
+	return resolution.Nomination, nil
 }
 
 // buildTUIModel constructs a tui.Model from the given config and parameters by
@@ -922,21 +949,20 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	if prefsStore != nil {
 		initialMode, _ = prefsStore.Load()
 	}
-	// Read the surviving legacy appearance preference from the SAME prefsStore
-	// instance. LoadAppearance is tolerant — every degenerate case collapses to
-	// AppearanceAuto — so the discarded error is acceptable: a read failure can
-	// only yield Auto, which maps to the shipped adaptive pair, the default
-	// behaviour anyway.
-	appearance := prefs.AppearanceAuto
-	if prefsStore != nil {
-		appearance, _ = prefsStore.LoadAppearance()
+	// Load the theme setting persisted in prefs.json — read from the SAME store
+	// instance as the mode above, so prefs is read once per process (§10.5) — into
+	// the nomination the model renders from. A CONSTANT paints from frame one with
+	// no detection and no first-paint wait; a PAIR holds both palettes and the §2.6
+	// gate selects a member before anything is painted.
+	//
+	// The error is §7.6's fatal — the theme a slot fell back to is not in the
+	// embedded set, so there is nothing honest left to paint. It is returned
+	// UNTOUCHED and NO TUI IS CONSTRUCTED: Execute hands it to main's single
+	// os.Exit owner, which prints the one pinned line and exits non-zero.
+	nomination, err := themeNomination(prefsStore, buildThemeLoader())
+	if err != nil {
+		return err
 	}
-	// Map it onto the loaded theme setting the model renders from (§10.2), IN
-	// MEMORY ONLY — nothing is written back, and prefs.Appearance survives
-	// untouched. A pin becomes a CONSTANT nomination, which paints from frame one
-	// with no detection and no first-paint wait; auto becomes the adaptive pair,
-	// whose member the §2.6 gate selects before anything is painted.
-	nomination := nominationForAppearance(newThemeLoader(), appearance)
 
 	// Resolve the connector once. It is used post-TUI by processTUIResult
 	// for both Sessions-page Enter and Preview-page Enter. Both

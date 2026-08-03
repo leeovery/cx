@@ -68,57 +68,6 @@ func parseMode(s string) SessionListMode {
 	}
 }
 
-// Appearance is the TUI colour-scheme preference. It mirrors SessionListMode:
-// AppearanceAuto is the iota default (detect with a dark fallback); AppearanceLight
-// and AppearanceDark pin the mode and let detection be skipped (spec §2.6).
-type Appearance int
-
-const (
-	// AppearanceAuto detects the terminal background (with a dark fallback) and is
-	// the first-run / tolerant-decode default.
-	AppearanceAuto Appearance = iota
-	// AppearanceLight pins the light colour scheme and skips detection.
-	AppearanceLight
-	// AppearanceDark pins the dark colour scheme and skips detection.
-	AppearanceDark
-)
-
-// Canonical on-disk strings for each appearance. String enum (not int) so
-// prefs.json stays human-readable and stable.
-const (
-	appearanceAutoString  = "auto"
-	appearanceLightString = "light"
-	appearanceDarkString  = "dark"
-)
-
-// String returns the canonical on-disk string for the appearance. An out-of-range
-// value maps to the auto default so the marshalled form is always one of the three
-// canonical tokens.
-func (a Appearance) String() string {
-	switch a {
-	case AppearanceLight:
-		return appearanceLightString
-	case AppearanceDark:
-		return appearanceDarkString
-	default:
-		return appearanceAutoString
-	}
-}
-
-// parseAppearance maps a canonical on-disk string to its appearance. Any
-// unrecognised value collapses to AppearanceAuto (tolerant decode), mirroring
-// parseMode.
-func parseAppearance(s string) Appearance {
-	switch s {
-	case appearanceLightString:
-		return AppearanceLight
-	case appearanceDarkString:
-		return AppearanceDark
-	default:
-		return AppearanceAuto
-	}
-}
-
 // prefsFile is the on-disk JSON structure for prefs.json. Each preference is an
 // independent field; a missing field decodes to the empty string, which the
 // per-field parsers collapse to their default (tolerant decode). Empty values are
@@ -134,9 +83,9 @@ func parseAppearance(s string) Appearance {
 type prefsFile struct {
 	SessionListMode string `json:"session_list_mode"`
 	// Appearance is a plain string that is read and preserved, NEVER parsed — the
-	// Appearance enum, parseAppearance, LoadAppearance and SaveAppearance die with
-	// their last caller, but this slot in the file stays so a downgraded binary
-	// still honours the user's pin (spec §8.8, §10.4). Do not delete the field:
+	// enum, its tolerant decode and its two accessors died with their last caller,
+	// but this slot in the file stays so a downgraded binary still honours the
+	// user's pin (spec §8.8, §10.4). Do not delete the field:
 	// prefs.json decodes into this plain struct, so any key not declared here is
 	// dropped on re-encode — and every writer re-encodes the whole file, so the
 	// first `s` keypress after upgrade would silently erase the pin, invisible
@@ -207,22 +156,6 @@ func (s *Store) Load() (SessionListMode, error) {
 	return parseMode(f.SessionListMode), nil
 }
 
-// LoadAppearance reads the persisted appearance preference from prefs.json.
-//
-// It applies the exact same tolerant policy as Load (a separate loader is the
-// lowest-risk option — it leaves Load's (SessionListMode, error) signature
-// untouched). Every degenerate input collapses to AppearanceAuto with no hard
-// error: a missing file, an empty or corrupt/unparseable file, a missing appearance
-// field, and an unrecognised appearance value all return (AppearanceAuto, nil). Only
-// a non-ErrNotExist read error is propagated, alongside AppearanceAuto.
-func (s *Store) LoadAppearance() (Appearance, error) {
-	f, _, err := s.readFile()
-	if err != nil {
-		return AppearanceAuto, err
-	}
-	return parseAppearance(f.Appearance), nil
-}
-
 // LoadThemeKeys reads the three raw theme slugs from prefs.json.
 //
 // It applies the exact same tolerant policy as Load: a missing file, an empty or
@@ -256,18 +189,6 @@ func (s *Store) Save(mode SessionListMode) error {
 		return err
 	}
 	f.SessionListMode = mode.String()
-	return s.write(f)
-}
-
-// SaveAppearance persists the given appearance to prefs.json via AtomicWrite. Like
-// Save, it read-modify-writes so a previously-persisted session_list_mode is
-// preserved rather than blanked.
-func (s *Store) SaveAppearance(appearance Appearance) error {
-	f, _, err := s.readFile()
-	if err != nil {
-		return err
-	}
-	f.Appearance = appearance.String()
 	return s.write(f)
 }
 

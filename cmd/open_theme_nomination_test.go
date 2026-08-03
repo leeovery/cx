@@ -4,161 +4,130 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"image/color"
+	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/spf13/cobra"
 )
-
-// TestAppearanceMapping_PinToConstant pins §10.2's exact mapping of the surviving
-// legacy `appearance` pref onto a theme nomination, and follows it through to the
-// canvas the model actually paints.
-//
-// The mapping is exact by design, and that is what makes it cheap: `dark` meant
-// "always dark regardless of terminal", whose new equivalent is a CONSTANT theme —
-// so a user who pinned a mode keeps a pinned theme, and detection stays off for
-// them just as it was. `auto` maps to the shipped adaptive pair, which is what
-// `auto` already meant.
-//
-// The painted half is asserted because the mapping alone proves only half a
-// claim: a nomination holding the right palette that the model then ignores would
-// pass a value check and still render the wrong screen. The observable is
-// View().BackgroundColor — the owned canvas Portal sets via OSC 11 — which is nil
-// under the pair precisely because an adaptive gate paints NOTHING until it
-// resolves.
-func TestAppearanceMapping_PinToConstant(t *testing.T) {
-	loader := newThemeLoader()
-	dark := builtinThemeForTest(t, theme.DefaultDarkSlug)
-	light := builtinThemeForTest(t, theme.DefaultLightSlug)
-
-	for _, tc := range []struct {
-		name       string
-		appearance prefs.Appearance
-		assert     func(*testing.T, theme.Nomination)
-		wantCanvas color.Color
-	}{
-		{
-			name:       "dark pins the constant tokyo-night",
-			appearance: prefs.AppearanceDark,
-			assert:     func(t *testing.T, n theme.Nomination) { assertConstant(t, n, dark) },
-			wantCanvas: dark.Canvas.Color(),
-		},
-		{
-			name:       "light pins the constant tokyo-night-day",
-			appearance: prefs.AppearanceLight,
-			assert:     func(t *testing.T, n theme.Nomination) { assertConstant(t, n, light) },
-			wantCanvas: light.Canvas.Color(),
-		},
-		{
-			name:       "auto is the shipped adaptive pair",
-			appearance: prefs.AppearanceAuto,
-			assert: func(t *testing.T, n theme.Nomination) {
-				if n.IsConstant() {
-					t.Fatalf("auto produced a constant nomination; want the adaptive pair (ignoring `appearance: auto` lands exactly on the shipped default)")
-				}
-				if got := n.Select(true); got != dark {
-					t.Errorf("auto pair's dark member = %s, want %s", canvasOf(got), canvasOf(dark))
-				}
-				if got := n.Select(false); got != light {
-					t.Errorf("auto pair's light member = %s, want %s", canvasOf(got), canvasOf(light))
-				}
-			},
-			// No member is active until the gate resolves, so nothing is painted.
-			wantCanvas: nil,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			nomination := nominationForAppearance(loader, tc.appearance)
-			tc.assert(t, nomination)
-
-			cfg := defaultTestTUIConfig()
-			cfg.theme = nomination
-			if got := buildTUIModel(cfg, "", nil).View().BackgroundColor; got != tc.wantCanvas {
-				t.Errorf("painted canvas = %v, want %v", got, tc.wantCanvas)
-			}
-		})
-	}
-}
-
-// TestAppearanceMapping_IsInMemoryOnly pins §10.2's other half: the translation
-// is computed and used IN MEMORY, and this task writes nothing.
-//
-// Both file states are covered because they fail differently: an absent
-// prefs.json must not be CREATED (§8.1 leaves a fresh install without one, and
-// nothing here may add a side effect to that path), and an existing one must come
-// back byte-for-byte — a whole-file rewrite that merely round-tripped would still
-// be a write on a path specified to have none.
-func TestAppearanceMapping_IsInMemoryOnly(t *testing.T) {
-	t.Run("an absent prefs.json stays absent", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "prefs.json")
-		t.Setenv("PORTAL_PREFS_FILE", path)
-
-		if got := nominationFromPrefsForTest(t); got.IsConstant() {
-			t.Errorf("a first-ever launch produced a constant nomination; want the shipped adaptive pair")
-		}
-
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Errorf("prefs.json exists after the mapping (stat err = %v); want it still absent", err)
-		}
-	})
-
-	t.Run("an existing prefs.json is unchanged, byte for byte", func(t *testing.T) {
-		const content = `{"session_list_mode":"by-tag","appearance":"dark"}`
-		path := filepath.Join(t.TempDir(), "prefs.json")
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatalf("write prefs file: %v", err)
-		}
-		t.Setenv("PORTAL_PREFS_FILE", path)
-
-		assertConstant(t, nominationFromPrefsForTest(t), builtinThemeForTest(t, theme.DefaultDarkSlug))
-
-		after, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read prefs file back: %v", err)
-		}
-		if string(after) != content {
-			t.Errorf("prefs.json changed:\n got %s\nwant %s\n(the translation is in-memory only — nothing is persisted)", after, content)
-		}
-	})
-}
 
 // TestOpenExecPath_DoesNoThemeWork pins §12.3's recorded win: on the path Portal
 // is most careful to keep free of cost — `portal open <target>`, which execs
 // without painting — this feature adds nothing at all.
 //
-// A source guard, because "did no work" has no runtime trace: the exec path
-// constructs no TUI, so the assertion is that every theme call site in the package
-// sits inside the TUI-construction path (openTUI) or inside the mapping itself. A
-// call added to the resolution/exec branch — or to a shared pre-run step that
-// every verb passes through — would be caught here and nowhere else.
+// Both halves are needed, and they fail differently.
 //
-// cmd/theme.go is exempt in full: that file IS `portal theme export`, a separate
-// verb whose whole job is theme work, which no `portal open` invocation reaches.
+// The SOURCE guard catches a call site added where no TUI is constructed: a
+// theme read in the resolution/exec branch, or in a shared pre-run step every
+// verb passes through, would run on every `x <target>` and leave no trace in a
+// run that execs before anything is painted. cmd/theme.go is exempt in full —
+// that file IS `portal theme export`, a separate verb whose whole job is theme
+// work and which no `portal open` invocation reaches.
+//
+// The RUNTIME half catches the same regression from the other side, and makes the
+// claim about the WHOLE program rather than about this package's call sites: a
+// real `portal open <session>` runs with the themes directory poisoned to a
+// mode-0000 path — any read of it would raise a `theme: directory unusable` WARN —
+// and the `theme` component must emit nothing at all.
 func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
-	allowed := map[string]bool{
-		// The TUI-construction path — the only place a theme is used, and the only
-		// place §10.5 puts the translation.
-		"openTUI": true,
-		// The mapping, the loader constructor and the by-slug read they share.
-		"nominationForAppearance": true,
-		"newThemeLoader":          true,
-		"loadBuiltinOrZero":       true,
-	}
-
-	for file, callers := range themeCallSites(t) {
-		if file == "theme.go" {
-			continue
+	t.Run("no theme call site sits outside TUI construction", func(t *testing.T) {
+		allowed := map[string]bool{
+			// The TUI-construction path — the only place a theme is USED.
+			"openTUI": true,
+			// The construction-time resolution and the two loader constructors it
+			// reaches: prefs' keys → the setting → the per-slot load.
+			"themeNomination":  true,
+			"buildThemeLoader": true,
+			"newThemeLoader":   true,
 		}
-		for fn, call := range callers {
-			if !allowed[fn] {
-				t.Errorf("%s: %s calls %s — theme work belongs to TUI construction; the exec path constructs no TUI and must stay free of it", file, fn, call)
+
+		for file, callers := range themeCallSites(t) {
+			if file == "theme.go" {
+				continue
+			}
+			for fn, call := range callers {
+				if !allowed[fn] {
+					t.Errorf("%s: %s calls %s — theme work belongs to TUI construction; the exec path constructs no TUI and must stay free of it", file, fn, call)
+				}
 			}
 		}
+	})
+
+	t.Run("an exec-path open emits no theme record", func(t *testing.T) {
+		poisonThemesDir(t)
+		// A DROP-IN slug, so resolving it must consult the themes directory — a
+		// built-in would resolve out of the embedded set and never touch the poison.
+		setPrefsFile(t, `{"theme":"a-drop-in"}`)
+
+		// The fixture has to be LOUD or the zero-record assertion below could pass
+		// for want of anything observable. Running the construction-time resolution
+		// against it proves the records exist to be seen.
+		loud := installMigrateCapture(t)
+		themeNominationForTest(t)
+		if len(themeEvents(t, loud)) == 0 {
+			t.Fatal("the construction-time resolution emitted no theme record against the poisoned directory; the zero-record assertion below would be vacuous")
+		}
+
+		sink := installMigrateCapture(t)
+
+		if got := execOpenSession(t, "api-x7Kd9a"); got != "api-x7Kd9a" {
+			t.Fatalf("open attached %q, want the session it resolved — the exec path must have run", got)
+		}
+
+		assertThemeEvents(t, sink)
+	})
+}
+
+// poisonThemesDir points PORTAL_THEMES_DIR at an existing but UNREADABLE
+// directory, so any attempt to read it is loud: §5.5 makes an unusable directory
+// the one state that earns a `theme: directory unusable` WARN, where an absent
+// one is silent. Absence would make "emitted nothing" vacuous.
+func poisonThemesDir(t *testing.T) {
+	t.Helper()
+
+	dir := useThemesDir(t)
+	if err := os.Chmod(dir, 0o000); err != nil {
+		t.Fatalf("make themes dir unreadable: %v", err)
 	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+}
+
+// execOpenSession runs a real `portal open <target>` that resolves in the session
+// domain, and returns the session it handed to the connector. Every tmux-touching
+// seam is injected, so the body runs its production resolution → outcome switch
+// without reaching a server.
+func execOpenSession(t *testing.T, name string) string {
+	t.Helper()
+
+	bootstrapDeps = &BootstrapDeps{Orchestrator: &nopRunner{}}
+	t.Cleanup(func() { bootstrapDeps = nil })
+	openDeps = &OpenDeps{
+		SessionLister: &testSessionLister{names: []string{name}},
+		AliasLookup:   &testAliasLookup{aliases: map[string]string{}},
+		Zoxide:        &testZoxideQuerier{err: resolver.ErrNoMatch},
+		DirValidator:  &testDirValidator{existing: map[string]bool{}},
+	}
+	t.Cleanup(func() { openDeps = nil })
+
+	var attached string
+	previous := openSessionFunc
+	openSessionFunc = func(_ *cobra.Command, target string) error {
+		attached = target
+		return nil
+	}
+	t.Cleanup(func() { openSessionFunc = previous })
+
+	resetRootCmd()
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"open", name})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("portal open %s: %v", name, err)
+	}
+	return attached
 }
 
 // TestThemeComponent_BoundOnceInCmd pins CLAUDE.md's bind-once-per-package rule
@@ -190,18 +159,6 @@ func assertConstant(t *testing.T, n theme.Nomination, want theme.Theme) {
 	}
 }
 
-// nominationFromPrefsForTest mirrors openTUI's read: load the store, read the
-// legacy appearance tolerantly, map it. Both steps are the production functions.
-func nominationFromPrefsForTest(t *testing.T) theme.Nomination {
-	t.Helper()
-	store, err := loadPrefsStore()
-	if err != nil {
-		t.Fatalf("load prefs store: %v", err)
-	}
-	appearance, _ := store.LoadAppearance()
-	return nominationForAppearance(newThemeLoader(), appearance)
-}
-
 // builtinThemeForTest loads one embedded built-in, failing on anything but a
 // clean parse (§7.6 makes a rejection here a build-time impossibility).
 func builtinThemeForTest(t *testing.T, slug string) theme.Theme {
@@ -229,7 +186,7 @@ func canvasOf(th theme.Theme) string {
 // every call it makes into internal/theme or into the local theme helpers.
 func themeCallSites(t *testing.T) map[string]map[string]string {
 	t.Helper()
-	local := map[string]bool{"nominationForAppearance": true, "newThemeLoader": true}
+	local := map[string]bool{"themeNomination": true, "buildThemeLoader": true, "newThemeLoader": true}
 	sites := map[string]map[string]string{}
 
 	for name, file := range parseCmdFiles(t) {

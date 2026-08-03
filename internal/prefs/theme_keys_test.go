@@ -276,11 +276,4 @@ func TestPrefsFile_DeclaresNoMigrationMarker(t *testing.T) {
 	if value, ok := decodePrefsFile(t, path)["theme_migrated"]; ok {
 		t.Errorf("Save wrote theme_migrated = %v, want the key absent", value)
 	}
-
-	if err := store.SaveAppearance(prefs.AppearanceDark); err != nil {
-		t.Fatalf("unexpected SaveAppearance error: %v", err)
-	}
-	if value, ok := decodePrefsFile(t, path)["theme_migrated"]; ok {
-		t.Errorf("SaveAppearance wrote theme_migrated = %v, want the key absent", value)
-	}
 }
