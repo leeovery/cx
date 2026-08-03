@@ -188,9 +188,14 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // explicit-path input added LoadPath alongside LoadFile, §8.2's two-state
 // setting added ResolveSetting with the Setting and RawKeys it returns, §8.5's
 // per-slot fallback added ResolveNomination with the Resolution, Slot and
-// SlotResolution it reports through, and §12.3's per-theme records added
+// SlotResolution it reports through, §12.3's per-theme records added
 // EventLogger.Loaded and EventLogger.FallbackApplied beside the two rejection
-// events. Nothing on the removed list ever returns to it.
+// events, and §7.6's runtime escalation added BrokenBuiltinError. Nothing on the
+// removed list ever returns to it.
+//
+// BrokenBuiltinError is exported for one reason and it is not a caller's: §14A's
+// fatal sentence is pinned copy, so the test that pins it must be able to state
+// it independently and compare. Nothing constructs one but resolveSlot.
 //
 // Slot is the second addition that could be mistaken for the removed surface
 // returning: it names a light and a dark position. It is not — a slot is a
@@ -216,6 +221,7 @@ var wantExports = []string{
 	"BadNameExtension",
 	"BadNameNone",
 	"BadNameSlug",
+	"BrokenBuiltinError",
 	"BuiltinBytes",
 	"BuiltinSlugs",
 	"ConstantNomination",

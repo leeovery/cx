@@ -118,6 +118,13 @@ type Resolution struct {
 // resolve. A nomination failing is ordinary and is absorbed silently by the
 // fallback; a fallback failing means the embedded set cannot supply the theme
 // Portal falls back to, and there is nothing left to paint. See resolveSlot.
+//
+// A CALLER SIMPLY RETURNS IT. It is BrokenBuiltinError — §14A's pinned sentence
+// — and it is meant to travel the ordinary error path to main.go's single
+// os.Exit owner, which prints it as one line and exits non-zero. Nothing on the
+// way is expected to inspect it, re-word it, log it or substitute a palette for
+// it: the Resolution alongside it is the zero value precisely so there is
+// nothing to be tempted to render.
 func (l Loader) ResolveNomination(s Setting, themesDir string) (Resolution, error) {
 	if s.IsConstant {
 		constant, err := l.resolveSlot(SlotConstant, s.Constant, themesDir)
@@ -167,13 +174,30 @@ func (l Loader) ResolveNomination(s Setting, themesDir string) (Resolution, erro
 // §8.4's ordering applies to it too: the embedded set is consulted first, and a
 // user's `tokyo-night.theme` can never become the thing Portal falls back to.
 //
-// A fallback that itself fails to resolve returns an ERROR and never a second
-// fallback. §7.6 deliberately removed the safety net beneath this point — there
-// is no runtime last-resort hardcoded palette, and adding one here would trade a
-// build-time guarantee for a runtime crutch — so a binary whose embedded set
-// cannot supply its own fallback has nothing honest left to paint. Task 5-6 pins
-// the user-facing sentence that failure is reported with; the rejection travels
-// up unaltered until then.
+// THE TWO FAILURES ARE NOT THE SAME FAILURE, and the whole of the escalation is
+// telling them apart. The FIRST resolution below is the NOMINATION: when it
+// fails, nothing is fatal — the slot's mode-matched default takes its place, the
+// persisted name is kept and the reason is reported. The SECOND is the FALLBACK
+// itself: when THAT fails, the embedded set cannot supply the theme Portal falls
+// back to, and there is nothing honest left to paint.
+//
+// So a failed fallback returns BrokenBuiltinError — §14A's pinned sentence,
+// naming the FALLBACK's slug — and never a second fallback and never a
+// compiled-in palette. §7.6 removed the safety net beneath this point on
+// purpose, rejecting "a compiled-in last-resort palette equal to Tokyo Night
+// Dark" in exactly those terms: a build-time guarantee beats a runtime crutch.
+// THIS PATH MUST NOT GROW ONE LATER — a palette here would paint values nobody
+// chose while every test resting on the guarantee still passed.
+//
+// The error is ORDINARY and travels the normal return path: no panic, no exit
+// and no log line. Nothing is emitted for it either — §12.3's events report what
+// a slot RESOLVED TO, and this slot resolved to nothing (see reportSlot).
+//
+// In a correctly built binary the second failure is unreachable, which is
+// precisely why Loader.BuiltinSource exists: an unreachable fatal with no test
+// is a path nobody has ever run, so a test stages the broken binary by injecting
+// a byte source that omits or corrupts a fallback. Production carries a nil
+// field and one branch.
 func (l Loader) resolveSlot(slot Slot, slug, themesDir string) (SlotResolution, error) {
 	result, rejection := l.ResolveByName(slug, themesDir)
 	if rejection == nil {
@@ -183,7 +207,7 @@ func (l Loader) resolveSlot(slot Slot, slug, themesDir string) (SlotResolution, 
 	fallbackSlug := fallbackSlugFor(slot)
 	fallback, fallbackRejection := l.ResolveByName(fallbackSlug, themesDir)
 	if fallbackRejection != nil {
-		return SlotResolution{}, fallbackRejection
+		return SlotResolution{}, BrokenBuiltinError(fallbackSlug)
 	}
 
 	return l.reportSlot(SlotResolution{

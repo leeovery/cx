@@ -269,31 +269,47 @@ func TestEmbeddedValidity_EnumeratesRatherThanNames(t *testing.T) {
 	}
 }
 
+// fatalCopyOwner is the ONE production file allowed to carry §14A's fatal
+// sentence: the file that single-sources it.
+const fatalCopyOwner = "broken_builtin.go"
+
 // TestEmbeddedRejection_HasNoFatalPathInThePackage asserts the other side of
-// §7.6's mechanism: internal/theme reports a broken embedded file and escalates
+// §7.6's mechanism: internal/theme reports a broken embedded file and terminates
 // nothing.
 //
 // The loader returns an ordinary error for an embedded parse failure — it does
 // not panic, does not exit and does not print. The escalation happens where the
-// fallback is NEEDED (Phase 5), so the user sees one line rather than a Go
-// stack trace, and main.go's panic-recovering exit stays the backstop for a
-// genuine programming fault rather than the designed route.
+// fallback is NEEDED, which under §7.6 is a returned error and never a raised
+// one, so the user sees one line rather than a Go stack trace and main.go's
+// panic-recovering exit stays the backstop for a genuine programming fault
+// rather than the designed route.
 //
 // This is guarded rather than merely intended because the temptation sits right
 // next to the code: a package holding files it knows must be valid invites a
 // `panic("broken built-in")` at the one place that discovers otherwise, which
 // would turn "your theme is invalid" into a crash on someone's cold start.
+//
+// THE COPY CHECK IS AN OWNERSHIP CHECK, not a prohibition. When this guard was
+// first written the escalation had no home yet and the sentence belonged
+// nowhere in the package; Phase 5 gave it one — resolveSlot, where a fallback is
+// needed — and single-sourced it in fatalCopyOwner. So the invariant is now the
+// stronger of the two: the sentence exists in EXACTLY ONE production file, and
+// the PARSE layer (load.go, builtins.go, lex.go, validate.go) still cannot raise
+// it. A second copy anywhere is what would let the panel, doctor and the fatal
+// path drift apart on the one line a user with a broken binary ever sees.
 func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
-	// The §14A copy, which belongs to the surface that needs a fallback and
-	// must not be raised from inside the package that merely reads a file.
+	// §14A's sentence, reduced to the fragment no other copy could contain by
+	// coincidence.
 	const fatalCopy = "this binary is broken"
+
+	owners := 0
 
 	for _, source := range parseThemeSources(t) {
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.CallExpr:
 				if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == "panic" {
-					t.Errorf("%s:%d panics — a broken embedded file is an ordinary *Rejection here, and the escalation belongs where a fallback is needed", source.Name, source.Fset.Position(node.Pos()).Line)
+					t.Errorf("%s:%d panics — a broken embedded file is an ordinary *Rejection here, and a broken fallback is an ordinary returned error", source.Name, source.Fset.Position(node.Pos()).Line)
 				}
 			case *ast.SelectorExpr:
 				pkg, ok := node.X.(*ast.Ident)
@@ -301,10 +317,10 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 					return true
 				}
 				if pkg.Name == "os" && node.Sel.Name == "Exit" {
-					t.Errorf("%s:%d calls os.Exit — internal/theme returns rejections; main.go owns the single exit", source.Name, source.Fset.Position(node.Pos()).Line)
+					t.Errorf("%s:%d calls os.Exit — internal/theme returns errors; main.go owns the single exit", source.Name, source.Fset.Position(node.Pos()).Line)
 				}
 				if pkg.Name == "log" && strings.HasPrefix(node.Sel.Name, "Fatal") {
-					t.Errorf("%s:%d calls log.%s — internal/theme returns rejections and never terminates a process", source.Name, source.Fset.Position(node.Pos()).Line, node.Sel.Name)
+					t.Errorf("%s:%d calls log.%s — internal/theme returns errors and never terminates a process", source.Name, source.Fset.Position(node.Pos()).Line, node.Sel.Name)
 				}
 			case *ast.BasicLit:
 				if node.Kind != token.STRING {
@@ -314,11 +330,20 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 				if uerr != nil {
 					return true
 				}
-				if strings.Contains(value, fatalCopy) {
-					t.Errorf("%s:%d carries §14A's fatal startup copy — it is raised where a fallback is needed (Phase 5), not where a file is read", source.Name, source.Fset.Position(node.Pos()).Line)
+				if !strings.Contains(value, fatalCopy) {
+					return true
 				}
+				if source.Name != fatalCopyOwner {
+					t.Errorf("%s:%d carries §14A's fatal startup copy — the sentence is single-sourced in %s and raised only where a fallback is needed, never where a file is read", source.Name, source.Fset.Position(node.Pos()).Line, fatalCopyOwner)
+					return true
+				}
+				owners++
 			}
 			return true
 		})
+	}
+
+	if owners != 1 {
+		t.Errorf("%s declares §14A's fatal copy %d times, want exactly 1 — the sentence is single-sourced", fatalCopyOwner, owners)
 	}
 }
