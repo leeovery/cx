@@ -58,8 +58,10 @@ import (
 //     every scan, by TestThemeSwapGuard_TokenFormsAreWellFormed: every derived form
 //     must round-trip back to its own token's channels — see tokenForms below.
 //
-// Assertion 3 of §13.4 (every token exercised by at least one fixture) is NOT here:
-// it is task 4-4's.
+// All three of §13.4's assertions live here: 1 (no theme-A value survives the
+// swap), 2 (every token rendering under A renders again under B, as a union
+// across fixtures) and 3 (every token in the vocabulary is rendered by SOME
+// fixture, which is what makes 2's union complete rather than self-balancing).
 
 // The guard renders at the shared harness dimensions declared in
 // swap_harness_test.go (harnessWidth × harnessHeight): wide and tall enough that a
@@ -181,7 +183,12 @@ type tokenForm struct {
 //
 // BOTH forms are derived for every token because which one a token renders as is
 // not knowable from its name: `border` renders as a FOREGROUND on rules and modal
-// frames, while `canvas` and the `bg.*` tints only ever render as a BACKGROUND.
+// frames, while `canvas`, `bg.selection` and `bg.attention` only ever render as a
+// BACKGROUND. `bg.subtle` is the measured exception to the tint intuition — the
+// loading bar's track paints it as foreground and background alike — as is
+// `accent.primary`, which backs the bar's filled run. See
+// TestTokenCoverage_MatchesBackgroundForm, which asserts that split rather than
+// leaving it to this comment.
 //
 // Each form is taken from a real lipgloss render rather than string-formatted, so
 // it cannot drift from what the renderer actually emits.
@@ -730,6 +737,126 @@ func TestThemeSwapGuard_EveryBValuePresentInUnion(t *testing.T) {
 	}
 }
 
+// swappableFixture is everything the coverage scan needs of a fixture: a name for
+// the failure message, and the render-swap-render seam.
+//
+// *capture.Fixture satisfies it. The interface exists so
+// TestTokenCoverage_IgnoresExcludedFixtures can drive the same
+// excludeColourless-then-cover composition over a stand-in, which no registry
+// fixture can supply — none is colourless.
+type swappableFixture interface {
+	Name() string
+	RenderSwapRender(a, b theme.Theme, w, h int) (before, after string)
+}
+
+// swappedFrame pairs a fixture's name with its POST-SWAP frame.
+type swappedFrame struct {
+	fixture string
+	frame   string
+}
+
+// swappedFrames renders each fixture under a, swaps it live to b, and returns the
+// theme-B frames.
+//
+// The render pass is separated from the scan because rendering the set is the
+// expensive half and the scans below differ only in WHICH forms they look for, so
+// one pass feeds several scans.
+//
+// Coverage is computed over the B-frames, matching the B half of assertion 2's
+// union: assertion 3's claim is about that union, so it must be measured on the
+// same frames.
+func swappedFrames[F swappableFixture](fixtures []F, a, b theme.Theme) []swappedFrame {
+	frames := make([]swappedFrame, 0, len(fixtures))
+	for _, fx := range fixtures {
+		_, after := fx.RenderSwapRender(a, b, harnessWidth, harnessHeight)
+		frames = append(frames, swappedFrame{fixture: fx.Name(), frame: after})
+	}
+	return frames
+}
+
+// coveredTokens returns, for every token observed on some frame, the fixtures
+// whose frame carried it — the LOCI, so a failure can say where a token is
+// rendered rather than only that it is.
+//
+// It routes through observedTokens, the same collection helper assertion 2 uses,
+// so the two cannot disagree about what "observed" means — which matters
+// precisely because assertion 3's claim is that assertion 2's union is complete.
+// observedTokens matches a token on EITHER rendered form; the measured reason
+// that OR is load-bearing rather than defensive is pinned by
+// TestTokenCoverage_MatchesForegroundForm and
+// TestTokenCoverage_MatchesBackgroundForm.
+func coveredTokens(frames []swappedFrame, forms []tokenForm) map[string][]string {
+	loci := make(map[string][]string, len(forms))
+	for _, f := range frames {
+		for name := range observedTokens(f.frame, forms) {
+			loci[name] = append(loci[name], f.fixture)
+		}
+	}
+	return loci
+}
+
+// uncoveredTokens returns every token of the closed vocabulary that no frame
+// carried, in the §2.4 table order.
+//
+// It enumerates theme.TokenNames() rather than the coverage map's keys, and that
+// is the whole mechanism: an uncovered token is by definition absent from the
+// map, so nothing derived from the map alone could ever name it.
+func uncoveredTokens(loci map[string][]string) []string {
+	var gaps []string
+	for _, name := range theme.TokenNames() {
+		if len(loci[name]) == 0 {
+			gaps = append(gaps, name)
+		}
+	}
+	return gaps
+}
+
+// TestThemeSwapGuard_EveryTokenExercisedByAFixture is §13.4's assertion 3: over
+// the INCLUDED fixtures' post-swap frames, every one of the 19 tokens is observed
+// at least once.
+//
+// IT IS WHAT MAKES ASSERTION 2's UNION COMPLETE. Assertion 2 compares a union
+// under A against a union under B, so a token rendering on NO fixture is absent
+// from both, the two balance perfectly, and it reports nothing — the guard is
+// silently blind at exactly the sites it exists to protect (§13.4). §13.3 states
+// the same shape from the fixture end: "a missing fixture is a blind spot the
+// guard structurally cannot report … absence reads as coverage."
+//
+// A GAP IS CLOSED BY ADDING A FIXTURE, NEVER BY EXEMPTING A TOKEN. An exemption
+// list is the permanent render-layer carve-out §9.11 calls "precisely the shape
+// the swap-and-diff guard exists to catch"; carving one into the guard itself is
+// the one response that cannot be right.
+//
+// It enumerates theme.TokenNames() rather than naming tokens, exactly as the
+// fixture set is enumerated rather than named, so it covers the whole vocabulary
+// and §13.3's panel fixtures enrol with no edit here.
+func TestThemeSwapGuard_EveryTokenExercisedByAFixture(t *testing.T) {
+	a, b := syntheticPalettes()
+	bForms := tokenForms(t, b)
+	frames := swappedFrames(guardedFixtures(t), a, b)
+
+	t.Run("every token in the vocabulary is rendered by some fixture", func(t *testing.T) {
+		for _, name := range uncoveredTokens(coveredTokens(frames, bForms)) {
+			t.Errorf("token %s renders on no included fixture, so it is absent from BOTH of assertion 2's unions, they balance, and nothing reports it — ADD A FIXTURE that renders %s. Do NOT exempt the token: an exemption is the permanent render-layer carve-out this guard exists to catch (§9.11). Do NOT weaken this to the tokens observed under theme A: that is assertion 2, and its A/B balance is exactly what hides the gap", name, name)
+		}
+	})
+
+	// The non-vacuity proof. Every check above is a range over a gap list, so a
+	// coverage scan that credited every token — or a gap list that named none —
+	// would pass green with nothing exercised. Narrowing the set to one fixture
+	// must therefore leave gaps: it is what shows the assertion reports a real
+	// absence rather than being incapable of reporting one.
+	//
+	// It narrows the ALREADY-RENDERED frames rather than re-rendering, so the
+	// negative control costs nothing and cannot drift from the set above.
+	t.Run("a narrowed fixture set reports the tokens it drops", func(t *testing.T) {
+		narrowed := frames[:1]
+		if len(uncoveredTokens(coveredTokens(narrowed, bForms))) == 0 {
+			t.Errorf("fixture %s alone renders all %d tokens, so narrowing to it demonstrates nothing about whether this assertion can report a gap; re-point the narrowing at a set that genuinely drops one", narrowed[0].fixture, len(theme.TokenNames()))
+		}
+	})
+}
+
 // TestThemeSwapGuard_ViewBackgroundColourFollowsSwap covers the one themed value
 // the frame scan structurally cannot see.
 //
@@ -754,9 +881,22 @@ func TestThemeSwapGuard_ViewBackgroundColourFollowsSwap(t *testing.T) {
 type stubFixture struct {
 	name       string
 	colourless bool
+	// after is the canned POST-SWAP frame the stub hands back, so the coverage
+	// scan can be driven over it. Left empty by callers that only exercise the
+	// exclusion itself.
+	after string
 }
 
 func (f stubFixture) Colourless() bool { return f.colourless }
+func (f stubFixture) Name() string     { return f.name }
+
+// RenderSwapRender hands back the canned frame as the post-swap half, so
+// stubFixture satisfies swappableFixture. It renders nothing, so the palettes and
+// the size are ignored, and the before-frame is empty — coveredTokens reads only
+// the after-frame.
+func (f stubFixture) RenderSwapRender(_, _ theme.Theme, _, _ int) (before, after string) {
+	return "", f.after
+}
 
 // TestThemeSwapGuard_ExcludesColourlessFixtures drives the exclusion the guard
 // filters its enumerated set through, over locally-constructed fixtures rather
@@ -768,5 +908,188 @@ func TestThemeSwapGuard_ExcludesColourlessFixtures(t *testing.T) {
 	kept := excludeColourless([]stubFixture{coloured, colourless})
 	if !slices.Equal(kept, []stubFixture{coloured}) {
 		t.Errorf("excludeColourless kept %v, want only the coloured fixture — a colourless render carries no theme colours, so there is nothing to diff", kept)
+	}
+}
+
+// foregroundOnlyForms / backgroundOnlyForms narrow every form to ONE rendered
+// side, by duplicating that side into both fields — so a scan through
+// observedTokens can only match that side, while observedTokens itself stays the
+// file's single definition of "observed".
+//
+// They exist to MEASURE which side each token is actually found by, which is the
+// evidence that observedTokens' OR is load-bearing rather than defensive. No
+// assertion of the guard uses them.
+func foregroundOnlyForms(forms []tokenForm) []tokenForm {
+	narrowed := make([]tokenForm, 0, len(forms))
+	for _, form := range forms {
+		narrowed = append(narrowed, tokenForm{name: form.name, fg: form.fg, bg: form.fg})
+	}
+	return narrowed
+}
+
+func backgroundOnlyForms(forms []tokenForm) []tokenForm {
+	narrowed := make([]tokenForm, 0, len(forms))
+	for _, form := range forms {
+		narrowed = append(narrowed, tokenForm{name: form.name, fg: form.bg, bg: form.bg})
+	}
+	return narrowed
+}
+
+// TestTokenCoverage_MatchesBackgroundForm pins the half of observedTokens' OR a
+// foreground-only scan would lose.
+//
+// MEASURED over the guarded set at harnessWidth × harnessHeight: canvas,
+// bg.selection and bg.attention are found by NO foreground run on ANY fixture.
+// Scanning foregrounds alone would report all three missing, and assertion 3
+// would then demand fixtures for tokens already rendered on 17/17, 13/17 and
+// 2/17 fixtures respectively.
+//
+// bg.subtle is the exception in the table below and is NOT evidence for the OR.
+// Its locus is the loading bar's empty track, which sets it as the foreground AND
+// the background of the same glyph run (internal/tui/loading_view.go), so it is
+// found either way. It is listed because §2.5 groups it with the surfaces and the
+// reasonable expectation is that a surface tint renders only as a background —
+// an expectation the measurement contradicts, which is worth an assertion rather
+// than a comment.
+func TestTokenCoverage_MatchesBackgroundForm(t *testing.T) {
+	a, b := syntheticPalettes()
+	bForms := tokenForms(t, b)
+	frames := swappedFrames(guardedFixtures(t), a, b)
+
+	byForeground := coveredTokens(frames, foregroundOnlyForms(bForms))
+	byBackground := coveredTokens(frames, backgroundOnlyForms(bForms))
+
+	for _, tc := range []struct {
+		token string
+		// exclusivelyBackground is whether NO fixture renders the token as a
+		// foreground — true for the three that evidence the OR, false for
+		// bg.subtle, which renders both ways.
+		exclusivelyBackground bool
+	}{
+		{token: "canvas", exclusivelyBackground: true},
+		{token: "bg.selection", exclusivelyBackground: true},
+		{token: "bg.attention", exclusivelyBackground: true},
+		{token: "bg.subtle", exclusivelyBackground: false},
+	} {
+		t.Run(tc.token, func(t *testing.T) {
+			if len(byBackground[tc.token]) == 0 {
+				t.Errorf("no fixture renders %s as a background, so the background half of observedTokens' match finds it nowhere", tc.token)
+			}
+			foundByForeground := len(byForeground[tc.token]) > 0
+			if tc.exclusivelyBackground && foundByForeground {
+				t.Errorf("%s is now found by a FOREGROUND run too (on %v); it was measured background-only, so this row no longer evidences that observedTokens' OR is load-bearing — re-measure and re-record", tc.token, byForeground[tc.token])
+			}
+			if !tc.exclusivelyBackground && !foundByForeground {
+				t.Errorf("%s is no longer found by a foreground run anywhere; it was measured as rendering BOTH ways (the loading bar's track paints it as foreground and background alike), so this row's exception is stale", tc.token)
+			}
+		})
+	}
+}
+
+// TestTokenCoverage_MatchesForegroundForm pins the other half.
+//
+// MEASURED over the guarded set: border is found by a FOREGROUND run and by no
+// background run on any fixture. Its measured loci here are the title rule and
+// the footer rule; §2.5 also gives it modal frames and edit-modal chips, which no
+// guarded fixture renders today — cited, not measured. Scanning backgrounds alone
+// would report it missing on every screen that draws a rule.
+func TestTokenCoverage_MatchesForegroundForm(t *testing.T) {
+	a, b := syntheticPalettes()
+	bForms := tokenForms(t, b)
+	frames := swappedFrames(guardedFixtures(t), a, b)
+
+	const token = "border"
+	byForeground := coveredTokens(frames, foregroundOnlyForms(bForms))
+	byBackground := coveredTokens(frames, backgroundOnlyForms(bForms))
+
+	if len(byForeground[token]) == 0 {
+		t.Errorf("no fixture renders %s as a foreground, so the foreground half of observedTokens' match finds it nowhere", token)
+	}
+	if got := byBackground[token]; len(got) > 0 {
+		t.Errorf("%s is now found by a BACKGROUND run too (on %v); it was measured foreground-only, so this test no longer evidences that observedTokens' OR is load-bearing — re-measure and re-record", token, got)
+	}
+}
+
+// TestTokenCoverage_IgnoresExcludedFixtures pins §13.4's "colourless fixtures are
+// excluded" as it bears on COVERAGE specifically: a token carried only by an
+// excluded fixture must still count as uncovered.
+//
+// The exclusion has opposite consequences for the two kinds of assertion.
+// Dropping a colourless fixture from assertions 1 and 2 merely removes a frame
+// with nothing to diff. Dropping it from assertion 3 must not quietly credit it
+// with coverage: a colourless render carries no theme hexes at all, so "covered
+// there" means covered NOWHERE and the token still needs a real fixture.
+//
+// It drives the same two steps in the same order the guard does —
+// excludeColourless, then coveredTokens — over stand-in fixtures with canned
+// frames, because no registry fixture is colourless and the true branch has no
+// other way to be reached. The excluded stub's frame deliberately DOES carry a
+// token's run, which a real colourless render never would: that is what makes the
+// resulting gap attributable to the filter rather than to an empty frame.
+func TestTokenCoverage_IgnoresExcludedFixtures(t *testing.T) {
+	a, b := syntheticPalettes()
+	forms := tokenForms(t, b)
+	// Taken by position: any two distinct tokens do, since what is under test is
+	// the filter rather than which token happens to be carried.
+	included, excluded := forms[0], forms[1]
+
+	fixtures := []stubFixture{
+		{name: "coloured", after: frameCarrying(included.fg)},
+		{name: "colourless", colourless: true, after: frameCarrying(excluded.bg)},
+	}
+	loci := coveredTokens(swappedFrames(excludeColourless(fixtures), a, b), forms)
+
+	if got := loci[included.name]; !slices.Equal(got, []string{"coloured"}) {
+		t.Errorf("token %s has loci %v, want only the included fixture — the scan did not read the included frame", included.name, got)
+	}
+	if got := loci[excluded.name]; len(got) > 0 {
+		t.Errorf("token %s is credited to %v, but its only carrier is COLOURLESS — a colourless render carries no theme colour, so covering it there covers it nowhere", excluded.name, got)
+	}
+	if gaps := uncoveredTokens(loci); !slices.Contains(gaps, excluded.name) {
+		t.Errorf("uncoveredTokens reports %v, which omits %s — a token carried only by an excluded fixture must still be reported as needing one", gaps, excluded.name)
+	}
+}
+
+// frameCarrying returns a canned frame carrying one SGR parameter run, terminated
+// by `m` exactly as a real render terminates it, so carriesRun matches it.
+func frameCarrying(run string) string {
+	return "\x1b[" + run + "mx\x1b[0m"
+}
+
+// TestTokenCoverage_TransientStatesHaveALocus records the NAMED locus of each
+// at-risk token: §13.4's transient states (bg.attention / text.on-attention,
+// accent.mode, state.destructive, text.on-selection) plus text.subtle and
+// bg.subtle, whose only loci are on screens no flat Sessions fixture reaches.
+//
+// Assertion 3 proves each is rendered somewhere; this records WHERE. Without it
+// the fixture carrying a token could be deleted or re-seeded and assertion 3
+// would report only "text.on-attention renders on no included fixture" — true,
+// but silent about which edit caused it.
+//
+// EVERY ROW IS MEASURED rather than read off §2.5's role table: that table names
+// where a token is MEANT to render, which is a different claim from where the
+// fixture set actually renders it. Where a token has several loci, the row
+// records the one §2.5 makes its canonical home. text.on-attention is the
+// thinnest edge of the set — §2.5 gives it exactly one role, the warning-flash
+// message, so only a fixture seeding that flash can carry it at all.
+func TestTokenCoverage_TransientStatesHaveALocus(t *testing.T) {
+	a, b := syntheticPalettes()
+	frames := swappedFrames(guardedFixtures(t), a, b)
+	loci := coveredTokens(frames, tokenForms(t, b))
+
+	for _, tc := range []struct{ token, fixture string }{
+		{token: "bg.attention", fixture: "sessions-inline-flash"},
+		{token: "text.on-attention", fixture: "sessions-inline-flash"},
+		{token: "accent.mode", fixture: "preview-screen"},
+		{token: "state.destructive", fixture: "loading-error"},
+		{token: "text.on-selection", fixture: "sessions-flat"},
+		{token: "text.subtle", fixture: "sessions-by-project"},
+		{token: "bg.subtle", fixture: "loading-screen"},
+	} {
+		t.Run(tc.token, func(t *testing.T) {
+			if !slices.Contains(loci[tc.token], tc.fixture) {
+				t.Errorf("%s is not rendered by %s — its loci are %v. That fixture was this token's recorded locus, so either restore what rendered it there or record the fixture that carries it now", tc.token, tc.fixture, loci[tc.token])
+			}
+		})
 	}
 }
