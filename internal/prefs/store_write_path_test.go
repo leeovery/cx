@@ -211,8 +211,15 @@ func TestSave_AbortsOnReadError(t *testing.T) {
 
 // TestSave_WrongTypedFieldDoesNotAbort pins the discriminator: a wrong TYPE on a
 // declared field is a value problem, not a syntax one. encoding/json still
-// populates every other field, so the merge is safe and the write proceeds —
-// task 6-3's theme_migrated is the live case.
+// populates every other field, so the merge is safe and the write proceeds.
+//
+// The string fields are what exercise this rung. theme_migrated — the field a
+// user is most likely to hand-edit wrongly, and the reason the carve-out was
+// specified — never reaches it: its own total decode (see migrationMarker)
+// absorbs a wrong type one layer earlier, so no UnmarshalTypeError is ever
+// raised for it. That is deliberate. The carve-out here still leaves the
+// tolerant LOAD path zeroing the record, which for the marker would lose the
+// mode, the theme keys and the retained appearance on every read.
 func TestSave_WrongTypedFieldDoesNotAbort(t *testing.T) {
 	t.Run("a wrong-typed session_list_mode still preserves theme", func(t *testing.T) {
 		path := seedPrefsFile(t, `{"session_list_mode":5,"theme":"nord"}`)
@@ -314,6 +321,40 @@ func TestSave_UnrecognisedValueIsNotUnusable(t *testing.T) {
 			assertWrittenValue(t, decodeWritten(t, path), "session_list_mode", "by-tag")
 		})
 	}
+}
+
+// TestWrite_OmitsAnUnsetSessionListMode pins that session_list_mode follows the
+// same omission rule as every other key: a field-specific saver firing on a file
+// whose mode was never set leaves the key ABSENT rather than writing it as an
+// empty string.
+//
+// The case is reachable, not theoretical. §8.1 leaves a fresh install with no
+// prefs.json at all, so the first theme commit both creates the file and encodes
+// a mode nobody has ever chosen. `""` and absent are indistinguishable to every
+// reader — parseMode collapses both to ModeFlat, neither decode carries
+// key-presence logic, and a downgraded binary reads them the same — so this is
+// about keeping the hand-editable file clean, which is the same reason §8.1
+// gives for the theme keys and the retained appearance.
+func TestWrite_OmitsAnUnsetSessionListMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prefs.json")
+
+	if err := NewStore(path).SaveTheme("nord"); err != nil {
+		t.Fatalf("unexpected SaveTheme error: %v", err)
+	}
+
+	decoded := decodeWritten(t, path)
+	assertWrittenValue(t, decoded, "theme", "nord")
+	if value, ok := decoded["session_list_mode"]; ok {
+		t.Errorf("written JSON carries session_list_mode = %#v, want the key absent — it was never set", value)
+	}
+
+	// A mode that WAS chosen still round-trips: omitempty must not swallow a
+	// real choice, and ModeFlat marshals as "flat" rather than the empty string,
+	// so the default is persistable like any other.
+	if err := NewStore(path).Save(ModeFlat); err != nil {
+		t.Fatalf("unexpected Save error: %v", err)
+	}
+	assertWrittenValue(t, decodeWritten(t, path), "session_list_mode", "flat")
 }
 
 // TestMutate_DecliningMutatorWritesNothing pins the skip contract every later

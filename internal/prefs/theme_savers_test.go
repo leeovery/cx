@@ -232,10 +232,11 @@ func TestThemeSavers_PreserveUnrelatedFields(t *testing.T) {
 			decoded := decodeWritten(t, path)
 			assertWrittenValue(t, decoded, "session_list_mode", "by-tag")
 			assertWrittenValue(t, decoded, "appearance", "sepia")
-			// The migration marker is task 6-3's field: it is deliberately
-			// undeclared until its first writer exists, so neither saver may
-			// invent the key. Once 6-3 declares it, omitempty keeps a false
-			// marker absent, so this assertion holds unchanged.
+			// Neither saver may invent the migration marker. The field is now
+			// declared, and omitempty keeps a false marker absent — see
+			// TestMigrationMarker_NotTouchedByThemeSavers for the full
+			// both-directions rule (§8.1: the marker never participates in
+			// mutual exclusion).
 			assertKeysAbsent(t, decoded, "theme_migrated")
 		})
 	}

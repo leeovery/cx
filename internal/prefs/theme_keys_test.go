@@ -263,17 +263,10 @@ func TestSave_OmitsEmptyThemeKeysAndAppearance(t *testing.T) {
 	assertPrefsValue(t, decoded, "session_list_mode", "by-tag")
 }
 
-func TestPrefsFile_DeclaresNoMigrationMarker(t *testing.T) {
-	// Nothing writes theme_migrated until Phase 6, which declares the field before
-	// its first writer exists — so no on-disk marker can be dropped in the interim,
-	// and no writer here may emit the key.
-	path := writePrefsFile(t, `{"session_list_mode":"flat","theme":"nord"}`)
-	store := prefs.NewStore(path)
-
-	if err := store.Save(prefs.ModeByTag); err != nil {
-		t.Fatalf("unexpected Save error: %v", err)
-	}
-	if value, ok := decodePrefsFile(t, path)["theme_migrated"]; ok {
-		t.Errorf("Save wrote theme_migrated = %v, want the key absent", value)
-	}
-}
+// The Phase 5 guard that pinned theme_migrated as UNDECLARED is retired here:
+// this task declares the field, so its absence is no longer the property to
+// hold. What replaces it is stronger and lives in migration_marker_test.go —
+// TestMigrationMarker_FalseIsAbsentOnDisk covers this exact case (no writer
+// invents the key on a markerless file, over the same seed) plus the two the old
+// guard could not state: that a TRUE marker round-trips through every writer,
+// and that only a true one is ever encoded.

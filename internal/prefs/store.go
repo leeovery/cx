@@ -11,10 +11,12 @@
 package prefs
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/leeovery/portal/internal/fileutil"
 )
@@ -68,20 +70,56 @@ func parseMode(s string) SessionListMode {
 	}
 }
 
-// prefsFile is the on-disk JSON structure for prefs.json. Each preference is an
-// independent field; a missing field decodes to the empty string, which the
-// per-field parsers collapse to their default (tolerant decode). Empty values are
-// omitted on write, so a key the user has never set is absent from the file rather
-// than present-and-empty — which keeps a hand-edited file clean and lets an older
-// binary read an absent appearance as absent rather than as an empty string.
-// session_list_mode is exempt: it always marshals one of three canonical non-empty
-// tokens, so omitempty would be inert there.
+// migrationMarker is §8.1's decode for the one-shot appearance-translation gate:
+// anything that is not literal `true` — absent, empty, corrupt, wrong-typed,
+// unrecognised — is false.
 //
-// theme_migrated (the one-shot appearance-translation gate) is deliberately NOT
-// declared yet: nothing writes the marker until Phase 6, which declares the field
-// before its first writer exists, so no on-disk marker can be dropped in the interim.
+// It never returns an error, and that totality is the point rather than
+// tidiness. prefs.json has two decodes (§8.9) and a field-level error breaks
+// BOTH: the tolerant load path treats any error as corruption and collapses to a
+// zero record (losing session_list_mode, every theme key and the retained raw
+// appearance), while the write path's strict re-read aborts every subsequent
+// write. This is the field a user is most likely to hand-edit wrongly
+// (`"theme_migrated": "yes"`), so without the absorption one hand-typed word
+// would lock them out of their own prefs.
+//
+// The failure direction is deliberate: false means "run the translation again",
+// and the translation is idempotent by §10.5, so a corrupt marker costs one
+// redundant write rather than a wrong theme. That is what keeps this decode as
+// dumb as the string keys either side of it.
+type migrationMarker bool
+
+// UnmarshalJSON accepts every JSON value — including null, an array and an
+// object — and yields true only for the literal `true`.
+func (m *migrationMarker) UnmarshalJSON(data []byte) error {
+	*m = migrationMarker(bytes.Equal(bytes.TrimSpace(data), []byte("true")))
+	return nil
+}
+
+// MarshalJSON writes the marker as a JSON boolean. On the prefsFile path
+// omitempty means only a true marker ever reaches this: a false one is absent
+// from the file rather than present-and-false.
+func (m migrationMarker) MarshalJSON() ([]byte, error) {
+	return strconv.AppendBool(nil, bool(m)), nil
+}
+
+// prefsFile is the on-disk JSON structure for prefs.json. Each preference is an
+// independent field; a missing field decodes to its zero value, which the
+// per-field parsers collapse to their default (tolerant decode).
+//
+// Empty values are omitted on write across EVERY field, so a key the user has
+// never set is absent from the file rather than present-and-empty — which keeps
+// a hand-edited file clean and lets an older binary read an absent appearance as
+// absent rather than as an empty string. session_list_mode is under the same
+// rule as the rest: Save always marshals one of three canonical non-empty
+// tokens, but the field-specific savers write records whose mode was never set —
+// a fresh install's first theme commit creates the file, so an exempt field
+// would land there as `"session_list_mode": ""`. Empty and absent are
+// indistinguishable to every reader (parseMode collapses both to ModeFlat and
+// neither decode carries key-presence logic), so the omission is cosmetic —
+// which is exactly why the rule may as well be uniform.
 type prefsFile struct {
-	SessionListMode string `json:"session_list_mode"`
+	SessionListMode string `json:"session_list_mode,omitempty"`
 	// Appearance is a plain string that is read and preserved, NEVER parsed — the
 	// enum, its tolerant decode and its two accessors died with their last caller,
 	// but this slot in the file stays so a downgraded binary still honours the
@@ -94,6 +132,18 @@ type prefsFile struct {
 	Theme      string `json:"theme,omitempty"`
 	ThemeLight string `json:"theme_light,omitempty"`
 	ThemeDark  string `json:"theme_dark,omitempty"`
+	// ThemeMigrated is §10.3's one-shot gate for the appearance translation, and
+	// it is declared HERE — before its first writer exists (the combined
+	// translation save) — on purpose. An undeclared key is dropped on re-encode
+	// and every writer re-encodes the whole file, so a marker written by a newer
+	// instance would be silently erased by an older code path in the same
+	// release, re-arming a translation that must fire exactly once ever.
+	//
+	// omitempty makes a false marker ABSENT rather than present-and-false, which
+	// is the same on-disk shape a never-migrated file already has. Its own total
+	// decode (see migrationMarker) keeps a hand-edited value from erroring
+	// either decode path.
+	ThemeMigrated migrationMarker `json:"theme_migrated,omitempty"`
 }
 
 // ThemeKeys carries the three raw theme slugs persisted in prefs.json: a constant
@@ -104,6 +154,20 @@ type ThemeKeys struct {
 	Theme string
 	Light string
 	Dark  string
+}
+
+// MigrationState is §10.3's one-shot gate's input, read in one go: the retained
+// raw appearance value and whether the translation has already been recorded.
+//
+// Appearance is the on-disk value VERBATIM and unparsed. prefs has no Appearance
+// enum any more — §8.8 killed the type and its API with its last caller, keeping
+// only the slot in the file — and it must not regrow one: the dark/light/auto
+// mapping belongs to the translation, which is the only thing in the new binary
+// that looks at the value at all (§10.4 keeps it as a frozen legacy value for a
+// downgraded binary).
+type MigrationState struct {
+	Appearance string
+	Migrated   bool
 }
 
 // ThemeSlot names one half of the adaptive pair. Slot assignment takes a typed
@@ -284,6 +348,29 @@ func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
 	return ThemeKeys{Theme: f.Theme, Light: f.ThemeLight, Dark: f.ThemeDark}, nil
 }
 
+// LoadMigrationState reads §10.3's gate inputs — the retained raw appearance and
+// the migration marker — in one read.
+//
+// It applies the exact same tolerant policy as Load and LoadThemeKeys: a missing
+// file, an empty or corrupt/unparseable file, and either key missing all yield a
+// zero-valued MigrationState with no error. Only a non-ErrNotExist read error is
+// propagated, alongside a zero value. A zero value is the safe direction — no
+// appearance to translate and an unrecorded marker means the gate re-evaluates
+// next launch, which is idempotent.
+//
+// It performs NO interpretation of the appearance value: no parsing, no
+// trimming, no lowercasing, no default substitution — see MigrationState.
+//
+// This is a LOAD, so it stays on the tolerant readFile and is unaffected by the
+// write path's strict decode — see readFile.
+func (s *Store) LoadMigrationState() (MigrationState, error) {
+	f, _, err := s.readFile()
+	if err != nil {
+		return MigrationState{}, err
+	}
+	return MigrationState{Appearance: f.Appearance, Migrated: bool(f.ThemeMigrated)}, nil
+}
+
 // Save persists the given mode to prefs.json, read-modify-writing through mutate
 // so every other key — the retained raw appearance and the three theme slugs —
 // survives untouched, and so the whole record lands in one AtomicWrite.
@@ -366,6 +453,43 @@ func (s *Store) SaveThemeSlot(slug string, slot ThemeSlot) error {
 			f.ThemeDark = slug
 		}
 		f.Theme = ""
+		return true
+	})
+}
+
+// SaveMigrationMarker records §10.3's one-shot gate — the marker that says the
+// appearance translation has run — and writes NOTHING else. All three theme
+// keys, session_list_mode and the retained raw appearance round-trip through it
+// untouched, and it neither reads nor enforces §8.2's mutual exclusion: the
+// marker is orthogonal to which theme keys are set, which is precisely the
+// property §10.3 exists to guarantee against a re-armable absence gate.
+//
+// It takes task 6-1's abort-on-undecodable rule and deliberately NOT its
+// create-on-absent half. An absent prefs.json means a fresh install, which has
+// no appearance to translate, so creating the file purely to record a marker
+// would add a side effect to a path this feature otherwise leaves free (the same
+// restraint §5.5 shows by refusing to create the themes directory). Declining is
+// not a failure: nil is returned, the condition is re-evaluated next launch for
+// the cost of an absent-field check on a read that is already happening, and the
+// file appears the moment the user changes anything.
+//
+// Absence is judged at the SAME RMW re-read as everything else — mutate's
+// `existed` — never against a stat taken at load. prefs.json can appear in
+// between (another instance's first commit; the multi-window burst makes
+// concurrent instances normal), and a save trusting a load-time snapshot would
+// decline forever on a file that now exists.
+//
+// It has no reporting surface and needs none: it runs at prefs load, before any
+// panel exists. Its failure signal is the absence of the migration event, and it
+// retries next launch (§10.5) — so, unlike the theme savers, no `theme: commit
+// failed` is emitted for it. prefs is a leaf, so an abort is reported BY
+// RETURNING and the caller decides non-fatality.
+func (s *Store) SaveMigrationMarker() error {
+	return s.mutate(func(f *prefsFile, existed bool) bool {
+		if !existed {
+			return false
+		}
+		f.ThemeMigrated = true
 		return true
 	})
 }
