@@ -106,6 +106,19 @@ type ThemeKeys struct {
 	Dark  string
 }
 
+// ThemeSlot names one half of the adaptive pair. Slot assignment takes a typed
+// value rather than a caller-supplied key name so no caller can mint a third
+// slot, and the zero value is deliberately invalid — and deliberately unnamed —
+// so a forgotten argument cannot silently write the light slot.
+type ThemeSlot int
+
+const (
+	// SlotLight is the theme_light half of the adaptive pair.
+	SlotLight ThemeSlot = iota + 1
+	// SlotDark is the theme_dark half of the adaptive pair.
+	SlotDark
+)
+
 // Store manages persistence of UI preferences to a JSON file.
 type Store struct {
 	path string
@@ -291,6 +304,80 @@ func (s *Store) Save(mode SessionListMode) error {
 	})
 }
 
+// SaveTheme persists slug as the constant theme, clearing both adaptive slots in
+// the same write.
+//
+// The clear is §8.2's mutual exclusion enforced on write: committing a constant
+// clears both slots, so "both a constant and a pair are present" cannot arise
+// from Portal's own writes and the two-state model holds as a rule rather than
+// as a type. The commit and the clear ride ONE mutate — and so one AtomicWrite —
+// because two writes would leave a reachable window where the file holds both
+// forms.
+//
+// Clearing is writing the empty string, which omitempty renders as key-absent —
+// matching §8.3's "an unset slot holds the shipped default" and keeping a
+// hand-edited file clean.
+//
+// The write is unconditional, which is what makes §9.13's "a commit is always
+// re-attemptable" free: committing the same slug again simply rewrites the same
+// bytes. §10.3's no-op condition belongs to SaveTranslation alone.
+//
+// The slug is persisted VERBATIM. prefs has no slug knowledge: no charset check,
+// no trimming, no lowercasing, no default substitution and no theme-wins
+// tiebreak. Those are read-side resolution rules owned by internal/theme, and a
+// second, "helpful" implementation here would diverge from the resolver —
+// trimming in particular would turn a stray-space value into a silently
+// different slug instead of the honest `bad name` rejection the user is owed.
+func (s *Store) SaveTheme(slug string) error {
+	return s.mutate(func(f *prefsFile, _ bool) bool {
+		f.Theme = slug
+		f.ThemeLight = ""
+		f.ThemeDark = ""
+		return true
+	})
+}
+
+// SaveThemeSlot persists slug into one half of the adaptive pair, clearing the
+// constant in the same write and leaving the OTHER slot exactly as it was — the
+// property that makes §9.5's `● both` reachable in two keypresses.
+//
+// It is the mirror of SaveTheme and carries the same four rules: mutual
+// exclusion enforced on write (§8.2), both mutations in ONE AtomicWrite, a
+// cleared key written as the empty string so omitempty omits it (§8.3), and an
+// unconditional write (§9.13). It performs NO slug validation either — see
+// SaveTheme.
+//
+// An out-of-range slot writes nothing at all: the guard runs before the mutator,
+// so the file is neither read nor written, and the returned error names the
+// invalid slot. That is the structural half of "no caller can mint a third
+// slot"; the typed constants are the other half.
+func (s *Store) SaveThemeSlot(slug string, slot ThemeSlot) error {
+	if slot != SlotLight && slot != SlotDark {
+		return fmt.Errorf("prefs: invalid theme slot %d", slot)
+	}
+
+	return s.mutate(func(f *prefsFile, _ bool) bool {
+		// No default arm: the guard above has already rejected every value that
+		// is not one half of the pair.
+		switch slot {
+		case SlotLight:
+			f.ThemeLight = slug
+		case SlotDark:
+			f.ThemeDark = slug
+		}
+		f.Theme = ""
+		return true
+	})
+}
+
+// atomicWrite is fileutil.AtomicWrite behind a package-level indirection so the
+// write-path tests can COUNT commits. "One atomic write per save" is a contract
+// (§8.9: the commit and its mutual-exclusion clear land together, so no partial
+// state is reachable) and it is not observable from the filesystem afterwards —
+// a second write leaves no trace, so a post-hoc assertion could only ever prove
+// "at least one". Production never reassigns it.
+var atomicWrite = fileutil.AtomicWrite
+
 // write marshals the prefsFile and commits it via AtomicWrite (temp file + rename).
 func (s *Store) write(f prefsFile) error {
 	data, err := json.MarshalIndent(f, "", "  ")
@@ -298,5 +385,5 @@ func (s *Store) write(f prefsFile) error {
 		return fmt.Errorf("failed to marshal prefs: %w", err)
 	}
 
-	return fileutil.AtomicWrite(s.path, data)
+	return atomicWrite(s.path, data)
 }
