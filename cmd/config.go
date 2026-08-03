@@ -242,7 +242,92 @@ func loadPrefsStore() (prefsLoad, error) {
 	// again at the write's read-modify-write re-read, where it also absorbs a
 	// commit another instance made in between. Collapsing them into one would
 	// lose the second read's job.
+
+	// §10.5's PERSIST half, dispatched off the launch path. It is the last thing
+	// the load does, nothing here waits on it, no error is propagated, and the
+	// returned prefsLoad is identical whether the write lands, fails or never
+	// finishes — which is what "best-effort and non-blocking" buys: Portal
+	// renders the correct theme THIS launch regardless, so a write failure can
+	// never flip the user to the wrong theme.
+	//
+	// The slug may be "" (nothing translated); SaveTranslation turns that into a
+	// marker-only write, which is what stops the condition being re-evaluated on
+	// every launch forever.
+	//
+	// Three properties are what make a fire-and-forget write safe here:
+	//
+	//   - The process may exit mid-write. fileutil.AtomicWrite is temp-file +
+	//     rename, so there is no partial prefs.json to leave behind — the file is
+	//     either the old bytes or the new ones.
+	//   - An unfinished or failed write leaves `theme_migrated` unset, so the
+	//     condition is still true and the next launch simply retries.
+	//   - The write decides everything at its own read-modify-write re-read
+	//     (§8.9), never against the snapshot read above. That is what stops a
+	//     deferred write reverting a theme the user committed in the window
+	//     between compute and persist.
+	persistTranslation(store, load.TranslatedSlug)
+
 	return load, nil
+}
+
+// persistTranslation performs §10.5's best-effort, NON-BLOCKING persist of the
+// one-shot appearance translation: it dispatches the write off the launch path
+// so nothing the user waits for — first paint least of all — waits on it.
+//
+// A package-level var so tests substitute a synchronous implementation and
+// restore it with t.Cleanup (cmd's established *Deps idiom) rather than sleeping
+// on a goroutine. The body is runTranslationPersist rather than an inline
+// literal for exactly that reason: a synchronous substitute then runs the REAL
+// save-decide-emit body instead of a re-implementation of it, so the one-shot
+// cadence of `theme: appearance migrated` is actually under test. This wrapper
+// adds the goroutine and nothing else.
+var persistTranslation = func(store *prefs.Store, slug string) {
+	go runTranslationPersist(store, slug)
+}
+
+// runTranslationPersist writes §10.5's translation and emits §12.3's
+// `theme: appearance migrated` — INFO, and ONLY when a theme key was actually
+// persisted.
+//
+// That predicate is the whole point of the event, and each rejected alternative
+// breaks it differently:
+//
+//   - Emitted on COMPUTE it could legitimately fire on several consecutive
+//     launches (the write is best-effort and retries), so "one-shot" would be
+//     false.
+//   - Emitted on a MARKER-ONLY write it would announce a migration that
+//     translated nothing — `appearance` was `auto`, or the user already had a
+//     theme key set.
+//
+// prefs reports that predicate as a first-class result rather than as an
+// inference from the error, so this is a plain read of `persisted`.
+//
+// NOTHING IS EMITTED ON FAILURE — no `theme: commit failed`, no WARN, no
+// user-facing surface. The absence of `theme: appearance migrated` after a
+// translation IS the failure signal (§10.5), which is what keeps the
+// commit-failed event single-sited on the panel's theme persister (§8.9). An
+// error and a not-persisted run are therefore the same silent return.
+//
+// The translation is also deliberately SILENT TO THE USER AT RUNTIME — no flash,
+// no notice band, no banner. It runs at prefs load, before any surface exists to
+// render a notice into; there is nothing to explain, because §10.2 preserves
+// intent exactly (a pinned mode becomes a pinned theme and detection stays off,
+// just as it was); and §6.3 has already refused the single-slot notice band a
+// permanent extra contender for a rarer event. The CHANGELOG (§12.5) is the
+// compensating channel.
+//
+// Attrs: `slug` alone, drawn from §12.3's closed key set — the constant actually
+// persisted, which is what makes the line greppable per theme. NO `slot`: the
+// translation always writes a constant (§8.2), so a slot attr would have no
+// value to carry. §12.3 pins the event's level and cadence but not its attrs, so
+// the choice is recorded here beside the emission.
+func runTranslationPersist(store *prefs.Store, slug string) {
+	persisted, err := store.SaveTranslation(slug)
+	if err != nil || !persisted {
+		return // the absence of the event IS the failure signal (§10.5)
+	}
+
+	themeLogger.Info("appearance migrated", "slug", slug)
 }
 
 // translateAppearance maps a retained raw `appearance` value onto §10.2's

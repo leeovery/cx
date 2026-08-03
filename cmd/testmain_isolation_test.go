@@ -31,6 +31,8 @@ package cmd
 import (
 	"os"
 	"testing"
+
+	"github.com/leeovery/portal/internal/prefs"
 )
 
 func TestMain(m *testing.M) {
@@ -59,5 +61,15 @@ func TestMain(m *testing.M) {
 	// must t.Setenv TMUX themselves (they already had to, to be runnable
 	// both inside and outside a tmux window).
 	os.Setenv("TMUX", "/nonexistent/portal-test-must-set-tmux-socket,0,0")
+	// The §10.5 appearance-translation dispatch is neutralised package-wide for
+	// the same structural reason, and it is a PROCESS poison rather than a path
+	// one: production runs the persist on its own goroutine, so any test that
+	// reaches loadPrefsStore would otherwise leave a write racing its own
+	// teardown — mutating a t.TempDir prefs.json after the test returned (and
+	// after the TempDir cleanup started removing it), and emitting a `theme`
+	// record into whatever sink the NEXT test installs. Tests that exercise the
+	// dispatch install their own implementation and restore this no-op with
+	// t.Cleanup (see syncPersistTranslation / recordPersistTranslation).
+	persistTranslation = func(*prefs.Store, string) {}
 	os.Exit(m.Run())
 }
