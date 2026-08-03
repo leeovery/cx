@@ -107,6 +107,9 @@ type DoctorDeps struct {
 	// StateDir overrides the resolved state directory. Empty means "resolve
 	// via state.Dir()" (the production path).
 	StateDir string
+	// ThemesDir overrides the resolved user themes directory. Empty means
+	// "resolve via themesDirPath()" (the production path).
+	ThemesDir string
 	// ServerRunning reports whether a tmux server is up. It is the front gate
 	// for the three runtime checks (daemon / saver / hooks): a down server
 	// short-circuits all three to the distinct not-running detail without
@@ -201,11 +204,22 @@ func resolveDoctorDeps() *DoctorDeps {
 	if projectStore, err := loadProjectStore(); err == nil {
 		deps.ProjectStore = projectStore
 	}
+	// The themes directory is resolved on the same best-effort footing, and
+	// degrades further: the advisory class has no not-evaluable form, so a
+	// resolution failure leaves the field empty and the theme scan reports
+	// nothing rather than aborting a diagnosis over a path it could not compute.
+	// themesDirPath itself never creates, seeds or stats the directory.
+	if themesDir, err := themesDirPath(); err == nil {
+		deps.ThemesDir = themesDir
+	}
 	if doctorDeps == nil {
 		return deps
 	}
 	if doctorDeps.StateDir != "" {
 		deps.StateDir = doctorDeps.StateDir
+	}
+	if doctorDeps.ThemesDir != "" {
+		deps.ThemesDir = doctorDeps.ThemesDir
 	}
 	if doctorDeps.ServerRunning != nil {
 		deps.ServerRunning = doctorDeps.ServerRunning
@@ -253,11 +267,12 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// No advisory producer exists yet, so both renders below take none: the
-		// theme scan is the first, and it supplies a slice PER diagnosis pass —
-		// the scan is read-only and runs on the --fix path too, where suppressing
-		// it would make --fix a less informative diagnosis than a plain run.
-		renderDoctorReport(cmd.OutOrStdout(), results, nil)
+		// The theme scan supplies this render's advisory block, computed PER
+		// diagnosis pass rather than hoisted above both renders: it is read-only
+		// and runs on the --fix path too — suppressing it there would make --fix a
+		// LESS informative diagnosis than a plain run — and each pass reports the
+		// themes directory as it stands when that pass runs.
+		renderDoctorReport(cmd.OutOrStdout(), results, collectThemeAdvisories(deps))
 
 		fix, _ := cmd.Flags().GetBool("fix")
 		if !fix {

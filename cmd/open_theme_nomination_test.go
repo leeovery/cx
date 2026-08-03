@@ -23,15 +23,28 @@ import (
 // The SOURCE guard catches a call site added where no TUI is constructed: a
 // theme read in the resolution/exec branch, or in a shared pre-run step every
 // verb passes through, would run on every `x <target>` and leave no trace in a
-// run that execs before anything is painted. cmd/theme.go is exempt in full —
-// that file IS `portal theme export`, a separate verb whose whole job is theme
-// work and which no `portal open` invocation reaches.
+// run that execs before anything is painted. Two files are exempt IN FULL, each
+// because it IS a separate verb whose whole job is theme work and which no
+// `portal open` invocation reaches: cmd/theme.go is `portal theme export`, and
+// cmd/doctor_theme.go is `portal doctor`'s themes-directory scan. Unreachability
+// from open — not bootstrap exemption — is the whole basis of both.
 //
-// The RUNTIME half catches the same regression from the other side, and makes the
-// claim about the WHOLE program rather than about this package's call sites: a
-// real `portal open <session>` runs with the themes directory poisoned to a
-// mode-0000 path — any read of it would raise a `theme: directory unusable` WARN —
-// and the `theme` component must emit nothing at all.
+// An exempt file hides every helper it declares, so this half backstops its own
+// exemption by TRACKING that file's entry point as a local helper:
+// collectThemeAdvisories sits in the `local` map below, which leaves the scan's
+// internals unguarded but fails the moment the scan itself is wired into the open
+// path ("open.go: openResolved calls collectThemeAdvisories"). The runtime half
+// below does NOT back the exemption up and must not be read as doing so: doctor
+// hands its loader log.Discard() by design (§12.3), so a doctor-side helper
+// called from the exec path would read the poisoned directory and still write no
+// record.
+//
+// The RUNTIME half catches the same regression from the other side for theme work
+// that DOES log, and makes the claim about the WHOLE program rather than about
+// this package's call sites: a real `portal open <session>` runs with the themes
+// directory poisoned to a mode-0000 path — any read of it would raise a
+// `theme: directory unusable` WARN — and the `theme` component must emit nothing
+// at all.
 func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 	t.Run("no theme call site sits outside TUI construction", func(t *testing.T) {
 		allowed := map[string]bool{
@@ -44,8 +57,10 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 			"newThemeLoader":   true,
 		}
 
+		exemptFiles := map[string]bool{"theme.go": true, "doctor_theme.go": true}
+
 		for file, callers := range themeCallSites(t) {
-			if file == "theme.go" {
+			if exemptFiles[file] {
 				continue
 			}
 			for fn, call := range callers {
@@ -186,7 +201,23 @@ func canvasOf(th theme.Theme) string {
 // every call it makes into internal/theme or into the local theme helpers.
 func themeCallSites(t *testing.T) map[string]map[string]string {
 	t.Helper()
-	local := map[string]bool{"themeNomination": true, "buildThemeLoader": true, "newThemeLoader": true}
+	local := map[string]bool{
+		"themeNomination":  true,
+		"buildThemeLoader": true,
+		"newThemeLoader":   true,
+		// Tracked because its FILE is exempt in full: exempting the file would
+		// otherwise make every helper declared in it invisible to this scan, so a
+		// doctor-side helper called from the exec path would read as no call at
+		// all. Tracking the entry point puts the exempt file's ONE production
+		// caller back under the guard — see the exemption note on the test.
+		//
+		// That one caller is invisible here only because it sits in doctorCmd's
+		// composite-literal RunE, which is not an *ast.FuncDecl. Extracting it into
+		// a named function in doctor.go trips this guard; keep the call in the
+		// literal rather than widening `allowed`, whose names are matched in every
+		// file including open.go.
+		"collectThemeAdvisories": true,
+	}
 	sites := map[string]map[string]string{}
 
 	for name, file := range parseCmdFiles(t) {
