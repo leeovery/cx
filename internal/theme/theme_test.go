@@ -184,14 +184,18 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // EventLogger seam with the NewLoader that injects it, the embedded built-in
 // set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, §7.6's build-time
 // guarantee added DefaultDarkSlug and DefaultLightSlug, §8.4's loaded nomination
-// added Nomination with its two constructors and three accessors, and §13.3's
-// explicit-path input added LoadPath alongside LoadFile. Nothing on the removed
-// list ever returns to it.
+// added Nomination with its two constructors and three accessors, §13.3's
+// explicit-path input added LoadPath alongside LoadFile, and §8.2's two-state
+// setting added ResolveSetting with the Setting and RawKeys it returns. Nothing
+// on the removed list ever returns to it.
 //
 // Nomination's arrival is the one addition that could be mistaken for the
 // removed surface returning: it holds a light and a dark Theme. It is not — the
 // pairing is the shape of the SETTING, held outside any theme, and neither
-// member is a variant of the other (§3.1, §8.2).
+// member is a variant of the other (§3.1, §8.2). Setting's light and dark fields
+// are the same shape one level earlier and are not variants either: they are
+// SLUGS, and the slot classifies the theme rather than the theme declaring a
+// variant (§4.7).
 //
 // The exact-equality check is also what pins the negative half of §7.6: there
 // is no exported eager-validation helper, because validation is not
@@ -224,6 +228,7 @@ var wantExports = []string{
 	"Nomination.IsConstant",
 	"Nomination.Select",
 	"Pair",
+	"RawKeys",
 	"Reason",
 	"ReasonBadColour",
 	"ReasonBadName",
@@ -234,7 +239,9 @@ var wantExports = []string{
 	"ReasonUnreadable",
 	"Rejection",
 	"Rejection.Error",
+	"ResolveSetting",
 	"Result",
+	"Setting",
 	"SlugFromFilename",
 	"StripControl",
 	"Theme",
