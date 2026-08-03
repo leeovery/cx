@@ -494,6 +494,101 @@ func (s *Store) SaveMigrationMarker() error {
 	})
 }
 
+// SaveTranslation records §10.5's one-shot appearance translation: the
+// translated theme key AND the migration marker, in exactly ONE atomic write,
+// reporting whether a theme key was actually persisted.
+//
+// One write, not two. §8.9's field-specific savers each perform their own
+// read-modify-write, so issuing SaveTheme followed by SaveMigrationMarker would
+// leave a reachable window — and §10.5's write is best-effort and non-blocking,
+// i.e. explicitly liable to be cut short. A failure landing between them
+// persists the theme key with the marker unset; the next launch then finds the
+// marker false, sees a theme key already set, writes only the marker, and
+// therefore never emits `theme: appearance migrated`. The translation would
+// have succeeded while the log says it failed — the one reading §12.3 designs
+// that event to make impossible.
+//
+// THE WHOLE DECISION IS MADE INSIDE THE MUTATOR, against the re-read bytes about
+// to be merged, never against a load-time snapshot (§8.9). Because the write is
+// non-blocking a user can commit a theme in the window between compute and
+// persist, and evaluated against the stale snapshot the pending translation
+// would write its own key over the one they just committed and clear the slots —
+// §10.3's own failure, displaced from cross-launch to intra-process. The same
+// re-read is what lets this instance observe that ANOTHER instance already set
+// the marker.
+//
+// The four branches, in order:
+//
+//   - The file does not exist — nothing is written and nothing is created. It
+//     inherits task 6-1's ABORT half but not its create half (§8.1 bars the
+//     migration from creating prefs.json: a fresh install has no appearance to
+//     translate). The spec does not say whether an absent file at the re-read is
+//     an error or a no-op; it is a silent no-op returning nil, because the write
+//     is best-effort with no reporting surface (§8.9) and an error would invite
+//     a caller to treat an ordinary fresh install as a failure.
+//   - The marker is already true — nothing is written. Another instance recorded
+//     the translation in between; the trigger fires exactly once ever (§10.3).
+//   - Any theme key is already set, OR the slug is empty — the MARKER ALONE is
+//     recorded. "Skip" means skip the theme keys, not the whole write (§8.9):
+//     recording the marker is what stops the translation staying pending
+//     forever. A set key is a choice the user has already made and this refuses
+//     to clobber it (§10.3); an empty slug means there was nothing to translate
+//     (`appearance` was `auto`, absent or unrecognised — §10.2), which is a
+//     legitimate call and never an error. This branch is also why mutual
+//     exclusion is satisfied trivially on the writing branch below rather than by
+//     a second rule: everything with a key set is absorbed HERE, so the write
+//     only ever runs with all three keys empty and has nothing to clear.
+//   - Otherwise — the theme key is written, both slots are cleared (§8.2's
+//     mutual exclusion: it writes a constant) and the marker is recorded, all in
+//     the one write, and persisted is true.
+//
+// persisted is a first-class result, not an inference from the error: task 6-6's
+// `theme: appearance migrated` fires only when a theme key was ACTUALLY
+// persisted (§10.5), and a marker-only run translated nothing.
+//
+// It emits NOTHING — prefs is a leaf. The migration's failure signal is the
+// ABSENCE of `theme: appearance migrated`, and `theme: commit failed` stays
+// single-sited on the theme persister (§8.9), so this saver never logs and never
+// reports. An abort is reported BY RETURNING, and the caller decides
+// non-fatality.
+//
+// An aborted or failed write leaves the marker unset, so the condition is still
+// true and the next launch retries (§10.5) — which is exactly what makes a
+// best-effort write safe here.
+func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
+	err = s.mutate(func(f *prefsFile, existed bool) bool {
+		if !existed {
+			return false
+		}
+		if bool(f.ThemeMigrated) {
+			return false
+		}
+
+		// Every remaining branch records the marker; only the last one also
+		// writes a theme key.
+		f.ThemeMigrated = true
+
+		if slug == "" || f.Theme != "" || f.ThemeLight != "" || f.ThemeDark != "" {
+			return true
+		}
+
+		f.Theme = slug
+		// Already empty by construction — see the branch above — so this states
+		// §8.2's rule rather than doing work.
+		f.ThemeLight = ""
+		f.ThemeDark = ""
+		persisted = true
+		return true
+	})
+	if err != nil {
+		// Nothing was persisted: an undecodable re-read never reaches the
+		// mutator, and a failed write leaves the on-disk bytes as they were.
+		return false, err
+	}
+
+	return persisted, nil
+}
+
 // atomicWrite is fileutil.AtomicWrite behind a package-level indirection so the
 // write-path tests can COUNT commits. "One atomic write per save" is a contract
 // (§8.9: the commit and its mutual-exclusion clear land together, so no partial

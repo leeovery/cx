@@ -16,14 +16,23 @@ import (
 	"testing"
 )
 
-// assertMarkerOnDisk asserts the on-disk marker. A false marker is ABSENT rather
-// than present-and-false (§8.1's omit-empty-values rule), so the two cases are
-// asserted structurally on the decoded map — a substring check for
-// `"theme_migrated"` could not tell `false` from omitted.
+// assertMarkerOnDisk asserts the on-disk marker.
 func assertMarkerOnDisk(t *testing.T, path string, want bool) {
 	t.Helper()
 
-	got, ok := decodeWritten(t, path)["theme_migrated"]
+	assertMarkerValue(t, decodeWritten(t, path), want)
+}
+
+// assertMarkerValue asserts the marker in an already-decoded record — the shape
+// the translation's tests need, since they assert against the bytes captured at
+// the atomicWrite seam as well as against the file. A false marker is ABSENT
+// rather than present-and-false (§8.1's omit-empty-values rule), so the two
+// cases are asserted structurally on the decoded map — a substring check for
+// `"theme_migrated"` could not tell `false` from omitted.
+func assertMarkerValue(t *testing.T, decoded map[string]any, want bool) {
+	t.Helper()
+
+	got, ok := decoded["theme_migrated"]
 	if !want {
 		if ok {
 			t.Errorf("written JSON carries theme_migrated = %#v, want the key absent — a false marker is omitted, never written", got)
