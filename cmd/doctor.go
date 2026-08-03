@@ -74,6 +74,30 @@ type checkResult struct {
 	detail string
 }
 
+// advisory is doctor's SECOND class of report line — a user-content diagnostic,
+// as distinct from the Portal-health checkResult above. It carries NO name
+// column, NO pass/fail marker and NO participation in <N>/<T>, and it can never
+// make doctorUnhealthy true: advisories are simply never passed to it, which is
+// the structural form of "an advisory does not drive the exit code".
+//
+// That exclusion is §12.2's amendment to doctor's contract, not an oversight:
+// there is deliberately no repair path for a user's broken theme file, so a
+// failing line would hold a scriptable exit permanently non-zero over something
+// that is not the resurrection machinery the exit code speaks about.
+//
+// line is the full §14A copy INCLUDING its leading "⚠ ". The copy table pins each
+// line together with its glyph, so a producer owns the whole string and the
+// renderer only indents it — prefixing the glyph at render time would split one
+// pinned string across two sites (and a copy test could no longer compare against
+// the table verbatim). slug and fromPrefs are the identity §12.2's
+// one-slug-one-line union dedups on (an unresolvable persisted slug outranks the
+// same slug's file-validity line); the renderer reads neither, only line.
+type advisory struct {
+	line      string
+	slug      string
+	fromPrefs bool
+}
+
 // DoctorDeps is the DI seam for the doctor command. In production doctorDeps
 // is nil and resolveDoctorDeps supplies the real collaborators (StateDir from
 // state.Dir()). Tests assign a *DoctorDeps with a hermetic StateDir temp dir so
@@ -229,7 +253,11 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		renderDoctorReport(cmd.OutOrStdout(), results)
+		// No advisory producer exists yet, so both renders below take none: the
+		// theme scan is the first, and it supplies a slice PER diagnosis pass —
+		// the scan is read-only and runs on the --fix path too, where suppressing
+		// it would make --fix a less informative diagnosis than a plain run.
+		renderDoctorReport(cmd.OutOrStdout(), results, nil)
 
 		fix, _ := cmd.Flags().GetBool("fix")
 		if !fix {
@@ -250,7 +278,7 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		renderDoctorReport(cmd.OutOrStdout(), postResults)
+		renderDoctorReport(cmd.OutOrStdout(), postResults, nil)
 		if doctorUnhealthy(postResults) {
 			return ErrDoctorUnhealthy
 		}
@@ -647,23 +675,40 @@ func checkSessionsJSON(dir string, dirErr error) checkResult {
 	}
 }
 
-// renderDoctorReport writes the "Portal doctor:" header followed by one line
-// per result: a status marker, the check name, and the detail. checkInfo lines
-// render without a pass/fail marker (a space keeps the name column aligned).
-// The closing summary (doctorSummaryLine) is the LAST line it writes, once per
-// render — so `doctor --fix`, which renders twice, prints two.
+// renderDoctorReport writes the report's three regions in a fixed order, never
+// interleaved: the "Portal doctor:" header, the ordered check catalog (one line
+// per result — a status marker, the check name, and the detail; checkInfo lines
+// render without a pass/fail marker, a space keeping the name column aligned),
+// then the advisory block, then the closing summary. The summary is the LAST
+// line it writes, once per render — so `doctor --fix`, which renders twice,
+// prints two.
 //
 // The summary's FRAMING is a local choice, not a spec pin: the copy table pins
 // the wording only, so the two-space indent (matching the body lines), the
 // absent marker and name columns, and the absence of any blank line before it
 // are chosen here for visual continuity with the report's existing shape. A
-// later layout change therefore has exactly one home.
-func renderDoctorReport(w io.Writer, results []checkResult) {
+// later layout change therefore has exactly one home. The advisory block adopts
+// the same indent for the same reason.
+func renderDoctorReport(w io.Writer, results []checkResult, advisories []advisory) {
 	_, _ = fmt.Fprintln(w, "Portal doctor:")
 	for _, r := range results {
 		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", checkMarker(r.status), r.name, r.detail)
 	}
-	_, _ = fmt.Fprintf(w, "  %s\n", doctorSummaryLine(results))
+	// Region 2 → region 3. The advisory block trails the WHOLE catalog —
+	// including the informational host-terminal line, which stays a check — and
+	// never interleaves with it: the catalog is one line per check in a fixed
+	// order and a fixed length, whereas advisories are 0..N lines whose
+	// cardinality depends on the contents of a user's themes directory.
+	// Interleaving would make a fixed-order report vary in length and position
+	// with what someone happened to drop in a directory, so a reader could no
+	// longer expect a given check at a given place. Each advisory's line is
+	// written verbatim — the producer owns the whole string, glyph included, and
+	// nothing is prepended or appended beyond the shared body indent. Zero
+	// advisories therefore write zero bytes here: no blank line, no heading.
+	for _, a := range advisories {
+		_, _ = fmt.Fprintf(w, "  %s\n", a.line)
+	}
+	_, _ = fmt.Fprintf(w, "  %s\n", doctorSummaryLine(results, advisories))
 }
 
 // checkMarker maps a check status to its single-column report glyph. checkInfo
@@ -733,22 +778,36 @@ func doctorCheckCounts(results []checkResult) (passed, total int) {
 	return passed, total
 }
 
-// doctorSummaryLine renders one report's closing summary. The copy is
-// single-sourced HERE and at no other site. Two forms only — "<N> checks passed"
-// when every counted check passed, "<N> of <T> checks passed" otherwise, the
-// latter being the case the summary exists for since it is when the exit code
-// needs explaining.
+// doctorSummaryLine renders one report's closing summary, carrying both classes'
+// counts. The copy is single-sourced HERE and at no other site. Two forms only
+// for the checks — "<N> checks passed" when every counted check passed, "<N> of
+// <T> checks passed" otherwise, the latter being the case the summary exists for
+// since it is when the exit code needs explaining.
 //
-// There is deliberately NO singular carve-out and no route through pluralCount:
-// exactly one form is pinned for the checks count, and doctor's catalog never
-// has a single member. Like doctorCheckCounts it explains the exit code and
-// never computes it.
-func doctorSummaryLine(results []checkResult) string {
+// There is deliberately NO singular carve-out and no route through pluralCount
+// for the checks count: exactly one form is pinned for it, and doctor's catalog
+// never has a single member. The advisory suffix is the opposite — its count IS
+// routinely 1, so it takes the grammatical form and appends to WHICHEVER checks
+// form applies, one format site rather than two. At M == 0 the suffix is
+// suppressed entirely, so a clean install's report gains no stray punctuation
+// (never " · 0 advisories").
+//
+// <M> is the length of the slice handed in, never a producer's raw finding
+// count: the summary counts LINES, so it counts problems rather than detections
+// — which is what §12.2's one-slug-one-line rule exists to keep true. Taking the
+// slice rather than an int is what makes that structural. Like doctorCheckCounts
+// this explains the exit code and never computes it; advisories reach the
+// summary and nothing else.
+func doctorSummaryLine(results []checkResult, advisories []advisory) string {
 	passed, total := doctorCheckCounts(results)
-	if passed == total {
-		return fmt.Sprintf("%d checks passed", passed)
+	summary := fmt.Sprintf("%d checks passed", passed)
+	if passed != total {
+		summary = fmt.Sprintf("%d of %d checks passed", passed, total)
 	}
-	return fmt.Sprintf("%d of %d checks passed", passed, total)
+	if m := len(advisories); m > 0 {
+		summary += " · " + pluralCount(m, "advisory", "advisories")
+	}
+	return summary
 }
 
 func init() {

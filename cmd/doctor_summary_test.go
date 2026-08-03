@@ -83,7 +83,7 @@ func TestDoctorSummary_InfoLineOutsideCounts(t *testing.T) {
 	if gotPassed != wantPassed || gotTotal != wantTotal {
 		t.Errorf("doctorCheckCounts(with info line) = (%d, %d); want (%d, %d) — the info line must count for neither", gotPassed, gotTotal, wantPassed, wantTotal)
 	}
-	if got := doctorSummaryLine(withInfo); got != "2 checks passed" {
+	if got := doctorSummaryLine(withInfo, nil); got != "2 checks passed" {
 		t.Errorf("doctorSummaryLine(with info line) = %q; want %q", got, "2 checks passed")
 	}
 }
@@ -124,7 +124,7 @@ func TestDoctorSummary_UnknownCountsTowardTotalOnly(t *testing.T) {
 	if !doctorUnhealthy(results) {
 		t.Error("doctorUnhealthy = false; the iota-0 sentinel must read as unhealthy")
 	}
-	if got := doctorSummaryLine(results); got != "1 of 2 checks passed" {
+	if got := doctorSummaryLine(results, nil); got != "1 of 2 checks passed" {
 		t.Errorf("doctorSummaryLine = %q; want %q", got, "1 of 2 checks passed")
 	}
 }
@@ -173,7 +173,7 @@ func TestDoctorSummary_MatchesDoctorUnhealthy(t *testing.T) {
 			if healthy {
 				want = fmt.Sprintf("%d checks passed", passed)
 			}
-			if got := doctorSummaryLine(tc.results); got != want {
+			if got := doctorSummaryLine(tc.results, nil); got != want {
 				t.Errorf("doctorSummaryLine = %q; want %q", got, want)
 			}
 		})
@@ -192,7 +192,7 @@ func TestDoctorSummary_IsTheLastLine(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	renderDoctorReport(&buf, results)
+	renderDoctorReport(&buf, results, nil)
 
 	want := "Portal doctor:\n" +
 		"  ✓ daemon: running (pid 1, version v1.0.0)\n" +
@@ -252,7 +252,7 @@ func TestDoctorSummary_NoSingularCarveOut(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := doctorSummaryLine(tc.results)
+			got := doctorSummaryLine(tc.results, nil)
 			if got != tc.want {
 				t.Errorf("doctorSummaryLine = %q; want %q — the checks count has exactly one form", got, tc.want)
 			}
