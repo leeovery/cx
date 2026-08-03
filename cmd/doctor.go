@@ -290,11 +290,14 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// The theme producers supply this render's advisory block, computed PER
-		// diagnosis pass rather than hoisted above both renders: they are read-only
-		// and run on the --fix path too — suppressing them there would make --fix a
-		// LESS informative diagnosis than a plain run — and each pass reports the
-		// themes directory and prefs.json as they stand when that pass runs.
+		// The theme producers supply this render's advisory block, handed over
+		// already assembled into §12.2's one-slug-one-line union so <M> counts
+		// problems rather than detections (collectThemeAdvisories).
+		//
+		// It is computed HERE rather than inside runDoctorDiagnosis because it is
+		// doctor's SECOND class of line, not a check: it never reaches
+		// doctorUnhealthy, so the diagnosis returns only the catalog that drives the
+		// exit code and the two classes never meet in one slice.
 		renderDoctorReport(cmd.OutOrStdout(), results, collectThemeAdvisories(deps))
 
 		fix, _ := cmd.Flags().GetBool("fix")

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
@@ -95,10 +96,85 @@ const (
 // per instance) rather than two that could each report the same condition — and
 // because it is Discard-backed the sharing is free, since neither emits anything
 // whatever the dedup says.
+//
+// Their two results are ASSEMBLED rather than concatenated — see
+// assembleThemeAdvisories — so the block the renderer receives is already the
+// §12.2 union, in a pinned order, and <M> is the length of that final set.
 func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
-	return append(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader)...)
+	return assembleThemeAdvisories(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader))
+}
+
+// assembleThemeAdvisories unions doctor's two theme producers into the ONE block
+// the report renders, in three pinned regions — the directory line, the file
+// lines, then the persisted lines.
+//
+// The region ORDER is what makes the report testable: a block whose sequence
+// depends on which producer appended first would shift between runs and read as
+// noise. Directory → files → persisted reads outermost-to-innermost — the
+// container, then its contents, then the setting that points into it — and the
+// directory line, when present, is the condition that EXPLAINS the absence of
+// every file line beneath it. The first two regions arrive in one slice because
+// scanThemesDirectory yields one or the other and never both (§5.5: an unusable
+// directory enumerates nothing), and both regions are internally ordered by their
+// producers: the enumeration's own os.ReadDir filename order, and §8.2's fixed key
+// order. Nothing is sorted here and NO MAP IS ITERATED anywhere in the assembly,
+// so two runs over an unchanged directory and prefs.json render byte-identically.
+//
+// THE DROP is §12.2's one-slug-one-line rule, mirroring §9.4's "one slug is one
+// row, always" so the two surfaces cannot disagree about how many problems exist.
+// When a persisted slug IS the invalid file — the most likely failure of all —
+// the persisted line wins: it carries strictly more, the reason AND which slot is
+// affected, so the file line would add nothing but a second entry in <M>. <M>
+// therefore counts PROBLEMS rather than DETECTIONS.
+//
+// Two structural non-collisions are pinned rather than incidental, and neither
+// needs a special case here:
+//
+//   - a `bad name` file has NO SLUG (§6.2 rung 1 yields no usable identity, which
+//     themeFileAdvisory states rather than copies), so the non-empty-slug guard
+//     means it can never match a persisted slug and both lines legitimately stand.
+//     The directory line carries no slug either, by the same guard — it is
+//     directory-level and is never deduplicated against a slug.
+//   - a persisted slug naming a `reserved name` file resolves to the BUILT-IN at
+//     ResolveByName's step 2, so the persisted producer emits no line for it at
+//     all — the file keeps its own line, and that collision is the entire content
+//     of the reason.
+func assembleThemeAdvisories(scanned, persisted []advisory) []advisory {
+	covered := persistedSlugs(persisted)
+
+	assembled := make([]advisory, 0, len(scanned)+len(persisted))
+	for _, a := range scanned {
+		if a.slug != "" && slices.Contains(covered, a.slug) {
+			continue
+		}
+		assembled = append(assembled, a)
+	}
+	return append(assembled, persisted...)
+}
+
+// persistedSlugs collects the slugs the persisted lines carry — the set a file
+// line is dropped against.
+//
+// Membership is decided by the advisory's OWN fromPrefs field rather than by
+// which slice it arrived in, which is what makes that field load-bearing instead
+// of decorative: it and slug are declared as the union's dedup identity (see the
+// advisory type in cmd/doctor.go), and a rank read off the argument position
+// would leave the declared identity unread and free to drift.
+//
+// A slice rather than a map, deliberately: the set is at most two entries (§8.2
+// has one constant or two slots), and a slice cannot be iterated in a random
+// order the way a map can — which is what keeps the assembly's determinism a
+// property of its data structures rather than of how it happens to be walked.
+func persistedSlugs(persisted []advisory) []string {
+	slugs := make([]string, 0, len(persisted))
+	for _, a := range persisted {
+		if a.fromPrefs && a.slug != "" {
+			slugs = append(slugs, a.slug)
+		}
+	}
+	return slugs
 }
 
 // persistedThemeAdvisories is doctor's SECOND theme-advisory producer: the one

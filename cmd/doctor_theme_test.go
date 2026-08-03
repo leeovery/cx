@@ -980,6 +980,27 @@ func TestThemeAdvisories_BadNameSlugIsStatedNotCopied(t *testing.T) {
 	}
 }
 
+// TestThemeAdvisories_NotFoundIsNeverAFileLine: it produces no line for a `not
+// found` entry.
+//
+// §6.2's seventh reason is the one this producer does NOT own — it applies to a
+// persisted slug with no file, which is the other producer's line — and the
+// switch skips it VISIBLY rather than sweeping it into the generic frame, where
+// it would render `⚠ theme gone: not found — ` with an empty detail. The
+// enumeration cannot produce such an entry (every entry came from a file that
+// exists), so only a hand-built one can pin the arm.
+func TestThemeAdvisories_NotFoundIsNeverAFileLine(t *testing.T) {
+	entry := theme.Entry{
+		Filename:  "gone.theme",
+		Slug:      "gone",
+		Rejection: &theme.Rejection{Reason: theme.ReasonNotFound},
+	}
+
+	if got, reported := themeFileAdvisory(entry); reported {
+		t.Errorf("themeFileAdvisory reported %q for a `not found` entry; the persisted producer owns that reason", got.line)
+	}
+}
+
 // TestThemeAdvisories_ReservedNameDecidedBeforeRead: it reports a reserved-name
 // file whose contents are valid.
 //
