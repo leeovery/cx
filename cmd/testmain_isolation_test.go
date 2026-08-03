@@ -46,6 +46,17 @@ func TestMain(m *testing.M) {
 	// ~/.config/portal/themes/. Tests that exercise the themes chain set it
 	// explicitly with t.Setenv.
 	os.Setenv("PORTAL_THEMES_DIR", "/nonexistent/portal-test-must-isolate-themes")
+	// PORTAL_PREFS_FILE joins the poison set with doctor's persisted-theme
+	// advisory, which is the first production path to resolve prefs.json from a
+	// command body a test Executes: `portal doctor` now reads the file on every
+	// run, so an unpoisoned resolution would read the DEVELOPER's real
+	// ~/.config/portal/prefs.json and let their own theme choice decide whether
+	// the doctor report tests pass. (The one-shot old-macOS-path migrate that
+	// rides the same resolution would also be a genuine write outside a temp
+	// dir.) Tests that exercise prefs set it explicitly with t.Setenv — see
+	// setPrefsFile — and prefsFilePath's fallback chain is covered by tests that
+	// set it to the empty string, which reads as unset.
+	os.Setenv("PORTAL_PREFS_FILE", "/nonexistent/portal-test-must-isolate-prefs.json")
 	// TMUX poison — the tmux-boundary counterpart of the path poisons above.
 	// Tests usually run inside the developer's real tmux, so any test that
 	// Executes a real command body whose production wiring builds

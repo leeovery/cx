@@ -950,6 +950,36 @@ func TestThemeAdvisories_BadNameCarriesNoSlug(t *testing.T) {
 	}
 }
 
+// TestThemeAdvisories_BadNameSlugIsStatedNotCopied: it states the bad-name row's
+// empty slug rather than copying the entry's.
+//
+// Every `bad name` entry the ENUMERATION can produce already carries an empty
+// Slug (Phase 1 leaves it empty exactly there), so on a directory fixture
+// "stated" and "copied" are indistinguishable — and the claim that the emptiness
+// follows from the REASON rather than from an upstream field happening to be
+// empty would rest on nothing. A hand-built entry separates them: it names a
+// slug, §6.2 rung 1 says a bad-name file yields no usable identity, and the row
+// must take the reason's answer. That is what makes §12.2's dedup structural for
+// this class — a bad-name row can never collide with a persisted slug.
+func TestThemeAdvisories_BadNameSlugIsStatedNotCopied(t *testing.T) {
+	entry := theme.Entry{
+		Filename:  "Bad_Name.theme",
+		Slug:      "bad-name",
+		Rejection: &theme.Rejection{Reason: theme.ReasonBadName, BadNameCause: theme.BadNameSlug},
+	}
+
+	got, reported := themeFileAdvisory(entry)
+	if !reported {
+		t.Fatal("themeFileAdvisory reported nothing for a `bad name` entry")
+	}
+	if got.slug != "" {
+		t.Errorf("advisory slug = %q; want %q — the emptiness is a consequence of the reason, not a copy of the entry's field", got.slug, "")
+	}
+	if want := "⚠ theme file Bad_Name.theme: slug must be lowercase letters, digits and hyphens"; got.line != want {
+		t.Errorf("advisory line = %q; want %q", got.line, want)
+	}
+}
+
 // TestThemeAdvisories_ReservedNameDecidedBeforeRead: it reports a reserved-name
 // file whose contents are valid.
 //

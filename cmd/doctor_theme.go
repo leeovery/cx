@@ -40,6 +40,15 @@ import (
 // `<reason> — <detail>` frame — it names the conflict AND the fix, which is what
 // makes §5.4's two-second-rename workaround self-documenting rather than merely
 // short, and is why §14A records no separate detail for it.
+//
+// The persisted frame is ONE format with an OPTIONAL slot insert rather than two
+// whole lines, because §14A's two renderings differ in exactly that insert. Two
+// consts would state "does not resolve" twice — the drift the single-sourcing
+// convention exists to prevent, and invisible at review since the two would sit
+// three lines apart. It carries NO ` — <detail>` tail, unlike the file frame
+// above: the reason is the whole answer for a slug that names nothing, and the
+// one reason with a detail to give (`unreadable`) is about the DIRECTORY, which
+// already has its own line.
 const (
 	themeFileAdvisoryFormat   = "⚠ theme %s: %s — %s"
 	themesDirUnreadableFormat = "⚠ themes directory unreadable: %s"
@@ -47,11 +56,25 @@ const (
 	badNameSlugAdvisoryFormat      = "⚠ theme file %s: slug must be lowercase letters, digits and hyphens"
 	badNameExtensionAdvisoryFormat = "⚠ theme file %s: extension must be lowercase .theme"
 	reservedNameAdvisoryFormat     = "⚠ theme file %s: %s is a built-in — rename it (e.g. %s-mine.theme)"
+
+	persistedThemeAdvisoryFormat = "⚠ theme %s%s does not resolve: %s"
+	persistedThemeSlotFormat     = " (%s)"
 )
 
-// collectThemeAdvisories is doctor's whole theme-advisory producer: the single
+// The three §14A slot labels. `both` is not a third slot — §8.2 has exactly two
+// — it is the rendering of ONE slug occupying both of them, which §9.5 makes
+// reachable in two keypresses and §12.2's one-slug-one-line rule requires be one
+// line rather than two.
+const (
+	themeSlotLight = "light"
+	themeSlotDark  = "dark"
+	themeSlotBoth  = "both"
+)
+
+// collectThemeAdvisories is doctor's whole theme-advisory surface: the single
 // entry point the report's advisory block is built from, run once per diagnosis
-// pass.
+// pass, over the TWO producers behind it — the themes-directory scan (what is IN
+// a directory) and the persisted-theme read (what the user PICKED).
 //
 // It is strictly READ-ONLY — no write, no repair, no directory creation — which
 // is what lets it run unchanged on the `--fix` path, where there is no repair to
@@ -66,10 +89,150 @@ const (
 // surface that needs it least. It also keeps doctor's read-only claim literal: a
 // diagnosis command writing WARNs about the state it just printed is the same
 // shape of side effect as repairing one.
+//
+// The two producers share ONE loader, built here and passed down. That is what
+// gives the whole diagnosis a single owned dedup set (theme.EventLogger holds it
+// per instance) rather than two that could each report the same condition — and
+// because it is Discard-backed the sharing is free, since neither emits anything
+// whatever the dedup says.
 func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
-	return scanThemesDirectory(loader, deps.ThemesDir)
+	return append(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader)...)
+}
+
+// persistedThemeAdvisories is doctor's SECOND theme-advisory producer: the one
+// reporting that a theme the user CHOSE no longer resolves — a deleted file, a
+// renamed file, a typo in prefs.json. Portal falls back silently by design and
+// never overwrites the persisted name, so without this line the only signal a
+// user gets is "my colours changed".
+//
+// The prefs read is deps.PrefsStore, which resolveDoctorDeps builds through the
+// NON-MIGRATING loadPrefsStoreNoMigrate (§10.5, §12.2). A nil store — the
+// unresolvable-config-path degradation — produces no lines rather than an error:
+// the advisory class has no not-evaluable form, and a path that could not be
+// computed must never abort a diagnosis.
+//
+// The read is TOLERANT and its error is discarded on purpose. Every degenerate
+// prefs.json — absent, empty, corrupt, unreadable, missing every key — yields
+// zero keys, which yields zero nominations and therefore zero lines. The one
+// thing a diagnosis must not do is fail to diagnose because one of the files it
+// reads is the broken one.
+//
+// Resolution goes through ResolveByName, NEVER ResolveNomination: the latter
+// substitutes §8.5's fallbacks, which would HIDE the very failure being reported,
+// and can raise §7.6's broken-built-in fatal, which would abort the diagnosis
+// over a state this line exists to describe.
+func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []advisory {
+	if deps.PrefsStore == nil {
+		return nil
+	}
+
+	keys, _ := deps.PrefsStore.LoadThemeKeys()
+	setting, raw := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+
+	var advisories []advisory
+	for _, nomination := range persistedThemeNominations(setting, raw) {
+		if a, reported := persistedThemeAdvisory(loader, nomination, deps.ThemesDir); reported {
+			advisories = append(advisories, a)
+		}
+	}
+	return advisories
+}
+
+// persistedThemeNomination is one persisted slug doctor checks, carrying the
+// §14A slot label it renders under — EMPTY under a constant, where the
+// parenthetical is omitted entirely rather than filled with a placeholder.
+type persistedThemeNomination struct {
+	slug string
+	slot string
+}
+
+// persistedThemeNominations selects which of prefs.json's three keys doctor
+// checks, per §8.4: THE KEYS IN FORCE, never every key present.
+//
+// The Setting says which state §8.2's tiebreak settled on; the RAW keys say
+// which values are actually PERSISTED. Both are needed and neither substitutes
+// for the other:
+//
+//   - A CONSTANT is checked alone, with no slot. The slots are not read at all
+//     under §8.2's `theme`-wins rule — a hand-edited file may legally carry all
+//     three keys — and reporting one Portal is not reading would send the user
+//     to fix something that has no effect.
+//   - Otherwise ONLY THE SLOTS WITH A NON-EMPTY RAW VALUE are checked. An unset
+//     slot arrives in the Setting as the shipped default, which is a built-in
+//     and always resolves, so checking it could only ever produce a line about
+//     §7.6's should-never-happen state — which is a fatal, not an advisory. The
+//     raw value is what distinguishes "the user chose this" from "we substituted
+//     it", and only the former is reportable.
+//
+// Two raw slots naming the SAME slug collapse to one `both` nomination (§9.5,
+// reachable in two keypresses), so one slug yields one line per §12.2 — the rule
+// two lines for one slug would break, along with <M>'s problems-not-detections
+// property.
+func persistedThemeNominations(setting theme.Setting, raw theme.RawKeys) []persistedThemeNomination {
+	if setting.IsConstant {
+		return []persistedThemeNomination{{slug: setting.Constant}}
+	}
+
+	if raw.Light != "" && raw.Light == raw.Dark {
+		return []persistedThemeNomination{{slug: raw.Light, slot: themeSlotBoth}}
+	}
+
+	var nominations []persistedThemeNomination
+	if raw.Light != "" {
+		nominations = append(nominations, persistedThemeNomination{slug: raw.Light, slot: themeSlotLight})
+	}
+	if raw.Dark != "" {
+		nominations = append(nominations, persistedThemeNomination{slug: raw.Dark, slot: themeSlotDark})
+	}
+	return nominations
+}
+
+// persistedThemeAdvisory resolves one nomination and renders its advisory,
+// reporting whether it earns one at all. A nil rejection produces no line — this
+// producer reports problems, not inventory.
+//
+// EVERY discrimination is ResolveByName's own and none is re-derived here, which
+// is what keeps doctor's vocabulary identical to the panel's and to the log's: a
+// charset failure is `bad name` and is decided BEFORE any path is composed (§8.6
+// — so a hand-edited `../evil` never becomes a path component), an absent
+// directory or an absent file is `not found`, and an unusable directory is
+// `unreadable` because permissions is the actual problem (§5.5). An EMPTY
+// themesDir — the unresolved-path degradation — still resolves the embedded set
+// and answers `not found` for a drop-in slug, composing no path, which is why
+// this producer runs where the directory scan skips.
+//
+// The slug renders CONTROL-STRIPPED BUT UNTRUNCATED. Stripping already happened
+// at the point the value was read (§9.5 puts it on the value, not on the
+// surface), and truncation stays panel-local because doctor has the full width
+// and wants the whole value.
+//
+// slug and fromPrefs ride alongside the line for §12.2's one-slug-one-line
+// union, where a persisted line OUTRANKS the same slug's file-validity line: it
+// carries strictly more — the reason AND which slot is affected.
+func persistedThemeAdvisory(loader theme.Loader, nomination persistedThemeNomination, themesDir string) (advisory, bool) {
+	_, rejection := loader.ResolveByName(nomination.slug, themesDir)
+	if rejection == nil {
+		return advisory{}, false
+	}
+
+	return advisory{
+		line:      fmt.Sprintf(persistedThemeAdvisoryFormat, nomination.slug, persistedThemeSlotSuffix(nomination.slot), rejection.Reason),
+		slug:      nomination.slug,
+		fromPrefs: true,
+	}, true
+}
+
+// persistedThemeSlotSuffix renders §14A's slot parenthetical, or nothing at all
+// under a constant. The empty label is the constant's, and it yields an empty
+// string rather than "()" — the parenthetical is omitted ENTIRELY, because §8.2's
+// constant state has no halves for one to name.
+func persistedThemeSlotSuffix(slot string) string {
+	if slot == "" {
+		return ""
+	}
+	return fmt.Sprintf(persistedThemeSlotFormat, slot)
 }
 
 // scanThemesDirectory enumerates dir through Phase 1's ladder and renders one
@@ -163,7 +326,8 @@ func themeFileAdvisory(entry theme.Entry) (advisory, bool) {
 			fromPrefs: false,
 		}, true
 	default:
-		// `not found` is another producer's line.
+		// `not found` is persistedThemeAdvisories' line, below: it applies to a
+		// persisted slug with no file, which nothing enumerated here can be.
 		return advisory{}, false
 	}
 }

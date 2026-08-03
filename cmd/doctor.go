@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/portal/internal/hooks"
 	"github.com/leeovery/portal/internal/log"
+	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/spawn"
 	"github.com/leeovery/portal/internal/state"
@@ -139,6 +140,13 @@ type DoctorDeps struct {
 	// stale-projects check is filesystem-only (directory existence) and runs
 	// independently of the tmux server state.
 	ProjectStore *project.Store
+	// PrefsStore reads prefs.json for the persisted-theme advisory — the line
+	// reporting that the theme a user CHOSE no longer resolves. Production wraps
+	// loadPrefsStoreNoMigrate(), the NON-migrating variant (§10.5, §12.2): see
+	// resolveDoctorDeps for why the migrating one may never appear here. A nil
+	// pointer (an unresolvable config path) produces no lines rather than an
+	// error, matching the advisory class's degrade-to-silence shape.
+	PrefsStore *prefs.Store
 	// Detector resolves the host-terminal identity for the informational
 	// host-terminal line. Production wires it from the shared
 	// buildProductionSpawnSeams bundle (cmd/spawn_seams.go) — the SAME bundle the
@@ -204,6 +212,18 @@ func resolveDoctorDeps() *DoctorDeps {
 	if projectStore, err := loadProjectStore(); err == nil {
 		deps.ProjectStore = projectStore
 	}
+	// The prefs store is built on the same best-effort footing, and through the
+	// NON-MIGRATING variant, ALWAYS. loadPrefsStore — the migrating one, which
+	// computes and dispatches §10.5's one-shot appearance translation — must
+	// never appear anywhere in doctor's call graph: doctor heals nothing on the
+	// read-only path, and a one-shot config mutation as a side effect of running
+	// a diagnosis is precisely what would break that claim (§12.2). Task 6-5's
+	// TestLoadPrefsStore_SingleProductionCaller is what keeps the migrating
+	// loader pinned to its single TUI-construction caller, and this call site
+	// must not become its second.
+	if prefsStore, err := loadPrefsStoreNoMigrate(); err == nil {
+		deps.PrefsStore = prefsStore
+	}
 	// The themes directory is resolved on the same best-effort footing, and
 	// degrades further: the advisory class has no not-evaluable form, so a
 	// resolution failure leaves the field empty and the theme scan reports
@@ -239,6 +259,9 @@ func resolveDoctorDeps() *DoctorDeps {
 	if doctorDeps.ProjectStore != nil {
 		deps.ProjectStore = doctorDeps.ProjectStore
 	}
+	if doctorDeps.PrefsStore != nil {
+		deps.PrefsStore = doctorDeps.PrefsStore
+	}
 	if doctorDeps.Detector != nil {
 		deps.Detector = doctorDeps.Detector
 	}
@@ -267,11 +290,11 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// The theme scan supplies this render's advisory block, computed PER
-		// diagnosis pass rather than hoisted above both renders: it is read-only
-		// and runs on the --fix path too — suppressing it there would make --fix a
+		// The theme producers supply this render's advisory block, computed PER
+		// diagnosis pass rather than hoisted above both renders: they are read-only
+		// and run on the --fix path too — suppressing them there would make --fix a
 		// LESS informative diagnosis than a plain run — and each pass reports the
-		// themes directory as it stands when that pass runs.
+		// themes directory and prefs.json as they stand when that pass runs.
 		renderDoctorReport(cmd.OutOrStdout(), results, collectThemeAdvisories(deps))
 
 		fix, _ := cmd.Flags().GetBool("fix")
