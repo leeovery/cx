@@ -24,9 +24,13 @@ import (
 // directory would resolve to it under a hand-built Loader and prove the opposite
 // of what the assertion claims.
 //
-// The seam is silent because this task emits NOTHING: task 5-5 wires `theme:
-// loaded` and `theme: fallback applied` onto exactly these outcomes, and asserting
-// silence here would pin an absence that task is about to fill.
+// The seam is NIL — the silent one — because these fixtures assert the RESOLUTION
+// RECORD, and a resolution now emits `theme: loaded` and `theme: fallback applied`
+// per slot. Those events are asserted where they belong, against a capturing seam
+// in events_test.go; a loader here that emitted into the process handler would
+// only add noise to assertions about the record's shape. It doubles as the
+// standing proof that the nil seam is safe on the path every TUI construction
+// runs.
 func nominationLoader() theme.Loader {
 	return theme.NewLoader(nil)
 }
@@ -163,7 +167,7 @@ func TestResolveNomination_FallbackIsModeMatched(t *testing.T) {
 // reported in: WHICH slot fell back, FROM which slug, FOR which reason, and what
 // actually loaded — one record per slot, assembled from the Setting alone.
 //
-// Every later surface reads this record rather than re-deriving it: task 5-5's
+// Every surface over it reads this record rather than re-deriving it: §12.3's
 // events, Phase 7's doctor line, and Phase 8's rule that the `●` stays on the
 // PERSISTED slug while the fallback's own row carries no badge. That last one is
 // why Requested and Resolved are carried separately — under a fallback they

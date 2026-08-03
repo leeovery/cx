@@ -186,10 +186,11 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // guarantee added DefaultDarkSlug and DefaultLightSlug, §8.4's loaded nomination
 // added Nomination with its two constructors and three accessors, §13.3's
 // explicit-path input added LoadPath alongside LoadFile, §8.2's two-state
-// setting added ResolveSetting with the Setting and RawKeys it returns, and
-// §8.5's per-slot fallback added ResolveNomination with the Resolution, Slot and
-// SlotResolution it reports through. Nothing on the removed list ever returns to
-// it.
+// setting added ResolveSetting with the Setting and RawKeys it returns, §8.5's
+// per-slot fallback added ResolveNomination with the Resolution, Slot and
+// SlotResolution it reports through, and §12.3's per-theme records added
+// EventLogger.Loaded and EventLogger.FallbackApplied beside the two rejection
+// events. Nothing on the removed list ever returns to it.
 //
 // Slot is the second addition that could be mistaken for the removed surface
 // returning: it names a light and a dark position. It is not — a slot is a
@@ -223,6 +224,8 @@ var wantExports = []string{
 	"Entry",
 	"EventLogger",
 	"EventLogger.DirectoryUnusable",
+	"EventLogger.FallbackApplied",
+	"EventLogger.Loaded",
 	"EventLogger.Rejected",
 	"Loader",
 	"Loader.Enumerate",

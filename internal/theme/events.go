@@ -25,29 +25,42 @@ import (
 // emits but never decides. Extending either list is a spec amendment, not a
 // call-site choice.
 //
-// Two of the seven events are implemented here, both WARN, both deduplicated
-// per process. The other five belong to later phases and have no site yet:
+// Four of the seven events are implemented here. Three are WARN and dedup per
+// process; `theme: loaded` is INFO and deliberately does not (it is per LOAD
+// rather than per condition). The other three belong to later phases and have no
+// site yet:
 //
-//	theme: loaded              INFO   Phase 5
-//	theme: fallback applied    WARN   Phase 5
+//	theme: loaded              INFO   here — from §8.5's per-slot resolution.
+//	                                  ALSO fires at commit time in Phase 9, for
+//	                                  the newly-live opposite slot on a
+//	                                  constant → adaptive conversion (§8.4):
+//	                                  the same event at a different cadence,
+//	                                  which is why it must not dedup.
+//	theme: fallback applied    WARN   here — from the same per-slot resolution.
+//	theme: rejected            WARN   here.
+//	theme: directory unusable  WARN   here.
 //	theme: appearance migrated INFO   Phase 6
-//	theme: commit failed       WARN   Phase 6
+//	theme: commit failed       WARN   Phase 6's cmd-owned theme persister
 //	theme: enumerated          INFO   Phase 8
 //
-// Only four of the seven attr keys are reachable from this phase's two events;
-// `slot`, `count` and `rejected` arrive with the events above.
+// Five of the seven attr keys are reachable from the four events implemented
+// here; `count` and `rejected` arrive with `theme: enumerated`, because NOTHING
+// IS ENUMERATED on any path that reaches this file today.
 
-// The two events this phase emits, as their exact log messages. Each is a
-// constant rather than a literal because it is used twice — once as the message
-// and once as the dedup key's event discriminator — and the two must never
-// drift.
+// The four events this file emits, as their exact log messages. Each deduplicated
+// event is a constant rather than a literal because it is used twice — once as
+// the message and once as the dedup key's event discriminator — and the two must
+// never drift; `theme: loaded` does not dedup, and its constant is simply the one
+// place its message is written.
 const (
+	eventLoaded            = "loaded"
 	eventRejected          = "rejected"
 	eventDirectoryUnusable = "directory unusable"
+	eventFallbackApplied   = "fallback applied"
 )
 
 // EventLogger is the `theme` component's emission seam: an INJECTED
-// *slog.Logger plus the per-process dedup state its two WARN events need.
+// *slog.Logger plus the per-process dedup state its WARN events need.
 //
 // Emission is controlled by that injected logger, NOT by this package deciding
 // (§12.3). A diagnose-shaped caller is constructed with log.Discard() and writes
@@ -92,6 +105,44 @@ type eventKey struct {
 // is nil (log.OrDiscard at entry, the internal/spawn precedent).
 func NewEventLogger(l *slog.Logger) *EventLogger {
 	return &EventLogger{logger: log.OrDiscard(l), seen: map[eventKey]struct{}{}}
+}
+
+// Loaded reports one nominated slot's theme actually loading, ONE line per
+// nomination — one under a constant, two under an adaptive pair.
+//
+// It is NOT deduplicated, and that is the difference between it and every other
+// event on this seam: it is per LOAD rather than per condition, and Phase 9's
+// commit-time load is the same event at a different cadence.
+func (e *EventLogger) Loaded(slug string, slot Slot) {
+	if e == nil {
+		return
+	}
+
+	e.logger.Info(eventLoaded, themeAttrs(slug, slot)...)
+}
+
+// FallbackApplied reports §8.5's mode-matched default standing in for a slot
+// whose nomination would not load, ONCE per slug+reason.
+//
+// The slug is the nomination that FAILED, never the default that replaced it:
+// the pair of events is only useful because one names the theme that broke and
+// the other names the palette that rendered. Together with the slot and the
+// reason, that is what makes the line greppable, which is the whole reason the
+// component earns its place (§12.3).
+//
+// It dedups for its neighbours' reason and then some: a persistently broken
+// active theme resolves a fallback at construction (§8.4), again on every panel
+// open (§9.2) and again on every `Esc` (§5.8), so "per fallback" read literally
+// would turn a passive forensic trail into running commentary.
+func (e *EventLogger) FallbackApplied(slug string, slot Slot, r Reason) {
+	if e == nil {
+		return
+	}
+	if !e.firstSighting(eventKey{event: eventFallbackApplied, identity: slug, reason: r}) {
+		return
+	}
+
+	e.logger.Warn(eventFallbackApplied, append(themeAttrs(slug, slot), "reason", string(r))...)
 }
 
 // Rejected reports one theme file the §6.2 ladder refused, ONCE per slug+reason
@@ -160,6 +211,38 @@ func (e *EventLogger) firstSighting(key eventKey) bool {
 	}
 	e.seen[key] = struct{}{}
 	return true
+}
+
+// themeAttrs renders the identity every per-theme event in §12.3's catalogue
+// opens with: `slug` always, `slot` only where one applies.
+//
+// Both events share it so their key ORDER cannot drift apart, and so the
+// constant's absent `slot` is one decision in one place rather than two call
+// sites that happen to agree today.
+func themeAttrs(slug string, slot Slot) []any {
+	if name, named := slotAttr(slot); named {
+		return []any{"slug", slug, "slot", name}
+	}
+	return []any{"slug", slug}
+}
+
+// slotAttr renders a slot as §12.3's `slot` attr value, and reports whether the
+// slot has one at all.
+//
+// A CONSTANT CARRIES NO `slot` ATTR — not an empty string, and not the word
+// "constant". The attr names which half of an ADAPTIVE PAIR a line is about, and
+// a constant setting has no halves: a value there would assert a distinction
+// §8.2's two-state setting does not have, and an empty one would grep as a slot
+// named nothing.
+func slotAttr(slot Slot) (string, bool) {
+	switch slot {
+	case SlotLight:
+		return "light", true
+	case SlotDark:
+		return "dark", true
+	default:
+		return "", false
+	}
 }
 
 // tokenAttr returns the value of the `token` attr for a rejection, and reports

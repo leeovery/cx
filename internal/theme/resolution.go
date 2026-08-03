@@ -25,7 +25,7 @@ const (
 //
 // The record is structured rather than folded into a palette because every later
 // surface needs the parts separately, and none of them can recover the parts from
-// a Theme: task 5-5's `theme: fallback applied` carries the slug that FAILED and
+// a Theme: §12.3's `theme: fallback applied` carries the slug that FAILED and
 // its reason, Phase 7's doctor line renders `theme <slug> (<slot>) does not
 // resolve: <reason>`, and §9.5's badge table keeps the `●` on the PERSISTED slug
 // while the fallback's own row carries no badge.
@@ -108,8 +108,11 @@ type Resolution struct {
 // slots in one launch produce two fallbacks rather than one plus an abandoned
 // resolution.
 //
-// It EMITS NOTHING itself. Task 5-5 wires `theme: loaded` and `theme: fallback
-// applied` onto exactly these outcomes, from the one place that holds them all.
+// It EMITS §12.3's per-slot pair — `theme: fallback applied` where one was, then
+// `theme: loaded` for the slug that actually loaded — through the injected seam,
+// from the one place that holds every slot's outcome. That is what keeps the
+// cadence single-sited: ONE `loaded` per slot, one under a constant and two under
+// a pair, never one combined line. See reportSlot.
 //
 // The error is §7.6's should-never-happen state: the FALLBACK itself did not
 // resolve. A nomination failing is ordinary and is absorbed silently by the
@@ -174,7 +177,7 @@ func (l Loader) ResolveNomination(s Setting, themesDir string) (Resolution, erro
 func (l Loader) resolveSlot(slot Slot, slug, themesDir string) (SlotResolution, error) {
 	result, rejection := l.ResolveByName(slug, themesDir)
 	if rejection == nil {
-		return SlotResolution{Slot: slot, Requested: slug, Resolved: result.Slug, Theme: result.Theme}, nil
+		return l.reportSlot(SlotResolution{Slot: slot, Requested: slug, Resolved: result.Slug, Theme: result.Theme}), nil
 	}
 
 	fallbackSlug := fallbackSlugFor(slot)
@@ -183,14 +186,41 @@ func (l Loader) resolveSlot(slot Slot, slug, themesDir string) (SlotResolution, 
 		return SlotResolution{}, fallbackRejection
 	}
 
-	return SlotResolution{
+	return l.reportSlot(SlotResolution{
 		Slot:      slot,
 		Requested: slug,
 		Resolved:  fallback.Slug,
 		FellBack:  true,
 		Reason:    rejection.Reason,
 		Theme:     fallback.Theme,
-	}, nil
+	}), nil
+}
+
+// reportSlot emits §12.3's record of ONE slot's outcome and hands the resolution
+// straight back, so a caller states the outcome once (the reportDirectoryUnusable
+// shape, for the same reason).
+//
+// THE ORDER IS FIXED: the failure first, then the palette that replaced it. A
+// reader scanning the log meets the cause before the consequence, and a slot that
+// simply loaded emits the second line alone.
+//
+// It emits from the ASSEMBLED RECORD rather than from the branch that produced
+// it, which is what makes `theme: loaded` structurally incapable of naming the
+// slug that FAILED: the only slug it can reach is Resolved, the one whose palette
+// is in Theme. Both events naming the failed nomination is exactly the state
+// §12.3 says a broken install must never be logged in — a `grep "theme:"` could
+// then not answer which palette is actually rendering — so the impossibility is
+// worth more here than a saved line at each call site.
+//
+// A slot that could not resolve AT ALL emits nothing, because it never reaches
+// here: the fallback failing is §7.6's should-never-happen state, nothing loaded,
+// and no fallback was applied to report.
+func (l Loader) reportSlot(r SlotResolution) SlotResolution {
+	if r.FellBack {
+		l.events.FallbackApplied(r.Requested, r.Slot, r.Reason)
+	}
+	l.events.Loaded(r.Resolved, r.Slot)
+	return r
 }
 
 // fallbackSlugFor is §8.5's table: `theme_light` falls to the light default,
