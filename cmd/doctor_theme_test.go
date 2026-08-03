@@ -11,10 +11,13 @@ package cmd
 
 import (
 	"fmt"
+	"go/ast"
+	"go/token"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -688,4 +691,352 @@ func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 			t.Errorf("report does not close with the resolved directory's advisory:\n%s", out)
 		}
 	})
+}
+
+// requireBuiltinSlug fails unless slug names one of the embedded built-ins.
+//
+// It is the vacuity guard every deliberately-colliding fixture needs: a
+// `nord.theme` beside no built-in `nord` is an ordinary valid drop-in producing
+// no line at all, so a reserved-name assertion over it would be evidence about
+// nothing. The one test that must name no theme derives its slugs instead.
+func requireBuiltinSlug(t *testing.T, slug string) {
+	t.Helper()
+
+	if !slices.Contains(theme.BuiltinSlugs(), slug) {
+		t.Fatalf("%q is not a built-in slug (the embedded set is %v) — a fixture colliding with it would prove nothing", slug, theme.BuiltinSlugs())
+	}
+}
+
+// reservedNameLine composes §14A's reserved-name line for a filename and the
+// slug it collided on.
+//
+// It exists for the one test that derives its fixtures from the embedded set and
+// so must name no theme. Every test that CAN name one states the pinned copy
+// verbatim instead, so the composition below is never the suite's only statement
+// of it.
+func reservedNameLine(filename, slug string) string {
+	return "⚠ theme file " + filename + ": " + slug + " is a built-in — rename it (e.g. " + slug + "-mine.theme)"
+}
+
+// TestThemeAdvisories_BadNameSlugFrame: it renders the slug-cause bad-name
+// frame.
+//
+// §14A composes this line from the FILENAME rather than from a slug, because a
+// `bad name` file has none — and the differing frame (`⚠ theme file <filename>:`
+// versus `⚠ theme <slug>:`) is what carries §6.2's input class while the reason
+// class itself stays single.
+//
+// Every fixture holds VALID contents, so the name is the only thing wrong with
+// it and the line cannot be a content reason wearing the wrong frame. The cases
+// are §5.2's charset rule — an uppercase letter, an underscore, a space — plus
+// two of the edges its anchoring closes: a leading hyphen, and the empty stem of
+// a bare `.theme`.
+func TestThemeAdvisories_BadNameSlugFrame(t *testing.T) {
+	cases := []struct{ name, filename string }{
+		{name: "an uppercase stem", filename: "Nord.theme"},
+		{name: "an underscore", filename: "nord_lee.theme"},
+		{name: "a space", filename: "nord lee.theme"},
+		{name: "a leading hyphen", filename: "-nord.theme"},
+		{name: "an empty stem", filename: ".theme"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := themesDirWith(t, map[string][]byte{tc.filename: validThemeSource(t)})
+
+			got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+			want := "⚠ theme file " + tc.filename + ": slug must be lowercase letters, digits and hyphens"
+			if got.line != want {
+				t.Errorf("advisory line = %q; want %q", got.line, want)
+			}
+		})
+	}
+}
+
+// TestThemeAdvisories_BadNameExtensionFrame: it renders the extension-cause
+// bad-name frame.
+//
+// A DISTINCT message from the slug cause, off Phase 1's BadNameCause: with a
+// wrong-cased extension the slug portion is already legal, so telling the user
+// to fix their slug would send them to correct the one thing that is fine —
+// exactly the misdirection §14A discriminates against here.
+//
+// These files are visible at all only because §5.6 enumerates the extension
+// case-insensitively before rejecting it, which is what keeps a `nord.THEME`
+// from being silently absent on the case-insensitive filesystem where it is most
+// likely to be typed. Each case gets its own directory: the two names fold
+// together there.
+func TestThemeAdvisories_BadNameExtensionFrame(t *testing.T) {
+	cases := []struct{ name, filename string }{
+		{name: "a shouted extension", filename: "nord.THEME"},
+		{name: "a title-cased extension", filename: "nord.Theme"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := themesDirWith(t, map[string][]byte{tc.filename: validThemeSource(t)})
+
+			got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+			want := "⚠ theme file " + tc.filename + ": extension must be lowercase .theme"
+			if got.line != want {
+				t.Errorf("advisory line = %q; want %q", got.line, want)
+			}
+		})
+	}
+}
+
+// TestThemeAdvisories_FilenameReasonsLabelledByFilename: it labels a
+// filename-reason row by filename.
+//
+// The two frames are asserted against each other over ONE directory holding
+// both classes, which is the only place their split is observable: line by line,
+// every filename-reason row (`bad name` either cause, `reserved name`) reads
+// `⚠ theme file <filename>: …` and every content-reason row reads `⚠ theme
+// <slug>: …`. Neither frame may appear on the other's row.
+//
+// The reserved row is labelled by filename despite having a perfectly valid slug
+// because that slug is IDENTICAL to the built-in's: labelling by slug would print
+// the same name twice with no way to tell which row is the user's file.
+func TestThemeAdvisories_FilenameReasonsLabelledByFilename(t *testing.T) {
+	requireBuiltinSlug(t, "nord")
+	dir := themesDirWith(t, map[string][]byte{
+		"a-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
+		"b_bad.theme":     validThemeSource(t),
+		"c-missing.theme": sourceMissingTokens(t, "text.primary"),
+		"d-ext.THEME":     validThemeSource(t),
+		"nord.theme":      validThemeSource(t),
+	})
+
+	got := advisoryLines(themeAdvisoriesFor(t, dir))
+	want := []string{
+		"⚠ theme a-colour: bad colour — canvas = blue",
+		"⚠ theme file b_bad.theme: slug must be lowercase letters, digits and hyphens",
+		"⚠ theme c-missing: missing tokens — missing text.primary",
+		"⚠ theme file d-ext.THEME: extension must be lowercase .theme",
+		"⚠ theme file nord.theme: nord is a built-in — rename it (e.g. nord-mine.theme)",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("advisory lines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	}
+}
+
+// TestThemeAdvisories_ReservedNameFrame: it renders the reserved-name line
+// naming the conflict and the fix.
+//
+// §14A gives this reason a whole line of its own rather than the generic
+// `<reason> — <detail>` frame, and the `(e.g. <slug>-mine.theme)` suffix is the
+// point of it: §5.4's workaround is a two-second rename, and printing the rename
+// is what makes it self-documenting rather than merely short. Its terse `reserved
+// name` label stays the panel's business, where there is no width for either.
+//
+// The fixture's contents are BROKEN, so the line is also proof the reason is
+// settled at §6.2's rung 2 — above everything that reads the file.
+func TestThemeAdvisories_ReservedNameFrame(t *testing.T) {
+	requireBuiltinSlug(t, "nord")
+	dir := themesDirWith(t, map[string][]byte{"nord.theme": sourceMissingTokens(t, "text.primary")})
+
+	got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+	want := "⚠ theme file nord.theme: nord is a built-in — rename it (e.g. nord-mine.theme)"
+	if got.line != want {
+		t.Errorf("advisory line = %q; want %q", got.line, want)
+	}
+	if strings.Contains(got.line, string(theme.ReasonReservedName)) {
+		t.Errorf("advisory line = %q carries the terse reason label; §14A's line names the conflict and the fix INSTEAD of following the generic `<reason> — <detail>` frame", got.line)
+	}
+	if got.slug != "nord" {
+		t.Errorf("advisory slug = %q; want %q — a reserved-name entry has a valid slug, and it is what collided", got.slug, "nord")
+	}
+	if got.fromPrefs {
+		t.Error("advisory fromPrefs = true; a file line never comes from prefs.json")
+	}
+}
+
+// TestThemeAdvisories_ReservedSetIsTheEmbeddedSet: it derives the reserved set
+// from the embedded built-ins.
+//
+// The set doctor reports against is the embedded set ITSELF (§5.4 via Phase 2's
+// builtinSlugSet), never a list restated here — so a built-in added by a later PR
+// is covered with no edit to doctor and no edit to this test. That is asserted by
+// seeding one colliding file per member and NAMING NO THEME: a hardcoded slug
+// would pass right up until someone forgot to extend it.
+func TestThemeAdvisories_ReservedSetIsTheEmbeddedSet(t *testing.T) {
+	slugs := theme.BuiltinSlugs()
+	if len(slugs) == 0 {
+		t.Fatal("the embedded set is empty — every assertion below would be vacuous")
+	}
+
+	files := map[string][]byte{}
+	for _, slug := range slugs {
+		files[slug+".theme"] = validThemeSource(t)
+	}
+	dir := themesDirWith(t, files)
+
+	got := themeAdvisoriesFor(t, dir)
+	if len(got) != len(slugs) {
+		t.Fatalf("scan produced %d advisories over %d built-in collisions, want one each:\n  %s", len(got), len(slugs), strings.Join(advisoryLines(got), "\n  "))
+	}
+
+	lines := advisoryLines(got)
+	for _, slug := range slugs {
+		if want := reservedNameLine(slug+".theme", slug); !slices.Contains(lines, want) {
+			t.Errorf("scan produced no reserved-name line for the built-in %q:\n  %s\nwant it to carry\n  %s", slug, strings.Join(lines, "\n  "), want)
+		}
+	}
+}
+
+// TestThemeAdvisories_BadNameNeverReportsContent: it never reports a bad-name
+// file's contents.
+//
+// §6.2's rung 1 is decided from the filename BEFORE the file is opened, so a
+// `bad name` file can never also report `unreadable` or anything about what is
+// inside it. The fixture is broken at every rung below it that a file can be put
+// into at once — a mode denying the read outright, a duplicate key and a bad hex
+// — and still owes exactly one line, the filename one.
+func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
+	skipUnlessModeBitsDeny(t)
+
+	lines := slices.Clone(themeKeyLines(t))
+	lines[themeLineIndex(t, lines, "canvas")] = "canvas = blue"
+	lines = append(lines, lines[themeLineIndex(t, lines, "text.primary")])
+
+	dir := themesDirWith(t, map[string][]byte{"Bad_Name.theme": themeSourceFromLines(lines)})
+	path := filepath.Join(dir, "Bad_Name.theme")
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatalf("chmod 0000 %s: %v", path, err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	// Called for the vacuity guard alone: a readable fixture would leave
+	// `unreadable` unreachable and the assertion arguing about the wrong run.
+	_ = requireDeniedRead(t, path)
+
+	got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+	want := "⚠ theme file Bad_Name.theme: slug must be lowercase letters, digits and hyphens"
+	if got.line != want {
+		t.Errorf("advisory line = %q; want %q", got.line, want)
+	}
+	for _, reason := range []theme.Reason{theme.ReasonUnreadable, theme.ReasonBadSyntax, theme.ReasonBadColour, theme.ReasonMissingTokens} {
+		if strings.Contains(got.line, string(reason)) {
+			t.Errorf("advisory line = %q reports %q; the filename is decided before the file is opened, so a `bad name` file can never report on its contents", got.line, reason)
+		}
+	}
+}
+
+// TestThemeAdvisories_BadNameCarriesNoSlug: it leaves a bad-name advisory
+// without a slug.
+//
+// A `bad name` file yields NO usable identity — Phase 1 leaves Entry.Slug empty
+// exactly there — and doctor's row inherits that emptiness rather than inventing
+// a label for the union to match on. It is what makes §12.2's one-slug-one-line
+// dedup structural for this class: a bad-name row can never collide with a
+// persisted slug, because it carries none.
+func TestThemeAdvisories_BadNameCarriesNoSlug(t *testing.T) {
+	cases := []struct{ name, filename string }{
+		{name: "the slug cause", filename: "Nord.theme"},
+		{name: "the extension cause", filename: "nord.THEME"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := themesDirWith(t, map[string][]byte{tc.filename: validThemeSource(t)})
+
+			got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+			if got.slug != "" {
+				t.Errorf("advisory slug = %q; a `bad name` file yields no slug at all, and the union must never dedup a persisted slug against one", got.slug)
+			}
+			if got.fromPrefs {
+				t.Error("advisory fromPrefs = true; a file line never comes from prefs.json")
+			}
+		})
+	}
+}
+
+// TestThemeAdvisories_ReservedNameDecidedBeforeRead: it reports a reserved-name
+// file whose contents are valid.
+//
+// §6.2's rung 2 is decided from the SLUG alone, before any read, so the contents
+// bear on it not at all in either direction: a perfectly valid palette is still
+// refused (it would otherwise shadow the built-in Portal falls back to), and one
+// that cannot be read at all is still `reserved name` rather than `unreadable`.
+func TestThemeAdvisories_ReservedNameDecidedBeforeRead(t *testing.T) {
+	requireBuiltinSlug(t, "nord")
+	want := reservedNameLine("nord.theme", "nord")
+
+	t.Run("contents that are perfectly valid", func(t *testing.T) {
+		dir := themesDirWith(t, map[string][]byte{"nord.theme": validThemeSource(t)})
+
+		got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+		if got.line != want {
+			t.Errorf("advisory line = %q; want %q", got.line, want)
+		}
+	})
+
+	t.Run("contents that cannot be read at all", func(t *testing.T) {
+		skipUnlessModeBitsDeny(t)
+
+		dir := themesDirWith(t, map[string][]byte{"nord.theme": validThemeSource(t)})
+		path := filepath.Join(dir, "nord.theme")
+		if err := os.Chmod(path, 0o000); err != nil {
+			t.Fatalf("chmod 0000 %s: %v", path, err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+		// Called for the vacuity guard alone — an actually-readable fixture would
+		// prove nothing about the rung's position.
+		_ = requireDeniedRead(t, path)
+
+		got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+		if got.line != want {
+			t.Errorf("advisory line = %q; want %q", got.line, want)
+		}
+	})
+}
+
+// TestThemeAdvisories_FilenameFramesAreSingleSourced: it states each filename
+// frame exactly once.
+//
+// §14A's copy is single-sourced following the convention spawn.UnsupportedNoopMessage
+// set, and these three frames need it more than most: doctor grows a SECOND
+// theme-advisory producer for persisted slugs, whose union renders into the same
+// block, so a second rendering of "is a built-in — rename it" would be invisible
+// at review and would drift silently.
+//
+// The scan is the cmd package's production sources, which is where every §14A
+// frame is composed — doctor's report and `portal theme export`'s stderr alike.
+func TestThemeAdvisories_FilenameFramesAreSingleSourced(t *testing.T) {
+	fragments := []string{
+		"slug must be lowercase letters, digits and hyphens",
+		"extension must be lowercase .theme",
+		"is a built-in — rename it",
+	}
+
+	for _, fragment := range fragments {
+		t.Run(fragment, func(t *testing.T) {
+			sites := cmdLiteralSites(t, fragment)
+
+			if want := map[string]int{"doctor_theme.go": 1}; !maps.Equal(sites, want) {
+				t.Errorf("the literal %q is declared at %v; want %v — one const in the file that owns doctor's theme copy", fragment, sites, want)
+			}
+		})
+	}
+}
+
+// cmdLiteralSites counts, per production file of the cmd package, the string
+// literals containing fragment.
+func cmdLiteralSites(t *testing.T, fragment string) map[string]int {
+	t.Helper()
+
+	sites := map[string]int{}
+	for name, file := range parseCmdFiles(t) {
+		ast.Inspect(file, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			value, err := strconv.Unquote(lit.Value)
+			if err == nil && strings.Contains(value, fragment) {
+				sites[name]++
+			}
+			return true
+		})
+	}
+	return sites
 }
