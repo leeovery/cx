@@ -98,9 +98,10 @@ func TestBuildTUIModel_InjectsPersister(t *testing.T) {
 }
 
 // setPrefsFile writes prefs.json content to a temp file and points
-// PORTAL_PREFS_FILE at it for the duration of the test. An empty content string
-// leaves the file absent, simulating a first-ever launch.
-func setPrefsFile(t *testing.T, content string) {
+// PORTAL_PREFS_FILE at it for the duration of the test, returning the path it
+// resolved to (which callers asserting the file is left untouched need). An
+// empty content string leaves the file absent, simulating a first-ever launch.
+func setPrefsFile(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "prefs.json")
 	if content != "" {
@@ -109,17 +110,18 @@ func setPrefsFile(t *testing.T, content string) {
 		}
 	}
 	t.Setenv("PORTAL_PREFS_FILE", path)
+	return path
 }
 
 // loadInitialModeForTest mirrors the tolerant prefs read openTUI performs at TUI
 // construction: load the store, read the mode, collapse any failure to Flat.
 func loadInitialModeForTest(t *testing.T) prefs.SessionListMode {
 	t.Helper()
-	store, err := loadPrefsStore()
-	if err != nil {
+	load, err := loadPrefsStore()
+	if err != nil || load.Store == nil {
 		return prefs.ModeFlat
 	}
-	mode, _ := store.Load()
+	mode, _ := load.Store.Load()
 	return mode
 }
 
@@ -152,13 +154,13 @@ func TestOpenTUI_InitialModeFromPrefs(t *testing.T) {
 		setPrefsFile(t, "")
 
 		// First construction reads Flat, persists By Project on one s press.
-		store, err := loadPrefsStore()
+		load, err := loadPrefsStore()
 		if err != nil {
 			t.Fatalf("loadPrefsStore: %v", err)
 		}
 		cfg := defaultTestTUIConfig()
 		cfg.initialMode = loadInitialModeForTest(t)
-		cfg.modePersister = store
+		cfg.modePersister = load.Store
 
 		m := buildTUIModel(cfg, "", nil)
 		m.Update(keyS)

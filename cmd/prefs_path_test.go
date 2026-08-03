@@ -221,16 +221,16 @@ func TestLoadPrefsStore(t *testing.T) {
 		path := filepath.Join(tmpDir, "prefs.json")
 		t.Setenv("PORTAL_PREFS_FILE", path)
 
-		store, err := loadPrefsStore()
+		load, err := loadPrefsStore()
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if store == nil {
+		if load.Store == nil {
 			t.Fatal("loadPrefsStore() returned nil store")
 		}
 
 		// Verify the store is bound to the resolved path via a round-trip Save.
-		if err := store.Save(2); err != nil {
+		if err := load.Store.Save(2); err != nil {
 			t.Fatalf("Save failed: %v", err)
 		}
 		if _, err := os.Stat(path); err != nil {

@@ -757,23 +757,21 @@ func buildThemeLoader() theme.Loader {
 	return newThemeLoader()
 }
 
-// themeNomination resolves the theme setting persisted in prefs.json into the
-// LOADED nomination the model renders from (§8.4): prefs' three raw keys →
-// §8.2's two-state setting → one loaded palette under a constant, two under an
-// adaptive pair, with §8.5's mode-matched default standing in for any slot that
-// will not load.
+// themeNomination resolves the theme setting into the LOADED nomination the
+// model renders from (§8.4): prefs' three raw keys → §8.2's two-state setting →
+// one loaded palette under a constant, two under an adaptive pair, with §8.5's
+// mode-matched default standing in for any slot that will not load.
 //
-// It is the ONE construction-time theme read. prefsStore is the same instance
-// that serves the initial grouping mode and that Phase 6's persister writes
-// through, so prefs.json is read once per process — and a nil store (its path
-// could not be resolved) is tolerated exactly as the grouping mode tolerates it:
-// zero keys are the shipped adaptive pair, which is what an unconfigured install
-// renders anyway.
+// It takes the keys AS READ rather than the store, because "as read" means the
+// POST-TRANSLATION in-memory value, not the on-disk bytes (§8.4): loadPrefsStore
+// applies §10.2's appearance translation, and resolving from a second read here
+// would render the shipped pair for a migrated user on the very launch their pin
+// was translated. It is the ONE construction-time theme read, so prefs.json is
+// read once per process (§10.5).
 //
-// EVERY DEGENERATE READ YIELDS EMPTY KEYS, so the discarded LoadThemeKeys error is
-// acceptable for the same reason Load's is: a missing, empty or corrupt prefs.json
-// cannot yield anything but the shipped pair, and failing the launch over it would
-// make an unreadable preferences file fatal to opening the picker.
+// ZERO KEYS ARE THE SHIPPED ADAPTIVE PAIR, which is what an unconfigured install
+// renders anyway — so they are also what openTUI degrades to when the prefs path
+// could not be resolved at all, exactly as the grouping mode degrades to Flat.
 //
 // THE TWO FAILURE SHAPES ARE DIFFERENT AND ARE HANDLED DIFFERENTLY. A themes
 // directory that will not RESOLVE degrades to the empty string, which the resolver
@@ -781,12 +779,7 @@ func buildThemeLoader() theme.Loader {
 // slug takes §8.5's fallback, and the picker opens. ResolveNomination's error is
 // §7.6's fatal (the FALLBACK itself did not resolve), which is returned so the
 // caller constructs nothing.
-func themeNomination(prefsStore *prefs.Store, loader theme.Loader) (theme.Nomination, error) {
-	var keys prefs.ThemeKeys
-	if prefsStore != nil {
-		keys, _ = prefsStore.LoadThemeKeys()
-	}
-
+func themeNomination(keys prefs.ThemeKeys, loader theme.Loader) (theme.Nomination, error) {
 	// The control-stripped raw keys ride alongside the setting, and are
 	// deliberately NOT threaded onto the model here: Phase 8 owns the constructor
 	// slot and every consumer of it (§8.4's badge table, the `not found` and
@@ -932,15 +925,19 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 
 	// Load the prefs store once at TUI construction; the same *prefs.Store
 	// instance serves the initial-mode read here and per-toggle writes via the
-	// tui.ModePersister seam. A prefs path-resolution failure must NOT block
-	// opening the TUI: swallow it and proceed with a nil persister + the Flat
+	// tui.ModePersister seam. The load also computes §10.5's appearance
+	// translation in memory — this is the only place it runs, because it is the
+	// only place a TUI is constructed and the only place its result is used. A
+	// prefs path-resolution failure must NOT block opening the TUI: swallow it
+	// and proceed with a nil persister, zero keys (the shipped pair) + the Flat
 	// default. prefs.json is deliberately outside the closed state-mutation
 	// audit-trail (see internal/prefs), so there is no breadcrumb component to
 	// log under here.
-	prefsStore, err := loadPrefsStore()
+	loadedPrefs, err := loadPrefsStore()
 	if err != nil {
-		prefsStore = nil
+		loadedPrefs = prefsLoad{}
 	}
+	prefsStore := loadedPrefs.Store
 	// Read the persisted initial mode tolerantly. Store.Load collapses every
 	// degenerate case (missing / empty / corrupt / unrecognised value) to
 	// ModeFlat, so the discarded error is acceptable: a read failure can only
@@ -949,9 +946,10 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	if prefsStore != nil {
 		initialMode, _ = prefsStore.Load()
 	}
-	// Load the theme setting persisted in prefs.json — read from the SAME store
-	// instance as the mode above, so prefs is read once per process (§10.5) — into
-	// the nomination the model renders from. A CONSTANT paints from frame one with
+	// Resolve the theme setting persisted in prefs.json — the keys AS READ from
+	// the load above, which is §8.4's post-translation in-memory value, so a
+	// migrated user renders their pin on the launch that translates it — into the
+	// nomination the model renders from. A CONSTANT paints from frame one with
 	// no detection and no first-paint wait; a PAIR holds both palettes and the §2.6
 	// gate selects a member before anything is painted.
 	//
@@ -959,7 +957,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	// embedded set, so there is nothing honest left to paint. It is returned
 	// UNTOUCHED and NO TUI IS CONSTRUCTED: Execute hands it to main's single
 	// os.Exit owner, which prints the one pinned line and exits non-zero.
-	nomination, err := themeNomination(prefsStore, buildThemeLoader())
+	nomination, err := themeNomination(loadedPrefs.Keys, buildThemeLoader())
 	if err != nil {
 		return err
 	}

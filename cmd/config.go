@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/xdg"
 )
 
@@ -143,15 +144,136 @@ func projectsFilePath() (string, error) {
 	return configFilePath("PORTAL_PROJECTS_FILE", "projects.json")
 }
 
-// loadPrefsStore creates a prefs store from the configured file path.
-// Uses PORTAL_PREFS_FILE env var if set (for testing), otherwise
-// defaults to ~/.config/portal/prefs.json.
-func loadPrefsStore() (*prefs.Store, error) {
+// loadPrefsStoreNoMigrate creates a prefs store from the configured file path
+// and does NOTHING else: it resolves the path and constructs the store, reading
+// no bytes and computing no translation.
+//
+// It is the read `portal doctor` uses (§10.5). Doctor must read prefs.json to
+// report an unresolvable theme, but its contract is that it HEALS NOTHING on
+// the read-only path — and a one-shot config mutation as a side effect of
+// running a diagnosis is exactly what would break that claim.
+//
+// IT MUST NEVER GAIN BEHAVIOUR. Anything added here lands on doctor's read-only
+// path by construction, invisibly: the migrating loader below is the one that
+// may grow, and it is the strict superset of this one precisely so the
+// inert variant cannot drift into doing work.
+func loadPrefsStoreNoMigrate() (*prefs.Store, error) {
 	path, err := prefsFilePath()
 	if err != nil {
 		return nil, err
 	}
 	return prefs.NewStore(path), nil
+}
+
+// prefsLoad is what the migrating prefs load produces. Keys is §8.4's "as read":
+// the POST-translation in-memory value, not the on-disk bytes.
+type prefsLoad struct {
+	// Store is the ONE store instance for the process — it serves the initial
+	// grouping-mode read, the theme keys here, and the theme persister.
+	Store *prefs.Store
+	// Keys are the theme keys THIS LAUNCH renders and the panel reads, with
+	// §10.2's translation already applied in memory where §10.3's no-op
+	// condition allowed it.
+	Keys prefs.ThemeKeys
+	// TranslationPending reports that the migration marker is not yet recorded,
+	// so the write half is still owed. It is true even when nothing translated:
+	// §10.2's "Nothing" refers to the theme keys, and the marker is what stops
+	// the condition being re-evaluated forever.
+	TranslationPending bool
+	// TranslatedSlug is §10.2's mapping of the retained raw appearance; "" when
+	// there is nothing to translate.
+	TranslatedSlug string
+}
+
+// loadPrefsStore creates the process's prefs store and computes §10.5's
+// appearance translation — the COMPUTE half only. It writes nothing: the
+// persist and its `theme: appearance migrated` event belong to the caller.
+//
+// Separating computing from persisting is what makes the fix safe: the
+// translated theme is used in memory immediately, so a launch renders the
+// correct theme even when the write is deferred, fails, or never happens. A
+// failed write leaves the condition true and the next launch retries.
+//
+// Ownership sits here rather than in prefs because three constraints meet at
+// this call site (§10.5): prefs is a deliberate leaf that must not import
+// internal/log, the translation happens at prefs load, and the `theme`
+// component records it. prefs stays dumb.
+//
+// EVERY DEGENERATE READ IS TOLERATED AND DISCARDED, exactly as the initial-mode
+// read discards its own: a missing, empty, corrupt or unreadable prefs.json
+// yields empty keys and a zero migration state, which is the shipped adaptive
+// pair — what an unconfigured install renders anyway. Only the path resolution
+// can fail the load, and openTUI degrades from that rather than blocking.
+func loadPrefsStore() (prefsLoad, error) {
+	store, err := loadPrefsStoreNoMigrate()
+	if err != nil {
+		return prefsLoad{}, err
+	}
+
+	keys, _ := store.LoadThemeKeys()
+	state, _ := store.LoadMigrationState()
+
+	load := prefsLoad{Store: store, Keys: keys}
+
+	// The trigger is the MARKER, never the absence of theme keys (§10.3):
+	// absence-gating is re-armable, so a user who hand-edits their keys away to
+	// return to the shipped pair would be silently re-pinned on the next launch.
+	if state.Migrated {
+		return load, nil
+	}
+
+	load.TranslationPending = true
+	load.TranslatedSlug = translateAppearance(state.Appearance)
+
+	// §10.3's no-op condition, applied to the IN-MEMORY half against the
+	// load-time snapshot — the only moment early enough to affect what is
+	// painted. A theme key the user has already set is what renders; scoping the
+	// condition to the write alone would flip them to the translated theme for
+	// exactly one launch, which is §10.1's failure delivered by the mechanism
+	// added to prevent it.
+	if load.TranslatedSlug != "" && keys.Theme == "" && keys.Light == "" && keys.Dark == "" {
+		// §8.2's two states: a pinned mode becomes a pinned CONSTANT, so
+		// detection stays off for them just as it was.
+		load.Keys = prefs.ThemeKeys{Theme: load.TranslatedSlug}
+	}
+
+	// TranslatedSlug is deliberately NOT zeroed by the check above. §10.5 checks
+	// the condition TWICE against two reads: here for the in-memory half, and
+	// again at the write's read-modify-write re-read, where it also absorbs a
+	// commit another instance made in between. Collapsing them into one would
+	// lose the second read's job.
+	return load, nil
+}
+
+// translateAppearance maps a retained raw `appearance` value onto §10.2's
+// equivalent theme slug: the single source of that table.
+//
+//	dark  -> the shipped dark default   (a pinned mode becomes a pinned theme)
+//	light -> the shipped light default
+//	auto / absent / anything else -> "" (nothing to translate)
+//
+// THE MATCH IS EXACT, deliberately. The translation's job is to reproduce THE
+// OLD BINARY'S reading of the value, and the appearance decode §8.8 deleted
+// matched the three tokens exactly — so anything that binary treated as `auto`
+// (`Dark`, `" dark"`, a hand-edit's trailing newline) must translate to
+// nothing. Trimming or lowercasing here would change the meaning of a value
+// rather than preserve it, which is the one thing §10.2 may not do.
+//
+// A present-but-unrecognised value translating to nothing does NOT leave the
+// translation pending forever: §10.2's "Nothing" refers to the theme keys, and
+// the marker is recorded either way (§10.3).
+//
+// Both slugs come from theme's shipped-default constants, never from literals,
+// so the shipped pair has exactly one definition.
+func translateAppearance(raw string) string {
+	switch raw {
+	case "dark":
+		return theme.DefaultDarkSlug
+	case "light":
+		return theme.DefaultLightSlug
+	default:
+		return ""
+	}
 }
 
 // prefsFilePath returns the path to the prefs.json file.

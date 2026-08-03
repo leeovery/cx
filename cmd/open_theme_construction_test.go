@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
@@ -45,11 +46,11 @@ const nordSlug = "nord"
 func themeNominationForTest(t *testing.T) theme.Nomination {
 	t.Helper()
 
-	store, err := loadPrefsStore()
+	load, err := loadPrefsStore()
 	if err != nil {
 		t.Fatalf("load prefs store: %v", err)
 	}
-	nomination, err := themeNomination(store, newThemeLoader())
+	nomination, err := themeNomination(load.Keys, newThemeLoader())
 	if err != nil {
 		t.Fatalf("resolve the persisted theme setting: %v", err)
 	}
@@ -324,11 +325,12 @@ func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
 	shippedDark := builtinThemeForTest(t, theme.DefaultDarkSlug)
 
 	t.Run("a prefs store that could not be built opens on the shipped pair", func(t *testing.T) {
-		// The nil store is openTUI's own degradation: a prefs path-resolution
-		// failure leaves prefsStore nil, exactly as it does for the grouping mode.
-		nomination, err := themeNomination(nil, newThemeLoader())
+		// Zero keys are openTUI's own degradation: a prefs path-resolution failure
+		// leaves a zero prefsLoad — no store, no keys — exactly as it leaves the
+		// grouping mode at Flat.
+		nomination, err := themeNomination(prefs.ThemeKeys{}, newThemeLoader())
 		if err != nil {
-			t.Fatalf("a nil prefs store must not fail construction: %v", err)
+			t.Fatalf("a prefs load that failed must not fail construction: %v", err)
 		}
 
 		assertPair(t, nomination, shippedLight, shippedDark)
