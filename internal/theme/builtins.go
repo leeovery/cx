@@ -155,8 +155,8 @@ func builtinSlugSet() map[string]struct{} {
 // two filename rungs: `bad name` and `reserved name` are decided from a
 // FILENAME, and a built-in's identity comes from an embedded name Portal itself
 // committed — checking a built-in against the reserved set would be asking
-// whether it shadows itself. That is also why the receiver is unused: neither
-// the reserved-slug set nor the event seam applies to Portal's own files, and
+// whether it shadows itself. The reserved-slug set and the event seam therefore
+// bear on it not at all; the receiver carries only the injected byte source, and
 // the method form is what lets by-name resolution reach both loaders through the
 // one Loader it holds.
 //
@@ -165,7 +165,7 @@ func builtinSlugSet() map[string]struct{} {
 // no-real-config import guard, and what lets Phase 5's fallback resolve a
 // built-in in a process that has resolved no config path at all.
 func (l Loader) LoadBuiltin(slug string) (Result, *Rejection, bool) {
-	data, found := BuiltinBytes(slug)
+	data, found := l.builtinBytes(slug)
 	if !found {
 		return Result{}, nil, false
 	}
@@ -176,4 +176,19 @@ func (l Loader) LoadBuiltin(slug string) (Result, *Rejection, bool) {
 	}
 
 	return Result{Slug: slug, Theme: built, Source: data}, nil, true
+}
+
+// builtinBytes reads a built-in's source through the Loader's injected seam,
+// falling back to the embedded set when none was injected — which is every
+// production caller (see Loader.BuiltinSource).
+//
+// The indirection buys the one thing a go:embed'ed set otherwise cannot have: a
+// way to stage §7.6's broken binary, where the theme a fallback resolves to is
+// missing or invalid. It costs a nil check per built-in read and changes nothing
+// a shipped binary does.
+func (l Loader) builtinBytes(slug string) ([]byte, bool) {
+	if l.BuiltinSource == nil {
+		return BuiltinBytes(slug)
+	}
+	return l.BuiltinSource(slug)
 }

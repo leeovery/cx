@@ -29,6 +29,22 @@ type Loader struct {
 	// protection, so anything resolving a user's theme goes through NewLoader.
 	ReservedSlugs map[string]struct{}
 
+	// BuiltinSource is where LoadBuiltin gets a built-in's bytes. The zero value
+	// — nil — is the production one and reads the embedded set through
+	// BuiltinBytes, so no call site passes anything.
+	//
+	// It exists for exactly one state, and BECAUSE that state is unreachable: a
+	// binary whose embedded set cannot supply the theme a slot falls back to
+	// (§7.6). Portal has no runtime last-resort palette beneath that point by
+	// decision, so the failure is fatal — and an unreachable fatal with no test is
+	// a path nobody has ever run. A test injects a source that omits or corrupts
+	// a fallback slug; production carries a nil field and one branch.
+	//
+	// It does NOT relax §5.4. The reserved-slug set is still derived from the
+	// embedded filenames, so a user's file can never take a built-in's slug
+	// whatever this source answers.
+	BuiltinSource func(slug string) ([]byte, bool)
+
 	// events is the injected `theme` log-component seam (§12.3). It is
 	// unexported and arrives through NewLoader because it is not configuration
 	// the loader reads but a decision the CALLER makes: a real component logger
