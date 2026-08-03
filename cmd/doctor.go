@@ -650,11 +650,20 @@ func checkSessionsJSON(dir string, dirErr error) checkResult {
 // renderDoctorReport writes the "Portal doctor:" header followed by one line
 // per result: a status marker, the check name, and the detail. checkInfo lines
 // render without a pass/fail marker (a space keeps the name column aligned).
+// The closing summary (doctorSummaryLine) is the LAST line it writes, once per
+// render — so `doctor --fix`, which renders twice, prints two.
+//
+// The summary's FRAMING is a local choice, not a spec pin: the copy table pins
+// the wording only, so the two-space indent (matching the body lines), the
+// absent marker and name columns, and the absence of any blank line before it
+// are chosen here for visual continuity with the report's existing shape. A
+// later layout change therefore has exactly one home.
 func renderDoctorReport(w io.Writer, results []checkResult) {
 	_, _ = fmt.Fprintln(w, "Portal doctor:")
 	for _, r := range results {
 		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", checkMarker(r.status), r.name, r.detail)
 	}
+	_, _ = fmt.Fprintf(w, "  %s\n", doctorSummaryLine(results))
 }
 
 // checkMarker maps a check status to its single-column report glyph. checkInfo
@@ -688,6 +697,58 @@ func doctorUnhealthy(results []checkResult) bool {
 		}
 	}
 	return false
+}
+
+// doctorCheckCounts counts the Portal-health checks in results — the class that
+// drives the exit code — returning how many passed and how many were counted at
+// all. It EXPLAINS the exit code and never computes it: doctorUnhealthy remains
+// the sole authority behind ErrDoctorUnhealthy, and this helper exists only so
+// the rendered summary can say what that exit code means. Membership is pinned
+// per status, each arm for its own reason:
+//
+//   - checkPass counts toward BOTH passed and total — the ordinary healthy check.
+//   - checkFail counts toward total only — a counted check that did not pass.
+//   - checkUnknown counts toward total only. The iota-0 sentinel already reads as
+//     unhealthy in doctorUnhealthy, so it must count identically here or the
+//     summary and the exit code would disagree about the same run.
+//   - checkInfo and checkNotEvaluable count toward NEITHER. Both are documented
+//     as never driving the exit code, and counting either in total alone would
+//     render "6 of 7 checks passed" beside exit 0 — exactly the illegibility the
+//     summary exists to remove.
+//
+// The equivalence passed == total ⟺ !doctorUnhealthy(results) follows from those
+// arms; it is asserted directly rather than assumed.
+func doctorCheckCounts(results []checkResult) (passed, total int) {
+	for _, r := range results {
+		switch r.status {
+		case checkPass:
+			passed++
+			total++
+		case checkFail, checkUnknown:
+			total++
+		case checkInfo, checkNotEvaluable:
+			// Outside the exit-code class: counted by neither, deliberately.
+		}
+	}
+	return passed, total
+}
+
+// doctorSummaryLine renders one report's closing summary. The copy is
+// single-sourced HERE and at no other site. Two forms only — "<N> checks passed"
+// when every counted check passed, "<N> of <T> checks passed" otherwise, the
+// latter being the case the summary exists for since it is when the exit code
+// needs explaining.
+//
+// There is deliberately NO singular carve-out and no route through pluralCount:
+// exactly one form is pinned for the checks count, and doctor's catalog never
+// has a single member. Like doctorCheckCounts it explains the exit code and
+// never computes it.
+func doctorSummaryLine(results []checkResult) string {
+	passed, total := doctorCheckCounts(results)
+	if passed == total {
+		return fmt.Sprintf("%d checks passed", passed)
+	}
+	return fmt.Sprintf("%d of %d checks passed", passed, total)
 }
 
 func init() {

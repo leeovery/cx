@@ -197,6 +197,13 @@ func TestDoctorAllStateChecksPassExitsZero(t *testing.T) {
 	if !strings.Contains(out, "1 session, 1 pane") {
 		t.Errorf("report missing sessions detail:\n%s", out)
 	}
+	// The report now closes with the summary line. Six checks are counted, not
+	// seven: runDoctor leaves the stale-hooks seams to their production defaults,
+	// whose live-pane enumeration fails against TestMain's poisoned tmux socket
+	// and reports not-evaluable — a status counted by neither N nor T.
+	if !strings.HasSuffix(out, "\n  6 checks passed\n") {
+		t.Errorf("report does not close with the all-passed summary:\n%s", out)
+	}
 }
 
 // TestDoctorZeroValueCheckResultNotHealthy pins the defensive iota-0 sentinel: a
@@ -260,6 +267,13 @@ func TestDoctorFreshInstallReportedHonestly(t *testing.T) {
 	}
 	if !strings.Contains(out, "sessions.json: no sessions saved yet") {
 		t.Errorf("absent sessions.json must pass:\n%s", out)
+	}
+	// The failing daemon check drops the summary to the partial form — the case
+	// the summary exists for, since that is when the non-zero exit needs
+	// explaining. Six counted (stale hooks is not-evaluable, host terminal is
+	// informational), five passing.
+	if !strings.HasSuffix(out, "\n  5 of 6 checks passed\n") {
+		t.Errorf("report does not close with the partial summary:\n%s", out)
 	}
 }
 
@@ -1262,9 +1276,17 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 	if !strings.Contains(out, "stale projects: 1 stale project") {
 		t.Errorf("report missing stale-projects fail line:\n%s", out)
 	}
-	// Plain doctor is read-only: exactly one report renders (no post-repair pass).
+	// Plain doctor is read-only: exactly one report renders (no post-repair pass),
+	// so exactly one summary closes it — the partial form, counting both stale
+	// failures against the seven-member catalog.
 	if n := strings.Count(out, "Portal doctor:"); n != 1 {
 		t.Errorf("report count = %d; want 1 (plain doctor renders once, no --fix re-diagnosis):\n%s", n, out)
+	}
+	if n := strings.Count(out, " checks passed\n"); n != 1 {
+		t.Errorf("summary count = %d; want 1 (one per report render):\n%s", n, out)
+	}
+	if !strings.HasSuffix(out, "\n  5 of 7 checks passed\n") {
+		t.Errorf("report does not close with the partial summary:\n%s", out)
 	}
 }
 
@@ -1326,6 +1348,15 @@ func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
 	}
 	if !strings.Contains(out, "stale projects: no stale projects") {
 		t.Errorf("post-repair stale-projects check not clean:\n%s", out)
+	}
+	// One summary per render, and the post-repair one counts the whole catalog
+	// clean. (TestDoctorSummary_FixPathRendersTwo owns the pre/post-form contract
+	// in full; this test's subject is the repair.)
+	if n := strings.Count(out, " checks passed\n"); n != 2 {
+		t.Errorf("summary count = %d; want 2 (one per report render):\n%s", n, out)
+	}
+	if !strings.HasSuffix(out, "\n  7 checks passed\n") {
+		t.Errorf("post-repair report does not close with the all-passed summary:\n%s", out)
 	}
 }
 
@@ -1412,8 +1443,21 @@ func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
 	if strings.Contains(string(projectsAfter), goneDir) {
 		t.Errorf("filesystem-only stale-project prune did not run on a down server:\n%s", projectsAfter)
 	}
-	if !strings.Contains(outBuf.String(), "Pruned stale project: proj0 ("+goneDir+")") {
-		t.Errorf("missing pruned-project breadcrumb:\n%s", outBuf.String())
+	out := outBuf.String()
+	if !strings.Contains(out, "Pruned stale project: proj0 ("+goneDir+")") {
+		t.Errorf("missing pruned-project breadcrumb:\n%s", out)
+	}
+	// Both renders close with a partial summary — the server is down in both
+	// passes, so daemon / saver / hooks stay failed. The stale-projects prune is
+	// the only thing the repair moves: two passing pre-repair, three after.
+	if n := strings.Count(out, " checks passed\n"); n != 2 {
+		t.Errorf("summary count = %d; want 2 (one per report render):\n%s", n, out)
+	}
+	if n := strings.Count(out, "\n  2 of 6 checks passed\n"); n != 1 {
+		t.Errorf("pre-repair summary missing or repeated (want exactly one \"2 of 6 checks passed\"):\n%s", out)
+	}
+	if !strings.HasSuffix(out, "\n  3 of 6 checks passed\n") {
+		t.Errorf("post-repair report does not close with the partial summary:\n%s", out)
 	}
 }
 
@@ -1437,13 +1481,21 @@ func TestDoctorFixLogSweepNeverDrivesExit(t *testing.T) {
 	// isolating its (non-)effect on the exit code. Stale checks report
 	// not-evaluable (never fail), so the post-repair state is fully healthy.
 	deps := withHealthyRuntime(&DoctorDeps{StateDir: dir})
-	_, _, err := runDoctorFixCmd(t, deps)
+	outBuf, _, err := runDoctorFixCmd(t, deps)
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil — a log-sweep must never drive the exit code", err)
 	}
 
 	if _, statErr := os.Stat(staleLog); !os.IsNotExist(statErr) {
 		t.Errorf("stale rotated log not swept (stat err = %v); log-sweep did not run against the state dir", statErr)
+	}
+
+	// Both renders close with the same all-passed summary: the sweep is outside
+	// the diagnose→repair loop, so it moves neither count. Six are counted — the
+	// stale-hooks check is not-evaluable against TestMain's poisoned tmux socket.
+	out := outBuf.String()
+	if n := strings.Count(out, "\n  6 checks passed\n"); n != 2 {
+		t.Errorf("all-passed summary count = %d; want 2 (one per report render, both unmoved by the sweep):\n%s", n, out)
 	}
 }
 
