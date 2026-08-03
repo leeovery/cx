@@ -1103,6 +1103,105 @@ func TestThemeExport_StdoutIsEmptyOnFailure(t *testing.T) {
 	})
 }
 
+// TestThemeExport_UsesSharedByNameResolver: it shares one resolver with
+// construction.
+//
+// §8.4's by-name ordering — charset check, embedded set, then the themes
+// directory — lives in ONE place, `theme.Loader.ResolveByName`, so export and
+// TUI construction cannot drift about what a slug means. Export's inline
+// sequence was the second implementation, and a second implementation of an
+// ordering rule is a rule that will eventually be two rules.
+//
+// Two halves, and both are needed. The structural one is the actual claim: cmd
+// composes no path, checks no charset and reaches neither loader entry point of
+// its own, so there is nothing left here to drift. The behavioural one is that
+// §14A's four frames are unchanged by the re-pointing — the shared resolver
+// returns §6.2 reasons, and every frame is still mapped from one.
+func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
+	t.Run("the four §14A frames are unchanged", func(t *testing.T) {
+		t.Run("an unknown slug", func(t *testing.T) {
+			useThemesDir(t)
+
+			requireExportRefusal(t, execThemeExport(t, "no-such-theme"), "no theme named no-such-theme")
+		})
+
+		t.Run("an invalid drop-in", func(t *testing.T) {
+			seedThemesDir(t, "mine", missingTokenSource(t))
+
+			requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine is not valid: missing tokens")
+		})
+
+		t.Run("a slug failing the charset check", func(t *testing.T) {
+			useThemesDir(t)
+
+			requireExportRefusal(t, execThemeExport(t, "Nord"), "theme Nord is not valid: bad name")
+		})
+
+		t.Run("an unreadable drop-in", func(t *testing.T) {
+			osErr := requireDeniedRead(t, unreadableThemeFile(t, "mine"))
+
+			requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
+		})
+
+		t.Run("a valid drop-in still resolves", func(t *testing.T) {
+			want := validThemeSource(t)
+			seedThemesDir(t, "nord-lee", want)
+
+			run := execThemeExport(t, "nord-lee")
+
+			if run.err != nil {
+				t.Fatalf("theme export nord-lee returned %v (stderr: %q)", run.err, run.stderr)
+			}
+			if !bytes.Equal(run.stdout, want) {
+				t.Errorf("theme export nord-lee wrote:\n%s\nwant the file's bytes verbatim:\n%s", run.stdout, want)
+			}
+		})
+	})
+
+	// The structural half. Each banned symbol is one step of the ordering that
+	// now belongs to internal/theme: a second copy here could accept a slug the
+	// resolver refuses, look in the themes directory before the embedded set, or
+	// draw the absent-versus-unreadable line differently — the three ways two
+	// by-name resolvers diverge.
+	t.Run("the export command re-implements no step of the ordering", func(t *testing.T) {
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, filepath.Join(".", "theme.go"), nil, 0)
+		if err != nil {
+			t.Fatalf("parse cmd/theme.go: %v", err)
+		}
+
+		banned := map[string]string{
+			"ValidSlug":   "re-runs the charset check",
+			"LoadBuiltin": "consults the embedded set",
+			"LoadFile":    "reads the themes directory itself",
+			"Join":        "composes a path from the slug",
+			"Lstat":       "draws the absent-versus-unreadable line itself",
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			ident, isIdent := n.(*ast.Ident)
+			if !isIdent {
+				return true
+			}
+			if why, isBanned := banned[ident.Name]; isBanned {
+				t.Errorf("cmd/theme.go:%d names %s, which %s — §8.4's ordering lives in theme.Loader.ResolveByName alone", fset.Position(ident.Pos()).Line, ident.Name, why)
+			}
+			return true
+		})
+	})
+
+	t.Run("it still emits no theme records", func(t *testing.T) {
+		unreadableThemesDir(t, "mine")
+		sink := &logtest.Sink{}
+		log.SetTestHandler(t, sink)
+
+		execThemeExport(t, "mine")
+
+		if records := sink.Records(); len(records) != 0 {
+			t.Errorf("theme export emitted %d log records, want none — including the shared resolver's directory-unusable line: %+v", len(records), records)
+		}
+	})
+}
+
 // TestThemeExport_ReservedAndFilenameReasonsAreUnreachable: it can never report
 // reserved name or a filename bad name.
 //
@@ -1150,6 +1249,12 @@ func TestThemeExport_ReservedAndFilenameReasonsAreUnreachable(t *testing.T) {
 	// The structural half: every argument that survives the charset check
 	// composes a base name the filename rules accept, so LoadFile's first rung
 	// cannot fire from this path whatever the user typed.
+	//
+	// The extension is restated here because the composition itself belongs to
+	// theme.Loader.ResolveByName now — cmd holds no path-building code of its
+	// own, which is what TestThemeExport_UsesSharedByNameResolver enforces.
+	const themeFileExtension = ".theme"
+
 	t.Run("a composed filename always clears the filename rules", func(t *testing.T) {
 		slugs := []string{"a", "0", "nord", "nord-lee", "nord-", "n0rd-2", strings.Repeat("x", 200)}
 

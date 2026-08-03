@@ -221,6 +221,7 @@ var wantExports = []string{
 	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
 	"Loader.LoadPath",
+	"Loader.ResolveByName",
 	"NewEventLogger",
 	"NewLoader",
 	"Nomination",

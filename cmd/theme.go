@@ -2,19 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/spf13/cobra"
 )
-
-// themeFileExtension is the extension a drop-in carries (§5.3). The by-name
-// path composes exactly `<slug>.theme` and looks for nothing else, which is
-// what gives it §5.6's structural-uniqueness guarantee for free: no other
-// spelling of the extension can name a file here.
-const themeFileExtension = ".theme"
 
 // themeCmd is the theme verb group. It has EXACTLY ONE member, deliberately
 // (§12.1): `portal theme list` and a `--theme` flag were both ruled out as
@@ -101,13 +93,12 @@ func exportRefusal(slug string, rejection *theme.Rejection) error {
 // resolveThemeSource resolves slug to the bytes of the file that declares it,
 // having parsed and validated them first.
 //
-// The order is §8.4's, and export is the fourth by-name resolver to inherit it:
-// THE EMBEDDED SET FIRST, THEN the themes directory. A slug naming a built-in
-// resolves to the built-in and never reads — never even LOCATES — the themes
-// directory, which is how §5.4's no-shadowing guarantee is carried on a path
-// that does not enumerate and so has no collision to detect. The charset check
-// runs ahead of both, so a hostile argument is refused before any path is
-// composed from it.
+// The ordering is §8.4's — charset check, THE EMBEDDED SET, then the themes
+// directory — and export does not implement it. `theme.Loader.ResolveByName`
+// does, and export is one of its two callers alongside TUI construction, so the
+// two cannot drift about what a slug means. A second implementation of an
+// ordering rule is a rule that will eventually be two rules, and this one
+// carries §5.4's no-shadowing guarantee on a path that never enumerates.
 //
 // What it returns is the SOURCE, not a re-serialisation of the parsed Theme
 // (§12.1). Re-serialising would drop every `#` comment, and the comments are
@@ -118,80 +109,49 @@ func exportRefusal(slug string, rejection *theme.Rejection) error {
 // bytes validated, with no second read in which the two could differ.
 //
 // The loader is handed log.Discard() so export emits no `theme` events at all
-// (§12.3): the component records where a theme is USED, never where one is
-// DIAGNOSED, and export's whole output is already the diagnostic the user is
-// reading.
+// (§12.3) — including the resolver's own `directory unusable` line. The
+// component records where a theme is USED, never where one is DIAGNOSED, and
+// export's whole output is already the diagnostic the user is reading.
 //
 // EVERY failure comes back as a Rejection, never as a bare error, so
 // exportRefusal composes §14A's frames over a closed vocabulary rather than over
-// whatever an arbitrary error happened to say. That is also why a themes
-// directory that cannot even be LOCATED is folded into `unreadable`: it is the
-// same fact from the user's side — the theme could not be read, and here is the
-// system's reason — and leaving it raw would put a fifth, unpinned sentence on a
-// surface §14A closes at four.
+// whatever an arbitrary error happened to say.
 func resolveThemeSource(slug string) ([]byte, *theme.Rejection) {
-	if !theme.ValidSlug(slug) {
-		return nil, &theme.Rejection{Reason: theme.ReasonBadName, BadNameCause: theme.BadNameSlug}
-	}
-
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
-	if result, rejection, found := loader.LoadBuiltin(slug); found {
-		if rejection != nil {
-			return nil, rejection
-		}
-		return result.Source, nil
-	}
-
-	dir, err := themesDirPath()
-	if err != nil {
-		return nil, unreadableRejection(err)
-	}
-
-	path := filepath.Join(dir, slug+themeFileExtension)
-	result, rejection := loader.LoadFile(path)
+	dir, dirErr := themesDirPath()
+	result, rejection := loader.ResolveByName(slug, dir)
 	if rejection != nil {
-		return nil, absentOrUnreadable(path, rejection)
+		return nil, unlocatableAsUnreadable(rejection, dirErr)
 	}
 
 	return result.Source, nil
 }
 
-// absentOrUnreadable narrows a failed read into §5.5's two answers: `not found`
-// when there is NOTHING at the composed path, `unreadable` when there is
-// something Portal could not read.
+// unlocatableAsUnreadable folds a themes directory that could not even be
+// LOCATED into §6.2's `unreadable`, carrying the resolution error verbatim.
 //
-// LoadFile cannot draw the line itself — `not found` is outside §6.2's ladder,
-// and producing it from a path would send a user to look for a file that
-// function was just handed — so the by-name resolver that composed the path
-// draws it, which is where the same discrimination lives for a persisted slug.
+// themesDirPath answers with the empty string when it fails, which the resolver
+// reads as "there is no directory to look in" and turns into `not found`. That
+// is right for TUI construction, which must open regardless — but for export it
+// would print "no theme named nord-lee" about a name that was never actually
+// looked for. The fold restores the honest answer: from the user's side it is
+// the identical fact to any other unreadable directory — the theme could not be
+// read, and here is the system's reason.
 //
-// It matters because the two answers send the user to different places: `not
-// found` says check the filename, `unreadable` says check permissions. Against a
-// themes directory the user cannot read, "no theme named nord-lee" is a sentence
-// about a file that plainly exists (§12.1).
+// It is exact rather than approximate. An empty directory yields `not found` on
+// every path and no other reason, so a `not found` alongside a resolution error
+// can only be this state; a bad name or a content reason is returned untouched,
+// and a built-in resolves without the directory being needed at all.
 //
-// The check is Lstat, not Stat, and that is the whole reason it is a stat at all
-// rather than an os.IsNotExist over the read error. A DANGLING SYMLINK fails to
-// read with exactly the errno an absent file does; only the name's own existence
-// tells them apart, and §5.6 puts a dangling link under `unreadable` — it is a
-// read that failed, not a name that is free.
-func absentOrUnreadable(path string, rejection *theme.Rejection) *theme.Rejection {
-	if rejection.Reason != theme.ReasonUnreadable {
+// Surfacing the resolution error raw instead would put a fifth, unpinned
+// sentence on a surface §14A closes at four.
+func unlocatableAsUnreadable(rejection *theme.Rejection, dirErr error) *theme.Rejection {
+	if dirErr == nil || rejection.Reason != theme.ReasonNotFound {
 		return rejection
 	}
-	if _, err := os.Lstat(path); os.IsNotExist(err) {
-		return &theme.Rejection{Reason: theme.ReasonNotFound}
-	}
 
-	return rejection
-}
-
-// unreadableRejection wraps an OS error as §6.2's `unreadable`, rendering the
-// detail §14A's way: the error verbatim, since it is the only thing that says
-// what actually went wrong.
-func unreadableRejection(err error) *theme.Rejection {
-	return &theme.Rejection{Reason: theme.ReasonUnreadable, Detail: err.Error(), Err: err}
+	return &theme.Rejection{Reason: theme.ReasonUnreadable, Detail: dirErr.Error(), Err: dirErr}
 }
 
 func init() {

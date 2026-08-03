@@ -156,22 +156,10 @@ func slugOrEmpty(filename string) string {
 // unusable are kept apart here rather than collapsed into "no entries", because
 // the first is silent by decision while the second is a misconfiguration that
 // owes the user a doctor advisory and a log line.
-//
-// The stat is deliberately Stat and NOT Lstat, so a themes directory reached
-// through a symlink is FOLLOWED (§5.6). Dotfiles users symlink ~/.config/portal
-// and its contents as a matter of course; not following the root would make
-// every drop-in vanish with no row and no doctor line — the "completely in the
-// dark" state §9.4 exists to prevent.
 func readThemeDir(dir string) ([]os.DirEntry, *Rejection) {
-	info, err := os.Stat(dir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, unreadable(err)
-	}
-	if !info.IsDir() {
-		return nil, unreadable(notADirectory(dir))
+	usable, rejection := statThemeDir(dir)
+	if !usable {
+		return nil, rejection
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -179,6 +167,39 @@ func readThemeDir(dir string) ([]os.DirEntry, *Rejection) {
 		return nil, unreadable(err)
 	}
 	return entries, nil
+}
+
+// statThemeDir answers §5.5's directory-state question — is this a themes
+// directory Portal can go on to use? — as that table's three rows: (true, nil)
+// for a usable directory, (false, nil) for an ABSENT one, and (false, rejection)
+// for an UNUSABLE one.
+//
+// It is stated ONCE and shared by the package's two directory consumers, the
+// panel's enumeration and ResolveByName's construction-time by-name read. §5.5
+// requires the two to report the same condition — they are deduplicated against
+// each other on `path`+`reason` (§12.3) — which a second, parallel stat could
+// only make possible to break. Neither the enumeration's ReadDir nor the by-name
+// read's composed path belongs here, so each caller adds its own; EMISSION is
+// likewise the caller's, since a rejection is worth a line only where a theme is
+// being used.
+//
+// The stat is deliberately Stat and NOT Lstat, so a themes directory reached
+// through a symlink is FOLLOWED (§5.6). Dotfiles users symlink ~/.config/portal
+// and its contents as a matter of course; not following the root would make
+// every drop-in vanish with no row and no doctor line — the "completely in the
+// dark" state §9.4 exists to prevent.
+func statThemeDir(dir string) (bool, *Rejection) {
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, unreadable(err)
+	}
+	if !info.IsDir() {
+		return false, unreadable(notADirectory(dir))
+	}
+	return true, nil
 }
 
 // notADirectory builds the error for the one directory-state the OS is never
