@@ -22,8 +22,10 @@
 // release — the lock protects the manifest read-modify-write, nothing else.
 // ---------------------------------------------------------------------------
 
+const fs = require('fs');
+const path = require('path');
 const { loadWorkUnitManifest, saveWorkUnitManifest, withWorkUnitLock, ensureContainer } = require('../kernel/manifest.cjs');
-const { commitScopedWithKb, noteIfNothingCommitted } = require('./commit.cjs');
+const { commitTailWithKb, commitTailPathspec, noteCommitOutcome } = require('./commit.cjs');
 const { knowledge, INDEXED_ARTIFACTS } = require('./kb.cjs');
 
 const { VALID_PHASES, VALID_PHASE_STATUSES } = require('../kernel/manifest-schema.cjs');
@@ -144,7 +146,45 @@ function startTopic(cwd, workUnit, phase, topic) {
  * @property {boolean} created     true when the phase item was created as `triaged`
  * @property {string|null} status_before  the item's status before the call (null when created)
  * @property {boolean} [reopened]  set when a completed item was reopened to receive the concern
+ * @property {string} [concern_path]  delivery form: the installed concern file, project-relative
+ * @property {boolean} [reconcile_flagged]  delivery form: a research-side landing flagged the topic's completed discussion for reconciliation
+ * @property {string|null} [committed]  delivery form: short commit sha, or null
+ * @property {string} [note]       delivery form: set when committed is null
+ * @property {string[]} [warnings] delivery form: the tail commit's failure detail
  */
+
+/**
+ * A topic name usable in paths: non-empty, no separators, no traversal.
+ * Guards every verb that turns a topic into a filesystem location.
+ * @param {string} topic
+ */
+function assertLegalTopicName(topic) {
+  if (!topic || /[\\/]/.test(topic) || topic.includes('..')) {
+    throw new Error(`invalid topic name "${topic}" — no separators or ".."`);
+  }
+}
+
+/**
+ * The next concern number in a topic's triage sidecar: highest `NNN-` prefix
+ * plus one, `1` for a missing or empty directory.
+ * @param {string} dirAbs
+ * @returns {number}
+ */
+function nextConcernNumber(dirAbs) {
+  /** @type {string[]} */
+  let files;
+  try {
+    files = fs.readdirSync(dirAbs);
+  } catch {
+    return 1;
+  }
+  let max = 0;
+  for (const f of files) {
+    const m = f.match(/^(\d{3})-.+\.md$/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return max + 1;
+}
 
 /**
  * Park a rerouted concern on a topic: create the phase item as `triaged` when
@@ -161,46 +201,225 @@ function startTopic(cwd, workUnit, phase, topic) {
  * @param {string} topic
  * @returns {TopicTriageResult}
  */
-function triageTopic(cwd, workUnit, phase, topic) {
+function triageTopic(cwd, workUnit, phase, topic, opts = {}) {
   assertLegalWrite(phase, 'triaged');
-  return withWorkUnitLock(cwd, workUnit, () => {
+  const { concernFile, slug, message } = opts;
+  const delivering = concernFile !== undefined;
+
+  assertLegalTopicName(topic);
+
+  /** @type {string|null} */
+  let concern = null;
+  if (delivering) {
+    if (!slug || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
+      throw new Error(`--slug must be kebab-case, got "${slug ?? ''}"`);
+    }
+    if (!message) throw new Error('topic triage --concern requires -m <message>');
+    // The scratch is consumed after delivery — confine it to the cache so a
+    // mis-passed path can never read (and delete) a live artifact.
+    const scratchAbs = path.resolve(cwd, /** @type {string} */ (concernFile));
+    const cacheRoot = path.join(cwd, '.workflows', '.cache') + path.sep;
+    if (!scratchAbs.startsWith(cacheRoot)) {
+      throw new Error(`--concern must point inside .workflows/.cache/ — got "${concernFile}"`);
+    }
+    try {
+      concern = fs.readFileSync(scratchAbs, 'utf8');
+    } catch {
+      throw new Error(`concern file not found: ${concernFile}`);
+    }
+    if (concern.trim() === '') throw new Error(`concern file is empty: ${concernFile}`);
+  }
+
+  /** @type {TopicTriageResult} */
+  const result = withWorkUnitLock(cwd, workUnit, () => {
     const manifest = loadWorkUnitManifest(cwd, workUnit);
     const phases = ensureContainer(manifest, 'phases', 'phases');
     const ph = ensureContainer(phases, phase, `phases.${phase}`);
     const items = ensureContainer(ph, 'items', `phases.${phase}.items`);
 
+    /** @type {TopicTriageResult} */
+    let base;
+    let dirty = true;
     const existing = items[topic];
     if (!existing || typeof existing !== 'object') {
       items[topic] = { status: 'triaged' };
-      saveWorkUnitManifest(cwd, workUnit, manifest);
-      return { topic, phase, status: 'triaged', created: true, status_before: null };
+      base = { topic, phase, status: 'triaged', created: true, status_before: null };
+    } else {
+      const before = existing.status ?? null;
+      if (before === 'cancelled') {
+        throw new Error(`${phase} item "${topic}" is cancelled — reactivate it instead`);
+      }
+      if (before === 'superseded') {
+        const by = 'superseded_by' in existing ? ` (by "${existing.superseded_by}")` : '';
+        throw new Error(`${phase} item "${topic}" is superseded${by} — supersession is terminal; work on the absorbing topic instead`);
+      }
+      if (before === 'promoted') {
+        const to = 'promoted_to' in existing ? ` (to "${existing.promoted_to}")` : '';
+        throw new Error(`${phase} item "${topic}" is promoted${to} — promotion is terminal; continue it from the cross-cutting work unit`);
+      }
+      if (before === 'completed') {
+        existing.status = 'in-progress';
+        base = { topic, phase, status: 'in-progress', created: false, status_before: before, reopened: true };
+      } else if (before === null) {
+        // A status-less item (partial field writes) has never been started —
+        // heal it to triaged, the same way start heals it to in-progress.
+        existing.status = 'triaged';
+        base = { topic, phase, status: 'triaged', created: false, status_before: null };
+      } else {
+        base = { topic, phase, status: before, created: false, status_before: before };
+        dirty = false;
+      }
     }
-    const before = existing.status ?? null;
-    if (before === 'cancelled') {
-      throw new Error(`${phase} item "${topic}" is cancelled — reactivate it instead`);
+
+    if (delivering && phase === 'research') {
+      // A research-side landing beneath a decided discussion reopens the
+      // ground that discussion stands on — flag it for reconciliation the
+      // next time the discussion is entered. Staleness begins at landing,
+      // not at the research's later conclusion.
+      const dItems = manifest.phases && manifest.phases.discussion && typeof manifest.phases.discussion === 'object'
+        ? manifest.phases.discussion.items : undefined;
+      const dItem = dItems && typeof dItems === 'object' ? dItems[topic] : undefined;
+      if (dItem && typeof dItem === 'object' && dItem.status === 'completed' && dItem.reconcile_needed === undefined) {
+        // Never clobber a pending brief-reconcile flag — the concern itself
+        // still arrives through the queue either way.
+        dItem.reconcile_needed = 'research';
+        base.reconcile_flagged = true;
+        dirty = true;
+      }
     }
-    if (before === 'superseded') {
-      const by = 'superseded_by' in existing ? ` (by "${existing.superseded_by}")` : '';
-      throw new Error(`${phase} item "${topic}" is superseded${by} — supersession is terminal; work on the absorbing topic instead`);
+
+    if (delivering) {
+      // Install the concern in the topic's triage sidecar — a fresh
+      // engine-numbered file per concern, so concurrent deliveries can
+      // never collide or lose an entry.
+      const dirRel = `.workflows/${workUnit}/${phase}/.triage/${topic}`;
+      const dirAbs = path.join(cwd, dirRel);
+      fs.mkdirSync(dirAbs, { recursive: true });
+      const n = String(nextConcernNumber(dirAbs)).padStart(3, '0');
+      const rel = `${dirRel}/${n}-${slug}.md`;
+      const body = /** @type {string} */ (concern);
+      fs.writeFileSync(path.join(cwd, rel), body.endsWith('\n') ? body : body + '\n');
+      base.concern_path = rel;
     }
-    if (before === 'promoted') {
-      const to = 'promoted_to' in existing ? ` (to "${existing.promoted_to}")` : '';
-      throw new Error(`${phase} item "${topic}" is promoted${to} — promotion is terminal; continue it from the cross-cutting work unit`);
-    }
-    if (before === 'completed') {
-      existing.status = 'in-progress';
-      saveWorkUnitManifest(cwd, workUnit, manifest);
-      return { topic, phase, status: 'in-progress', created: false, status_before: before, reopened: true };
-    }
-    if (before === null) {
-      // A status-less item (partial field writes) has never been started —
-      // heal it to triaged, the same way start heals it to in-progress.
-      existing.status = 'triaged';
-      saveWorkUnitManifest(cwd, workUnit, manifest);
-      return { topic, phase, status: 'triaged', created: false, status_before: null };
-    }
-    return { topic, phase, status: before, created: false, status_before: before };
+
+    if (dirty) saveWorkUnitManifest(cwd, workUnit, manifest);
+    return base;
   });
+
+  if (delivering) {
+    try { fs.unlinkSync(path.resolve(cwd, /** @type {string} */ (concernFile))); } catch { /* scratch already gone */ }
+    /** @type {string[]} */
+    const warnings = [];
+    const outcome = commitTailPathspec(
+      cwd,
+      [`.workflows/${workUnit}/manifest.json`, /** @type {string} */ (result.concern_path)],
+      /** @type {string} */ (message),
+      warnings,
+    );
+    result.committed = outcome.committed;
+    result.warnings = warnings;
+    noteCommitOutcome(result, outcome);
+    if (outcome.failed) {
+      result.note = `commit pending — state saved; retry with: engine commit ${workUnit} --topic ${phase}/${topic} -m "<message>"`;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * @typedef {object} TopicQueueResult
+ * @property {string} work_unit
+ * @property {string} phase
+ * @property {string} topic
+ * @property {number} count
+ * @property {string[]} files  project-relative queue file paths, sorted
+ */
+
+/**
+ * Read a topic's triage queue: the engine owns the queue layout, so gates
+ * and drains ask instead of globbing. Legal only in triage-legal phases;
+ * a missing directory is an empty queue.
+ * @param {string} cwd project root
+ * @param {string} workUnit
+ * @param {string} phase
+ * @param {string} topic
+ * @returns {TopicQueueResult}
+ */
+function queueStatus(cwd, workUnit, phase, topic) {
+  if (phase !== 'research' && phase !== 'discussion') {
+    throw new Error(`triage queues exist for research|discussion only — got "${phase}"`);
+  }
+  assertLegalTopicName(topic);
+  if (!fs.existsSync(path.join(cwd, '.workflows', workUnit))) {
+    throw new Error(`no work unit directory: .workflows/${workUnit}`);
+  }
+  const dirRel = `.workflows/${workUnit}/${phase}/.triage/${topic}`;
+  /** @type {fs.Dirent[]} */
+  let entries = [];
+  try {
+    entries = fs.readdirSync(path.join(cwd, dirRel), { withFileTypes: true });
+  } catch { /* no queue yet — empty */ }
+  const files = entries
+    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    .map((e) => `${dirRel}/${e.name}`)
+    .sort();
+  return { work_unit: workUnit, phase, topic, count: files.length, files };
+}
+
+/**
+ * @typedef {object} TopicAbsorbResult
+ * @property {string} phase
+ * @property {string} topic
+ * @property {string} absorbed  the queue-file basename removed
+ * @property {number} remaining  queue files left after the removal
+ * @property {string|null} [committed]
+ * @property {string[]} [warnings]
+ * @property {string} [note]
+ */
+
+/**
+ * Absorb one rerouted concern — the mirror of `triage`'s delivery form:
+ * delete its queue file and commit the fold action-scoped (the phase
+ * artifact, this deletion, the work-unit manifest) under the caller's
+ * message. The response answers `remaining` so the caller routes
+ * loop-or-exit with no follow-up read.
+ * @param {string} cwd @param {string} workUnit @param {string} phase
+ * @param {string} topic @param {{file: string, message: string}} opts
+ * @returns {TopicAbsorbResult}
+ */
+function absorbConcern(cwd, workUnit, phase, topic, { file, message }) {
+  const queue = queueStatus(cwd, workUnit, phase, topic);
+  if (file !== path.basename(file) || !file.endsWith('.md')) {
+    throw new Error(`topic absorb: --file must be a queue-file name, not a path (got "${file}")`);
+  }
+  const rel = `.workflows/${workUnit}/${phase}/.triage/${topic}/${file}`;
+  if (!queue.files.includes(rel)) {
+    throw new Error(`topic absorb: "${file}" is not in the ${topic} ${phase} triage queue`);
+  }
+  fs.unlinkSync(path.join(cwd, rel));
+  /** @type {TopicAbsorbResult} */
+  const result = { phase, topic, absorbed: file, remaining: queue.count - 1 };
+  const artifactRel = `.workflows/${workUnit}/${phase}/${topic}.md`;
+  /** @type {string[]} */
+  const warnings = [];
+  const outcome = commitTailPathspec(
+    cwd,
+    [
+      `.workflows/${workUnit}/manifest.json`,
+      rel,
+      ...(fs.existsSync(path.join(cwd, artifactRel)) ? [artifactRel] : []),
+    ],
+    message,
+    warnings,
+  );
+  result.committed = outcome.committed;
+  result.warnings = warnings;
+  noteCommitOutcome(result, outcome);
+  if (outcome.failed) {
+    result.note = `commit pending — the concern is absorbed; retry with: engine commit ${workUnit} --topic ${phase}/${topic} -m "<message>"`;
+  }
+  return result;
 }
 
 /**
@@ -391,10 +610,10 @@ function cancelTopic(cwd, workUnit, phase, topic) {
   const warnings = [];
   knowledge(cwd, ['remove', '--work-unit', workUnit, '--phase', phase, '--topic', topic], 'knowledge remove', warnings);
 
-  const committed = commitScopedWithKb(cwd, `.workflows/${workUnit}`, `workflow(${workUnit}): cancel ${topic} (${phase})`);
+  const outcome = commitTailWithKb(cwd, `.workflows/${workUnit}`, `workflow(${workUnit}): cancel ${topic} (${phase})`, warnings);
   /** @type {TopicTransitionResult} */
-  const result = { topic, phase, status: 'cancelled', committed, warnings };
-  noteIfNothingCommitted(result, committed);
+  const result = { topic, phase, status: 'cancelled', committed: outcome.committed, warnings };
+  noteCommitOutcome(result, outcome);
   return result;
 }
 
@@ -442,11 +661,11 @@ function reactivateTopic(cwd, workUnit, phase, topic) {
     knowledge(cwd, ['index', artifact(workUnit, topic)], 'knowledge index', warnings);
   }
 
-  const committed = commitScopedWithKb(cwd, `.workflows/${workUnit}`, `workflow(${workUnit}): reactivate ${topic} (${phase})`);
+  const outcome = commitTailWithKb(cwd, `.workflows/${workUnit}`, `workflow(${workUnit}): reactivate ${topic} (${phase})`, warnings);
   /** @type {TopicTransitionResult} */
-  const result = { topic, phase, status: restored, committed, warnings };
-  noteIfNothingCommitted(result, committed);
+  const result = { topic, phase, status: restored, committed: outcome.committed, warnings };
+  noteCommitOutcome(result, outcome);
   return result;
 }
 
-module.exports = { startTopic, triageTopic, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic };
+module.exports = { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic };

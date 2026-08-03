@@ -77,10 +77,6 @@ What we chose, why, the deciding factor, trade-offs accepted, confidence level.
 ### Current State
 - What's resolved
 - What's still uncertain
-
-## Triage
-
-(none)
 ```
 
 ## Usage Notes
@@ -108,7 +104,7 @@ What we chose, why, the deciding factor, trade-offs accepted, confidence level.
 
 ```markdown
 #### {YYYY-MM-DD} — revised
-*Trigger: {substance — e.g. triage from {origin}: "{concern title}" / review finding: {one-line substance} / user reversal}*
+*Trigger: {substance — e.g. triage from {origin}: "{concern title}" — {one-line substance} / review finding: {one-line substance} / user reversal: {what changed}}*
 
 {the current decision — what we now choose, why, what changed from the entry below}
 
@@ -134,9 +130,6 @@ What we chose, why, the deciding factor, trade-offs accepted, confidence level.
 - Don't write code — unless it came up in discussion (e.g., API shape, pattern example) and is relevant to capture
 - Don't summarise the journey — document it
 - Don't stuff concerns that belong to a different topic into subtopics — reroute them to that topic
-
-**Triage section**:
-- `## Triage` is a fixed terminal landing zone for off-topic concerns rerouted from other topics; working discussion content stays above it; left as `(none)` until an entry lands
 
 **Complete when**:
 - All subtopics on the Discussion Map are `decided` (or `deferred`)

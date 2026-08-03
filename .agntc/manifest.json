@@ -1,7 +1,7 @@
 {
   "leeovery/agentic-workflows": {
-    "ref": "v0.6.22",
-    "commit": "dfbf12a9b67d41e33d04d67bf3724dbd413fadec",
+    "ref": "v0.6.33",
+    "commit": "d49d8854bcd1bcdce430102b3a62431e5bdbf6cf",
     "agents": [
       "claude"
     ],
@@ -134,6 +134,7 @@
       ".claude/skills/workflow-engine/scripts/domain/inbox-set.cjs",
       ".claude/skills/workflow-engine/scripts/domain/inbox.cjs",
       ".claude/skills/workflow-engine/scripts/domain/kb.cjs",
+      ".claude/skills/workflow-engine/scripts/domain/presence.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/",
       ".claude/skills/workflow-engine/scripts/domain/projections/discovery-map.cjs",
       ".claude/skills/workflow-engine/scripts/domain/projections/discussion-map.cjs",
@@ -299,6 +300,8 @@
       ".claude/skills/workflow-migrate/scripts/migrations/050-purge-closed-workunit-caches.cjs",
       ".claude/skills/workflow-migrate/scripts/migrations/051-frontmatter-state-to-stores.cjs",
       ".claude/skills/workflow-migrate/scripts/migrations/052-phantom-triage-stubs.cjs",
+      ".claude/skills/workflow-migrate/scripts/migrations/053-ignore-lock-and-temp-files.cjs",
+      ".claude/skills/workflow-migrate/scripts/migrations/054-triage-sections-to-queue.cjs",
       ".claude/skills/workflow-planning-entry/",
       ".claude/skills/workflow-planning-entry/SKILL.md",
       ".claude/skills/workflow-planning-entry/references/",
@@ -428,14 +431,16 @@
       ".claude/skills/workflow-shared/references/correcting-historical-artifacts.md",
       ".claude/skills/workflow-shared/references/create-discovery-topic.md",
       ".claude/skills/workflow-shared/references/discovery-gap-analysis.md",
-      ".claude/skills/workflow-shared/references/drain-triage.md",
       ".claude/skills/workflow-shared/references/ensure-discovery-item.md",
       ".claude/skills/workflow-shared/references/final-review-menu.md",
+      ".claude/skills/workflow-shared/references/framework.md",
+      ".claude/skills/workflow-shared/references/instructions.md",
       ".claude/skills/workflow-shared/references/natural-breaks.md",
       ".claude/skills/workflow-shared/references/pivot-to-epic.md",
       ".claude/skills/workflow-shared/references/product-lens.md",
       ".claude/skills/workflow-shared/references/read-brief-context.md",
       ".claude/skills/workflow-shared/references/reconcile-advisory.md",
+      ".claude/skills/workflow-shared/references/rerouted-concerns.md",
       ".claude/skills/workflow-shared/references/research-analysis.md",
       ".claude/skills/workflow-shared/references/resume-detection.md",
       ".claude/skills/workflow-shared/references/routing-decision.md",
@@ -447,6 +452,7 @@
       ".claude/skills/workflow-shared/references/topic-granularity.md",
       ".claude/skills/workflow-shared/references/topic-name-validation.md",
       ".claude/skills/workflow-shared/references/triage-landing.md",
+      ".claude/skills/workflow-shared/references/voice.md",
       ".claude/skills/workflow-specification-entry/",
       ".claude/skills/workflow-specification-entry/SKILL.md",
       ".claude/skills/workflow-specification-entry/references/",
@@ -535,7 +541,7 @@
     ],
     "type": "plugin",
     "cloneUrl": "https://github.com/leeovery/agentic-workflows.git",
-    "installedAt": "2026-07-31T10:48:05.546Z",
+    "installedAt": "2026-08-03T12:20:18.530Z",
     "constraint": "^0.6.0"
   },
   "samber/cc-skills-golang": {

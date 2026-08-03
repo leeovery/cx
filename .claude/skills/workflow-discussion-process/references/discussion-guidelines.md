@@ -26,7 +26,7 @@ The conversation follows the thinking, not a checklist. Subtopics emerge, get ex
 
 **Don't force transitions**: If the user is deep in a subtopic, don't interrupt to check off progress. Let the conversation breathe. Transition when there's a natural pause or a decision lands.
 
-**Circle back**: Track what's been partially explored. When a related subtopic resolves, suggest returning to the deferred one — new context may change the thinking.
+**Circle back**: Track what's been partially explored. When a related subtopic resolves, suggest returning to the one left open — new context may change the thinking.
 
 ## Do / Don't
 
@@ -51,7 +51,7 @@ The discussion file is your memory. Context compaction is lossy — what's not o
 
 These are natural pauses, not every exchange. Document the reasoning and context — not a verbatim transcript.
 
-**After writing, commit** (`engine commit {work_unit} -m "discussion({work_unit}/{topic}): {what changed}"`; an agent-finding engagement's subject carries `({id} {finding})`, e.g. `(review-003 F2)`). Commits let you track, backtrack, and recover after compaction. Don't batch — commit each time you write.
+**After writing, commit** (`engine commit {work_unit} --topic discussion/{topic} -m "discussion({work_unit}/{topic}): {what changed}"`; an agent-finding engagement's subject carries `({id} {finding})`, e.g. `(review-003 F2)`). Commits let you track, backtrack, and recover after compaction. Don't batch — commit each time you write.
 
 **Create the file early.** After understanding the topic and initial seed subtopics, create the discussion file with context and seed the Discussion Map (manifest state, via the engine `discussion-map add` command). Don't wait until you have decisions.
 

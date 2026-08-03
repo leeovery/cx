@@ -6,11 +6,13 @@
 
 ## A. Background Agents
 
-Two types of background agent operate during the discussion. Load their lifecycle instructions now — apply them at the appropriate moments during the session loop.
+Two types of background agent operate during the discussion, and the topic's triage queue surfaces through a third protocol file. Load their instructions now — they run at the appropriate moments during the session loop.
 
 → Load **[review-agent.md](review-agent.md)** and follow its instructions as written.
 
 → Load **[perspective-agents.md](perspective-agents.md)** and follow its instructions as written.
+
+→ Load **[rerouted-concerns.md](../../workflow-shared/references/rerouted-concerns.md)** with work_unit = `{work_unit}`, topic = `{topic}`, phase = `discussion` — a protocol, not a step: the session loop's triage check enters its **A. Check**; nothing runs at load time.
 
 ---
 
@@ -18,11 +20,15 @@ Two types of background agent operate during the discussion. Load their lifecycl
 
 The discussion is an organic conversation. The Discussion Map is your tracking backbone — it tells you where you are, what's been decided, what's still open, and where to go next. It is typed state in the manifest (`phases.discussion.items.{topic}.subtopics`): you make every state call, the engine `discussion-map` commands record it, and the adapter renders it (see **E**). Follow this loop:
 
-1. **Check for findings** — Before each conversational turn, run the check-for-results logic from the background-agent files loaded above. Each file knows its own rules; follow the named section in each:
+1. **Check for findings** — Beat presence first, once per check — `node .claude/skills/workflow-engine/scripts/engine.cjs presence beat {work_unit} discussion {topic}` — before the gated checks below: any of them can end in a STOP that closes the turn, and the beat must not miss its iteration.
+
+   Check the triage queue first: follow **A. Check** in **[rerouted-concerns.md](../../workflow-shared/references/rerouted-concerns.md)**. Its offer and raise gates end the turn — the agent checks below wait for a later iteration; an absorb never ends the turn, the protocol itself continues to the next raise.
+
+   Then run the check-for-results logic from the background-agent files loaded above. Each file knows its own rules; follow the named section in each:
    - **Review agent**: follow **B. Check and Surface** in **[review-agent.md](review-agent.md)** — delegates to the shared surfacing protocol for review findings.
    - **Perspective agents**: follow **D. Check and Surface** in **[perspective-agents.md](perspective-agents.md)** — promotes completed perspective sets to synthesis, then delegates to the shared surfacing protocol for synthesis findings.
    
-   Both enforce the never-dump rules: two-phase surfacing, one finding at a time, mid-thread protection. **Do not surface findings directly — always go through the agent files, which route to the shared protocol.** Skip on the first iteration (no agents have been dispatched yet).
+   Both enforce the never-dump rules: two-phase surfacing, one finding at a time, mid-thread protection. **Do not surface findings directly — always go through the agent files, which route to the shared protocol.** Skip only when no agents have been dispatched yet — the store decides, not the iteration count: a resumed session may hold agents from an earlier sitting.
 2. **Discuss** — Engage with the user on the current subtopic or wherever the conversation leads. Challenge thinking, push back, explore edge cases. Participate as an expert architect. Follow interesting threads — tangents that surface new concerns are valuable. New subtopics may emerge; record each on the map as it's identified (kebab-case name; new subtopics start `pending`; `--parent` nests under an existing top-level subtopic):
 
    ```bash
@@ -37,11 +43,11 @@ The discussion is an organic conversation. The Discussion Map is your tracking b
    ```
 
    The command's JSON response carries `all_decided` and `unresolved_count` — no follow-up read needed. Don't force transitions — suggest them. The user can follow your suggestion or go wherever they want.
-4. **Document** — At natural pauses, update the discussion file — it holds the knowledge. When a subtopic reaches `decided`, write up its section (Context → Options → Journey → Decision); keep the Summary current. When the session re-decides a decision recorded in an *earlier sitting* — a drained triage concern, a review finding, a user reversal — the new decision lands as a dated entry on that block per the template's revision convention, wrapping a plain block first; refining an entry still being written this session edits it in place, no entry. Capture provisional thinking for subtopics still in progress if context compaction is a risk. The live map state lives in the manifest only — never write a map section into the file.
+4. **Document** — At natural pauses, update the discussion file — it holds the knowledge. When a subtopic reaches `decided`, write up its section (Context → Options → Journey → Decision); keep the Summary current. When the session re-decides a decision recorded in an *earlier sitting* — an absorbed triage concern, a review finding, a user reversal — the new decision lands as a dated entry on that block per the template's revision convention, wrapping a plain block first; refining an entry still being written this session edits it in place, no entry. Capture provisional thinking for subtopics still in progress if context compaction is a risk. The live map state lives in the manifest only — never write a map section into the file.
 5. **Commit & dispatch check** — Commit after each write. Don't batch. When the write documents an agent finding's engagement, the subject carries `({id} {finding})` — e.g. `discussion({work_unit}/{topic}): decided webhook reconciliation (review-003 F2)` — and the commit carries only the engagement's write; unrelated substance commits separately:
 
    ```bash
-   node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "discussion({work_unit}/{topic}): {what changed}"
+   node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} --topic discussion/{topic} -m "discussion({work_unit}/{topic}): {what changed}"
    ```
 
    Then immediately evaluate agent dispatch — **CHECKPOINT**: Do not respond to the user until this check is complete. Evaluate the trigger conditions defined in the review agent and perspective agent instructions loaded above. If conditions are met, dispatch before continuing. If not, proceed.
@@ -61,9 +67,9 @@ Subtopics move through states as the conversation progresses. The judgment call 
 
 **decided** → Decision reached with rationale. The subtopic section gets written up with the full Context → Options → Journey → Decision structure. Terminal for the map, though a later sitting may re-decide — the re-decision lands as a dated entry on the block's timeline (template revision convention).
 
-**deferred** → Deliberately set aside. Applied when concluding with unresolved subtopics (see **G. Concluding**) — each is also noted in Summary → Open Threads.
+**deferred** → Deliberately set aside. Written by the defer gate in **G. Concluding** — and by a triage fold that re-parks previously-`deferred` ground a rerouted concern reopened (the raise showed the user what is being set aside, and the fold writes the Open Threads note itself) — and nowhere else: never set it during the session loop, however plainly the user parks something. When they say a subtopic stays open, leave it in the state the conversation reached and carry on; the defer gate sweeps it at conclusion. Setting it early makes `all_decided` true, so the gate never renders — the user is never shown what is being set aside, and the Open Threads entry the gate writes never lands.
 
-**State transitions are judgement calls.** Move a subtopic to `converging` when the viable options are narrowed and the discussion is heading toward resolution. Move to `decided` when there's a clear outcome with rationale — even if provisional. Don't wait for absolute certainty. Any state can move to any other — judgment may revisit.
+**State transitions are judgement calls.** Move a subtopic to `converging` when the viable options are narrowed and the discussion is heading toward resolution. Move to `decided` when there's a clear outcome with rationale — even if provisional. Don't wait for absolute certainty. Any state can move to any other — judgment may revisit. The one exception is `deferred`: it belongs to the defer gate, not to session judgement.
 
 Child subtopics can exist under parents. A parent might be `exploring` while one of its children is already `decided`. The parent reaches `decided` when all its meaningful children are resolved and the overall concern is addressed.
 
@@ -179,7 +185,7 @@ Defer every `unresolved` subtopic in one write — the batch form takes uniform 
 node .claude/skills/workflow-engine/scripts/engine.cjs discussion-map set {work_unit} {topic} {subtopic}=deferred [{subtopic}=deferred …]
 ```
 
-Note them in the Summary → Open Threads section of the discussion file. Commit.
+Note them in the Summary → Open Threads section of the discussion file, then commit with a `(deferral)` marker in the subject — `discussion({work_unit}/{topic}): note deferred threads (deferral)`. The marker tells the classifier in **[closing-gates.md](closing-gates.md)** that this write is the conclusion's own bookkeeping, not movement it should weigh.
 
 Load **[closing-gates.md](closing-gates.md)** and follow its instructions as written.
 

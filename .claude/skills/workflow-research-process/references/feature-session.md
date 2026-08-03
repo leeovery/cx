@@ -6,11 +6,13 @@
 
 ## A. Background Agents
 
-Two types of background agent operate during research. Load their lifecycle instructions now — apply them at the appropriate moments during the session loop.
+Two types of background agent operate during research, and the topic's triage queue surfaces through a third protocol file. Load their instructions now — they run at the appropriate moments during the session loop.
 
 → Load **[review-agent.md](review-agent.md)** and follow its instructions as written.
 
 → Load **[deep-dive-agent.md](deep-dive-agent.md)** and follow its instructions as written.
+
+→ Load **[rerouted-concerns.md](../../workflow-shared/references/rerouted-concerns.md)** with work_unit = `{work_unit}`, topic = `{topic}`, phase = `research` — a protocol, not a step: the session loop's triage check enters its **A. Check**; nothing runs at load time.
 
 ---
 
@@ -101,13 +103,7 @@ Capture the concern via the `workflow-log-idea` skill so it lands in the inbox f
 
 2. From the context you already have, derive two values: `proposed_name` — a kebab-case topic name for the concern; and `concern` — the concern with the full context discussed about it.
 
-3. Load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{proposed_name}`, concern = `{concern}`, origin = `{topic}`, phase = `research`, date = `{today}`. It validates the name against the map and, on a clash, prompts to pick another or cancel. If `result` is `cancelled`, the topic wasn't created — note the concern in the research file so it isn't lost; otherwise the concern landed as the `{landed_topic}` topic.
-
-4. Commit the landing:
-
-   ```bash
-   node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "research({work_unit}/{topic}): reroute concern to {landed_topic}"
-   ```
+3. Judge `landing_phase` from the concern's nature (an open question needing exploration → `research`; a decision needing making → `discussion`), then load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{proposed_name}`, concern = `{concern}`, origin = `{topic}`, phase = `research`, landing_phase = `{landing_phase}`, date = `{today}`. It validates the name against the map and, on a clash, prompts to pick another or cancel. If `result` is `cancelled`, the topic wasn't created — note the concern in the research file so it isn't lost; otherwise the concern landed as the `{landed_topic}` topic and the delivery committed itself.
 
 > *Output the next fenced block as markdown (not a code block):*
 

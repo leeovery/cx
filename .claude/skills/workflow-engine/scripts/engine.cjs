@@ -19,11 +19,11 @@
 const fs = require('fs');
 const path = require('path');
 const { signpost, box, wrapWithPrefix, renderTree, WIDTH } = require('./kernel/render.cjs');
-const { commitScopedWithKb } = require('./domain/commit.cjs');
+const { commitScopedWithKb, commitPathspecScoped, KB_DIR } = require('./domain/commit.cjs');
 const { recordSubtopicAdd, recordSubtopicState, recordSubtopicStates, SUBTOPIC_STATES } = require('./domain/discussion-map.cjs');
 const { VALID_ROUTINGS } = require('./kernel/manifest-schema.cjs');
 const { sequenceMap, addItem, addItemsBatch, editItem, removeItem, renameItem, rerouteItem, handleItem, unhandleItem } = require('./domain/discovery-map.cjs');
-const { startTopic, triageTopic, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic } = require('./domain/transitions.cjs');
+const { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic } = require('./domain/transitions.cjs');
 const { initTasks, startTask, fixAttempt, completeTask, analysisCycle } = require('./domain/tasks.cjs');
 const taskSections = require('./domain/projections/tasks.cjs');
 const txSections = require('./domain/projections/transactions.cjs');
@@ -31,6 +31,7 @@ const { archiveItems, restoreItems, deleteItems } = require('./domain/inbox.cjs'
 const { stampAnalysisCache } = require('./domain/cache.cjs');
 const agentState = require('./domain/agent-state.cjs');
 const { boot } = require('./domain/boot.cjs');
+const { beatPresence, clearPresence, scanPresence, deferralSection } = require('./domain/presence.cjs');
 const { createWorkUnit } = require('./domain/workunit-create.cjs');
 const { completeWorkUnit, cancelWorkUnit, reactivateWorkUnit, pivotWorkUnit } = require('./domain/workunit-lifecycle.cjs');
 const { absorbWorkUnit } = require('./domain/workunit-absorb.cjs');
@@ -140,7 +141,12 @@ Commands:
   discovery-session open  <work-unit> --session-log-file <path>
   discovery-session close <work-unit> -m <message>
   topic start <work-unit> <phase> <topic>
-  topic triage <work-unit> <phase> <topic>
+  topic triage <work-unit> <phase> <topic> [--concern <file> --slug <kebab> -m <message>]
+  topic queue <work-unit> <phase> <topic>
+  topic absorb <work-unit> <phase> <topic> --file <NNN-slug.md> -m <message>
+  presence beat <work-unit> <phase> <topic>
+  presence clear <work-unit> <phase> <topic>
+  presence scan <work-unit>
   topic complete <work-unit> <phase> <topic>
   topic reopen <work-unit> <phase> <topic>
   topic supersede <work-unit> <phase> <topic> --by <topic>
@@ -169,6 +175,9 @@ Commands:
   render task-list   <wu.planning.topic> --file <payload.json>
   render findings-summary <wu.phase.topic> --file <payload.json>
   render finding          <wu.phase.topic> --file <payload.json>
+  render concern          <wu.phase.topic> --file <NNN-slug.md>
+  render triage-offer     <wu.phase.topic> --file <payload.json>
+  render triage-block     <wu.phase.topic>
   render proposed-task    <wu.phase.topic> --file <payload.json> --gate gated|auto [--comment-hint STR]
   render tasks-overview   <wu.phase.topic> --file <payload.json>
   render author-task-gate <wu.planning.topic> --m N --total N --title STR
@@ -514,6 +523,32 @@ function runDiscoverySession(argv) {
 const TOPIC_COMMANDS = { start: startTopic, triage: triageTopic, complete: completeTopic, reopen: reopenTopic, cancel: cancelTopic, reactivate: reactivateTopic };
 
 /** @param {string[]} argv */
+function runPresence(argv) {
+  const [command, ...rest] = argv;
+  try {
+    if (command === 'beat' || command === 'clear') {
+      const [workUnit, phase, topic] = rest;
+      if (!workUnit || !phase || !topic || rest.length !== 3) {
+        throw new Error(`Usage: engine presence ${command} <work-unit> <phase> <topic>`);
+      }
+      respond((command === 'beat' ? beatPresence : clearPresence)(process.cwd(), workUnit, phase, topic));
+      return;
+    }
+    if (command === 'scan') {
+      const [workUnit] = rest;
+      if (!workUnit || rest.length !== 1) throw new Error('Usage: engine presence scan <work-unit>');
+      const res = scanPresence(process.cwd(), workUnit);
+      respond(res);
+      respondSections(deferralSection(res));
+      return;
+    }
+    throw new Error('Usage: engine presence <beat|clear|scan> …');
+  } catch (err) {
+    failJson(err);
+  }
+}
+
+/** @param {string[]} argv */
 function runTopic(argv) {
   const [command, ...rest] = argv;
   try {
@@ -524,6 +559,51 @@ function runTopic(argv) {
         throw new Error('Usage: engine topic supersede <work-unit> <phase> <topic> --by <topic>');
       }
       respond(supersedeTopic(process.cwd(), workUnit, phase, topic, { by: opts.by }));
+      return;
+    }
+    if (command === 'queue') {
+      const [workUnit, phase, topic] = rest;
+      if (!workUnit || !phase || !topic || rest.length !== 3) {
+        throw new Error('Usage: engine topic queue <work-unit> <phase> <topic>');
+      }
+      respond(queueStatus(process.cwd(), workUnit, phase, topic));
+      return;
+    }
+    if (command === 'absorb') {
+      /** @type {string[]} */ const pos = [];
+      /** @type {string|undefined} */ let file;
+      /** @type {string|undefined} */ let message;
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        if (a === '--file') file = rest[++i];
+        else if (a === '-m' || a === '--message') message = rest[++i];
+        else pos.push(a);
+      }
+      const [workUnit, phase, topic] = pos;
+      if (!workUnit || !phase || !topic || pos.length !== 3 || !file || !message) {
+        throw new Error('Usage: engine topic absorb <work-unit> <phase> <topic> --file <NNN-slug.md> -m <message>');
+      }
+      respond(absorbConcern(process.cwd(), workUnit, phase, topic, { file, message }));
+      return;
+    }
+    if (command === 'triage') {
+      /** @type {string[]} */ const pos = [];
+      /** @type {string|undefined} */ let concern;
+      /** @type {string|undefined} */ let slug;
+      /** @type {string|undefined} */ let message;
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        if (a === '--concern') concern = rest[++i];
+        else if (a === '--slug') slug = rest[++i];
+        else if (a === '-m' || a === '--message') message = rest[++i];
+        else pos.push(a);
+      }
+      const [workUnit, phase, topic] = pos;
+      const delivering = concern !== undefined || slug !== undefined || message !== undefined;
+      if (!workUnit || !phase || !topic || pos.length !== 3 || (delivering && !(concern && slug && message))) {
+        throw new Error('Usage: engine topic triage <work-unit> <phase> <topic> [--concern <file> --slug <kebab> -m <message>]');
+      }
+      respond(triageTopic(process.cwd(), workUnit, phase, topic, delivering ? { concernFile: concern, slug, message } : {}));
       return;
     }
     if (!Object.prototype.hasOwnProperty.call(TOPIC_COMMANDS, command)) {
@@ -729,26 +809,96 @@ function runBoot() {
 // fine: {committed: null}.
 // ---------------------------------------------------------------------------
 
+// Per-phase artifact pathspecs for `commit --topic` — the paths a topic's
+// session writes, joined with the work-unit manifest at the call site. The
+// triage-legal phases carry their sidecar directory so a drain's deletions
+// ride the same commit.
+const TOPIC_COMMIT_ARTIFACTS = /** @type {Record<string, (wu: string, topic: string) => string[]>} */ ({
+  research: (wu, t) => [`.workflows/${wu}/research/${t}.md`, `.workflows/${wu}/research/.triage/${t}`],
+  discussion: (wu, t) => [`.workflows/${wu}/discussion/${t}.md`, `.workflows/${wu}/discussion/.triage/${t}`],
+  investigation: (wu, t) => [`.workflows/${wu}/investigation/${t}.md`],
+  specification: (wu, t) => [`.workflows/${wu}/specification/${t}`],
+  planning: (wu, t) => [`.workflows/${wu}/planning/${t}`],
+  implementation: (wu, t) => [`.workflows/${wu}/implementation/${t}`],
+  review: (wu, t) => [`.workflows/${wu}/review/${t}`],
+});
+
+/**
+ * Whether the directory holds any file, at any depth. An existing-but-empty
+ * directory is a git no-man's-land: `git add` tolerates its pathspec
+ * silently while `git commit -- <paths>` refuses it — the state every
+ * triage queue reaches once its last concern's deletion is committed.
+ * @param {string} dirAbs
+ * @returns {boolean}
+ */
+function dirHasFiles(dirAbs) {
+  /** @type {fs.Dirent[]} */
+  let entries;
+  try {
+    entries = fs.readdirSync(dirAbs, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      if (dirHasFiles(path.join(dirAbs, e.name))) return true;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Keep pathspecs the whole add+commit sequence will accept: a file on disk,
+ * a directory with content, or a path holding index entries (a
+ * deleted-but-tracked path still stages its deletions). An empty directory
+ * with no index entries is dropped — see dirHasFiles.
+ * @param {string} cwd @param {string[]} specs
+ * @returns {string[]}
+ */
+function stageableSpecs(cwd, specs) {
+  const { execFileSync } = require('child_process');
+  return specs.filter((p) => {
+    const abs = path.join(cwd, p);
+    if (fs.existsSync(abs)) {
+      if (!fs.statSync(abs).isDirectory()) return true;
+      if (dirHasFiles(abs)) return true;
+    }
+    try {
+      return execFileSync('git', ['ls-files', '--', p], { cwd, encoding: 'utf8' }).trim() !== '';
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** @param {string[]} argv */
 function runCommit(argv) {
   try {
     /** @type {string|null} */ let workUnit = null;
     /** @type {string|null} */ let message = null;
     /** @type {string|null} */ let plan = null;
+    /** @type {string|null} */ let topicSpec = null;
     let inbox = false;
     let workflows = false;
+    let kb = false;
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
       if (a === '-m' || a === '--message') message = argv[++i];
       else if (a === '--plan') plan = argv[++i];
+      else if (a === '--topic') topicSpec = argv[++i];
+      else if (a === '--kb') kb = true;
       else if (a === '--inbox') inbox = true;
       else if (a === '--workflows') workflows = true;
       else if (workUnit === null) workUnit = a;
       else throw new Error(`unexpected argument "${a}"`);
     }
     const scopeCount = [inbox, workflows, workUnit !== null].filter(Boolean).length;
-    if (!message || scopeCount !== 1 || (plan !== null && workUnit === null) || plan === '' || plan === undefined) {
-      throw new Error('Usage: engine commit <work-unit> -m <message> [--plan <topic>] | engine commit --inbox -m <message> | engine commit --workflows -m <message>');
+    if (!message || scopeCount !== 1 || (plan !== null && workUnit === null) || plan === '' || plan === undefined ||
+        (topicSpec !== null && workUnit === null) || topicSpec === '' || topicSpec === undefined ||
+        (topicSpec !== null && plan !== null) || (kb && topicSpec === null)) {
+      throw new Error('Usage: engine commit <work-unit> -m <message> [--plan <topic> | --topic <phase>/<topic> [--kb]] | engine commit --inbox -m <message> | engine commit --workflows -m <message>');
     }
     const cwd = process.cwd();
     /** @type {string|string[]} */ let scope;
@@ -763,6 +913,37 @@ function runCommit(argv) {
         throw new Error(`no work unit directory: .workflows/${wu}`);
       }
       scope = `.workflows/${wu}`;
+      if (topicSpec !== null) {
+        // --topic: the action-scoped pathspec commit. `git commit -- <paths>`
+        // confines the commit to the topic's artifact paths plus the
+        // work-unit manifest — a concurrent session's dirty or staged files
+        // are never swept up. The KB dir does not ride: no KB-touching verb
+        // precedes a session-cadence commit, and KB-dirtying transactions
+        // commit their own store dirt.
+        const parts = topicSpec.split('/');
+        const phase = parts[0];
+        const topic = parts[1];
+        const artifact = Object.hasOwn(TOPIC_COMMIT_ARTIFACTS, phase) ? TOPIC_COMMIT_ARTIFACTS[phase] : undefined;
+        if (parts.length !== 2 || !artifact) {
+          throw new Error(`commit --topic: expected <phase>/<topic> with phase one of ${Object.keys(TOPIC_COMMIT_ARTIFACTS).join(', ')} — got "${topicSpec}"`);
+        }
+        if (topic === '' || topic.includes('..')) throw new Error(`invalid topic name "${topic}"`);
+        // --kb: the caller's action dirtied the store (a completion's
+        // knowledge index) — stage it with the write that produced it.
+        const specs = stageableSpecs(cwd, [
+          `.workflows/${wu}/manifest.json`,
+          ...artifact(wu, topic),
+          ...(kb ? [KB_DIR] : []),
+        ]);
+        if (specs.length === 0) {
+          respond({ committed: null, note: 'nothing to commit' });
+          return;
+        }
+        const committed = commitPathspecScoped(cwd, specs, message);
+        if (committed === null) respond({ committed: null, note: 'nothing to commit' });
+        else respond({ committed });
+        return;
+      }
       if (plan !== null) {
         // --plan: the plan's declared storage pathspecs (recorded at plan
         // init from the format's authoring doc) plus the project manifest
@@ -790,16 +971,7 @@ function runCommit(argv) {
             throw new Error(`commit --plan: illegal storage_paths entry ${JSON.stringify(p)} — pathspecs are relative, never ".", "..", or absolute`);
           }
         }
-        const { execFileSync } = require('child_process');
-        const stageable = ['.workflows/manifest.json', ...declared].filter((p) => {
-          if (fs.existsSync(path.join(cwd, p))) return true;
-          try {
-            return execFileSync('git', ['ls-files', '--', p], { cwd, encoding: 'utf8' }).trim() !== '';
-          } catch {
-            return false;
-          }
-        });
-        scope = [scope, ...stageable];
+        scope = [scope, ...stageableSpecs(cwd, ['.workflows/manifest.json', ...declared])];
       }
     }
     const committed = commitScopedWithKb(cwd, scope, message);
@@ -881,6 +1053,9 @@ function runCli(argv) {
       break;
     case 'topic':
       runTopic(rest);
+      break;
+    case 'presence':
+      runPresence(rest);
       break;
     case 'task':
       runTask(rest);

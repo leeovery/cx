@@ -6,11 +6,13 @@
 
 ## A. Background Agents
 
-Two types of background agent operate during research. Load their lifecycle instructions now — apply them at the appropriate moments during the session loop.
+Two types of background agent operate during research, and the topic's triage queue surfaces through a third protocol file. Load their instructions now — they run at the appropriate moments during the session loop.
 
 → Load **[review-agent.md](review-agent.md)** and follow its instructions as written.
 
 → Load **[deep-dive-agent.md](deep-dive-agent.md)** and follow its instructions as written.
+
+→ Load **[rerouted-concerns.md](../../workflow-shared/references/rerouted-concerns.md)** with work_unit = `{work_unit}`, topic = `{topic}`, phase = `research` — a protocol, not a step: the session loop's triage check enters its **A. Check**; nothing runs at load time.
 
 ---
 
@@ -47,7 +49,7 @@ When a concern surfaces that belongs to a *different* topic — raised in conver
    node .claude/skills/workflow-discovery/scripts/gateway.cjs {work_unit}
    ```
 
-   Resolve the target. If one topic clearly matches, propose it and confirm with the user. If nothing fits, propose a new kebab-case name and confirm. If several plausible candidates exist — or a near-match you're unsure of — present them and let the user choose:
+   Resolve the target, and judge `landing_phase` from the concern's nature: an open question needing exploration → `research`; a decision needing making → `discussion`. If one topic clearly matches, propose it — with the recommended phase — and confirm with the user (their reply may override the phase). If nothing fits, propose a new kebab-case name and confirm. If several plausible candidates exist — or a near-match you're unsure of — present them and let the user choose:
 
    > *Output the next fenced block as markdown (not a code block):*
 
@@ -58,22 +60,20 @@ When a concern surfaces that belongs to a *different* topic — raised in conver
    - **`1`** — {candidate} [{state}]
    - **`2`** — {candidate} [{state}]
    - **`n`/`new`** — Create a new topic for it
+
+   It reads as {concern_nature:[an open question — I'd land it research-side|a decision to make — I'd land it discussion-side]}. Reply with an option, appending a phase to override (e.g. `1 discussion`).
    · · · · · · · · · · · ·
    ```
 
    **STOP.** Wait for user response.
 
-   A chosen candidate is the target; `new` means propose a kebab-case name and confirm it. If the resolved target is the current topic, it's not a reroute — fold it into this research file as a thread and → Return to **B. Session Loop**.
+   A chosen candidate is the target; `new` means propose a kebab-case name and confirm it. A phase appended to the selection overrides `landing_phase`. If the resolved target is the current topic, it's not a reroute — fold it into this research file as a thread and → Return to **B. Session Loop**.
 
 2. Record the concern with the full context discussed about it as `concern` — the target topic picks it up cold.
 
-3. Load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{target}`, concern = `{concern}`, origin = `{topic}`, phase = `research`, date = `{today}`. If `result` is `cancelled`, nothing landed — → Return to **B. Session Loop**. Otherwise the concern landed in `{landed_topic}`'s `## Triage`.
+3. Load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{target}`, concern = `{concern}`, origin = `{topic}`, phase = `research`, landing_phase = `{landing_phase}`, date = `{today}`. If `result` is `cancelled`, nothing landed — → Return to **B. Session Loop**. Otherwise the concern landed in `{landed_topic}`'s `{landing_phase}` triage queue — the delivery committed itself.
 
-4. Commit:
-
-   ```bash
-   node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "research({work_unit}/{topic}): reroute concern to {landed_topic}"
-   ```
+   **If the response carried `reconcile_flagged`:** also tell the user `{landed_topic}`'s completed discussion is flagged to reconcile against the reopened research.
 
 → Return to **B. Session Loop**.
 

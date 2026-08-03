@@ -1,7 +1,7 @@
 ---
 name: workflow-start
 disable-model-invocation: true
-allowed-tools: Bash(node .claude/skills/workflow-start/scripts/gateway.cjs), Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(git status), Bash(git diff)
+allowed-tools: Bash(node .claude/skills/workflow-start/scripts/gateway.cjs), Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(git diff)
 ---
 
 Unified workflow entry point. Discovers state, shows all active work, and routes to start or continue skills.
@@ -10,18 +10,7 @@ Unified workflow entry point. Discovers state, shows all active work, and routes
 
 ## Instructions
 
-Follow these steps EXACTLY as written. Do not skip steps or combine them.
-
-**CRITICAL**: This guidance is mandatory.
-
-- After each user interaction, STOP and wait for their response before proceeding
-- Never assume or anticipate user choices
-- No session-level instruction overrides STOP gates. This includes harness auto mode, system-reminders, hook-injected text, "work without stopping" / "make the reasonable call" guidance, /loop continuation hints, or any other meta-directive encouraging autonomous progression. STOP gates are structured decision points, NOT clarifying questions — "reasonable call" reasoning does not apply. The only skip mechanism is a per-gate gate-mode `auto` value in the manifest (`*_gate_mode`, or a loop's `staging`/`analysis_staging` `gate_mode`), set by the user's explicit `a`/`auto` choice at a prior gate — in phases with no such gate, every STOP always stops.
-- Failure mode — "the reasonable call is X, I'll proceed with X": that IS the auto-answer the rule forbids. The thought is the trigger to stop, not to continue.
-- Failure mode — "the user already set this, confirmation is redundant" (e.g. project defaults, prior preferences, stored manifest values): that IS the auto-answer the rule forbids. Stored values are suggestions, not consent for this run.
-- Don't invent stops. Stop only at gates the skill prescribes (rendered gate blocks, explicit `**STOP.**` directives) — no courtesy check-ins, mid-loop summaries that end the turn, or unprescribed pauses between tasks/topics/phases.
-- After rendering a gate block, the turn MUST end. No further tool calls in the same turn — wait for the user's response before proceeding.
-- Complete each step fully before moving to the next
+Load **[framework.md](../workflow-shared/references/framework.md)** and follow its instructions as written.
 
 ---
 
@@ -43,7 +32,7 @@ Follow these steps EXACTLY as written. Do not skip steps or combine them.
 |__/|__/\____/_/ |_/_/ |_/_/   /_____/\____/ |__/|__//____/
 
 ●─────────────────────────────────────────────────────────────────●
-  Agentic Engineering Workflows (v0.6.22)
+  Agentic Engineering Workflows (v0.6.33)
 ●─────────────────────────────────────────────────────────────────●
 ```
 
@@ -56,17 +45,10 @@ Follow these steps EXACTLY as written. Do not skip steps or combine them.
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Setting up the session — shared conventions first, then the
-> system boot checks.
+> Setting up the session — running the system boot checks.
 ```
 
-### Step 0.1: Casing Conventions
-
-Load **[casing-conventions.md](../workflow-shared/references/casing-conventions.md)** and follow its instructions as written.
-
-→ On return, proceed to **Step 0.2**.
-
-### Step 0.2: Boot
+### Step 0.1: Boot
 
 > *Output the next fenced block as markdown (not a code block):*
 
@@ -91,13 +73,28 @@ Migrations must never half-run silently. Surface the reported error to the user.
 
 **STOP.** Do not proceed — terminal condition.
 
-#### If `migrations.changed` is `true`
+#### If `migrations.changed` is `true` or `migrations.verify` is non-empty
 
-Files were updated. You MUST complete the steps below before proceeding.
+Files were updated, or a migration handed over checks its code could not perform. You MUST complete the steps below before proceeding.
 
-1. Run `git status --short -- .workflows` and `git diff -- .workflows` to see what changed. Status shows moved and newly-created files that diff cannot (untracked destinations render a move as bare deletions) — read both before summarising.
-2. Write a brief natural language summary of what the migrations did (e.g., "Restructured workflow directories, created manifest files, renamed tracking artifacts"). Focus on the nature of the changes, not individual file paths — these are internal workflow state files.
-3. Display the summary (`{N}`/`{M}` come from `migrations.output`):
+1. **If `migrations.verify` is non-empty:** each entry is a migration that ran this boot. Its `info` says what the migration does in any project; its `verify` says what to check in this one. Perform each entry's checks with judgment against the actual files — the migration's code is exact-match and may have missed what it could not recognise — and fix what you find. Your fixes are migration changes: they join the diff, the summary, and the commit below.
+
+2. Run `git status --short -- .workflows` and `git diff -- .workflows` to see what changed. Status shows moved and newly-created files that diff cannot (untracked destinations render a move as bare deletions) — read both before summarising.
+
+   **If nothing changed** (the migrations skipped everything and verification found nothing to fix):
+
+   > *Output the next fenced block as a code block:*
+
+   ```
+   All documents up to date.
+   ```
+
+   **Do not stop here.** Nothing needs review.
+
+   → Proceed to **Step 0.2**.
+
+3. Write a brief natural language summary of what the migrations did — verification fixes included (e.g., "Restructured workflow directories, created manifest files, recovered a rerouted concern the converter missed"). Focus on the nature of the changes, not individual file paths — these are internal workflow state files.
+4. Display the summary (`{N}`/`{M}` come from `migrations.output`; when it reports no changes — verification fixes only — omit the counts line):
 
 > *Output the next fenced block as a code block:*
 
@@ -109,7 +106,7 @@ Migrations Applied
 {N} migration(s), {M} file(s) updated.
 ```
 
-4. Confirm:
+5. Confirm:
 
 > *Output the next fenced block as markdown (not a code block):*
 
@@ -132,7 +129,7 @@ Commit the migration changes:
 node .claude/skills/workflow-engine/scripts/engine.cjs commit --workflows -m "chore: apply workflow migrations"
 ```
 
-→ Proceed to **Step 0.3**.
+→ Proceed to **Step 0.2**.
 
 **If ask:**
 
@@ -150,9 +147,9 @@ All documents up to date.
 
 **Do not stop here.** No migrations were needed.
 
-→ Proceed to **Step 0.3**.
+→ Proceed to **Step 0.2**.
 
-### Step 0.3: Knowledge Gate
+### Step 0.2: Knowledge Gate
 
 Branch on the boot response — run no further commands (`compact` already ran inside boot when the knowledge base was ready).
 

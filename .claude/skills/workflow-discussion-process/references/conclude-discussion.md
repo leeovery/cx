@@ -4,22 +4,23 @@
 
 ---
 
-When the discussion session returns here (either through natural convergence or user-initiated conclusion), first check the `## Triage` section of `.workflows/{work_unit}/discussion/{topic}.md`.
+When the discussion session returns here (either through natural convergence or user-initiated conclusion), first check the topic's triage queue:
 
-**If `## Triage` is not `(none)`:**
-
-A concern was rerouted into this topic after drain ran this session. It must be folded before concluding.
-
-> *Output the next fenced block as a code block:*
-
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs topic queue {work_unit} discussion {topic}
 ```
-  ⚑ Triage not empty — {N} rerouted concern(s) awaiting fold.
-    Returning to the session to drain and explore them before concluding.
+
+**If `count` is non-zero:**
+
+A rerouted concern is still queued — it must be discussed and folded before concluding. Render the blocker and emit its `DISPLAY: triage block` section verbatim as a code block:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render triage-block {work_unit}.discussion.{topic}
 ```
 
 → Return to **[the skill](../SKILL.md)** for **Step 5**.
 
-**If `## Triage` is `(none)`:**
+**If `count` is `0`:**
 
 > *Output the next fenced block as markdown (not a code block):*
 
@@ -43,16 +44,27 @@ Conclude this discussion and mark as completed?
    ```
 3. Final commit:
    ```bash
-   node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "discussion({work_unit}): complete {topic} discussion"
+   node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} --topic discussion/{topic} --kb -m "discussion({work_unit}): complete {topic} discussion"
    ```
 
-Emit the `complete` response's `DISPLAY: kb warning` section when present, verbatim per its marker — the warning never blocks.
+   Emit the `complete` response's `DISPLAY: kb warning` section when present, verbatim per its marker — the warning never blocks.
 
-4. Closing recap:
+4. Clear this session's presence and sweep for leavings:
+
+   ```bash
+   node .claude/skills/workflow-engine/scripts/engine.cjs presence clear {work_unit} discussion {topic}
+   git status --porcelain -- .workflows
+   ```
+
+   **If dirt remains under another topic's paths:** run `node .claude/skills/workflow-engine/scripts/engine.cjs presence scan {work_unit}`. Dirt under a `live` row's topic belongs to that session — leave it. For each dirty topic with no live presence — a crashed session's leavings — commit it action-scoped: `node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} --topic {phase}/{dirty_topic} -m "chore({work_unit}/{dirty_topic}): sweep session leavings"`.
+
+   **Otherwise:** nothing to sweep — continue.
+
+5. Closing recap:
 
    → Load **[closing-recap.md](../../workflow-shared/references/closing-recap.md)** with phase = `discussion`, work_unit = `{work_unit}`, topic = `{topic}`.
 
-5. Hand off to the pipeline bridge:
+6. Hand off to the pipeline bridge:
 
 > *Output the next fenced block as markdown (not a code block):*
 
