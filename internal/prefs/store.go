@@ -121,10 +121,40 @@ func parseAppearance(s string) Appearance {
 
 // prefsFile is the on-disk JSON structure for prefs.json. Each preference is an
 // independent field; a missing field decodes to the empty string, which the
-// per-field parsers collapse to their default (tolerant decode).
+// per-field parsers collapse to their default (tolerant decode). Empty values are
+// omitted on write, so a key the user has never set is absent from the file rather
+// than present-and-empty — which keeps a hand-edited file clean and lets an older
+// binary read an absent appearance as absent rather than as an empty string.
+// session_list_mode is exempt: it always marshals one of three canonical non-empty
+// tokens, so omitempty would be inert there.
+//
+// theme_migrated (the one-shot appearance-translation gate) is deliberately NOT
+// declared yet: nothing writes the marker until Phase 6, which declares the field
+// before its first writer exists, so no on-disk marker can be dropped in the interim.
 type prefsFile struct {
 	SessionListMode string `json:"session_list_mode"`
-	Appearance      string `json:"appearance"`
+	// Appearance is a plain string that is read and preserved, NEVER parsed — the
+	// Appearance enum, parseAppearance, LoadAppearance and SaveAppearance die with
+	// their last caller, but this slot in the file stays so a downgraded binary
+	// still honours the user's pin (spec §8.8, §10.4). Do not delete the field:
+	// prefs.json decodes into this plain struct, so any key not declared here is
+	// dropped on re-encode — and every writer re-encodes the whole file, so the
+	// first `s` keypress after upgrade would silently erase the pin, invisible
+	// until the user downgrades.
+	Appearance string `json:"appearance,omitempty"`
+	Theme      string `json:"theme,omitempty"`
+	ThemeLight string `json:"theme_light,omitempty"`
+	ThemeDark  string `json:"theme_dark,omitempty"`
+}
+
+// ThemeKeys carries the three raw theme slugs persisted in prefs.json: a constant
+// Theme, or the adaptive Light/Dark pair. The values are exactly what is on disk —
+// interpreting them (validation, defaulting, the theme-wins tiebreak) belongs to the
+// resolver, not to this store.
+type ThemeKeys struct {
+	Theme string
+	Light string
+	Dark  string
 }
 
 // Store manages persistence of UI preferences to a JSON file.
@@ -191,6 +221,26 @@ func (s *Store) LoadAppearance() (Appearance, error) {
 		return AppearanceAuto, err
 	}
 	return parseAppearance(f.Appearance), nil
+}
+
+// LoadThemeKeys reads the three raw theme slugs from prefs.json.
+//
+// It applies the exact same tolerant policy as Load: a missing file, an empty or
+// corrupt/unparseable file, and any missing key all yield zero-valued strings with
+// no error. Only a non-ErrNotExist read error is propagated, alongside a zero
+// ThemeKeys.
+//
+// It performs NO interpretation of the values it returns: no slug-charset check, no
+// trimming, no lowercasing, no default substitution and no theme-wins tiebreak. An
+// unrecognised value is a resolution problem, not a decode one — and trimming would
+// convert a stray-space value into a silently-different slug instead of the honest
+// `bad name` rejection the charset check owes the user.
+func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
+	f, _, err := s.readFile()
+	if err != nil {
+		return ThemeKeys{}, err
+	}
+	return ThemeKeys{Theme: f.Theme, Light: f.ThemeLight, Dark: f.ThemeDark}, nil
 }
 
 // Save persists the given mode to prefs.json via AtomicWrite (temp file +
