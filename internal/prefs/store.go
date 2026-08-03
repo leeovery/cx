@@ -123,6 +123,15 @@ func NewStore(path string) *Store {
 // read error is propagated, alongside the zero prefsFile. The bool reports whether
 // the file existed and decoded cleanly — callers that read-modify-write use it to
 // avoid clobbering a sibling field's value with a default when the file is present.
+//
+// This is the LOAD-path decode and it is not usable on the write path. prefs.json
+// has two decodes and they must differ (spec §8.9): reading is tolerant per §8.1 —
+// missing, empty or unrecognised falls to the shipped default per field — while the
+// write-path re-read (readFileStrict) judges syntax and aborts. Routing a writer
+// through here would remove the abort's only trigger: a stray comma collapses to a
+// zero-valued record with no error, so the writer merges into an empty struct and
+// commits it, erasing session_list_mode, every theme key and the retained raw
+// appearance in one keypress. Neither function may do the other's job.
 func (s *Store) readFile() (prefsFile, bool, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
@@ -142,12 +151,95 @@ func (s *Store) readFile() (prefsFile, bool, error) {
 	return f, true, nil
 }
 
+// readFileStrict reads and decodes prefs.json with the WRITE-path policy: it is
+// the read half of every read-modify-write in this store, and it judges syntax so
+// a writer never merges into a record the file does not actually contain.
+//
+// Its three outcomes are the two conditions §8.9 discriminates, plus the ordinary
+// one:
+//
+//   - Absent file — returns (zero prefsFile, false, nil). There is nothing to
+//     merge and nothing to lose, so the caller proceeds and CREATES the file. This
+//     is the ordinary first write: a fresh install has no prefs.json at all, so a
+//     brand-new user's first keypress is the most common write in the product, and
+//     an abort here would be permanent because nothing else creates the file.
+//   - Present but unusable — malformed JSON, or any non-ErrNotExist read failure —
+//     returns the error verbatim so the caller aborts with the on-disk bytes
+//     untouched. A write never becomes an overwrite.
+//   - Present and decodable — returns (record, true, nil).
+//
+// It judges SYNTAX only. Unrecognised VALUES in syntactically valid JSON are
+// absorbed exactly as the load path absorbs them (§8.1); treating them as fatal
+// would make hand-editing prefs.json a way to lock yourself out of every write.
+//
+// The one subtlety is the *json.UnmarshalTypeError carve-out, and the
+// discriminator is `Field != ""` rather than the error type alone:
+//
+//   - Field non-empty — a wrong TYPE on a declared field. encoding/json skips just
+//     that field (it keeps its zero value) and still populates every other one, so
+//     the decoded record is complete enough to merge into and the write proceeds.
+//     The offending value is normalised away on re-encode, which is §8.1's tolerant
+//     absorption, not a loss this rule is meant to catch.
+//   - Field empty — a TOP-LEVEL type mismatch (`[1,2]`, `"x"`, `3` as the whole
+//     document). That yields the same error type but a wholly zero-valued struct,
+//     so absorbing it would merge into an empty record and commit it — the exact
+//     destruction this decode exists to prevent. It aborts.
+func (s *Store) readFileStrict() (prefsFile, bool, error) {
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return prefsFile{}, false, nil
+		}
+		return prefsFile{}, false, err
+	}
+
+	var f prefsFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			return f, true, nil
+		}
+		return prefsFile{}, false, err
+	}
+
+	return f, true, nil
+}
+
+// mutate performs the write-path read-modify-write every save method in this
+// store routes through: strict re-read immediately before the write, apply fn to
+// the decoded record, write the merged result through AtomicWrite.
+//
+// The re-read happens immediately before the write, not at load. A stale
+// in-memory snapshot is what silently reverts another instance's commit, and
+// AtomicWrite does not help because that is a lost update, not a partial write
+// (§8.9).
+//
+// fn receives whether the file existed — the marker write needs it, since §8.1
+// bars recording a migration marker in a file that does not exist — and returns
+// false to skip the write entirely: no bytes touched, no error. A readFileStrict
+// error is returned verbatim and nothing is written; prefs is a leaf with no
+// logging, so an abort is reported BY RETURNING and the caller decides
+// non-fatality.
+func (s *Store) mutate(fn func(f *prefsFile, existed bool) bool) error {
+	f, existed, err := s.readFileStrict()
+	if err != nil {
+		return err
+	}
+	if !fn(&f, existed) {
+		return nil
+	}
+	return s.write(f)
+}
+
 // Load reads the persisted session list mode from prefs.json.
 //
 // Every degenerate input collapses to ModeFlat with no hard error: a missing
 // file (the normal first-run state), an empty or corrupt/unparseable file, and
 // an unrecognised session_list_mode value all return (ModeFlat, nil). Only a
 // non-ErrNotExist read error is propagated, alongside ModeFlat.
+//
+// This is a LOAD, so it stays on the tolerant readFile and is unaffected by the
+// write path's strict decode — see readFile.
 func (s *Store) Load() (SessionListMode, error) {
 	f, _, err := s.readFile()
 	if err != nil {
@@ -168,6 +260,9 @@ func (s *Store) Load() (SessionListMode, error) {
 // unrecognised value is a resolution problem, not a decode one — and trimming would
 // convert a stray-space value into a silently-different slug instead of the honest
 // `bad name` rejection the charset check owes the user.
+//
+// This is a LOAD, so it stays on the tolerant readFile and is unaffected by the
+// write path's strict decode — see readFile.
 func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
 	f, _, err := s.readFile()
 	if err != nil {
@@ -176,20 +271,24 @@ func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
 	return ThemeKeys{Theme: f.Theme, Light: f.ThemeLight, Dark: f.ThemeDark}, nil
 }
 
-// Save persists the given mode to prefs.json via AtomicWrite (temp file +
-// rename). It read-modify-writes so a previously-persisted appearance is preserved
-// rather than blanked. The AtomicWrite error is returned verbatim so the caller
-// decides non-fatality. A non-ErrNotExist read error during the read phase is
-// propagated rather than silently overwriting an unreadable-but-present file.
+// Save persists the given mode to prefs.json, read-modify-writing through mutate
+// so every other key — the retained raw appearance and the three theme slugs —
+// survives untouched, and so the whole record lands in one AtomicWrite.
+//
+// DELIBERATE BEHAVIOUR CHANGE: a malformed prefs.json now ABORTS this write
+// instead of silently overwriting it. Previously the tolerant decode turned a
+// stray comma into a zero-valued record and this method committed that, erasing
+// every key the user had set. It is under the same rule as the theme savers
+// because it is the same file and the same destruction — and it is the writer
+// most likely to fire, being one keypress in the picker. The caller
+// (internal/tui/model.go's `_ = m.modePersister.Save(...)`) already swallows the
+// error, so the failure is non-fatal AND, now, non-destructive: the user loses a
+// grouping-mode persist, not their theme.
 func (s *Store) Save(mode SessionListMode) error {
-	// The readFile "file existed" bool is intentionally unused here: the fresh
-	// re-read IS the read-modify-write preservation mechanism.
-	f, _, err := s.readFile()
-	if err != nil {
-		return err
-	}
-	f.SessionListMode = mode.String()
-	return s.write(f)
+	return s.mutate(func(f *prefsFile, _ bool) bool {
+		f.SessionListMode = mode.String()
+		return true
+	})
 }
 
 // write marshals the prefsFile and commits it via AtomicWrite (temp file + rename).
