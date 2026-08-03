@@ -688,6 +688,12 @@ type tuiConfig struct {
 	// test config that does not care about theming carries.
 	theme         theme.Nomination
 	modePersister tui.ModePersister
+	// themePersister is §8.9's theme-commit seam — the cmd-owned persister, never
+	// the store itself (whose savers deliberately do not satisfy the interface, so
+	// the single `theme: commit failed` emission site cannot be bypassed). Wired
+	// only when the prefs store loaded; nil leaves the panel's commit unwired,
+	// which is what a fixture / capturetool model carries.
+	themePersister tui.ThemePersister
 	// detector + resolve are the §6 async host-terminal detection seams. Built
 	// once at TUI construction (detector over the shared *tmux.Client; resolve from
 	// the config-aware buildResolver, terminals.json loaded once) and threaded into
@@ -823,6 +829,7 @@ func buildTUIModel(cfg tuiConfig, initialFilter string, command []string) tui.Mo
 		DirReader:        cfg.dirReader,
 		DirRunner:        cfg.dirRunner,
 		ModePersister:    cfg.modePersister,
+		ThemePersister:   cfg.themePersister,
 		CWD:              cfg.cwd,
 		InitialMode:      cfg.initialMode,
 		Theme:            cfg.theme,
@@ -1040,11 +1047,15 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	if pipe != nil {
 		cfg.progressReceiver = pipe.receiver()
 	}
-	// Guard the persister assignment: a typed-nil *prefs.Store boxed into the
+	// Guard the persister assignments: a typed-nil *prefs.Store boxed into the
 	// tui.ModePersister interface would be non-nil, defeating buildTUIModel's nil
-	// check. Only wire the persister when the store actually loaded.
+	// check — and the theme persister, which WRAPS that store, would be a
+	// live-looking seam whose every write panics on the nil store inside it. Only
+	// wire them when the store actually loaded; both ride the one store instance
+	// read once per process (§8.9).
 	if prefsStore != nil {
 		cfg.modePersister = prefsStore
+		cfg.themePersister = newThemePersister(prefsStore)
 	}
 
 	if tmux.InsideTmux() {

@@ -46,6 +46,11 @@ type Deps struct {
 	DirReader       session.PaneCurrentPathReader
 	DirRunner       resolver.CommandRunner
 	ModePersister   ModePersister
+	// ThemePersister is §8.9's theme-commit seam. Production (cmd/open.go) passes
+	// its own cmd-owned persister — the single emission site for
+	// `theme: commit failed` — and the offline capture harness passes none, so a
+	// commit during a capture writes nowhere, exactly as ModePersister behaves.
+	ThemePersister ThemePersister
 	// Detector + Resolve are the async host-terminal detection seams (§6). Both are
 	// injected together by cmd/open.go (Detector = spawn.NewDetector(client), Resolve
 	// = the config-aware resolver's Resolve, loaded once from terminals.json) and
@@ -205,6 +210,9 @@ func Build(deps Deps) Model {
 	opts = append(opts, WithColourless(deps.NoColor))
 	if deps.ModePersister != nil {
 		opts = append(opts, WithModePersister(deps.ModePersister))
+	}
+	if deps.ThemePersister != nil {
+		opts = append(opts, WithThemePersister(deps.ThemePersister))
 	}
 	// Async host-terminal detection seams (§6). Always injected via nil-tolerant
 	// options — a nil Detector/Resolve leaves detection unwired, mirroring the

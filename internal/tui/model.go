@@ -93,6 +93,24 @@ type ModePersister interface {
 	Save(prefs.SessionListMode) error
 }
 
+// ThemePersister commits the theme panel's choice (§8.9). Unlike ModePersister
+// the production implementation is NOT *prefs.Store: cmd owns the write so it can
+// resolve the prefs path and emit `theme: commit failed` from a single site — the
+// model holds the seam and logs nothing.
+//
+// The method names differ from the store's savers deliberately, so *prefs.Store
+// cannot accidentally satisfy this interface and silently drop that emission.
+//
+// It RETURNS the error as well as having logged it: §9.13's outstanding-failure
+// state machine renders `⚠ couldn't save theme` from the value, so a persister
+// that only logged would recreate the silent "applied but not persisted" state.
+// The slot is the existing typed prefs.ThemeSlot, so the seam cannot mint a third
+// slot.
+type ThemePersister interface {
+	CommitTheme(slug string) error
+	CommitThemeSlot(slug string, slot prefs.ThemeSlot) error
+}
+
 // ProjectEditor defines the interface for renaming projects and mutating their
 // tag set. AddTag/RemoveTag take the raw tag value and delegate canonicalisation
 // and dedup to the store (Phase 1's project.Store.AddTag/RemoveTag); the modal
@@ -235,6 +253,12 @@ type Model struct {
 	projectIndex    project.Index
 	sessionListMode prefs.SessionListMode
 	modePersister   ModePersister
+	// themePersister is §8.9's commit seam, HELD and nothing more: the model
+	// neither logs nor retries, and Phase 9 owns the keypresses, the
+	// outstanding-failure state machine and its message. Nil is the ordinary
+	// unwired state (a fixture / capturetool model), so every call site must
+	// nil-guard exactly as the mode persister's does.
+	themePersister ThemePersister
 	// nomination is the LOADED theme setting injected at construction
 	// (WithThemeNomination) — one Theme under a constant, both under an adaptive
 	// pair (§8.4). It is the model's whole theme INPUT: it replaces the
@@ -866,6 +890,17 @@ func WithInitialMode(mode prefs.SessionListMode) Option {
 func WithModePersister(p ModePersister) Option {
 	return func(m *Model) {
 		m.modePersister = p
+	}
+}
+
+// WithThemePersister sets the theme-commit persister dependency (§8.9).
+// Production wiring passes cmd's own persister — never *prefs.Store, which
+// deliberately cannot satisfy the seam — and the offline capture harness omits
+// the option entirely, leaving themePersister nil so a commit during a capture
+// writes nowhere. It is the WithModePersister shape, line for line.
+func WithThemePersister(p ThemePersister) Option {
+	return func(m *Model) {
+		m.themePersister = p
 	}
 }
 
