@@ -380,7 +380,7 @@ func (l Loader) reportSlot(r SlotResolution) SlotResolution {
 // reportFallback is the RE-RESOLUTION cadence: the failure line alone, with no
 // `theme: loaded` behind it.
 //
-// It is the panel's reporter — the open-time re-resolution, task 8-10's `Esc` and
+// It is the panel's reporter — the open-time re-resolution, `Esc`'s close and
 // Phase 9's recompute all resolve the SAME persisted setting they were already
 // resolved for, so nothing was loaded that construction did not already report.
 // §12.3 pins that split explicitly on both sides: `theme: loaded` is catalogued

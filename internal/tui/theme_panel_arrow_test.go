@@ -204,14 +204,17 @@ func requireArrowPanelPageSize(t *testing.T, m Model, want int) {
 func arrowPanelIndex(m Model) int { return m.themePanel.list.Index() }
 
 // requireArrowUnskippedLandingAt pins where the panel's list lands the cursor with
-// NO skip applied — the fixture precondition every reversal case needs.
+// NO skip applied — the fixture precondition every skip case needs, since a landing
+// on a selectable row leaves no skip to exercise at all.
 //
-// A reversal necessarily ends where it began (there is no selectable row in the
-// direction of travel, so the only place to turn back to is the row the cursor was
-// already on), which makes "the cursor did not move" indistinguishable from "the
-// arrow was never routed". Driving the list directly says what the keypress would
-// have done unskipped: land on an unselectable row. `bubbles/list`'s Update has a
-// value receiver, so this observes without mutating the model.
+// AFTER A SINGLE-ROW STEP a reversal also ends where it began (there is no
+// selectable row in the direction of travel, so the only place to turn back to is
+// the row the cursor was already on), which makes "the cursor did not move"
+// indistinguishable from "the arrow was never routed"; a PAGE move jumps over rows
+// without checking them, so it can settle elsewhere and carries no such blindness.
+// Driving the list directly says what the keypress would have done unskipped: land
+// on an unselectable row. `bubbles/list`'s Update has a value receiver, so this
+// observes without mutating the model.
 func requireArrowUnskippedLandingAt(t *testing.T, m Model, press tea.KeyPressMsg, want int) {
 	t.Helper()
 	raw, _ := m.themePanel.list.Update(press)
@@ -447,9 +450,11 @@ func TestPanelArrow_SkipsConsecutiveInvalidRows(t *testing.T) {
 // parking on an invalid row or running off the end. Built-ins are always valid
 // (§7.6), so a selectable row always exists for it to turn back to.
 //
-// A REVERSAL NECESSARILY ENDS WHERE IT BEGAN — everything between the boundary and
-// the starting row was walked and found unselectable, so the row it turns back to
-// is the one the cursor was already on. "The cursor did not move" is therefore not
+// AFTER A SINGLE-ROW STEP — which is what both cases below take — A REVERSAL ENDS
+// WHERE IT BEGAN: everything between the boundary and the starting row was walked
+// and found unselectable, so the row it turns back to is the one the cursor was
+// already on. (A PAGE move jumps over rows without checking them, so its reversal
+// can settle on one of those instead.) "The cursor did not move" is therefore not
 // self-evidently a reversal, and each case pins it from both sides: the unskipped
 // landing (an unselectable row, so there IS a skip to run) and the opposite arrow
 // (which does move, so the arm is routed at all).

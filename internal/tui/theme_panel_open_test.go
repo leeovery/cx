@@ -162,7 +162,7 @@ func pressPanelKey(t *testing.T, m Model, msg tea.KeyPressMsg) Model {
 	return updated.(Model)
 }
 
-// closeThemePanelForTest drives the provisional `Esc` close through Update.
+// closeThemePanelForTest drives the `Esc` close (closeThemePanel) through Update.
 func closeThemePanelForTest(t *testing.T, m Model) Model {
 	t.Helper()
 	return pressPanelKey(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})

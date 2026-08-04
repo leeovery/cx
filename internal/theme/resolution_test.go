@@ -1164,7 +1164,7 @@ func TestResolveNominationFrom_UnresolvableFallbackErrors(t *testing.T) {
 // `theme: loaded` is a per-LOAD INFO whose catalogued cadence is TUI construction
 // plus the one commit-time load outside it. A panel open re-resolves the same
 // persisted setting against a fresher parse, and emitting there — on every open
-// and, from task 8-10, every `Esc` — would turn a per-load INFO into the running
+// and again on every `Esc` — would turn a per-load INFO into the running
 // commentary its neighbours dedup precisely to avoid.
 //
 // `theme: fallback applied` is the opposite case and is asserted alongside, or

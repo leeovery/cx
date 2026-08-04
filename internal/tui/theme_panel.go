@@ -119,8 +119,9 @@ type themePanel struct {
 	// enumeration is the ONE directory read, retained for the panel's lifetime
 	// (§5.8) so arrowing previews from values already in hand and §9.2's post-commit
 	// recompute re-derives with no fresh I/O. openThemePanel fills it and the
-	// open-time re-resolution reads it (applyThemePanelResolution); §9.2's commit
-	// recompute and task 8-10's `Esc` are its other readers.
+	// open-time re-resolution reads it (applyThemePanelResolution); `Esc`'s close
+	// re-resolves against it one last time before dropping it (closeThemePanel),
+	// and §9.2's commit recompute is its other reader.
 	enumeration theme.Enumeration
 
 	// union is §9.4's finished row set, already ordered and already carrying each
@@ -246,10 +247,66 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 	m.anchorThemePanelCursor(cursor)
 }
 
+// applyInForceTheme is §5.8's RE-RESOLUTION, and it is the whole of what the
+// panel's OPEN and its CLOSE have in common: the persisted setting taken from the
+// model's raw keys, resolved against the RETAINED enumeration, the one member in
+// force selected from the answer, and that member applied through
+// Model.ApplyTheme — the same production restyle path every other caller drives.
+//
+// THE DEGRADE POLICY BELOW IS STATED HERE RATHER THAN RESTATED at each site,
+// because it governs EVERY panel call site of Resolve — this open (§9.2),
+// `Esc`'s close (§5.8) and Phase 9's commit recompute — so the three cannot each
+// invent their own. THE BODY IS SHARED BY THE OPEN AND THE CLOSE ONLY: a commit
+// recomputes rows and badges and never the rendered theme (§11.1, §9.2), so it
+// takes the policy without taking the apply — routing it through here would swap
+// the screen off the preview the user is still looking at. Sharing the body
+// between the two that DO apply is also what makes the theme applied and the row
+// the open anchors come from ONE evaluation (see inForceSlot).
+//
+// IT RESOLVES AGAINST THE RETAINED PARSE AND NEVER THE FILESYSTEM (§8.4): a read
+// here would produce a THIRD parse of the same slug, neither construction's nor
+// the panel's, that can disagree with the rows the user is looking at. The
+// light/dark answer is likewise READ OFF THE MODEL rather than asked for again —
+// §8.8's gate resolves exactly once.
+//
+// THE ERROR POLICY. The only error Resolve can return is §7.6's fatal, from a
+// binary whose embedded set cannot supply a fallback, which the build-time
+// guarantee makes unreachable in a correctly built binary. The panel therefore
+// DEGRADES RATHER THAN ESCALATING: nothing is applied, the caller leaves the
+// state it holds exactly as it was, and nothing is written. A settings surface
+// must not become the route by which a broken binary quits Portal mid-session,
+// and §7.6 puts the fatal on the STARTUP path deliberately. A resolution naming
+// no slot at all takes the same path, for the same reason: it is a shape nothing
+// production can produce, and degrading is what keeps a fixture that returns one
+// from painting a colourless picker.
+//
+// THE SEAM IS ALWAYS LIVE HERE. openThemePanel's nil guard is what makes the
+// panel openable at all, so both callers — the open sequence and the close of an
+// open panel — run only where a seam that can be called was wired.
+//
+// A theme already painting the screen is skipped. ApplyTheme is idempotent per
+// swap, so that is explicitness rather than necessity — and it is what makes the
+// common close, where nothing changed, cost no restyle at all.
+func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.SlotResolution, bool) {
+	resolution, err := m.themeEnumerator.Resolve(e, m.themeSetting())
+	if err != nil {
+		return theme.Resolution{}, theme.SlotResolution{}, false
+	}
+	inForce, ok := inForceSlot(resolution, m.canvasMode)
+	if !ok {
+		return theme.Resolution{}, theme.SlotResolution{}, false
+	}
+
+	if inForce.Theme != m.activeTheme {
+		m.ApplyTheme(inForce.Theme)
+	}
+	return resolution, inForce, true
+}
+
 // applyThemePanelResolution is §9.2's "the cursor lands on the theme that is
-// actually rendering": it re-resolves the persisted setting against the RETAINED
-// enumeration, refreshes the badge table from the answer, applies the in-force
-// theme, and hands back the row identity the cursor belongs on.
+// actually rendering": the re-resolution above, plus the two things only the OPEN
+// needs from it — the badge table refreshed from the answer, and the row identity
+// the cursor belongs on.
 //
 // THE RE-RESOLUTION IS THE POINT, and it is why opening is not a passive read.
 // §5.8 makes the panel's parse supersede the construction-time one, so this is
@@ -260,38 +317,17 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 // falls out of the same call: a theme that was broken at construction becomes
 // loadable the moment the user fixes the file, and this open applies THEIRS.
 //
-// THE ERROR POLICY IS PINNED HERE AND GOVERNS EVERY PANEL CALL SITE OF Resolve —
-// this open, task 8-10's `Esc` close and task 9-2's commit recompute, so the three
-// cannot each invent their own. The only error it can return is §7.6's fatal, from
-// a binary whose embedded set cannot supply a fallback, which task 2-8's
-// build-time guarantee makes unreachable in a correctly built binary. The panel
-// therefore DEGRADES RATHER THAN ESCALATING: badges, active theme and cursor are
-// left exactly as they were, the panel carries on with the union already in hand,
-// and nothing is written. A settings surface must not become the route by which a
-// broken binary quits Portal mid-session, and §7.6 puts the fatal on the STARTUP
-// path deliberately.
-//
-// A resolution naming no slot at all takes the same path, for the same reason: it
-// is a shape nothing production can produce, and degrading is what keeps a fixture
-// that returns one from painting a colourless picker.
-//
 // The empty string is the degrade path's identity, which anchorThemePanelCursor
 // reads as "leave the cursor where it is". It is unambiguous: §5.2's anchored
 // charset makes an empty slug illegal, so a resolved slot can never carry one.
+// Badges are left untouched on that path for the same reason the theme is.
 func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
-	resolution, err := m.themeEnumerator.Resolve(e, m.themeSetting())
-	if err != nil {
-		return ""
-	}
-	inForce, ok := inForceSlot(resolution, m.canvasMode)
+	resolution, inForce, ok := m.applyInForceTheme(e)
 	if !ok {
 		return ""
 	}
 
 	m.themePanel.badges = theme.Badges(resolution.Slots)
-	if inForce.Theme != m.activeTheme {
-		m.ApplyTheme(inForce.Theme)
-	}
 	return inForce.Resolved
 }
 
@@ -386,13 +422,60 @@ func themePanelRowIndex(rows []theme.Row, slug string) int {
 	return max(slices.IndexFunc(rows, theme.Row.Selectable), 0)
 }
 
-// closeThemePanel drops the panel and everything it retained, so the next open
-// RE-READS (§5.8) rather than replaying a stale parse.
+// closeThemePanel is §9.2's `Esc`: it discards an uncommitted preview, renders
+// the RESOLVED PERSISTED STATE, and then drops everything the panel retained so
+// the next open RE-READS (§5.8) rather than replaying a stale parse.
 //
-// Zeroing the whole struct is the point rather than a shortcut: the enumeration,
-// the union, the badge table and the list are one lifetime, and clearing a subset
-// is how a panel comes to show rows from one read and badges from another.
+// IT DOES NOT RESTORE A THEME SNAPSHOTTED AT OPEN. That is the naive
+// implementation, it is wrong in BOTH directions, and it must not be "simplified"
+// back into one:
+//
+//   - BACKWARDS — a user who broke their active theme's file mid-session would be
+//     handed back a palette the config no longer yields. §5.8 is explicit: Portal
+//     shows what the config NOW says, not a stale copy it happens to still hold,
+//     so a close lands on §8.5's fallback exactly as the open did.
+//   - FORWARDS — a Phase 9 commit writes prefs and leaves the panel OPEN, so an
+//     `Esc` AFTER one must resolve to the NEWLY persisted state (§9.2). `Esc`
+//     equals "what you had before" only when nothing was committed, which is why
+//     the mechanism has to be re-resolution from the start rather than a snapshot
+//     that happens to agree today.
+//
+// §11.1 names this the caller that MATTERS MOST: a missed re-point here leaves a
+// preview the user explicitly discarded painting the main screen, with no surface
+// left open to explain it — and §13.4's completeness guard drives the
+// arrow-preview entry point only.
+//
+// THE ORDER IS LOAD-BEARING: the resolution reads the retained enumeration, so
+// the DISCARD IS LAST. Zeroing the whole struct is the point rather than a
+// shortcut — the enumeration, the union, the badge table, the message and the
+// list are one lifetime, and clearing a subset is how a panel comes to show rows
+// from one read and badges from another.
+//
+// THE PAGE BENEATH NEEDS NO RE-LAYOUT, BECAUSE IT WAS NEVER REDUCED ON OPEN.
+// overlayThemePanel composites over a base composed at the UNREDUCED content
+// width, so there is no frame to reclaim here. That is stated as a NEGATIVE
+// deliberately: a reader who "completes" the close with a reclaim step is one
+// step from adding the open-time reduction that would justify it, which reflows
+// the surface being previewed and falsifies both §9.1's cut-mid-label cost and
+// the panel's Projects fixture. A notice band raised or cleared while the panel
+// was open is already handled on its own path — resyncSessionLayout on Sessions,
+// and on Projects the projectBandHeight reserve inside applyProjectListSize;
+// closing adds nothing to either.
+//
+// NOTHING IS WRITTEN — no prefs write, no tmux option, no file. Every write is an
+// explicit keypress (§9.2), which is what eliminates the "applied but not
+// persisted" state persist-on-close would reach, where Portal dies with the
+// visually-applied theme never written. And closing is ONE FRAME: no animation,
+// no transition, no intermediate width.
+//
+// THE POST-CLOSE STEP BELONGS TO THE CALLER, and this is the ONE close every
+// caller routes through. §9.8's forced close calls it and then raises its flash;
+// Phase 9's `⚠ theme not saved` line and its outstanding-failure discharge attach
+// the same way. Neither forks the path — a second close implementation is exactly
+// what "a forced close takes the `Esc` path exactly" forbids, since two of them
+// can drift.
 func (m *Model) closeThemePanel() {
+	m.applyInForceTheme(m.themePanel.enumeration)
 	m.themePanel = themePanel{}
 }
 
@@ -532,10 +615,12 @@ func (m *Model) applyThemePanelCanvasMode() {
 // second literal key list here. A key the keymap does not bind cannot match, so
 // there is nothing to keep the two in step.
 //
-// THE `Esc` BODY HERE IS PROVISIONAL. Task 8-10 replaces it with the
-// re-resolution close and is the real close path; a bare state clear discards
-// whatever the arrows previewed, which is the right SHAPE but resolves nothing
-// back. Task 8-13 owns the entry conditions and the blocked-`t` flashes.
+// `Esc` IS THE ONLY WAY OUT (§9.2 — `Enter` deliberately does not close), and it
+// routes to closeThemePanel, which re-resolves persisted state before dropping
+// what the panel retained. It is consumed HERE and never reaches the page
+// beneath, where it is the progressive-back key: closing must not clear an
+// applied filter, must not exit multi-select, and must not quit. Task 8-13 owns
+// the entry conditions and the blocked-`t` flashes.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyIsCtrlC(msg):
@@ -604,8 +689,14 @@ func (m *Model) moveThemePanelCursor(msg tea.KeyPressMsg) tea.Cmd {
 //   - IT REVERSES rather than falling off. skipHeaderRow flips an upward intent to
 //     a downward step only at index 0; here either end can be reached with no
 //     selectable row in the direction of travel, so the loop turns round at
-//     whichever boundary it hits. A reversal necessarily ends on the row the cursor
-//     started from — everything between was walked and rejected.
+//     whichever boundary it hits and settles on the NEAREST selectable row back
+//     along the way it came. After a single-row step that is the row the cursor
+//     started from, since everything between was walked and rejected — but after a
+//     PAGE move it need not be, because the page jumps OVER rows without checking
+//     them: on `[V,V,I,I]` at PerPage=2, `Ctrl+↓` from index 0 lands on 2, walks
+//     down to 3, reverses, and settles on 1, one row FORWARD of the start. The
+//     nearest selectable row is the right answer in both, and the 2×N bound below
+//     covers the longer walk either way.
 //
 // THE BOUND IS TWICE THE ROW COUNT, and the doubling is the reversal's: the walk
 // can reach a boundary and then retrace the whole span it just covered. Built-ins
@@ -644,9 +735,11 @@ func (m *Model) skipUnselectableThemeRow(msg tea.KeyPressMsg) {
 // is what keeps the swap the O(1) restyle of §11.1: there is nothing here to read.
 //
 // A row already painting the screen is skipped, so an arrow that could not move —
-// or a reversal that turned back — costs no restyle at all. Swapping to the active
-// theme is a legal no-op in any case (ApplyTheme is idempotent per swap); skipping
-// it makes that explicit rather than incidental.
+// or a reversal that turned back to the row it started on — costs no restyle at all.
+// A PAGE reversal can settle on a DIFFERENT row than it began on, which is an
+// ordinary swap and is restyled as one. Swapping to the active theme is a legal
+// no-op in any case (ApplyTheme is idempotent per swap); skipping it makes that
+// explicit rather than incidental.
 //
 // An unselectable row is never previewed: it carries no palette, and the skip above
 // is what makes the case unreachable in production. Checking anyway is what keeps a

@@ -436,8 +436,11 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 // SETTINGS SURFACE MUST NOT BECOME THE ROUTE BY WHICH A BROKEN BINARY QUITS
 // PORTAL MID-SESSION. §7.6 puts the fatal on the startup path deliberately.
 //
-// ONE POLICY GOVERNS EVERY PANEL CALL SITE of `Resolve` — this open, task 8-10's
-// close and task 9-2's recompute — so none of the three invents its own.
+// ONE POLICY GOVERNS EVERY PANEL CALL SITE of `Resolve` — this open, `Esc`'s
+// close and task 9-2's recompute — so none of the three invents its own. It is
+// stated once on applyInForceTheme, whose body the open and the close route
+// through; the recompute takes the policy WITHOUT taking the apply, because a
+// commit recomputes rows and badges and never the rendered theme (§11.1, §9.2).
 //
 // The fake returns a FULLY POPULATED resolution alongside the error, so the
 // assertions are not vacuous: an open that ignored the error would badge `nord`,

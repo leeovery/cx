@@ -42,8 +42,8 @@ import (
 // filesystem, because a read here would produce a third parse of the same slug
 // that can disagree with the row the user is looking at (§8.4). Its error is
 // §7.6's fatal and the panel DEGRADES on it rather than escalating; see
-// Model.applyThemePanelResolution, which states that policy once for all three
-// panel call sites.
+// Model.applyInForceTheme, which states that policy once for all three panel
+// call sites.
 type ThemeEnumerator interface {
 	Open(keys theme.RawKeys) (theme.Enumeration, theme.Union)
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union
