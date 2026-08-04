@@ -209,7 +209,9 @@ func TestThemePanel_FooterSurvivesAtTheFloor(t *testing.T) {
 					return
 				}
 				slot := lines[len(lines)-len(wantFooter)-1]
-				want := panelFrameSide + themePanelLines(renderThemePanelMessage(message, inner, th, false))[0]
+				// The floor is the height at which §9.1 truncates rather than wraps, so
+				// the expected slot is the truncating render (task 8-11's rule).
+				want := panelFrameSide + themePanelLines(renderThemePanelMessage(message, inner, false, th, false))[0]
 				if got := strings.TrimRight(slot, " "); got != want {
 					t.Errorf("message slot = %q, want %q", got, want)
 				}
@@ -418,18 +420,24 @@ func TestThemePanel_DirRowFitsMinimumWidthUntruncated(t *testing.T) {
 // TestThemePanel_MessageSlotUnreservedWhenEmpty is §9.1's "not reserved when
 // empty": an empty message renders NOTHING and costs NO row of the panel's
 // vertical budget.
+//
+// The wrap flag (task 8-11's per-dimension rule) is passed both ways, because
+// "unreserved when empty" is a statement about the slot at every height — the
+// message-shortage rules govern a slot that HAS something in it.
 func TestThemePanel_MessageSlotUnreservedWhenEmpty(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
 
-	if got := renderThemePanelMessage("", inner, th, false); got != "" {
-		t.Errorf("an empty message rendered %q, want the empty string", got)
-	}
-	if got := themePanelMessageHeight("", inner); got != 0 {
-		t.Errorf("an empty message reserved %d rows, want 0", got)
-	}
-	if got := themePanelMessageHeight("clear constant nord?  y / n", inner); got != themePanelTestMessageRows {
-		t.Errorf("a live message reserved %d rows, want %d", got, themePanelTestMessageRows)
+	for _, wrap := range []bool{false, true} {
+		if got := renderThemePanelMessage("", inner, wrap, th, false); got != "" {
+			t.Errorf("an empty message rendered %q with wrap=%v, want the empty string", got, wrap)
+		}
+		if got := themePanelMessageHeight("", inner, wrap); got != 0 {
+			t.Errorf("an empty message reserved %d rows with wrap=%v, want 0", got, wrap)
+		}
+		if got := themePanelMessageHeight("clear constant nord?  y / n", inner, wrap); got != themePanelTestMessageRows {
+			t.Errorf("a live message reserved %d rows with wrap=%v, want %d", got, wrap, themePanelTestMessageRows)
+		}
 	}
 }
 

@@ -60,7 +60,7 @@ const themePanelFooterKeyColumnWidth = 3
 // canvas covers every cell. A row wider than width is returned unpadded rather
 // than truncated or wrapped: the widest row (`d set as dark`) is 15 cells against
 // a minimum inner width comfortably above it, and below §9.8's floor the panel
-// refuses to open at all (task 8-11) — so there is no width at which a footer row
+// refuses to open at all (themePanelFloor) — so there is no width at which a footer row
 // has to degrade.
 func renderThemePanelFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinVertical(lipgloss.Left, themePanelFooterRows(entries, width, th, colourless)...)

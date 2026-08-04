@@ -47,9 +47,9 @@ const (
 	// FIXED width is predictable to lay out against; a content-driven one would make
 	// the panel jump around as the theme library changes.
 	//
-	// This file only DECLARES the ends. Choosing between them for a given terminal —
-	// and refusing below the minimum — is task 8-11's ladder; renderThemePanel
-	// renders at whatever width it is handed.
+	// themePanelWidthFor chooses between them for a given terminal, and
+	// themePanelFloor refuses below the minimum; renderThemePanel renders at
+	// whatever width it is handed.
 	themePanelPreferredWidth = 30
 	themePanelMinWidth       = 24
 
@@ -78,10 +78,142 @@ const (
 	themePanelDirUnreadable = flashWarningGlyph + " dir unreadable"
 
 	// themePanelMinBodyRows is the one list row §9.8's floor guarantees. Below it the
-	// panel refuses to open at all (task 8-11), so the clamp is a floor rather than a
-	// degradation step.
+	// panel refuses to open at all (themePanelFloor), so the clamp is a floor rather
+	// than a degradation step.
 	themePanelMinBodyRows = 1
+
+	// themePanelFloorMessageRows is the ONE message row §9.8's floor counts, and it
+	// is counted EVEN THOUGH §9.1 does not reserve the slot when empty.
+	//
+	// Both of the slot's contenders are NON-SUPPRESSIBLE: §9.2's confirm gates a
+	// write that must not happen silently, and §9.13's failed-commit line is
+	// specified to persist until the next keypress. A floor computed without this row
+	// therefore puts the panel exactly one row short at the moment a message appears
+	// — asking "clear constant <slug>?" about a row that has just been pushed off
+	// screen, which is the one question the user cannot answer.
+	themePanelFloorMessageRows = 1
+
+	// themePanelMessageWrapRows is the slot's height when it WRAPS — §9.1's "at the
+	// minimum panel width the slot may wrap to two rows", read as the slot's maximum
+	// rather than as an observation about one string.
+	//
+	// The cap is what keeps the vertical budget provably bounded. themePanelBlock can
+	// only CUT an over-long assembly, and it cuts from the BOTTOM — off the footer,
+	// `esc close` first — so an unbounded slot is one long message away from taking
+	// the key that closes a panel the user can no longer read the way out of.
+	themePanelMessageWrapRows = 2
 )
+
+// themePanelDim names the dimension §9.8's floor refused on, so the entry gate and
+// the resize path select §14A's per-dimension copy from ONE answer rather than each
+// re-deciding which dimension was at fault.
+//
+// dimNone is the zero value and the "nothing failed" answer, which is what a
+// satisfied floor returns alongside ok.
+type themePanelDim int
+
+const (
+	// dimNone is no failure: both dimensions cleared the floor.
+	dimNone themePanelDim = iota
+	// dimWidth is §9.8's width floor — the content region cannot hold even the
+	// minimum panel.
+	dimWidth
+	// dimHeight is §9.8's height floor — the content region cannot hold header +
+	// footer + one list row + one message row (+ the directory row when unusable).
+	dimHeight
+)
+
+const (
+	// themePanelNarrowClosedFlash / themePanelShortClosedFlash are §14A's pinned
+	// forced-close copy, VERBATIM. They are the resize half of the same pair task
+	// 8-13's entry strings belong to, so the two live side by side and neither can be
+	// re-worded at a call site.
+	themePanelNarrowClosedFlash = "terminal too narrow — theme picker closed"
+	themePanelShortClosedFlash  = "terminal too short — theme picker closed"
+)
+
+// themePanelWidthFor is §9.8's WIDTH LADDER: the panel's outer width for a given
+// content-region width, and whether the region can hold a panel at all.
+//
+// THE DERIVATION, not the number. The panel takes HALF the content region, clamped
+// to the [minimum, preferred] ends declared above. The half-width cap is what keeps
+// the previewed page visible while the terminal is wide enough to afford it — a
+// preview surface that covers the surface being previewed is no preview — and the
+// clamp is what turns that into §2.7's STAGED shrink rather than a proportional one
+// that would shrink forever: ≥60 content columns take the preferred 30; 48–59 walk
+// down through 29…24; 24–47 sit on the 24-column minimum; below 24 the floor
+// refuses. §9.8 leaves the exact thresholds to implementation, exactly as §2.7 does
+// for its own degradation steps.
+//
+// THE WIDTH IS CLAMPED ON THE REFUSING PATH TOO. Both callers — the open sequence
+// and the resize — take w and ignore ok, because themePanelFloor has already
+// refused by the time either runs; returning an unclamped w would make an
+// impossible state render a sub-minimum panel instead of degrading to the minimum.
+// That is the same treatment the floor predicate's other caller gives an impossible
+// result.
+func themePanelWidthFor(contentW int) (w int, ok bool) {
+	return min(max(contentW/2, themePanelMinWidth), themePanelPreferredWidth), contentW >= themePanelMinWidth
+}
+
+// themePanelMinHeight is §9.8's HEIGHT FLOOR: header + footer + one list row + one
+// message row, plus §9.5's pinned directory row when the themes directory is
+// unusable.
+//
+// THE FOOTER IS MEASURED, NEVER A LITERAL (themePanelFooterHeight), which is what
+// makes the floor follow Phase 9's shorter confirm footer without a second edit —
+// the same discipline themePanelListSize applies to the rows it reserves. The
+// header is the one pinned constant, by design (see themePanelHeaderRows).
+//
+// THE MESSAGE ROW IS UNCONDITIONAL and the DIRECTORY ROW IS CONDITIONAL, and both
+// halves are load-bearing. The message row is counted although §9.1 leaves the slot
+// unreserved when empty, because neither contender can be suppressed (see
+// themePanelFloorMessageRows). The directory row is counted only when it renders,
+// because counting it always would refuse terminals that would have rendered a
+// perfectly good panel — §9.8's degrade-don't-refuse doctrine — while counting it
+// never would let the warning consume the single list row, leaving nothing
+// selectable on screen at exactly the moment §9.5 requires built-in and persisted
+// rows to render beneath it.
+func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
+	return themePanelHeaderRows +
+		themePanelDirRowHeight(dirUnusable) +
+		themePanelMinBodyRows +
+		themePanelFloorMessageRows +
+		themePanelFooterHeight(entries)
+}
+
+// themePanelFloor is THE render-floor predicate, and it has TWO callers by design:
+// §9.7's entry condition and §9.8's resize condition. They must not each derive
+// their own arithmetic — a terminal that passes one check and fails the other is
+// precisely the state that opens a broken frame or refuses a panel that fitted — so
+// the answer is computed here and consumed, never recomputed.
+//
+// It reports WHICH dimension failed so both callers select §14A's per-dimension
+// copy from the same result. WIDTH IS CHECKED FIRST, so a terminal failing both
+// reports narrow: that is the dimension the user can act on with the same gesture
+// that broke it, and pinning the order is what keeps the two callers' copy
+// identical on a terminal that is both.
+func themePanelFloor(contentW, contentH int, dirUnusable bool) (dim themePanelDim, ok bool) {
+	if _, wide := themePanelWidthFor(contentW); !wide {
+		return dimWidth, false
+	}
+	if contentH < themePanelMinHeight(themePanelKeymap(), dirUnusable) {
+		return dimHeight, false
+	}
+	return dimNone, true
+}
+
+// themePanelForcedCloseFlash is §14A's forced-close copy for the dimension the
+// floor refused on.
+//
+// dimNone is impossible here — the caller reaches this only on a refusal — and it
+// degrades to the width copy rather than branching on an unreachable state, the
+// same way themePanelWidthFor clamps a refusing width.
+func themePanelForcedCloseFlash(dim themePanelDim) string {
+	if dim == dimHeight {
+		return themePanelShortClosedFlash
+	}
+	return themePanelNarrowClosedFlash
+}
 
 // themePanel is the slide-over's state.
 //
@@ -98,7 +230,7 @@ const (
 // and its width as FIELDS, so the delegate is a VALUE the model assembles at the
 // single construction point Model.themeRowDelegate and hands to the list — once
 // when the panel opens (task 8-7, through newThemePanelList), then RE-POINTED from
-// that same site by task 8-9's restyle and task 8-11's resize (SetDelegate, never a
+// that same site by task 8-9's restyle and by resizeThemePanel (SetDelegate, never a
 // second construction site).
 //
 // renderThemePanel takes no Model and never touches the delegate, so the rows are
@@ -144,7 +276,7 @@ type themePanel struct {
 	message string
 
 	// width is the panel's OUTER width, border column included — the value task
-	// 8-11's ladder chooses between themePanelMinWidth and themePanelPreferredWidth.
+	// themePanelWidthFor chooses between themePanelMinWidth and themePanelPreferredWidth.
 	width int
 }
 
@@ -214,6 +346,16 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // §9.2's opening state with them: the badges, the theme actually rendering, and
 // the row the cursor lands on.
 //
+// THE WIDTH COMES FROM §9.8's LADDER, not from the preferred width, so the width a
+// panel OPENS at and the width it degrades to on a resize are the same function of
+// the same input. Opening at the preferred width and narrowing only if the user
+// happened to resize afterwards would contradict §9.8's staged shrink outright, and
+// would leave the degraded band reachable by no fixture at all — a fixture opens
+// through captureKeys and never resizes. The `ok` return is DISCARDED because it is
+// unreachable here: task 8-13's entry gate already refused below the floor, and
+// themePanelWidthFor clamps its width to the minimum on that impossible path rather
+// than making this site branch on a state it cannot be in.
+//
 // The ORDER is load-bearing at five points. The width is set before the list is
 // built, because Model.themeRowDelegate composes the row budget from it. The
 // RESOLUTION runs before the list is built, because it decides both the badges
@@ -235,10 +377,11 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // the resolution just applied, and applyThemePanelListStyles re-points its chrome
 // on the very next line.
 func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) {
+	width, _ := themePanelWidthFor(m.contentWidth())
 	m.themePanel = themePanel{
 		enumeration: enumeration,
 		union:       union,
-		width:       themePanelPreferredWidth,
+		width:       width,
 	}
 	cursor := m.applyThemePanelResolution(enumeration)
 	m.themePanel.list = newThemePanelList(m.themePanel.rowItems(), m.themeRowDelegate())
@@ -479,6 +622,64 @@ func (m *Model) closeThemePanel() {
 	m.themePanel = themePanel{}
 }
 
+// resizeThemePanel is §9.8's RESIZE CONDITION, and it is the second of
+// themePanelFloor's two callers (§9.7's entry gate is the other): while the terminal
+// stays above the render floor the panel DEGRADES IN PLACE, and below either
+// dimension's floor it FORCE-CLOSES with §14A's pinned per-dimension copy.
+//
+// DEGRADE IN PLACE IS THREE THINGS, and the third is the one that is easy to miss:
+// the ladder re-runs (so the width follows the terminal), the body arithmetic
+// re-runs (so the model's list derives the SAME page the drawn frame does — a stale
+// PerPage makes §9.2's `Ctrl+↑`/`Ctrl+↓` move a different distance than the screen
+// scrolls, which no rendered frame reveals), and the panel's DELEGATE is re-pointed.
+// The delegate matters because it holds its composition budget as a FIELD — unlike
+// SessionDelegate, which reads the width off the list it renders into — and the only
+// other caller of Model.themeRowDelegate runs on a THEME SWAP, which a
+// tea.WindowSizeMsg is not. A resize with no arrow after it would otherwise leave
+// every row composing against the pre-resize budget: §11.2's "invisible until a
+// resize during a live preview", exactly. All three come from re-invoking
+// applyThemePanelListStyles — the SAME function the open runs — rather than from a
+// second copy of the arithmetic here.
+//
+// THE MAIN SCREEN IS DELIBERATELY NOT RE-LAID-OUT to the reduced width (§9.1). The
+// panel is composited over a page composed at the UNREDUCED content width, so a
+// panel width change never reflows the surface being previewed; the caller has
+// already re-sized both page lists to the full content region and this adds nothing
+// to that.
+//
+// THE FORCED CLOSE TAKES THE `Esc` PATH EXACTLY — closeThemePanel, the same
+// function, never a second teardown — and then raises its flash, which is the
+// post-close step that function's contract leaves to its caller. Any other
+// behaviour would strand the user rendering a theme they never chose, with the
+// surface that could change it gone and a terminal too narrow to reopen it: the
+// state §11.4 names as the one where a colour the user never chose survives Portal's
+// exit. A live slot-from-constant confirm is SILENTLY CANCELLED by this close —
+// nothing has been written at that point (§9.2), so there is no partial state to
+// leave behind; it is worth stating because the confirm is otherwise specified as
+// resolvable only by a keypress.
+//
+// THE SEAM IS LIVE ON THIS PATH. closeThemePanel re-resolves through
+// m.themeEnumerator with no nil guard, and this new caller is safe for the same
+// reason `Esc` is: it fires only while themePanel.open, and `open` is set in exactly
+// one place (armThemePanel), reachable only through openThemePanel's nil guard.
+//
+// The flash is raised WITHOUT scheduling an auto-clear tick, because the resize is
+// not a cmd-returning site — it clears on the next actionable key exactly as the
+// burst's unsupported no-op flash does, and a geometry report the user can see for
+// themselves is the right thing to leave standing until they touch a key.
+func (m *Model) resizeThemePanel() {
+	if !m.themePanel.open {
+		return
+	}
+	if dim, ok := themePanelFloor(m.contentWidth(), m.contentHeight(), m.themePanel.union.DirUnusable); !ok {
+		m.closeThemePanel()
+		m.setFlash(themePanelForcedCloseFlash(dim))
+		return
+	}
+	m.themePanel.width, _ = themePanelWidthFor(m.contentWidth())
+	m.applyThemePanelListStyles()
+}
+
 // rowItems pairs each union row with the badge it carries — the SINGLE item
 // assembly site, which task 8-9's restyle re-invokes rather than re-deriving.
 //
@@ -509,8 +710,8 @@ func (p themePanel) rowItems() []list.Item {
 // has a ONE-ROW page and NextPage/PrevPage advance the cursor by exactly one row —
 // §9.2's `Ctrl+↑`/`Ctrl+↓` would route perfectly and still do nothing `↑`/`↓` does
 // not, and §9.8's "overflow: scroll, through the bubbles/list machinery" would be
-// unimplemented on a panel that renders as though it were. Task 8-11 owns the RESIZE
-// path (re-applying this on a tea.WindowSizeMsg); it does not own the panel's page
+// unimplemented on a panel that renders as though it were. resizeThemePanel re-applies
+// this on a tea.WindowSizeMsg; that path owns the panel's page CHANGING, not its
 // existing at all.
 //
 // THE TWO SIZINGS LAND ON THE SAME PAGE, which is worth stating because the
@@ -810,8 +1011,8 @@ func themePanelInnerWidth(width int) int {
 //
 // It is a PURE function of the panel and the height, taking no theme: the row
 // COUNTS a block contributes are a function of its content, not of its palette, so
-// the layout can be resolved before a theme is in hand (task 8-11's floor
-// arithmetic reads the same function).
+// the layout can be resolved before a theme is in hand (themePanelMinHeight's floor
+// arithmetic reads the same measurements).
 //
 // The footer's entries are the panel scope's, resolved here and again at render
 // time. Phase 9's nested confirm scope (§9.2) TEMPORARILY REPLACES that footer with
@@ -822,7 +1023,7 @@ func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
 	reserved := themePanelHeaderRows +
 		themePanelDirRowHeight(p.union.DirUnusable) +
-		themePanelMessageHeight(p.message, inner) +
+		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)) +
 		themePanelFooterHeight(themePanelKeymap())
 	return inner, max(height-reserved, themePanelMinBodyRows)
 }
@@ -850,7 +1051,7 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	rows := themePanelHeaderBlock(inner, th, colourless)
 	rows = appendBlock(rows, themePanelDirRow(p.union.DirUnusable, th, colourless))
 	rows = appendBlock(rows, clampBlockHeight(p.list.View(), bodyRows))
-	rows = appendBlock(rows, renderThemePanelMessage(p.message, inner, th, colourless))
+	rows = appendBlock(rows, renderThemePanelMessage(p.message, inner, themePanelMessageWraps(p, height), th, colourless))
 	rows = appendBlock(rows, renderThemePanelFooter(themePanelKeymap(), inner, th, colourless))
 
 	return themePanelBlock(rows, height, inner, th, colourless)
@@ -898,17 +1099,25 @@ func themePanelDirRowHeight(unusable bool) int {
 	return blockHeight(themePanelDirRow(unusable, theme.Theme{}, true))
 }
 
-// renderThemePanelMessage renders §9.1's message slot: a single row directly above
-// the vertical keymap footer, or "" when there is no message.
+// renderThemePanelMessage renders §9.1's message slot: the row (or two) directly
+// above the vertical keymap footer, or "" when there is no message.
 //
 // IT IS NOT RESERVED WHEN EMPTY — it appears and the list shrinks by one, the same
 // way the main screen's notice band recomputes list height.
 //
-// It renders ONE row, truncated rather than wrapped: §9.1 pins truncation at the
-// minimum height (the floor counts exactly one message row, and a two-row message
-// there would leave zero list rows or overflow the frame), and a slot that is one
-// row at every width is the only shape under which the budget above and the block
-// below can never disagree.
+// THE TWO DIMENSIONS DEGRADE DIFFERENTLY, ON PURPOSE (§9.1). At the minimum panel
+// WIDTH the slot may wrap to two rows — it is not a list delegate, so wrapping costs
+// pagination nothing. At the minimum HEIGHT it is TRUNCATED to one line instead,
+// because §9.8's floor counts exactly one message row: a two-row message there would
+// leave zero list rows or overflow the frame, and truncating degrades the message
+// the user is being asked to answer rather than the row they are answering ABOUT.
+// wrap carries that decision in from the caller (themePanelMessageWraps), so the
+// budget above and the block below resolve it once and identically.
+//
+// The wrap is CAPPED at themePanelMessageWrapRows with the overflow truncated into
+// the last row, so the slot's cost is bounded whatever it is handed (see that
+// constant). A zero or negative inner width takes the truncating path, which is also
+// the only width ansi.Wrap declines to act on.
 //
 // The slot is a single-slot ARBITER with two contenders, and BOTH ARE PHASE 9's —
 // the slot-from-constant confirm (§9.2, text.secondary, no band) and the failed
@@ -916,20 +1125,48 @@ func themePanelDirRowHeight(unusable bool) int {
 // the text renders in the confirm's role and Phase 9 adds the discrimination along
 // with the states that need it. There is deliberately no contender, setter or
 // arbiter here.
-func renderThemePanelMessage(message string, inner int, th theme.Theme, colourless bool) string {
+func renderThemePanelMessage(message string, inner int, wrap bool, th theme.Theme, colourless bool) string {
 	if message == "" {
 		return ""
 	}
-	return headerStyle(th.TextSecondary, th, colourless).
-		Render(ansi.Truncate(message, max(inner, 0), themeRowEllipsis))
+	return headerStyle(th.TextSecondary, th, colourless).Render(themePanelMessageText(message, inner, wrap))
+}
+
+// themePanelMessageText lays §9.1's message out for the slot — one truncated line,
+// or up to themePanelMessageWrapRows wrapped ones with the overflow truncated into
+// the last.
+func themePanelMessageText(message string, inner int, wrap bool) string {
+	width := max(inner, 0)
+	if !wrap || width == 0 {
+		return ansi.Truncate(message, width, themeRowEllipsis)
+	}
+	lines := strings.Split(ansi.Wrap(message, width, ""), "\n")
+	if len(lines) <= themePanelMessageWrapRows {
+		return strings.Join(lines, "\n")
+	}
+	head := lines[:themePanelMessageWrapRows-1]
+	tail := ansi.Truncate(strings.Join(lines[themePanelMessageWrapRows-1:], " "), width, themeRowEllipsis)
+	return strings.Join(append(head, tail), "\n")
 }
 
 // themePanelMessageHeight is the message slot's MEASURED height — the value
 // themePanelListSize subtracts, so a message appearing costs the list exactly the
-// row the slot renders. It measures the real renderer (with a zero theme and the
+// rows the slot renders. It measures the real renderer (with a zero theme and the
 // colourless path, as themePanelFooterHeight does), so the two cannot drift.
-func themePanelMessageHeight(message string, inner int) int {
-	return blockHeight(renderThemePanelMessage(message, inner, theme.Theme{}, true))
+func themePanelMessageHeight(message string, inner int, wrap bool) int {
+	return blockHeight(renderThemePanelMessage(message, inner, wrap, theme.Theme{}, true))
+}
+
+// themePanelMessageWraps reports whether the slot may wrap at the height the panel
+// is being rendered at — §9.1's per-dimension rule resolved in ONE place, so the
+// budget themePanelListSize reserves and the block renderThemePanel assembles can
+// never disagree about how many rows the message costs.
+//
+// At or below §9.8's floor the slot truncates; above it, it wraps. `at or below`
+// rather than `at`, because renderThemePanel is a pure function of the height it is
+// handed and a sub-floor height is a shape a fixture can hand it.
+func themePanelMessageWraps(p themePanel, height int) bool {
+	return height > themePanelMinHeight(themePanelKeymap(), p.union.DirUnusable)
 }
 
 // themePanelBlock assembles the panel's rows into the finished block: every row
@@ -943,7 +1180,7 @@ func themePanelMessageHeight(message string, inner int) int {
 // Rows are padded but never truncated: every row this file composes is authored to
 // fit the minimum inner width (the header label is 6 cells, the pinned warning 16,
 // the widest footer row 15, and a list row is exactly inner cells by construction),
-// and below §9.8's minimum the panel refuses to open at all (task 8-11) — so there
+// and below §9.8's minimum the panel refuses to open at all (themePanelFloor) — so there
 // is no width at which a row has to degrade.
 func themePanelBlock(rows []string, height, inner int, th theme.Theme, colourless bool) string {
 	border := headerStyle(th.Border, th, colourless).Render(panelFrameSide)

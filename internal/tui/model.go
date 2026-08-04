@@ -2532,6 +2532,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// the composed view fits inside the global gutter.
 		m.applySessionListSize(m.contentWidth(), m.contentHeight())
 		m.applyProjectListSize(m.contentWidth(), m.contentHeight())
+		// §9.8's resize condition, AFTER the two page lists: the slide-over degrades in
+		// place while the terminal clears the render floor and force-closes with a
+		// pinned flash below it. It is sequenced last because the forced close raises a
+		// notice band, which re-syncs the sessions layout the two calls above just set.
+		(&m).resizeThemePanel()
 	}
 
 	// Handle cross-view messages regardless of view state
