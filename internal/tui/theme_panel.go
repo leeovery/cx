@@ -275,7 +275,7 @@ type themePanel struct {
 	// setter and no arbiter here.
 	message string
 
-	// width is the panel's OUTER width, border column included — the value task
+	// width is the panel's OUTER width, border column included — the value
 	// themePanelWidthFor chooses between themePanelMinWidth and themePanelPreferredWidth.
 	width int
 }
@@ -601,9 +601,9 @@ func themePanelRowIndex(rows []theme.Row, slug string) int {
 // step from adding the open-time reduction that would justify it, which reflows
 // the surface being previewed and falsifies both §9.1's cut-mid-label cost and
 // the panel's Projects fixture. A notice band raised or cleared while the panel
-// was open is already handled on its own path — resyncSessionLayout on Sessions,
-// and on Projects the projectBandHeight reserve inside applyProjectListSize;
-// closing adds nothing to either.
+// was open is already handled on its own path — resyncPageLayouts, which re-sizes
+// both page lists for the band (§14A gave Projects its own flash slot, so both
+// pages route through it); closing adds nothing to it.
 //
 // NOTHING IS WRITTEN — no prefs write, no tmux option, no file. Every write is an
 // explicit keypress (§9.2), which is what eliminates the "applied but not

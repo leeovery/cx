@@ -201,16 +201,34 @@ func TestSessionsView_OnlyOneFlashRowAdded(t *testing.T) {
 	}
 }
 
-func TestProjectsPage_FlashTextNotRendered(t *testing.T) {
+// TestProjectsPage_FlashRendered pins §14A's DELIBERATE REVERSAL of this test's
+// former assertion. It used to read `TestProjectsPage_FlashTextNotRendered` and
+// require the flash to stay off the Projects page, back when the notice band was a
+// Sessions-only arbiter. §9.6 binds `t` on Projects, §14.2 puts `t theme` in its
+// footer, and all six of §14A's theme flashes are reachable there — so suppressing
+// them made §9.10's proactive block a silent no-op and destroyed §9.13's
+// failed-commit report outright (closing the panel discharges that state whether
+// or not a flash rendered). Projects therefore has its own flash slot, and a flash
+// raised there RENDERS.
+//
+// The full Projects-slot contract — arbitration against the command-pending
+// banner, the height recompute, the shared clear rules — lives in
+// projects_flash_test.go. This test is the survey entry: the page renders it.
+//
+// It keeps its ORIGINAL set-flash-then-flip ordering. That is the window
+// TestProjectsFlash_PageEnteredByMessageIsSized covers directly — a flash raised on
+// one page and carried onto another by a message, with no keypress to clear it —
+// so the survey entry keeps touching it rather than sidestepping it by flipping
+// first.
+func TestProjectsPage_FlashRendered(t *testing.T) {
 	m := flashModelWithSessions("alpha-row")
-	const flash = "__SHOULD_NOT_APPEAR_ON_PROJECTS__"
+	const flash = "__PROJECTS_PAGE_FLASH__"
 	m.setFlash(flash)
-
-	// Switch to Projects page; the flash row must not appear there.
 	m.activePage = PageProjects
+
 	out := m.View().Content
-	if strings.Contains(out, flash) {
-		t.Errorf("flash text leaked onto Projects page render:\n%s", out)
+	if !strings.Contains(out, flash) {
+		t.Errorf("§14A: a flash raised on the Projects page must render there:\n%s", out)
 	}
 }
 

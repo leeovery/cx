@@ -344,6 +344,12 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 // single arbitrated insert (no double-band). The role/message the arbiter returns
 // are consumed by viewSessionList's single insertion step; the on-band text token
 // is selected at the render site so each band keeps its existing on-band colour.
+//
+// The PROJECTS page has its own arbiter (activeProjectNoticeBand) over its own
+// contender set — §14A gave it the transient flash and nothing else. The two are
+// deliberately separate functions rather than one page-parameterised arbiter:
+// every contender here except the flash is a Sessions element, so a merged one
+// would be a page switch wearing a shared name.
 func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool) {
 	// §6-6 precedence seam — do NOT collapse to strict single-slot. This flash arm
 	// takes the §11 band slot REGARDLESS of m.multiSelectMode, so the spawn-failure /
@@ -374,6 +380,75 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 	// No active band: ok=false, so the role is don't-care (callers gate on ok); the
 	// returned bandWarning is an arbitrary placeholder that is never rendered.
 	return bandWarning, "", false
+}
+
+// activeProjectNoticeBand is the single-slot arbiter for the PROJECTS page: it
+// returns the ONE band that owns that page's notice slot, if any.
+//
+//	§14A: "Projects gains a transient-flash slot. The existing arbiter is
+//	Sessions-only — every one of its six contenders is a Sessions element — yet
+//	§9.6 binds `t` on Projects and §14.2 puts `t theme` in its footer, and all six
+//	of these flashes are reachable there."
+//
+// The order — a transient flash wins the slot while shown, otherwise the §11.4
+// command-pending banner holds it:
+//
+//   - flashText != "" → the transient flash takes the slot; its flashKind selects
+//     the warning (bandWarning) or success (bandSuccess) styling (§11.2).
+//   - commandPending  → the persistent §11.4 command-pending banner (bandCommand).
+//
+// PROJECTS GETS THE FLASH CONTENDER ALONE, not the full arbiter. The no-tags
+// signpost, the multi-select banner, the unsupported banner and the burst-progress
+// band are all Sessions elements with NO Projects analogue, and §14A is explicit
+// that "inventing them would be scope for nothing" — so a later reader must not
+// port one here to make the two arbiters look symmetrical. The asymmetry is the
+// decision.
+//
+// It ARBITRATES, never co-renders: the band is one slot, and the Sessions arm's
+// deliberate multi-select co-render exception (see activeNoticeBand) has no
+// Projects analogue — nothing on this page owns a second row to co-render with.
+//
+// The slot is deliberately NOT scoped to the entry-blocked flashes: it takes any
+// flashText, whatever set it. §9.13's `⚠ theme not saved — see portal.log` lands
+// in this same slot in Phase 9, and closing the panel DISCHARGES that outstanding
+// state whether or not a flash rendered — so a slot that filtered by set-site
+// would destroy the report rather than defer it.
+//
+// The bandCommand arm's message is the banner's fixed lead text; the banner's
+// caret + orange command chip are composed by renderCommandBand from the model's
+// pending command, so that arm's render does not consume the returned message.
+func (m Model) activeProjectNoticeBand() (role noticeBandRole, message string, ok bool) {
+	if m.flashText != "" {
+		return flashBandRole(m.flashKind), m.flashText, true
+	}
+	if m.commandPending {
+		return bandCommand, commandBandText, true
+	}
+	// No active band: ok=false, so the role is don't-care (callers gate on ok); the
+	// returned bandWarning is an arbitrary placeholder that is never rendered.
+	return bandWarning, "", false
+}
+
+// renderActiveProjectNoticeBand renders the arbitrated Projects-page notice band
+// for the model's current width / resolved canvas mode (and the NO_COLOR
+// carve-out), or the empty string when no band owns the slot. It is the single
+// render entry point the band SLOT (renderProjectBandSlot) composes beneath the
+// title separator, and from which the slot's height is measured, so the budget and
+// the render agree.
+//
+// The flash arm routes through the SAME renderNoticeBand primitive and the SAME
+// on-band text token the Sessions band uses, so a flash renders byte-identically
+// on either page for the same message and width — there is one flash band, shown
+// in two places, not two implementations that could drift.
+func (m Model) renderActiveProjectNoticeBand() string {
+	role, message, ok := m.activeProjectNoticeBand()
+	if !ok {
+		return ""
+	}
+	if role == bandCommand {
+		return renderCommandBand(m.command, m.contentWidth(), m.activeTheme, m.colourless)
+	}
+	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
 }
 
 // flashBandRole maps an inline-flash kind (§11.2) to the shared notice-band role

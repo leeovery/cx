@@ -1893,15 +1893,17 @@ func (m Model) projectFooterHeight(width int) int {
 	return lipgloss.Height(renderProjectsFooter(width, m.activeTheme, m.colourless))
 }
 
-// projectBandHeight returns the rendered height of the §11.4 command-pending notice
-// SLOT viewProjectList inserts beneath the title separator — the banner PLUS the
-// canvas-painted blank breathing row beneath it (two rows when a command is pending,
-// more if the banner ever wraps). It is reserved out of the list's height budget so
-// the slot never pushes the composed view past termH (mirrors sessionBandHeight).
+// projectBandHeight returns the rendered height of the arbitrated notice SLOT
+// viewProjectList inserts beneath the title separator — the §14A transient flash or
+// the §11.4 command-pending banner, PLUS the canvas-painted blank breathing row
+// beneath it (two rows for a single-line band, more when it wraps). It is reserved
+// out of the list's height budget so the slot never pushes the composed view past
+// termH (mirrors sessionBandHeight).
 //
 // It is measured off renderProjectBandSlot — the SAME block viewProjectList composes
 // — so the reserved row count is, by construction, exactly what is inserted and the
-// two can never drift.
+// two can never drift. That is why §14A's flash needed no arithmetic of its own: it
+// arrives through the slot this already measures.
 func (m Model) projectBandHeight() int {
 	slot := m.renderProjectBandSlot()
 	if slot == "" {
@@ -2295,7 +2297,7 @@ func (m *Model) reanchorSessionCursor(name string) {
 	m.sessionList.Select(len(visible) - 1)
 }
 
-// setFlash records an inline-flash message on the Sessions page. It bumps
+// setFlash records an inline-flash message on the active page. It bumps
 // flashGen by one and assigns flashText. Callers that schedule a delayed
 // clear must capture the post-bump generation and compare against the
 // live flashGen on fire so a stale tick from a superseded flash cannot
@@ -2303,11 +2305,13 @@ func (m *Model) reanchorSessionCursor(name string) {
 // bails). setFlash("") still bumps the generation; the caller decides what
 // counts as a flash.
 //
-// It also re-syncs the session list layout (resyncSessionLayout) so the list
-// reserves a row for the inserted flash band and the composed view stays within
-// termH — the §1 "list height recompute underneath the fill". The re-sync is a
-// no-op until the first WindowSizeMsg sets the dimensions, so the gen/text state
-// primitive remains observable in isolation on a zero-size model.
+// It also re-syncs BOTH page layouts (resyncPageLayouts) so each list reserves the
+// rows the inserted flash band occupies on its own page and the composed view stays
+// within termH — the §1 "list height recompute underneath the fill". §14A gave
+// Projects its own flash slot, so the flash is no longer a Sessions-only reserve;
+// see resyncPageLayouts for why both are sized rather than the active one. The
+// re-sync is a no-op until the first WindowSizeMsg sets the dimensions, so the
+// gen/text state primitive remains observable in isolation on a zero-size model.
 func (m *Model) setFlash(text string) {
 	m.flashGen++
 	m.flashText = text
@@ -2316,7 +2320,7 @@ func (m *Model) setFlash(text string) {
 	// the explicit opt-in to the green ✓ success variant. Resetting here means a
 	// success flash followed by a plain setFlash reverts to warning.
 	m.flashKind = flashWarning
-	m.resyncSessionLayout()
+	m.resyncPageLayouts()
 }
 
 // setSuccessFlash records an inline flash styled as the §11.2 SUCCESS variant —
@@ -2329,30 +2333,53 @@ func (m *Model) setSuccessFlash(text string) {
 	m.flashGen++
 	m.flashText = text
 	m.flashKind = flashSuccess
-	m.resyncSessionLayout()
+	m.resyncPageLayouts()
 }
 
 // clearFlash zeros flashText, leaving flashGen untouched. Idempotent: a
 // clear of an already-cleared state is a no-op observable to callers.
 // flashGen is preserved so any in-flight ticks scheduled before the clear
 // continue to compare against the same monotonic sequence. Like setFlash it
-// re-syncs the session list layout so the row reserved for the (now cleared)
-// band is returned to the list under the fill.
+// re-syncs both page layouts so the rows reserved for the (now cleared) band are
+// returned to each list under the fill.
 func (m *Model) clearFlash() {
 	m.flashText = ""
-	m.resyncSessionLayout()
+	m.resyncPageLayouts()
 }
 
-// resyncSessionLayout re-applies the session list size for the current notice
-// band state, so a band appearing or clearing recomputes the list height
+// resyncPageLayouts re-applies BOTH page lists' sizes for the current notice
+// band state, so a band appearing or clearing recomputes each list's height
 // underneath the outer canvas fill (§1). It no-ops before the first
 // WindowSizeMsg (dimensions still zero), keeping the flash state primitives
 // observable on a bare Model{} in unit tests.
-func (m *Model) resyncSessionLayout() {
+//
+// BOTH, not just the active page, because §14A gave Projects its own flash slot
+// (activeProjectNoticeBand) and A PAGE CAN BE ENTERED BY A MESSAGE, not only by a
+// keypress. The keypress route does clear the flash before it dispatches
+// (updateSessionList / updateProjectsPage), but the §10.2 cold-boot route has no
+// keypress in it at all: transitionFromLoading lands PageSessions and returns
+// early with the landing page still undecided, surfaceBufferedWarnings raises the
+// warnings flash there, and the post-restore refetch's SessionsMsg then runs
+// evaluateDefaultPage — which flips to PageProjects on an empty session list with
+// the flash still live. Sizing only the page that was active at set-time leaves the
+// entered page budgeted for no band, and its composed frame runs past the content
+// region fillCanvas clamps to: the footer is cut off the bottom. That is the
+// failure class of the original cursor-invisible incident, on a degraded or
+// first-run install where a broken frame costs most.
+//
+// The reverse — budgeting rows on a page nobody is looking at — costs nothing: an
+// unused reserve is invisible until that page is composed, at which point it is
+// the correct one. Each wrapper reserves its OWN page's arbiter height from current
+// state, so this is idempotent and the two cheap band renders ride a rare event.
+// Sizing at each page-flip site instead would put the invariant back on a list of
+// sites that must each remember to call it — the drift the single-slot measurement
+// exists to eliminate.
+func (m *Model) resyncPageLayouts() {
 	if m.termWidth <= 0 || m.termHeight <= 0 {
 		return
 	}
 	m.applySessionListSize(m.contentWidth(), m.contentHeight())
+	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
 }
 
 // loadProjects returns a command that cleans stale projects and loads the list.
@@ -2535,7 +2562,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// §9.8's resize condition, AFTER the two page lists: the slide-over degrades in
 		// place while the terminal clears the render floor and force-closes with a
 		// pinned flash below it. It is sequenced last because the forced close raises a
-		// notice band, which re-syncs the sessions layout the two calls above just set.
+		// notice band, which re-syncs both page layouts the two calls above just set.
 		(&m).resizeThemePanel()
 	}
 
@@ -2959,6 +2986,23 @@ func (m Model) updateProjectsPage(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
+		// Spec § Inline flash > Clear conditions, § Flash interaction with
+		// filter input: an actionable KeyMsg with an active flash clears
+		// the flash as a side effect and the keystroke continues to its
+		// normal handler — "one key, one intent". Non-KeyMsg events
+		// (WindowSizeMsg, FocusMsg, BlurMsg, MouseMsg) never reach this
+		// branch, so the flash survives them. When no flash is active
+		// the check is a single bool read with no observable effect.
+		//
+		// §14A gave Projects the flash slot, so this is the exact counterpart of
+		// updateSessionList's clear, in the same relative position (ahead of the
+		// Ctrl-C and SettingFilter guards) — the two pages must read identically
+		// or the clear rule quietly forks per page.
+		if m.flashText != "" && isActionableKey(msg) {
+			m.clearFlash()
+			// Deliberate fall-through: do NOT return. The keystroke
+			// continues to the existing handlers below.
+		}
 		if keyIsCtrlC(msg) {
 			return m, tea.Quit
 		}
@@ -4843,9 +4887,11 @@ func (m Model) viewProjectList() string {
 	// visible chrome. Its height is folded out of the list's budget by
 	// applyProjectListSize (m.headerHeight), so the composed view stays within termH.
 	header := m.renderHeader()
-	// §11.4 command-pending banner: the violet `▌` left-bar + `▸` caret + `Pick a
-	// project to run` + the joined command in an accent.orange chip, on a subtle
-	// tinted band. Like the Sessions notice band (§11) it sits DIRECTLY under the
+	// The Projects notice slot: the §14A transient flash, else the §11.4
+	// command-pending banner (the violet `▌` left-bar + `▸` caret + `Pick a project
+	// to run` + the joined command in an accent.orange chip, on a subtle tinted
+	// band) — ARBITRATED to one band by activeProjectNoticeBand, never co-rendered.
+	// Like the Sessions notice band (§11) it sits DIRECTLY under the
 	// title separator, ABOVE the section header (line 0 of listView), full-width —
 	// the slot (renderProjectBandSlot) is the band PLUS one canvas-painted blank
 	// breathing row beneath it, so the section header + list shift down by TWO rows.
@@ -4859,31 +4905,22 @@ func (m Model) viewProjectList() string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, listView, footer)
 }
 
-// renderProjectCommandBand renders the §11.4 command-pending banner for the model's
-// current width / resolved canvas mode (and the NO_COLOR carve-out), or the empty
-// string when no command is pending. It is the single render entry point the band
-// SLOT (renderProjectBandSlot) composes beneath the title separator, and from which
-// the slot's height is measured, so the budget and the render agree.
-func (m Model) renderProjectCommandBand() string {
-	if !m.commandPending {
-		return ""
-	}
-	return renderCommandBand(m.command, m.contentWidth(), m.activeTheme, m.colourless)
-}
-
-// renderProjectBandSlot renders the FULL §11.4 Projects notice slot for the model's
-// current width / canvas mode — the command-pending banner PLUS one canvas-painted
-// full-width blank row BENEATH it (the band→section-header breathing gap), or the
-// empty string when no command is pending. Mirrors renderSessionBandSlot: the band
-// stays flush under the title separator, the blank separates it from the section
-// header (line 0 of listView), so the slot composes as band → blank → listView.
+// renderProjectBandSlot renders the FULL Projects notice slot for the model's
+// current width / canvas mode — the ARBITRATED band (activeProjectNoticeBand: the
+// §14A transient flash, else the §11.4 command-pending banner) PLUS one
+// canvas-painted full-width blank row BENEATH it (the band→section-header
+// breathing gap), or the empty string when no band owns the slot. Mirrors
+// renderSessionBandSlot: the band stays flush under the title separator, the blank
+// separates it from the section header (line 0 of listView), so the slot composes
+// as band → blank → listView.
 //
 // This is the SINGLE source of truth for what the slot inserts: both viewProjectList
 // (composition) and projectBandHeight (the F10 height reserve) consume it, so the
 // reserved row count is, by construction, exactly the rendered height of what is
-// composed — the two can never drift.
+// composed — the two can never drift. That is why the §14A flash needed no second
+// arithmetic to be budgeted: it arrives through the same slot the reserve measures.
 func (m Model) renderProjectBandSlot() string {
-	band := m.renderProjectCommandBand()
+	band := m.renderActiveProjectNoticeBand()
 	if band == "" {
 		return ""
 	}
