@@ -143,6 +143,55 @@ func projectsKeymap() []keymapEntry {
 	}
 }
 
+// themePanelKeymap returns the §9.12 theme-panel keymap scope — the panel's own
+// descriptor, beside the two page descriptors, so the panel's keys are NOT a
+// second binding list hand-authored inside a bespoke footer. That is the exact
+// drift class this file exists to close and the one this codebase has already paid
+// for once (the retired projectHelpKeys second binding list).
+//
+// THE SCOPE IS COMPLETE — all six keys the panel dispatches (§9.12): `↑`/`↓`,
+// `Ctrl+↑`/`Ctrl+↓`, `Enter`, `d`, `l`, `Esc`. Phase 9's dispatch guard consumes
+// this scope (it lands with the Enter/d/l dispatch it would otherwise probe
+// against a no-op), and that guard's contract is descriptor↔dispatch PARITY — so
+// authoring the scope as just the four keys the footer shows is precisely what
+// BREAKS it rather than what satisfies it. Arrows and paging are dispatched inside
+// the panel, so they are listed here.
+//
+// THE FOOTER RENDERS ONLY THE Core ENTRIES — `⏎`, `d`, `l`, `esc` (§14A's pinned
+// four-row footer). Arrows and paging are present as NON-core, which is exactly
+// the distinction §14.1 applies to arrows on the main footer and for the same
+// reason: arrows in a list are a given. That split is how the six-entry descriptor
+// and the four-row footer are BOTH satisfied without either being a special case —
+// the descriptor is not trimmed to the footer, and the footer is not filtered by a
+// second rule of its own.
+//
+// The Action strings are §14A's pinned copy, so the rendered rows read exactly
+// `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`.
+//
+// No entry sets RightAligned: the panel's footer is VERTICAL (a horizontal keymap
+// does not fit a ~30-column panel, §9.1), and a vertical footer has no right anchor
+// to pin an entry to. There is NO `?` entry either — §9.12: `?` does nothing inside
+// the panel. It is swallowed with everything else (§9.7); there is no panel help
+// modal, so this scope exists to drive the vertical footer and the guard rather
+// than a help body, and a help modal over a non-blanking overlay would stack the
+// shape §9.6 rejects.
+//
+// Phase 9 adds a NESTED CONFIRM SCOPE beneath this one (§9.2) whose footer
+// temporarily replaces this one (`y confirm` / `n cancel`) while the
+// slot-from-constant confirm is live. That is why renderThemePanelFooter takes its
+// entries as a PARAMETER and never calls this function: the shape must admit
+// substitution rather than assume one footer per panel.
+func themePanelKeymap() []keymapEntry {
+	return []keymapEntry{
+		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
+		{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
+		{Key: "⏎", Action: "set theme", HelpAction: "Set as the theme", Core: true},
+		{Key: "d", Action: "set as dark", HelpAction: "Assign to the dark slot", Core: true},
+		{Key: "l", Action: "set as light", HelpAction: "Assign to the light slot", Core: true},
+		{Key: "esc", Action: "close", HelpAction: "Close the theme picker", Core: true},
+	}
+}
+
 // commandPendingKeymap returns the §11.4 command-pending footer descriptor:
 // `enter run here · n run in cwd · esc cancel`. It is the single binding source for
 // the swapped Projects footer (renderCommandPendingFooter renders these in MV
