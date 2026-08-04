@@ -636,7 +636,10 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 		m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{})
 		m.colourless = true
 
-		m = pressThemeKey(t, m)
+		// §9.10's entry gate BLOCKS `t` under NO_COLOR, so the colourless panel is
+		// armed directly (armPanelUnderNoColorForTest states why): this case asserts the
+		// colourless RENDER of the dot row, not that a colourless panel can be opened.
+		m = armPanelUnderNoColorForTest(t, m)
 
 		row := themePanelDotRow(t, renderThemePanel(m.themePanel, 16, testDarkTheme(t), true))
 		for col, cell := range scanCellBackgrounds(row) {

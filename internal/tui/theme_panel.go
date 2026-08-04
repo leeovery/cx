@@ -125,11 +125,25 @@ const (
 
 const (
 	// themePanelNarrowClosedFlash / themePanelShortClosedFlash are §14A's pinned
-	// forced-close copy, VERBATIM. They are the resize half of the same pair task
-	// 8-13's entry strings belong to, so the two live side by side and neither can be
+	// forced-close copy, VERBATIM. They are the resize half of the same pair the
+	// entry strings below belong to, so the two live side by side and neither can be
 	// re-worded at a call site.
 	themePanelNarrowClosedFlash = "terminal too narrow — theme picker closed"
 	themePanelShortClosedFlash  = "terminal too short — theme picker closed"
+
+	// themePanelNoColorFlash / themePanelNarrowEntryFlash / themePanelShortEntryFlash
+	// are §14A's pinned BLOCKED-ENTRY copy, VERBATIM — the three strings §9.7's gate
+	// can answer with.
+	//
+	// They are CONSTANTS for the reason spawn.UnsupportedNoopMessage is: a pinned
+	// user-facing string with one home cannot be re-worded at a call site, and these
+	// are the whole feedback surface for states the user cannot otherwise diagnose.
+	// They read differently from their forced-close siblings above on purpose — one
+	// pair reports why nothing opened, the other why something the user was looking at
+	// went away.
+	themePanelNoColorFlash     = "theme picker needs colour — NO_COLOR is set"
+	themePanelNarrowEntryFlash = "terminal too narrow for the theme picker"
+	themePanelShortEntryFlash  = "terminal too short for the theme picker"
 )
 
 // themePanelWidthFor is §9.8's WIDTH LADDER: the panel's outer width for a given
@@ -213,6 +227,16 @@ func themePanelForcedCloseFlash(dim themePanelDim) string {
 		return themePanelShortClosedFlash
 	}
 	return themePanelNarrowClosedFlash
+}
+
+// themePanelEntryFlash is §14A's BLOCKED-ENTRY copy for the dimension the floor
+// refused on — the entry-side mirror of themePanelForcedCloseFlash, degrading to the
+// width copy on the unreachable dimNone for the same reason.
+func themePanelEntryFlash(dim themePanelDim) string {
+	if dim == dimHeight {
+		return themePanelShortEntryFlash
+	}
+	return themePanelNarrowEntryFlash
 }
 
 // themePanel is the slide-over's state.
@@ -316,6 +340,87 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 	return l
 }
 
+// themePanelEntry is §9.7's ENTRY GATE: the ONE place the pre-read decision to open
+// the panel is made, answering either "open" or the pinned copy the refusal flashes.
+//
+// NOTHING BLOCKS `t` EXCEPT a modal, a pending burst, `NO_COLOR`, a terminal below
+// either render-floor dimension, and the pages where it is not bound at all — and
+// only the middle two are decided here. The other three are decided by where the key
+// is dispatched from at all, which is why they produce NO FLASH:
+//
+//   - MODALS are key-exclusive by design, so `t` never reaches this gate.
+//   - A PENDING BURST swallows it at updateSessionList's input-lock, ahead of every
+//     rune arm. That is CONSISTENCY with the lock rather than an exception to it —
+//     the model is mid-async-operation and only `Ctrl-C`/`Esc` are live — so there is
+//     deliberately no burst branch here to keep the lock decided in one place.
+//   - PREVIEW and LOADING bind no `t` at all (§9.6). Preview's body is captured real
+//     ANSI scrollback that is deliberately out-of-theme, so a live preview would
+//     re-theme the frame chrome alone, and it is ALREADY a full-screen overlay, so the
+//     panel would stack an overlay on an overlay. Loading is inert by design (animation
+//     only, which is what contains the restore/daemon race surface) and renders no
+//     notice band to flash into — and it is not a corner case, since the cold + TUI
+//     path holds it for at least LoadingMinDuration with the user watching.
+//
+// That split IS §9.7's feedback rule: FLASH where the key is bound and the user could
+// reasonably expect it to work, SILENT where it is not bound at all — exactly how `s`
+// already behaves.
+//
+// THE TWO REFUSALS BELOW ARE DELIBERATELY OPPOSITE CALLS (§9.10), and conflating them
+// gets one of them wrong:
+//
+//   - `NO_COLOR` is a CAPABILITY ABSENCE — Portal paints no canvas and imposes no
+//     hues, so the panel previews nothing, its cursor tint and slot dots have no
+//     colour, and a commit would persist a choice with zero visible feedback. It is
+//     blocked PROACTIVELY, following the multi-select precedent exactly, which is what
+//     keeps the user out of a walkable dead end.
+//   - A NARROW OR SHORT terminal is a SPACE SHORTAGE, where §2.7 mandates degrade:
+//     the panel shrinks through §9.8's ladder and refuses only once even the minimum
+//     cannot render.
+//
+// It reads themePanelFloor — the SAME predicate §9.8's resize condition reads — with
+// dirUnusable FALSE, because that flag is a product of the enumeration and the read
+// happens on this keypress, after this decision. openThemePanel re-applies the same
+// predicate with the real flag; see its note for why neither shortcut is taken.
+func (m Model) themePanelEntry() (blockedFlash string, ok bool) {
+	if m.colourless {
+		return themePanelNoColorFlash, false
+	}
+	if dim, fits := themePanelFloor(m.contentWidth(), m.contentHeight(), false); !fits {
+		return themePanelEntryFlash(dim), false
+	}
+	return "", true
+}
+
+// handleThemePanelKey is §9.6's `t`, and it is what BOTH pages' dispatch arms call:
+// the gate above decides, and this either opens or raises the refusal's copy.
+//
+// ONE HANDLER, TWO CALL SITES. Sessions and Projects must answer `t` identically —
+// theme is a GLOBAL setting (§9.6) — and two arms each consulting the gate for
+// themselves is how one page comes to flash where the other opens. Both pages raise
+// the flash through their OWN band with no branch here, because the band is arbitrated
+// per page from the same m.flashText (§14A gave Projects its own transient-flash slot
+// for exactly these six signals).
+func (m Model) handleThemePanelKey() (tea.Model, tea.Cmd) {
+	flash, ok := m.themePanelEntry()
+	if !ok {
+		return m.blockThemePanel(flash)
+	}
+	return m.openThemePanel()
+}
+
+// blockThemePanel raises a blocked-`t` flash and schedules its auto-clear — the ONE
+// site either refusal (the pre-read gate, the post-read floor re-evaluation) reports
+// through.
+//
+// The flash is an ORDINARY transient one with no bespoke lifecycle: the post-bump
+// generation feeds flashTickCmd so the block inherits the standard timer, exactly as
+// the proactive multi-select block does, with the next-actionable-key clear at the top
+// of each page's update remaining the authoritative route.
+func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
+	(&m).setFlash(flash)
+	return m, flashTickCmd(m.flashGen)
+}
+
 // openThemePanel is §9.6's `t`: the ONE directory read, the parse results
 // retained for the panel's lifetime, the list assembled from the union they
 // produced, and §9.2's opening state resolved against them (armThemePanel).
@@ -332,12 +437,38 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 //
 // A nil seam is a silent no-op (the modePersister nil-guard precedent), so a
 // fixture or capturetool model that wires none simply has no panel.
+//
+// THE FLOOR IS RE-EVALUATED HERE, against the SAME predicate the entry gate read and
+// with the REAL directory verdict this read has just produced. §9.5's pinned
+// `⚠ dir unreadable` row raises the height floor by one, and DirUnusable does not
+// exist until the enumeration runs — so the one predicate is evaluated twice rather
+// than the arithmetic being re-derived, which is what themePanelFloor's
+// "compute it once" forbids. Both shortcuts are refused, in opposite directions:
+//
+//   - Assuming TRUE at the gate would refuse terminals that render a perfectly good
+//     panel, contradicting §9.8's degrade-don't-refuse doctrine outright.
+//   - Assuming FALSE and never re-checking would open a panel whose list body is ZERO
+//     ROWS — the warning consuming the single row §9.5 requires built-in and persisted
+//     rows to render BENEATH it, which is the "completely in the dark" state that row
+//     exists to prevent.
+//
+// THE COST IS ACCEPTED RATHER THAN WORKED AROUND: a refusal on this path has already
+// read the directory and already emitted `theme: enumerated` (§12.3). The
+// enumeration genuinely happened, so the record is honest; splitting the read from its
+// emission would fork task 8-1's seam for one rare edge. The enumeration is simply
+// discarded — nothing is armed, so no panel state survives — and the SAME pinned copy
+// the gate would have raised is flashed. Only the height can fail here (the width is
+// independent of the flag and the gate already cleared it), and selecting through the
+// shared themePanelEntryFlash is what keeps the two evaluations' copy identical.
 func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 	if m.themeEnumerator == nil {
 		return m, nil
 	}
 
 	enumeration, union := m.themeEnumerator.Open(m.themeKeys)
+	if dim, fits := themePanelFloor(m.contentWidth(), m.contentHeight(), union.DirUnusable); !fits {
+		return m.blockThemePanel(themePanelEntryFlash(dim))
+	}
 	(&m).armThemePanel(enumeration, union)
 	return m, nil
 }
@@ -809,6 +940,17 @@ func (m *Model) applyThemePanelCanvasMode() {
 // swallowing THAT would take away the user's exit key inside a settings surface,
 // so `Ctrl-C` stays live exactly as it does under the burst input-lock.
 //
+// NON-BLANKING AND KEY-EXCLUSIVE ARE NOT IN TENSION, which is worth saying because
+// the pair reads like a contradiction: seeing the list without being able to drive it
+// IS the live-preview premise (§9.1). The page stays fully rendered because it is what
+// the theme is being judged against, not because it is still interactive.
+//
+// `d` AND `l` ARE PANEL-OWNED (§9.2 gives them the dark and light slots), not
+// swallowed page keys. They fall through this switch's default while Phase 8 has
+// nothing for them to commit, so today they are observationally inert — but what is
+// asserted of them is that the PAGE's binding never fires (no Projects delete modal),
+// which stays true once task 9-3 makes them write.
+//
 // THE NAVIGATION ARM SITS AHEAD OF THE SWALLOW-EVERYTHING DEFAULT and is matched
 // against the panel LIST'S OWN KeyMap — the same way the Sessions page matches
 // CursorUp / CursorDown / PrevPage / NextPage — so §12.2's arrow-only revision is
@@ -820,8 +962,10 @@ func (m *Model) applyThemePanelCanvasMode() {
 // routes to closeThemePanel, which re-resolves persisted state before dropping
 // what the panel retained. It is consumed HERE and never reaches the page
 // beneath, where it is the progressive-back key: closing must not clear an
-// applied filter, must not exit multi-select, and must not quit. Task 8-13 owns
-// the entry conditions and the blocked-`t` flashes.
+// applied filter, must not exit multi-select, and must not quit — the innermost
+// surface resolves first, which is how the panel NESTS over multi-select (§9.7).
+//
+// The ENTRY side of this routing is themePanelEntry / handleThemePanelKey above.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyIsCtrlC(msg):

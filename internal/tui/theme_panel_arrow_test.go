@@ -858,7 +858,16 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 		m := Build(deps)
 		m.termWidth, m.termHeight = arrowTermW, arrowTermH
 		m.applySessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 2}})
-		m = pressPanelKey(t, pressThemeKey(t, m), arrowDown)
+		// §9.10's entry gate BLOCKS `t` under NO_COLOR, so the colourless twin arms the
+		// panel directly (armPanelUnderNoColorForTest states why) while the coloured
+		// control still opens through the production keypress. The preview swap below is
+		// the same on both.
+		if colourless {
+			m = armPanelUnderNoColorForTest(t, m)
+		} else {
+			m = pressThemeKey(t, m)
+		}
+		m = pressPanelKey(t, m, arrowDown)
 		if arrowPanelIndex(m) != 1 {
 			t.Fatalf("fixture (colourless=%v): `↓` left the cursor at index %d, so the frame below is not a post-preview one", colourless, arrowPanelIndex(m))
 		}

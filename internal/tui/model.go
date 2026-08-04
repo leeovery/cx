@@ -3053,8 +3053,13 @@ func (m Model) updateProjectsPage(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The case sits inside this rune switch, below the
 		// `if m.projectList.SettingFilter() { break }` guard above, so t is a literal
 		// filter character while the / input is focused — exactly as on Sessions.
+		//
+		// It routes through the SHARED handler §9.7's entry gate lives behind — the
+		// same one the Sessions arm calls — so the two pages cannot answer `t`
+		// differently, and a refusal raises its pinned copy through THIS page's own
+		// transient-flash slot (§14A).
 		case isRuneKey(msg, "t"):
-			return m.openThemePanel()
+			return m.handleThemePanelKey()
 		case keyIsCode(msg, tea.KeyEnter):
 			return m.handleProjectEnter()
 		}
@@ -3851,8 +3856,14 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// guard. It is NOT suppressed in multi-select: §9.7 has the panel nest over
 		// the mode with the marked set unaffected, and previewing mid-selection is
 		// legitimate since the marked-row ● is itself themed.
+		//
+		// Its entry conditions are §9.7's, and they live behind the SHARED handler
+		// this arm and the Projects one both call — including the one this arm is
+		// deliberately silent about: a PENDING BURST swallows `t` at the input-lock
+		// above, before any rune dispatch, which is consistency with that lock rather
+		// than an exception to it.
 		case isRuneKey(msg, "t"):
-			return m.openThemePanel()
+			return m.handleThemePanelKey()
 		// x is the sole Sessions↔Projects toggle (§12.2). The former p alias
 		// (Sessions → Projects) is dropped so each key has a single meaning.
 		case isRuneKey(msg, "x"):
