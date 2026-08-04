@@ -20,9 +20,9 @@ const themeComponent = "theme"
 
 // closedAttrKeys is §12.3's closed attr-key vocabulary for the `theme`
 // component, restated here so a call site that invents a key fails the suite.
-// Five of the seven are reachable from the events implemented so far; `count`
-// and `rejected` arrive with Phase 8's `theme: enumerated`, which counts the
-// panel's rows.
+// Five of the seven are reachable from the per-theme events below; `count` and
+// `rejected` belong to `theme: enumerated`, the one event about a SET of themes,
+// and are pinned with it in union_test.go.
 var closedAttrKeys = []string{"slug", "slot", "reason", "path", "token", "count", "rejected"}
 
 // TestEventLogger_RejectionsAreWarn pins the level and the component of both of

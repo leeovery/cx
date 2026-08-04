@@ -190,7 +190,9 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // per-slot fallback added ResolveNomination with the Resolution, Slot and
 // SlotResolution it reports through, §12.3's per-theme records added
 // EventLogger.Loaded and EventLogger.FallbackApplied beside the two rejection
-// events, and §7.6's runtime escalation added BrokenBuiltinError. Nothing on the
+// events, §7.6's runtime escalation added BrokenBuiltinError, and §9.4's union
+// added Open and Reassemble with the Enumeration, Union, Row and RowSource they
+// deal in plus the EventLogger.Enumerated they report through. Nothing on the
 // removed list ever returns to it.
 //
 // BrokenBuiltinError is exported for one reason and it is not a caller's: §14A's
@@ -228,8 +230,10 @@ var wantExports = []string{
 	"DefaultDarkSlug",
 	"DefaultLightSlug",
 	"Entry",
+	"Enumeration",
 	"EventLogger",
 	"EventLogger.DirectoryUnusable",
+	"EventLogger.Enumerated",
 	"EventLogger.FallbackApplied",
 	"EventLogger.Loaded",
 	"EventLogger.Rejected",
@@ -238,6 +242,8 @@ var wantExports = []string{
 	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
 	"Loader.LoadPath",
+	"Loader.Open",
+	"Loader.Reassemble",
 	"Loader.ResolveByName",
 	"Loader.ResolveNomination",
 	"NewEventLogger",
@@ -261,6 +267,9 @@ var wantExports = []string{
 	"Resolution",
 	"ResolveSetting",
 	"Result",
+	"Row",
+	"Row.Selectable",
+	"RowSource",
 	"Setting",
 	"Slot",
 	"SlotConstant",
@@ -268,12 +277,16 @@ var wantExports = []string{
 	"SlotLight",
 	"SlotResolution",
 	"SlugFromFilename",
+	"SourceBuiltin",
+	"SourceFile",
+	"SourcePersisted",
 	"StripControl",
 	"Theme",
 	"Theme.All",
 	"Token",
 	"Token.Color",
 	"TokenNames",
+	"Union",
 	"ValidSlug",
 }
 

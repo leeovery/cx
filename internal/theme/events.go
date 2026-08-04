@@ -25,10 +25,10 @@ import (
 // emits but never decides. Extending either list is a spec amendment, not a
 // call-site choice.
 //
-// Four of the seven events are implemented here. Three are WARN and dedup per
-// process; `theme: loaded` is INFO and deliberately does not (it is per LOAD
-// rather than per condition). The other three belong to later phases and have no
-// site yet:
+// Five of the seven events are implemented here. Three are WARN and dedup per
+// process; `theme: loaded` and `theme: enumerated` are INFO and deliberately do
+// not (each is per EVENT rather than per condition). The other two belong to
+// later phases and have no site yet:
 //
 //	theme: loaded              INFO   here — from §8.5's per-slot resolution.
 //	                                  ALSO fires at commit time in Phase 9, for
@@ -39,21 +39,22 @@ import (
 //	theme: fallback applied    WARN   here — from the same per-slot resolution.
 //	theme: rejected            WARN   here.
 //	theme: directory unusable  WARN   here.
+//	theme: enumerated          INFO   here — from the panel's §9.4 union.
 //	theme: appearance migrated INFO   Phase 6
 //	theme: commit failed       WARN   Phase 6's cmd-owned theme persister
-//	theme: enumerated          INFO   Phase 8
 //
-// Five of the seven attr keys are reachable from the four events implemented
-// here; `count` and `rejected` arrive with `theme: enumerated`, because NOTHING
-// IS ENUMERATED on any path that reaches this file today.
+// All seven attr keys are reachable from the five events implemented here:
+// `count` and `rejected` arrive with `theme: enumerated`, which is the one event
+// about a SET of themes rather than about one.
 
-// The four events this file emits, as their exact log messages. Each deduplicated
+// The five events this file emits, as their exact log messages. Each deduplicated
 // event is a constant rather than a literal because it is used twice — once as
 // the message and once as the dedup key's event discriminator — and the two must
-// never drift; `theme: loaded` does not dedup, and its constant is simply the one
-// place its message is written.
+// never drift; `theme: loaded` and `theme: enumerated` do not dedup, and their
+// constants are simply the one place each message is written.
 const (
 	eventLoaded            = "loaded"
+	eventEnumerated        = "enumerated"
 	eventRejected          = "rejected"
 	eventDirectoryUnusable = "directory unusable"
 	eventFallbackApplied   = "fallback applied"
@@ -119,6 +120,32 @@ func (e *EventLogger) Loaded(slug string, slot Slot) {
 	}
 
 	e.logger.Info(eventLoaded, themeAttrs(slug, slot)...)
+}
+
+// Enumerated reports the panel opening over §9.4's assembled union: how many rows
+// it produced, and how many of those are unselectable.
+//
+// It is NOT deduplicated, for `theme: loaded`'s reason rather than its
+// neighbours': it is a per-EVENT INFO — one panel open, one line — so five opens
+// legitimately emit five lines. Its WARN neighbours dedup precisely because the
+// same broken file recurs across those five opens (§5.8) while the opens
+// themselves do not repeat anything.
+//
+// Both attrs are stated because the union makes them genuinely ambiguous: "files
+// considered" and "valid themes" give different numbers on the same install. The
+// count is rows PRODUCED, built-ins included; §9.5's pinned `⚠ dir unreadable`
+// row is viewport chrome rather than a union member and is never among them.
+//
+// It fires on an absent themes directory (the count is the built-ins) and on an
+// unusable one (likewise, alongside the deduped `directory unusable` its
+// neighbour emitted) — the panel opened either way, which is what the event
+// records.
+func (e *EventLogger) Enumerated(count, rejected int) {
+	if e == nil {
+		return
+	}
+
+	e.logger.Info(eventEnumerated, "count", count, "rejected", rejected)
 }
 
 // FallbackApplied reports §8.5's mode-matched default standing in for a slot
