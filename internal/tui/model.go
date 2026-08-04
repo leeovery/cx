@@ -1552,9 +1552,11 @@ func (m *Model) ApplyTheme(th theme.Theme) {
 //
 // It runs from New (after the options apply, so the first frame paints the right
 // canvas) and after every gate transition, and it fans out to
-// applyProjectCanvasMode (the Projects screen's leaf styles) and styleFilterInput
-// (both lists' filter inputs). It is O(1) — no I/O, no list content touched, and
-// deliberately NOT a rebuild.
+// applyProjectCanvasMode (the Projects screen's leaf styles),
+// applyThemePanelCanvasMode (the §9.1 slide-over's own bubbles/list instance, a
+// no-op while the panel is closed) and styleFilterInput (both lists' filter
+// inputs). It is O(1) — no I/O, no list content touched, and deliberately NOT a
+// rebuild.
 //
 // What it re-points, on BOTH lists: the row delegate, the bubbles/list-owned help
 // style, the zero-items body style, the two pagination dot styles PLUS the
@@ -1563,6 +1565,11 @@ func (m *Model) ApplyTheme(th theme.Theme) {
 // stripListTitleColours) and the filter input's style set. Plus the §9 preview's
 // copied palette. Each of those is pinned by an assertion in
 // restyle_repoint_test.go.
+//
+// THE PANEL'S LIST IS THE THIRD INSTANCE and §11.2 names it the worst case of the
+// class — assigned once at open, re-themed on every arrow keypress. It is covered
+// by EXTENDING this path (applyThemePanelCanvasMode) rather than by a rebuild, per
+// §11.2; theme_panel_arrow_test.go pins its members.
 //
 // RECORDED RESIDUE — colour-bearing values assigned once that this path
 // deliberately does NOT re-point. Each keeps its origin palette forever, so the
@@ -1633,6 +1640,7 @@ func (m *Model) applyCanvasMode() {
 		m.sessionList.Styles.TitleBar = m.sessionList.Styles.TitleBar.UnsetBackground().PaddingLeft(0).PaddingBottom(1)
 		m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
 		m.applyProjectCanvasMode()
+		m.applyThemePanelCanvasMode()
 		return
 	}
 	m.sessionList.SetDelegate(m.sessionDelegate())
@@ -1654,6 +1662,7 @@ func (m *Model) applyCanvasMode() {
 	m.sessionList.Styles.TitleBar = m.sessionList.Styles.TitleBar.Background(canvas).PaddingLeft(0).PaddingBottom(1)
 	m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
 	m.applyProjectCanvasMode()
+	m.applyThemePanelCanvasMode()
 }
 
 // stripListTitleColours drops the bubbles/list default Title box colours (its

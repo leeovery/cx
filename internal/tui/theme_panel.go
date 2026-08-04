@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -106,8 +107,10 @@ const (
 // is why 8-9's restyle re-points the delegate on the same keypress that moves the
 // preview.
 type themePanel struct {
-	// open gates the whole surface. Nothing in this file sets it — `t` does
-	// (task 8-7) — so a test drives the composited frame by setting it directly.
+	// open gates the whole surface, and it means "the panel is LIVE" rather than
+	// "an open was requested": armThemePanel sets it only once the list below
+	// exists, because the restyle path's panel arm keys off it and would otherwise
+	// run against a zero list.Model mid-arm. See armThemePanel's ordering note.
 	open bool
 
 	// list is the panel's own bubbles/list instance (see the type comment).
@@ -156,16 +159,27 @@ type themePanel struct {
 // `bubbles/list` machinery, and §11.2 requires the dots to be exercised by a
 // paginating fixture so the swap-and-diff guard is not blind at the new site.
 //
-// The list is created at zero size. The panel's fixed inner WIDTH is applied once
-// at open (applyThemePanelListStyles, which the centred dot row's explicit width
-// depends on); the HEIGHT is applied per frame by renderThemePanel, from the height
-// it is actually rendered at (see themePanelListSize).
+// The nav keymap is PINNED through the shared pinArrowOnlyNav, exactly as the
+// Sessions and Projects lists pin theirs: §12.2's revision is arrows only, and the
+// v2 DefaultKeyMap re-introduces the vim aliases (h/j/k/l, g/G) plus
+// PgUp/PgDn/Home/End/b/u/f/d. On the panel two of those additionally COLLIDE with
+// its own commit keys — the default binds `l` to NextPage and `d` to NextPage,
+// which §9.2 gives to the light and dark slots — so pinning here is what keeps a
+// banned key from ever reaching the list's own Update.
+//
+// The list is created at zero size and sized at open by applyThemePanelListStyles,
+// which the centred dot row's explicit width depends on. renderThemePanel re-applies
+// the SAME size per frame on its own copy, from the height it is actually rendered
+// at (see themePanelListSize) — the model's list carries the size so its PAGE is the
+// drawn page, which is what makes §9.2's `Ctrl+↑`/`Ctrl+↓` move a page rather than a
+// row.
 func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model {
 	l := list.New(items, delegate, 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(false)
+	pinArrowOnlyNav(&l.KeyMap)
 	return l
 }
 
@@ -199,7 +213,7 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // §9.2's opening state with them: the badges, the theme actually rendering, and
 // the row the cursor lands on.
 //
-// The ORDER is load-bearing at four points. The width is set before the list is
+// The ORDER is load-bearing at five points. The width is set before the list is
 // built, because Model.themeRowDelegate composes the row budget from it. The
 // RESOLUTION runs before the list is built, because it decides both the badges
 // every row item carries and the palette that delegate is constructed from — a
@@ -207,15 +221,27 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // The list is built before the styles are applied, because those re-point the
 // list's own chrome. And the cursor is anchored LAST, because applying the styles
 // re-sizes the list, which re-derives its page from the index it finds.
+//
+// THE FIFTH IS `open`, AND IT IS SET ONLY ONCE THE LIST EXISTS. The resolution
+// above applies the in-force theme through Model.ApplyTheme, whose restyle path
+// re-points the panel list's own styles and delegate WHILE THE PANEL IS OPEN
+// (applyThemePanelCanvasMode) — so a panel marked open before its list is built
+// would have that path run against the zero list.Model. Marking it open here is
+// the honest reading rather than a workaround: `open` means the surface is live,
+// and a surface with no list is not. Nothing between the struct install and this
+// line reads the flag, and the re-point is not merely safe to skip during the arm
+// but redundant — the list is constructed with a delegate taken from the palette
+// the resolution just applied, and applyThemePanelListStyles re-points its chrome
+// on the very next line.
 func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) {
 	m.themePanel = themePanel{
-		open:        true,
 		enumeration: enumeration,
 		union:       union,
 		width:       themePanelPreferredWidth,
 	}
 	cursor := m.applyThemePanelResolution(enumeration)
 	m.themePanel.list = newThemePanelList(m.themePanel.rowItems(), m.themeRowDelegate())
+	m.themePanel.open = true
 	m.applyThemePanelListStyles()
 	m.anchorThemePanelCursor(cursor)
 }
@@ -385,28 +411,109 @@ func (p themePanel) rowItems() []list.Item {
 	return items
 }
 
-// applyThemePanelListStyles re-points the chrome the panel's `bubbles/list` draws
-// FOR ITSELF onto the active theme — today the §3.5 pagination dots, the one such
-// surface the panel does not render itself.
-//
-// §11.2 assigns the panel's chrome to the same restyle path as the main list, and
-// the dots are exactly the cached-style class it names: `bubbles/list` reads its
-// dot STRINGS out of the styles once, so restyling without re-feeding the
-// paginator leaves the library's hardcoded greys rendering under every theme —
-// identical before and after a swap, which is invisible to §13.4's swap-and-diff
-// guard precisely because nothing changed. The shared canvas/colourless helpers
-// are reused verbatim so the panel's dots cannot drift from the two lists'.
+// applyThemePanelListStyles sizes the panel's list and re-points the chrome it
+// draws FOR ITSELF onto the active theme.
 //
 // The list is SIZED first because the centred dot row pins an explicit width off
-// it. Only the width matters here and it is fixed for the panel's lifetime; the
-// height is re-applied per frame by renderThemePanel on its own copy.
+// it. The size comes from themePanelListSize against the CONTENT HEIGHT the panel
+// is composited into (overlayThemePanelOnContent passes exactly m.contentHeight()),
+// which is the same function and the same height renderThemePanel sizes its own
+// per-frame copy with — so the model's page and the drawn page are the same page,
+// with no second piece of geometry invented here.
+//
+// SIZING TO themePanelMinBodyRows WOULD BE A DEFECT, not a deferral. `bubbles/list`
+// derives Paginator.PerPage from the height it is given, so a list left at the floor
+// has a ONE-ROW page and NextPage/PrevPage advance the cursor by exactly one row —
+// §9.2's `Ctrl+↑`/`Ctrl+↓` would route perfectly and still do nothing `↑`/`↓` does
+// not, and §9.8's "overflow: scroll, through the bubbles/list machinery" would be
+// unimplemented on a panel that renders as though it were. Task 8-11 owns the RESIZE
+// path (re-applying this on a tea.WindowSizeMsg); it does not own the panel's page
+// existing at all.
+//
+// THE TWO SIZINGS LAND ON THE SAME PAGE, which is worth stating because the
+// arithmetic is not obviously convergent: `bubbles/list` charges its own pagination
+// block against the height BEFORE dividing, and that block is two rows while the
+// list paginates and none once it does not — so one SetSize derives its page from
+// the page count it is replacing. The derivation settles on the second pass (a list
+// that fits on one page still fits when handed the spare row back; one that does not
+// keeps the two-row charge), and applyThemePanelCanvasMode's SetDelegate below
+// re-runs it immediately — so the per-frame copy always re-derives from a settled
+// count. Verified across the boundary where the count collapses to one page; the only
+// shape a residual difference could take is a spare row on a list that already holds
+// every one of its rows.
+//
+// The re-point itself is applyThemePanelCanvasMode — the SAME function the restyle
+// path calls — rather than a second copy of it here, so what the open assigns and
+// what an arrow re-points can never diverge.
 func (m *Model) applyThemePanelListStyles() {
-	m.themePanel.list.SetSize(themePanelInnerWidth(m.themePanel.width), themePanelMinBodyRows)
-	if m.colourless {
-		colourlessPaginationDots(&m.themePanel.list)
+	width, rows := themePanelListSize(m.themePanel, m.contentHeight())
+	m.themePanel.list.SetSize(width, rows)
+	m.applyThemePanelCanvasMode()
+}
+
+// applyThemePanelCanvasMode is the restyle path's THIRD arm (§11.2), beside the
+// Sessions and Projects ones: it re-points the panel list's `bubbles/list`-owned
+// styles and its row delegate onto the model's active palette.
+//
+// §11.2 names the panel's instance the WORST CASE of the cached-style class — its
+// styles are assigned once at open while its theme changes on EVERY arrow keypress
+// (§9.11 requires the panel's own chrome to re-theme, no exceptions) — and assigns
+// it to "the same restyle path as the main list, extended to cover the panel's
+// instance". IT IS NOT A REBUILD: no item is re-derived and no content is touched.
+// §11.1 rules the rebuild out as the expensive path, and it would be worse here, on
+// a per-keypress surface.
+//
+// The DOTS are the class's exemplar and the reason this cannot be skipped:
+// `bubbles/list` reads its dot STRINGS out of the styles once at construction, so
+// restyling without re-feeding the paginator leaves the library's hardcoded greys
+// rendering under every theme — identical before and after a swap, which §13.4's
+// swap-and-diff guard structurally cannot see, precisely because nothing changed.
+// The shared canvas/colourless helpers are reused verbatim so the panel's dots
+// cannot drift from the two lists'.
+//
+// The HELP, TITLE and NO-ITEMS styles are re-pointed although the panel disables the
+// first two (newThemePanelList turns off its title, status bar and help, drawing all
+// of that itself) and the built-in rows make the third unreachable (§7.6's build-time
+// guarantee means the union always holds at least one row, so `bubbles/list` never
+// renders its zero-items body here). They are here because §11.2 names them, and
+// because the alternative is a carve-out: a surface that deliberately ignores the
+// active theme is exactly the shape §13.4's guard exists to catch, and re-pointing
+// them costs one assignment each while making a future SetShowTitle(true) — or a
+// union that could genuinely empty — incapable of shipping a stale palette. Skipping
+// Styles.NoItems on an unreachability argument is precisely the shape applyCanvasMode's
+// residue record was rewritten to forbid, since a blanket claim of that kind is what
+// let this style sit unnoticed on the two main lists while reaching a real frame. The
+// TitleBar padding the two main lists set is NOT copied — that serves the
+// section-header surgery, which the panel has no equivalent of.
+//
+// The DELEGATE goes through Model.themeRowDelegate, the single construction point
+// (§11.2), so the previewed theme, the colourless flag and the panel's inner width
+// are assembled in exactly one place.
+//
+// The `open` GUARD is what makes armThemePanel's mid-arm ApplyTheme safe: the panel
+// struct is installed before its list is built, so this path would otherwise run
+// against the zero list.Model. See armThemePanel's ordering note.
+func (m *Model) applyThemePanelCanvasMode() {
+	if !m.themePanel.open {
 		return
 	}
-	canvasPaginationDots(&m.themePanel.list, m.activeTheme)
+	l := &m.themePanel.list
+	l.SetDelegate(m.themeRowDelegate())
+	// Hoisted above the branch: unsetting the title box's third-party default
+	// colours is the same act on both paths (the two main lists repeat it per
+	// branch only because their TitleBar padding differs alongside it).
+	l.Styles.Title = stripListTitleColours(l.Styles.Title)
+	if m.colourless {
+		colourlessHelpStyles(l)
+		colourlessNoItemsStyle(l)
+		colourlessPaginationDots(l)
+		l.Styles.TitleBar = l.Styles.TitleBar.UnsetBackground()
+		return
+	}
+	canvasHelpStyles(l, m.activeTheme)
+	canvasNoItemsStyle(l, m.activeTheme)
+	canvasPaginationDots(l, m.activeTheme)
+	l.Styles.TitleBar = l.Styles.TitleBar.Background(m.activeTheme.Canvas.Color())
 }
 
 // updateThemePanel is §9.7's key-exclusive input routing: the panel OWNS the
@@ -418,11 +525,17 @@ func (m *Model) applyThemePanelListStyles() {
 // swallowing THAT would take away the user's exit key inside a settings surface,
 // so `Ctrl-C` stays live exactly as it does under the burst input-lock.
 //
+// THE NAVIGATION ARM SITS AHEAD OF THE SWALLOW-EVERYTHING DEFAULT and is matched
+// against the panel LIST'S OWN KeyMap — the same way the Sessions page matches
+// CursorUp / CursorDown / PrevPage / NextPage — so §12.2's arrow-only revision is
+// stated once, at newThemePanelList's pinArrowOnlyNav, rather than restated as a
+// second literal key list here. A key the keymap does not bind cannot match, so
+// there is nothing to keep the two in step.
+//
 // THE `Esc` BODY HERE IS PROVISIONAL. Task 8-10 replaces it with the
-// re-resolution close and is the real close path; a bare state clear is correct
-// only at this point in the sequence, where no arrow has previewed anything yet
-// and so there is nothing to resolve back to. Task 8-9 adds the arrow handling and
-// task 8-13 owns the entry conditions and the blocked-`t` flashes.
+// re-resolution close and is the real close path; a bare state clear discards
+// whatever the arrows previewed, which is the right SHAPE but resolves nothing
+// back. Task 8-13 owns the entry conditions and the blocked-`t` flashes.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyIsCtrlC(msg):
@@ -430,9 +543,132 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyIsCode(msg, tea.KeyEscape):
 		(&m).closeThemePanel()
 		return m, nil
+	case themePanelNavKey(m.themePanel.list.KeyMap, msg):
+		return m, (&m).moveThemePanelCursor(msg)
 	default:
 		return m, nil
 	}
+}
+
+// themePanelNavKey reports whether msg is one of the four keys §9.2 gives the
+// panel's cursor: `↑`/`↓` to step and `Ctrl+↑`/`Ctrl+↓` to page.
+//
+// It matches against the LIVE KeyMap rather than against key literals, so the
+// panel's routing and the list's own dispatch are driven by one binding set.
+// GoToStart / GoToEnd are deliberately absent: pinArrowOnlyNav empties them
+// (§12.2 drops `g`/`G` and `Home`/`End`), so there is nothing to route.
+func themePanelNavKey(km list.KeyMap, msg tea.KeyPressMsg) bool {
+	return key.Matches(msg, km.CursorUp, km.CursorDown, km.PrevPage, km.NextPage)
+}
+
+// moveThemePanelCursor is §9.2's arrow-preview in the three steps it is specified
+// as: move, skip, preview.
+//
+// THE PREVIEW IS THE POINT — a panel that lists themes without showing them is a
+// config screen with extra steps — and it takes the §11.1 RESTYLE and nothing else:
+// Model.ApplyTheme, the production entry point §13.4's completeness guard drives,
+// against a palette that is ALREADY IN HAND (§5.8). No file is read, no union is
+// reassembled, no directory is touched and the session list is not rebuilt.
+//
+// OSC 11 NEEDS NOTHING HERE, DELIBERATELY. View assigns v.BackgroundColor
+// declaratively from the active theme's canvas and Bubble Tea DIFFS it, so hovering
+// N themes emits exactly once per DISTINCT canvas landed on (§11.3). The query is
+// issued only from Init, so a later switch opens no new race and the canvas-echo
+// guard needs no new handling — which is why there is no suppression and no
+// debounce here, and why none should be added.
+//
+// The MIXED-MODE FLASH is likewise left alone: arrowing past a light theme in a
+// dark terminal flips the whole canvas near-white and back, and §9.2 is explicit
+// that this is the feature rather than a defect (ordering same-mode themes first
+// was proposed as a mitigation and rejected).
+func (m *Model) moveThemePanelCursor(msg tea.KeyPressMsg) tea.Cmd {
+	var cmd tea.Cmd
+	m.themePanel.list, cmd = m.themePanel.list.Update(msg)
+	m.skipUnselectableThemeRow(msg)
+	m.previewSelectedThemeRow()
+	return cmd
+}
+
+// skipUnselectableThemeRow keeps the panel cursor off the unselectable rows after
+// the list has processed a navigation key — §9.5's "arrow keys skip invalid rows,
+// REUSING THE MECHANISM that already skips group-header rows on the Sessions
+// list". It is model.go's skipHeaderRow applied to Row.Selectable, and it composes
+// with paging for the same reason that one does: the step is taken on the list, so
+// it crosses a page boundary exactly as an ordinary move would.
+//
+// TWO DELIBERATE DIFFERENCES FROM skipHeaderRow, both structural:
+//
+//   - IT LOOPS. No two group headers are ever adjacent, so one step always clears
+//     one; several broken drop-ins in one directory are adjacent by nature, so one
+//     step can land straight on another invalid row.
+//   - IT REVERSES rather than falling off. skipHeaderRow flips an upward intent to
+//     a downward step only at index 0; here either end can be reached with no
+//     selectable row in the direction of travel, so the loop turns round at
+//     whichever boundary it hits. A reversal necessarily ends on the row the cursor
+//     started from — everything between was walked and rejected.
+//
+// THE BOUND IS TWICE THE ROW COUNT, and the doubling is the reversal's: the walk
+// can reach a boundary and then retrace the whole span it just covered. Built-ins
+// are always valid (§7.6's build-time guarantee), so a union with no selectable row
+// is unreachable and the loop always terminates on the check — the bound exists so
+// that a future all-invalid union degrades instead of spinning on a keypress.
+func (m *Model) skipUnselectableThemeRow(msg tea.KeyPressMsg) {
+	l := &m.themePanel.list
+	rows := len(l.Items())
+	upward := key.Matches(msg, l.KeyMap.CursorUp, l.KeyMap.PrevPage)
+
+	for range 2 * rows {
+		if row, ok := selectedThemeRow(*l); ok && row.Selectable() {
+			return
+		}
+		switch index := l.Index(); {
+		case upward && index == 0:
+			upward = false
+		case !upward && index == rows-1:
+			upward = true
+		}
+		if upward {
+			l.CursorUp()
+			continue
+		}
+		l.CursorDown()
+	}
+}
+
+// previewSelectedThemeRow applies the cursor's row to the whole frame — §9.2's "the
+// app re-themes live behind the panel", and the one place the panel writes to the
+// rendered palette.
+//
+// The palette comes off the ROW, which carries it because the enumeration parsed it
+// at open and the panel retains the results for its lifetime (§5.8). That retention
+// is what keeps the swap the O(1) restyle of §11.1: there is nothing here to read.
+//
+// A row already painting the screen is skipped, so an arrow that could not move —
+// or a reversal that turned back — costs no restyle at all. Swapping to the active
+// theme is a legal no-op in any case (ApplyTheme is idempotent per swap); skipping
+// it makes that explicit rather than incidental.
+//
+// An unselectable row is never previewed: it carries no palette, and the skip above
+// is what makes the case unreachable in production. Checking anyway is what keeps a
+// union with no selectable row at all — the shape the skip's bound also degrades on
+// — from painting a zero Theme, which renders silently colourless.
+func (m *Model) previewSelectedThemeRow() {
+	row, ok := selectedThemeRow(m.themePanel.list)
+	if !ok || !row.Selectable() || row.Theme == m.activeTheme {
+		return
+	}
+	m.ApplyTheme(row.Theme)
+}
+
+// selectedThemeRow is the union row under the panel's cursor. The false return
+// covers an empty list and a cursor on nothing, neither of which is a row to skip
+// to or preview from.
+func selectedThemeRow(l list.Model) (theme.Row, bool) {
+	item, ok := l.SelectedItem().(themeRowItem)
+	if !ok {
+		return theme.Row{}, false
+	}
+	return item.Row, true
 }
 
 // themeRowDelegate is THE SINGLE CONSTRUCTION POINT for the panel's row delegate,
