@@ -319,7 +319,21 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		renderDoctorReport(cmd.OutOrStdout(), postResults, nil)
+		// The advisory block is RE-COLLECTED for this render rather than the first
+		// pass's slice being carried down (§12.2: the theme scan runs on the `--fix`
+		// path too). Two things ride on that:
+		//
+		// It is what makes the second report a genuine RE-DIAGNOSIS of the same
+		// read-only condition rather than a replay of the first — the same claim the
+		// re-run of runDoctorDiagnosis above makes about the checks. Reusing the
+		// slice would print a stale answer beside freshly-read check lines, and the
+		// two halves of one report would then be describing two different moments.
+		//
+		// And it costs nothing to be honest here, because the scan is read-only:
+		// runDoctorFix deliberately performs no theme repair (see its comment), so
+		// this pass can only differ from the first if the USER's directory changed
+		// under the run — in which case the later answer is the right one to print.
+		renderDoctorReport(cmd.OutOrStdout(), postResults, collectThemeAdvisories(deps))
 		if doctorUnhealthy(postResults) {
 			return ErrDoctorUnhealthy
 		}
@@ -345,6 +359,21 @@ var doctorCmd = &cobra.Command{
 // down/rebooted-server state), so a user-authored — non-reconstructable —
 // on-resume command is never wiped. The stale-project prune is filesystem-only
 // and runs regardless of server state.
+//
+// THE THEME ADVISORIES HAVE NO REPAIR STEP HERE, and their absence from the list
+// above is a decision rather than an omission (§12.2: "doctor can prune a stale
+// hook entry; it cannot repair someone's colours"). The repairs this function
+// owns are reversible BY RECONSTRUCTION — a pruned stale hook or project record
+// is one Portal itself re-derives from live tmux state — whereas every theme
+// "repair" available is the destruction of something only the user can author: a
+// junk `.theme` file is someone's half-written palette, and a prefs.json key
+// naming a missing slug is their choice, still correct the moment they restore
+// the file it names. So there is no file rewrite, no prefs write, no directory
+// creation, no seeding (§5.5: Portal never creates or seeds the themes
+// directory, and `--fix` is the one doctor path that writes, so it is the one
+// that must decline) and no pruning of an invalid drop-in. The theme lines are
+// read-only in BOTH passes, which is why they need nothing from this function
+// and appear in both renders unchanged.
 func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) error {
 	w := cmd.OutOrStdout()
 	pruneDoctorStaleHooks(w, deps)

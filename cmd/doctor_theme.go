@@ -77,10 +77,18 @@ const (
 // pass, over the TWO producers behind it — the themes-directory scan (what is IN
 // a directory) and the persisted-theme read (what the user PICKED).
 //
+// "Once per diagnosis pass" is literal, and `portal doctor --fix` is where it
+// bites: that path runs TWO passes and therefore calls this TWICE, freshly, once
+// beside each render. The alternative — collecting once and handing the same
+// slice to both renders — would pair a stale advisory block with freshly-read
+// check lines, so one report would be describing two different moments.
+//
 // It is strictly READ-ONLY — no write, no repair, no directory creation — which
 // is what lets it run unchanged on the `--fix` path, where there is no repair to
 // perform and suppressing it would make `--fix` a LESS informative diagnosis
-// than a plain run.
+// than a plain run. Being read-only is also what makes the second call free of
+// consequence: nothing between the two passes can change its answer, because
+// runDoctorFix deliberately touches no theme state.
 //
 // The loader is handed log.Discard(), ALWAYS, on every doctor path. §12.3: the
 // `theme` component records where a theme is USED, never where one is
