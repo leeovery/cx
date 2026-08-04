@@ -259,6 +259,33 @@ type Model struct {
 	// unwired state (a fixture / capturetool model), so every call site must
 	// nil-guard exactly as the mode persister's does.
 	themePersister ThemePersister
+	// themeKeys are prefs.json's three theme keys AS READ (§8.4) — control-stripped
+	// and post-translation, the value the panel LISTS a persisted-but-unresolvable
+	// slug from and MARKS its `●` by.
+	//
+	// It is a CONSTRUCTION-TIME SNAPSHOT and is never refreshed. §8.4 makes that
+	// asymmetry with §5.8's fresh per-open directory read deliberate, because the
+	// two files are: the themes directory is what the drop-in loop edits by hand
+	// between panel opens, whereas prefs.json is what Portal itself writes — so
+	// re-reading it would let another instance's commit silently change what this
+	// panel shows and marks, the cross-instance sync §8.9 explicitly declines. A
+	// user who hand-edits prefs mid-session sees it next launch, consistent with
+	// every other prefs consumer.
+	themeKeys theme.RawKeys
+	// themeSlots is the per-slot resolution record (§8.5) the §9.5 badge table is
+	// derived from at open. It is INJECTED rather than read off the nomination
+	// because a Nomination holds palettes: under a fallback it holds the theme that
+	// LOADED, not the slug the user SET, and a badge keyed on it would sit on a
+	// theme they never chose.
+	//
+	// Task 8-8's open-time re-resolution produces a fresher record from the panel's
+	// own enumeration and REPLACES this as the badge source at that point; it is
+	// injected here because at the FIRST open no such re-resolution exists yet.
+	themeSlots []theme.SlotResolution
+	// themeEnumerator is §13.3's panel seam. It is consulted ONLY on the `t`
+	// keypress — never at construction (§5.7, discovery is lazy) — and a nil seam
+	// makes `t` a silent no-op, following the modePersister nil-guard precedent.
+	themeEnumerator ThemeEnumerator
 	// nomination is the LOADED theme setting injected at construction
 	// (WithThemeNomination) — one Theme under a constant, both under an adaptive
 	// pair (§8.4). It is the model's whole theme INPUT: it replaces the
@@ -909,6 +936,46 @@ func WithModePersister(p ModePersister) Option {
 func WithThemePersister(p ThemePersister) Option {
 	return func(m *Model) {
 		m.themePersister = p
+	}
+}
+
+// WithThemeKeys injects prefs.json's three theme keys as read (§8.4) — the
+// CONSTRUCTION-TIME SNAPSHOT the panel lists and marks from. The zero value is
+// meaningful (no keys is the shipped adaptive pair), so the option is always
+// applied and there is nothing to guard.
+func WithThemeKeys(keys theme.RawKeys) Option {
+	return func(m *Model) {
+		m.themeKeys = keys
+	}
+}
+
+// WithThemeSlots injects the per-slot resolution record (§8.5) the §9.5 badge
+// table is derived from. Production wiring passes the record the construction-time
+// resolution already produced; a model with no panel to badge passes none.
+func WithThemeSlots(slots []theme.SlotResolution) Option {
+	return func(m *Model) {
+		m.themeSlots = slots
+	}
+}
+
+// WithThemeEnumerator injects §13.3's panel seam — the ScrollbackReader idiom
+// applied to §9.4's union, production wiring the real implementation and fixtures
+// faking it.
+//
+// IT IS THE ONE NIL GUARD, and it rejects BOTH nil shapes. A nil interface is the
+// ordinary unwired state (a fixture / capturetool model that supplies no seam),
+// and a TYPED nil boxed into the interface is the trap: `e != nil` is true for a
+// `(*adapter)(nil)`, so an assignment gated on that alone would hand the model a
+// live-LOOKING seam whose every call panics — the same shape cmd guards one layer
+// up by wiring its persisters only when the prefs store actually loaded. Only
+// reflection can tell the two apart, and it is paid once per construction rather
+// than per keypress.
+func WithThemeEnumerator(e ThemeEnumerator) Option {
+	return func(m *Model) {
+		if !liveThemeEnumerator(e) {
+			return
+		}
+		m.themeEnumerator = e
 	}
 }
 
@@ -2828,6 +2895,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// §9.7: while the slide-over is open it OWNS the keyboard — the panel arm sits
+	// AHEAD of the page dispatch so no page handler can fire behind it. Only KEY
+	// input is intercepted: resizes, session refreshes and the appearance gate's
+	// own messages must keep reaching the model beneath, which stays fully live and
+	// visible (non-blanking is the live-preview premise, §9.1).
+	if m.themePanel.open {
+		if keyMsg, isKey := msg.(tea.KeyPressMsg); isKey {
+			return m.updateThemePanel(keyMsg)
+		}
+	}
+
 	// Delegate to the active view
 	switch m.activePage {
 	case PageLoading:
@@ -2931,6 +3009,13 @@ func (m Model) updateProjectsPage(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m.handleEditProjectKey()
+		// t opens the §9.1 theme slide-over here too: theme is a GLOBAL setting, so
+		// refusing on Projects would make it feel page-scoped for no reason (§9.6).
+		// The case sits inside this rune switch, below the
+		// `if m.projectList.SettingFilter() { break }` guard above, so t is a literal
+		// filter character while the / input is focused — exactly as on Sessions.
+		case isRuneKey(msg, "t"):
+			return m.openThemePanel()
 		case keyIsCode(msg, tea.KeyEnter):
 			return m.handleProjectEnter()
 		}
@@ -3720,6 +3805,15 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// while the / filter input is focused. Do NOT hoist above that guard.
 		case isRuneKey(msg, "m"):
 			return m.handleMultiSelectToggle()
+		// t opens the §9.1 theme slide-over. Like s and m this case MUST stay
+		// inside this rune switch, below the `if m.sessionList.SettingFilter()
+		// { break }` guard above — §9.6 pins the carve-out, so while the / filter
+		// input is focused t is a literal filter character. Do NOT hoist above that
+		// guard. It is NOT suppressed in multi-select: §9.7 has the panel nest over
+		// the mode with the marked set unaffected, and previewing mid-selection is
+		// legitimate since the marked-row ● is itself themed.
+		case isRuneKey(msg, "t"):
+			return m.openThemePanel()
 		// x is the sole Sessions↔Projects toggle (§12.2). The former p alias
 		// (Sessions → Projects) is dropped so each key has a single meaning.
 		case isRuneKey(msg, "x"):

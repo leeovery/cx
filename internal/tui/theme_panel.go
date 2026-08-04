@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
@@ -113,10 +114,10 @@ type themePanel struct {
 
 	// enumeration is the ONE directory read, retained for the panel's lifetime
 	// (§5.8) so arrowing previews from values already in hand and §9.2's post-commit
-	// recompute re-derives with no fresh I/O. Task 8-7 fills it on open; task 8-8's
-	// open-time re-resolution and §9.2's commit recompute are its readers, which is
-	// why nothing in this file consults it yet.
-	enumeration theme.Enumeration //nolint:unused // retained for the panel's lifetime (§5.8); read by tasks 8-7/8-8
+	// recompute re-derives with no fresh I/O. openThemePanel fills it; task 8-8's
+	// open-time re-resolution and §9.2's commit recompute are its READERS, which is
+	// why nothing consults it yet.
+	enumeration theme.Enumeration //nolint:unused // retained for the panel's lifetime (§5.8); read by task 8-8
 
 	// union is §9.4's finished row set, already ordered and already carrying each
 	// row's single §6.2 reason.
@@ -124,9 +125,9 @@ type themePanel struct {
 
 	// badges is §9.5's `●` table, keyed by theme.Row.BadgeKey — a fact about the
 	// whole SETTING rather than about one row, which is why it is held here and
-	// looked up per row rather than derived at the delegate. Task 8-7's open sequence
-	// derives it and assembles the list's items through it.
-	badges map[string]theme.Badge //nolint:unused // the item assembly that reads it lands with task 8-7
+	// looked up per row rather than derived at the delegate. openThemePanel derives
+	// it from the injected slot record and rowItems assembles the list through it.
+	badges map[string]theme.Badge
 
 	// message is §9.1's message slot. IT IS ALWAYS EMPTY IN PHASE 8: both of the
 	// slot's contenders — the slot-from-constant confirm (§9.2) and the failed-commit
@@ -152,8 +153,10 @@ type themePanel struct {
 // `bubbles/list` machinery, and §11.2 requires the dots to be exercised by a
 // paginating fixture so the swap-and-diff guard is not blind at the new site.
 //
-// The list is created at zero size; renderThemePanel sizes it from the height it is
-// rendered at (see themePanelListSize).
+// The list is created at zero size. The panel's fixed inner WIDTH is applied once
+// at open (applyThemePanelListStyles, which the centred dot row's explicit width
+// depends on); the HEIGHT is applied per frame by renderThemePanel, from the height
+// it is actually rendered at (see themePanelListSize).
 func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model {
 	l := list.New(items, delegate, 0, 0)
 	l.SetShowTitle(false)
@@ -161,6 +164,124 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(false)
 	return l
+}
+
+// openThemePanel is §9.6's `t`: the ONE directory read, the parse results
+// retained for the panel's lifetime, and the list assembled from the union they
+// produced.
+//
+// THE READ HAPPENS HERE, ON THE KEYPRESS, AND NOWHERE ELSE. §5.7 keeps
+// construction free of it — a cold path that is explicitly latency-engineered
+// must not become an N-file scan-parse-validate sweep — and §5.8 makes it happen
+// on EVERY open rather than once per process, because caching buys nothing
+// measurable while breaking the loop the whole drop-in route exists for: copy a
+// built-in, edit it, see it, without relaunching Portal.
+//
+// The KEYS it is handed are the construction-time snapshot and are deliberately
+// NOT re-read (§8.4) — see Model.themeKeys for the asymmetry and its reason.
+//
+// A nil seam is a silent no-op (the modePersister nil-guard precedent), so a
+// fixture or capturetool model that wires none simply has no panel.
+func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
+	if m.themeEnumerator == nil {
+		return m, nil
+	}
+
+	enumeration, union := m.themeEnumerator.Open(m.themeKeys)
+	(&m).armThemePanel(enumeration, union)
+	return m, nil
+}
+
+// armThemePanel installs one enumeration's results as the live panel state.
+//
+// The ORDER is load-bearing: the width is set before the list is built, because
+// Model.themeRowDelegate composes the row budget from it, and the list is built
+// before the styles are applied, because those re-point the list's own chrome.
+func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) {
+	m.themePanel = themePanel{
+		open:        true,
+		enumeration: enumeration,
+		union:       union,
+		badges:      theme.Badges(m.themeSlots),
+		width:       themePanelPreferredWidth,
+	}
+	m.themePanel.list = newThemePanelList(m.themePanel.rowItems(), m.themeRowDelegate())
+	m.applyThemePanelListStyles()
+}
+
+// closeThemePanel drops the panel and everything it retained, so the next open
+// RE-READS (§5.8) rather than replaying a stale parse.
+//
+// Zeroing the whole struct is the point rather than a shortcut: the enumeration,
+// the union, the badge table and the list are one lifetime, and clearing a subset
+// is how a panel comes to show rows from one read and badges from another.
+func (m *Model) closeThemePanel() {
+	m.themePanel = themePanel{}
+}
+
+// rowItems pairs each union row with the badge it carries — the SINGLE item
+// assembly site, which task 8-9's restyle re-invokes rather than re-deriving.
+//
+// The badge is looked up through Row.BadgeKey and NEVER through Slug: a
+// `reserved name` row's slug is identical to the built-in's it collides with by
+// definition, so a bare Slug lookup would paint `●` on BOTH rows on precisely the
+// install that has a drop-in shadowing a built-in.
+func (p themePanel) rowItems() []list.Item {
+	items := make([]list.Item, 0, len(p.union.Rows))
+	for _, row := range p.union.Rows {
+		items = append(items, themeRowItem{Row: row, Badge: p.badges[row.BadgeKey()]})
+	}
+	return items
+}
+
+// applyThemePanelListStyles re-points the chrome the panel's `bubbles/list` draws
+// FOR ITSELF onto the active theme — today the §3.5 pagination dots, the one such
+// surface the panel does not render itself.
+//
+// §11.2 assigns the panel's chrome to the same restyle path as the main list, and
+// the dots are exactly the cached-style class it names: `bubbles/list` reads its
+// dot STRINGS out of the styles once, so restyling without re-feeding the
+// paginator leaves the library's hardcoded greys rendering under every theme —
+// identical before and after a swap, which is invisible to §13.4's swap-and-diff
+// guard precisely because nothing changed. The shared canvas/colourless helpers
+// are reused verbatim so the panel's dots cannot drift from the two lists'.
+//
+// The list is SIZED first because the centred dot row pins an explicit width off
+// it. Only the width matters here and it is fixed for the panel's lifetime; the
+// height is re-applied per frame by renderThemePanel on its own copy.
+func (m *Model) applyThemePanelListStyles() {
+	m.themePanel.list.SetSize(themePanelInnerWidth(m.themePanel.width), themePanelMinBodyRows)
+	if m.colourless {
+		colourlessPaginationDots(&m.themePanel.list)
+		return
+	}
+	canvasPaginationDots(&m.themePanel.list, m.activeTheme)
+}
+
+// updateThemePanel is §9.7's key-exclusive input routing: the panel OWNS the
+// keyboard while it is open.
+//
+// Pass-through is genuinely bad — `k` would kill the highlighted session while you
+// pick a theme, `x` would swap to Projects with the panel open, `m` would start a
+// multi-select behind it. None of that reasoning reaches the global quit, and
+// swallowing THAT would take away the user's exit key inside a settings surface,
+// so `Ctrl-C` stays live exactly as it does under the burst input-lock.
+//
+// THE `Esc` BODY HERE IS PROVISIONAL. Task 8-10 replaces it with the
+// re-resolution close and is the real close path; a bare state clear is correct
+// only at this point in the sequence, where no arrow has previewed anything yet
+// and so there is nothing to resolve back to. Task 8-9 adds the arrow handling and
+// task 8-13 owns the entry conditions and the blocked-`t` flashes.
+func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case keyIsCtrlC(msg):
+		return m, tea.Quit
+	case keyIsCode(msg, tea.KeyEscape):
+		(&m).closeThemePanel()
+		return m, nil
+	default:
+		return m, nil
+	}
 }
 
 // themeRowDelegate is THE SINGLE CONSTRUCTION POINT for the panel's row delegate,

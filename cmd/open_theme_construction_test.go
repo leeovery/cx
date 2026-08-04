@@ -50,11 +50,11 @@ func themeNominationForTest(t *testing.T) theme.Nomination {
 	if err != nil {
 		t.Fatalf("load prefs store: %v", err)
 	}
-	nomination, err := themeNomination(load.Keys, newThemeLoader())
+	resolution, _, err := themeResolution(load.Keys, newThemeLoader())
 	if err != nil {
 		t.Fatalf("resolve the persisted theme setting: %v", err)
 	}
-	return nomination
+	return resolution.Nomination
 }
 
 // modelForNomination builds the real model through the production chokepoint
@@ -328,12 +328,12 @@ func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
 		// Zero keys are openTUI's own degradation: a prefs path-resolution failure
 		// leaves a zero prefsLoad — no store, no keys — exactly as it leaves the
 		// grouping mode at Flat.
-		nomination, err := themeNomination(prefs.ThemeKeys{}, newThemeLoader())
+		resolution, _, err := themeResolution(prefs.ThemeKeys{}, newThemeLoader())
 		if err != nil {
 			t.Fatalf("a prefs load that failed must not fail construction: %v", err)
 		}
 
-		assertPair(t, nomination, shippedLight, shippedDark)
+		assertPair(t, resolution.Nomination, shippedLight, shippedDark)
 	})
 
 	t.Run("a themes directory that cannot be resolved opens on the shipped pair", func(t *testing.T) {

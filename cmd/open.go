@@ -686,8 +686,19 @@ type tuiConfig struct {
 	// there is no mode left to pin (§13.3). Its zero value is neither state,
 	// which leaves a model on tui.New's dark built-in seed — the shape every
 	// test config that does not care about theming carries.
-	theme         theme.Nomination
-	modePersister tui.ModePersister
+	theme theme.Nomination
+	// themeKeys / themeSlots / themeEnumerator are §8.4's panel constructor slots.
+	// The keys are prefs.json's three theme keys as read (control-stripped,
+	// post-translation) — the SNAPSHOT the panel lists and marks from and never
+	// re-reads; the slots are the per-slot resolution record §9.5's badges derive
+	// from; the enumerator is §13.3's seam the `t` keypress reads the themes
+	// directory through. Their zero values are what a test config that does not
+	// care about theming carries: no keys is the shipped adaptive pair, and a nil
+	// enumerator makes `t` a silent no-op.
+	themeKeys       theme.RawKeys
+	themeSlots      []theme.SlotResolution
+	themeEnumerator tui.ThemeEnumerator
+	modePersister   tui.ModePersister
 	// themePersister is §8.9's theme-commit seam — the cmd-owned persister, never
 	// the store itself (whose savers deliberately do not satisfy the interface, so
 	// the single `theme: commit failed` emission site cannot be bypassed). Wired
@@ -763,17 +774,27 @@ func buildThemeLoader() theme.Loader {
 	return newThemeLoader()
 }
 
-// themeNomination resolves the theme setting into the LOADED nomination the
-// model renders from (§8.4): prefs' three raw keys → §8.2's two-state setting →
-// one loaded palette under a constant, two under an adaptive pair, with §8.5's
+// themeResolution resolves the theme setting into everything TUI construction
+// takes from it (§8.4): prefs' three raw keys → §8.2's two-state setting → one
+// loaded palette under a constant, two under an adaptive pair, with §8.5's
 // mode-matched default standing in for any slot that will not load.
+//
+// IT RETURNS THREE THINGS FROM ONE EVALUATION, and that is the point rather than
+// a convenience. The NOMINATION says what will be painted. The per-slot RECORD
+// (on the Resolution) says what each slot asked for and what happened to it,
+// which is what §9.5's `●` marks — a Nomination holds palettes and cannot express
+// the slug a fallback replaced. The control-stripped RAW KEYS are what the panel
+// lists a slug that never loaded from, and what §14A's confirm renders. A surface
+// deriving any of them separately is how the picker and its badges would come to
+// disagree about which theme is live.
 //
 // It takes the keys AS READ rather than the store, because "as read" means the
 // POST-TRANSLATION in-memory value, not the on-disk bytes (§8.4): loadPrefsStore
 // applies §10.2's appearance translation, and resolving from a second read here
 // would render the shipped pair for a migrated user on the very launch their pin
 // was translated. It is the ONE construction-time theme read, so prefs.json is
-// read once per process (§10.5).
+// read once per process (§10.5) — and the keys it hands back are the snapshot the
+// panel keeps for its whole life, never re-read on open (§8.4).
 //
 // ZERO KEYS ARE THE SHIPPED ADAPTIVE PAIR, which is what an unconfigured install
 // renders anyway — so they are also what openTUI degrades to when the prefs path
@@ -785,14 +806,8 @@ func buildThemeLoader() theme.Loader {
 // slug takes §8.5's fallback, and the picker opens. ResolveNomination's error is
 // §7.6's fatal (the FALLBACK itself did not resolve), which is returned so the
 // caller constructs nothing.
-func themeNomination(keys prefs.ThemeKeys, loader theme.Loader) (theme.Nomination, error) {
-	// The control-stripped raw keys ride alongside the setting, and are
-	// deliberately NOT threaded onto the model here: Phase 8 owns the constructor
-	// slot and every consumer of it (§8.4's badge table, the `not found` and
-	// charset-rejected rows, §14A's confirm), and half-wiring the value would put a
-	// second source of truth for "which slug is persisted" in the tree ahead of the
-	// surfaces that read it.
-	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+func themeResolution(keys prefs.ThemeKeys, loader theme.Loader) (theme.Resolution, theme.RawKeys, error) {
+	setting, raw := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
 
 	// A themes-directory path that cannot be resolved AT ALL degrades to the empty
 	// directory rather than blocking the launch. themesDirPath already answers with
@@ -803,9 +818,9 @@ func themeNomination(keys prefs.ThemeKeys, loader theme.Loader) (theme.Nominatio
 
 	resolution, err := loader.ResolveNomination(setting, themesDir)
 	if err != nil {
-		return theme.Nomination{}, err
+		return theme.Resolution{}, theme.RawKeys{}, err
 	}
-	return resolution.Nomination, nil
+	return resolution, raw, nil
 }
 
 // buildTUIModel constructs a tui.Model from the given config and parameters by
@@ -833,6 +848,9 @@ func buildTUIModel(cfg tuiConfig, initialFilter string, command []string) tui.Mo
 		CWD:              cfg.cwd,
 		InitialMode:      cfg.initialMode,
 		Theme:            cfg.theme,
+		ThemeKeys:        cfg.themeKeys,
+		ThemeSlots:       cfg.themeSlots,
+		ThemeEnumerator:  cfg.themeEnumerator,
 		InitialFilter:    initialFilter,
 		Command:          command,
 		ServerStarted:    cfg.serverStarted,
@@ -960,11 +978,17 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	// no detection and no first-paint wait; a PAIR holds both palettes and the §2.6
 	// gate selects a member before anything is painted.
 	//
+	// The loader is built ONCE and shared with the panel's enumerator below,
+	// because a Loader owns the `theme` component's per-process dedup state: the
+	// construction-time by-name read and the panel's enumeration hit the same
+	// conditions (§5.5), so one loader per launch is one dedup scope per launch.
+	//
 	// The error is §7.6's fatal — the theme a slot fell back to is not in the
 	// embedded set, so there is nothing honest left to paint. It is returned
 	// UNTOUCHED and NO TUI IS CONSTRUCTED: Execute hands it to main's single
 	// os.Exit owner, which prints the one pinned line and exits non-zero.
-	nomination, err := themeNomination(loadedPrefs.Keys, buildThemeLoader())
+	themeLoader := buildThemeLoader()
+	resolution, themeKeys, err := themeResolution(loadedPrefs.Keys, themeLoader)
 	if err != nil {
 		return err
 	}
@@ -1010,12 +1034,21 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		// (*tmux.Client) satisfies session.PaneCurrentPathReader via
 		// ActivePaneCurrentPath; RealCommandRunner resolves the active pane's
 		// cwd to a git-root. The result is cached in-memory only, never stamped.
-		dirReader:     client,
-		dirRunner:     &resolver.RealCommandRunner{},
-		initialMode:   initialMode,
-		theme:         nomination,
-		cwd:           cwd,
-		serverStarted: serverStarted,
+		dirReader:   client,
+		dirRunner:   &resolver.RealCommandRunner{},
+		initialMode: initialMode,
+		theme:       resolution.Nomination,
+		// §8.4's panel constructor slots, all three from the ONE resolution above.
+		// The keys and the per-slot record ride along because the nomination alone
+		// cannot answer for them: a slug that never loaded is not in it, and under a
+		// fallback the `●` belongs on the slug the user SET rather than on the palette
+		// that rendered. The enumerator shares that resolution's loader (one dedup
+		// scope per launch, §5.5) and reads nothing until `t` is pressed (§5.7).
+		themeKeys:       themeKeys,
+		themeSlots:      resolution.Slots,
+		themeEnumerator: newThemeEnumerator(themeLoader),
+		cwd:             cwd,
+		serverStarted:   serverStarted,
 		// §6 async host-terminal detection seams, from the shared builder: the
 		// detector over the shared *tmux.Client, and the config-aware resolver's
 		// Resolve (buildResolver loads terminals.json once, degrading to an empty

@@ -52,9 +52,15 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 			"openTUI": true,
 			// The construction-time resolution and the two loader constructors it
 			// reaches: prefs' keys → the setting → the per-slot load.
-			"themeNomination":  true,
+			"themeResolution":  true,
 			"buildThemeLoader": true,
 			"newThemeLoader":   true,
+			// newThemeEnumerator is deliberately ABSENT. It resolves the themes
+			// directory and reads nothing, so it encloses no theme call site to
+			// permit — and naming it here would licence in advance exactly the
+			// construction-time sweep §5.7 forbids, since these names are matched in
+			// EVERY file. What puts the constructor under this guard is the `local`
+			// map below, which tracks it as openTUI's callee.
 		}
 
 		exemptFiles := map[string]bool{"theme.go": true, "doctor_theme.go": true}
@@ -202,9 +208,10 @@ func canvasOf(th theme.Theme) string {
 func themeCallSites(t *testing.T) map[string]map[string]string {
 	t.Helper()
 	local := map[string]bool{
-		"themeNomination":  true,
-		"buildThemeLoader": true,
-		"newThemeLoader":   true,
+		"themeResolution":    true,
+		"buildThemeLoader":   true,
+		"newThemeLoader":     true,
+		"newThemeEnumerator": true,
 		// Tracked because its FILE is exempt in full: exempting the file would
 		// otherwise make every helper declared in it invisible to this scan, so a
 		// doctor-side helper called from the exec path would read as no call at

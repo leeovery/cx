@@ -51,6 +51,13 @@ type Deps struct {
 	// `theme: commit failed` — and the offline capture harness passes none, so a
 	// commit during a capture writes nowhere, exactly as ModePersister behaves.
 	ThemePersister ThemePersister
+	// ThemeEnumerator is §13.3's panel seam — the TmuxEnumerator /
+	// ScrollbackReader idiom applied to §9.4's union. Production (cmd/open.go)
+	// passes an adapter closing over the process's theme.Loader and the resolved
+	// themes directory; a fixture passes a fake holding a hand-built union, which
+	// is what lets internal/capture render a panel under its no-real-config import
+	// guard. Nil is the ordinary unwired state and makes `t` a silent no-op.
+	ThemeEnumerator ThemeEnumerator
 	// Detector + Resolve are the async host-terminal detection seams (§6). Both are
 	// injected together by cmd/open.go (Detector = spawn.NewDetector(client), Resolve
 	// = the config-aware resolver's Resolve, loaded once from terminals.json) and
@@ -87,7 +94,25 @@ type Deps struct {
 	// a pair resolves through OSC 11 detection (the §2.6 detect-or-timeout gate)
 	// with a dark fallback. The offline capture harness always passes the CONSTANT
 	// shape, so its frames are un-gated and byte-stable.
-	Theme         theme.Nomination
+	Theme theme.Nomination
+	// ThemeKeys are prefs.json's three theme keys AS READ — control-stripped,
+	// post-translation, no defaults substituted (§8.4). The nomination alone is
+	// insufficient for the panel in three ways it cannot recover: a slug that never
+	// loaded is not in it, a badge needs the PERSISTED slug rather than the
+	// nomination's wherever the two differ under a fallback, and §14A's confirm
+	// renders the persisted constant. Its zero value is the shipped adaptive pair —
+	// what an unconfigured install renders anyway — so there is no nil-guard.
+	//
+	// It is a SNAPSHOT: the panel re-reads the themes directory on every open
+	// (§5.8) but never re-reads prefs.json, because prefs is what Portal itself
+	// writes and re-reading it would import another instance's commit (§8.4).
+	ThemeKeys theme.RawKeys
+	// ThemeSlots is the per-slot resolution record — what each slot ASKED for,
+	// what loaded, and why they differ (§8.5). It is injected rather than derived
+	// from Theme because a Nomination holds palettes and cannot express the slug a
+	// fallback replaced, which is precisely what §9.5's `●` marks. The panel
+	// derives its badge table from it through theme.Badges.
+	ThemeSlots    []theme.SlotResolution
 	InitialFilter string
 	// InitialFlash seeds the §11.2 inline WARNING flash on the first frame (the
 	// orange ▌ bar + ⚠ + message on the bg.warning tint). It exists for the offline
@@ -214,6 +239,16 @@ func Build(deps Deps) Model {
 	if deps.ThemePersister != nil {
 		opts = append(opts, WithThemePersister(deps.ThemePersister))
 	}
+	// The raw persisted keys and the per-slot record are always injected — both
+	// zero values are meaningful (§8.4: no keys IS the shipped adaptive pair, and
+	// no slots is a model with no panel to badge), so there is nothing to guard.
+	opts = append(opts, WithThemeKeys(deps.ThemeKeys))
+	opts = append(opts, WithThemeSlots(deps.ThemeSlots))
+	// The panel seam is injected through its own nil-tolerant option rather than
+	// behind an `if deps.ThemeEnumerator != nil` gate like its persister
+	// neighbours: the gate cannot see a TYPED nil, and the option can (see
+	// WithThemeEnumerator). One guard, in the one place that catches both shapes.
+	opts = append(opts, WithThemeEnumerator(deps.ThemeEnumerator))
 	// Async host-terminal detection seams (§6). Always injected via nil-tolerant
 	// options — a nil Detector/Resolve leaves detection unwired, mirroring the
 	// capture harness (which passes neither).
