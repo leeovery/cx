@@ -106,13 +106,16 @@ type Deps struct {
 	// It is a SNAPSHOT: the panel re-reads the themes directory on every open
 	// (§5.8) but never re-reads prefs.json, because prefs is what Portal itself
 	// writes and re-reading it would import another instance's commit (§8.4).
+	//
+	// There is deliberately NO per-slot resolution record beside it. §9.5's `●`
+	// needs one, but the panel derives it at OPEN from ThemeEnumerator.Resolve —
+	// the re-resolution against the enumeration it just read (§5.8) — and badges
+	// exist only while the panel is open. An injected record would be a second,
+	// staler source of truth for which slug carries the marker, and the one a
+	// fixture author would reach for; a fixture declares its slots through the
+	// faked seam's Resolve return instead.
 	ThemeKeys theme.RawKeys
-	// ThemeSlots is the per-slot resolution record — what each slot ASKED for,
-	// what loaded, and why they differ (§8.5). It is injected rather than derived
-	// from Theme because a Nomination holds palettes and cannot express the slug a
-	// fallback replaced, which is precisely what §9.5's `●` marks. The panel
-	// derives its badge table from it through theme.Badges.
-	ThemeSlots    []theme.SlotResolution
+
 	InitialFilter string
 	// InitialFlash seeds the §11.2 inline WARNING flash on the first frame (the
 	// orange ▌ bar + ⚠ + message on the bg.warning tint). It exists for the offline
@@ -239,11 +242,9 @@ func Build(deps Deps) Model {
 	if deps.ThemePersister != nil {
 		opts = append(opts, WithThemePersister(deps.ThemePersister))
 	}
-	// The raw persisted keys and the per-slot record are always injected — both
-	// zero values are meaningful (§8.4: no keys IS the shipped adaptive pair, and
-	// no slots is a model with no panel to badge), so there is nothing to guard.
+	// The raw persisted keys are always injected — the zero value is meaningful
+	// (§8.4: no keys IS the shipped adaptive pair), so there is nothing to guard.
 	opts = append(opts, WithThemeKeys(deps.ThemeKeys))
-	opts = append(opts, WithThemeSlots(deps.ThemeSlots))
 	// The panel seam is injected through its own nil-tolerant option rather than
 	// behind an `if deps.ThemeEnumerator != nil` gate like its persister
 	// neighbours: the gate cannot see a TYPED nil, and the option can (see

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/list"
@@ -114,10 +115,10 @@ type themePanel struct {
 
 	// enumeration is the ONE directory read, retained for the panel's lifetime
 	// (§5.8) so arrowing previews from values already in hand and §9.2's post-commit
-	// recompute re-derives with no fresh I/O. openThemePanel fills it; task 8-8's
-	// open-time re-resolution and §9.2's commit recompute are its READERS, which is
-	// why nothing consults it yet.
-	enumeration theme.Enumeration //nolint:unused // retained for the panel's lifetime (§5.8); read by task 8-8
+	// recompute re-derives with no fresh I/O. openThemePanel fills it and the
+	// open-time re-resolution reads it (applyThemePanelResolution); §9.2's commit
+	// recompute and task 8-10's `Esc` are its other readers.
+	enumeration theme.Enumeration
 
 	// union is §9.4's finished row set, already ordered and already carrying each
 	// row's single §6.2 reason.
@@ -125,8 +126,10 @@ type themePanel struct {
 
 	// badges is §9.5's `●` table, keyed by theme.Row.BadgeKey — a fact about the
 	// whole SETTING rather than about one row, which is why it is held here and
-	// looked up per row rather than derived at the delegate. openThemePanel derives
-	// it from the injected slot record and rowItems assembles the list through it.
+	// looked up per row rather than derived at the delegate. It is derived at open
+	// from the seam's own re-resolution against the retained enumeration — the
+	// panel's parse, never construction's (§5.8) — and rowItems assembles the list
+	// through it.
 	badges map[string]theme.Badge
 
 	// message is §9.1's message slot. IT IS ALWAYS EMPTY IN PHASE 8: both of the
@@ -167,8 +170,8 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 }
 
 // openThemePanel is §9.6's `t`: the ONE directory read, the parse results
-// retained for the panel's lifetime, and the list assembled from the union they
-// produced.
+// retained for the panel's lifetime, the list assembled from the union they
+// produced, and §9.2's opening state resolved against them (armThemePanel).
 //
 // THE READ HAPPENS HERE, ON THE KEYPRESS, AND NOWHERE ELSE. §5.7 keeps
 // construction free of it — a cold path that is explicitly latency-engineered
@@ -192,21 +195,169 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// armThemePanel installs one enumeration's results as the live panel state.
+// armThemePanel installs one enumeration's results as the live panel state, and
+// §9.2's opening state with them: the badges, the theme actually rendering, and
+// the row the cursor lands on.
 //
-// The ORDER is load-bearing: the width is set before the list is built, because
-// Model.themeRowDelegate composes the row budget from it, and the list is built
-// before the styles are applied, because those re-point the list's own chrome.
+// The ORDER is load-bearing at four points. The width is set before the list is
+// built, because Model.themeRowDelegate composes the row budget from it. The
+// RESOLUTION runs before the list is built, because it decides both the badges
+// every row item carries and the palette that delegate is constructed from — a
+// list built first would render the previous theme's rows behind the new canvas.
+// The list is built before the styles are applied, because those re-point the
+// list's own chrome. And the cursor is anchored LAST, because applying the styles
+// re-sizes the list, which re-derives its page from the index it finds.
 func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) {
 	m.themePanel = themePanel{
 		open:        true,
 		enumeration: enumeration,
 		union:       union,
-		badges:      theme.Badges(m.themeSlots),
 		width:       themePanelPreferredWidth,
 	}
+	cursor := m.applyThemePanelResolution(enumeration)
 	m.themePanel.list = newThemePanelList(m.themePanel.rowItems(), m.themeRowDelegate())
 	m.applyThemePanelListStyles()
+	m.anchorThemePanelCursor(cursor)
+}
+
+// applyThemePanelResolution is §9.2's "the cursor lands on the theme that is
+// actually rendering": it re-resolves the persisted setting against the RETAINED
+// enumeration, refreshes the badge table from the answer, applies the in-force
+// theme, and hands back the row identity the cursor belongs on.
+//
+// THE RE-RESOLUTION IS THE POINT, and it is why opening is not a passive read.
+// §5.8 makes the panel's parse supersede the construction-time one, so this is
+// where a mid-session edit lands: an edited-but-still-valid active theme
+// re-renders with its new values, and one that has been INVALIDATED flips to
+// §8.5's fallback here rather than at `Esc` — deferring would leave the panel
+// listing a theme as invalid while the screen still renders it. The mirror case
+// falls out of the same call: a theme that was broken at construction becomes
+// loadable the moment the user fixes the file, and this open applies THEIRS.
+//
+// THE ERROR POLICY IS PINNED HERE AND GOVERNS EVERY PANEL CALL SITE OF Resolve —
+// this open, task 8-10's `Esc` close and task 9-2's commit recompute, so the three
+// cannot each invent their own. The only error it can return is §7.6's fatal, from
+// a binary whose embedded set cannot supply a fallback, which task 2-8's
+// build-time guarantee makes unreachable in a correctly built binary. The panel
+// therefore DEGRADES RATHER THAN ESCALATING: badges, active theme and cursor are
+// left exactly as they were, the panel carries on with the union already in hand,
+// and nothing is written. A settings surface must not become the route by which a
+// broken binary quits Portal mid-session, and §7.6 puts the fatal on the STARTUP
+// path deliberately.
+//
+// A resolution naming no slot at all takes the same path, for the same reason: it
+// is a shape nothing production can produce, and degrading is what keeps a fixture
+// that returns one from painting a colourless picker.
+//
+// The empty string is the degrade path's identity, which anchorThemePanelCursor
+// reads as "leave the cursor where it is". It is unambiguous: §5.2's anchored
+// charset makes an empty slug illegal, so a resolved slot can never carry one.
+func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
+	resolution, err := m.themeEnumerator.Resolve(e, m.themeSetting())
+	if err != nil {
+		return ""
+	}
+	inForce, ok := inForceSlot(resolution, m.canvasMode)
+	if !ok {
+		return ""
+	}
+
+	m.themePanel.badges = theme.Badges(resolution.Slots)
+	if inForce.Theme != m.activeTheme {
+		m.ApplyTheme(inForce.Theme)
+	}
+	return inForce.Resolved
+}
+
+// themeSetting collapses the model's construction-time raw keys onto §8.2's
+// two-state setting.
+//
+// It routes through ResolveSetting rather than restating §8.2's tiebreak, which
+// is the same single site the union assembly and doctor's line resolve through —
+// so what the panel LISTS, what it MARKS and what it RESOLVES cannot disagree
+// about which slug is live. Re-running it on already-stripped keys is safe:
+// stripping is idempotent and the resolution is pure and total.
+func (m Model) themeSetting() theme.Setting {
+	setting, _ := theme.ResolveSetting(m.themeKeys.Theme, m.themeKeys.Light, m.themeKeys.Dark)
+	return setting
+}
+
+// inForceSlot is the ONE slot painting the screen: the constant under a constant,
+// and under a pair the member the light/dark answer names — light in a light
+// terminal, dark otherwise.
+//
+// The answer is the gate's SINGLE resolution (§8.8), read off the model rather
+// than asked for again: a constant never consulted detection at all and a pair
+// resolved exactly once before first paint, so a query here would reopen the race
+// the resolve-once rule closes. On a gate that was never armed the value is the
+// standing dark no-answer fallback, which is the right answer for the same reason
+// it is the right canvas.
+//
+// The slot is matched on its Slot rather than taken by position, and ONE record
+// answers for both the palette and the cursor's target — which is what makes
+// §9.2's invariant structural: the theme applied and the row anchored come from
+// the same slot, so they cannot be two lookups that disagree.
+//
+// The false return is a resolution naming no slot at all — not a state the
+// resolver produces, but a shape a fixture can hand back, and the caller degrades
+// on it rather than selecting a zero Theme.
+func inForceSlot(r theme.Resolution, mode canvasAppearance) (theme.SlotResolution, bool) {
+	want := theme.SlotDark
+	if mode == appearanceLightCanvas {
+		want = theme.SlotLight
+	}
+	for _, slot := range r.Slots {
+		if slot.Slot == theme.SlotConstant || slot.Slot == want {
+			return slot, true
+		}
+	}
+	return theme.SlotResolution{}, false
+}
+
+// anchorThemePanelCursor puts the cursor on the row whose IDENTITY is slug.
+//
+// ANCHORING IS BY IDENTITY AND NEVER BY INDEX (§9.2). An index silently breaks
+// the invariant the moment a row is inserted above the cursor — the screen keeps
+// previewing one theme while the cursor sits on another — and that is exactly what
+// Phase 9's commit recompute does, since clearing a slot can remove the row that
+// existed only because the slot named it, and assigning one can mint a new row
+// above the cursor.
+//
+// The target is the RESOLVED slug, never the requested one: under §8.5's fallback
+// those differ, and the fallback's row is the one that is painted. The persisted
+// row keeps its `●` and stays where it is — `●` is what is SET, the cursor is what
+// is PREVIEWED (§9.5) — and it is unselectable, so parking the cursor there would
+// put it somewhere the arrows, which skip unselectable rows, cannot return to.
+//
+// An EMPTY slug is the degrade path's no-op: applyThemePanelResolution's error
+// policy leaves the cursor exactly where it was.
+func (m *Model) anchorThemePanelCursor(slug string) {
+	if slug == "" {
+		return
+	}
+	m.themePanel.list.Select(themePanelRowIndex(m.themePanel.union.Rows, slug))
+}
+
+// themePanelRowIndex is the index of the row identified by slug, degrading to the
+// first SELECTABLE row and then to zero.
+//
+// The identity is Row.SortKey — the slug wherever one exists, else the filename,
+// else the raw persisted string — which is the same value the ordering and the
+// badge lookup key on, so a row can be found by exactly what it is listed under.
+// A `reserved name` row shares its key with the built-in it collides with by
+// definition (§6.2), and the built-in sorts first (§9.5), so the first match is
+// always the selectable one the slug actually resolved to.
+//
+// THE CLAMP IS A STRUCTURAL GUARD, NOT A LIVE PATH. Built-ins are always valid
+// (§7.6's build-time guarantee), so a union with no selectable row is unreachable
+// and so is one holding no row for a slug that just resolved. The guard is here
+// because the alternative to degrading is indexing out of range inside a list the
+// user is looking at.
+func themePanelRowIndex(rows []theme.Row, slug string) int {
+	if at := slices.IndexFunc(rows, func(row theme.Row) bool { return row.SortKey() == slug }); at >= 0 {
+		return at
+	}
+	return max(slices.IndexFunc(rows, theme.Row.Selectable), 0)
 }
 
 // closeThemePanel drops the panel and everything it retained, so the next open

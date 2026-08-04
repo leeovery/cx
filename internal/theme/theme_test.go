@@ -254,6 +254,7 @@ var wantExports = []string{
 	"Loader.Reassemble",
 	"Loader.ResolveByName",
 	"Loader.ResolveNomination",
+	"Loader.ResolveNominationFrom",
 	"NewEventLogger",
 	"NewLoader",
 	"Nomination",

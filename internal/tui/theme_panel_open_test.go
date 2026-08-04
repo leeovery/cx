@@ -38,10 +38,18 @@ const fixtureThemesDir = "/fixture/themes"
 // hand-built union, touching no filesystem, and RECORDS what it was asked. The
 // call count is what pins the open cadence, and the recorded keys are what pin
 // §8.4's construction-time prefs snapshot.
+//
+// Its Resolve answers with the declared resolution — which is what the panel
+// derives its badges, its applied theme and its cursor from, the injected slot
+// record having been retired with it. The zero value names no slot, which the
+// open's degrade policy reads as "leave all three exactly as they were": the
+// fixtures below that declare none are asserting the open CADENCE, not its
+// resolution.
 type recordingThemeEnumerator struct {
-	union theme.Union
-	opens int
-	keys  []theme.RawKeys
+	union      theme.Union
+	resolution theme.Resolution
+	opens      int
+	keys       []theme.RawKeys
 }
 
 func (e *recordingThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
@@ -52,6 +60,10 @@ func (e *recordingThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, 
 
 func (e *recordingThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
 	return e.union
+}
+
+func (e *recordingThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+	return e.resolution, nil
 }
 
 // realThemeEnumerator is the PRODUCTION adapter's shape, staged here so the open
@@ -73,6 +85,10 @@ func (e *realThemeEnumerator) Reassemble(enumeration theme.Enumeration, keys the
 	return e.loader.Reassemble(enumeration, keys)
 }
 
+func (e *realThemeEnumerator) Resolve(enumeration theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
+	return e.loader.ResolveNominationFrom(enumeration, setting)
+}
+
 // nilProneThemeEnumerator is a POINTER-receiver seam whose methods dereference the
 // receiver, so a typed-nil boxed into the interface panics the moment it is
 // called. It exists to prove the guard rejects a typed nil rather than merely a
@@ -89,6 +105,10 @@ func (e *nilProneThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) t
 	return e.union
 }
 
+func (e *nilProneThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+	return theme.Resolution{}, nil
+}
+
 // themeOpenTestUnion is a two-row union: one built-in and one unresolvable
 // persisted slug, which is the shape every badge and reason assertion below needs.
 func themeOpenTestUnion() theme.Union {
@@ -99,16 +119,19 @@ func themeOpenTestUnion() theme.Union {
 	return theme.Union{Rows: rows, Count: len(rows), Rejected: 1}
 }
 
-// themeOpenTestModel builds a Sessions-page model with the three constructor
-// slots this task threads, through the SHARED Build chokepoint so the assertions
-// are about the production wiring rather than about a struct literal.
-func themeOpenTestModel(t *testing.T, enumerator ThemeEnumerator, keys theme.RawKeys, slots []theme.SlotResolution) Model {
+// themeOpenTestModel builds a Sessions-page model with the two constructor slots
+// this task threads, through the SHARED Build chokepoint so the assertions are
+// about the production wiring rather than about a struct literal.
+//
+// There is no slot record to pass: the panel's badges come from the seam's own
+// Resolve against the enumeration it just read (§5.8), which is what the injected
+// record was retired in favour of.
+func themeOpenTestModel(t *testing.T, enumerator ThemeEnumerator, keys theme.RawKeys) Model {
 	t.Helper()
 	return Build(Deps{
 		Lister:          fakeLister{},
 		ThemeEnumerator: enumerator,
 		ThemeKeys:       keys,
-		ThemeSlots:      slots,
 	})
 }
 
@@ -222,7 +245,7 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			union := themeOpenTestUnion()
 			enumerator := &recordingThemeEnumerator{union: union}
-			m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"}, nil)
+			m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"})
 			m.activePage = tc.page
 
 			m = pressThemeKey(t, m)
@@ -316,7 +339,7 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	loader, sink := themeOpenTestLoader(t)
 	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
 
-	m := themeOpenTestModel(t, enumerator, theme.RawKeys{}, nil)
+	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
 	if enumerator.opens != 0 {
 		t.Errorf("construction ran %d enumerations, want 0 — discovery is lazy (§5.7)", enumerator.opens)
@@ -349,7 +372,7 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	loader, sink := themeOpenTestLoader(t)
 	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
-	m := themeOpenTestModel(t, enumerator, theme.RawKeys{}, nil)
+	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
 	const opens = 3
 	for i := range opens {
@@ -378,7 +401,7 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
 	loader, _ := themeOpenTestLoader(t)
-	m := themeOpenTestModel(t, &realThemeEnumerator{loader: loader, dir: dir}, theme.RawKeys{}, nil)
+	m := themeOpenTestModel(t, &realThemeEnumerator{loader: loader, dir: dir}, theme.RawKeys{})
 
 	m = pressThemeKey(t, m)
 	if broken := themePanelRowFor(t, m, "sunset"); broken.Row.Selectable() {
@@ -404,11 +427,10 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 // close and re-open is reflected.
 //
 // The retention half asserts the ENTRIES and not merely the path, because the
-// entries are what the retention is FOR: task 8-8's open-time re-resolution and
-// §9.2's post-commit recompute both Reassemble from them, so an enumeration
-// dropped on the floor at open would silently re-derive a union of built-ins
-// alone — every drop-in row vanishing the moment the user commits, with nothing
-// erroring.
+// entries are what the retention is FOR: the open-time re-resolution and §9.2's
+// post-commit recompute both re-derive from them, so an enumeration dropped on
+// the floor at open would silently re-derive a union of built-ins alone — every
+// drop-in row vanishing the moment the user commits, with nothing erroring.
 func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	dir := t.TempDir()
 	// Seeded BEFORE the first open, so the retained enumeration has an entry to
@@ -416,7 +438,7 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	// be a mutation and the re-read half would prove nothing.
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
 	loader, _ := themeOpenTestLoader(t)
-	m := themeOpenTestModel(t, &realThemeEnumerator{loader: loader, dir: dir}, theme.RawKeys{}, nil)
+	m := themeOpenTestModel(t, &realThemeEnumerator{loader: loader, dir: dir}, theme.RawKeys{})
 
 	m = pressThemeKey(t, m)
 	if len(m.themePanel.union.Rows) == 0 {
@@ -471,7 +493,7 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 
 	construction := theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
 	enumerator := &recordingThemeEnumerator{union: themeOpenTestUnion()}
-	m := themeOpenTestModel(t, enumerator, construction, nil)
+	m := themeOpenTestModel(t, enumerator, construction)
 
 	m = pressThemeKey(t, m)
 	m = closeThemePanelForTest(t, m)
@@ -495,23 +517,34 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_BadgesFromInjectedSlots: it renders badges from the injected
-// slot record.
+// TestThemePanelOpen_BadgesFromTheSeamsResolution: it renders badges from the
+// seam's own re-resolution.
 //
 // §8.4: a badge needs the PERSISTED slug, not the nomination's — under a fallback
 // the two differ by design. The fixture is exactly that case: `nord` was
 // nominated, did not load, and the dark default rendered instead. The `●` must
 // stay on `nord`, and the fallback's own row must carry none.
-func TestThemePanelOpen_BadgesFromInjectedSlots(t *testing.T) {
-	slots := []theme.SlotResolution{{
-		Slot:      theme.SlotConstant,
-		Requested: "nord",
-		Resolved:  theme.DefaultDarkSlug,
-		FellBack:  true,
-		Reason:    theme.ReasonNotFound,
-	}}
-	enumerator := &recordingThemeEnumerator{union: themeOpenTestUnion()}
-	m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"}, slots)
+//
+// The record comes from the SEAM rather than from a constructor slot, and that is
+// the whole of why the injected one is retired: the panel is closed until the open
+// sequence runs, so `Resolve` is the only badge source there has ever been a badge
+// to come from, and a `Deps` field alongside it would be a second and staler one.
+func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
+	enumerator := &recordingThemeEnumerator{
+		union: themeOpenTestUnion(),
+		resolution: theme.Resolution{
+			Nomination: theme.ConstantNomination(testDarkTheme(t)),
+			Slots: []theme.SlotResolution{{
+				Slot:      theme.SlotConstant,
+				Requested: "nord",
+				Resolved:  theme.DefaultDarkSlug,
+				FellBack:  true,
+				Reason:    theme.ReasonNotFound,
+				Theme:     testDarkTheme(t),
+			}},
+		},
+	}
+	m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"})
 
 	m = pressThemeKey(t, m)
 
@@ -539,7 +572,7 @@ func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
 		{name: "typed nil", enumerator: (*nilProneThemeEnumerator)(nil)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := themeOpenTestModel(t, tc.enumerator, theme.RawKeys{Theme: "nord"}, nil)
+			m := themeOpenTestModel(t, tc.enumerator, theme.RawKeys{Theme: "nord"})
 
 			m = pressThemeKey(t, m)
 
@@ -574,7 +607,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 		{name: "light", th: testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{}, nil)
+			m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{})
 			m.activeTheme = tc.th
 
 			m = pressThemeKey(t, m)
@@ -600,7 +633,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	}
 
 	t.Run("colourless", func(t *testing.T) {
-		m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{}, nil)
+		m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{})
 		m.colourless = true
 
 		m = pressThemeKey(t, m)

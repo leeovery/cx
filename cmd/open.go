@@ -687,16 +687,15 @@ type tuiConfig struct {
 	// which leaves a model on tui.New's dark built-in seed — the shape every
 	// test config that does not care about theming carries.
 	theme theme.Nomination
-	// themeKeys / themeSlots / themeEnumerator are §8.4's panel constructor slots.
-	// The keys are prefs.json's three theme keys as read (control-stripped,
-	// post-translation) — the SNAPSHOT the panel lists and marks from and never
-	// re-reads; the slots are the per-slot resolution record §9.5's badges derive
-	// from; the enumerator is §13.3's seam the `t` keypress reads the themes
-	// directory through. Their zero values are what a test config that does not
-	// care about theming carries: no keys is the shipped adaptive pair, and a nil
-	// enumerator makes `t` a silent no-op.
+	// themeKeys / themeEnumerator are §8.4's panel constructor slots. The keys are
+	// prefs.json's three theme keys as read (control-stripped, post-translation) —
+	// the SNAPSHOT the panel lists and marks from and never re-reads; the
+	// enumerator is §13.3's seam the `t` keypress reads the themes directory
+	// through, and through which the panel re-resolves the setting against that
+	// read (§5.8) for §9.5's badges. Their zero values are what a test config that
+	// does not care about theming carries: no keys is the shipped adaptive pair,
+	// and a nil enumerator makes `t` a silent no-op.
 	themeKeys       theme.RawKeys
-	themeSlots      []theme.SlotResolution
 	themeEnumerator tui.ThemeEnumerator
 	modePersister   tui.ModePersister
 	// themePersister is §8.9's theme-commit seam — the cmd-owned persister, never
@@ -849,7 +848,6 @@ func buildTUIModel(cfg tuiConfig, initialFilter string, command []string) tui.Mo
 		InitialMode:      cfg.initialMode,
 		Theme:            cfg.theme,
 		ThemeKeys:        cfg.themeKeys,
-		ThemeSlots:       cfg.themeSlots,
 		ThemeEnumerator:  cfg.themeEnumerator,
 		InitialFilter:    initialFilter,
 		Command:          command,
@@ -1038,14 +1036,16 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		dirRunner:   &resolver.RealCommandRunner{},
 		initialMode: initialMode,
 		theme:       resolution.Nomination,
-		// §8.4's panel constructor slots, all three from the ONE resolution above.
-		// The keys and the per-slot record ride along because the nomination alone
-		// cannot answer for them: a slug that never loaded is not in it, and under a
-		// fallback the `●` belongs on the slug the user SET rather than on the palette
-		// that rendered. The enumerator shares that resolution's loader (one dedup
-		// scope per launch, §5.5) and reads nothing until `t` is pressed (§5.7).
+		// §8.4's panel constructor slots. The keys ride along because the nomination
+		// alone cannot answer for them: a slug that never loaded is not in it, and
+		// under a fallback the `●` belongs on the slug the user SET rather than on the
+		// palette that rendered. The construction-time per-slot record deliberately
+		// does NOT — the panel re-resolves it against its own enumeration on every
+		// open (§5.8), through the enumerator's Resolve, so an injected copy would be
+		// a second and staler answer to which slug carries the `●`. The enumerator
+		// shares this resolution's loader (one dedup scope per launch, §5.5) and reads
+		// nothing until `t` is pressed (§5.7).
 		themeKeys:       themeKeys,
-		themeSlots:      resolution.Slots,
 		themeEnumerator: newThemeEnumerator(themeLoader),
 		cwd:             cwd,
 		serverStarted:   serverStarted,

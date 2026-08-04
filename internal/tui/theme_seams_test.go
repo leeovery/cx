@@ -17,8 +17,13 @@ import (
 // It is what lets internal/capture render a panel — including the invalid rows
 // and the unusable-directory chrome — under the no-real-config import guard that
 // forbids it reaching a real themes directory at all.
+//
+// Its Resolve is declared the same way: a hand-built theme.Resolution, which is
+// where a fixture states its `●` slots and the palette the panel opens on now that
+// the injected slot record is retired.
 type fixtureThemeEnumerator struct {
-	union theme.Union
+	union      theme.Union
+	resolution theme.Resolution
 }
 
 func (f fixtureThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
@@ -27,6 +32,10 @@ func (f fixtureThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Un
 
 func (f fixtureThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
 	return f.union
+}
+
+func (f fixtureThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+	return f.resolution, nil
 }
 
 // loaderThemeEnumerator is the shape the PRODUCTION adapter takes (task 8-7
@@ -44,6 +53,10 @@ func (a loaderThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, them
 
 func (a loaderThemeEnumerator) Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union {
 	return a.loader.Reassemble(e, keys)
+}
+
+func (a loaderThemeEnumerator) Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error) {
+	return a.loader.ResolveNominationFrom(e, s)
 }
 
 func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheLoader(t *testing.T) {

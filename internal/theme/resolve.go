@@ -38,6 +38,32 @@ import (
 // what keeps the embedded set reachable with no path at all and internal/capture's
 // no-real-config import guard satisfiable.
 func (l Loader) ResolveByName(slug, themesDir string) (Result, *Rejection) {
+	return l.resolveNamed(slug, func(s string) (Result, *Rejection) {
+		return l.loadFromThemesDir(s, themesDir)
+	})
+}
+
+// slugLoader is the THIRD rung of the ladder above, as a value: given a slug the
+// embedded set has already declined, what does it load to?
+//
+// It is a parameter because the ladder has exactly two sources and steps 1 and 2
+// must not know which one is beneath them. Construction reads the themes
+// directory BY NAME (§5.7); the panel resolves against the enumeration it already
+// retained (§5.8), because a directory read there would produce a THIRD parse of
+// the same slug that can disagree with the row the user is looking at (§8.4).
+// Stating the charset check and the embedded-set precedence ONCE for both is what
+// keeps §8.6's validation and §5.4's no-shadowing guarantee true on the panel's
+// path without either being restated there.
+type slugLoader func(slug string) (Result, *Rejection)
+
+// resolveNamed is §8.4's ladder itself — the charset check, then the embedded
+// set, then the pass's own source — and the ONE statement of that order.
+//
+// Steps 1 and 2 are ResolveByName's own doc comment: the charset check runs
+// before any path is composed (§8.6), and a nominated slug naming a built-in
+// resolves to the built-in and never reaches the source at all (§8.4), which IS
+// §5.4's no-shadowing safety property on a path that never enumerates.
+func (l Loader) resolveNamed(slug string, source slugLoader) (Result, *Rejection) {
 	if !ValidSlug(slug) {
 		return Result{}, badName(BadNameSlug)
 	}
@@ -46,7 +72,7 @@ func (l Loader) ResolveByName(slug, themesDir string) (Result, *Rejection) {
 		return result, rejection
 	}
 
-	return l.loadFromThemesDir(slug, themesDir)
+	return source(slug)
 }
 
 // loadFromThemesDir is §8.4's second half: compose `<themesDir>/<slug>.theme`

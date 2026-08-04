@@ -61,3 +61,19 @@ func (e themeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Unio
 func (e themeEnumerator) Reassemble(enumeration theme.Enumeration, keys theme.RawKeys) theme.Union {
 	return e.loader.Reassemble(enumeration, keys)
 }
+
+// Resolve re-runs construction's own per-slot resolution and §8.5 fallback
+// against the retained enumeration — the SAME rules, reading the panel's parse
+// instead of the directory (§5.8's supersession rule).
+//
+// It is where construction's resolution rules now reach the panel, which is what
+// retired the injected slot record: the badge table, the theme applied on open
+// and the row the cursor lands on all derive from this ONE answer, so none of the
+// three can be the stale one.
+//
+// It takes no directory and reads none. The adapter still closes over one for
+// Open, but this method must not consult it: a read here would be a third parse
+// of the same slug, neither construction's nor the panel's (§8.4).
+func (e themeEnumerator) Resolve(enumeration theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
+	return e.loader.ResolveNominationFrom(enumeration, setting)
+}

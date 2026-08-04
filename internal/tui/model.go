@@ -272,16 +272,6 @@ type Model struct {
 	// user who hand-edits prefs mid-session sees it next launch, consistent with
 	// every other prefs consumer.
 	themeKeys theme.RawKeys
-	// themeSlots is the per-slot resolution record (§8.5) the §9.5 badge table is
-	// derived from at open. It is INJECTED rather than read off the nomination
-	// because a Nomination holds palettes: under a fallback it holds the theme that
-	// LOADED, not the slug the user SET, and a badge keyed on it would sit on a
-	// theme they never chose.
-	//
-	// Task 8-8's open-time re-resolution produces a fresher record from the panel's
-	// own enumeration and REPLACES this as the badge source at that point; it is
-	// injected here because at the FIRST open no such re-resolution exists yet.
-	themeSlots []theme.SlotResolution
 	// themeEnumerator is §13.3's panel seam. It is consulted ONLY on the `t`
 	// keypress — never at construction (§5.7, discovery is lazy) — and a nil seam
 	// makes `t` a silent no-op, following the modePersister nil-guard precedent.
@@ -946,15 +936,6 @@ func WithThemePersister(p ThemePersister) Option {
 func WithThemeKeys(keys theme.RawKeys) Option {
 	return func(m *Model) {
 		m.themeKeys = keys
-	}
-}
-
-// WithThemeSlots injects the per-slot resolution record (§8.5) the §9.5 badge
-// table is derived from. Production wiring passes the record the construction-time
-// resolution already produced; a model with no panel to badge passes none.
-func WithThemeSlots(slots []theme.SlotResolution) Option {
-	return func(m *Model) {
-		m.themeSlots = slots
 	}
 }
 

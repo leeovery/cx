@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
@@ -950,4 +951,243 @@ func TestResolveNomination_NeverOverwritesPrefs(t *testing.T) {
 			t.Error("ResolveNomination reaches no os.ReadFile call site — the walk resolved nothing, so the assertions above would be vacuous")
 		}
 	})
+}
+
+// enumerationOf reads dir through the panel's own entry point and hands back the
+// enumeration it retained — the same value the panel holds for its lifetime
+// (§5.8), produced by the same call the panel makes.
+//
+// The union is discarded deliberately: these fixtures are about what the
+// RESOLUTION does with a retained parse, and building the enumeration by hand
+// would let a fixture assert against entries the real classification would never
+// have produced.
+func enumerationOf(t *testing.T, loader theme.Loader, dir string) theme.Enumeration {
+	t.Helper()
+
+	enumeration, _ := loader.Open(dir, theme.RawKeys{})
+	return enumeration
+}
+
+// TestResolveNominationFrom_ReadsNothing pins the whole reason this entry point
+// exists: it resolves against the RETAINED enumeration and never against the
+// filesystem (§8.4).
+//
+// A directory read here would produce a THIRD parse of the same slug — neither
+// construction's nor the panel's — that can disagree with the row the user is
+// looking at, reintroducing exactly the staleness split §5.8 exists to close.
+//
+// Both halves are asserted because neither reaches the other. The runtime half
+// removes the directory after the enumeration, so a read would fail to resolve a
+// drop-in that is plainly still in hand. The source half walks the call graph, so
+// a read that happened to SUCCEED — the directory still being there in
+// production — is caught too; its non-vacuity control is the sibling entry point,
+// which must still reach the read this one must not.
+func TestResolveNominationFrom_ReadsNothing(t *testing.T) {
+	t.Run("it resolves a drop-in whose directory is gone", func(t *testing.T) {
+		dir := t.TempDir()
+		path := writeTheme(t, dir, "sunset.theme", themeLines())
+		want := dropInTheme(t, path)
+		loader := nominationLoader()
+		enumeration := enumerationOf(t, loader, dir)
+
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatalf("remove %s: %v", dir, err)
+		}
+
+		setting := theme.Setting{IsConstant: true, Constant: "sunset"}
+		got, err := loader.ResolveNominationFrom(enumeration, setting)
+
+		if err != nil {
+			t.Fatalf("ResolveNominationFrom(%+v) = %v, want the retained parse", setting, err)
+		}
+		if len(got.Slots) != 1 || got.Slots[0].FellBack {
+			t.Fatalf("Slots = %+v, want the drop-in resolved with no fallback — the enumeration still holds its parse", got.Slots)
+		}
+		if got.Nomination.Constant() != want {
+			t.Errorf("the constant resolved to %s, want the drop-in's palette %s", got.Nomination.Constant().Canvas.Value, want.Canvas.Value)
+		}
+	})
+
+	t.Run("it reaches no os call at all", func(t *testing.T) {
+		for name, count := range osCallsReachableFrom(t, "ResolveNominationFrom") {
+			if strings.HasPrefix(name, "os.") {
+				t.Errorf("ResolveNominationFrom reaches %d %s call sites, want 0 — it resolves against the retained enumeration, never the filesystem (§8.4)", count, name)
+			}
+		}
+		if osCallsReachableFrom(t, "ResolveNomination")["os.ReadFile"] == 0 {
+			t.Error("the by-name entry point reaches no os.ReadFile call site either — the walk resolved nothing, so the assertion above would be vacuous")
+		}
+	})
+}
+
+// TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries pins that the
+// enumeration's CLASSIFICATION is what answers, reason and all: a valid entry
+// resolves to its palette, and every not-loadable state takes §8.5's fallback
+// carrying the reason the row the user is looking at carries.
+//
+// The unresolved states are the §5.5 pair the union's own persisted rows draw
+// (unresolvedRejection): a slug nothing answers to is `not found` where the
+// directory could be listed, and `unreadable` where it could not — so the panel's
+// row and the theme that actually rendered can never state different reasons for
+// the same slug.
+func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.T) {
+	loader := nominationLoader()
+
+	t.Run("a valid entry resolves to its own palette", func(t *testing.T) {
+		dir := t.TempDir()
+		path := writeTheme(t, dir, "sunset.theme", themeLines())
+		want := dropInTheme(t, path)
+		setting := theme.Setting{IsConstant: true, Constant: "sunset"}
+
+		got, err := loader.ResolveNominationFrom(enumerationOf(t, loader, dir), setting)
+
+		if err != nil {
+			t.Fatalf("ResolveNominationFrom(%+v) = %v", setting, err)
+		}
+		if slot := got.Slots[0]; slot.FellBack || slot.Resolved != "sunset" || slot.Theme != want {
+			t.Errorf("slot = %+v, want `sunset` resolved to its own palette with no fallback", slot)
+		}
+	})
+
+	for _, tt := range []struct {
+		name        string
+		enumeration func(*testing.T) theme.Enumeration
+		want        theme.Reason
+	}{
+		{
+			name: "an invalid entry falls back carrying its own reason",
+			enumeration: func(t *testing.T) theme.Enumeration {
+				dir := t.TempDir()
+				writeTheme(t, dir, "sunset.theme", withValue(themeLines(), "canvas", "not-a-colour"))
+				return enumerationOf(t, loader, dir)
+			},
+			want: theme.ReasonBadColour,
+		},
+		{
+			name: "a slug the directory never held falls back as not found",
+			enumeration: func(t *testing.T) theme.Enumeration {
+				return enumerationOf(t, loader, t.TempDir())
+			},
+			want: theme.ReasonNotFound,
+		},
+		{
+			name: "an unusable directory falls back as unreadable",
+			enumeration: func(*testing.T) theme.Enumeration {
+				return theme.Enumeration{DirUnusable: true}
+			},
+			want: theme.ReasonUnreadable,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			setting := theme.Setting{IsConstant: true, Constant: "sunset"}
+
+			got, err := loader.ResolveNominationFrom(tt.enumeration(t), setting)
+
+			if err != nil {
+				t.Fatalf("ResolveNominationFrom(%+v) = %v, want the fallback applied", setting, err)
+			}
+			slot := got.Slots[0]
+			if !slot.FellBack {
+				t.Fatalf("slot = %+v, want the fallback applied", slot)
+			}
+			if slot.Reason != tt.want {
+				t.Errorf("reason = %q, want %q — the resolution and the panel row state one reason for one slug", slot.Reason, tt.want)
+			}
+			if slot.Requested != "sunset" {
+				t.Errorf("Requested = %q, want the persisted slug %q — a fallback never moves the `●`", slot.Requested, "sunset")
+			}
+			if slot.Resolved != theme.DefaultDarkSlug {
+				t.Errorf("Resolved = %q, want the constant's mode-matched default %q", slot.Resolved, theme.DefaultDarkSlug)
+			}
+			if slot.Theme != builtinTheme(t, theme.DefaultDarkSlug) {
+				t.Error("the slot carries a palette other than the fallback's")
+			}
+		})
+	}
+}
+
+// TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst pins that §8.4's ordering
+// survives the change of source: the embedded set answers before the enumeration,
+// so a drop-in taking a built-in's slug can never become what a nomination — or a
+// fallback — resolves to.
+//
+// The fixture is the collision itself. `nord.theme` in the themes directory is
+// enumerated as a `reserved name` entry (§5.4), so an enumeration consulted first
+// would reject the nomination and send it to the dark default. Landing on the
+// EMBEDDED nord instead — a different palette from the fallback's — is what tells
+// the two orders apart.
+func TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst(t *testing.T) {
+	loader := nominationLoader()
+	dir := t.TempDir()
+	writeTheme(t, dir, "nord.theme", themeLines())
+	setting := theme.Setting{IsConstant: true, Constant: "nord"}
+
+	got, err := loader.ResolveNominationFrom(enumerationOf(t, loader, dir), setting)
+
+	if err != nil {
+		t.Fatalf("ResolveNominationFrom(%+v) = %v", setting, err)
+	}
+	slot := got.Slots[0]
+	if slot.FellBack {
+		t.Fatalf("slot = %+v, want the embedded built-in resolved — the shadowing file must never be consulted", slot)
+	}
+	if want := builtinTheme(t, "nord"); slot.Theme != want {
+		t.Errorf("slot resolved to canvas %s, want the embedded nord's %s", slot.Theme.Canvas.Value, want.Canvas.Value)
+	}
+}
+
+// TestResolveNominationFrom_UnresolvableFallbackErrors pins that §7.6's one
+// genuinely fatal state travels this entry point unchanged: a FALLBACK that
+// cannot resolve within the embedded set is an ordinary error and a zero
+// Resolution, never a second fallback and never a palette nobody chose.
+//
+// The panel's own policy for that error is its business (it degrades rather than
+// escalating, since a settings surface must not be the route by which a broken
+// binary quits mid-session) — what this pins is that the error is REPORTED here
+// rather than absorbed, so the panel has something to degrade on.
+func TestResolveNominationFrom_UnresolvableFallbackErrors(t *testing.T) {
+	loader := nominationLoader()
+	loader.BuiltinSource = withoutBuiltin(theme.DefaultDarkSlug)
+	setting := theme.Setting{IsConstant: true, Constant: "gone"}
+
+	got, err := loader.ResolveNominationFrom(theme.Enumeration{}, setting)
+
+	if err == nil {
+		t.Fatalf("ResolveNominationFrom(%+v) = %+v, want an error — the fallback itself did not resolve", setting, got)
+	}
+	requireZeroResolution(t, got)
+}
+
+// TestResolveNominationFrom_EmitsNoLoadedRecord pins §12.3's cadence split across
+// the two entry points.
+//
+// `theme: loaded` is a per-LOAD INFO whose catalogued cadence is TUI construction
+// plus the one commit-time load outside it. A panel open re-resolves the same
+// persisted setting against a fresher parse, and emitting there — on every open
+// and, from task 8-10, every `Esc` — would turn a per-load INFO into the running
+// commentary its neighbours dedup precisely to avoid.
+//
+// `theme: fallback applied` is the opposite case and is asserted alongside, or
+// the first assertion would be indistinguishable from a silent seam: §12.3 names
+// the panel open and the `Esc` explicitly as resolutions that apply a fallback,
+// and deduplicates the WARN per process rather than suppressing it per site.
+func TestResolveNominationFrom_EmitsNoLoadedRecord(t *testing.T) {
+	logger, sink := logtest.NewCaptureLogger(t)
+	loader := theme.NewLoader(theme.NewEventLogger(logger))
+	setting := theme.Setting{IsConstant: true, Constant: "gone"}
+
+	got, err := loader.ResolveNominationFrom(theme.Enumeration{}, setting)
+
+	if err != nil {
+		t.Fatalf("ResolveNominationFrom(%+v) = %v, want the fallback applied", setting, err)
+	}
+	if !got.Slots[0].FellBack {
+		t.Fatalf("slot = %+v, want the fallback applied — the assertions below need one", got.Slots[0])
+	}
+	if n := len(recordsNamed(sink, "loaded")); n != 0 {
+		t.Errorf("a panel-open resolution emitted %d `theme: loaded` records, want 0 — the event's cadence is construction plus the commit-time load (§12.3):\n%s", n, sink.Body())
+	}
+	if n := len(recordsNamed(sink, "fallback applied")); n != 1 {
+		t.Errorf("emitted %d `theme: fallback applied` records, want exactly 1 — §12.3 names the panel open as a site that applies one:\n%s", n, sink.Body())
+	}
 }

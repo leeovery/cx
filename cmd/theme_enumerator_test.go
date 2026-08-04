@@ -214,7 +214,11 @@ func callCount(n ast.Node, name string) int {
 // existed. This asserts the whole chain from the cmd config through tui.Build to a
 // rendered frame: `t` on the built model paints the §9.1 slide-over, listing a
 // drop-in that only a real directory read could have produced and marking the
-// persisted slug the injected slot record names.
+// persisted slug the adapter's own re-resolution names.
+//
+// The `●` is what proves the third method is wired: nothing is injected for it,
+// so the marker exists only if the panel reached themeEnumerator.Resolve and got
+// the constant back.
 func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
@@ -223,7 +227,6 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 	cfg := defaultTestTUIConfig()
 	cfg.themeEnumerator = newThemeEnumerator(loader)
 	cfg.themeKeys = theme.RawKeys{Theme: "sunset"}
-	cfg.themeSlots = []theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "sunset", Resolved: "sunset"}}
 
 	view := pressThemeKeyOnModel(t, buildTUIModel(cfg, "", nil))
 
@@ -239,17 +242,24 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 // so the assignments are only reachable structurally, exactly as the theme
 // persister's own wiring guard is.
 //
-// All three slots are checked together because dropping any one of them is silent:
-// a missing enumerator makes `t` a no-op, missing keys make every badge claim the
-// shipped default, and missing slots move the `●` onto a fallback the user never
-// chose.
+// Both slots are checked together because dropping either is silent: a missing
+// enumerator makes `t` a no-op, and missing keys make every badge claim the
+// shipped default.
+//
+// The per-slot record is deliberately NOT among them and must not return: the
+// panel re-resolves it against its own enumeration on every open (§5.8), so an
+// injected copy would be a second and staler answer to which slug carries the `●`
+// — and the one a fixture author would reach for.
 func TestOpenTUI_ThreadsThePanelConstructorSlots(t *testing.T) {
 	fn := funcDeclForTest(t, "open.go", "openTUI")
 
-	for _, field := range []string{"themeKeys", "themeSlots", "themeEnumerator"} {
+	for _, field := range []string{"themeKeys", "themeEnumerator"} {
 		if got := tuiConfigFieldSettings(fn, field); got != 1 {
 			t.Errorf("openTUI sets cfg.%s %d times, want exactly 1", field, got)
 		}
+	}
+	if got := tuiConfigFieldSettings(fn, "themeSlots"); got != 0 {
+		t.Errorf("openTUI sets cfg.themeSlots %d times, want 0 — the construction-time record is retired, not re-injected", got)
 	}
 }
 

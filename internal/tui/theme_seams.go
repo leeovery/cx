@@ -33,13 +33,21 @@ import (
 // post-commit recompute and §5.8's `Esc` re-resolution both re-derive from the
 // enumeration Open retained, with changed persisted keys and no fresh I/O.
 //
-// THE SHAPE IS NOT CLOSED AT TWO METHODS: task 8-8 extends it with a third,
-// Resolve — the open-time re-resolution of the persisted setting against that
-// same retained enumeration. An implementation designed as a final pair would
-// have to be reopened there.
+// Resolve is the RE-RESOLUTION of the persisted setting against that same
+// retained enumeration, and it is what makes §5.8's "the panel's parse supersedes
+// the construction-time parse" real: the panel opens on the theme the enumeration
+// says is live rather than on the one construction happened to load, so a
+// mid-session edit — including one that INVALIDATES the active theme — takes
+// effect on open. It resolves against the retained parse and NEVER the
+// filesystem, because a read here would produce a third parse of the same slug
+// that can disagree with the row the user is looking at (§8.4). Its error is
+// §7.6's fatal and the panel DEGRADES on it rather than escalating; see
+// Model.applyThemePanelResolution, which states that policy once for all three
+// panel call sites.
 type ThemeEnumerator interface {
 	Open(keys theme.RawKeys) (theme.Enumeration, theme.Union)
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union
+	Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error)
 }
 
 // liveThemeEnumerator reports whether e is a seam that can actually be CALLED, as
