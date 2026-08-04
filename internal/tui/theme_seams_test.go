@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/leeovery/portal/internal/log"
@@ -60,8 +61,13 @@ func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheLoader(t *testing.T) {
 // The directory here does not exist, and the seam still answers with rows —
 // every built-in, plus a row for the persisted slug that resolves to none of
 // them, each already carrying its reason. Nothing in internal/tui merges,
-// resolves or counts anything, which is what keeps this package from becoming a
-// fourth emitter of the `theme` component (§8.9 closes that set at three).
+// resolves, counts or SORTS anything, which is what keeps this package from
+// becoming a fourth emitter of the `theme` component (§8.9 closes that set at
+// three).
+//
+// The persisted row is found by identity rather than by position: it arrives in
+// §9.5's order like every other row, which for `ghost` is among the built-ins
+// rather than after them.
 func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
 	var enumerator tui.ThemeEnumerator = loaderThemeEnumerator{
 		loader:    theme.NewLoader(theme.NewEventLogger(log.Discard())),
@@ -76,12 +82,16 @@ func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
 	if want := len(theme.BuiltinSlugs()) + 1; len(union.Rows) != want {
 		t.Fatalf("union has %d rows, want %d — the built-ins plus the unresolvable persisted slug", len(union.Rows), want)
 	}
-	last := union.Rows[len(union.Rows)-1]
-	if last.Slug != "ghost" || last.Source != theme.SourcePersisted {
-		t.Errorf("last row = %+v, want the persisted %q row", last, "ghost")
+	at := slices.IndexFunc(union.Rows, func(row theme.Row) bool { return row.Slug == "ghost" })
+	if at < 0 {
+		t.Fatalf("union rows = %+v, want one for the unresolvable persisted slug %q", union.Rows, "ghost")
 	}
-	if last.Rejection == nil || last.Rejection.Reason != theme.ReasonNotFound {
-		t.Errorf("persisted row rejection = %v, want %q — the reason arrives with the row", last.Rejection, theme.ReasonNotFound)
+	persisted := union.Rows[at]
+	if persisted.Source != theme.SourcePersisted {
+		t.Errorf("the %q row is a %v, want %v", "ghost", persisted.Source, theme.SourcePersisted)
+	}
+	if persisted.Rejection == nil || persisted.Rejection.Reason != theme.ReasonNotFound {
+		t.Errorf("persisted row rejection = %v, want %q — the reason arrives with the row", persisted.Rejection, theme.ReasonNotFound)
 	}
 	if union.Rejected != 1 {
 		t.Errorf("union rejected = %d, want 1 — the counts arrive assembled too", union.Rejected)

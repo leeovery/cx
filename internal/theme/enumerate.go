@@ -39,9 +39,9 @@ type Entry struct {
 // genuine misconfiguration and comes back as `unreadable` with no entries.
 //
 // Entries arrive in os.ReadDir's filename order, so the result is deterministic.
-// §9.5's panel sort key — slug with a filename fallback, case-insensitive with a
-// byte-wise tie-break — belongs to the panel and is deliberately NOT applied
-// here.
+// §9.5's display sort key — slug with a filename fallback, case-insensitive with
+// a byte-wise tie-break — belongs to Reassemble (see sortRows) and is
+// deliberately NOT applied here.
 //
 // The directory is enumerated afresh on every call (§5.8): no caching, because
 // caching would break the loop the drop-in route exists for — copy a built-in,

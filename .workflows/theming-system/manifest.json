@@ -263,7 +263,7 @@
         "theming-system": {
           "status": "in-progress",
           "task_gate_mode": "auto",
-          "fix_gate_mode": "gated",
+          "fix_gate_mode": "auto",
           "analysis_gate_mode": "gated",
           "fix_attempts": 0,
           "analysis_cycle_total": 0,
@@ -299,7 +299,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "theming-system-8-2",
+          "current_task": "theming-system-8-3",
           "completed_tasks": [
             "theming-system-1-1",
             "theming-system-1-2",
@@ -350,7 +350,8 @@
             "theming-system-7-5",
             "theming-system-7-6",
             "theming-system-7-7",
-            "theming-system-8-1"
+            "theming-system-8-1",
+            "theming-system-8-2"
           ],
           "completed_phases": [
             1,

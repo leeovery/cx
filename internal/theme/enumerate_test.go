@@ -378,15 +378,16 @@ func TestEnumerate_IgnoresNonThemeFiles(t *testing.T) {
 // carrying exactly one reason and no palette.
 //
 // The order is asserted too. Entries come back in os.ReadDir's filename order,
-// which is BYTE-WISE, so a caller gets a deterministic result; §9.5's panel sort
-// key (slug with a filename fallback, case-insensitive with a byte-wise
-// tie-break) belongs to the panel and is deliberately NOT applied here. The names
+// which is BYTE-WISE, so a caller gets a deterministic result; §9.5's display
+// sort key (slug with a filename fallback, case-insensitive with a byte-wise
+// tie-break) belongs to Reassemble (see sortRows) and is deliberately NOT applied
+// here. The names
 // are staged in an order that differs from their sorted order, so a result that
 // merely echoed the staging would fail — and `Zed.THEME` beside `apple.theme` is
 // what makes the two orders DISTINGUISHABLE: byte-wise the capital sorts first,
 // case-insensitively it would sort last. Without that pair every fixture sorts
-// identically under both rules and a panel sort key applied here would pass
-// unnoticed.
+// identically under both rules and the assembler's sort key applied here would
+// pass unnoticed.
 func TestEnumerate_ValidAndInvalidFilesBothProduceEntries(t *testing.T) {
 	dir := t.TempDir()
 	writeTheme(t, dir, "valid.theme", themeLines())

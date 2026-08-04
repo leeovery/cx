@@ -516,6 +516,10 @@ func TestUnion_ConstantContributesOnlyTheConstant(t *testing.T) {
 // An unset slot holds the shipped default (§8.3), which is a built-in and
 // therefore already has a row; it is the "never set" line of §9.5's badge table
 // rather than a nomination the user made.
+//
+// The expectations are in §9.5's order rather than in slot order, because the
+// union arrives sorted (see sortRows). Which slot contributed a row is not
+// something the panel — or this test — reads position for.
 func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 	tests := []struct {
 		name string
@@ -523,7 +527,7 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 		want []string
 	}{
 		{name: "both slots name the same missing slug", keys: theme.RawKeys{Light: "ghost", Dark: "ghost"}, want: []string{"ghost"}},
-		{name: "each slot names its own missing slug", keys: theme.RawKeys{Light: "phantom", Dark: "ghost"}, want: []string{"phantom", "ghost"}},
+		{name: "each slot names its own missing slug", keys: theme.RawKeys{Light: "phantom", Dark: "ghost"}, want: []string{"ghost", "phantom"}},
 		{name: "an unset slot holds the shipped default", keys: theme.RawKeys{Dark: "ghost"}, want: []string{"ghost"}},
 		{name: "both slots name the same illegal string", keys: theme.RawKeys{Light: "../evil", Dark: "../evil"}, want: []string{"../evil"}},
 	}
@@ -565,7 +569,7 @@ func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
 	if !union.DirUnusable {
 		t.Fatal("union DirUnusable = false, want true")
 	}
-	if want := append(theme.BuiltinSlugs(), "ghost"); !slices.Equal(unionSlugs(union), want) {
+	if want := append([]string{"ghost"}, theme.BuiltinSlugs()...); !slices.Equal(unionSlugs(union), want) {
 		t.Errorf("union rows = %v, want exactly %v — the directory condition is a flag, not a member", unionSlugs(union), want)
 	}
 	if union.Count != len(union.Rows) {
@@ -664,7 +668,8 @@ func TestUnion_ReassembleReadsNothing(t *testing.T) {
 	}
 }
 
-// unionSlugs lists the union's row slugs in assembly order.
+// unionSlugs lists the union's row slugs in §9.5's display order, which is the
+// order the union hands them back.
 func unionSlugs(union theme.Union) []string {
 	slugs := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -673,7 +678,8 @@ func unionSlugs(union theme.Union) []string {
 	return slugs
 }
 
-// rowsWithSlug returns the rows carrying the given slug, in assembly order.
+// rowsWithSlug returns the rows carrying the given slug, in §9.5's display
+// order, which is the order the union hands them back.
 func rowsWithSlug(union theme.Union, slug string) []theme.Row {
 	rows := []theme.Row{}
 	for _, row := range union.Rows {

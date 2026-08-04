@@ -1,6 +1,11 @@
 package theme
 
-import "slices"
+import (
+	"cmp"
+	"slices"
+	"sort"
+	"strings"
+)
 
 // RowSource says where one union row came from: the embedded set, the themes
 // directory, or prefs.json naming something neither of those answers to.
@@ -67,6 +72,71 @@ func (r Row) Selectable() bool {
 	return r.Rejection == nil
 }
 
+// SortKey is §9.5's ordering value: the slug wherever one exists, else the
+// filename, else the persisted string itself.
+//
+// It is FULLY DETERMINED — every row shape yields exactly one non-empty key —
+// and that is what makes the order total (see sortRows). The three arms are the
+// identity fields in the one order that leaves no row unplaceable:
+//
+//   - The SLUG, for every row that has one. Including a `reserved name` row,
+//     whose slug is valid and identical to the built-in's it collides with:
+//     sorting on it is what stands the row explaining the collision immediately
+//     beside the thing it collides with, which is the whole of §9.5's adjacency
+//     argument — even though that row is LABELLED by its filename. A `not found`
+//     persisted row sorts by its slug too.
+//   - The FILENAME, for the one row shape that has no slug: a `bad name` file,
+//     since §5.2 rejects rather than normalises and so mints none for it.
+//   - The PERSISTED STRING, for a charset-rejected persisted value, which has
+//     neither a slug nor a file. There is EXACTLY ONE thing to sort such a row
+//     by, and using it is what keeps the ordering total rather than leaving a
+//     member the comparator cannot place. The value arrives already
+//     control-stripped (§9.5 puts the removal on the value, at the point it was
+//     read); §9.5's truncation is a render concern and never reaches this key.
+//
+// IT IS NOT DERIVED FROM Label, AND Label IS NOT DERIVED FROM IT — see Label.
+func (r Row) SortKey() string {
+	return cmp.Or(r.Slug, r.Filename, r.Persisted)
+}
+
+// Label is §9.5's DISPLAY value, and it is deliberately a SEPARATE VALUE from
+// SortKey rather than a second reading of it.
+//
+// NEITHER MAY BE RE-DERIVED FROM THE OTHER AT RENDER TIME: the row delegate
+// (task 8-4) consumes Label and nothing else, the ordering consumes SortKey and
+// nothing else. The two disagree on exactly the rows §9.5 wants them to disagree
+// on:
+//
+//   - A `reserved name` row is labelled by its FILENAME while sorting by its
+//     slug — `nord.theme` beside `nord` tells the user which one is theirs,
+//     where two rows reading `nord` would not.
+//   - A `bad name` file is labelled by its filename because it HAS no slug.
+//   - A charset-rejected persisted value is labelled by the raw string, which is
+//     the only thing it has: no slug was derived and no file was ever sought.
+//   - Every other row — valid, or rejected for anything its NAME did not cause —
+//     is labelled by its slug.
+func (r Row) Label() string {
+	if r.labelledByFilename() {
+		return r.Filename
+	}
+	return cmp.Or(r.Slug, r.Persisted)
+}
+
+// labelledByFilename reports whether §9.5 labels this row by its filename rather
+// than by the slug it would otherwise be listed under.
+//
+// Two reasons and no others, and both of them a FILE's: `bad name`, which yields
+// no slug at all, and `reserved name`, whose slug is the built-in's. The
+// filename check is what keeps the charset-rejected PERSISTED row out of this
+// arm — it is `bad name` by reason too, but has no file behind it and so is
+// labelled by the raw value instead.
+func (r Row) labelledByFilename() bool {
+	if r.Rejection == nil || r.Filename == "" {
+		return false
+	}
+	return r.Rejection.Reason == ReasonBadName || r.Rejection.Reason == ReasonReservedName
+}
+
 // Enumeration is one directory read, RETAINED: what the themes directory held
 // and what the directory itself was.
 //
@@ -106,9 +176,15 @@ type Enumeration struct {
 // (§13.3) — which is the only way internal/capture, under its no-real-config
 // import guard, can render an invalid-theme row at all.
 type Union struct {
-	// Rows is the union, in assembly order: built-ins, then files, then the
-	// persisted values that answer to neither. §9.5's display sort is the
-	// panel's and is deliberately NOT applied here.
+	// Rows is the union in §9.5's display order — alphabetical by sort key,
+	// case-insensitively, with the built-in ahead of the one row guaranteed to
+	// tie with it (see sortRows).
+	//
+	// The order is applied by the ASSEMBLER rather than by the panel, so every
+	// consumer receives it ordered and none can forget to sort. Enumeration
+	// order — built-ins, then os.ReadDir's, then the persisted leftovers — is
+	// neither alphabetical nor stable across filesystems, so it is not something
+	// a consumer could safely be handed.
 	Rows []Row
 
 	// DirUnusable drives §9.5's pinned `⚠ dir unreadable` chrome row. It is a
@@ -176,10 +252,16 @@ func (l Loader) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
 //     unique by construction (§5.6 mints no duplicate slug).
 //  3. The persisted keys in force, each contributing a row only where nothing
 //     above already answers to it — see persistedRows.
+//  4. §9.5's order, applied HERE rather than by the panel, so both the Open path
+//     and every recompute hand back an ordered union and no consumer can forget
+//     to sort — see sortRows. It runs last because it is a pure rearrangement:
+//     the three steps above decide MEMBERSHIP, and each one's dedup reads the
+//     rows already assembled by slug rather than by position.
 func (l Loader) Reassemble(e Enumeration, keys RawKeys) Union {
 	rows := l.builtinRows()
 	rows = append(rows, fileRows(e.Entries)...)
 	rows = append(rows, persistedRows(rows, e, keys)...)
+	sortRows(rows)
 
 	return Union{Rows: rows, DirUnusable: e.DirUnusable, Count: len(rows), Rejected: countRejected(rows)}
 }
@@ -338,6 +420,57 @@ func unresolvedRejection(e Enumeration) *Rejection {
 		return &Rejection{Reason: ReasonUnreadable}
 	}
 	return notFound()
+}
+
+// sortRows puts the union in §9.5's display order, in place.
+//
+// ALPHABETICAL BY SLUG AND NOTHING ELSE. No palette is read here and no variant
+// concept enters: ordering same-mode themes first was proposed as a mitigation
+// for §9.2's mixed-mode flash and REJECTED, so a Row's Theme is not an input to
+// this comparison at all. The `⚠ dir unreadable` condition is likewise outside
+// the ordering entirely — it is Union.DirUnusable rather than a row, so there is
+// nothing here to sort.
+//
+// The sort is STABLE, so any pair the three legs below still tie on — a
+// charset-rejected persisted string reading byte-for-byte like a file's name,
+// say — holds its assembly order rather than being permuted by run. That, plus
+// legs that decide every other pair, is what makes the panel's fixtures
+// reproducible (§13.3) and §9.5's adjacency argument concrete rather than
+// incidental.
+func sortRows(rows []Row) {
+	sort.SliceStable(rows, func(i, j int) bool { return rowBefore(rows[i], rows[j]) })
+}
+
+// rowBefore is §9.5's three-leg comparison, in the fixed order the legs are
+// tried:
+//
+//  1. CASE-INSENSITIVE on the sort key. Slugs are lowercase by construction but
+//     filenames are not, and a byte-wise-only comparison files `Zed.theme` ahead
+//     of every valid theme, every uppercase byte sorting below every lowercase
+//     one.
+//  2. BYTE-WISE on the sort key, where the first leg ties. Case-insensitive
+//     alone is not an order: two keys differing only in case would tie, and
+//     which came out first would depend on how the union was built rather than
+//     on a rule.
+//  3. THE BUILT-IN FIRST, where both above tie. This tie is GUARANTEED BY
+//     CONSTRUCTION and the byte-wise leg cannot settle it — a `reserved name`
+//     row and the built-in it collides with have an IDENTICAL sort key, because
+//     that identity is the definition of the reason (§6.2). The built-in wins
+//     because that is the useful order: the valid, selectable thing the user can
+//     act on, immediately followed by the row explaining why their file is not
+//     it. Stating it as a RULE rather than leaning on the built-ins happening
+//     to be assembled first is what makes the comparison total for any input:
+//     a later change to the assembly order cannot silently lead the panel with
+//     the row explaining why a theme is unusable instead of with the theme.
+func rowBefore(a, b Row) bool {
+	aKey, bKey := a.SortKey(), b.SortKey()
+	if aFolded, bFolded := strings.ToLower(aKey), strings.ToLower(bKey); aFolded != bFolded {
+		return aFolded < bFolded
+	}
+	if aKey != bKey {
+		return aKey < bKey
+	}
+	return a.Source == SourceBuiltin && b.Source != SourceBuiltin
 }
 
 // countRejected counts the unselectable rows — the value `theme: enumerated`
