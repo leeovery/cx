@@ -79,7 +79,7 @@ func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 
 	// The retired border.footer shade must not survive anywhere in the frame.
 	retired := sgrForegroundCore(t, "#20232E")
-	frame := renderSessionsFooter(referenceFooterWidth, dark, false)
+	frame := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, dark, false)
 	if strings.Contains(frame, retired) {
 		t.Errorf("the retired border.footer shade #20232E (SGR %q) still renders in the footer", retired)
 	}

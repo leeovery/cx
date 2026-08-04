@@ -14,15 +14,16 @@ import (
 
 // sessionsFooterString renders the §3.4 condensed sessions footer for m.
 func sessionsFooterString(m Model) string {
-	return renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
+	return renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
 }
 
 func TestSessionsFooter_ShowsSwitchViewHint(t *testing.T) {
 	m := flashModelWithSessions("alpha-row", "beta-row")
-	// The condensed footer shows all six Core keys at the reference terminal width
-	// (the vhs capture is 1280px ≈ wide). At a narrow 80-col terminal the §2.7
-	// truncation legitimately drops the lower-priority entries, so size the model
-	// to the reference width for the full-content assertions.
+	// The condensed footer shows all EIGHT Core keys at the reference terminal width
+	// (the vhs capture is 1280px ≈ wide) — five page actions, the `t` and `m` entries
+	// §14.1 promoted to Core, and the right-aligned `? help`. At a narrow 80-col
+	// terminal §14.4's degrade legitimately drops the lower-priority entries from the
+	// right, so size the model to the reference width for the full-content assertions.
 	m.termWidth = 120
 
 	footer := sessionsFooterString(m)
@@ -77,7 +78,7 @@ func TestProjectsFooter_NoSwitchViewHint(t *testing.T) {
 	m.activePage = PageProjects
 	m.termWidth = 120
 
-	footer := footerVisible(renderProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless))
+	footer := footerVisible(renderProjectsFooter(m.projectsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless))
 	if strings.Contains(footer, "switch view") {
 		t.Errorf("projects footer must NOT contain %q, got:\n%s", "switch view", footer)
 	}

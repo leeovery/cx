@@ -681,10 +681,12 @@ func TestThemePanel_OverlayDoesNotRelayoutTheBase(t *testing.T) {
 func TestThemePanel_OverlayCutsMidLabel(t *testing.T) {
 	th := testDarkTheme(t)
 	// At this content width the panel's left border lands inside `x projects`,
-	// reproducing §9.1's own worked example (`x proje▏`) a character earlier.
-	const contentW, contentH = 100, 20
+	// reproducing §9.1's own worked example (`x proje▏`) a character earlier. The
+	// width moved with §14.2's re-authored footer row (§15.1's named amendment):
+	// the cluster is longer and the cut column had to follow it back into a label.
+	const contentW, contentH = 86, 20
 
-	footer := renderSessionsFooter(contentW, th, false)
+	footer := renderSessionsFooter(sessionsKeymap(), contentW, th, false)
 	footerLines := strings.Split(ansi.Strip(footer), "\n")
 	keyRow := footerLines[len(footerLines)-1]
 	if !strings.Contains(keyRow, "? help") || !strings.Contains(keyRow, "x projects") {

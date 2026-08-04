@@ -82,7 +82,7 @@ func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 // budget (the swap must not change the list height).
 func TestMultiSelectFooter_HeightNeutral(t *testing.T) {
 	ms := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
-	std := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
+	std := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
 	if got, want := lipgloss.Height(ms), lipgloss.Height(std); got != want {
 		t.Errorf("multi-select footer height = %d, want %d (== standard footer, height-neutral)", got, want)
 	}

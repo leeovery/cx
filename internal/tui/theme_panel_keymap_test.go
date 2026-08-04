@@ -107,8 +107,8 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 		"projectsKeymap": projectsKeymap(),
 	}
 	pageSurfaces := map[string]string{
-		"Sessions footer":    renderSessionsFooter(referenceFooterWidth, th, false),
-		"Projects footer":    renderProjectsFooter(referenceFooterWidth, th, false),
+		"Sessions footer":    renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, th, false),
+		"Projects footer":    renderProjectsFooter(projectsKeymap(), referenceFooterWidth, th, false),
 		"Sessions help body": helpModalBody(sessionsKeymap(), th, false),
 		"Projects help body": helpModalBody(projectsKeymap(), th, false),
 	}

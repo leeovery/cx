@@ -51,31 +51,44 @@ const (
 // left cluster when one or more lower-priority entries are dropped (§2.7).
 const footerEllipsis = "…"
 
-// renderSessionsFooter renders the §3.4 condensed Sessions footer for the given
-// content width and resolved canvas mode (and the NO_COLOR carve-out). It is the
-// single render entry point so the composed-view render (viewSessionList) and the
+// renderSessionsFooter renders the §14.2 condensed Sessions footer
+// (`⏎ attach · / filter · ␣ preview · s switch view · x projects · t theme ·
+// m multi`, right-aligned `? help`) for the given descriptor entries, content
+// width and resolved canvas mode (and the NO_COLOR carve-out). It is the single
+// render entry point so the composed-view render (viewSessionList) and the
 // height-budget computation (applySessionListSize) resolve the footer against the
-// SAME width/mode and agree on its height exactly.
+// SAME entries/width/mode and agree on its height exactly.
+//
+// IT TAKES ITS ENTRIES AS A PARAMETER rather than calling sessionsKeymap itself
+// (§14.3). The footer is filtered in lockstep with `?` help through the ONE
+// call-site filter (Model.sessionsHelpKeymap), which drops a blocked `t` (§9.10)
+// or a blocked `m` (unsupported terminal) — so a footer sourcing the static
+// descriptor for itself is exactly how the two surfaces come to disagree about one
+// key. Both the render and the budget pass the same filtered slice.
 //
 // The footer is two rows: the 1px footer top rule, then the condensed key
 // row (Core keys left, right-aligned ? help). Below the width at which the full
 // left cluster + a spacer + the ? help no longer fit, lower-priority Core entries
-// drop (with an ellipsis marker) so the row truncates gracefully on ONE line — it
-// never wraps to a second line (which would steal a list row) and the ? help right
-// anchor survives as long as possible (§2.7).
-func renderSessionsFooter(width int, th theme.Theme, colourless bool) string {
-	return renderCondensedFooter(sessionsKeymap(), width, th, colourless)
+// drop from the RIGHT (with an ellipsis marker) so the row degrades gracefully on
+// ONE line — it never wraps to a second line (which would steal a list row) and
+// the ? help right anchor is never dropped while it fits (§14.4).
+func renderSessionsFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
+	return renderCondensedFooter(entries, width, th, colourless)
 }
 
-// renderProjectsFooter renders the §6.3 condensed Projects footer
-// (`⏎ new session` · `x sessions` · `e edit` · `/ filter`, right-aligned
-// `? help`) through the SAME condensed-footer machinery as the Sessions footer,
-// driven by the projectsKeymap descriptor — replacing the former three-column
-// keymap footer for the Projects page. Same two-row shape (the shared 1px
-// footer top rule + one key row), so it is height-neutral against the
-// Sessions footer's reserved budget.
-func renderProjectsFooter(width int, th theme.Theme, colourless bool) string {
-	return renderCondensedFooter(projectsKeymap(), width, th, colourless)
+// renderProjectsFooter renders the §14.2 condensed Projects footer
+// (`⏎ new session · x sessions · e edit · / filter · t theme`, right-aligned
+// `? help`) through the SAME condensed-footer machinery as the Sessions footer —
+// replacing the former three-column keymap footer for the Projects page. Same
+// two-row shape (the shared 1px footer top rule + one key row), so it is
+// height-neutral against the Sessions footer's reserved budget.
+//
+// Like its Sessions sibling it takes its entries as a parameter: §14.2 puts
+// `t theme` in this footer too, so Projects needs the matching call-site filter
+// (Model.projectsHelpKeymap) — §9.10 names only the Sessions site, but the
+// mechanism is the same and the second call site is required.
+func renderProjectsFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
+	return renderCondensedFooter(entries, width, th, colourless)
 }
 
 // renderCommandPendingFooter renders the §11.4 command-pending Projects footer:
@@ -298,22 +311,48 @@ func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool)
 // assembleRightAnchoredRow lays out a right-anchored footer row of exactly w
 // cells: a left cluster (already rendered, leftWidth cells) and a right anchor
 // segment (rightSeg, rightWidth cells) pinned to the row's right edge with a
-// canvas-painted flex spacer between them. When the right anchor does not fit
-// beside the left cluster (leftWidth+1+rightWidth > w — at least one spacer cell)
-// or there is no right anchor (rightSeg == ""), the anchor is dropped and the left
-// cluster is padded to width via headerPadRight (the §2.7 narrow-degrade). It is
-// the single owner of this right-anchor geometry, shared by the standard condensed
-// footer (footerKeyRow) and the contextual filter footers (filterFooterRow) so a
-// change to the degrade rule is made once. Callers render their OWN left cluster
-// (the footer-specific fitLeftCluster ellipsis logic stays out of here).
+// canvas-painted flex spacer between them. It is the single owner of this
+// right-anchor geometry, shared by the standard condensed footer (footerKeyRow) and
+// the contextual filter footers (filterFooterRow) so a change to the degrade rule is
+// made once. Callers render their OWN left cluster (the footer-specific
+// fitLeftCluster ellipsis logic stays out of here).
+//
+// THE ANCHOR SURVIVES; THE LEFT CLUSTER GIVES WAY BENEATH IT (§14.4). `? help` is
+// never dropped while it fits: it is right-aligned, and it is the escape hatch that
+// makes every dropped entry recoverable — the help modal lists the full keymap
+// regardless of footer width, so a user on a narrow terminal loses the reminder,
+// not the capability. This INVERTS the former rule, which dropped the anchor first
+// and padded the left cluster: exactly the width at which the footer stopped
+// advertising anything was the width at which it also took away the surface that
+// could tell the user what it had stopped advertising.
+//
+// Four rungs, widest first:
+//
+//  1. NO ANCHOR (rightSeg == "") — the multi-select footer's shape. Pad the left
+//     cluster to width; there is nothing to anchor.
+//  2. BOTH FIT (leftWidth+1+rightWidth ≤ w, at least one spacer cell) — cluster,
+//     flex spacer, anchor.
+//  3. ONLY THE ANCHOR FITS — render it alone, right-aligned. The caller's fitter
+//     has already reserved rightWidth+1 for it (fitLeftCluster), so on the standard
+//     footer this is reached only once the cluster has degraded to nothing; the
+//     contextual filter footers, which do not fit their cluster at all, reach it as
+//     soon as the two collide, and there too the anchor is what is kept.
+//  4. NOT EVEN THE ANCHOR — an empty row of exactly w canvas cells. Consistent with
+//     §2.7's degrade-never-break, and Portal's documented 40-column minimum sits
+//     well above it.
 func assembleRightAnchoredRow(left string, leftWidth int, rightSeg string, rightWidth, w int, th theme.Theme, colourless bool) string {
-	if rightSeg == "" || leftWidth+1+rightWidth > w {
+	if rightSeg == "" {
 		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
-
-	spacerWidth := w - leftWidth - rightWidth
-	spacer := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", spacerWidth))
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, rightSeg)
+	if leftWidth+1+rightWidth <= w {
+		spacerWidth := w - leftWidth - rightWidth
+		spacer := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", spacerWidth))
+		return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, rightSeg)
+	}
+	if rightWidth <= w {
+		return headerPadLeft(rightSeg, rightWidth, w, th, colourless)
+	}
+	return headerPadRight("", 0, w, th, colourless)
 }
 
 // splitFooterEntries partitions a keymap descriptor into the ordered Core entries

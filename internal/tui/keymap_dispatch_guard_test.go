@@ -178,6 +178,14 @@ func TestSessionsDescriptorDispatchParity(t *testing.T) {
 			m = pressSession(t, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
 			return m.activePage == PageProjects
 		}},
+		// t theme — opens the §9.1 slide-over. The seed WIRES A FAKE ThemeEnumerator:
+		// an unwired seam is a silent no-op (§9.6), so a probe without one would pass
+		// vacuously against a key that did nothing.
+		"t": {press: tea.KeyPressMsg{Code: 't', Text: "t"}, honour: func(t *testing.T) bool {
+			m := themeGuardModel(t, sessionsGuardModel(t))
+			m = pressSession(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
+			return m.themePanel.open
+		}},
 	}
 
 	assertDescriptorDispatchParity(t, "sessions", sessionsKeymap(), probes)
@@ -247,6 +255,13 @@ func TestProjectsDescriptorDispatchParity(t *testing.T) {
 			m := projectsDispatchModel(t)
 			_, cmd := m.updateProjectsPage(tea.KeyPressMsg{Code: tea.KeyEscape})
 			return isQuitCmd(cmd)
+		}},
+		// t theme — opens the §9.1 slide-over here too (theme is a GLOBAL setting,
+		// §9.6). Same faked seam as the Sessions probe, for the same reason.
+		"t": {press: tea.KeyPressMsg{Code: 't', Text: "t"}, honour: func(t *testing.T) bool {
+			m := themeGuardModel(t, projectsDispatchModel(t))
+			m, _ = pressProject(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
+			return m.themePanel.open
 		}},
 	}
 
@@ -328,6 +343,56 @@ func sessionsGuardModel(t *testing.T) Model {
 func previewGuardModel(t *testing.T) previewModel {
 	t.Helper()
 	return newPreviewHelpModel(t, testDarkTheme(t), false)
+}
+
+// themeGuardModel wires the §13.3 panel seam onto a guard seed so the `t` probe is
+// not vacuous: with NO enumerator the keypress is a deliberate silent no-op (§9.6),
+// which a probe asserting "the panel opened" could never distinguish from a dropped
+// dispatch arm. The fake answers with a hand-built union and touches no filesystem.
+//
+// It leaves detection unwired and `colourless` false, mirroring the `m` probe's
+// discipline: neither call-site block is armed on a guard seed, so the STATIC
+// descriptors the parity check reads are the unfiltered ones.
+func themeGuardModel(t *testing.T, m Model) Model {
+	t.Helper()
+	if m.colourless {
+		t.Fatal("the guard seed must not be colourless — §9.10 would block t and the probe would assert a refusal")
+	}
+	m.themeEnumerator = newEntryEnumerator(false)
+	return m
+}
+
+// TestKeymapDispatchGuard_ThemeKeyProbe: it probes the new t binding through a
+// faked seam.
+//
+// The §14.2 footer revision puts `t` in BOTH static descriptors, so both parity
+// guards now demand a `t` probe. This pins that the probe is MEANINGFUL rather than
+// satisfied by the nil-seam no-op: with the seam unwired `t` opens nothing (so a
+// probe would pass vacuously), and with it wired the SAME keypress opens the panel
+// on both pages.
+func TestKeymapDispatchGuard_ThemeKeyProbe(t *testing.T) {
+	press := tea.KeyPressMsg{Code: 't', Text: "t"}
+
+	t.Run("sessions", func(t *testing.T) {
+		unwired := pressSession(t, sessionsGuardModel(t), press)
+		if unwired.themePanel.open {
+			t.Fatal("precondition: an unwired seam must leave t a silent no-op (§9.6)")
+		}
+		if wired := pressSession(t, themeGuardModel(t, sessionsGuardModel(t)), press); !wired.themePanel.open {
+			t.Error("t did not open the panel against a faked enumerator — the guard's probe would be vacuous")
+		}
+	})
+
+	t.Run("projects", func(t *testing.T) {
+		unwired, _ := pressProject(t, projectsDispatchModel(t), press)
+		if unwired.themePanel.open {
+			t.Fatal("precondition: an unwired seam must leave t a silent no-op (§9.6)")
+		}
+		wired, _ := pressProject(t, themeGuardModel(t, projectsDispatchModel(t)), press)
+		if !wired.themePanel.open {
+			t.Error("t did not open the panel against a faked enumerator — the guard's probe would be vacuous")
+		}
+	})
 }
 
 // sessionsGuardCreator is a non-nil session creator so the n new-in-cwd probe

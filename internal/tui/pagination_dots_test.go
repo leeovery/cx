@@ -117,7 +117,7 @@ func TestSessionsPaginationDots_CentredAboveFooter(t *testing.T) {
 
 	// The dot row precedes the footer: the footer's 1px top rule + key row are the
 	// LAST two lines, so the dot row index must be strictly before them.
-	footer := renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
+	footer := renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
 	footerLines := lipgloss.Height(footer)
 	if dotIdx >= len(lines)-footerLines {
 		t.Errorf("dot row at line %d is not above the footer (footer occupies the last %d of %d lines)", dotIdx, footerLines, len(lines))

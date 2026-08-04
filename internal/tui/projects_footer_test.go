@@ -20,11 +20,13 @@ import (
 // No t.Parallel() — the package's shared canvas/mock helpers make parallelism
 // unsafe across these tests.
 
-// TestProjectsFooter_CondensedCopyExact asserts the §6.3 condensed Projects
-// footer renders EXACTLY `⏎ new session` · `x sessions` · `e edit` · `/ filter`
-// as the left cluster, with a right-aligned `? help` pinned to the width.
+// TestProjectsFooter_CondensedCopyExact asserts the §6.3 condensed Projects footer
+// renders EXACTLY `⏎ new session` · `x sessions` · `e edit` · `/ filter` · `t theme`
+// as the left cluster, with a right-aligned `? help` pinned to the width. `t theme`
+// is §14.2's addition to this page — theme is a GLOBAL setting (§9.6) — and is
+// asserted here so a dropped entry fails the test that names itself CopyExact.
 func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
-	footer := renderProjectsFooter(referenceFooterWidth, testDarkTheme(t), false)
+	footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("condensed Projects footer must be 2 rows (rule + key row), got %d:\n%s", len(lines), footer)
@@ -32,7 +34,7 @@ func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 	keyRow := footerVisible(lines[1])
 
 	for _, want := range []string{
-		"⏎ new session", "x sessions", "e edit", "/ filter", "? help",
+		"⏎ new session", "x sessions", "e edit", "/ filter", "t theme", "? help",
 	} {
 		if !strings.Contains(keyRow, want) {
 			t.Errorf("Projects key row missing Core entry %q:\n%s", want, keyRow)
@@ -64,7 +66,7 @@ func TestProjectsFooter_CondensedCopyExact(t *testing.T) {
 // §6.3 condensed copy and NOT the Sessions footer copy: it must not leak Sessions
 // labels (`attach`, `switch view`, `preview`, `projects`).
 func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
-	keyRow := footerVisible(renderProjectsFooter(referenceFooterWidth, testDarkTheme(t), false))
+	keyRow := footerVisible(renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), false))
 	for _, banned := range []string{"attach", "switch view", "preview", "navigate", "projects"} {
 		if strings.Contains(keyRow, banned) {
 			t.Errorf("Projects footer leaked the Sessions copy %q:\n%s", banned, keyRow)
@@ -85,7 +87,7 @@ func TestProjectsFooter_TokenColours(t *testing.T) {
 		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			footer := renderProjectsFooter(referenceFooterWidth, tc.th, false)
+			footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, tc.th, false)
 
 			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
 				t.Errorf("Projects footer missing accent.blue key-glyph role sequence %q", seq)
@@ -109,7 +111,7 @@ func TestProjectsFooter_TokenColours(t *testing.T) {
 // (§2.5): a colourless Projects footer carries no canvas background SGR and no
 // foreground hue — the §6.3 copy stays structurally intact.
 func TestProjectsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
-	footer := renderProjectsFooter(referenceFooterWidth, testDarkTheme(t), true)
+	footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), true)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
 
 	for _, want := range []string{"⏎ new session", "x sessions", "e edit", "/ filter", "? help"} {
@@ -152,7 +154,7 @@ func TestProjectsFooter_FilterAppliedSaysNewSessionNotAttach(t *testing.T) {
 // (never wraps) and the ? help right anchor survives, the row never overflowing.
 func TestProjectsFooter_NarrowDegradeKeepsHelpAnchor(t *testing.T) {
 	const narrow = 24
-	footer := renderProjectsFooter(narrow, testDarkTheme(t), false)
+	footer := renderProjectsFooter(projectsKeymap(), narrow, testDarkTheme(t), false)
 	for i, line := range strings.Split(footer, "\n") {
 		if lw := lipgloss.Width(line); lw > narrow {
 			t.Errorf("narrow Projects footer line %d width = %d (overflow, want <= %d):\n%s", i, lw, narrow, ansi.Strip(line))

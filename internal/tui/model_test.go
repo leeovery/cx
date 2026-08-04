@@ -1590,9 +1590,10 @@ func TestKillSession(t *testing.T) {
 
 func TestSessionListHelpBar(t *testing.T) {
 	t.Run("condensed footer shows the Core keys and omits the help-only keys", func(t *testing.T) {
-		// §3.4: the Sessions footer is the single condensed row of Core keys. The
-		// help-only keys (rename / kill / new in cwd / quit) move to the ? help modal
-		// (Phase 3) and must NOT appear in the footer.
+		// §14.2: the Sessions footer is the single condensed row of Core keys. The
+		// help-only keys (navigate / rename / kill / new in cwd / quit) live in the
+		// ? help modal and must NOT appear in the footer — §14.1 moved `navigate` into
+		// that set and promoted `t theme` / `m multi` out of it.
 		sessions := []tmux.Session{
 			{Name: "alpha", Windows: 1, Attached: false},
 			{Name: "bravo", Windows: 2, Attached: false},
@@ -1604,13 +1605,13 @@ func TestSessionListHelpBar(t *testing.T) {
 		view := updated.View().Content
 
 		// Core (footer) descriptions present.
-		for _, desc := range []string{"navigate", "attach", "filter", "preview", "switch view", "projects", "help"} {
+		for _, desc := range []string{"attach", "filter", "preview", "switch view", "projects", "theme", "multi", "help"} {
 			if !strings.Contains(view, desc) {
 				t.Errorf("condensed footer should contain Core key %q, got:\n%s", desc, view)
 			}
 		}
 		// Help-only descriptions absent from the footer.
-		for _, desc := range []string{"rename", "kill", "new in cwd", "quit"} {
+		for _, desc := range []string{"navigate", "rename", "kill", "new in cwd", "quit"} {
 			if strings.Contains(view, desc) {
 				t.Errorf("condensed footer must NOT contain help-only key %q (§3.4), got:\n%s", desc, view)
 			}

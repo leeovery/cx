@@ -10,13 +10,20 @@ import (
 // This file pins the shared right-anchored footer row assembler
 // (assembleRightAnchoredRow) extracted from footerKeyRow and filterFooterRow
 // (task 8-7). Both the standard condensed footer and the contextual filter
-// footers route their final right-anchor layout (the fit test, the
-// headerPadRight narrow-degrade, and the canvas flex-spacer join) through this
-// single assembler, so a change to the right-anchor degrade rule is made once.
+// footers route their final right-anchor layout (the fit test, the narrow degrade,
+// and the canvas flex-spacer join) through this single assembler, so a change to
+// the right-anchor degrade rule is made once.
 //
-// The byte-identical guarantee is the load-bearing assertion: both footers must
-// render identically to current output at WIDE widths AND at/below the
-// narrow-degrade boundary (leftWidth+1+rightWidth > w).
+// §14.4 INVERTED THE DEGRADE, and these assertions moved with it (§15.1 names §14
+// as the amendment). The assembler used to drop the RIGHT ANCHOR first and pad the
+// left cluster — so exactly the width at which the footer stopped advertising
+// anything was the width at which it also took away `? help`, the escape hatch that
+// makes every dropped entry recoverable. It now keeps the anchor and lets the left
+// cluster give way beneath it, rendering the anchor alone at its own width and an
+// empty row only below that.
+//
+// The shared-owner guarantee is the load-bearing assertion: both footers must reach
+// the SAME rung of that ladder at the same boundary.
 
 // rightAnchoredCanvasWidth is a content width wide enough that both footers
 // render their full left cluster + flex spacer + the ? help right anchor with no
@@ -53,18 +60,20 @@ func TestAssembleRightAnchoredRow_WideEmitsClusterSpacerAnchor(t *testing.T) {
 	}
 }
 
-// TestAssembleRightAnchoredRow_NarrowDegradePadsLeftAndReturns asserts the
-// narrow-degrade boundary (leftWidth+1+rightWidth > w): the assembler drops the
-// right anchor and pads the left cluster to width via headerPadRight. The result
-// must equal headerPadRight(left, leftWidth, w, ...) exactly (byte-identical
-// degrade), and must NOT contain the right anchor.
-func TestAssembleRightAnchoredRow_NarrowDegradePadsLeftAndReturns(t *testing.T) {
+// TestAssembleRightAnchoredRow_NarrowDegradeKeepsAnchorDropsCluster asserts the
+// §14.4 degrade boundary (leftWidth+1+rightWidth > w): the assembler keeps the
+// right anchor and the LEFT CLUSTER gives way beneath it, the anchor rendering
+// alone right-aligned via headerPadLeft. This is the inversion — the anchor is
+// never dropped while it fits, because it is the escape hatch that makes every
+// dropped entry recoverable.
+func TestAssembleRightAnchoredRow_NarrowDegradeKeepsAnchorDropsCluster(t *testing.T) {
 	left := renderFooterDetail("left", testDarkTheme(t), false)
 	leftWidth := lipgloss.Width(left)
 	rightSeg := renderFooterDetail("? help", testDarkTheme(t), false)
 	rightWidth := lipgloss.Width(rightSeg)
 
-	// A width at/below the degrade boundary: leftWidth+1+rightWidth > w.
+	// A width at/below the degrade boundary: leftWidth+1+rightWidth > w, but wide
+	// enough that the anchor alone still fits.
 	w := leftWidth + rightWidth // strictly less than leftWidth+1+rightWidth
 	if leftWidth+1+rightWidth <= w {
 		t.Fatalf("test setup: width %d is not at/below the degrade boundary", w)
@@ -72,12 +81,43 @@ func TestAssembleRightAnchoredRow_NarrowDegradePadsLeftAndReturns(t *testing.T) 
 
 	row := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, testDarkTheme(t), false)
 
-	want := headerPadRight(left, leftWidth, w, testDarkTheme(t), false)
+	want := headerPadLeft(rightSeg, rightWidth, w, testDarkTheme(t), false)
 	if row != want {
-		t.Errorf("narrow-degrade row != headerPadRight(left, …):\n got=%q\nwant=%q", row, want)
+		t.Errorf("narrow-degrade row != headerPadLeft(rightSeg, …):\n got=%q\nwant=%q", row, want)
 	}
-	if strings.Contains(footerVisible(row), "? help") {
-		t.Errorf("narrow-degrade row must drop the ? help anchor:\n%q", footerVisible(row))
+	if !strings.Contains(footerVisible(row), "? help") {
+		t.Errorf("narrow-degrade row must KEEP the ? help anchor (§14.4):\n%q", footerVisible(row))
+	}
+	if strings.Contains(footerVisible(row), "left") {
+		t.Errorf("narrow-degrade row must drop the left cluster beneath the anchor:\n%q", footerVisible(row))
+	}
+	if got := lipgloss.Width(row); got != w {
+		t.Errorf("narrow-degrade row width = %d, want exactly %d", got, w)
+	}
+}
+
+// TestAssembleRightAnchoredRow_BelowAnchorRendersEmpty asserts §14.4's bottom rung:
+// below the width at which `? help` alone fits, the row renders EMPTY — exactly w
+// canvas cells, no partial anchor. Consistent with §2.7's degrade-never-break, and
+// Portal's documented 40-column minimum sits well above it.
+func TestAssembleRightAnchoredRow_BelowAnchorRendersEmpty(t *testing.T) {
+	th := testDarkTheme(t)
+	left := renderFooterDetail("left", th, false)
+	leftWidth := lipgloss.Width(left)
+	rightSeg := renderFooterDetail("? help", th, false)
+	rightWidth := lipgloss.Width(rightSeg)
+
+	w := rightWidth - 1
+	row := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, th, false)
+
+	if got := strings.TrimSpace(footerVisible(row)); got != "" {
+		t.Errorf("below the anchor's width the row must be empty, got %q", got)
+	}
+	if got := lipgloss.Width(row); got != w {
+		t.Errorf("empty row width = %d, want exactly %d", got, w)
+	}
+	if want := headerPadRight("", 0, w, th, false); row != want {
+		t.Errorf("empty row != headerPadRight(\"\", …):\n got=%q\nwant=%q", row, want)
 	}
 }
 
@@ -98,17 +138,17 @@ func TestAssembleRightAnchoredRow_NoRightAnchorPadsLeft(t *testing.T) {
 }
 
 // TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical asserts the
-// load-bearing byte-identical degrade guarantee at the narrow-degrade boundary:
-// both the standard condensed footer AND the contextual filter footers route
-// their final right-anchor layout through assembleRightAnchoredRow, so at a width
-// that forces the degrade (leftWidth+1+rightWidth > w) BOTH drop the ? help anchor
-// and pad the left cluster to width through the SHARED assembler.
+// load-bearing shared-degrade guarantee at the §14.4 boundary: both the standard
+// condensed footer AND the contextual filter footers route their final
+// right-anchor layout through assembleRightAnchoredRow, so at a width that forces
+// the degrade (leftWidth+1+rightWidth > w) BOTH keep the ? help anchor and give up
+// the left cluster beneath it, byte-identically, through the SHARED assembler.
 //
 // NOTE on scope: the filter footers have NO left-cluster fitting (fitLeftCluster
 // is footer.go-specific and stays so per the task scope guard), so their left
-// cluster can itself exceed w at very narrow widths — that pre-existing,
-// out-of-scope behaviour is unchanged here. This test pins only the degrade that
-// the assembler owns: at the boundary, BOTH footers drop the right anchor.
+// cluster can itself exceed w at very narrow widths. Under the pre-§14.4 rule that
+// left them overflowing the row; under the inverted rule the cluster is what gives
+// way, so the surviving anchor is what both footers agree on.
 func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T) {
 	th := testDarkTheme(t)
 
@@ -123,9 +163,9 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 	// Each footer is driven through assembleRightAnchoredRow with its OWN rendered
 	// left cluster. To prove the SHARED degrade, feed every footer's left cluster
 	// through the assembler at a width strictly below the degrade boundary
-	// (leftWidth+1+rightWidth > w) and assert the assembler drops the anchor and
-	// returns exactly headerPadRight(left, leftWidth, w, …) — byte-identical degrade
-	// regardless of which footer's cluster it is.
+	// (leftWidth+1+rightWidth > w) and assert the assembler keeps the anchor and
+	// returns exactly headerPadLeft(rightSeg, rightWidth, w, …) — byte-identical
+	// degrade regardless of which footer's cluster it is.
 	rightSeg := renderFooterEntry(*helpEntry, th.AccentPrimary, th, false)
 	clusters := map[string]string{
 		"standard":  renderFooterCluster(core, th, false),
@@ -140,29 +180,28 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 		}
 
 		got := assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, th, false)
-		want := headerPadRight(left, leftWidth, w, th, false)
+		want := headerPadLeft(rightSeg, rightWidth, w, th, false)
 		if got != want {
-			t.Errorf("[%s w=%d] assembler degrade != headerPadRight(left, …):\n got=%q\nwant=%q", name, w, got, want)
+			t.Errorf("[%s w=%d] assembler degrade != headerPadLeft(rightSeg, …):\n got=%q\nwant=%q", name, w, got, want)
 		}
-		if strings.Contains(footerVisible(got), "? help") {
-			t.Errorf("[%s w=%d] assembler degrade must drop the ? help anchor:\n%q", name, w, footerVisible(got))
+		if !strings.Contains(footerVisible(got), "? help") {
+			t.Errorf("[%s w=%d] assembler degrade must KEEP the ? help anchor (§14.4):\n%q", name, w, footerVisible(got))
 		}
 	}
 
-	// And the end-to-end render: at a tiny width every footer drops the ? help
-	// anchor on its single key row (the degrade is reached through the render path,
-	// not just the bare assembler). The standard footer additionally truncates its
-	// fitted left cluster; the filter footers do not fit (out of scope) — but all
-	// three drop the anchor.
-	const tinyWidth = 6
+	// And the end-to-end render: at exactly the anchor's width every footer renders
+	// the ? help anchor ALONE on its single key row (the degrade is reached through
+	// the render path, not just the bare assembler) — the escape hatch survives on
+	// all three.
+	tinyWidth := rightWidth
 	renders := map[string]string{
-		"standard":  lastLine(renderSessionsFooter(tinyWidth, th, false)),
+		"standard":  lastLine(renderSessionsFooter(sessionsKeymap(), tinyWidth, th, false)),
 		"filtering": lastLine(renderFilteringFooter(tinyWidth, th, false)),
 		"applied":   lastLine(renderFilterAppliedFooter(tinyWidth, th, false)),
 	}
 	for name, row := range renders {
-		if strings.Contains(footerVisible(row), "? help") {
-			t.Errorf("[%s w=%d] tiny-width render must drop the ? help anchor:\n%q", name, tinyWidth, footerVisible(row))
+		if got := strings.TrimSpace(footerVisible(row)); got != "? help" {
+			t.Errorf("[%s w=%d] the anchor-width render = %q, want the bare %q", name, tinyWidth, got, "? help")
 		}
 	}
 }

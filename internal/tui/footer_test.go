@@ -11,9 +11,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// referenceFooterWidth is a content width wide enough that the §3.4 condensed
-// footer renders all six Core keys plus the right-aligned ? help without §2.7
-// truncation. The full left cluster is ~83 cells + ? help (6) + spacer (1) = ~90,
+// referenceFooterWidth is a content width wide enough that the §14.2 condensed
+// footer renders all seven Core keys plus the right-aligned ? help without §14.4
+// degradation. The full left cluster is 80 cells + ? help (6) + spacer (1) = 87,
 // so 120 leaves comfortable headroom (it mirrors the reference capture width).
 const referenceFooterWidth = 120
 
@@ -23,13 +23,13 @@ func footerVisible(s string) string {
 	return ansi.Strip(s)
 }
 
-// TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp asserts the §3.4
+// TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp asserts the §14.2
 // condensed footer renders exactly the Sessions Core keys as a single row's left
 // cluster, with a right-aligned ? help pinned to the width. The footer is two
 // lines (the 1px border.footer top rule + the single key row), so the key row is
 // the LAST line — the ? help must sit at its right edge.
 func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
-	footer := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
+	footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	if len(lines) != 2 {
 		t.Fatalf("condensed footer must be 2 rows (rule + key row), got %d:\n%s", len(lines), footer)
@@ -37,11 +37,11 @@ func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
 	keyRow := footerVisible(lines[1])
 
 	// Every Core label + glyph appears, in descriptor order, on the single key row.
-	// Per §3.4 the footer reads the glyph Key forms: ↑↓ (no slash) for nav, ⏎ for
-	// attach, ␣ for preview (matching the committed reference frames).
+	// Per §3.4 the footer reads the glyph Key forms: ⏎ for attach, ␣ for preview.
+	// §14.1 dropped `↑↓ navigate` (still listed in ? help) and promoted `t` and `m`.
 	for _, want := range []string{
-		"↑↓ navigate", "⏎ attach", "/ filter", "␣ preview",
-		"s switch view", "x projects", "? help",
+		"⏎ attach", "/ filter", "␣ preview",
+		"s switch view", "x projects", "t theme", "m multi", "? help",
 	} {
 		if !strings.Contains(keyRow, want) {
 			t.Errorf("key row missing Core entry %q:\n%s", want, keyRow)
@@ -82,7 +82,7 @@ func TestSessionsFooter_TokenColours(t *testing.T) {
 		{"light", testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			footer := renderSessionsFooter(referenceFooterWidth, tc.th, false)
+			footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, tc.th, false)
 
 			// Left-cluster key glyphs: accent.blue.
 			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
@@ -112,7 +112,7 @@ func TestSessionsFooter_TokenColours(t *testing.T) {
 // by the left-cluster key glyphs. The ? glyph SGR run must carry the violet
 // foreground, and there must be no accent.blue run on the "?" glyph itself.
 func TestSessionsFooter_HelpGlyphIsViolet(t *testing.T) {
-	footer := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
+	footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
 	violet := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 
 	// Locate the "?" glyph in the styled string; the immediately-preceding SGR run
@@ -137,7 +137,7 @@ func TestSessionsFooter_HelpGlyphIsViolet(t *testing.T) {
 // TestSessionsFooter_OmitsHelpOnlyKeys asserts n/r/k/q and the Ctrl+↑/↓ paging
 // entry are NOT in the footer — they are help-only (the ? help modal, Phase 3).
 func TestSessionsFooter_OmitsHelpOnlyKeys(t *testing.T) {
-	footer := footerVisible(renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false))
+	footer := footerVisible(renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false))
 	for _, banned := range []string{"new in cwd", "rename", "kill", "quit", "page", "Ctrl"} {
 		if strings.Contains(footer, banned) {
 			t.Errorf("footer must NOT show the help-only entry %q (it lives in ? help):\n%s", banned, footer)
@@ -150,7 +150,7 @@ func TestSessionsFooter_OmitsHelpOnlyKeys(t *testing.T) {
 // the footer shows exactly the descriptor's Core entries (by label) and nothing
 // that is not a Core descriptor entry.
 func TestSessionsFooter_SourcedFromKeymapDescriptor(t *testing.T) {
-	footer := footerVisible(renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), false))
+	footer := footerVisible(renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false))
 
 	for _, e := range sessionsKeymap() {
 		shown := strings.Contains(footer, e.Action)
@@ -162,10 +162,10 @@ func TestSessionsFooter_SourcedFromKeymapDescriptor(t *testing.T) {
 		}
 	}
 
-	// And the partition helper returns exactly the six left-cluster Core entries +
-	// the single right-aligned ? help, in descriptor order.
+	// And the partition helper returns exactly the seven left-cluster Core entries +
+	// the single right-aligned ? help, in §14.2's descriptor order.
 	core, right := splitFooterEntries(sessionsKeymap())
-	wantCore := []string{"navigate", "attach", "filter", "preview", "switch view", "projects"}
+	wantCore := []string{"attach", "filter", "preview", "switch view", "projects", "theme", "multi"}
 	if len(core) != len(wantCore) {
 		t.Fatalf("left-cluster Core entries = %d, want %d", len(core), len(wantCore))
 	}
@@ -183,11 +183,11 @@ func TestSessionsFooter_SourcedFromKeymapDescriptor(t *testing.T) {
 // (§2.5): a colourless footer carries no canvas background SGR and no foreground
 // hue — it renders on the terminal's native fg/bg, the glyphs structurally intact.
 func TestSessionsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
-	footer := renderSessionsFooter(referenceFooterWidth, testDarkTheme(t), true)
+	footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), true)
 
 	// Structure preserved: every Core entry + the ? help still print.
 	vis := footerVisible(footer)
-	for _, want := range []string{"↑↓ navigate", "s switch view", "x projects", "? help"} {
+	for _, want := range []string{"⏎ attach", "s switch view", "x projects", "t theme", "m multi", "? help"} {
 		if !strings.Contains(vis, want) {
 			t.Errorf("colourless footer missing %q:\n%s", want, vis)
 		}
@@ -211,7 +211,7 @@ func TestSessionsFooter_ColourlessDropsHueAndCanvas(t *testing.T) {
 // gap is not a terminal-bg island.
 func TestSessionsFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
-		footer := renderSessionsFooter(referenceFooterWidth, th, false)
+		footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, th, false)
 		if seq := canvasSeq(t, th); !strings.Contains(footer, seq) {
 			t.Errorf("footer does not paint the canvas background sequence %q:\n%s", seq, footer)
 		}
@@ -225,7 +225,7 @@ func TestSessionsFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
 // right anchor survives as long as possible.
 func TestSessionsFooter_NarrowTruncationNoWrap(t *testing.T) {
 	for _, w := range []int{90, 76, 60, 40, 24, 12} {
-		footer := renderSessionsFooter(w, testDarkTheme(t), false)
+		footer := renderSessionsFooter(sessionsKeymap(), w, testDarkTheme(t), false)
 		lines := strings.Split(footer, "\n")
 		// Always exactly 2 rows: the rule + ONE key row. Never a third (wrapped) row.
 		if len(lines) != 2 {
@@ -248,25 +248,27 @@ func TestSessionsFooter_NarrowTruncationNoWrap(t *testing.T) {
 	}
 }
 
-// TestSessionsFooter_NarrowTruncationKeepsHighestPriority asserts the §2.7 drop is
-// priority-ordered: the highest-priority leading entries (navigate, attach…)
-// survive while the lower-priority trailing entries (x projects, then s switch
-// view…) drop first, with an ellipsis marking the truncation.
+// TestSessionsFooter_NarrowTruncationKeepsHighestPriority asserts §14.4's
+// right-to-left drop: the highest-priority leading entries (attach, filter…)
+// survive while the lower-priority trailing entries (m multi, then t theme…) drop
+// first, with an ellipsis marking the drop.
 func TestSessionsFooter_NarrowTruncationKeepsHighestPriority(t *testing.T) {
 	// A width that fits a few leading entries + the ? help but not the full cluster.
-	footer := footerVisible(renderSessionsFooter(60, testDarkTheme(t), false))
-	if !strings.Contains(footer, "↑↓ navigate") {
-		t.Errorf("highest-priority entry 'navigate' must survive truncation:\n%s", footer)
+	footer := footerVisible(renderSessionsFooter(sessionsKeymap(), 60, testDarkTheme(t), false))
+	if !strings.Contains(footer, "⏎ attach") {
+		t.Errorf("highest-priority entry 'attach' must survive the degrade:\n%s", footer)
 	}
 	if !strings.Contains(footer, "…") {
-		t.Errorf("a truncated footer must carry the ellipsis drop marker:\n%s", footer)
+		t.Errorf("a degraded footer must carry the ellipsis drop marker:\n%s", footer)
 	}
 	if !strings.Contains(footer, "? help") {
 		t.Errorf("the ? help right anchor must survive at width 60:\n%s", footer)
 	}
-	// The lowest-priority trailing entry must have dropped at this width.
-	if strings.Contains(footer, "x projects") {
-		t.Errorf("lowest-priority entry 'x projects' should have dropped first at width 60:\n%s", footer)
+	// The lowest-priority trailing entries must have dropped at this width.
+	for _, dropped := range []string{"m multi", "t theme", "x projects"} {
+		if strings.Contains(footer, dropped) {
+			t.Errorf("lowest-priority entry %q should have dropped first at width 60:\n%s", dropped, footer)
+		}
 	}
 }
 

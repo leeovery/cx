@@ -15,9 +15,11 @@ func TestProjectsKeymap(t *testing.T) {
 
 	t.Run("it enumerates exactly the §12.1 Projects bindings nav-first", func(t *testing.T) {
 		// Nav-first ordering mirrors the Sessions help reorder (FIX 2 internal
-		// consistency): the navigation/paging entries lead. The Core relative order the
-		// footer reads (⏎ · x · e · / · ?) is preserved, so the Projects footer matches
-		// the §6.3 reference frame. As on Sessions the nav entry carries a HelpKey
+		// consistency): the navigation/paging entries lead. §14.2 adds `t theme` after
+		// `/`, making the Core relative order the footer reads ⏎ · x · e · / · t · ? —
+		// theme is a GLOBAL setting (§9.6), so it belongs in this footer too. Nothing
+		// else moved: the Projects nav entry was ALREADY non-core, so §14.1's arrows
+		// change is a no-op here. As on Sessions the nav entry carries a HelpKey
 		// override so the footer/help-only nav reads the glyph "↑↓" while the help body
 		// keeps the slashed "↑/↓"; page reads its Key "^↑/↓" directly and the ⏎ Key is
 		// already a glyph.
@@ -28,6 +30,7 @@ func TestProjectsKeymap(t *testing.T) {
 			{Key: "x", Action: "sessions", HelpAction: "Switch to Sessions", Core: true},
 			{Key: "e", Action: "edit", HelpAction: "Edit project", Core: true},
 			{Key: "/", Action: "filter", HelpAction: "Filter projects", Core: true},
+			{Key: "t", Action: "theme", HelpAction: "Theme picker", Core: true},
 			{Key: "d", Action: "delete", HelpAction: "Delete project", Destructive: true},
 			{Key: "n", Action: "new in cwd", HelpAction: "New session in cwd"},
 			{Key: "q", Action: "quit", HelpAction: "Quit"},
@@ -51,7 +54,7 @@ func TestProjectsKeymap(t *testing.T) {
 			core[e.Key] = e.Core
 			seen[e.Key] = true
 		}
-		wantCore := []string{"⏎", "x", "e", "/", "?"}
+		wantCore := []string{"⏎", "x", "e", "/", "t", "?"}
 		for _, k := range wantCore {
 			if !seen[k] {
 				t.Errorf("descriptor missing Core key %q", k)
@@ -110,23 +113,23 @@ func TestProjectsKeymap(t *testing.T) {
 		}
 	})
 
-	t.Run("it preserves the Core relative order the footer reads (footer unchanged)", func(t *testing.T) {
-		// The nav-first reorder must NOT change the Projects footer: the footer renders
-		// only Core entries in descriptor order, so their relative order must stay
-		// exactly ⏎ · x · e · / · ?.
+	t.Run("it carries the §14.2 Core relative order the footer reads", func(t *testing.T) {
+		// The footer renders only Core entries in descriptor order, so §14.2's pinned
+		// Projects row (⏎ new session · x sessions · e edit · / filter · t theme +
+		// right-aligned ? help) is exactly this sequence.
 		var coreKeys []string
 		for _, e := range entries {
 			if e.Core {
 				coreKeys = append(coreKeys, e.Key)
 			}
 		}
-		wantCoreOrder := []string{"⏎", "x", "e", "/", "?"}
+		wantCoreOrder := []string{"⏎", "x", "e", "/", "t", "?"}
 		if len(coreKeys) != len(wantCoreOrder) {
 			t.Fatalf("Core entries = %v, want %v", coreKeys, wantCoreOrder)
 		}
 		for i, k := range wantCoreOrder {
 			if coreKeys[i] != k {
-				t.Errorf("Core entry %d = %q, want %q (footer order must not change)", i, coreKeys[i], k)
+				t.Errorf("Core entry %d = %q, want %q (§14.2's row is pinned)", i, coreKeys[i], k)
 			}
 		}
 	})

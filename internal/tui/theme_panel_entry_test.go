@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -968,39 +967,13 @@ func TestPanelRouting_NestsOverMultiSelect(t *testing.T) {
 	}
 }
 
-// TestPanelEntry_LeavesDescriptorsUnfiltered: it filters no descriptor.
+// The former TestPanelEntry_LeavesDescriptorsUnfiltered lived here. Task 8-13 owned
+// the DISPATCH and the flash only, so its claim ("the blocked entry filters no
+// descriptor") could not fail: both page descriptors were nullary pure functions
+// returning literals, and no mutation of that task's code could touch them.
 //
-// This task owns the DISPATCH and the flash only. The display half of the block —
-// dropping the `t` row from the footer and from `?` help IN LOCKSTEP, through the same
-// call-site filter that already drops the `m` row (§9.10/§14.2) — belongs to the task
-// that adds the row, and a filter re-homed INTO the static descriptor is precisely what
-// would break the keymap dispatch guard's descriptor↔dispatch parity.
-//
-// So both page descriptors are asserted byte-identical across every blocked entry
-// state: they are pure functions of nothing, and this pins that they stay that way.
-func TestPanelEntry_LeavesDescriptorsUnfiltered(t *testing.T) {
-	wantSessions, wantProjects := sessionsKeymap(), projectsKeymap()
-	floor := themePanelMinHeight(themePanelKeymap(), false)
-
-	for _, tc := range []struct {
-		name string
-		opts entryModelOpts
-	}{
-		{name: "unblocked", opts: entryModelOpts{page: PageSessions, contentW: entryContentW, contentH: entryContentH}},
-		{name: "no colour", opts: entryModelOpts{page: PageSessions, colourless: true, contentW: entryContentW, contentH: entryContentH}},
-		{name: "too narrow", opts: entryModelOpts{page: PageSessions, contentW: themePanelMinWidth - 1, contentH: entryContentH}},
-		{name: "too short", opts: entryModelOpts{page: PageSessions, contentW: entryContentW, contentH: floor - 1}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m, _ := newEntryModel(t, newEntryEnumerator(false), tc.opts)
-			pressThemeKeyCmd(t, m)
-
-			if got := sessionsKeymap(); !reflect.DeepEqual(got, wantSessions) {
-				t.Errorf("the sessions descriptor changed under a blocked `t`:\ngot  %+v\nwant %+v", got, wantSessions)
-			}
-			if got := projectsKeymap(); !reflect.DeepEqual(got, wantProjects) {
-				t.Errorf("the projects descriptor changed under a blocked `t`:\ngot  %+v\nwant %+v", got, wantProjects)
-			}
-		})
-	}
-}
+// The display half of the block landed with §14 — the `t` row dropped from the
+// footer and from `?` help IN LOCKSTEP through the same call-site filter that
+// already drops `m` (§9.10/§14.3). The claim is CONSTRAINING now, so it is folded
+// into TestFooterRevision_StaticDescriptorsUnfiltered, which asserts the static
+// descriptors stay whole in exactly the states that DO strip the call-site slices.

@@ -9,8 +9,14 @@ package tui
 // appears in help iff `m` is functional". sessionsKeymap() itself stays a pure
 // static constant (the filter lives at the call site via m.sessionsHelpKeymap()),
 // so keymap_dispatch_guard_test — which probes the static descriptor with
-// detection unwired — stays green. The condensed Sessions footer never lists `m`
-// (non-Core) under any resolution.
+// detection unwired — stays green.
+//
+// The footer case below is NOT the superseded "the footer never lists `m`
+// (non-Core)" rule: §14.1 promotes `m` to Core, so the condensed Sessions footer
+// DOES render `m multi` on a supported terminal, and §14.3 filters it through the
+// SAME call-site slice as help. What this file keeps that the §14 tests do not
+// reproduce is the per-terminal-identity matrix — supported, named-undriven, and
+// the NULL/remote shape — asserted on every surface the filter reaches.
 //
 // No t.Parallel: consistent with the rest of the tui test surface (package-level
 // mocks + shared canvas helpers).
@@ -27,6 +33,12 @@ import (
 // multi-select (`m`) row (sessionsKeymap()). Kept in one place so the render-level
 // assertions cannot drift from the descriptor.
 const multiSelectHelpLabel = "Multi-select mode"
+
+// multiSelectFooterLabel is the CONDENSED footer label for that same `m` entry —
+// §14.3 shortens it to `m multi` for the footer while the help body keeps the long
+// form. Kept beside its help counterpart so the two surfaces' labels are asserted
+// from one place.
+const multiSelectFooterLabel = "m multi"
 
 // keymapHasMKey reports whether the descriptor slice carries the `m` multi-select
 // entry (keyed off keymapEntry.Key, a string glyph).
@@ -130,25 +142,38 @@ func TestSessionsHelpKeymap_UnsupportedInMultiSelect_ListsM(t *testing.T) {
 	}
 }
 
-// TestSessionsFooter_NeverListsMultiSelect guards §4 "footer unchanged": `m` is a
-// non-Core descriptor entry, so the condensed Sessions footer never lists it —
-// under either a supported or an unsupported resolution.
-func TestSessionsFooter_NeverListsMultiSelect(t *testing.T) {
+// TestSessionsFooter_ListsMultiOnlyWhenFunctional carries the §4 footer case
+// forward onto §14's rule, which reverses it: §14.1 promotes `m` to Core so the
+// condensed Sessions footer DOES list `m multi`, and §14.3 filters the footer
+// through the SAME call-site slice `?` help reads — so the entry appears exactly
+// where `m` is functional. Swept across all three host-terminal identities, which
+// is the matrix this file contributes over the §14 lockstep tests (the NULL/remote
+// shape in particular).
+func TestSessionsFooter_ListsMultiOnlyWhenFunctional(t *testing.T) {
 	tests := []struct {
-		name     string
-		identity spawn.Identity
+		name      string
+		identity  spawn.Identity
+		wantMulti bool
 	}{
-		{"supported (ghostty → native)", ghosttyIdentity()},
-		{"named undriven (com.apple.Terminal)", appleTerminalIdentity()},
-		{"NULL remote/mosh (empty identity)", spawn.Identity{}},
+		{"supported (ghostty → native)", ghosttyIdentity(), true},
+		{"named undriven (com.apple.Terminal)", appleTerminalIdentity(), false},
+		{"NULL remote/mosh (empty identity)", spawn.Identity{}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := unsupportedResolvedModel(t, tc.identity)
+			// The fixture must genuinely land on the resolution the case names —
+			// otherwise both legs would assert the same state and neither would bite.
+			if supported := !m.DetectUnsupported(); supported != tc.wantMulti {
+				t.Fatalf("precondition: %s must resolve supported=%v", tc.name, tc.wantMulti)
+			}
+			if m.multiSelectMode {
+				t.Fatal("precondition: must not be in multi-select mode")
+			}
 
-			footer := ansi.Strip(renderSessionsFooter(sectionHeaderWidth, m.activeTheme, m.colourless))
-			if strings.Contains(strings.ToLower(footer), "multi-select") {
-				t.Errorf("the condensed Sessions footer must never list m (non-Core):\n%s", footer)
+			footer := ansi.Strip(renderSessionsFooter(m.sessionsHelpKeymap(), referenceFooterWidth, m.activeTheme, m.colourless))
+			if got := strings.Contains(footer, multiSelectFooterLabel); got != tc.wantMulti {
+				t.Errorf("the condensed Sessions footer carries %q = %v, want %v (§14.1 lists it, §14.3 filters it where blocked):\n%s", multiSelectFooterLabel, got, tc.wantMulti, footer)
 			}
 		})
 	}

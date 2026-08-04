@@ -635,7 +635,7 @@ func TestPanelGeometry_ResizeDoesNotReflowTheBase(t *testing.T) {
 	}
 
 	contentW := m.contentWidth()
-	footer := strings.Split(ansi.Strip(renderSessionsFooter(contentW, m.activeTheme, m.colourless)), "\n")
+	footer := strings.Split(ansi.Strip(renderSessionsFooter(m.sessionsHelpKeymap(), contentW, m.activeTheme, m.colourless)), "\n")
 	unreduced := []rune(footer[len(footer)-1])
 	cut := contentW - m.themePanel.width
 	if unreduced[cut-1] == ' ' || unreduced[cut] == ' ' {

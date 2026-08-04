@@ -238,3 +238,18 @@ func padRightWithStyle(seg string, segWidth, w int, fill lipgloss.Style) string 
 func headerPadRight(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
 	return padRightWithStyle(seg, segWidth, w, headerCanvasBg(th, colourless))
 }
+
+// headerPadLeft is headerPadRight's mirror: it RIGHT-ALIGNS seg inside w cells by
+// joining a canvas-painted pad of exactly w-segWidth spaces BEFORE it, so every
+// cell out to w carries the canvas. A segment already at/over w is returned
+// unchanged, matching its sibling's clamp.
+//
+// It exists for §14.4's bottom rung — the width at which the `? help` anchor
+// survives ALONE, with no left cluster beside it to flex a spacer against.
+func headerPadLeft(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
+	if segWidth >= w {
+		return seg
+	}
+	pad := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", w-segWidth))
+	return lipgloss.JoinHorizontal(lipgloss.Top, pad, seg)
+}

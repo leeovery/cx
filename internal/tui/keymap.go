@@ -60,21 +60,36 @@ type keymapEntry struct {
 	Destructive bool
 }
 
-// sessionsKeymap returns the ordered Sessions keymap descriptor (§12.1, post
-// §12.2 revision). It enumerates every Sessions binding exactly once and
-// classifies each as a §3.4 core-footer key or a help-only key.
+// sessionsKeymap returns the ordered Sessions keymap descriptor (§12.1, post the
+// §14 footer revision). It enumerates every Sessions binding exactly once and
+// classifies each as a footer-core key or a help-only key.
 //
-// Descriptor order follows the §8.5 help reference
-// (testdata/vhs/reference/sessions-help-modal-mv.png), which lists the rows
-// nav-first: ↑/↓ → ^↑/↓ (page) → ⏎ → / → ␣ → s → m → n → r → k → q → x, then
-// a right-aligned ? help last (the §5 m multi-select entry is help-only, slotted
-// after s). The help modal renders every entry in this order.
+// §14 IS THE AMENDMENT, NOT A REGRESSION (§15.1). The theming feature would
+// otherwise be near-invisible — no `--theme`, no `portal theme list`, a silent
+// themes directory, and no active-theme indicator when the panel is closed — so
+// `t theme` goes in the footer, and three consequences follow:
 //
-// The footer is UNAFFECTED by this order: it renders only the Core entries in
-// descriptor order, and the Core relative order is preserved here as
-// ↑↓ · ⏎ · / · ␣ · s · x · ?, so the condensed footer left cluster
-// (↑↓ navigate · ⏎ attach · / filter · ␣ preview · s switch view ·
-// x projects) plus the right-aligned ? help matches the §3.4 reference frame.
+//   - `↑↓ navigate` LOSES its Core flag (§14.1). Arrows in a list are a given, and
+//     they are the entry that genuinely deserves non-core status. It is still
+//     LISTED — the help body keeps the row, exactly as `^↑/↓` already is.
+//   - `t` and `m` are BOTH promoted to Core (§14.1), so both appear in the footer as
+//     well as `?` help.
+//   - `m`'s FOOTER label shortens to `multi` (§14.3), buying back ~47px against an
+//     arithmetic that fits with ~5px spare and no headroom at the reference
+//     86-column width. Its HelpAction is untouched (`Multi-select mode`) — the
+//     footer-vs-help split this descriptor already models.
+//
+// Descriptor order stays NAV-FIRST as the §8.5 help reference
+// (testdata/vhs/reference/sessions-help-modal-mv.png) established: ↑/↓ → ^↑/↓
+// (page) → ⏎ → / → ␣ → s → n → r → k → q → x → t → m, then a right-aligned
+// ? help last. ONLY THE TAIL ORDER MOVES — `m` relocates from after `s` to after
+// the new `t`, because the footer renders Core entries in DESCRIPTOR order and
+// §14.2's row is pinned. The help body's order moves with it, which is the
+// amendment §15.1 names rather than a drift to be corrected.
+//
+// The Core relative order is therefore ⏎ · / · ␣ · s · x · t · m · ?, giving
+// §14.2's pinned left cluster (⏎ attach · / filter · ␣ preview · s switch view ·
+// x projects · t theme · m multi) plus the right-aligned ? help.
 //
 // The footer reads the GLYPH Key forms (§3.4): nav "↑↓" (no slash), attach "⏎",
 // preview "␣". The help body diverges where its reference frame
@@ -86,20 +101,27 @@ type keymapEntry struct {
 // PgUp/PgDn/Home/End, and no uppercase bindings; nav is ↑/↓ and paging is
 // ^↑/↓ only. ? help is modelled for the footer hint only — the descriptor
 // does not bind it (Phase 3 binds the key).
+//
+// IT STAYS A PURE STATIC FUNCTION. §9.10's `t` block and §7's `m` block are
+// applied at the CALL SITE (Model.sessionsHelpKeymap), never here: the keymap
+// dispatch guard probes THIS descriptor with detection unwired and `colourless`
+// false, so a filter re-homed into it is precisely what breaks descriptor↔dispatch
+// parity.
 func sessionsKeymap() []keymapEntry {
 	return []keymapEntry{
-		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection", Core: true},
+		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
 		{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
 		{Key: "⏎", HelpKey: "⏎", Action: "attach", HelpAction: "Open / attach session", Core: true},
 		{Key: "/", Action: "filter", HelpAction: "Filter sessions", Core: true},
 		{Key: "␣", HelpKey: "␣", Action: "preview", HelpAction: "Preview scrollback", Core: true},
 		{Key: "s", Action: "switch view", HelpAction: "Switch view — flat / project / tag", Core: true},
-		{Key: "m", Action: "multi-select", HelpAction: "Multi-select mode"},
 		{Key: "n", Action: "new in cwd", HelpAction: "New session in cwd"},
 		{Key: "r", Action: "rename", HelpAction: "Rename session"},
 		{Key: "k", Action: "kill", HelpAction: "Kill session", Destructive: true},
 		{Key: "q", Action: "quit", HelpAction: "Quit"},
 		{Key: "x", Action: "projects", HelpAction: "Switch to Projects", Core: true},
+		{Key: "t", Action: "theme", HelpAction: "Theme picker", Core: true},
+		{Key: "m", Action: "multi", HelpAction: "Multi-select mode", Core: true},
 		{Key: "?", Action: "help", HelpAction: "Show this help", Core: true, RightAligned: true},
 	}
 }
@@ -116,17 +138,25 @@ func sessionsKeymap() []keymapEntry {
 // Descriptor order follows the SAME nav-first principle as sessionsKeymap (FIX 2
 // internal consistency; there is no Projects help reference frame): the
 // navigation/paging entries lead, then the page actions, then the right-aligned
-// ? help last. The Core relative order the footer reads (⏎ · x · e · / · ?) is
-// preserved, matching the §6.3 reference frame (projects-mv.png). The ⏎ Key is
-// already a glyph. As on Sessions the nav entry carries a HelpKey override so the
-// footer/help-only nav reads the glyph "↑↓" while the help body keeps the slashed
-// "↑/↓" (page stays "^↑/↓").
+// ? help last. The ⏎ Key is already a glyph. As on Sessions the nav entry carries
+// a HelpKey override so the footer/help-only nav reads the glyph "↑↓" while the
+// help body keeps the slashed "↑/↓" (page stays "^↑/↓").
+//
+// §14.2 ADDS `t theme` HERE TOO, slotted after `/` so the Core relative order the
+// footer reads is ⏎ · x · e · / · t · ?. Theme is a GLOBAL setting (§9.6), so a
+// Projects footer without it would make the setting feel page-scoped for no
+// reason. Nothing else moves: the Projects nav entry was ALREADY non-core, so
+// §14.1's arrows change is a no-op on this page.
 //
 // Per §12.2 the descriptor carries NO Projects-side s→Sessions alias (x is the
 // sole both-directions page toggle), no vim aliases, no PgUp/PgDn/Home/End, and
 // no uppercase bindings; nav is ↑/↓ and paging is ^↑/↓ only. ? help is
 // modelled for the footer hint only — the descriptor does not bind the key
 // (Phase 3 binds it).
+//
+// LIKE sessionsKeymap IT STAYS A PURE STATIC FUNCTION: §9.10's `t` block is
+// applied at the call site (Model.projectsHelpKeymap), so the dispatch guard keeps
+// probing the full descriptor.
 func projectsKeymap() []keymapEntry {
 	return []keymapEntry{
 		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
@@ -135,6 +165,7 @@ func projectsKeymap() []keymapEntry {
 		{Key: "x", Action: "sessions", HelpAction: "Switch to Sessions", Core: true},
 		{Key: "e", Action: "edit", HelpAction: "Edit project", Core: true},
 		{Key: "/", Action: "filter", HelpAction: "Filter projects", Core: true},
+		{Key: "t", Action: "theme", HelpAction: "Theme picker", Core: true},
 		{Key: "d", Action: "delete", HelpAction: "Delete project", Destructive: true},
 		{Key: "n", Action: "new in cwd", HelpAction: "New session in cwd"},
 		{Key: "q", Action: "quit", HelpAction: "Quit"},

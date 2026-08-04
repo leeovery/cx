@@ -1834,16 +1834,17 @@ func (m *Model) applySessionListSize(width, height int) {
 	m.applyListSize(&m.sessionList, width, height, reserved)
 }
 
-// sessionFooterHeight is the rendered height of the §3.4 condensed Sessions footer
+// sessionFooterHeight is the rendered height of the §14.2 condensed Sessions footer
 // at the given laid-out width — the amount applySessionListSize reserves out of the
 // list's height budget so the single-row footer (plus its 1px top rule) is part of
 // the budget, NOT an uncounted band (§3.5). It resolves the footer against the same
-// width/mode the render uses (via the shared headerWidthOrFallback fallback), so
-// the budget and the viewSessionList render agree exactly. With the §2-2 header
-// height already reserved, this keeps the one-row-per-delegate pagination invariant
-// exact.
+// ENTRIES, width and mode the render uses (via m.sessionsHelpKeymap and the shared
+// headerWidthOrFallback fallback), so the budget and the viewSessionList render
+// agree exactly — including in a blocked state, where both sides see the same
+// filtered slice (§14.3). With the §2-2 header height already reserved, this keeps
+// the one-row-per-delegate pagination invariant exact.
 func (m Model) sessionFooterHeight(width int) int {
-	return lipgloss.Height(renderSessionsFooter(width, m.activeTheme, m.colourless))
+	return lipgloss.Height(renderSessionsFooter(m.sessionsHelpKeymap(), width, m.activeTheme, m.colourless))
 }
 
 // sessionBandHeight returns the rendered height of the SINGLE arbitrated notice
@@ -1883,14 +1884,14 @@ func (m *Model) applyProjectListSize(width, height int) {
 	m.applyListSize(&m.projectList, width, height, reserved)
 }
 
-// projectFooterHeight is the rendered height of the §6.3 condensed Projects footer
+// projectFooterHeight is the rendered height of the §14.2 condensed Projects footer
 // at the given laid-out width — the amount applyProjectListSize reserves out of the
 // list's height budget so the single-row footer (plus its 1px top rule) is part of
 // the budget, NOT an uncounted band (§3.5). It resolves the footer against the same
-// width/mode the render uses so the budget and the viewProjectList render agree
-// exactly.
+// ENTRIES, width and mode the render uses (via m.projectsHelpKeymap) so the budget
+// and the viewProjectList render agree exactly, blocked state included.
 func (m Model) projectFooterHeight(width int) int {
-	return lipgloss.Height(renderProjectsFooter(width, m.activeTheme, m.colourless))
+	return lipgloss.Height(renderProjectsFooter(m.projectsHelpKeymap(), width, m.activeTheme, m.colourless))
 }
 
 // projectBandHeight returns the rendered height of the arbitrated notice SLOT
@@ -4867,8 +4868,11 @@ func (m Model) viewProjectList() string {
 		return renderEditModalOnClearedCanvas(m, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	case modalHelp:
 		// §8.5 per-page help: the Projects keymap descriptor, descriptor-driven, in
-		// the help modal's own zero-h-padding panel (FIX 4).
-		return renderHelpModalOnClearedCanvas(projectsKeymap(), m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		// the help modal's own zero-h-padding panel (FIX 4). §14.3: the descriptor is
+		// filtered through m.projectsHelpKeymap(), the SAME slice this page's footer
+		// renders from, so a blocked `t` (§9.10) leaves both surfaces in lockstep —
+		// the static projectsKeymap() function is unchanged.
+		return renderHelpModalOnClearedCanvas(m.projectsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
 	}
 	listView := m.projectList.View()
 	// §6 / §3.2: replace the plain bubbles/list title line with the restyled
@@ -5004,7 +5008,7 @@ func (m Model) renderProjectsFooterForFilterState() string {
 		if m.projectListEmpty() {
 			return renderEmptyProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless)
 		}
-		return renderProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderProjectsFooter(m.projectsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
 	}
 }
 
@@ -5160,7 +5164,7 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	case list.FilterApplied:
 		return renderFilterAppliedFooter(m.contentWidth(), m.activeTheme, m.colourless)
 	default:
-		return renderSessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
 	}
 }
 
@@ -5188,33 +5192,90 @@ func (m Model) unsupportedBannerActive() bool {
 	return m.DetectUnsupported() && !m.multiSelectMode && !m.detectIdentity.IsNull()
 }
 
-// sessionsHelpKeymap returns the descriptor slice fed to the Sessions `?` help
-// modal, with the §4 `m`-suppression filter applied to the copy only:
-// sessionsKeymap() itself stays a pure static constant. The `m` (multi-select)
-// entry is dropped IFF `DetectUnsupported() && !m.multiSelectMode` — exactly "`m`
-// appears in `?` help iff `m` is functional". It is hidden only when it would
-// actually be blocked (unsupported AND not already in the mode); the A1 in-flight
-// path (§3) can resolve unsupported WHILE multi-select is already open, and there
-// `m` is a live row-toggle, so the `!multiSelectMode` leg keeps it listed. On any
-// other resolution (supported, or in-flight before resolve) DetectUnsupported() is
-// false and the filter is inert.
+// sessionsHelpKeymap returns the descriptor slice fed to BOTH Sessions display
+// surfaces — the `?` help modal AND the §14.2 condensed footer — with the
+// blocked-key filters applied to the copy only: sessionsKeymap() itself stays a
+// pure static function.
+//
+// TWO KEYS ARE FILTERED, AND THEY ARE BLOCKED FOR DIFFERENT REASONS:
+//
+//   - `m` (multi-select) is dropped IFF `DetectUnsupported() && !m.multiSelectMode`
+//     — exactly "`m` appears iff `m` is functional". It is hidden only when it would
+//     actually be blocked (unsupported AND not already in the mode); the A1
+//     in-flight path (§3) can resolve unsupported WHILE multi-select is already
+//     open, and there `m` is a live row-toggle, so the `!multiSelectMode` leg keeps
+//     it listed. On any other resolution (supported, or in-flight before resolve)
+//     DetectUnsupported() is false and the filter is inert.
+//   - `t` (theme picker) is dropped under the `NO_COLOR` carve-out (§9.10). Portal
+//     paints no canvas and imposes no hues there, so the panel previews nothing and
+//     a commit would persist a choice with zero visible feedback — `t` is blocked
+//     proactively at the entry gate, and a listed key whose only effect is that
+//     block is the dead end the block exists to prevent. A NARROW or SHORT terminal
+//     is deliberately NOT filtered: that is a space shortage the panel degrades for
+//     (§9.8), not a capability absence, and the region can change under the user
+//     without a keymap rebuild.
+//
+// BOTH SURFACES READ THIS ONE SLICE (§14.3). Before §14 the filter reached help
+// only, `m` being non-core; §14.1 promotes `t` and `m` to Core, so the footer would
+// otherwise advertise a key that only produces a blocked flash — and help and
+// footer disagreeing about one key is a live inconsistency. Filtering only ever
+// REMOVES entries, so every blocked-state footer is strictly narrower and §14.3's
+// width budget needs no separate case.
 //
 // The filter lives at the CALL SITE (not inside sessionsKeymap) deliberately:
 // keymap_dispatch_guard_test probes the STATIC descriptor with detection unwired
-// (so DetectUnsupported() is false → the filter is inert → the `m` dispatch probe
-// still enters the mode). Parameterising sessionsKeymap() would break that guard.
+// and `colourless` false (so neither block is armed and both dispatch probes still
+// fire). Parameterising sessionsKeymap() would break that guard.
 func (m Model) sessionsHelpKeymap() []keymapEntry {
 	entries := sessionsKeymap()
-	// mBlocked is true exactly when `m` would be a dead-end: an unsupported terminal
-	// and not already in the mode. Its inverse is "`m` is functional" — the states
-	// where the help must keep listing it (supported, in-flight, or already open).
-	mBlocked := m.DetectUnsupported() && !m.multiSelectMode
-	if !mBlocked {
-		return entries
+	if m.multiKeyBlocked() {
+		entries = dropKeymapKey(entries, "m")
 	}
+	if m.themeKeyBlocked() {
+		entries = dropKeymapKey(entries, "t")
+	}
+	return entries
+}
+
+// projectsHelpKeymap is the Projects counterpart, and it exists because §14.2 puts
+// `t theme` in the Projects footer as well: §9.10 names only the Sessions call
+// site, but the same mechanism is needed at the second one or the Projects footer
+// keeps advertising a key that can only flash.
+//
+// It filters `t` ALONE. `m` is a Sessions-page binding and appears in no Projects
+// descriptor, so there is nothing to suppress here — inventing the second leg would
+// be a filter for a key this page never lists.
+func (m Model) projectsHelpKeymap() []keymapEntry {
+	entries := projectsKeymap()
+	if m.themeKeyBlocked() {
+		entries = dropKeymapKey(entries, "t")
+	}
+	return entries
+}
+
+// multiKeyBlocked reports whether `m` would be a dead end: a resolved-unsupported
+// terminal AND not already in the mode. Its inverse is "`m` is functional" — the
+// states where both surfaces must keep listing it (supported, in-flight before
+// resolve, or already open).
+func (m Model) multiKeyBlocked() bool {
+	return m.DetectUnsupported() && !m.multiSelectMode
+}
+
+// themeKeyBlocked reports whether `t` is proactively blocked — §9.10's `NO_COLOR`
+// carve-out, the one entry condition that is a property of the SESSION rather than
+// of the moment. It is the single predicate BOTH pages' filters read, so the two
+// cannot come to disagree about a global setting's key.
+func (m Model) themeKeyBlocked() bool {
+	return m.colourless
+}
+
+// dropKeymapKey returns entries with the given Key glyph removed, preserving order.
+// It is only ever called on a blocked path, so the unblocked one keeps the static
+// descriptor slice untouched and allocates nothing.
+func dropKeymapKey(entries []keymapEntry, key string) []keymapEntry {
 	filtered := make([]keymapEntry, 0, len(entries))
 	for _, e := range entries {
-		if e.Key == "m" {
+		if e.Key == key {
 			continue
 		}
 		filtered = append(filtered, e)
