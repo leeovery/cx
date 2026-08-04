@@ -630,6 +630,14 @@ type Model struct {
 	editBuffer    string // the in-progress text of the live element
 	editCursor    int    // text-cursor position (rune index) within editBuffer
 	editIsNewChip bool   // the live chip is brand-new (vanishes on Esc-discard)
+
+	// themePanel is the §9.1 slide-over theme picker (theme_panel.go). It is a
+	// NON-BLANKING overlay, unlike every modal above: the page beneath stays fully
+	// visible and re-themes live behind it, which is the whole of the live-preview
+	// premise. Its `open` flag is the only gate — nothing here opens it (task 8-7's
+	// `t` does), and while it is closed the composed frame is byte-identical to a
+	// model that has no panel at all.
+	themePanel themePanel
 }
 
 // Selected returns the name of the session chosen by the user, or empty if
@@ -4236,7 +4244,9 @@ func (m Model) contentHeight() int {
 
 // fillCanvas is the SINGLE outer full-terminal canvas fill (§1) — the LAST
 // layer wrapped over the already-composed per-page view (header + any notice
-// band + list + footer). The composed view is sized to the INSET content region
+// band + list + footer), bar one: the §9.1 theme slide-over is composited over the
+// filled content region on its way out (overlayThemePanelOnContent), so the fill can
+// never paint over a panel cell. The composed view is sized to the INSET content region
 // (contentW × contentH); fillCanvas pads every content line to contentW, fills to
 // contentH with the mode-matched canvas background, then places that block inside
 // the full terminal canvas at (Hinset, Vinset) — Hinset canvas gutter columns
@@ -4274,7 +4284,7 @@ func (m Model) fillCanvas(view string) string {
 	// layout (the structure parity the capture verifies) but every padding/gutter
 	// cell is a plain space with NO background SGR, so no canvas is painted.
 	if m.colourless {
-		content := fillColourless(view, contentW, contentH)
+		content := m.overlayThemePanelOnContent(fillColourless(view, contentW, contentH), contentW, contentH)
 		return insetColourless(content, w, h, contentW, contentH)
 	}
 	canvas := lipgloss.NewStyle().Background(m.activeTheme.Canvas.Color())
@@ -4297,7 +4307,30 @@ func (m Model) fillCanvas(view string) string {
 	for len(out) < contentH {
 		out = append(out, blank)
 	}
-	return insetCanvasCanvas(out, w, h, contentW, canvas)
+	content := m.overlayThemePanelOnContent(strings.Join(out, "\n"), contentW, contentH)
+	return insetCanvasCanvas(strings.Split(content, "\n"), w, h, contentW, canvas)
+}
+
+// overlayThemePanelOnContent composites the §9.1 slide-over over the FILLED content
+// region, as the LAST layer of the frame.
+//
+// It runs AFTER the fill and BEFORE the gutter inset, which is the only position
+// that is both correct and safe. After the fill, because the fill's per-line
+// backfill and trailing pad would otherwise process the panel's own cells — the
+// panel is an opaque layer and paints every one of its cells itself
+// (themePanelPainter). Before the inset, because the panel's right edge is the
+// CONTENT region's right edge (where the footer's right end and the header's right
+// hint sit, §9.1), not the terminal's: the gutter is Portal's own canvas frame and
+// the panel sits inside it like every other page element.
+//
+// It is a no-op while the panel is closed, and returns the content string
+// UNTOUCHED — so a Portal with no panel open composes a byte-identical frame.
+func (m Model) overlayThemePanelOnContent(content string, contentW, contentH int) string {
+	if !m.themePanel.open {
+		return content
+	}
+	panel := renderThemePanel(m.themePanel, contentH, m.activeTheme, m.colourless)
+	return overlayThemePanel(content, panel, contentW)
 }
 
 // gutterPadding splits the total horizontal (w−contentW) and vertical
