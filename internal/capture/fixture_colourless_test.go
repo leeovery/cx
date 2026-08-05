@@ -1,6 +1,10 @@
 package capture
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/leeovery/portal/internal/theme"
+)
 
 // TestFixtureColourless_ReadsDepsNoColor pins the discriminator §13.4's
 // swap-and-diff guard excludes colourless fixtures on.
@@ -17,7 +21,7 @@ import "testing"
 func TestFixtureColourless_ReadsDepsNoColor(t *testing.T) {
 	t.Run("false when the fixture sets no NO_COLOR flag", func(t *testing.T) {
 		fx := &Fixture{Lister: &fakeLister{}, projectStore: &fakeProjectStore{}}
-		if fx.Deps().NoColor {
+		if fx.Deps(theme.Theme{}).NoColor {
 			t.Fatal("probe setup: Deps().NoColor is true on an unflagged fixture")
 		}
 		if fx.Colourless() {
@@ -27,7 +31,7 @@ func TestFixtureColourless_ReadsDepsNoColor(t *testing.T) {
 
 	t.Run("true when the fixture carries the NO_COLOR flag", func(t *testing.T) {
 		fx := &Fixture{Lister: &fakeLister{}, projectStore: &fakeProjectStore{}, noColor: true}
-		if !fx.Deps().NoColor {
+		if !fx.Deps(theme.Theme{}).NoColor {
 			t.Fatal("probe setup: Deps() does not carry the fixture's NO_COLOR flag through to the model seam set")
 		}
 		if !fx.Colourless() {
@@ -44,7 +48,7 @@ func TestFixtureColourless_ReadsDepsNoColor(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FixtureByName(%s): %v", name, err)
 			}
-			if got, want := fx.Colourless(), fx.Deps().NoColor; got != want {
+			if got, want := fx.Colourless(), fx.Deps(theme.Theme{}).NoColor; got != want {
 				t.Errorf("%s: Colourless() = %t, Deps().NoColor = %t", name, got, want)
 			}
 		}

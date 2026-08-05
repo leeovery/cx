@@ -28,7 +28,11 @@ func keyRune(r rune) tea.KeyPressMsg {
 //
 // The theme is injected as the CONSTANT nomination shape, exactly as capturetool
 // passes it (§13.3): a constant needs no light/dark detection, so the gate is
-// resolved at construction and the frame is un-gated and byte-stable.
+// resolved at construction and the frame is un-gated and byte-stable. It is
+// handed to Deps rather than assigned afterwards, because the palette drives TWO
+// seams — the nomination and the panel's faked enumerator, whose Resolve must
+// report the same palette or task 8-8's open-time apply repaints the frame off
+// `--theme`. See Fixture.Deps.
 //
 // Fixtures reach their captured state through Init/Update, so a bare Build returns
 // a model that has ingested nothing — a blank or loading frame. The drive order
@@ -48,10 +52,7 @@ func keyRune(r rune) tea.KeyPressMsg {
 // fixtures park on the loading page precisely because neither arrives, which is
 // what keeps their captured frames deterministic.
 func (f *Fixture) ModelAt(th theme.Theme, w, h int) tui.Model {
-	deps := f.Deps()
-	deps.Theme = theme.ConstantNomination(th)
-
-	var model tea.Model = tui.Build(deps)
+	var model tea.Model = tui.Build(f.Deps(th))
 	model, _ = model.Update(tea.WindowSizeMsg{Width: w, Height: h})
 
 	sessions, err := f.Lister.ListSessions()
@@ -104,8 +105,12 @@ func (f *Fixture) RenderSwapRender(a, b theme.Theme, w, h int) (before, after st
 // Deps makes that exclusion STRUCTURAL rather than a hand-maintained name list, so
 // a colourless fixture added later is excluded automatically.
 //
+// The palette handed to Deps is the ZERO one, and that is the one call site where
+// it is the honest argument: a colourless fixture paints from no palette at all,
+// and the flag being read is decided before any of them.
+//
 // No fixture sets it today; the accessor exists so that one which does is handled
 // without anyone remembering the rule.
 func (f *Fixture) Colourless() bool {
-	return f.Deps().NoColor
+	return f.Deps(theme.Theme{}).NoColor
 }

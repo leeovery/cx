@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/spawn"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
 )
@@ -42,6 +43,39 @@ type Fixture struct {
 	// on once the list loads (empty → default index 0). Paired with initialMultiSelect
 	// so the multi-select capture puts the cursor on a marked, banded row.
 	initialCursor string
+	// themeKeys is §13.3's SECOND panel-fixture input: prefs.json's three theme
+	// keys as read (§8.4). It is declared INDEPENDENTLY of the `--theme` palette,
+	// and the separation is what makes the adaptive-pair frame reachable at all:
+	// capturetool always passes the CONSTANT nomination shape, and §8.2 makes a
+	// non-empty `theme` render a bare `●` with no slot badges — so a fixture built
+	// from the nomination alone could only ever produce that one state. The union
+	// is what the panel LISTS; these keys are what it MARKS. Zero for every fixture
+	// that declares no panel.
+	themeKeys theme.RawKeys
+	// themeUnion / themeEnumeration / themeSlots are §13.3's THIRD panel-fixture
+	// input, all three fed to the no-I/O fakeThemeEnumerator (see theme_fake.go):
+	// the finished §9.4 row set the panel lists, the retained enumeration Open
+	// hands back, and the §9.5 badge source Resolve returns.
+	//
+	// themeSlots is the one that is easy to get wrong. That Resolve return IS the
+	// panel's badge source — task 8-8 retired the injected slot record — so a
+	// fixture declaring its slots anywhere else renders no `●` on any row, and the
+	// adaptive-pair frame loses its entire subject.
+	//
+	// Declaring NO union is what leaves a fixture without a panel: Deps wires no
+	// seam at all in that case, so `t` stays the silent no-op §9.7's nil guard
+	// gives it, rather than opening an empty frame nobody designed.
+	themeUnion       theme.Union
+	themeEnumeration theme.Enumeration
+	themeSlots       []theme.SlotResolution
+	// initialThemeCursor is §13.3's FOURTH panel-fixture input — the one §13.3
+	// calls previously unstated: the row IDENTITY the panel's cursor lands on after
+	// the open. §9.2 puts the cursor on the theme actually rendering, so without
+	// this the mandated constant-while-previewing frame is unreachable — its whole
+	// point is a cursor on a row OTHER than the marked one, otherwise reachable
+	// only by arrowing, and a fixture is a one-shot render. It is PLACEMENT ONLY
+	// and applies no theme (see tui.Deps.InitialThemeCursor).
+	initialThemeCursor string
 	// initialDetection seeds the §6.2 host-terminal detection cache with a resolved
 	// identity (nil for every fixture that does not capture the proactive banner). It
 	// is the only way to render the otherwise async-resolved detection in the inert
@@ -120,21 +154,37 @@ type Fixture struct {
 	noColor bool
 }
 
-// Deps maps the fixture onto the shared tui.Deps seam set. Every tmux seam is a
-// fake: the read seams return canned data; the mutating seams are no-ops. The
-// resulting model is the exact production model (built via tui.Build) — no
-// bespoke render path that could drift from reality.
-func (f *Fixture) Deps() tui.Deps {
+// Deps maps the fixture onto the shared tui.Deps seam set at the palette th.
+// Every tmux seam is a fake: the read seams return canned data; the mutating
+// seams are no-ops. The resulting model is the exact production model (built via
+// tui.Build) — no bespoke render path that could drift from reality.
+//
+// THE PALETTE IS A PARAMETER BECAUSE TWO SEAMS DEPEND ON IT, and assembling them
+// anywhere but here would let them disagree. `--theme` pins the CONSTANT
+// nomination the model paints from (§13.3: no gate, no wait, byte-deterministic
+// frames), and the panel's faked ThemeEnumerator must report that SAME palette
+// from its Resolve — because task 8-8's open applies the theme that return names,
+// so a fake reporting anything else repaints the frame off `--theme`. There is
+// exactly one construction site for the pair, and this is it; see
+// newFakeThemeEnumerator for what follows from getting it wrong.
+//
+// A fixture that declares no union gets NO panel seam, so `t` stays the silent
+// no-op §9.7's nil guard gives it.
+func (f *Fixture) Deps(th theme.Theme) tui.Deps {
 	return tui.Deps{
-		Lister:        f.Lister,
-		Killer:        fakeKiller{},
-		Renamer:       fakeRenamer{},
-		Creator:       fakeCreator{},
-		ProjectStore:  f.projectStore,
-		ProjectEditor: f.projectEditor,
-		AliasEditor:   f.aliasEditor,
-		Enumerator:    fakeEnumerator{groups: f.enumeratorGroups},
-		Reader:        fakeScrollbackReader{content: f.scrollback},
+		Theme:              theme.ConstantNomination(th),
+		ThemeKeys:          f.themeKeys,
+		ThemeEnumerator:    f.themeEnumerator(th),
+		InitialThemeCursor: f.initialThemeCursor,
+		Lister:             f.Lister,
+		Killer:             fakeKiller{},
+		Renamer:            fakeRenamer{},
+		Creator:            fakeCreator{},
+		ProjectStore:       f.projectStore,
+		ProjectEditor:      f.projectEditor,
+		AliasEditor:        f.aliasEditor,
+		Enumerator:         fakeEnumerator{groups: f.enumeratorGroups},
+		Reader:             fakeScrollbackReader{content: f.scrollback},
 		// DirReader/DirRunner are deliberately left nil: the fixture sessions are
 		// pre-stamped (Session.Dir set), so the lazy pane-read fallback never
 		// fires — and the harness has no tmux server to read panes from anyway.
@@ -157,6 +207,20 @@ func (f *Fixture) Deps() tui.Deps {
 		// streams progress then emits the §10.5 BootstrapFatalMsg.
 		ProgressReceiver: loadingReceiverOrNil(f.loadingEvents, f.fatalEvent),
 	}
+}
+
+// themeEnumerator returns the fixture's no-I/O panel seam bound to the palette
+// the frame is being rendered at, or nil when the fixture declares no panel.
+//
+// THE NIL IS THE POINT for every other fixture. tui's seam guard makes a nil
+// enumerator a silent `t` no-op, so a fixture with nothing to list simply has no
+// panel — rather than opening a zero-row slide-over over a screen the frame was
+// never designed to carry.
+func (f *Fixture) themeEnumerator(th theme.Theme) tui.ThemeEnumerator {
+	if len(f.themeUnion.Rows) == 0 {
+		return nil
+	}
+	return newFakeThemeEnumerator(th, f.themeEnumeration, f.themeUnion, f.themeSlots)
 }
 
 // loadingReceiverOrNil returns the loading-progress receiver for the seeded
@@ -211,6 +275,10 @@ func FixtureByName(name string) (*Fixture, error) {
 		return projectsFixture(), nil
 	case "projects-command-pending":
 		return projectsCommandPendingFixture(), nil
+	case "theme-panel-adaptive-pair":
+		return themePanelAdaptivePairFixture(), nil
+	case "theme-panel-constant-previewing":
+		return themePanelConstantPreviewingFixture(), nil
 	case "preview-screen":
 		return previewScreenFixture(), nil
 	case "loading-screen":
@@ -228,7 +296,7 @@ func FixtureByName(name string) (*Fixture, error) {
 // (a standalone tea.Model resolved by the capture tool, NOT a tui.Model-backed
 // *Fixture) so the swatch is discoverable from the same listing.
 func FixtureNames() []string {
-	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
+	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
 	sort.Strings(names)
 	return names
 }
@@ -619,6 +687,154 @@ func sessionsNoTagsSignpostFixture() *Fixture {
 		projectStore: &fakeProjectStore{projects: projects},
 		initialMode:  prefs.ModeByTag,
 	}
+}
+
+// themePanelDropInSlug is the one valid DROP-IN in both panel fixtures' faked
+// unions, standing beside the three built-ins.
+//
+// It matters that exactly one row is a drop-in: §9.5 makes built-in and drop-in
+// rows DELIBERATELY INDISTINGUISHABLE, so a union of built-ins alone could not
+// show that. It sorts first, which puts it at the top of both frames.
+const themePanelDropInSlug = "catppuccin-latte"
+
+// themePanelUnion is the faked §9.4 row set both panel fixtures list: the three
+// built-ins plus one valid drop-in, already in §9.5's alphabetical display order.
+//
+// IT IS FAKED WHOLESALE, with no loader, no directory and no file — theme.Union
+// is an ordinary value with exported fields precisely so a fixture can build one
+// (§13.3), which is the only way internal/capture renders a panel under §7.1's
+// no-real-config import guard.
+//
+// Every row is left with a ZERO palette here and repainted by the fake onto the
+// `--theme` value the frame is rendered at (newFakeThemeEnumerator). Declaring a
+// palette here would be the hard-coded built-in that makes `--theme` inert.
+func themePanelUnion() theme.Union {
+	rows := []theme.Row{
+		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + ".theme", Source: theme.SourceFile},
+		{Slug: "nord", Source: theme.SourceBuiltin},
+		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
+		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
+	}
+	return theme.Union{Rows: rows, Count: len(rows)}
+}
+
+// themePanelEnumeration is the retained parse Open hands back (§5.8): the one
+// drop-in the directory held, and the directory it was read from.
+//
+// The path is a plausible-looking literal and is never resolved, opened or
+// stat'ed — the fake reads nothing. It is declared so a retained enumeration says
+// which directory it is OF, exactly as a real one does.
+func themePanelEnumeration() theme.Enumeration {
+	return theme.Enumeration{
+		Entries: []theme.Entry{{
+			Path:     "/home/user/.config/portal/themes/" + themePanelDropInSlug + ".theme",
+			Filename: themePanelDropInSlug + ".theme",
+			Slug:     themePanelDropInSlug,
+		}},
+		DirPath: "/home/user/.config/portal/themes",
+	}
+}
+
+// themePanelAdaptivePairFixture builds the deterministic
+// "theme-panel-adaptive-pair" fixture: the sessions-flat list with the §9.1
+// slide-over open over it, an adaptive pair persisted, and BOTH slot badges live
+// — `● light` on tokyo-night-day and `● dark` on nord — with the cursor on nord.
+//
+// It is the primary reference for the badge vocabulary. §9.14 records that
+// assigning a theme to a light/dark slot FROM INSIDE A PICKER was found in no
+// surveyed tool, so `d`/`l` and the `● dark` / `● light` / `● both` badges have no
+// established shape to borrow: this frame and the Paper artboard beside it are the
+// only reference that exists. Mirrors
+// testdata/vhs/reference/theme-panel-adaptive-pair-mv.png.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme nord`. §9.2's invariant is that the cursor's row is
+// ALWAYS what is painted behind the panel, so the palette follows the CURSOR and
+// not the persisted setting. At open that resolves to the DARK slot's theme:
+// capturetool runs no light/dark gate, so the standing no-answer fallback selects
+// dark (§8.8), and the dark slot here is nord.
+//
+// IT CANNOT BE AUTOMATED, which is why it is written down. An incoherent frame —
+// say this one captured under `--theme tokyo-night-day` — is INDISTINGUISHABLE
+// from a correct one to a reviewer: the panel would list the same rows, mark the
+// same badges and sit the cursor on the same row, in the wrong colours, and
+// nothing on the frame would say so. §13.4's guard enumerates fixtures and diffs
+// colours, so it passes either way. The pairing is the author's obligation.
+//
+// The panel is opened through the REAL path — the `t` its captureKeys declare, as
+// the tape types it — so the frame goes through task 8-7's open and task 8-8's
+// anchor with the faked seam supplying the union, rather than through a bespoke
+// "already open" seed that could drift from what a keypress does.
+func themePanelAdaptivePairFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "theme-panel-adaptive-pair"
+	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
+	fx.themeUnion = themePanelUnion()
+	fx.themeEnumeration = themePanelEnumeration()
+	// The §9.5 badge source. Both slots are set and loadable, so each badge sits on
+	// its own persisted slug; the palettes are supplied by the fake.
+	fx.themeSlots = []theme.SlotResolution{
+		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
+		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord"},
+	}
+	// The row §9.2's open already anchors — the in-force dark slot's. Declared
+	// anyway, so the frame's cursor is stated by the fixture rather than inferred
+	// from the gate's fallback, and so `--theme nord`'s coherent partner is visible
+	// in one place.
+	fx.initialThemeCursor = "nord"
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
+	return fx
+}
+
+// themePanelConstantPreviewingFixture builds the deterministic
+// "theme-panel-constant-previewing" fixture: the same list and the same union,
+// with a CONSTANT persisted — a single bare `●` on nord — while the cursor sits on
+// a different row entirely (tokyo-night-day).
+//
+// IT COMPLETES THE PANEL'S SPECIFICATION, because the two setting states never
+// coexist on screen (§9.5): no single frame can show both a bare `●` and the slot
+// badges, so the constant form needs a capture of its own. It is also the picker
+// idiom made visible — the `●` is what is PERSISTED, the cursor plus the canvas is
+// what is PREVIEWED, and `Esc` would restore the marked one. Mirrors
+// testdata/vhs/reference/theme-panel-constant-previewing-mv.png.
+//
+// The bare `●` is §8.2's doing rather than a rendering choice: a non-empty `theme`
+// wins and THE SLOTS ARE NOT READ AT ALL, so there is no slot for the marker to
+// name.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme tokyo-night-day` — the PREVIEWED theme, deliberately
+// NOT the marked constant `nord`. §9.2's invariant is that the cursor's row is
+// always what is painted behind the panel, and on this frame those two are
+// different rows by design; capturing it under `--theme nord` would paint the
+// persisted constant while the cursor sat elsewhere, which is precisely the state
+// the frame exists to rule out.
+//
+// IT CANNOT BE AUTOMATED. An incoherent frame is indistinguishable from a correct
+// one to a reviewer — same rows, same badge, same cursor, wrong colours — and
+// §13.4's guard enumerates fixtures and diffs colours, so it passes either way.
+//
+// The cursor is where §13.3's fourth input earns its place: §9.2 lands the open's
+// cursor on the theme actually rendering, which under a constant is the
+// constant's own row, so the seed is the ONLY way a one-shot render reaches a
+// cursor on another row (arrowing is the alternative, and a fixture never arrows).
+func themePanelConstantPreviewingFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "theme-panel-constant-previewing"
+	fx.themeKeys = theme.RawKeys{Theme: "nord"}
+	fx.themeUnion = themePanelUnion()
+	fx.themeEnumeration = themePanelEnumeration()
+	// §8.2's constant state: EXACTLY ONE slot record, and its Slot is SlotConstant.
+	// theme.Badges reads both — the length and the slot — so a second record here
+	// would render the pair's badges instead of the bare `●`.
+	fx.themeSlots = []theme.SlotResolution{
+		{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord"},
+	}
+	fx.initialThemeCursor = theme.DefaultLightSlug
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
+	return fx
 }
 
 // projectsFixture builds the deterministic "projects" fixture: a rich project

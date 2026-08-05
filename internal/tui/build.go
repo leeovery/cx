@@ -135,6 +135,15 @@ type Deps struct {
 	// capture can put the cursor on a marked (banded) row. Empty is a no-op;
 	// production never sets it (the live picker keeps the default index-0 cursor).
 	InitialCursor string
+	// InitialThemeCursor seeds §13.3's fourth panel-fixture input: the row IDENTITY
+	// the theme panel's cursor lands on once the panel has opened. It exists for
+	// the offline capture harness, which renders one-shot frames: §9.2 puts the
+	// cursor on the theme actually rendering at open, so the mandated
+	// constant-while-previewing frame — a cursor on a row OTHER than the marked one
+	// — is otherwise reachable only by arrowing. It is PLACEMENT ONLY and applies
+	// no theme, so the rendered palette stays the one the nomination carries. Empty
+	// is a no-op; production never sets it.
+	InitialThemeCursor string
 	// InitialDetection seeds the §6 host-terminal detection cache on the first frame
 	// with the given identity already resolved (via spawn.ResolveAdapter, so a
 	// non-NULL Apple Terminal resolves unsupported and the proactive §6.2 banner
@@ -279,6 +288,10 @@ func Build(deps Deps) Model {
 	// items ingest (evaluateDefaultPage), since it must survive the initial SetItems.
 	opts = append(opts, WithInitialMultiSelect(deps.InitialMultiSelect))
 	opts = append(opts, WithInitialCursor(deps.InitialCursor))
+	// The PANEL cursor seed (§13.3) is applied here alongside its session-list
+	// sibling, but it lands much later: the panel does not exist until `t` is
+	// pressed, so armThemePanel consumes it. Empty on every production model.
+	opts = append(opts, WithInitialThemeCursor(deps.InitialThemeCursor))
 
 	// Seed the §6 picker-burst capture-only frames (all no-ops when unset, the
 	// production default). WithInitialGoneFlagged is applied AFTER WithInitial

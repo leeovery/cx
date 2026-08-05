@@ -101,8 +101,7 @@ func renderFixtureFrame(t *testing.T, fixture string, palette theme.Theme, width
 	if err != nil {
 		t.Fatalf("FixtureByName(%s): %v", fixture, err)
 	}
-	deps := fx.Deps()
-	deps.Theme = theme.ConstantNomination(palette)
+	deps := fx.Deps(palette)
 
 	m := tui.Build(deps)
 	var model tea.Model = m

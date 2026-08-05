@@ -276,8 +276,12 @@ func resolveModel(fixture string, pinned theme.Theme) (tui.Model, error) {
 	if err != nil {
 		return tui.Model{}, err
 	}
-	deps := fx.Deps()
-	deps.Theme = theme.ConstantNomination(pinned)
+	// The palette is handed to Deps rather than assigned afterwards, because it
+	// drives TWO seams: the constant nomination the model paints from, and the
+	// panel's faked ThemeEnumerator, whose Resolve must report the SAME palette or
+	// the panel's open-time apply repaints the frame off --theme. Fixture.Deps is
+	// the one place the pair is assembled.
+	deps := fx.Deps(pinned)
 	// NO_COLOR carve-out (§2.5): read the env (present and non-empty, the
 	// no-color.org convention) and inject the single colourless flag so the
 	// NO_COLOR tape (NO_COLOR=1 inline) renders the colourless native-bg path —

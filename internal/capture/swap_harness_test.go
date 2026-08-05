@@ -18,6 +18,16 @@ import (
 // The harness dimensions every swap-harness assertion renders at. Wide and tall
 // enough that the section header, the list rows and the footer all fit, so a
 // fixture's distinguishing content is genuinely on the frame rather than clipped.
+//
+// IT MUST ALSO CLEAR THE §9.8 PANEL RENDER FLOOR, which is a second and stricter
+// claim on the same pair of numbers: a panel fixture's captureKeys press `t`, so
+// the guard drives it through the panel's entry gate. Below that floor the gate
+// REFUSES and the guard renders a panel-less frame carrying a blocked-`t` flash —
+// with every assertion still passing, because the guard scans whatever was
+// painted. The panel's own bubbles/list instance, which §11.2 names the worst
+// case of the cached-style class, would then be covered by nothing while reading
+// as covered. RAISE these rather than lowering them; the clearance is proven by
+// TestPanelFixture_PanelIsCompositedUnderTheGuard rather than assumed.
 const (
 	harnessWidth  = 120
 	harnessHeight = 40
@@ -77,6 +87,13 @@ func capturedStates() []capturedStateWant {
 		{fixture: "sessions-multi-select-preflight-abort", page: tui.PageSessions, present: []string{sessionRow, "is gone", "nothing opened"}, absent: []string{"No sessions yet"}},
 		{fixture: "sessions-burst-opening", page: tui.PageSessions, present: []string{sessionRow, "Opening 2/3"}, absent: []string{"No sessions yet"}},
 		{fixture: "sessions-no-tags-signpost", page: tui.PageSessions, present: []string{"fab-flowx-explore", "No tags yet"}, absent: []string{"No sessions yet"}},
+		// Reached by the `t` their tapes type: the §9.1 slide-over composited over
+		// the Sessions list. The badges are what distinguishes the two — the pair's
+		// two slot badges against the constant's single bare `●` — so each names its
+		// own and rules out the other's, which is what stops one silently rendering
+		// as the other.
+		{fixture: "theme-panel-adaptive-pair", page: tui.PageSessions, present: []string{sessionRow, "Themes", "● light", "● dark"}, absent: []string{"No sessions yet"}},
+		{fixture: "theme-panel-constant-previewing", page: tui.PageSessions, present: []string{sessionRow, "Themes", "●"}, absent: []string{"No sessions yet", "● light", "● dark"}},
 		// Reached by the `x` its tape types: the fixture opens on Sessions (the
 		// production no-arg default) and the capture is of the Projects page.
 		{fixture: "projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects"}},

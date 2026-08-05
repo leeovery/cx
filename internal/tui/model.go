@@ -348,7 +348,25 @@ type Model struct {
 	// (and cleared) in evaluateDefaultPage after items ingest, mirroring how
 	// initialFilter is applied there. Empty is a no-op — production never sets it
 	// (WithInitialCursor is wired only by the offline capture harness).
-	initialCursor      string
+	initialCursor string
+	// initialThemeCursor is the capture-only PANEL cursor anchor (§13.3's fourth
+	// declared fixture input): the row IDENTITY the slide-over's cursor lands on
+	// once the panel has opened.
+	//
+	// It exists because a fixture is a ONE-SHOT RENDER and §9.2 puts the cursor on
+	// the theme actually rendering at open. The mandated constant-while-previewing
+	// frame needs the cursor on a row OTHER than the marked one, which is otherwise
+	// reachable only by arrowing — so without this seed that frame cannot be
+	// captured at all.
+	//
+	// IT IS PLACEMENT ONLY AND APPLIES NO THEME (armThemePanel anchors with it and
+	// nothing else). Applying the seeded row's palette would make
+	// `capturetool --theme <slug|path>` inert on precisely the frames a drop-in
+	// author most wants to check.
+	//
+	// Empty is a no-op — production never sets it (WithInitialThemeCursor is wired
+	// only by the offline capture harness).
+	initialThemeCursor string
 	insideTmux         bool
 	currentSession     string
 	modal              modalState
@@ -1172,6 +1190,24 @@ func WithInitialMultiSelect(names []string) Option {
 func WithInitialCursor(name string) Option {
 	return func(m *Model) {
 		m.initialCursor = name
+	}
+}
+
+// WithInitialThemeCursor seeds §13.3's fourth panel-fixture input: the row
+// IDENTITY the theme panel's cursor lands on once the panel has opened
+// (armThemePanel re-anchors with it after §9.2's opening state resolves).
+//
+// It is the ONLY way the mandated constant-while-previewing frame is reachable:
+// a fixture is a one-shot render, §9.2 puts the cursor on the theme actually
+// rendering, and that frame's whole point is a cursor somewhere else — otherwise
+// reachable only by arrowing.
+//
+// THE SEED IS PLACEMENT ONLY. It moves the cursor and applies no theme, so the
+// rendered palette stays the one the nomination carries; see armThemePanel. An
+// empty identity is a no-op; production never sets it.
+func WithInitialThemeCursor(slug string) Option {
+	return func(m *Model) {
+		m.initialThemeCursor = slug
 	}
 }
 

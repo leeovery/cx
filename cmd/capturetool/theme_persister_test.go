@@ -40,7 +40,7 @@ func TestCapturetool_NoThemePersister(t *testing.T) {
 				t.Fatalf("FixtureByName(%s): %v", name, err)
 			}
 
-			deps := fx.Deps()
+			deps := fx.Deps(builtinForTest(t, defaultThemeSlug))
 			if deps.ThemePersister != nil {
 				t.Errorf("fixture %s wires a ThemePersister (%#v); a commit during a capture must write nowhere", name, deps.ThemePersister)
 			}

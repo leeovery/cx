@@ -220,7 +220,8 @@
             "theming-system-10-8": "tick-e7d649",
             "theming-system-10-9": "tick-275a80",
             "theming-system-10-10": "tick-417ab6",
-            "theming-system-10": "tick-f98f60"
+            "theming-system-10": "tick-f98f60",
+            "theming-system-8-17": "tick-e4dcf8"
           },
           "storage_paths": [
             ".tick/"
@@ -299,7 +300,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 8,
-          "current_task": "theming-system-8-15",
+          "current_task": "theming-system-8-17",
           "completed_tasks": [
             "theming-system-1-1",
             "theming-system-1-2",
@@ -363,7 +364,8 @@
             "theming-system-8-11",
             "theming-system-8-12",
             "theming-system-8-13",
-            "theming-system-8-14"
+            "theming-system-8-14",
+            "theming-system-8-15"
           ],
           "completed_phases": [
             1,

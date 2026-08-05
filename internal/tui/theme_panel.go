@@ -507,6 +507,15 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // but redundant — the list is constructed with a delegate taken from the palette
 // the resolution just applied, and applyThemePanelListStyles re-points its chrome
 // on the very next line.
+//
+// THE CAPTURE SEED IS LAST, AND IT MOVES THE CURSOR AND NOTHING ELSE (§13.3's
+// fourth fixture input, wired only by the offline harness — see
+// Model.initialThemeCursor). It re-anchors BY ROW IDENTITY, through the same
+// anchor the resolution's answer went through, so a fixture cannot seed a cursor
+// onto a row the union does not hold. It applies NO theme: the palette stays the
+// one `--theme` pinned, which is what keeps the flag meaningful on precisely the
+// frames a drop-in author checks. An empty seed — every production model and
+// every non-panel fixture — is the anchor's own no-op.
 func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) {
 	width, _ := themePanelWidthFor(m.contentWidth())
 	m.themePanel = themePanel{
@@ -519,6 +528,7 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 	m.themePanel.open = true
 	m.applyThemePanelListStyles()
 	m.anchorThemePanelCursor(cursor)
+	m.anchorThemePanelCursor(m.initialThemeCursor)
 }
 
 // applyInForceTheme is §5.8's RE-RESOLUTION, and it is the whole of what the
