@@ -22,6 +22,17 @@ func keyRune(r rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
 
+// keyPageDown builds the `Ctrl+↓` key-press message — §12.2's page-forward key,
+// which the panel's list binds through the shared pinArrowOnlyNav.
+//
+// It is a CODE PLUS A MODIFIER rather than a key type of its own, which is how
+// Bubble Tea v2 models ctrl combos, and it carries NO Text: a modified key is not
+// a printable character, and a Text-bearing one would additionally match the
+// rune arms it must not reach.
+func keyPageDown() tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModCtrl}
+}
+
 // ModelAt builds the fixture's production tui.Model painted from th and drives it
 // to the fixture's CAPTURED state — deterministically, through Update, with no
 // tea program running.

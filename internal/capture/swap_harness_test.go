@@ -94,6 +94,26 @@ func capturedStates() []capturedStateWant {
 		// as the other.
 		{fixture: "theme-panel-adaptive-pair", page: tui.PageSessions, present: []string{sessionRow, "Themes", "● light", "● dark"}, absent: []string{"No sessions yet"}},
 		{fixture: "theme-panel-constant-previewing", page: tui.PageSessions, present: []string{sessionRow, "Themes", "●"}, absent: []string{"No sessions yet", "● light", "● dark"}},
+		// §13.3's five remaining panel surfaces. Each names the ONE thing no other
+		// panel frame carries, so a fixture that silently re-rendered a sibling's
+		// screen fails here rather than reading as coverage of its own.
+		//
+		// The invalid row rules out the reason its BADGED row drops — `bad colour`
+		// belongs to nord-lee, which carries `● dark` — while the unbadged row's
+		// `bad syntax` must be present, so the pair states §9.5's priority as a
+		// captured fact rather than as a rendering coincidence.
+		{fixture: "theme-panel-invalid-row", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ bad syntax", "My Gorgeous Midnight Palett…", "● dark"}, absent: []string{"No sessions yet", "bad colour"}},
+		{fixture: "theme-panel-dir-unreadable", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ dir unreadable", "solarized-lee", "● light", "● dark"}, absent: []string{"No sessions yet"}},
+		// The narrow frame's captured state at THIS size is the adaptive pair's, by
+		// construction: its subject is §9.8's width ladder, which is a function of
+		// the terminal rather than of the fixture, so the degraded band is asserted
+		// at its own size by TestPanelFixture_NarrowIsBetweenMinAndPreferred. What
+		// belongs here is only that the driver opened the panel at all.
+		{fixture: "theme-panel-narrow", page: tui.PageSessions, present: []string{sessionRow, "Themes", "● light", "● dark"}, absent: []string{"No sessions yet"}},
+		{fixture: "theme-panel-paginated", page: tui.PageSessions, present: []string{sessionRow, "Themes", "vivid-01", "● light", "● dark"}, absent: []string{"No sessions yet"}},
+		// Reached by the `x` then `t` its captureKeys type: the slide-over over the
+		// Projects page, which every other panel fixture leaves unrendered.
+		{fixture: "theme-panel-projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects", "Themes", "● light", "● dark"}},
 		// Reached by the `x` its tape types: the fixture opens on Sessions (the
 		// production no-arg default) and the capture is of the Projects page.
 		{fixture: "projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects"}},

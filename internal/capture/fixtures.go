@@ -279,6 +279,16 @@ func FixtureByName(name string) (*Fixture, error) {
 		return themePanelAdaptivePairFixture(), nil
 	case "theme-panel-constant-previewing":
 		return themePanelConstantPreviewingFixture(), nil
+	case "theme-panel-invalid-row":
+		return themePanelInvalidRowFixture(), nil
+	case "theme-panel-dir-unreadable":
+		return themePanelDirUnreadableFixture(), nil
+	case "theme-panel-narrow":
+		return themePanelNarrowFixture(), nil
+	case "theme-panel-paginated":
+		return themePanelPaginatedFixture(), nil
+	case "theme-panel-projects":
+		return themePanelProjectsFixture(), nil
 	case "preview-screen":
 		return previewScreenFixture(), nil
 	case "loading-screen":
@@ -296,7 +306,7 @@ func FixtureByName(name string) (*Fixture, error) {
 // (a standalone tea.Model resolved by the capture tool, NOT a tui.Model-backed
 // *Fixture) so the swatch is discoverable from the same listing.
 func FixtureNames() []string {
-	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
+	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "theme-panel-invalid-row", "theme-panel-dir-unreadable", "theme-panel-narrow", "theme-panel-paginated", "theme-panel-projects", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
 	sort.Strings(names)
 	return names
 }
@@ -834,6 +844,357 @@ func themePanelConstantPreviewingFixture() *Fixture {
 	}
 	fx.initialThemeCursor = theme.DefaultLightSlug
 	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
+	return fx
+}
+
+// themesDirPath is the plausible-looking themes directory every panel fixture's
+// retained enumeration says it is OF. It is never resolved, opened or stat'ed —
+// the fake reads nothing (§13.3) — and it is shared so no fixture invents a
+// second, different-looking one.
+const themesDirPath = "/home/user/.config/portal/themes"
+
+// themePanelDirEntry is one candidate the themes directory held, as a retained
+// enumeration carries it: the filename, the slug it yielded (empty for a
+// `bad name` file, which §5.2 mints none for) and the path it was read from.
+//
+// The palette and the rejection are deliberately NOT restated here. Nothing reads
+// Entries — the fake hands the enumeration straight back — so what an entry owes
+// is an honest account of WHICH FILES WERE THERE, and duplicating each row's
+// verdict would be a second place for it to drift from the union that renders it.
+func themePanelDirEntry(filename, slug string) theme.Entry {
+	return theme.Entry{Path: themesDirPath + "/" + filename, Filename: filename, Slug: slug}
+}
+
+// themePanelDirEnumeration is the retained parse for a READABLE themes directory
+// holding the given candidates (§5.8).
+func themePanelDirEnumeration(entries ...theme.Entry) theme.Enumeration {
+	return theme.Enumeration{Entries: entries, DirPath: themesDirPath}
+}
+
+// themePanelInvalidRowFixture builds the deterministic "theme-panel-invalid-row"
+// fixture: the slide-over over the sessions-flat list, listing valid built-ins
+// beside THREE invalid rows — the only frame on which §9.5's four-element row
+// composition is observable at all.
+//
+// # THE THREE ROWS ARE THE THREE THINGS THE PRIORITY DECIDES
+//
+//   - `aurora-glow` carries a reason that FITS: the `⚠` and its terse reason as
+//     one accent.attention run beside a text.subtle label, on ONE line (§9.5's
+//     one-delegate-line invariant, which pagination and the arrow skip both rest
+//     on). text.subtle and never text.faint — the label is the file the user must
+//     read to know which of theirs is broken, and §13.5 forbids text.faint reaching
+//     the UI floor.
+//   - `nord-lee` is invalid AND PERSISTED, so the badge competes for the right edge
+//     and the reason is DROPPED. That pairing is what makes the priority visible
+//     rather than merely stated: the two rows differ in nothing but the badge.
+//   - `My Gorgeous Midnight Palette.theme` is labelled by its FILENAME (§9.5 — a
+//     `bad name` file has no slug) and is long enough to truncate with `…`. It
+//     drops its reason too, by §9.5's OTHER drop rule: the label outranks the
+//     reason, so a name long enough to fill the row takes the columns.
+//
+// The persisted-and-invalid row is also §9.5's badge table row 2 made concrete —
+// SET BUT UNLOADABLE still badges the PERSISTED slug, and the fallback's own row
+// carries none. That is why the dark slot resolves to `tokyo-night` while `● dark`
+// stays on `nord-lee`.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme tokyo-night` — the fallback the broken dark slot
+// resolves to, which is where §9.2 lands the cursor and therefore what is painted
+// behind the panel. The cursor is on a VALID row deliberately: §9.5's arrow skip
+// keeps it off invalid ones, so a frame with it parked on a rejection is a state
+// production cannot reach.
+func themePanelInvalidRowFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "theme-panel-invalid-row"
+	// The dark slot names a BROKEN drop-in; the light slot names a built-in that
+	// loads. So one badge sits on an invalid row and the other on a valid one.
+	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: themePanelBrokenSlug}
+	fx.themeUnion = themePanelInvalidRowUnion()
+	fx.themeEnumeration = themePanelDirEnumeration(
+		themePanelDirEntry("aurora-glow.theme", "aurora-glow"),
+		themePanelDirEntry("My Gorgeous Midnight Palette.theme", ""),
+		themePanelDirEntry(themePanelBrokenSlug+".theme", themePanelBrokenSlug),
+	)
+	fx.themeSlots = []theme.SlotResolution{
+		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
+		// §8.5's fallback: the nomination did not load, so Resolved names the
+		// mode-matched default while Requested — the field §9.5's badge table keys
+		// on — still names what the user set.
+		{Slot: theme.SlotDark, Requested: themePanelBrokenSlug, Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonBadColour},
+	}
+	fx.initialThemeCursor = theme.DefaultDarkSlug
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
+	return fx
+}
+
+// themePanelBrokenSlug is the drop-in that is BOTH persisted and invalid — the row
+// on which §9.5's badge outranks the reason. It is named once because two fixtures
+// use it for two different reasons (a broken file here, an unreachable one under an
+// unreadable directory).
+const themePanelBrokenSlug = "nord-lee"
+
+// themePanelInvalidRowUnion is the faked §9.4 row set the invalid-row frame lists,
+// already in §9.5's display order — alphabetical by SORT KEY, case-insensitively,
+// which is the slug wherever one exists and the filename for the `bad name` row
+// that has none.
+//
+// The order is written out rather than sorted here for the same reason the union
+// is faked at all: a fixture declares the finished row set the seam hands back
+// (§13.3), and re-deriving it would put a second copy of §9.5's comparison in the
+// harness.
+func themePanelInvalidRowUnion() theme.Union {
+	rows := []theme.Row{
+		// Invalid with a reason that FITS beside its label.
+		{
+			Slug: "aurora-glow", Filename: "aurora-glow.theme", Source: theme.SourceFile,
+			Rejection: &theme.Rejection{Reason: theme.ReasonBadSyntax, Line: 12, Detail: "quoted value"},
+		},
+		// `bad name`: no slug at all (§5.2 rejects rather than normalises), so it is
+		// LABELLED and SORTED by its filename — and that filename is long enough to
+		// take the whole row, which is what drops its reason.
+		{
+			Filename: "My Gorgeous Midnight Palette.theme", Source: theme.SourceFile,
+			Rejection: &theme.Rejection{Reason: theme.ReasonBadName, BadNameCause: theme.BadNameSlug},
+		},
+		{Slug: "nord", Source: theme.SourceBuiltin},
+		// Invalid AND persisted: `bad colour` never renders, because the `● dark`
+		// badge takes the right edge they compete for.
+		{
+			Slug: themePanelBrokenSlug, Filename: themePanelBrokenSlug + ".theme", Source: theme.SourceFile,
+			Rejection: &theme.Rejection{Reason: theme.ReasonBadColour, Line: 7, Detail: "text.primary = #12345"},
+		},
+		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
+		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
+	}
+	return theme.Union{Rows: rows, Count: len(rows), Rejected: 3}
+}
+
+// themePanelDirUnreadableFixture builds the deterministic
+// "theme-panel-dir-unreadable" fixture: the slide-over with §9.5's pinned
+// `⚠ dir unreadable` chrome row, captured ON PAGE 2.
+//
+// # THE PAGE IS THE WHOLE POINT
+//
+// §9.5 makes the warning "chrome pinned to the viewport directly beneath the
+// header, NOT a list row… a list row participates in pagination, so the warning
+// would vanish the moment the user paged down". A page-1 capture is
+// INDISTINGUISHABLE from one of a warning implemented as a list delegate — both
+// show the row — so the claim is only observable once the user has paged past it.
+// Hence the `Ctrl+↓` in captureKeys, and hence the tape's reduced height: the union
+// must OVERFLOW the panel body or there is no second page to reach.
+//
+// # AND ROWS MUST STILL RENDER BENEATH IT
+//
+// §9.5: "built-in rows and persisted-slug rows still render beneath it — the
+// PERSISTED ROWS ESPECIALLY, or a user with an unreadable directory loses the `●`
+// entirely." Page 2 therefore carries both: the persisted `solarized-lee` with its
+// surviving `● light`, and the built-in `tokyo-night` under the cursor.
+//
+// An unusable directory contributes NO entries (§5.5), so the union is the three
+// built-ins plus the two persisted slugs that answer to nothing — each rejected
+// `unreadable` rather than `not found`, because the theme may be sitting right
+// there in a directory nothing can read and `not found` would send the user past
+// the actual problem (§5.5, §14A).
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme tokyo-night`. The cursor is SEEDED onto `nord` — a
+// page-1 row, since a `Ctrl+↓` from the last page moves nothing — and the paging
+// key then lands it on `tokyo-night`, which is both the in-force dark slot's
+// fallback and the theme the frame is painted in.
+func themePanelDirUnreadableFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "theme-panel-dir-unreadable"
+	// Both slots name drop-ins the unreadable directory cannot answer for, so each
+	// contributes a persisted row AND keeps its badge — which is the `●` §9.5 says
+	// the user must not lose.
+	fx.themeKeys = theme.RawKeys{Light: themePanelUnreachableLightSlug, Dark: themePanelBrokenSlug}
+	fx.themeUnion = themePanelDirUnreadableUnion()
+	// An unusable directory sets the flag and holds no entries (§5.5). It still
+	// says which directory it is OF.
+	fx.themeEnumeration = theme.Enumeration{DirUnusable: true, DirPath: themesDirPath}
+	fx.themeSlots = []theme.SlotResolution{
+		{Slot: theme.SlotLight, Requested: themePanelUnreachableLightSlug, Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonUnreadable},
+		{Slot: theme.SlotDark, Requested: themePanelBrokenSlug, Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonUnreadable},
+	}
+	// A PAGE-1 row, deliberately: §9.2's open would otherwise anchor the cursor on
+	// the dark slot's fallback, which is already on page 2, and the paging key
+	// below would then move nothing.
+	fx.initialThemeCursor = "nord"
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('t'), keyPageDown()}
+	return fx
+}
+
+// themePanelUnreachableLightSlug is the light slot's persisted drop-in, which the
+// unreadable directory cannot answer for. It sorts between the two `nord*` rows
+// and the two `tokyo-night*` ones, which is what puts one badged persisted row on
+// each page of the captured frame.
+const themePanelUnreachableLightSlug = "solarized-lee"
+
+// themePanelDirUnreadableUnion is the §9.4 row set an unusable themes directory
+// produces: the built-ins, plus one row per IN-FORCE persisted slug that nothing
+// answers to, in §9.5's display order.
+//
+// Both persisted rows carry `unreadable` and NO detail — the row renders the terse
+// reason alone, the condition already has its own pinned chrome row, and the
+// verbatim system message belongs to doctor (§14A).
+func themePanelDirUnreadableUnion() theme.Union {
+	rows := []theme.Row{
+		{Slug: "nord", Source: theme.SourceBuiltin},
+		{Slug: themePanelBrokenSlug, Source: theme.SourcePersisted, Rejection: &theme.Rejection{Reason: theme.ReasonUnreadable}},
+		{Slug: themePanelUnreachableLightSlug, Source: theme.SourcePersisted, Rejection: &theme.Rejection{Reason: theme.ReasonUnreadable}},
+		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
+		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
+	}
+	return theme.Union{Rows: rows, DirUnusable: true, Count: len(rows), Rejected: 2}
+}
+
+// themePanelNarrowFixture builds the deterministic "theme-panel-narrow" fixture:
+// the adaptive-pair frame's list, keys, union and cursor exactly, captured through
+// a tape whose terminal lands the panel in §9.8's DEGRADED BAND between the
+// preferred and minimum widths.
+//
+// IT IS THE ONLY OBSERVABLE CHECK ON THE LADDER. §9.8's shrink is staged — the
+// panel takes half the content region, clamped to the two ends — and every other
+// panel fixture is captured wide enough to take the preferred width, so without
+// this frame the middle of the ladder is rendered by nothing. A fixture cannot
+// resize itself either: it opens through captureKeys and is a one-shot render, so
+// the band is reachable ONLY by capturing at a narrower terminal.
+//
+// THE FIXTURE DATA IS DELIBERATELY IDENTICAL to the adaptive-pair frame's, so the
+// two are a controlled pair: everything that differs between the images is the
+// width. Both badges must survive the shrink (§9.5's priority 2 reserves them
+// before anything can crowd them out) and every row must still be exactly one line.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme nord`, the adaptive pair's dark slot — capturetool runs
+// no light/dark gate, so the standing no-answer fallback selects dark (§8.8) and
+// §9.2 lands the cursor there.
+func themePanelNarrowFixture() *Fixture {
+	fx := themePanelAdaptivePairFixture()
+	fx.name = "theme-panel-narrow"
+	return fx
+}
+
+// themePanelPaginatedFixture builds the deterministic "theme-panel-paginated"
+// fixture: a union long enough to OVERFLOW the panel body, so the list's
+// pagination dots actually render.
+//
+// IT EXISTS BECAUSE §11.2 SAYS SO, in its own words: "pagination dots only render
+// when the panel's list paginates, so one of §13.3's panel fixtures must carry
+// enough theme rows to overflow. OTHERWISE THE GUARD IS BLIND at exactly the new
+// site this paragraph adds." The dots are the exemplar of the cached-style class —
+// `bubbles/list` reads their STRINGS out of its styles once at construction — so a
+// restyle that failed to re-feed the paginator would leave the library's hardcoded
+// greys rendering under every theme, IDENTICALLY before and after a swap, which
+// §13.4's swap-and-diff guard structurally cannot see.
+//
+// The drop-ins are SYNTHETIC and say so: they are a plausible directory of user
+// files, generated by a pure index function so the row set is stable across
+// machines and runs. They sort AFTER every built-in, which is what keeps both slot
+// badges on the captured first page.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme nord` — the in-force dark slot, which §9.2's open
+// anchors the cursor to and which sits on page 1.
+func themePanelPaginatedFixture() *Fixture {
+	fx := sessionsFlatFixture()
+	fx.name = "theme-panel-paginated"
+	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
+	fx.themeUnion = themePanelPaginatedUnion()
+	fx.themeEnumeration = themePanelDirEnumeration(themePanelPaginatedEntries()...)
+	fx.themeSlots = []theme.SlotResolution{
+		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
+		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord"},
+	}
+	fx.initialThemeCursor = "nord"
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
+	return fx
+}
+
+// themePanelSyntheticDropIns is how many synthetic drop-ins the paginating union
+// carries beside the built-ins.
+//
+// The count is chosen for MARGIN rather than for the exact overflow threshold: the
+// panel body is the render height minus its header, footer and slot rows, so the
+// row count at which a list stops paginating moves with the capture size. A count
+// comfortably above the widest body any capture uses keeps the frame paginating at
+// the tape's size and at §13.4's pinned harness size alike — which matters because
+// a union that fitted on one page at either would put the guard back where §11.2
+// says it must not be.
+const themePanelSyntheticDropIns = 30
+
+// themePanelSyntheticSlug is the slug of one synthetic drop-in. They are named to
+// sort AFTER every built-in slug, so the two badged rows stay on page 1.
+func themePanelSyntheticSlug(i int) string {
+	return fmt.Sprintf("vivid-%02d", i+1)
+}
+
+// themePanelPaginatedUnion is the §9.4 row set the paginating frame lists: the one
+// shared drop-in and the three built-ins, then the synthetic drop-ins — in §9.5's
+// display order throughout.
+func themePanelPaginatedUnion() theme.Union {
+	rows := []theme.Row{
+		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + ".theme", Source: theme.SourceFile},
+		{Slug: "nord", Source: theme.SourceBuiltin},
+		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
+		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
+	}
+	for i := range themePanelSyntheticDropIns {
+		slug := themePanelSyntheticSlug(i)
+		rows = append(rows, theme.Row{Slug: slug, Filename: slug + ".theme", Source: theme.SourceFile})
+	}
+	return theme.Union{Rows: rows, Count: len(rows)}
+}
+
+// themePanelPaginatedEntries is the retained parse behind that union: every file
+// row it lists, in the directory order a real read produces.
+func themePanelPaginatedEntries() []theme.Entry {
+	entries := []theme.Entry{themePanelDirEntry(themePanelDropInSlug+".theme", themePanelDropInSlug)}
+	for i := range themePanelSyntheticDropIns {
+		slug := themePanelSyntheticSlug(i)
+		entries = append(entries, themePanelDirEntry(slug+".theme", slug))
+	}
+	return entries
+}
+
+// themePanelProjectsFixture builds the deterministic "theme-panel-projects"
+// fixture: the adaptive-pair panel composited over the PROJECTS page.
+//
+// §9.6 binds `t` there because theme is a GLOBAL setting — refusing would make it
+// feel page-scoped for no reason — and §14A gave Projects its own transient-flash
+// slot for exactly the panel's signals. Every other panel fixture is implicitly
+// Sessions-based, which is why §13.3 requires this one: the page is seen with the
+// panel over it before release rather than after.
+//
+// It reuses the `projects` fixture's store verbatim, so the page beneath is the
+// one that frame already establishes, and its captureKeys are that fixture's `x`
+// followed by the panel's `t` — the real user path to this screen, typed in the
+// order a user types them.
+//
+// The frame also shows §9.1's ACCEPTED COST at its most visible: the overlay cuts
+// wherever its left border falls, mid-label included, because the page beneath is
+// composed at the UNREDUCED content width and deliberately not re-laid-out.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme nord`, the adaptive pair's dark slot — the row §9.2's
+// open anchors the cursor to under capturetool's gate-free dark fallback (§8.8).
+func themePanelProjectsFixture() *Fixture {
+	fx := projectsFixture()
+	fx.name = "theme-panel-projects"
+	pair := themePanelAdaptivePairFixture()
+	fx.themeKeys = pair.themeKeys
+	fx.themeUnion = pair.themeUnion
+	fx.themeEnumeration = pair.themeEnumeration
+	fx.themeSlots = pair.themeSlots
+	fx.initialThemeCursor = pair.initialThemeCursor
+	// `x` reaches the Projects page (the fixture opens on Sessions, the production
+	// no-arg default); `t` opens the slide-over over it.
+	fx.captureKeys = []tea.KeyPressMsg{keyRune('x'), keyRune('t')}
 	return fx
 }
 
