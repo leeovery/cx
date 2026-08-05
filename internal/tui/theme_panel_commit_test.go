@@ -481,8 +481,8 @@ func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
 	if !m.themePanel.open {
 		t.Error("`Enter` closed the panel over a nil persister")
 	}
-	if got := m.themePanel.message; got != "" {
-		t.Errorf("a nil persister raised the message %q; it is the absence of a WRITER, not a failed write", got)
+	if got := m.themePanel.message; got.Kind != themeMessageNone {
+		t.Errorf("a nil persister raised the message %+v; it is the absence of a WRITER, not a failed write", got)
 	}
 	if cmd != nil {
 		t.Errorf("`Enter` over a nil persister scheduled %T, want nothing", cmd)
@@ -521,8 +521,8 @@ func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
 		t.Errorf("the second commit left keys %+v, want the first's %+v", m.themeKeys, onceKeys)
 	}
 	requireConstantKeys(t, m, target)
-	if got := m.themePanel.message; got != "" {
-		t.Errorf("the repeat commit raised the message %q; there is no retry affordance and no state to clear first (§9.13)", got)
+	if got := m.themePanel.message; got.Kind != themeMessageNone {
+		t.Errorf("the repeat commit raised the message %+v; there is no retry affordance and no state to clear first (§9.13)", got)
 	}
 	if cmd != nil {
 		t.Errorf("the repeat commit scheduled %T, want nothing", cmd)
@@ -708,8 +708,8 @@ func TestPanelEnter_NoConfirmOverAPair(t *testing.T) {
 			m, cmd := pressCommitKey(t, m)
 
 			requireCommitted(t, persister, tc.want(rows))
-			if got := m.themePanel.message; got != "" {
-				t.Errorf("`Enter` raised the message %q; the reverse direction needs no confirm (§9.2)", got)
+			if got := m.themePanel.message; got.Kind != themeMessageNone {
+				t.Errorf("`Enter` raised the message %+v; the reverse direction needs no confirm (§9.2)", got)
 			}
 			if cmd != nil {
 				t.Errorf("`Enter` scheduled %T; the write lands on this keypress rather than awaiting an answer", cmd)

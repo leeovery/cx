@@ -154,3 +154,71 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 		}
 	})
 }
+
+// TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces: its scope does not leak.
+//
+// §9.2's nested confirm scope is a SECOND scope beneath the panel's, not a longer
+// first one, so its containment is a claim of its own: `y confirm` / `n cancel`
+// reach the panel's SUBSTITUTED footer and nothing else. Neither main-screen footer
+// nor either page's help body gains an entry, and — the half the panel scope's own
+// test cannot make — neither does the panel's STANDING footer, which is the surface
+// the confirm's rows temporarily replace rather than join.
+//
+// It also pins the two structural absences §9.12's reasoning gives the panel scope
+// and which apply here verbatim: no RightAligned entry, because a VERTICAL footer
+// has no right anchor, and no `?` entry, because `?` does nothing inside the panel.
+func TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
+	th := testDarkTheme(t)
+	confirm := themePanelConfirmKeymap()
+
+	t.Run("it pins no right anchor and no ? entry", func(t *testing.T) {
+		for _, e := range confirm {
+			if e.RightAligned {
+				t.Errorf("entry %q is RightAligned — a vertical footer has no right anchor", e.Key)
+			}
+			if e.Key == "?" {
+				t.Errorf("confirm scope carries a %q entry — §9.12: ? does nothing inside the panel", e.Key)
+			}
+			if !e.Core {
+				t.Errorf("entry %q is non-core — both confirm keys are what the substituted footer renders", e.Key)
+			}
+		}
+	})
+
+	t.Run("no confirm copy reaches a page surface or the standing footer", func(t *testing.T) {
+		surfaces := map[string]string{
+			"Sessions footer":       renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, th, false),
+			"Projects footer":       renderProjectsFooter(projectsKeymap(), referenceFooterWidth, th, false),
+			"Sessions help body":    helpModalBody(sessionsKeymap(), th, false),
+			"Projects help body":    helpModalBody(projectsKeymap(), th, false),
+			"panel standing footer": renderThemePanelFooter(themePanelKeymap(), themePanelFooterTestWidth, th, false),
+		}
+		needles := []string{}
+		for _, e := range confirm {
+			needles = append(needles, e.HelpAction, helpKeyGlyph(e)+" "+e.Action)
+		}
+		for name, surface := range surfaces {
+			// The surfaces are read in their `<glyph> <label>` form, with the vertical
+			// footer's fixed key column collapsed — so a leak into a padded row reads the
+			// same as a leak into a horizontal one and neither can hide behind whitespace.
+			visible := themePanelFooterCopy(footerVisible(surface))
+			for _, needle := range needles {
+				if strings.Contains(visible, needle) {
+					t.Errorf("%s carries the confirm-scope copy %q:\n%s", name, needle, visible)
+				}
+			}
+		}
+	})
+
+	t.Run("the substituted footer is the scope's only consumer", func(t *testing.T) {
+		// The positive half: the copy every surface above must NOT carry is exactly
+		// what the panel's footer DOES carry once the scope is substituted into it, so
+		// the containment above guards something that renders.
+		substituted := themePanelFooterCopy(footerVisible(renderThemePanelFooter(confirm, themePanelFooterTestWidth, th, false)))
+		for _, e := range confirm {
+			if want := helpKeyGlyph(e) + " " + e.Action; !strings.Contains(substituted, want) {
+				t.Errorf("the substituted footer does not carry %q, so the containment assertions guard nothing:\n%s", want, substituted)
+			}
+		}
+	})
+}

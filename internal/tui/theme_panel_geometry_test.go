@@ -821,10 +821,24 @@ func TestPanelGeometry_ForcedCloseWritesNothing(t *testing.T) {
 	}
 }
 
-// geometryMessage is §14A's slot-from-constant confirm at a short slug — 29 cells,
-// which overflows the minimum panel's inner width (the test asserts that it does) and
-// so exercises both halves of §9.1's slot rule from one string.
-const geometryMessage = "clear constant aurora?  y / n"
+// geometryMessage is §14A's slot-from-constant confirm at a slug SHORT enough to
+// survive §9.5's truncation floor at the minimum panel width, so the only
+// degradation this suite sees is the slot's own. The composed copy is 27 cells,
+// which overflows the minimum panel's inner width (the test asserts that it does)
+// and so exercises both halves of §9.1's slot rule from one message.
+//
+// It is a FUNCTION rather than a package-level var, following this package's
+// test-side convention (see themePanelFooterPinnedRows).
+func geometryMessage() themePanelMessage {
+	return themePanelMessage{Kind: themeMessageConfirm, Slug: "nord"}
+}
+
+// geometryMessageText is that confirm's composed copy at the minimum panel's inner
+// width — the string the slot lays out, taken from the production composer so the
+// test states the SLOT's rule rather than restating the copy.
+func geometryMessageText() string {
+	return themePanelConfirmText(geometryMessage().Slug, themePanelInnerWidth(themePanelMinWidth))
+}
 
 // TestPanelGeometry_MessageTruncatesAtFloorHeight: it truncates the message at the
 // minimum height.
@@ -838,32 +852,40 @@ const geometryMessage = "clear constant aurora?  y / n"
 // overflow the frame; truncation degrades the message the user is being asked to
 // answer rather than the row they are answering ABOUT.
 //
-// Phase 8 ships neither contender, so the slot is driven by setting the field
-// directly — the same way task 8-6 drove the height recompute.
+// The slot is driven by setting the field directly — the same way task 8-6 drove
+// the height recompute — because raising the confirm is task 9-5's dispatch.
+//
+// THE BODY IS THE FLOOR'S MINIMUM PLUS THE CONFIRM'S FOOTER SAVING. §9.2's nested
+// confirm scope substitutes a two-row footer for the standing four, and
+// themePanelListSize hands that saving to the list body — so the message still
+// costs its own row(s) and the body is correspondingly taller. The saving is
+// derived from the two scopes rather than written as a literal, so it stays true if
+// either scope's Core membership changes.
 func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := themePanelTestRows(6)
 	inner := themePanelInnerWidth(themePanelMinWidth)
-	footer := themePanelFooterHeight(themePanelKeymap())
+	footer := themePanelFooterHeight(themePanelFooterScope(geometryMessage()))
 	floor := themePanelMinHeight(themePanelKeymap(), false)
+	wantBody := themePanelMinBodyRows + themePanelFooterHeight(themePanelKeymap()) - footer
 
-	if lipgloss.Width(geometryMessage) <= inner {
-		t.Fatalf("fixture: the %d-cell message fits the %d-cell inner width, so neither degradation is exercised", lipgloss.Width(geometryMessage), inner)
+	if lipgloss.Width(geometryMessageText()) <= inner {
+		t.Fatalf("fixture: the %d-cell message fits the %d-cell inner width, so neither degradation is exercised", lipgloss.Width(geometryMessageText()), inner)
 	}
 
 	p := newThemePanelFixture(themePanelFixtureOpts{
 		th:      th,
 		width:   themePanelMinWidth,
 		rows:    rows,
-		message: geometryMessage,
+		message: geometryMessage(),
 	})
 
 	t.Run("at the minimum height it truncates to one line", func(t *testing.T) {
-		if got := themePanelMessageHeight(geometryMessage, inner, false); got != 1 {
+		if got := themePanelMessageHeight(geometryMessage(), inner, false); got != 1 {
 			t.Fatalf("the truncated slot reserves %d rows, want 1", got)
 		}
-		if _, body := themePanelListSize(p, floor); body != themePanelMinBodyRows {
-			t.Errorf("at the floor the list body is %d rows, want the floor's %d", body, themePanelMinBodyRows)
+		if _, body := themePanelListSize(p, floor); body != wantBody {
+			t.Errorf("at the floor the list body is %d rows, want %d", body, wantBody)
 		}
 
 		lines := themePanelLines(renderThemePanel(p, floor, th, false))
@@ -884,11 +906,11 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 
 	t.Run("one row above the floor it may wrap to two", func(t *testing.T) {
 		height := floor + 1
-		if got := themePanelMessageHeight(geometryMessage, inner, true); got != themePanelMessageWrapRows {
+		if got := themePanelMessageHeight(geometryMessage(), inner, true); got != themePanelMessageWrapRows {
 			t.Fatalf("the wrapped slot reserves %d rows, want %d", got, themePanelMessageWrapRows)
 		}
-		if _, body := themePanelListSize(p, height); body != themePanelMinBodyRows {
-			t.Errorf("one row above the floor the list body is %d rows, want %d — the second message row comes out of the slot's own budget", body, themePanelMinBodyRows)
+		if _, body := themePanelListSize(p, height); body != wantBody {
+			t.Errorf("one row above the floor the list body is %d rows, want %d — the second message row comes out of the slot's own budget", body, wantBody)
 		}
 
 		lines := themePanelLines(renderThemePanel(p, height, th, false))
@@ -904,7 +926,7 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		// rows rather than searched for as a substring, because the wrap point is a
 		// function of the inner width and may fall anywhere — including mid-phrase —
 		// and what §9.1 promises is that nothing is lost, not where the break lands.
-		if got, want := chromeWords(themePanelSlotText(slot)), chromeWords(geometryMessage); got != want {
+		if got, want := chromeWords(themePanelSlotText(slot)), chromeWords(geometryMessageText()); got != want {
 			t.Errorf("the wrapped slot reads %q, want the whole message %q", got, want)
 		}
 		if listRow := lines[themePanelHeaderRows()]; !strings.Contains(listRow, rows[0].Label()) {
@@ -922,17 +944,20 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 // The footer is the row that goes first when the arithmetic is wrong, and `esc
 // close` is its first entry, so a floor that overflows takes the one key that closes
 // a panel the user can no longer read the way out of.
+//
+// THE FLOOR IS THE STANDING SCOPE'S IN EVERY CASE (§9.8), but the FOOTER that must
+// survive at it is the slot's own: with §9.2's confirm live the panel renders the
+// nested scope's two rows, and the whole of THAT is what must be present.
 func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := themePanelTestRows(12)
-	entries := themePanelKeymap()
 	inner := themePanelInnerWidth(themePanelMinWidth)
-	wantFooter := themePanelLines(renderThemePanelFooter(entries, inner, th, false))
 
 	for _, dirUnusable := range []bool{false, true} {
-		for _, message := range []string{"", geometryMessage} {
-			floor := themePanelMinHeight(entries, dirUnusable)
-			name := fmt.Sprintf("dir=%v/msg=%v/h=%d", dirUnusable, message != "", floor)
+		for _, message := range []themePanelMessage{{}, geometryMessage()} {
+			floor := themePanelMinHeight(themePanelKeymap(), dirUnusable)
+			wantFooter := themePanelLines(renderThemePanelFooter(themePanelFooterScope(message), inner, th, false))
+			name := fmt.Sprintf("dir=%v/msg=%v/h=%d", dirUnusable, message.Kind != themeMessageNone, floor)
 			t.Run(name, func(t *testing.T) {
 				p := newThemePanelFixture(themePanelFixtureOpts{
 					th:          th,
@@ -965,7 +990,7 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 						t.Errorf("footer row %d = %q, want %q — the floor overflowed and the assembly cut the footer", i, got, wantRow)
 					}
 				}
-				if message == "" {
+				if message.Kind == themeMessageNone {
 					return
 				}
 				slot := strings.TrimRight(lines[len(lines)-len(wantFooter)-1], " ")

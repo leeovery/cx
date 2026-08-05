@@ -207,11 +207,11 @@ func projectsKeymap() []keymapEntry {
 // than a help body, and a help modal over a non-blanking overlay would stack the
 // shape §9.6 rejects.
 //
-// Phase 9 adds a NESTED CONFIRM SCOPE beneath this one (§9.2) whose footer
-// temporarily replaces this one (`y confirm` / `n cancel`) while the
-// slot-from-constant confirm is live. That is why renderThemePanelFooter takes its
-// entries as a PARAMETER and never calls this function: the shape must admit
-// substitution rather than assume one footer per panel.
+// The NESTED CONFIRM SCOPE beneath this one is themePanelConfirmKeymap, whose
+// footer temporarily replaces this one while §9.2's slot-from-constant confirm is
+// live. That is why renderThemePanelFooter takes its entries as a PARAMETER and
+// never calls this function: the shape must admit substitution rather than assume
+// one footer per panel.
 func themePanelKeymap() []keymapEntry {
 	return []keymapEntry{
 		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
@@ -220,6 +220,40 @@ func themePanelKeymap() []keymapEntry {
 		{Key: "d", Action: "set as dark", HelpAction: "Assign to the dark slot", Core: true},
 		{Key: "l", Action: "set as light", HelpAction: "Assign to the light slot", Core: true},
 		{Key: "esc", Action: "close", HelpAction: "Close the theme picker", Core: true},
+	}
+}
+
+// themePanelConfirmKeymap returns §9.2's NESTED CONFIRM SCOPE — the keys the
+// slot-from-constant confirm resolves on, as a scope BENEATH the panel scope above.
+//
+// IT IS A SECOND SCOPE, NOT A LONGER FIRST ONE. §9.12's "all six" is the PANEL
+// scope's own membership; the confirm is a nested scope beside it, not a
+// sixth-plus-four list. That is what keeps the panel's own footer at §14A's pinned
+// four rows while the confirm's substitutes two of its own.
+//
+// IT EXISTS BECAUSE THE CONFIRM'S FOOTER IS THE SECOND PLACE A KEY LABEL COULD GO
+// STALE. While the confirm is live it is key-exclusive within the panel and
+// resolves on `y`/`Y`, `n`/`N` or `Esc` alone — so the standing footer would list
+// four keys of which NONE would act, and §14.3 is firm that advertising a key that
+// will not act is the dead end a proactive block exists to prevent. Authoring the
+// substituted footer as a bespoke binding list inside the renderer is exactly the
+// drift keymap_dispatch_guard_test exists to close, one layer down; the guard
+// consumes THIS scope (the uppercase `Y`/`N` dispatch included, which the descriptor
+// does not restate because the glyphs are the terse footer form).
+//
+// No entry sets RightAligned and there is no `?` entry, for the SAME reasons the
+// panel scope has neither: the footer is VERTICAL, so there is no right anchor to
+// pin an entry to, and §9.12 gives `?` nothing to do inside the panel — it is
+// swallowed with everything else, and a help modal over a non-blanking overlay would
+// stack the shape §9.6 rejects.
+//
+// The Action strings are §14A's terse footer copy; the HelpAction forms say what
+// each answer DOES to the setting, which is the distinction the user is being asked
+// to make.
+func themePanelConfirmKeymap() []keymapEntry {
+	return []keymapEntry{
+		{Key: "y", Action: "confirm", HelpAction: "Clear the constant and set the slot", Core: true},
+		{Key: "n", Action: "cancel", HelpAction: "Keep the constant", Core: true},
 	}
 }
 

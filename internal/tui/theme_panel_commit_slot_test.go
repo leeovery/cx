@@ -411,8 +411,8 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			if !m.themePanel.open {
 				t.Errorf("%q closed the panel over a constant", tc.name)
 			}
-			if got := m.themePanel.message; got != "" {
-				t.Errorf("%q raised the message %q; the confirm seam is a no-op until task 9-5", tc.name, got)
+			if got := m.themePanel.message; got.Kind != themeMessageNone {
+				t.Errorf("%q raised the message %+v; the confirm seam is a no-op until task 9-5", tc.name, got)
 			}
 			if m.activeTheme != previewed {
 				t.Errorf("%q rendered canvas %s, want the previewed %s left alone", tc.name, m.activeTheme.Canvas.Value, previewed.Canvas.Value)
@@ -561,8 +561,8 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	if got := m.themePanel.badges; !maps.Equal(got, onceBadges) {
 		t.Errorf("the second commit left badges %v, want the first's %v", got, onceBadges)
 	}
-	if got := m.themePanel.message; got != "" {
-		t.Errorf("the repeat commit raised the message %q; there is no retry affordance and no state to clear first (§9.13)", got)
+	if got := m.themePanel.message; got.Kind != themeMessageNone {
+		t.Errorf("the repeat commit raised the message %+v; there is no retry affordance and no state to clear first (§9.13)", got)
 	}
 	if cmd != nil {
 		t.Errorf("the repeat commit scheduled %T, want nothing", cmd)
@@ -702,8 +702,8 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		if m.activeTheme != previewed {
 			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
 		}
-		if got := m.themePanel.message; got != "" {
-			t.Errorf("a failed slot commit raised the message %q; §9.13's line is task 9-7's", got)
+		if got := m.themePanel.message; got.Kind != themeMessageNone {
+			t.Errorf("a failed slot commit raised the message %+v; §9.13's line is task 9-7's", got)
 		}
 		if cmd != nil {
 			t.Errorf("a failed slot commit scheduled %T, want nothing", cmd)
@@ -782,8 +782,8 @@ func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 	if !m.themePanel.open {
 		t.Error("`d` closed the panel over a nil persister")
 	}
-	if got := m.themePanel.message; got != "" {
-		t.Errorf("a nil persister raised the message %q; it is the absence of a WRITER, not a failed write", got)
+	if got := m.themePanel.message; got.Kind != themeMessageNone {
+		t.Errorf("a nil persister raised the message %+v; it is the absence of a WRITER, not a failed write", got)
 	}
 	if cmd != nil {
 		t.Errorf("`d` over a nil persister scheduled %T, want nothing", cmd)
@@ -830,8 +830,8 @@ func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	}
 	requireBadge(t, m, "aurora", theme.BadgeConstant)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeNone)
-	if got := m.themePanel.message; got != "" {
-		t.Errorf("`Enter` after a slot commit raised the message %q; the reverse direction needs no confirm (§9.2)", got)
+	if got := m.themePanel.message; got.Kind != themeMessageNone {
+		t.Errorf("`Enter` after a slot commit raised the message %+v; the reverse direction needs no confirm (§9.2)", got)
 	}
 	if cmd != nil {
 		t.Errorf("`Enter` scheduled %T; the write lands on this keypress rather than awaiting an answer", cmd)

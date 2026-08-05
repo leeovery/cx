@@ -111,16 +111,6 @@ const (
 	// — asking "clear constant <slug>?" about a row that has just been pushed off
 	// screen, which is the one question the user cannot answer.
 	themePanelFloorMessageRows = 1
-
-	// themePanelMessageWrapRows is the slot's height when it WRAPS — §9.1's "at the
-	// minimum panel width the slot may wrap to two rows", read as the slot's maximum
-	// rather than as an observation about one string.
-	//
-	// The cap is what keeps the vertical budget provably bounded. themePanelBlock can
-	// only CUT an over-long assembly, and it cuts from the BOTTOM — off the footer,
-	// `esc close` first — so an unbounded slot is one long message away from taking
-	// the key that closes a panel the user can no longer read the way out of.
-	themePanelMessageWrapRows = 2
 )
 
 // THE PANEL'S HEADER REGION IS MEASURED OFF THE PAGE'S, NEVER RESTATED.
@@ -243,12 +233,12 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 // message row, plus §9.5's pinned directory row when the themes directory is
 // unusable.
 //
-// NOTHING HERE IS A LITERAL. The footer is measured (themePanelFooterHeight), which
-// is what makes the floor follow Phase 9's shorter confirm footer without a second
-// edit; the HEADER is measured too (themePanelHeaderRows), which is what makes it
-// follow the page's own header and section header. A restated header count is
-// exactly what task 8-6 shipped and exactly what drifted — so the floor grows by
-// precisely the rows the header gained, with no second edit here either.
+// NOTHING HERE IS A LITERAL. The footer is measured (themePanelFooterHeight), so a
+// change to the scope it is handed moves the floor with no second edit; the HEADER
+// is measured too (themePanelHeaderRows), which is what makes it follow the page's
+// own header and section header. A restated header count is exactly what task 8-6
+// shipped and exactly what drifted — so the floor grows by precisely the rows the
+// header gained, with no second edit here either.
 //
 // THE MESSAGE ROW IS UNCONDITIONAL and the DIRECTORY ROW IS CONDITIONAL, and both
 // halves are load-bearing. The message row is counted although §9.1 leaves the slot
@@ -259,6 +249,17 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 // never would let the warning consume the single list row, leaving nothing
 // selectable on screen at exactly the moment §9.5 requires built-in and persisted
 // rows to render beneath it.
+//
+// EVERY CALLER PASSES THE STANDING SCOPE, AND §9.2's NESTED CONFIRM SCOPE ADDS NO
+// ROW TO THE FLOOR. That is the non-obvious half of "the slot's height feeds the
+// floor arithmetic unchanged", and it holds for one reason: the confirm's footer is
+// STRICTLY SHORTER than the standing one (two Core entries against four), so a
+// terminal that clears the floor with the standing footer has rows to SPARE the
+// moment the confirm raises — the substituted footer hands its saving to the list
+// body (themePanelListSize). Computing the floor from whichever scope happened to
+// be live would therefore admit terminals that could not render the panel once the
+// confirm resolved, which is the direction that breaks: the floor must hold for the
+// footer that is live LONGEST, not for the transient one.
 func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
 	return themePanelHeaderRows() +
 		themePanelDirRowHeight(dirUnusable) +
@@ -370,18 +371,18 @@ type themePanel struct {
 	// write that did not land (§9.13).
 	badges map[string]theme.Badge
 
-	// message is §9.1's message slot, and it is STILL ALWAYS EMPTY: both of the
-	// slot's contenders — the slot-from-constant confirm (§9.2) and the
-	// failed-commit line (§9.13) — belong to later tasks, so the slot's height is
-	// accounted for while the field has no setter and no arbiter here.
+	// message is §9.1's message slot: a SINGLE-SLOT ARBITER holding at most one of
+	// its two contenders — the slot-from-constant confirm (§9.2) and the
+	// failed-commit line (§9.13). The two can never be live at once, because a
+	// confirm resolves before any write happens; theme_panel_message.go holds the
+	// value, its pinned copy, its renderer and the three writers that install it.
 	//
-	// `Enter` RAISES NEITHER, and that is a decision rather than a gap. §9.2 gives
-	// the commit-a-constant key no confirm even over a pair — it visibly does what
-	// it says, and the theme is already previewing behind the panel — and its
-	// failed-write report is task 9-7's. The asymmetry with `d`/`l` is the point:
-	// the confirm guards the case where the RESOLVED theme changes as a side effect
-	// of a write the user was told is inert.
-	message string
+	// `Enter` RAISES NO CONFIRM, and that is a decision rather than a gap. §9.2
+	// gives the commit-a-constant key no confirm even over a pair — it visibly does
+	// what it says, and the theme is already previewing behind the panel. The
+	// asymmetry with `d`/`l` is the point: the confirm guards the case where the
+	// RESOLVED theme changes as a side effect of a write the user was told is inert.
+	message themePanelMessage
 
 	// width is the panel's OUTER width, border column included — the value
 	// themePanelWidthFor chooses between themePanelMinWidth and themePanelPreferredWidth.
@@ -1287,17 +1288,20 @@ func themePanelInnerWidth(width int) int {
 // the layout can be resolved before a theme is in hand (themePanelMinHeight's floor
 // arithmetic reads the same measurements).
 //
-// The footer's entries are the panel scope's, resolved here and again at render
-// time. Phase 9's nested confirm scope (§9.2) TEMPORARILY REPLACES that footer with
-// a shorter one, so whatever threads the live scope through must thread it through
-// BOTH — a budget reserving four rows while a two-row footer renders would leave two
-// rows of the panel unaccounted for.
+// THE FOOTER'S ENTRIES ARE THE SLOT'S OWN SCOPE (themePanelFooterScope), resolved
+// here and again at render time from the SAME message — §9.2's nested confirm scope
+// temporarily replaces the standing footer with a shorter one, and a budget
+// reserving four rows while a two-row footer renders would leave two rows of the
+// panel unaccounted for. The saving lands in the LIST BODY, which is the block this
+// remainder sizes: that is what "the panel's layout absorbs the difference" means
+// in practice, and it is why the height floor stays on the standing scope
+// (themePanelMinHeight).
 func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
 	reserved := themePanelHeaderRows() +
 		themePanelDirRowHeight(p.union.DirUnusable) +
 		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)) +
-		themePanelFooterHeight(themePanelKeymap())
+		themePanelFooterHeight(themePanelFooterScope(p.message))
 	return inner, max(height-reserved, themePanelMinBodyRows)
 }
 
@@ -1325,7 +1329,7 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	rows = appendBlock(rows, themePanelDirRow(p.union.DirUnusable, th, colourless))
 	rows = appendBlock(rows, clampBlockHeight(p.list.View(), bodyRows))
 	rows = appendBlock(rows, renderThemePanelMessage(p.message, inner, themePanelMessageWraps(p, height), th, colourless))
-	rows = appendBlock(rows, renderThemePanelFooter(themePanelKeymap(), inner, th, colourless))
+	rows = appendBlock(rows, renderThemePanelFooter(themePanelFooterScope(p.message), inner, th, colourless))
 
 	return themePanelBlock(rows, height, p.width, th, colourless)
 }
@@ -1389,76 +1393,6 @@ func themePanelDirRow(unusable bool, th theme.Theme, colourless bool) string {
 // row is by construction the row that renders.
 func themePanelDirRowHeight(unusable bool) int {
 	return blockHeight(themePanelDirRow(unusable, theme.Theme{}, true))
-}
-
-// renderThemePanelMessage renders §9.1's message slot: the row (or two) directly
-// above the vertical keymap footer, or "" when there is no message.
-//
-// IT IS NOT RESERVED WHEN EMPTY — it appears and the list shrinks by one, the same
-// way the main screen's notice band recomputes list height.
-//
-// THE TWO DIMENSIONS DEGRADE DIFFERENTLY, ON PURPOSE (§9.1). At the minimum panel
-// WIDTH the slot may wrap to two rows — it is not a list delegate, so wrapping costs
-// pagination nothing. At the minimum HEIGHT it is TRUNCATED to one line instead,
-// because §9.8's floor counts exactly one message row: a two-row message there would
-// leave zero list rows or overflow the frame, and truncating degrades the message
-// the user is being asked to answer rather than the row they are answering ABOUT.
-// wrap carries that decision in from the caller (themePanelMessageWraps), so the
-// budget above and the block below resolve it once and identically.
-//
-// The wrap is CAPPED at themePanelMessageWrapRows with the overflow truncated into
-// the last row, so the slot's cost is bounded whatever it is handed (see that
-// constant). A zero or negative inner width takes the truncating path, which is also
-// the only width ansi.Wrap declines to act on.
-//
-// The slot is a single-slot ARBITER with two contenders, and BOTH ARE PHASE 9's —
-// the slot-from-constant confirm (§9.2, text.secondary, no band) and the failed
-// commit write (§9.13, `⚠` and text in accent.attention). Phase 8 ships neither, so
-// the text renders in the confirm's role and Phase 9 adds the discrimination along
-// with the states that need it. There is deliberately no contender, setter or
-// arbiter here.
-func renderThemePanelMessage(message string, inner int, wrap bool, th theme.Theme, colourless bool) string {
-	if message == "" {
-		return ""
-	}
-	return headerStyle(th.TextSecondary, th, colourless).Render(themePanelMessageText(message, inner, wrap))
-}
-
-// themePanelMessageText lays §9.1's message out for the slot — one truncated line,
-// or up to themePanelMessageWrapRows wrapped ones with the overflow truncated into
-// the last.
-func themePanelMessageText(message string, inner int, wrap bool) string {
-	width := max(inner, 0)
-	if !wrap || width == 0 {
-		return ansi.Truncate(message, width, themeRowEllipsis)
-	}
-	lines := strings.Split(ansi.Wrap(message, width, ""), "\n")
-	if len(lines) <= themePanelMessageWrapRows {
-		return strings.Join(lines, "\n")
-	}
-	head := lines[:themePanelMessageWrapRows-1]
-	tail := ansi.Truncate(strings.Join(lines[themePanelMessageWrapRows-1:], " "), width, themeRowEllipsis)
-	return strings.Join(append(head, tail), "\n")
-}
-
-// themePanelMessageHeight is the message slot's MEASURED height — the value
-// themePanelListSize subtracts, so a message appearing costs the list exactly the
-// rows the slot renders. It measures the real renderer (with a zero theme and the
-// colourless path, as themePanelFooterHeight does), so the two cannot drift.
-func themePanelMessageHeight(message string, inner int, wrap bool) int {
-	return blockHeight(renderThemePanelMessage(message, inner, wrap, theme.Theme{}, true))
-}
-
-// themePanelMessageWraps reports whether the slot may wrap at the height the panel
-// is being rendered at — §9.1's per-dimension rule resolved in ONE place, so the
-// budget themePanelListSize reserves and the block renderThemePanel assembles can
-// never disagree about how many rows the message costs.
-//
-// At or below §9.8's floor the slot truncates; above it, it wraps. `at or below`
-// rather than `at`, because renderThemePanel is a pure function of the height it is
-// handed and a sub-floor height is a shape a fixture can hand it.
-func themePanelMessageWraps(p themePanel, height int) bool {
-	return height > themePanelMinHeight(themePanelKeymap(), p.union.DirUnusable)
 }
 
 // themePanelBlock assembles the panel's rows into the finished block: each row

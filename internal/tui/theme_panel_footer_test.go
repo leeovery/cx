@@ -62,18 +62,6 @@ func themePanelFooterCopy(row string) string {
 	return strings.Join(strings.Fields(row), " ")
 }
 
-// themePanelConfirmScope is Phase 9's nested confirm scope (§9.2) as a stand-in:
-// the two keys its footer TEMPORARILY REPLACES the panel footer with while the
-// slot-from-constant confirm is live. It lives in the test because Phase 9 owns
-// the real scope — this task only has to leave room for it, and the room is
-// exactly "the renderer renders whatever entries it is handed".
-func themePanelConfirmScope() []keymapEntry {
-	return []keymapEntry{
-		{Key: "y", Action: "confirm", Core: true},
-		{Key: "n", Action: "cancel", Core: true},
-	}
-}
-
 // TestThemePanelFooter_PinnedCopy asserts the rendered footer is EXACTLY the four
 // §14A rows, in descriptor order, one line each.
 //
@@ -166,7 +154,7 @@ func TestThemePanelFooter_KeyColumnIsFixedWidth(t *testing.T) {
 			entries []keymapEntry
 		}{
 			{"panel scope", themePanelKeymap()},
-			{"substituted confirm scope", themePanelConfirmScope()},
+			{"substituted confirm scope", themePanelConfirmKeymap()},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				rows := themePanelFooterLines(renderThemePanelFooter(tc.entries, themePanelFooterTestWidth, th, false))
@@ -204,7 +192,7 @@ func TestThemePanelFooter_KeyColumnIsFixedWidth(t *testing.T) {
 // slot-from-constant confirm is live and back when it resolves, so a renderer that
 // reached for themePanelKeymap() internally would have to be forked to do it.
 func TestThemePanelFooter_AcceptsASubstitutedScope(t *testing.T) {
-	block := renderThemePanelFooter(themePanelConfirmScope(), themePanelFooterTestWidth, testDarkTheme(t), false)
+	block := renderThemePanelFooter(themePanelConfirmKeymap(), themePanelFooterTestWidth, testDarkTheme(t), false)
 	rows := themePanelFooterLines(block)
 
 	want := []string{"y confirm", "n cancel"}
@@ -237,7 +225,7 @@ func TestThemePanelFooter_HeightMatchesRender(t *testing.T) {
 		want    int
 	}{
 		{"panel scope", themePanelKeymap(), 4},
-		{"substituted confirm scope", themePanelConfirmScope(), 2},
+		{"substituted confirm scope", themePanelConfirmKeymap(), 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := themePanelFooterHeight(tc.entries); got != tc.want {

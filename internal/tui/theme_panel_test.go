@@ -48,7 +48,7 @@ type themePanelFixtureOpts struct {
 	width       int
 	rows        []theme.Row
 	dirUnusable bool
-	message     string
+	message     themePanelMessage
 }
 
 // newThemePanelFixture builds an OPEN panel over the given rows, wiring the list
@@ -126,17 +126,17 @@ func TestThemePanel_BlockGeometry(t *testing.T) {
 
 	for _, width := range []int{themePanelMinWidth, themePanelPreferredWidth} {
 		for _, dirUnusable := range []bool{false, true} {
-			for _, message := range []string{"", "clear constant nord?  y / n"} {
+			for _, message := range []themePanelMessage{{}, messageTestConfirm()} {
 				floor := themePanelHeaderRows() + themePanelTestBodyRows + footerRows
 				if dirUnusable {
 					floor++
 				}
-				if message != "" {
+				if message.Kind != themeMessageNone {
 					floor += themePanelTestMessageRows
 				}
 
 				for height := floor; height <= floor+12; height++ {
-					name := fmt.Sprintf("w=%d/dir=%v/msg=%v/h=%d", width, dirUnusable, message != "", height)
+					name := fmt.Sprintf("w=%d/dir=%v/msg=%v/h=%d", width, dirUnusable, message.Kind != themeMessageNone, height)
 					t.Run(name, func(t *testing.T) {
 						p := newThemePanelFixture(themePanelFixtureOpts{
 							th:          th,
@@ -181,22 +181,27 @@ func TestThemePanel_BlockGeometry(t *testing.T) {
 // of the four floor cases (the pinned directory row and a live message each cost a
 // viewport row, §9.5 / §9.8), together with the message slot that is due directly
 // above it.
+//
+// The footer it is asserted against is the SLOT'S OWN SCOPE (§9.2's nested confirm
+// scope while the confirm is live), because that is the footer the panel renders —
+// and each case's floor is scanned from that footer's height, so the confirm's
+// shorter one is exercised at ITS floor rather than at the standing footer's.
 func TestThemePanel_FooterSurvivesAtTheFloor(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
-	wantFooter := themePanelLines(renderThemePanelFooter(themePanelKeymap(), inner, th, false))
 
 	for _, dirUnusable := range []bool{false, true} {
-		for _, message := range []string{"", "clear constant nord?  y / n"} {
+		for _, message := range []themePanelMessage{{}, messageTestConfirm()} {
+			wantFooter := themePanelLines(renderThemePanelFooter(themePanelFooterScope(message), inner, th, false))
 			floor := themePanelHeaderRows() + themePanelTestBodyRows + len(wantFooter)
 			if dirUnusable {
 				floor++
 			}
-			if message != "" {
+			if message.Kind != themeMessageNone {
 				floor += themePanelTestMessageRows
 			}
 
-			name := fmt.Sprintf("dir=%v/msg=%v/h=%d", dirUnusable, message != "", floor)
+			name := fmt.Sprintf("dir=%v/msg=%v/h=%d", dirUnusable, message.Kind != themeMessageNone, floor)
 			t.Run(name, func(t *testing.T) {
 				p := newThemePanelFixture(themePanelFixtureOpts{
 					th:          th,
@@ -213,7 +218,7 @@ func TestThemePanel_FooterSurvivesAtTheFloor(t *testing.T) {
 						t.Errorf("footer row %d = %q, want %q", i, got, wantRow)
 					}
 				}
-				if message == "" {
+				if message.Kind == themeMessageNone {
 					return
 				}
 				slot := lines[len(lines)-len(wantFooter)-1]
@@ -465,13 +470,13 @@ func TestThemePanel_MessageSlotUnreservedWhenEmpty(t *testing.T) {
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
 
 	for _, wrap := range []bool{false, true} {
-		if got := renderThemePanelMessage("", inner, wrap, th, false); got != "" {
+		if got := renderThemePanelMessage(themePanelMessage{}, inner, wrap, th, false); got != "" {
 			t.Errorf("an empty message rendered %q with wrap=%v, want the empty string", got, wrap)
 		}
-		if got := themePanelMessageHeight("", inner, wrap); got != 0 {
+		if got := themePanelMessageHeight(themePanelMessage{}, inner, wrap); got != 0 {
 			t.Errorf("an empty message reserved %d rows with wrap=%v, want 0", got, wrap)
 		}
-		if got := themePanelMessageHeight("clear constant nord?  y / n", inner, wrap); got != themePanelTestMessageRows {
+		if got := themePanelMessageHeight(messageTestConfirm(), inner, wrap); got != themePanelTestMessageRows {
 			t.Errorf("a live message reserved %d rows with wrap=%v, want %d", got, wrap, themePanelTestMessageRows)
 		}
 	}
@@ -481,8 +486,12 @@ func TestThemePanel_MessageSlotUnreservedWhenEmpty(t *testing.T) {
 // rule: the message appears and the list shrinks by one, exactly the way the main
 // screen's notice band recomputes list height.
 //
-// It is driven by setting the field directly, since Phase 8 ships neither of the
-// slot's two contenders (both are commit-path states owned by Phase 9).
+// It is driven by setting the field directly, since raising either contender is a
+// commit-path dispatch. The contender is §9.13's FAILED-COMMIT line rather than
+// §9.2's confirm, because the confirm additionally substitutes its own shorter
+// footer (§9.2's nested scope) and would net the list a row rather than costing it
+// one — the substitution has its own gate in theme_panel_message_test.go, and this
+// one is about the slot alone.
 func TestThemePanel_MessageSlotRecomputesListHeight(t *testing.T) {
 	th := testDarkTheme(t)
 	const height = 14
@@ -493,7 +502,7 @@ func TestThemePanel_MessageSlotRecomputesListHeight(t *testing.T) {
 	}
 
 	empty := newThemePanelFixture(opts)
-	opts.message = "clear constant nord?  y / n"
+	opts.message = messageTestFailed()
 	live := newThemePanelFixture(opts)
 
 	_, emptyRows := themePanelListSize(empty, height)
@@ -510,7 +519,7 @@ func TestThemePanel_MessageSlotRecomputesListHeight(t *testing.T) {
 	}
 	lines := themePanelLines(block)
 	slot := lines[height-themePanelFooterHeight(themePanelKeymap())-1]
-	if !strings.Contains(slot, "clear constant nord?") {
+	if !strings.Contains(slot, themePanelCommitFailedMessage) {
 		t.Errorf("the row above the footer is not the message slot: %q", slot)
 	}
 }
@@ -589,7 +598,7 @@ func TestThemePanel_EveryChromeSurfaceIsATokenLookup(t *testing.T) {
 			width:       themePanelPreferredWidth,
 			rows:        rows,
 			dirUnusable: true,
-			message:     "clear constant nord?  y / n",
+			message:     messageTestConfirm(),
 		})
 		return renderThemePanel(p, height, th, false)
 	}
@@ -988,7 +997,7 @@ func TestThemePanel_Colourless(t *testing.T) {
 		width:       themePanelPreferredWidth,
 		rows:        themePanelTestRows(5),
 		dirUnusable: true,
-		message:     "clear constant nord?  y / n",
+		message:     messageTestConfirm(),
 	})
 	block := renderThemePanel(p, 14, th, true)
 

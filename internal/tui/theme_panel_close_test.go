@@ -316,8 +316,8 @@ func TestPanelClose_EnumerationDiscarded(t *testing.T) {
 	if got := m.themePanel.badges; got != nil {
 		t.Errorf("close retained the badge table %v, want none", got)
 	}
-	if got := m.themePanel.message; got != "" {
-		t.Errorf("close retained the message %q, want it cleared", got)
+	if got := m.themePanel.message; got.Kind != themeMessageNone {
+		t.Errorf("close retained the message %+v, want it cleared", got)
 	}
 	if got := m.themePanel.width; got != 0 {
 		t.Errorf("close retained width %d, want 0", got)

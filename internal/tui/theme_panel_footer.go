@@ -36,7 +36,7 @@ import (
 // nearly half a 27-column panel).
 //
 // It is a FIXED constant rather than the widest glyph in the entries it is handed,
-// deliberately: Phase 9's confirm footer substitutes `y`/`n` into the SAME screen
+// deliberately: §9.2's confirm footer substitutes `y`/`n` into the SAME screen
 // position, and a per-slice column would step its labels two cells left as the
 // confirm raises and back again as it resolves.
 //
@@ -48,13 +48,13 @@ const themePanelFooterKeyColumnWidth = 3
 // renderThemePanelFooter renders the §9.1 vertical keymap footer for the given
 // entries: the Core entries only, one row per entry, each padded to width cells.
 //
-// IT TAKES ITS ENTRIES AS A PARAMETER AND NEVER CALLS themePanelKeymap. Phase 9
-// adds a nested confirm scope beneath the panel scope (§9.2) whose footer
-// TEMPORARILY REPLACES this one — `y confirm` / `n cancel` while the
-// slot-from-constant confirm is live, switching back when it resolves — so the
-// shape must admit substitution rather than assume one footer per panel. A second
-// renderer for the confirm would be the same drift this footer's descriptor
-// discipline exists to prevent, one layer down.
+// IT TAKES ITS ENTRIES AS A PARAMETER AND NEVER CALLS themePanelKeymap. §9.2's
+// nested confirm scope (themePanelConfirmKeymap) TEMPORARILY REPLACES this footer
+// — `y confirm` / `n cancel` while the slot-from-constant confirm is live,
+// switching back when it resolves — and the live scope is chosen by
+// themePanelFooterScope, which the panel's layout and its render path both read.
+// A second renderer for the confirm would be the same drift this footer's
+// descriptor discipline exists to prevent, one layer down.
 //
 // width is the panel's INNER content width; rows are padded out to it so the
 // canvas covers every cell. A row wider than width is returned unpadded rather
