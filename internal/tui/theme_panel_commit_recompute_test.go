@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -104,24 +105,28 @@ func TestPanelRecompute_RowDisappearsOnConstantCommit(t *testing.T) {
 	requireCursorOn(t, m, "sunset")
 }
 
-// commitSlotForTest is the in-memory shape a SLOT commit leaves behind: the named
-// slot written and the constant cleared, with the other slot untouched — exactly
-// what prefs.SaveThemeSlot performs on disk in one atomic write (§8.2), mirrored
-// onto the model's raw keys.
+// commitSlotForTest drives a SLOT commit through the PRODUCTION path (task 9-3's
+// commitSlot): the named slot written, the constant cleared in the same write and
+// the other slot left untouched — prefs.SaveThemeSlot's on-disk shape (§8.2)
+// mirrored onto the model's raw keys — followed by this task's recompute.
 //
-// The slot commit KEY is task 9-3's and the confirm gating it is task 9-5's, so the
-// recompute is driven DIRECTLY here rather than through a key that does not exist
-// yet. What is being asserted is this task's half — that the recompute renders the
-// row a newly-live slot mints — and that half is identical whichever key gets it
-// there.
-func commitSlotForTest(t *testing.T, m Model, keys theme.RawKeys) Model {
+// IT TAKES (slug, slot) RATHER THAN THE FINISHED KEYS, so the recompute is driven
+// from a state a single slot commit can actually produce: a helper assigning keys
+// of its own could hand the panel a pair no keypress could reach and the row
+// assertions below would be about that instead.
+//
+// The KEY that reaches this commit is gated behind task 9-5's confirm while a
+// constant is set (§9.2), which is why the helper calls the commit directly rather
+// than pressing `d` — the recompute's half is identical whichever route gets there.
+func commitSlotForTest(t *testing.T, m Model, slug string, slot prefs.ThemeSlot) Model {
 	t.Helper()
 
-	if keys.Theme != "" {
-		t.Fatalf("fixture: the post-slot-commit keys are %+v, want the constant cleared (§8.2)", keys)
+	if err := (&m).commitSlot(slug, slot); err != nil {
+		t.Fatalf("commitSlot(%s, %v): %v", slug, slot, err)
 	}
-	m.themeKeys = keys
-	(&m).recomputeThemePanel()
+	if m.themeKeys.Theme != "" {
+		t.Fatalf("the slot commit left the constant %q set; §8.2 clears it in the SAME write", m.themeKeys.Theme)
+	}
 	return m
 }
 
@@ -145,7 +150,7 @@ func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 	requireRowLabels(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireCursorOn(t, m, "sunset")
 
-	m = commitSlotForTest(t, m, theme.RawKeys{Light: keys.Light, Dark: keys.Dark})
+	m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
 
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	ghost := themePanelRowFor(t, m, "ghost")
@@ -173,7 +178,7 @@ func TestPanelRecompute_ReSortsThroughTheComparator(t *testing.T) {
 
 	requireRowLabels(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 
-	m = commitSlotForTest(t, m, theme.RawKeys{Light: keys.Light, Dark: keys.Dark})
+	m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
 
 	requireRowLabels(t, m, "nord", "prism", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 }
@@ -282,7 +287,7 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 		m, _, _ := newRecomputePanelModel(t, dir, keys)
 
-		m = commitSlotForTest(t, m, theme.RawKeys{Light: keys.Light, Dark: keys.Dark})
+		m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
 
 		requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 		after, err := os.ReadFile(prefsFile)
@@ -315,11 +320,21 @@ func frameColours(frame string) []string {
 // Model.ApplyTheme — so the previewed palette and the frame's colours survive a
 // keypress that visibly changes the rows.
 //
-// THE FIXTURE ARROWS AWAY FIRST, which is what makes this load-bearing in the
-// direction that matters: a recompute that re-resolved and applied would flip the
-// frame back to the PERSISTED row's palette. The row-set assertion is the control —
-// without it, "the colours did not move" is equally true of a recompute that never
-// ran.
+// THE FIXTURE ARROWS AWAY FIRST, and what that buys is narrower than it looks —
+// worth stating exactly, because a later task could otherwise read this as a
+// guarantee it is not. `Enter` commits the CURSOR's slug, so after the write the
+// persisted row IS the previewed row: a recompute that re-resolved and applied
+// THAT would be an invisible no-op here rather than a caught defect. What this
+// test does catch is an apply of any OTHER row — a re-resolution reading the
+// pre-commit keys, the other slot, or §8.5's fallback — and the no-op direction is
+// closed elsewhere, structurally by task 9-1's "the commit path calls no
+// ApplyTheme" scan and observably by its byte-identical frame comparison. The
+// claim bites directly only on task 9-3's SLOT commit, where committing the
+// non-active slot leaves the previewed and the resolved themes genuinely
+// different.
+//
+// The row-set assertion is the control — without it, "the colours did not move" is
+// equally true of a recompute that never ran.
 func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -371,7 +386,7 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 		t.Fatalf("fixture: the cursor opened at index %d, want 1 — the inserted row must land above it", before)
 	}
 
-	m = commitSlotForTest(t, m, theme.RawKeys{Light: keys.Light, Dark: keys.Dark})
+	m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
 
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireCursorOn(t, m, "sunset")

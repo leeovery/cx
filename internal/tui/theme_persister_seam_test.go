@@ -25,14 +25,26 @@ import (
 // write a slot and clear the constant, and a test asserting one must not pass
 // over the other.
 //
+// `slotCommits` is the slot calls with their SLUG AND SLOT TOGETHER. The flat
+// slices above cannot express that pairing once a fixture drives both commit
+// shapes — `slugs` then interleaves them — and §9.2's `d`/`l` is precisely a
+// statement about which slug went into which slot.
+//
 // `err` is returned by both methods. §9.13's outstanding-failure state machine
 // renders its line from the value the seam hands back, so a failed write has to
 // be drivable end to end rather than only described.
 type fakeThemePersister struct {
-	slugs     []string
-	constants []string
-	slots     []prefs.ThemeSlot
-	err       error
+	slugs       []string
+	constants   []string
+	slots       []prefs.ThemeSlot
+	slotCommits []slotCommit
+	err         error
+}
+
+// slotCommit is one recorded CommitThemeSlot call.
+type slotCommit struct {
+	slug string
+	slot prefs.ThemeSlot
 }
 
 func (f *fakeThemePersister) CommitTheme(slug string) error {
@@ -44,6 +56,7 @@ func (f *fakeThemePersister) CommitTheme(slug string) error {
 func (f *fakeThemePersister) CommitThemeSlot(slug string, slot prefs.ThemeSlot) error {
 	f.slugs = append(f.slugs, slug)
 	f.slots = append(f.slots, slot)
+	f.slotCommits = append(f.slotCommits, slotCommit{slug: slug, slot: slot})
 	return f.err
 }
 

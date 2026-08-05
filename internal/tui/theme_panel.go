@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -1048,10 +1049,12 @@ func (m *Model) applyThemePanelCanvasMode() {
 // the theme is being judged against, not because it is still interactive.
 //
 // `d` AND `l` ARE PANEL-OWNED (§9.2 gives them the dark and light slots), not
-// swallowed page keys. They fall through this switch's default while Phase 8 has
-// nothing for them to commit, so today they are observationally inert — but what is
-// asserted of them is that the PAGE's binding never fires (no Projects delete modal),
-// which stays true once task 9-3 makes them write.
+// swallowed page keys. Their arms sit ahead of the swallow-everything default and
+// commit one half of the adaptive pair (theme_panel_commit.go), leaving the panel
+// exactly as they found it bar the write — no close, no re-theme, no cursor move.
+// What is asserted of them at the ROUTING level is unchanged by that: the PAGE's
+// binding never fires (no Projects delete modal), whether the keypress writes or —
+// over a constant, until task 9-5's confirm lands — writes nothing.
 //
 // THE NAVIGATION ARM SITS AHEAD OF THE SWALLOW-EVERYTHING DEFAULT and is matched
 // against the panel LIST'S OWN KeyMap — the same way the Sessions page matches
@@ -1092,6 +1095,10 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// so the `●` cannot move.
 		_ = (&m).commitSelectedConstant()
 		return m, nil
+	case isRuneKey(msg, "d"):
+		return m.handleSlotCommitKey(prefs.SlotDark)
+	case isRuneKey(msg, "l"):
+		return m.handleSlotCommitKey(prefs.SlotLight)
 	case themePanelNavKey(m.themePanel.list.KeyMap, msg):
 		return m, (&m).moveThemePanelCursor(msg)
 	default:

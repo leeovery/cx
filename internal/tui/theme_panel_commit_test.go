@@ -103,16 +103,19 @@ func newCommitPanelModel(t *testing.T, rows []theme.Row, cursorSlug string) (Mod
 	return newCommitPanelModelAt(t, rows, cursorSlug, PageSessions)
 }
 
-// newCommitPairPanelModel is the commit fixture under an ADAPTIVE PAIR: the light
-// slot on rows[0], the dark slot on rows[1], and the DARK one in force (the
-// standing no-answer canvas, §8.8) — so the cursor opens on the dark slot's row
-// and there are two slots for `Enter` to clear.
-func newCommitPairPanelModel(t *testing.T, rows []theme.Row) (Model, *fakeThemePersister) {
+// commitPairPanelDeps is the ADAPTIVE PAIR fixture's seam set, WITHOUT a
+// persister: the light slot on rows[0], the dark slot on rows[1], and the DARK
+// one in force (the standing no-answer canvas, §8.8) — so the cursor opens on the
+// dark slot's row and there are two slots for a commit to act on.
+//
+// The persister is left out because the NIL one is a state under test (task 9-3's
+// slot commit over a capture model), exactly as openCommitPanel takes the whole
+// seam set rather than wiring one for itself.
+func commitPairPanelDeps(t *testing.T, rows []theme.Row) Deps {
 	t.Helper()
 
 	light, dark := rows[0], rows[1]
-	persister := &fakeThemePersister{}
-	deps := Deps{
+	return Deps{
 		Lister: fakeLister{},
 		Theme:  theme.ConstantNomination(dark.Theme),
 		ThemeEnumerator: &stubThemeEnumerator{
@@ -125,10 +128,19 @@ func newCommitPairPanelModel(t *testing.T, rows []theme.Row) (Model, *fakeThemeP
 				},
 			},
 		},
-		ThemeKeys:      theme.RawKeys{Light: light.Slug, Dark: dark.Slug},
-		ThemePersister: persister,
+		ThemeKeys: theme.RawKeys{Light: light.Slug, Dark: dark.Slug},
 	}
-	return openCommitPanel(t, deps, PageSessions, dark.Slug), persister
+}
+
+// newCommitPairPanelModel is the commit fixture under an ADAPTIVE PAIR, with a
+// RECORDING persister and the panel already open on the dark slot's row.
+func newCommitPairPanelModel(t *testing.T, rows []theme.Row) (Model, *fakeThemePersister) {
+	t.Helper()
+
+	persister := &fakeThemePersister{}
+	deps := commitPairPanelDeps(t, rows)
+	deps.ThemePersister = persister
+	return openCommitPanel(t, deps, PageSessions, rows[1].Slug), persister
 }
 
 // pressCommitKey drives `Enter` through the live Update and returns the command

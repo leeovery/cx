@@ -2,6 +2,8 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -21,8 +23,8 @@ import (
 // fallback the two differ by design.
 //
 // IT DOES NOT RE-THEME. A commit is a WRITE, NOT A NAVIGATION, so the frame is
-// unchanged across the keypress and committing to a non-active slot (task 9-3)
-// changes nothing on screen. applyInForceTheme states the shared degrade policy
+// unchanged across the keypress and committing to a non-active slot changes
+// nothing on screen at all. applyInForceTheme states the shared degrade policy
 // for every panel call site of Resolve and is explicit that a commit takes that
 // policy WITHOUT taking the apply — routing one through it would swap the screen
 // off the preview the user is still looking at.
@@ -105,6 +107,147 @@ func (m *Model) commitConstant(slug string) error {
 	m.themeKeys = theme.RawKeys{Theme: slug}
 	m.recomputeThemePanel()
 	return nil
+}
+
+// handleSlotCommitKey is §9.2's `d` and `l` as the KEYS dispatch them, with the
+// ONE decision that has to be made before anything is written.
+//
+// THE SETTING SHAPE IS GATED FIRST. Under §8.2's `theme`-wins rule a non-empty
+// constant means the slots are not read at all, so writing a slot here would
+// CLEAR THE CONSTANT as a side effect — and §9.2 puts a confirm in front of
+// exactly that: "this is the one place a keypress described as inert can silently
+// cost the user a setting they chose". The confirm is task 9-5's, so until it
+// lands this path writes NOTHING rather than writing directly. The interim
+// inertness is deliberate: a direct commit here is precisely the silent loss the
+// confirm exists to prevent, and the phase's task order is what keeps that loss
+// unreachable in an intermediate state.
+//
+// THE SHAPE IS READ THROUGH themeSetting, NOT OFF THE RAW KEY. The two answer
+// identically — §8.2's tiebreak is "a non-empty `theme` wins" and the model's keys
+// are already control-stripped — but the tiebreak has ONE site, and what this
+// keypress GATES on must not be able to disagree with what the panel LISTS,
+// MARKS and RESOLVES, all three of which read it through that same helper. It
+// also hands task 9-5 the value its confirm has to name: the constant that would
+// be cleared.
+//
+// THE ERROR IS DISCARDED HERE AND ONLY HERE, exactly as `Enter`'s arm discards
+// its own — task 9-7 owns §9.13's message-slot line and the outstanding-failure
+// state, and until it lands a failed write is silent except for cmd's own
+// `theme: commit failed` record. It leaves nothing behind either way: on failure
+// the raw keys are untouched, so the `●` cannot move.
+func (m Model) handleSlotCommitKey(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
+	if m.themeSetting().IsConstant {
+		return m.raiseSlotConfirm(slot)
+	}
+	_ = (&m).commitSelectedSlot(slot)
+	return m, nil
+}
+
+// raiseSlotConfirm is §9.2's SLOT-FROM-CONSTANT CONFIRM, and it is a NO-OP until
+// task 9-5 fills it in.
+//
+// THE SEAM EXISTS NOW SO THE INERT CASE HAS A NAME. The confirm's own state — the
+// message-slot line naming the constant that will be cleared, the nested
+// key-exclusive scope, the swapped footer — is 9-5's, and none of it can be
+// half-built here. What CAN be settled here is where it attaches, so that landing
+// it is filling one function rather than re-deciding the gate above.
+//
+// The slot is taken although nothing reads it yet: it is what the confirm writes
+// when the user answers `y`, and threading it from the keypress is what keeps the
+// answer from having to re-derive which key was pressed.
+func (m Model) raiseSlotConfirm(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
+	return m, nil
+}
+
+// commitSelectedSlot is §9.2's `d`/`l`: it commits the row under the CURSOR into
+// ONE HALF of the adaptive pair.
+//
+// IT TAKES ITS TARGET EXACTLY AS commitSelectedConstant DOES — the selected row,
+// with the same defensive guard — because the two keys differ in WHAT THEY WRITE
+// and in nothing else. The guard is defensive for the same reasons stated there:
+// the arrows skip unselectable rows and the open-time anchor lands on a
+// selectable one, and a selectable row with an empty slug is a shape the union
+// assembly cannot produce. Both write nothing rather than persisting a slot
+// nothing can resolve.
+//
+// The error is RETURNED rather than handled here, for the same reason
+// commitSelectedConstant returns its own: task 9-7 renders §9.13's line from the
+// value.
+func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
+	row, ok := selectedThemeRow(m.themePanel.list)
+	if !ok || !row.Selectable() || row.Slug == "" {
+		return nil
+	}
+	return m.commitSlot(row.Slug, slot)
+}
+
+// commitSlot writes ONE SLOT and clears the constant (§8.2's mutual exclusion,
+// performed on disk by prefs.SaveThemeSlot in ONE atomic write) and mirrors that
+// same rule on the model's construction-time raw keys.
+//
+// IT IS THE MIRROR OF commitConstant AND CARRIES EVERY ONE OF ITS RULES — the
+// nil persister is INERT rather than failed, the mirror is a MIRROR rather than a
+// re-read, it is applied to the CONSTRUCTION-TIME SNAPSHOT rather than to the
+// merged bytes the persister's read-modify-write just had in hand, ON ERROR
+// NOTHING MOVES, and the recompute is the last step and is reached only past both
+// early returns. Those five are stated once, on commitConstant, and hold here
+// verbatim; what follows is only what a SLOT commit adds.
+//
+// THE OTHER SLOT IS LEFT EXACTLY AS IT WAS, and that untouched-other-slot rule is
+// not incidental: it is what makes §9.5's `● both` reachable in two keypresses
+// (`d` then `l` on one row), which §9.5 names a LIKELY path — where a user lands
+// wanting "this theme everywhere" without realising `Enter` is the idiom for it.
+// It holds for a slot holding a slug that resolves to nothing just as it does for
+// a live one: prefs persists values verbatim and this layer re-derives none of
+// them.
+//
+// THE SLOT IS THE TYPED prefs VALUE, threaded through the seam and never a
+// caller-supplied key name, so no path here can mint a third slot — the panel
+// names the two constants and nothing else.
+//
+// THE WRITE IS ONE CALL. Setting the slot and clearing the constant ride a single
+// CommitThemeSlot precisely so no partial state is reachable and this layer
+// re-implements no merge; a second call to clear the constant would open the
+// window §8.2's one-atomic-write rule closes. Clearing is writing the EMPTY
+// STRING, which `omitempty` renders as key-absent (§8.3's "an unset slot holds
+// the shipped default", and a hand-edited file stays clean) — so an
+// already-empty constant is deliberately NOT special-cased, in the write or in
+// the mirror.
+func (m *Model) commitSlot(slug string, slot prefs.ThemeSlot) error {
+	if m.themePersister == nil {
+		return nil
+	}
+	if err := m.themePersister.CommitThemeSlot(slug, slot); err != nil {
+		return err
+	}
+	m.themeKeys = mirrorThemeSlot(m.themeKeys, slug, slot)
+	m.recomputeThemePanel()
+	return nil
+}
+
+// mirrorThemeSlot is §8.2's mutual exclusion as an in-memory value: keys with
+// slug in the named slot, the OTHER slot's raw value carried through untouched,
+// and the constant gone.
+//
+// THE CLEAR IS STRUCTURAL. The constant is dropped by CONSTRUCTING a value that
+// holds only the pair, exactly as commitConstant expresses its own clear by
+// constructing one that holds only the constant — so neither direction of §8.2
+// can be half-applied by an edit that forgets a line.
+//
+// THERE IS NO DEFAULT ARM, mirroring prefs.SaveThemeSlot's own switch: an
+// out-of-range slot is rejected by the store BEFORE this is reached (its guard
+// returns an error and commitSlot has already returned on it), and the only
+// values this package names are the two constants — which the typed-slot source
+// guard pins.
+func mirrorThemeSlot(keys theme.RawKeys, slug string, slot prefs.ThemeSlot) theme.RawKeys {
+	mirrored := theme.RawKeys{Light: keys.Light, Dark: keys.Dark}
+	switch slot {
+	case prefs.SlotLight:
+		mirrored.Light = slug
+	case prefs.SlotDark:
+		mirrored.Dark = slug
+	}
+	return mirrored
 }
 
 // recomputeThemePanel is §9.2's POST-COMMIT RECOMPUTE: the panel re-rendered
