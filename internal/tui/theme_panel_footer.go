@@ -10,7 +10,7 @@ import (
 // (§14A's pinned copy, carried by the descriptor's Action strings).
 //
 // It is VERTICAL rather than a fifth flavour of Portal's horizontal footer row
-// because a horizontal keymap does not fit a ~30-column panel — that one line of
+// because a horizontal keymap does not fit a ~34-column panel — that one line of
 // copy is ~50 cells — and because the vertical form already exists in this
 // codebase as the help modal's key-column body, which is the idiom it follows
 // (helpModalRow's fixed key column, one row per binding).
@@ -33,7 +33,7 @@ import (
 // so the labels share a left edge regardless of glyph length — the same
 // two-column idiom as helpModalRow, sized for the panel rather than the help body
 // (the widest glyph in the panel scope is `esc`; helpKeyColumnWidth's 10 cells is
-// nearly half a 24-column panel).
+// nearly half a 27-column panel).
 //
 // It is a FIXED constant rather than the widest glyph in the entries it is handed,
 // deliberately: Phase 9's confirm footer substitutes `y`/`n` into the SAME screen

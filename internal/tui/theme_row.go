@@ -136,7 +136,7 @@ func (d themeRowDelegate) renderRow(it themeRowItem, selected bool) string {
 // compose applies §9.5's fixed element priority against d.Width, returning the
 // cells the label may occupy and the trailing segments to its right.
 //
-// The priority is fixed BECAUSE the elements compete for ~24–30 columns, and
+// The priority is fixed BECAUSE the elements compete for ~27–34 columns, and
 // without a fixed order they collide non-deterministically as the panel narrows:
 //
 //  1. The 2-cell cursor column, which every row pays for so they share a left

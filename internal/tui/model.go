@@ -1660,20 +1660,10 @@ func (m *Model) applyCanvasMode() {
 		colourlessHelpStyles(&m.sessionList)
 		colourlessNoItemsStyle(&m.sessionList)
 		colourlessPaginationDots(&m.sessionList)
-		// PaddingBottom(1) is the §3.2 section-header BOTTOM gap (Sessions → first
-		// session row). It makes the title bar 2 lines (line 0 = "Sessions…", line 1
-		// = the blank gap row); bubbles/list measures the rendered title-bar height
-		// and reserves it from the item area, so this is auto-budgeted (no manual
-		// reserve). DEPENDENCY: applySectionHeader's string surgery replaces ONLY line
-		// 0 (the title) and preserves line 1 — the gap is line 1, the surgery touches
-		// line 0. Under NO_COLOR the padding row is native-bg (UnsetBackground).
-		// PaddingLeft(0) drops the bubbles/list default TitleBar left pad (=2): the
-		// section-header surgery and the delegate rows already render flush at col 0
-		// (the outer gutter insets the whole frame), so the ONLY line the left pad
-		// affected was the live filter input. Flush-aligning it keeps the input-active
-		// `/ query` at the SAME column as the wordmark / section header / list rows /
-		// the list-active locked query (the hint-to-query swap reads cleanly).
-		m.sessionList.Styles.TitleBar = m.sessionList.Styles.TitleBar.UnsetBackground().PaddingLeft(0).PaddingBottom(1)
+		// The shared §3.2 title-bar geometry (see listTitleBarStyle) — no left pad,
+		// and the one-row section-header bottom gap. Under NO_COLOR the padding row is
+		// native-bg (UnsetBackground).
+		m.sessionList.Styles.TitleBar = listTitleBarStyle(m.sessionList.Styles.TitleBar.UnsetBackground())
 		m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
 		m.applyProjectCanvasMode()
 		m.applyThemePanelCanvasMode()
@@ -1686,16 +1676,10 @@ func (m *Model) applyCanvasMode() {
 	// Background the title bar so its leading left-pad cells (bubbles/list's
 	// TitleBar PaddingLeft) are canvas rather than the terminal background.
 	canvas := m.activeTheme.Canvas.Color()
-	// PaddingBottom(1) is the §3.2 section-header BOTTOM gap (Sessions → first
-	// session row). It makes the title bar 2 lines (line 0 = "Sessions…", line 1 =
-	// the blank gap row, which inherits the canvas Background so it is canvas-painted
-	// with no terminal-bg island); bubbles/list measures the rendered title-bar
-	// height and reserves it from the item area, so this is auto-budgeted (no manual
-	// reserve). DEPENDENCY: applySectionHeader's string surgery replaces ONLY line 0
-	// (the title) and preserves line 1 — the gap is line 1, the surgery touches line 0.
-	// PaddingLeft(0): see the colourless branch above — drops the default left pad so
-	// the live filter input aligns flush with every other content line.
-	m.sessionList.Styles.TitleBar = m.sessionList.Styles.TitleBar.Background(canvas).PaddingLeft(0).PaddingBottom(1)
+	// The shared §3.2 title-bar geometry (see listTitleBarStyle); the gap row
+	// inherits the canvas Background so it is canvas-painted with no terminal-bg
+	// island.
+	m.sessionList.Styles.TitleBar = listTitleBarStyle(m.sessionList.Styles.TitleBar.Background(canvas))
 	m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
 	m.applyProjectCanvasMode()
 	m.applyThemePanelCanvasMode()
@@ -1715,13 +1699,62 @@ func stripListTitleColours(title lipgloss.Style) lipgloss.Style {
 	return title.UnsetBackground().UnsetForeground()
 }
 
+// listTitleBarBottomGap is the §3.2 section-header BOTTOM gap — the blank row
+// between `Sessions N` / `Projects N` and the first list row.
+//
+// It is declared HERE, once, rather than at each of the four TitleBar assignments,
+// because it is not only a padding: it is one row of the page's vertical rhythm,
+// and §9.1's slide-over has to land its own label and its own first row on exactly
+// the rows the page spends it on. Whoever needs that count MEASURES it through
+// listTitleBarStyle rather than restating it.
+const listTitleBarBottomGap = 1
+
+// listTitleBarStyle applies the shared bubbles/list TitleBar geometry BOTH page
+// lists carry, and is the single source the §9.1 panel measures the page's
+// section-header block through.
+//
+// PaddingLeft(0) drops the bubbles/list default left pad (=2): the section-header
+// surgery and the delegate rows already render flush at col 0 (the outer gutter
+// insets the whole frame), so the only line the left pad affected was the live
+// filter input, and flush-aligning it keeps the input-active `/ query` at the SAME
+// column as everything else.
+//
+// PaddingBottom is the §3.2 section-header bottom gap, which makes the title bar
+// TWO lines (line 0 = the title, line 1 = the blank gap row); bubbles/list measures
+// the rendered title-bar height and reserves it from the item area, so it is
+// auto-budgeted with no manual reserve. DEPENDENCY: applySectionHeader's string
+// surgery replaces ONLY line 0 and preserves line 1.
+//
+// It takes the caller's base style rather than building one, because the two
+// branches of each canvas-mode path differ in exactly one respect — the background
+// is the canvas, or unset under the NO_COLOR carve-out — and that is the caller's
+// decision, not this function's.
+func listTitleBarStyle(base lipgloss.Style) lipgloss.Style {
+	return base.PaddingLeft(0).PaddingBottom(listTitleBarBottomGap)
+}
+
+// sectionHeaderBlockRows is the number of content rows the page spends on its
+// section header: the header row itself plus listTitleBarStyle's bottom gap.
+//
+// IT IS MEASURED, NEVER RESTATED — the real section-header renderer, rendered
+// through the real title-bar style — which is what lets §9.1's slide-over land its
+// `Themes` label on the page's `Sessions N` row by construction rather than by a
+// count that can drift. The width and the theme are irrelevant to the row count (the
+// header is one flex row that never wraps), so the measurement is taken at zero
+// width on the colourless path, exactly as themePanelFooterHeight measures its own
+// block.
+func sectionHeaderBlockRows() int {
+	return lipgloss.Height(listTitleBarStyle(lipgloss.NewStyle()).
+		Render(renderSectionHeaderRow("", 0, theme.Theme{}, true)))
+}
+
 // applyProjectCanvasMode re-points the §6 Projects screen's leaf styles at the
 // model's resolved canvasMode (or the NO_COLOR carve-out), mirroring the Sessions
 // branch of applyCanvasMode for the project list: the two-line ProjectDelegate
 // paints every run through the resolved Mode (or drops hue under Colourless), the
 // help/pagination styles carry the canvas, and the bubbles/list TitleBar default
-// left-pad + Title box colours are stripped (PaddingLeft(0) + PaddingBottom(1) so
-// the §6 section-header surgery in viewProjectList replaces line 0 and preserves the
+// left-pad + Title box colours are stripped (the shared listTitleBarStyle, so the
+// §6 section-header surgery in viewProjectList replaces line 0 and preserves the
 // blank gap row on line 1, the SAME contract applySectionHeader relies on).
 func (m *Model) applyProjectCanvasMode() {
 	if m.colourless {
@@ -1729,7 +1762,7 @@ func (m *Model) applyProjectCanvasMode() {
 		colourlessHelpStyles(&m.projectList)
 		colourlessNoItemsStyle(&m.projectList)
 		colourlessPaginationDots(&m.projectList)
-		m.projectList.Styles.TitleBar = m.projectList.Styles.TitleBar.UnsetBackground().PaddingLeft(0).PaddingBottom(1)
+		m.projectList.Styles.TitleBar = listTitleBarStyle(m.projectList.Styles.TitleBar.UnsetBackground())
 		m.projectList.Styles.Title = stripListTitleColours(m.projectList.Styles.Title)
 		return
 	}
@@ -1738,7 +1771,7 @@ func (m *Model) applyProjectCanvasMode() {
 	canvasNoItemsStyle(&m.projectList, m.activeTheme)
 	canvasPaginationDots(&m.projectList, m.activeTheme)
 	canvas := m.activeTheme.Canvas.Color()
-	m.projectList.Styles.TitleBar = m.projectList.Styles.TitleBar.Background(canvas).PaddingLeft(0).PaddingBottom(1)
+	m.projectList.Styles.TitleBar = listTitleBarStyle(m.projectList.Styles.TitleBar.Background(canvas))
 	m.projectList.Styles.Title = stripListTitleColours(m.projectList.Styles.Title)
 }
 

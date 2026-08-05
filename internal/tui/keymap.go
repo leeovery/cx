@@ -200,7 +200,7 @@ func projectsKeymap() []keymapEntry {
 // `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`.
 //
 // No entry sets RightAligned: the panel's footer is VERTICAL (a horizontal keymap
-// does not fit a ~30-column panel, §9.1), and a vertical footer has no right anchor
+// does not fit a ~34-column panel, §9.1), and a vertical footer has no right anchor
 // to pin an entry to. There is NO `?` entry either — §9.12: `?` does nothing inside
 // the panel. It is swallowed with everything else (§9.7); there is no panel help
 // modal, so this scope exists to drive the vertical footer and the guard rather

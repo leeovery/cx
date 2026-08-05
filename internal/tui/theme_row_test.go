@@ -27,7 +27,7 @@ import (
 // No t.Parallel() — the package-level mock convention and the shared canvas
 // helpers make parallelism unsafe across this package's tests.
 
-// The two ends of §9.8's ~24–30 column band. The delegate is HANDED its width and
+// The two ends of §9.8's ~27–34 column band. The delegate is HANDED its width and
 // owns neither end of the ladder (task 8-6 declares the panel's own constants), so
 // these are the test's own representatives of the band the rows must survive.
 const (

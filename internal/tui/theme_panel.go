@@ -21,7 +21,7 @@ import (
 // modal theme picker would render the canvas plus its own frame and PREVIEW
 // NOTHING — and live preview is the entire feature. Non-blanking is the only shape
 // that can do the job, and every downstream constraint inherits from that one fact:
-// the ~24–30 column budget (§9.8), the four-element row-composition priority
+// the ~27–34 column budget (§9.8), the four-element row-composition priority
 // (§9.5), the message slot's truncation rule (§9.1), and the accepted cost of
 // covering three footer entries and cutting a label mid-word.
 //
@@ -43,26 +43,44 @@ import (
 
 const (
 	// themePanelPreferredWidth / themePanelMinWidth are the two ends of §9.8's
-	// ~24–30 column ladder (name, markers, slot indicators, border, padding). A
+	// column ladder (name, markers, slot indicators, border, gutter, padding). A
 	// FIXED width is predictable to lay out against; a content-driven one would make
 	// the panel jump around as the theme library changes.
+	//
+	// Both ends are ~13% wider than the pair task 8-11 shipped, because at 30 columns
+	// the badges crowded the right edge and `set as light` ran to the border. Only the
+	// ENDS moved: the `contentW / 2` cap and the clamp shape are untouched, so the
+	// ladder is still §2.7's staged shrink. The cost is that the overlay covers four
+	// more columns of the main footer, cutting one further entry short — which §9.1
+	// already sanctions as the mid-label cut the overlay makes wherever its border
+	// falls, and which is the least theme-informative part of the screen.
 	//
 	// themePanelWidthFor chooses between them for a given terminal, and
 	// themePanelFloor refuses below the minimum; renderThemePanel renders at
 	// whatever width it is handed.
-	themePanelPreferredWidth = 30
-	themePanelMinWidth       = 24
+	themePanelPreferredWidth = 34
+	themePanelMinWidth       = 27
 
 	// themePanelBorderWidth is the one column the left border occupies. It is NOT
-	// list space, which is why the inner content width subtracts it exactly once —
-	// there is no top, bottom or right edge to charge for.
+	// list space, which is why the inner content width subtracts it — there is no
+	// top, bottom or right edge to charge for.
 	themePanelBorderWidth = 1
 
-	// themePanelHeaderRows is §9.1's fixed two-row header cost: the label row plus
-	// the one-row rule. It is a CONSTANT rather than a measurement because §9.8's
-	// minimum-height rule resolves against it, and a header that quietly grew a third
-	// row would silently move that floor.
-	themePanelHeaderRows = 2
+	// themePanelGutterWidth is the panel's INNER GUTTER: the blank canvas column
+	// between the left border and everything the panel draws, so its content sits TWO
+	// cells in from that border rather than hard against it.
+	//
+	// It is the page's own frame gutter read across. Portal insets every page's
+	// content Hinset (2) cells from the terminal's edge; the panel's content sat one
+	// cell in from its own edge — half of it — which is what made the slide-over read
+	// as cramped beside the page it is composited over. Charging border + gutter puts
+	// the two on the same inset.
+	//
+	// It applies to EVERY surface below the header rule uniformly, because it is
+	// charged once in themePanelBlock rather than at each renderer: the label, the
+	// list rows (cursor column included, so the `▌` moves with them), the pinned
+	// directory row, the message slot and the vertical key list.
+	themePanelGutterWidth = 1
 
 	// themePanelHeaderLabel is §9.1's header copy. There is deliberately NO theme
 	// count beside it — noise at this list size.
@@ -103,6 +121,57 @@ const (
 	// the key that closes a panel the user can no longer read the way out of.
 	themePanelMessageWrapRows = 2
 )
+
+// THE PANEL'S HEADER REGION IS MEASURED OFF THE PAGE'S, NEVER RESTATED.
+//
+// The panel is composited over the page at the content region's Y=0, so its rows
+// and the page's are the SAME terminal rows. §9.1's slide-over is a surface inside
+// the content region rather than a second column beside it, and that only reads if
+// the two run ONE rhythm: `Themes` on the page's `Sessions N` row, the panel's first
+// theme row on the page's first session row, and one rule shared between them.
+//
+// Task 8-6 pinned the header at a restated two rows, which put `Themes` on the
+// WORDMARK row and the panel's first row three rows above the first session row. A
+// literal is what drifted, so these four are derived from the page's own renderers:
+// a change to the header block or the section header moves the panel with it.
+//
+//   - themePanelHeaderRuleRow — the rows above the rule, which is the page header
+//     block's BAND. Nothing is drawn in them (see themePanelHeaderBlock).
+//   - themePanelHeaderLabelRow — the page header block's whole height, which is
+//     therefore the index of the section-header row beneath it.
+//   - themePanelHeaderRows — that plus the section-header block, so the row after
+//     the panel's header is the row after the page's.
+//   - themePanelBorderFromRow — where the left border starts; see
+//     themePanelHeaderBlock for why it is below the rule rather than at it.
+//
+// The measurements are taken at zero width on the colourless path, exactly as
+// themePanelFooterHeight measures its own block: a row COUNT is a function of the
+// content, not of the width or the palette, so the layout resolves before either is
+// in hand (themePanelMinHeight's floor arithmetic reads the same measurements).
+
+// themePanelHeaderRuleRow is the index of the panel's header rule — the rows the
+// page's header BAND occupies above its own rule.
+func themePanelHeaderRuleRow() int {
+	return lipgloss.Height(headerBand(0, theme.Theme{}, true))
+}
+
+// themePanelHeaderLabelRow is the index of the panel's `Themes` label: the page's
+// header block ends there, so that is the row its section header sits on.
+func themePanelHeaderLabelRow() int {
+	return lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true))
+}
+
+// themePanelHeaderRows is the panel's whole header cost — the page's header block
+// plus its section-header block — so the panel's first list row is the page's first
+// session row.
+func themePanelHeaderRows() int {
+	return themePanelHeaderLabelRow() + sectionHeaderBlockRows()
+}
+
+// themePanelBorderFromRow is the first row carrying the panel's left `│`.
+func themePanelBorderFromRow() int {
+	return themePanelHeaderRuleRow() + 1
+}
 
 // themePanelDim names the dimension §9.8's floor refused on, so the entry gate and
 // the resize path select §14A's per-dimension copy from ONE answer rather than each
@@ -154,8 +223,8 @@ const (
 // the previewed page visible while the terminal is wide enough to afford it — a
 // preview surface that covers the surface being previewed is no preview — and the
 // clamp is what turns that into §2.7's STAGED shrink rather than a proportional one
-// that would shrink forever: ≥60 content columns take the preferred 30; 48–59 walk
-// down through 29…24; 24–47 sit on the 24-column minimum; below 24 the floor
+// that would shrink forever: ≥68 content columns take the preferred 34; 54–67 walk
+// down through 33…27; 27–53 sit on the 27-column minimum; below 27 the floor
 // refuses. §9.8 leaves the exact thresholds to implementation, exactly as §2.7 does
 // for its own degradation steps.
 //
@@ -173,10 +242,12 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 // message row, plus §9.5's pinned directory row when the themes directory is
 // unusable.
 //
-// THE FOOTER IS MEASURED, NEVER A LITERAL (themePanelFooterHeight), which is what
-// makes the floor follow Phase 9's shorter confirm footer without a second edit —
-// the same discipline themePanelListSize applies to the rows it reserves. The
-// header is the one pinned constant, by design (see themePanelHeaderRows).
+// NOTHING HERE IS A LITERAL. The footer is measured (themePanelFooterHeight), which
+// is what makes the floor follow Phase 9's shorter confirm footer without a second
+// edit; the HEADER is measured too (themePanelHeaderRows), which is what makes it
+// follow the page's own header and section header. A restated header count is
+// exactly what task 8-6 shipped and exactly what drifted — so the floor grows by
+// precisely the rows the header gained, with no second edit here either.
 //
 // THE MESSAGE ROW IS UNCONDITIONAL and the DIRECTORY ROW IS CONDITIONAL, and both
 // halves are load-bearing. The message row is counted although §9.1 leaves the slot
@@ -188,7 +259,7 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 // selectable on screen at exactly the moment §9.5 requires built-in and persisted
 // rows to render beneath it.
 func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
-	return themePanelHeaderRows +
+	return themePanelHeaderRows() +
 		themePanelDirRowHeight(dirUnusable) +
 		themePanelMinBodyRows +
 		themePanelFloorMessageRows +
@@ -684,8 +755,8 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 	m.themePanel.list.Select(themePanelRowIndex(m.themePanel.union.Rows, slug))
 }
 
-// themePanelRowIndex is the index of the row identified by slug, degrading to the
-// first SELECTABLE row and then to zero.
+// themePanelRowIndex is the index of the SELECTABLE row identified by slug,
+// degrading to the first selectable row and then to zero.
 //
 // The identity is Row.SortKey — the slug wherever one exists, else the filename,
 // else the raw persisted string — which is the same value the ordering and the
@@ -694,13 +765,22 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 // definition (§6.2), and the built-in sorts first (§9.5), so the first match is
 // always the selectable one the slug actually resolved to.
 //
-// THE CLAMP IS A STRUCTURAL GUARD, NOT A LIVE PATH. Built-ins are always valid
-// (§7.6's build-time guarantee), so a union with no selectable row is unreachable
-// and so is one holding no row for a slug that just resolved. The guard is here
-// because the alternative to degrading is indexing out of range inside a list the
-// user is looking at.
+// THE MATCH IS FILTERED ON Selectable, AND THAT IS NOT REDUNDANT WITH THE ORDER.
+// §9.2's invariant is that the cursor is always on a selectable row, and this
+// function has a second caller the resolver does not control: §13.3's capture seed
+// (Model.initialThemeCursor) re-anchors by identity from a string a FIXTURE declares,
+// and §13.3 mandates fixtures built from an invalid drop-in and an unreadable themes
+// directory — whose rows are exactly the unselectable ones. A cursor parked there
+// would sit somewhere the arrows, which skip unselectable rows (§9.5), cannot return
+// to. Falling through is the same degrade a seed naming no row at all already takes.
+//
+// THE FINAL CLAMP IS A STRUCTURAL GUARD, NOT A LIVE PATH. Built-ins are always valid
+// (§7.6's build-time guarantee), so a union with no selectable row is unreachable.
+// The guard is here because the alternative to degrading is indexing out of range
+// inside a list the user is looking at.
 func themePanelRowIndex(rows []theme.Row, slug string) int {
-	if at := slices.IndexFunc(rows, func(row theme.Row) bool { return row.SortKey() == slug }); at >= 0 {
+	identified := func(row theme.Row) bool { return row.SortKey() == slug && row.Selectable() }
+	if at := slices.IndexFunc(rows, identified); at >= 0 {
 		return at
 	}
 	return max(slices.IndexFunc(rows, theme.Row.Selectable), 0)
@@ -1138,23 +1218,26 @@ func (m Model) themeRowDelegate() themeRowDelegate {
 	}
 }
 
-// themePanelInnerWidth is the content width inside the left border — every panel
-// row is composed against it and the list is sized to it.
+// themePanelInnerWidth is the content width inside the left border AND the inner
+// gutter — every panel row is composed against it and the list is sized to it.
+//
+// Both columns are charged exactly once, here, so no renderer has to know the panel
+// has a gutter at all: themePanelBlock lays the two down and every surface composes
+// against what is left.
 func themePanelInnerWidth(width int) int {
-	return max(width-themePanelBorderWidth, 0)
+	return max(width-themePanelBorderWidth-themePanelGutterWidth, 0)
 }
 
 // themePanelListSize is the (width, height) the panel's list is sized to at a given
 // render height: the inner content width, and §9.1's layout remainder —
 //
-//	height − header(2) − directory row(0 or 1) − message slot(0 or 1) − footer
+//	height − header − directory row(0 or 1) − message slot(0 or 1) − footer
 //
-// floored at one row. Three of the four subtrahends are MEASURED off the renderer
-// that produces them (themePanelDirRowHeight, themePanelMessageHeight,
-// themePanelFooterHeight), so those reserved rows are by construction the rows that
-// render and the two can never drift — the same discipline sessionFooterHeight
-// applies on the main screen. The fourth, the header, is a pinned constant by design
-// (see themePanelHeaderRows).
+// floored at one row. ALL FOUR subtrahends are MEASURED off the renderer that
+// produces them (themePanelHeaderRows, themePanelDirRowHeight,
+// themePanelMessageHeight, themePanelFooterHeight), so those reserved rows are by
+// construction the rows that render and the two can never drift — the same
+// discipline sessionFooterHeight applies on the main screen.
 //
 // THE REMAINDER IS NOT MEASURED, AND IT IS NOT TRUSTED EITHER. The list body is the
 // one block that can EXCEED the height it is sized to: `bubbles/list` renders a hard
@@ -1175,7 +1258,7 @@ func themePanelInnerWidth(width int) int {
 // rows of the panel unaccounted for.
 func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
-	reserved := themePanelHeaderRows +
+	reserved := themePanelHeaderRows() +
 		themePanelDirRowHeight(p.union.DirUnusable) +
 		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)) +
 		themePanelFooterHeight(themePanelKeymap())
@@ -1185,7 +1268,7 @@ func themePanelListSize(p themePanel, height int) (width, rows int) {
 // renderThemePanel renders the §9.1 slide-over as a block of EXACTLY height rows,
 // each EXACTLY p.width cells, laid out top to bottom as:
 //
-//	header (2) · directory row (0 or 1) · list body · message slot (0 or 1) · footer
+//	header (measured) · directory row (0 or 1) · list body · message slot (0 or 1) · footer
 //
 // th is the PREVIEWED theme — every chrome surface THIS FUNCTION renders (the
 // border, the header, the pinned directory row, the message slot, the footer and
@@ -1202,25 +1285,44 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	inner, bodyRows := themePanelListSize(p, height)
 	p.list.SetSize(inner, bodyRows)
 
-	rows := themePanelHeaderBlock(inner, th, colourless)
+	rows := themePanelHeaderBlock(p.width, th, colourless)
 	rows = appendBlock(rows, themePanelDirRow(p.union.DirUnusable, th, colourless))
 	rows = appendBlock(rows, clampBlockHeight(p.list.View(), bodyRows))
 	rows = appendBlock(rows, renderThemePanelMessage(p.message, inner, themePanelMessageWraps(p, height), th, colourless))
 	rows = appendBlock(rows, renderThemePanelFooter(themePanelKeymap(), inner, th, colourless))
 
-	return themePanelBlock(rows, height, inner, th, colourless)
+	return themePanelBlock(rows, height, p.width, th, colourless)
 }
 
-// themePanelHeaderBlock is §9.1's two-row header: the label `Themes` in accent.mode
-// (bold), then a one-row `border` rule spanning the inner width — the Sessions
-// section-header idiom minus the count.
+// themePanelHeaderBlock is §9.1's header region, cut to the PAGE's rhythm: a rule
+// in the page's own rule lane, the label `Themes` in accent.mode (bold) on the
+// page's section-header row, and blank rows everywhere else — one per row the page
+// spends on its header block and its section header (see the measurement note above
+// themePanelHeaderRuleRow).
 //
-// It carries NO THEME COUNT, deliberately: noise at this list size, and the
-// resulting exact two-row cost is what §9.8's minimum-height rule resolves against.
-func themePanelHeaderBlock(inner int, th theme.Theme, colourless bool) []string {
-	label := headerStyle(th.AccentMode, th, colourless).Bold(true).Render(themePanelHeaderLabel)
-	rule := headerStyle(th.Border, th, colourless).Render(strings.Repeat(headerRuleGlyph, max(inner, 0)))
-	return []string{label, rule}
+// It carries NO THEME COUNT, deliberately: noise at this list size.
+//
+// THE REGION ABOVE THE RULE CARRIES NOTHING, BY DECISION rather than by omission.
+// `esc close` was considered for it and rejected: Portal's modals carry no such
+// header affordance, and the key stays in the panel's own vertical key list. The
+// panel's body and the page's are painted the SAME `canvas` token, so those blank
+// rows are indistinguishable from the page's own canvas — which is what lets the
+// page's header band read as uninterrupted across the full width.
+//
+// THE RULE SPANS THE PANEL'S WHOLE WIDTH, border column included, and that is why
+// the left border starts BELOW it (themePanelBorderFromRow). The panel is an opaque
+// layer, so it covers the right end of the page's rule; drawing its own across every
+// one of its columns is what CONTINUES that rule to the frame edge. A `│` in the
+// rule's lane would notch it, and a border running the full height would cut the
+// page's header band in two — which is precisely what makes a slide-over read as a
+// second column rather than as a surface inside the content region.
+func themePanelHeaderBlock(width int, th theme.Theme, colourless bool) []string {
+	rows := make([]string, themePanelHeaderRows())
+	rows[themePanelHeaderRuleRow()] = headerStyle(th.Border, th, colourless).
+		Render(strings.Repeat(headerRuleGlyph, max(width, 0)))
+	rows[themePanelHeaderLabelRow()] = headerStyle(th.AccentMode, th, colourless).Bold(true).
+		Render(themePanelHeaderLabel)
+	return rows
 }
 
 // themePanelDirRow renders §9.5's `⚠ dir unreadable` warning, or "" when the themes
@@ -1323,36 +1425,71 @@ func themePanelMessageWraps(p themePanel, height int) bool {
 	return height > themePanelMinHeight(themePanelKeymap(), p.union.DirUnusable)
 }
 
-// themePanelBlock assembles the panel's rows into the finished block: every row
-// prefixed with the one `border`-coloured `│` cell and padded out to the inner width
-// with the owned canvas, clamped and padded to exactly height rows.
+// themePanelBlock assembles the panel's rows into the finished block: each row
+// below the header rule prefixed with the one `border`-coloured `│` cell and the
+// inner gutter, each row above it laid down bare, every row padded out to exactly
+// width cells with the owned canvas, and the whole clamped and padded to exactly
+// height rows.
 //
 // LEFT BORDER ONLY — no top, bottom or right edge. That is what makes the panel read
 // as a slide-over rather than as an inset bordered dialog like the modals (§9.1), and
 // it is the only thing distinguishing the panel from the list behind it.
+//
+// THE BORDER STARTS BELOW THE HEADER RULE, not at the top of the frame. It is the
+// one prefix decision this function makes for itself, and it is what makes the
+// slide-over read as a surface INSIDE the content region: above the rule the panel
+// contributes nothing but canvas, so the page's header band and the rule beneath it
+// run unbroken to the frame edge (themePanelHeaderBlock states the other half — the
+// rule the panel draws in its own full width is what carries the page's rule across
+// the columns the panel covers). A `│` running from row 0 cuts that band in two, and
+// the panel then reads as a second column beside the page rather than as a layer over
+// it.
+//
+// THE GUTTER IS CHARGED HERE AND NOWHERE ELSE, which is what makes it uniform: every
+// surface below the rule — the label, the list rows with their cursor column, the
+// pinned directory row, the message slot and the vertical key list — is composed
+// against themePanelInnerWidth and laid down after the same two columns, so none of
+// them can sit at a different inset from the others.
 //
 // Rows are padded but never truncated: every row this file composes is authored to
 // fit the minimum inner width (the header label is 6 cells, the pinned warning 16,
 // the widest footer row 15, and a list row is exactly inner cells by construction),
 // and below §9.8's minimum the panel refuses to open at all (themePanelFloor) — so there
 // is no width at which a row has to degrade.
-func themePanelBlock(rows []string, height, inner int, th theme.Theme, colourless bool) string {
-	border := headerStyle(th.Border, th, colourless).Render(panelFrameSide)
+func themePanelBlock(rows []string, height, width int, th theme.Theme, colourless bool) string {
+	inner := themePanelInnerWidth(width)
+	prefix := headerStyle(th.Border, th, colourless).Render(panelFrameSide) +
+		headerCanvasBg(th, colourless).Render(spaces(themePanelGutterWidth))
 	blank := blankCanvasRow(max(inner, 0), th, colourless)
 	painter := newThemePanelPainter(th, colourless)
+	borderFrom := themePanelBorderFromRow()
 
 	out := make([]string, 0, max(height, 0))
 	for _, row := range rows {
 		if len(out) == height {
 			break
 		}
-		padded := headerPadRight(row, lipgloss.Width(row), inner, th, colourless)
-		out = append(out, border+painter.paint(padded))
+		if len(out) < borderFrom {
+			out = append(out, painter.paint(themePanelPadRow(row, width, th, colourless)))
+			continue
+		}
+		out = append(out, prefix+painter.paint(themePanelPadRow(row, inner, th, colourless)))
 	}
 	for len(out) < height {
-		out = append(out, border+blank)
+		out = append(out, prefix+blank)
 	}
 	return strings.Join(out, "\n")
+}
+
+// themePanelPadRow pads one composed row out to w cells with the owned canvas, with
+// an EMPTY row rendered as a whole canvas blank rather than joined against one — the
+// header region's unbordered rows carry no content at all, and lipgloss's horizontal
+// join has no defined geometry for a zero-width segment.
+func themePanelPadRow(row string, w int, th theme.Theme, colourless bool) string {
+	if row == "" {
+		return blankCanvasRow(max(w, 0), th, colourless)
+	}
+	return headerPadRight(row, lipgloss.Width(row), w, th, colourless)
 }
 
 // themePanelPainter re-establishes the owned canvas across a panel row's bare

@@ -51,14 +51,16 @@ const (
 // which the paging assertions are about production: the arithmetic is
 // themePanelListSize's, shared with the per-frame copy renderThemePanel sizes, so
 // a test that installed a page of its own would be asserting against a page the
-// user never gets. At arrowTermH the body is 20 rows and a handful of fixture rows
+// user never gets. At arrowTermH the body is 17 rows and a handful of fixture rows
 // fit on one page, so `Ctrl+↓` would have nowhere to go at all.
 //
-// The arithmetic: contentHeight(12) = 10, less the header's 2 and the four-row
-// vertical footer leaves a 4-row body, of which `bubbles/list` spends 2 on its own
-// pagination block (the dot row plus its leading blank) — a two-row page.
+// The arithmetic: contentHeight(15) = 13, less the header's 5 (the page-measured
+// region — header block plus section header) and the four-row vertical footer leaves
+// a 4-row body, of which `bubbles/list` spends 2 on its own pagination block (the
+// dot row plus its leading blank) — a two-row page. It is the SHORTEST terminal that
+// paginates, one row above §9.8's floor.
 const (
-	arrowPagingTermH   = 12
+	arrowPagingTermH   = 15
 	arrowPagingPerPage = 2
 )
 
@@ -359,8 +361,9 @@ func arrowFrameCells(t *testing.T, m Model) [][]bgState {
 // panel re-themed" are two separate observations rather than one.
 func arrowPanelColumn(m Model) int {
 	left := (m.termWidth-m.contentWidth())/2 + m.contentWidth() - themePanelPreferredWidth
-	// +1 clears the one-cell left border, which is the `border` token rather than
-	// the canvas.
+	// +1 clears the one-cell left border, which is the `border` token rather than the
+	// canvas. The cell it lands on is the panel's inner gutter — canvas on every row,
+	// which is exactly what a canvas observation wants.
 	return left + 1
 }
 

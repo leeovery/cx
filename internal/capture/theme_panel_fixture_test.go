@@ -221,6 +221,15 @@ func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 
 		model := panelModel(t, fx.Deps(pinned))
 		opened := frameOf(t, model)
+
+		// The panel is OPEN before the arrow is sent. Without this the diff below
+		// proves only that the FRAME changed: with the open short-circuited, `↓` moves
+		// the Sessions cursor instead and the frame changes anyway, so the leg would
+		// pass over a panel that never rendered.
+		if !strings.Contains(ansi.Strip(opened), panelLeftBorder) {
+			t.Fatalf("the frame carries no %q, so the panel never opened and the `↓` below cannot reach it:\n%s", panelLeftBorder, ansi.Strip(opened))
+		}
+
 		model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 		previewed := frameOf(t, model)
 

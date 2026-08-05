@@ -20,7 +20,7 @@ import (
 // The doctrine is the point. MV §2.7's degrade-never-break governs a space
 // SHORTAGE, which is what a narrow terminal is; the multi-select precedent (a
 // proactive block at entry) governs a capability ABSENCE and deliberately does not
-// transfer. Applying the wrong one either opens a broken frame on a 30-column
+// transfer. Applying the wrong one either opens a broken frame on a 34-column
 // terminal or refuses a panel that would have fitted.
 //
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
@@ -45,10 +45,10 @@ func TestPanelGeometry_WidthLadder(t *testing.T) {
 		want     int
 	}{
 		{name: "far wider than the cap", contentW: 200, want: themePanelPreferredWidth},
-		{name: "exactly twice the preferred width", contentW: 60, want: themePanelPreferredWidth},
-		{name: "one column into the degraded band", contentW: 59, want: 29},
-		{name: "mid band", contentW: 54, want: 27},
-		{name: "the bottom of the degraded band", contentW: 48, want: themePanelMinWidth},
+		{name: "exactly twice the preferred width", contentW: 68, want: themePanelPreferredWidth},
+		{name: "one column into the degraded band", contentW: 67, want: 33},
+		{name: "mid band", contentW: 60, want: 30},
+		{name: "the bottom of the degraded band", contentW: 54, want: themePanelMinWidth},
 		{name: "below the band, above the floor", contentW: 40, want: themePanelMinWidth},
 		{name: "exactly at the floor", contentW: themePanelMinWidth, want: themePanelMinWidth},
 	} {
@@ -135,10 +135,11 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	}
 
 	const listRow, messageRow = 1, 1
-	want := themePanelHeaderRows + footer + listRow + messageRow
+	header := themePanelHeaderRows()
+	want := header + footer + listRow + messageRow
 	if got := themePanelMinHeight(entries, false); got != want {
 		t.Errorf("themePanelMinHeight = %d, want header(%d) + footer(%d) + %d list row + %d message row = %d",
-			got, themePanelHeaderRows, footer, listRow, messageRow, want)
+			got, header, footer, listRow, messageRow, want)
 	}
 
 	// The confirm scope's shorter footer moves the floor with it — the assertion a
@@ -151,7 +152,7 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	if shorterFooter >= footer {
 		t.Fatalf("fixture: the substituted footer is %d rows, not shorter than the panel scope's %d", shorterFooter, footer)
 	}
-	if got, wantShort := themePanelMinHeight(shorter, false), themePanelHeaderRows+shorterFooter+listRow+messageRow; got != wantShort {
+	if got, wantShort := themePanelMinHeight(shorter, false), header+shorterFooter+listRow+messageRow; got != wantShort {
 		t.Errorf("themePanelMinHeight under a %d-row footer = %d, want %d — the floor reads the MEASURED footer height", shorterFooter, got, wantShort)
 	}
 }
@@ -281,9 +282,9 @@ const (
 	geometryContentH      = 26
 )
 
-// geometryLabel is 24 cells — one inside the label budget a BADGED row has at the
-// preferred width (inner 29, less the 2-cell cursor column and the badge's 2 = 25)
-// and one beyond the 23 it has at geometryDegradedPanel (inner 27).
+// geometryLabel is 24 cells — inside the label budget a BADGED row has at the
+// preferred width (inner 32, less the 2-cell cursor column and the badge's `●` plus
+// its gap = 28) and beyond the 22 it has at geometryDegradedPanel (inner 26).
 //
 // That is the whole point of the value: the same row renders untruncated at the
 // preferred width and truncated with `…` in the degraded band, so a delegate still
@@ -520,7 +521,9 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 	})
 
 	t.Run("a taller terminal re-derives the panel's page", func(t *testing.T) {
-		const shortH = 10
+		// Exactly §9.8's floor: the shortest content region the panel opens at, and so
+		// the smallest page it can be given.
+		shortH := themePanelMinHeight(themePanelKeymap(), false)
 		m := newGeometryPanelModel(t, geometryWideW, shortH)
 		short := m.themePanel.list.Paginator.PerPage
 		requirePanelListMatchesTheRenderCopy(t, m)
@@ -545,7 +548,7 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 func themePanelBodyRow(t *testing.T, m Model, offset int) string {
 	t.Helper()
 	lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless))
-	at := themePanelHeaderRows + themePanelDirRowHeight(m.themePanel.union.DirUnusable) + offset
+	at := themePanelHeaderRows() + themePanelDirRowHeight(m.themePanel.union.DirUnusable) + offset
 	if at >= len(lines) {
 		t.Fatalf("the panel rendered %d rows, so body row %d does not exist", len(lines), offset)
 	}
@@ -734,8 +737,15 @@ func TestPanelGeometry_ResizeBelowHeightFloorClosesWithFlash(t *testing.T) {
 // user cannot reopen the panel to see what happened.
 //
 // The comparison is against the `Esc` path's OWN output at the same final size, with
-// the geometry flash cleared — so what is compared is the close, not the notice band
-// the forced one additionally raises.
+// the SAME notice-band history driven through both — so what is compared is the
+// close, not the band the forced one additionally raises.
+//
+// The band has to be driven through the control rather than merely cleared from the
+// forced model, because `bubbles/list` derives its page from the height at the moment
+// SetSize runs and that derivation is PATH-DEPENDENT: a list squeezed by a band and
+// handed the row back settles on a different page than one that was never squeezed.
+// That is the library's hysteresis, not a difference between the two closes, and
+// leaving it in the comparison would fail this test for a reason it is not about.
 func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 	contentW, contentH := geometryBelowHeightFloor()
 	rows := geometryRows()
@@ -765,7 +775,12 @@ func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 		t.Errorf("the forced close retained %d union row(s), want the enumeration discarded", got)
 	}
 
+	if got := forced.flashText; got == "" {
+		t.Fatal("fixture: the forced close raised no flash, so the control's band history matches nothing")
+	}
+	(&viaEsc).setFlash(forced.flashText)
 	(&forced).clearFlash()
+	(&viaEsc).clearFlash()
 	if got, want := forced.View().Content, viaEsc.View().Content; got != want {
 		t.Errorf("the forced close's frame is not `Esc`'s\nforced: %q\nesc:    %q", escSeq(got), escSeq(want))
 	}
@@ -807,8 +822,8 @@ func TestPanelGeometry_ForcedCloseWritesNothing(t *testing.T) {
 }
 
 // geometryMessage is §14A's slot-from-constant confirm at a short slug — 29 cells,
-// which overflows the minimum panel's 23-cell inner width and so exercises both
-// halves of §9.1's slot rule from one string.
+// which overflows the minimum panel's inner width (the test asserts that it does) and
+// so exercises both halves of §9.1's slot rule from one string.
 const geometryMessage = "clear constant aurora?  y / n"
 
 // TestPanelGeometry_MessageTruncatesAtFloorHeight: it truncates the message at the
@@ -855,8 +870,8 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if len(lines) != floor {
 			t.Fatalf("the panel rendered %d rows at its floor of %d", len(lines), floor)
 		}
-		if listRow := lines[themePanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
-			t.Errorf("row %d is not the single list row (%q): %q", themePanelHeaderRows, rows[0].Label(), listRow)
+		if listRow := lines[themePanelHeaderRows()]; !strings.Contains(listRow, rows[0].Label()) {
+			t.Errorf("row %d is not the single list row (%q): %q", themePanelHeaderRows(), rows[0].Label(), listRow)
 		}
 		slot := strings.TrimRight(lines[floor-footer-1], " ")
 		if !strings.Contains(slot, themeRowEllipsis) {
@@ -885,11 +900,15 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if strings.Contains(joined, themeRowEllipsis) {
 			t.Errorf("the wrapped slot %q is truncated; above the floor it wraps", slot)
 		}
-		if !strings.Contains(joined, "clear constant") || !strings.Contains(joined, "y / n") {
-			t.Errorf("the wrapped slot %q does not carry the whole message %q", slot, geometryMessage)
+		// The WHOLE message survives, word for word. It is reassembled from the two
+		// rows rather than searched for as a substring, because the wrap point is a
+		// function of the inner width and may fall anywhere — including mid-phrase —
+		// and what §9.1 promises is that nothing is lost, not where the break lands.
+		if got, want := chromeWords(themePanelSlotText(slot)), chromeWords(geometryMessage); got != want {
+			t.Errorf("the wrapped slot reads %q, want the whole message %q", got, want)
 		}
-		if listRow := lines[themePanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
-			t.Errorf("row %d is not the single list row (%q): %q", themePanelHeaderRows, rows[0].Label(), listRow)
+		if listRow := lines[themePanelHeaderRows()]; !strings.Contains(listRow, rows[0].Label()) {
+			t.Errorf("row %d is not the single list row (%q): %q", themePanelHeaderRows(), rows[0].Label(), listRow)
 		}
 	})
 }
@@ -927,12 +946,12 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 				if len(lines) != floor {
 					t.Fatalf("the panel rendered %d rows at its floor of %d", len(lines), floor)
 				}
-				if got, want := strings.TrimRight(lines[0], " "), panelFrameSide+themePanelHeaderLabel; got != want {
+				if got, want := strings.TrimRight(lines[themePanelHeaderLabelRow()], " "), themePanelContentPrefix()+themePanelHeaderLabel; got != want {
 					t.Errorf("the header label row = %q, want %q", got, want)
 				}
-				at := themePanelHeaderRows
+				at := themePanelHeaderRows()
 				if dirUnusable {
-					if got, want := strings.TrimRight(lines[at], " "), panelFrameSide+themePanelDirUnreadable; got != want {
+					if got, want := strings.TrimRight(lines[at], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 						t.Errorf("the directory row = %q, want %q", got, want)
 					}
 					at++
@@ -942,15 +961,15 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 				}
 				footer := lines[len(lines)-len(wantFooter):]
 				for i, want := range wantFooter {
-					if got := footer[i]; got != panelFrameSide+want {
-						t.Errorf("footer row %d = %q, want %q — the floor overflowed and the assembly cut the footer", i, got, panelFrameSide+want)
+					if got, wantRow := footer[i], themePanelContentPrefix()+want; got != wantRow {
+						t.Errorf("footer row %d = %q, want %q — the floor overflowed and the assembly cut the footer", i, got, wantRow)
 					}
 				}
 				if message == "" {
 					return
 				}
 				slot := strings.TrimRight(lines[len(lines)-len(wantFooter)-1], " ")
-				if !strings.HasPrefix(slot, panelFrameSide+"clear constant") {
+				if !strings.HasPrefix(slot, themePanelContentPrefix()+"clear constant") {
 					t.Errorf("the row above the footer is not the message slot: %q", slot)
 				}
 			})
@@ -969,4 +988,14 @@ func (d themePanelDim) String() string {
 	default:
 		return fmt.Sprintf("dimNone(%d)", int(d))
 	}
+}
+
+// themePanelSlotText joins a rendered message slot's rows back into one string,
+// dropping each row's border-and-gutter prefix and its trailing canvas pad.
+func themePanelSlotText(slot []string) string {
+	text := make([]string, 0, len(slot))
+	for _, row := range slot {
+		text = append(text, strings.TrimSpace(strings.TrimPrefix(row, panelFrameSide)))
+	}
+	return strings.Join(text, " ")
 }

@@ -644,3 +644,43 @@ func TestDeps_HasNoThemeSlots(t *testing.T) {
 		}
 	}
 }
+
+// TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow: it refuses to seed the
+// cursor onto a rejected row.
+//
+// §13.3's fourth fixture input re-anchors the cursor BY IDENTITY, from a string a
+// fixture declares — and §13.3 mandates fixtures built from invalid drop-ins and an
+// unreadable themes directory, whose rows are precisely the unselectable ones. §9.2's
+// invariant is that the cursor is always on a selectable row, and the arrows SKIP
+// unselectable ones (§9.5), so a cursor parked on one would sit somewhere the user
+// cannot navigate back to.
+//
+// The seed therefore falls through to the first selectable row, which is the same
+// degrade a seed naming no row at all already takes. It is asserted here rather than
+// left to the capture harness because internal/capture renders stills: a still with a
+// mis-seeded cursor looks like a still with a correct one.
+func TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow(t *testing.T) {
+	valid := arrowValidRow("aurora", 0)
+	broken := arrowInvalidRow("half-written")
+	rows := []theme.Row{valid, broken}
+
+	deps := newArrowPanelDeps(t, rows, valid.Slug)
+	deps.InitialThemeCursor = broken.SortKey()
+	m := Build(deps)
+	m.termWidth, m.termHeight = geometryTerm(geometryWideW, geometryContentH)
+
+	if broken.Selectable() {
+		t.Fatal("fixture: the seeded row is selectable, so the skip is not exercised")
+	}
+	if themePanelRowIndex(rows, broken.SortKey()) == 1 {
+		t.Fatalf("fixture: the seeded identity resolves to index 1, the rejected row itself")
+	}
+
+	m = pressThemeKey(t, m)
+
+	row := themePanelCursorRow(t, m)
+	if !row.Selectable() {
+		t.Errorf("the capture seed parked the cursor on the unselectable %q; the arrows skip it, so there is no way back to it", row.Label())
+	}
+	requireCursorOn(t, m, valid.Label())
+}

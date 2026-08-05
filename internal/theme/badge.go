@@ -49,7 +49,7 @@ const (
 // are §9.5's: with exactly two slots "both" is FULLY DETERMINED, so naming the
 // slots adds nothing a reader cannot infer; and it is deliberately NO WIDER THAN
 // `● light`, so the collapsed form cannot move the row-composition truncation
-// budget the panel's ~24–30 columns are apportioned by. A wider collapsed badge
+// budget the panel's ~27–34 columns are apportioned by. A wider collapsed badge
 // would silently steal columns from the label on precisely the rows a user
 // reaches in two keypresses. The width relation is asserted rather than left to
 // this prose.

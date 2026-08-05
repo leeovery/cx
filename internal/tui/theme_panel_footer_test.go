@@ -22,7 +22,7 @@ import (
 // No t.Parallel() — the package-level mock convention and the shared canvas
 // helpers make parallelism unsafe across this package's tests.
 
-// The two ends of the inner content width §9.8's ~24–30 column panel leaves for
+// The two ends of the inner content width §9.8's ~27–34 column panel leaves for
 // its footer. The footer owns neither end of the ladder (task 8-11 declares it and
 // task 8-6 subtracts the left border), so these are the test's own representatives
 // of the band every row must survive.
@@ -78,7 +78,7 @@ func themePanelConfirmScope() []keymapEntry {
 // §14A rows, in descriptor order, one line each.
 //
 // The copy is a layout constraint as much as a copy choice (§14A) — it has to fit
-// 24–30 columns — so it is pinned verbatim rather than paraphrased, and the row
+// 27–34 columns — so it is pinned verbatim rather than paraphrased, and the row
 // count is pinned with it: a fifth row would silently grow task 8-11's height
 // floor.
 func TestThemePanelFooter_PinnedCopy(t *testing.T) {
