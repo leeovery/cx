@@ -15,23 +15,36 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// fakeThemePersister records what a direct call to the seam committed. Nothing
-// presses a key in this phase (§8.9's panel is Phase 8/9), so a recorder is all
-// the model side needs: it proves the injected value is the one the model holds.
+// fakeThemePersister records what the seam was asked to commit, and can be made
+// to fail.
+//
+// `slugs` is every commit whatever its shape, which is what a "nothing was
+// written" assertion wants; `constants` is the CommitTheme calls alone and
+// `slots` the CommitThemeSlot ones, so §9.2's two commit keys are
+// distinguishable — `Enter` writes the constant and clears both slots, `d`/`l`
+// write a slot and clear the constant, and a test asserting one must not pass
+// over the other.
+//
+// `err` is returned by both methods. §9.13's outstanding-failure state machine
+// renders its line from the value the seam hands back, so a failed write has to
+// be drivable end to end rather than only described.
 type fakeThemePersister struct {
-	slugs []string
-	slots []prefs.ThemeSlot
+	slugs     []string
+	constants []string
+	slots     []prefs.ThemeSlot
+	err       error
 }
 
 func (f *fakeThemePersister) CommitTheme(slug string) error {
 	f.slugs = append(f.slugs, slug)
-	return nil
+	f.constants = append(f.constants, slug)
+	return f.err
 }
 
 func (f *fakeThemePersister) CommitThemeSlot(slug string, slot prefs.ThemeSlot) error {
 	f.slugs = append(f.slugs, slug)
 	f.slots = append(f.slots, slot)
-	return nil
+	return f.err
 }
 
 // TestBuild_NilThemePersisterIsTolerated pins the seam's nil-tolerance, the shape

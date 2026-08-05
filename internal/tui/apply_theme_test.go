@@ -151,26 +151,33 @@ func TestApplyTheme_RestylesWithoutRebuild(t *testing.T) {
 
 // countingStores is the set of file-touching seams a Model can reach, each
 // counting its calls. Together they cover every route from the model to disk:
-// projects.json (store + editor), the aliases file, prefs.json, and a pane's
+// projects.json (store + editor), the aliases file, prefs.json — BOTH of its
+// seams, the `s`-key mode persister and §8.9's theme persister — and a pane's
 // scrollback .bin.
 //
-// The theme files themselves are NOT among them, and cannot be: a palette
-// arrives at ApplyTheme as a loaded value, and the Model holds no theme.Loader
-// at all — which the companion assertion below pins structurally, since a loader
-// field is the only way a future swap path could grow a theme file read.
+// The theme persister is counted for the same reason the mode persister is: it
+// is a second prefs.json-touching seam, so a set that held only the first would
+// let a swap path grow a prefs write while this guard's "every route from the
+// model to disk" claim stayed nominally true.
+//
+// The theme FILES are NOT among them, and cannot be: a palette arrives at
+// ApplyTheme as a loaded value, and the Model holds no theme.Loader at all —
+// which the companion assertion below pins structurally, since a loader field is
+// the only way a future swap path could grow a theme file read.
 type countingStores struct {
-	projectStore  *countingProjectStore
-	projectEditor *countingProjectEditor
-	aliasEditor   *countingAliasEditor
-	modePersister *countingModePersister
-	scrollback    *countingScrollbackReader
-	lister        *countingLister
+	projectStore   *countingProjectStore
+	projectEditor  *countingProjectEditor
+	aliasEditor    *countingAliasEditor
+	modePersister  *countingModePersister
+	themePersister *countingThemePersister
+	scrollback     *countingScrollbackReader
+	lister         *countingLister
 }
 
 // calls is the total number of seam calls recorded across every store.
 func (c countingStores) calls() int {
 	return c.projectStore.calls + c.projectEditor.calls + c.aliasEditor.calls +
-		c.modePersister.calls + c.scrollback.calls + c.lister.calls
+		c.modePersister.calls + c.themePersister.calls + c.scrollback.calls + c.lister.calls
 }
 
 // reset zeroes every counter, so a subsequent observation measures only what
@@ -180,6 +187,7 @@ func (c countingStores) reset() {
 	c.projectEditor.calls = 0
 	c.aliasEditor.calls = 0
 	c.modePersister.calls = 0
+	c.themePersister.calls = 0
 	c.scrollback.calls = 0
 	c.lister.calls = 0
 }
@@ -187,11 +195,15 @@ func (c countingStores) reset() {
 // exercise calls every seam once. It is the counters' own positive control: a
 // counter that never increments would make the zero-calls assertion pass for the
 // wrong reason.
+//
+// The theme persister's two methods share ONE counter, so exercising either is
+// exercising the seam.
 func (c countingStores) exercise() {
 	_, _ = c.projectStore.List()
 	_ = c.projectEditor.AddTag("/x", "y")
 	_, _ = c.aliasEditor.Load()
 	_ = c.modePersister.Save(prefs.ModeFlat)
+	_ = c.themePersister.CommitTheme("nord")
 	_, _ = c.scrollback.Tail("pane")
 	_, _ = c.lister.ListSessions()
 }
@@ -236,6 +248,19 @@ type countingModePersister struct{ calls int }
 
 func (c *countingModePersister) Save(prefs.SessionListMode) error { c.calls++; return nil }
 
+// countingThemePersister is §8.9's commit seam, counted. Both methods share one
+// counter: what the guard asks is whether the swap reached prefs.json at all, and
+// which of the two commit keys would have done it is a distinction it has no use
+// for.
+type countingThemePersister struct{ calls int }
+
+func (c *countingThemePersister) CommitTheme(string) error { c.calls++; return nil }
+
+func (c *countingThemePersister) CommitThemeSlot(string, prefs.ThemeSlot) error {
+	c.calls++
+	return nil
+}
+
 type countingScrollbackReader struct{ calls int }
 
 func (c *countingScrollbackReader) Tail(string) ([]byte, error) { c.calls++; return nil, nil }
@@ -247,12 +272,13 @@ func (c *countingLister) ListSessions() ([]tmux.Session, error) { c.calls++; ret
 // newCountingStores wires a fresh counter onto every file-touching seam.
 func newCountingStores() countingStores {
 	return countingStores{
-		projectStore:  &countingProjectStore{},
-		projectEditor: &countingProjectEditor{},
-		aliasEditor:   &countingAliasEditor{},
-		modePersister: &countingModePersister{},
-		scrollback:    &countingScrollbackReader{},
-		lister:        &countingLister{},
+		projectStore:   &countingProjectStore{},
+		projectEditor:  &countingProjectEditor{},
+		aliasEditor:    &countingAliasEditor{},
+		modePersister:  &countingModePersister{},
+		themePersister: &countingThemePersister{},
+		scrollback:     &countingScrollbackReader{},
+		lister:         &countingLister{},
 	}
 }
 
@@ -274,18 +300,19 @@ func TestApplyTheme_PerformsNoFileRead(t *testing.T) {
 		// Positive control FIRST: prove each counter increments, so the zero
 		// below is an absence of calls rather than an absence of counting.
 		stores.exercise()
-		if stores.calls() != 6 {
-			t.Fatalf("positive control: exercising the six seams recorded %d calls, want 6 — the counters do not count", stores.calls())
+		if stores.calls() != 7 {
+			t.Fatalf("positive control: exercising the seven seams recorded %d calls, want 7 — the counters do not count", stores.calls())
 		}
 
 		m := Build(Deps{
-			Lister:        stores.lister,
-			Theme:         theme.ConstantNomination(before),
-			ProjectStore:  stores.projectStore,
-			ProjectEditor: stores.projectEditor,
-			AliasEditor:   stores.aliasEditor,
-			ModePersister: stores.modePersister,
-			Reader:        stores.scrollback,
+			Lister:         stores.lister,
+			Theme:          theme.ConstantNomination(before),
+			ProjectStore:   stores.projectStore,
+			ProjectEditor:  stores.projectEditor,
+			AliasEditor:    stores.aliasEditor,
+			ModePersister:  stores.modePersister,
+			ThemePersister: stores.themePersister,
+			Reader:         stores.scrollback,
 		})
 		m.termWidth, m.termHeight = 120, 40
 		m.applySessionListSize(m.contentWidth(), m.contentHeight())
@@ -298,9 +325,9 @@ func TestApplyTheme_PerformsNoFileRead(t *testing.T) {
 		}
 
 		if got := stores.calls(); got != 0 {
-			t.Errorf("fifty swaps made %d file-touching seam call(s) — a swap reads nothing (project store %d, project editor %d, alias editor %d, mode persister %d, scrollback %d, lister %d)",
+			t.Errorf("fifty swaps made %d file-touching seam call(s) — a swap reads nothing (project store %d, project editor %d, alias editor %d, mode persister %d, theme persister %d, scrollback %d, lister %d)",
 				got, stores.projectStore.calls, stores.projectEditor.calls, stores.aliasEditor.calls,
-				stores.modePersister.calls, stores.scrollback.calls, stores.lister.calls)
+				stores.modePersister.calls, stores.themePersister.calls, stores.scrollback.calls, stores.lister.calls)
 		}
 	})
 

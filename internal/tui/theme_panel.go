@@ -363,11 +363,17 @@ type themePanel struct {
 	// through it.
 	badges map[string]theme.Badge
 
-	// message is §9.1's message slot. IT IS ALWAYS EMPTY IN PHASE 8: both of the
-	// slot's contenders — the slot-from-constant confirm (§9.2) and the failed-commit
-	// line (§9.13) — are commit-path states owned by Phase 9. Phase 8 leaves the
-	// slot's height accounted for and the field unset; there is deliberately no
-	// setter and no arbiter here.
+	// message is §9.1's message slot, and it is STILL ALWAYS EMPTY: both of the
+	// slot's contenders — the slot-from-constant confirm (§9.2) and the
+	// failed-commit line (§9.13) — belong to later tasks, so the slot's height is
+	// accounted for while the field has no setter and no arbiter here.
+	//
+	// `Enter` RAISES NEITHER, and that is a decision rather than a gap. §9.2 gives
+	// the commit-a-constant key no confirm even over a pair — it visibly does what
+	// it says, and the theme is already previewing behind the panel — and its
+	// failed-write report is task 9-7's. The asymmetry with `d`/`l` is the point:
+	// the confirm guards the case where the RESOLVED theme changes as a side effect
+	// of a write the user was told is inert.
 	message string
 
 	// width is the panel's OUTER width, border column included — the value
@@ -1055,6 +1061,13 @@ func (m *Model) applyThemePanelCanvasMode() {
 // applied filter, must not exit multi-select, and must not quit — the innermost
 // surface resolves first, which is how the panel NESTS over multi-select (§9.7).
 //
+// `Enter` COMMITS AND STAYS (theme_panel_commit.go). Its arm sits ahead of the
+// swallow-everything default and returns the panel exactly as it found it bar the
+// write: no close, no re-theme, no cursor move. It is deliberately NOT an arm of
+// the `Esc` case — one key, one job — because a dual-purpose exit is precisely
+// what would let a user who had just set both slots wipe the pair on their way
+// out.
+//
 // The ENTRY side of this routing is themePanelEntry / handleThemePanelKey above.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
@@ -1062,6 +1075,16 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case keyIsCode(msg, tea.KeyEscape):
 		(&m).closeThemePanel()
+		return m, nil
+	case keyIsCode(msg, tea.KeyEnter):
+		// §9.2's commit-a-constant, and it deliberately does NOT close: the panel
+		// stays open, the cursor stays where it is, and nothing is re-themed. The
+		// error is DISCARDED HERE and only here — task 9-7 owns §9.13's message
+		// slot line and the outstanding-failure state, and until it lands a failed
+		// write is silent except for cmd's own `theme: commit failed` record. It
+		// leaves nothing behind either way: on failure the raw keys are untouched,
+		// so the `●` cannot move.
+		_ = (&m).commitSelectedConstant()
 		return m, nil
 	case themePanelNavKey(m.themePanel.list.KeyMap, msg):
 		return m, (&m).moveThemePanelCursor(msg)

@@ -33,10 +33,25 @@ import (
 // internal/tui keeps its own copy unexported.
 const panelLeftBorder = "│"
 
-// panelFixtureNames is the pair of fixtures this task registers, named once so a
-// per-fixture assertion below cannot cover one and forget the other.
+// panelFixtureNames is EVERY §13.3 panel fixture, named once so a per-fixture
+// assertion below cannot cover some and forget the others.
+//
+// It is the whole set rather than the two setting-state frames the four-input
+// check was first written against. Each of the other five is covered indirectly by
+// a frame assertion that would fail if one of its inputs were missing, so this is
+// not a live gap — but a reader reasonably assumes the structural check spans the
+// catalogue, and a fixture added to the catalogue without its four inputs is
+// precisely the failure that check exists to name.
 func panelFixtureNames() []string {
-	return []string{"theme-panel-adaptive-pair", "theme-panel-constant-previewing"}
+	return []string{
+		"theme-panel-adaptive-pair",
+		"theme-panel-constant-previewing",
+		"theme-panel-invalid-row",
+		"theme-panel-dir-unreadable",
+		"theme-panel-narrow",
+		"theme-panel-paginated",
+		"theme-panel-projects",
+	}
 }
 
 // TestPanelFixture_FourInputs: it declares all four panel inputs.
