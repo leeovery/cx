@@ -361,6 +361,12 @@ type themePanel struct {
 	// from the seam's own re-resolution against the retained enumeration — the
 	// panel's parse, never construction's (§5.8) — and rowItems assembles the list
 	// through it.
+	//
+	// §9.2's post-commit recompute re-derives it against that SAME enumeration
+	// (refreshThemePanelBadges), which is what makes the `●` mean "what is
+	// persisted" after a write as well as before one. Those two are its only
+	// writers: a FAILED commit reaches neither, so the marker cannot move on a
+	// write that did not land (§9.13).
 	badges map[string]theme.Badge
 
 	// message is §9.1's message slot, and it is STILL ALWAYS EMPTY: both of the
