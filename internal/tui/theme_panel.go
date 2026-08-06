@@ -506,8 +506,14 @@ func (m Model) handleThemePanelKey() (tea.Model, tea.Cmd) {
 // generation feeds flashTickCmd so the block inherits the standard timer, exactly as
 // the proactive multi-select block does, with the next-actionable-key clear at the top
 // of each page's update remaining the authoritative route.
+//
+// It is raised through setThemeFlash, which is what gives it §14A's precedence over
+// the filter line. §9.10's `NO_COLOR` refusal is the reason that matters here: it is
+// a PROACTIVE block, so a flash that could not claim the slot would produce nothing
+// at all — the walkable dead end the block exists to prevent, reached by another
+// route.
 func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
-	(&m).setFlash(flash)
+	(&m).setThemeFlash(flash)
 	return m, flashTickCmd(m.flashGen)
 }
 
@@ -919,14 +925,16 @@ func (m *Model) closeThemePanel() {
 // The flash is raised WITHOUT scheduling an auto-clear tick, because the resize is
 // not a cmd-returning site — it clears on the next actionable key exactly as the
 // burst's unsupported no-op flash does, and a geometry report the user can see for
-// themselves is the right thing to leave standing until they touch a key.
+// themselves is the right thing to leave standing until they touch a key. It goes
+// through setThemeFlash so it claims the notice slot over a filter line the user may
+// have had applied throughout the panel's whole life (§14A).
 func (m *Model) resizeThemePanel() {
 	if !m.themePanel.open {
 		return
 	}
 	if dim, ok := themePanelFloor(m.contentWidth(), m.contentHeight(), m.themePanel.union.DirUnusable); !ok {
 		m.closeThemePanel()
-		m.setFlash(themePanelForcedCloseFlash(dim))
+		m.setThemeFlash(themePanelForcedCloseFlash(dim))
 		return
 	}
 	m.themePanel.width, _ = themePanelWidthFor(m.contentWidth())

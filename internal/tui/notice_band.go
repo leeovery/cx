@@ -334,6 +334,7 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 // a transient flash wins over any persistent band while shown; otherwise the
 // active persistent band occupies the slot:
 //
+//   - a THEME-ORIGIN flash → the slot, ABOVE the filter line (see below).
 //   - flashText != ""  → the transient flash takes the slot; its flashKind selects
 //     the warning (bandWarning) or success (bandSuccess) styling (§11.2).
 //   - byTagSignpost     → the persistent no-tags info band (bandInfo) — §11.3 —
@@ -344,6 +345,29 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 // single arbitrated insert (no double-band). The role/message the arbiter returns
 // are consumed by viewSessionList's single insertion step; the on-band text token
 // is selected at the render site so each band keeps its existing on-band colour.
+//
+// §14A: A THEME-ORIGIN FLASH OUTRANKS THE FILTER LINE, AND ONLY IT DOES. The filter
+// line is the one contender above the flash tier that can be live throughout a
+// panel's open, use and close — a filter can sit applied-but-unfocused on this list
+// the whole time — and two guarantees fail SILENTLY if a theme signal cannot claim
+// the slot beneath it:
+//
+//   - The failed-commit report. Closing the panel DISCHARGES the outstanding
+//     failure whether or not a flash rendered, so a report that cannot claim the
+//     slot is DESTROYED rather than deferred — which is the silent revert that
+//     report exists to close.
+//   - The proactive `NO_COLOR` block (§9.10), which would produce nothing at all:
+//     the walkable dead end it exists to prevent, reached by another route.
+//
+// The asymmetry is the justification: a filter line is a persistent restatement of a
+// state the user can already see in their own list, while each theme flash reports a
+// one-time event with no other surface. The tier is therefore the FIRST arm here,
+// and the ordinary flash keeps its own position below — a later contender inserted
+// between them must not be allowed to pre-empt the theme tier.
+//
+// The filter line itself has NO arm here: it claims the SECTION-HEADER row
+// (applySectionHeader), a different physical row, so the two co-render today and the
+// ordering above is what keeps that true if either ever moves.
 //
 // The PROJECTS page has its own arbiter (activeProjectNoticeBand) over its own
 // contender set — §14A gave it the transient flash and nothing else. The two are
@@ -364,8 +388,17 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 	// spec flash tier is DIFFERENT by design: that one is a section-header claimant
 	// (applySectionHeader's abortBannerText branch) that DOES replace the banner. A
 	// later reader must NOT add `&& !m.multiSelectMode` here to force a single row.
-	if m.flashText != "" {
-		return flashBandRole(m.flashKind), m.flashText, true
+	//
+	// Both flash tiers carry that exception: §9.7 lets the theme panel NEST over
+	// multi-select, so a theme signal raised there co-renders with the banner too.
+	if role, message, live := m.themeFlashClaim(); live {
+		return role, message, true
+	}
+	// The filter line's position in the order is HERE, between the two flash tiers:
+	// the theme tier above it, every other flash below. It claims the SECTION-HEADER
+	// row rather than this slot, so it has no arm of its own.
+	if role, message, live := m.flashClaim(); live {
+		return role, message, true
 	}
 	// §5 multi-select mode replaces the section header with the `N selected` banner
 	// and §6.2 the resolved-unsupported terminal replaces it with the `⚠ unsupported
@@ -393,9 +426,21 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 // The order — a transient flash wins the slot while shown, otherwise the §11.4
 // command-pending banner holds it:
 //
+//   - a THEME-ORIGIN flash → the slot, ABOVE the filter line (see below).
 //   - flashText != "" → the transient flash takes the slot; its flashKind selects
 //     the warning (bandWarning) or success (bandSuccess) styling (§11.2).
 //   - commandPending  → the persistent §11.4 command-pending banner (bandCommand).
+//
+// §14A: A THEME-ORIGIN FLASH OUTRANKS THE FILTER LINE HERE TOO, and for the same
+// two guarantees the Sessions arbiter states — the failed-commit report, which is
+// DESTROYED rather than deferred if it cannot claim the slot (closing the panel
+// discharges the outstanding failure whether or not a flash rendered), and §9.10's
+// proactive `NO_COLOR` block, which would otherwise produce nothing at all. `t` is
+// bound on this page because theme is a global setting (§9.6), so every one of those
+// signals is reachable here and the rule cannot be Sessions-only. The filter line
+// claims this page's section-header row (applyProjectsSectionHeader), a different
+// physical row, so the two co-render; the ordering below is what keeps the theme
+// tier above it if either ever moves.
 //
 // PROJECTS GETS THE FLASH CONTENDER ALONE, not the full arbiter. The no-tags
 // signpost, the multi-select banner, the unsupported banner and the burst-progress
@@ -418,8 +463,13 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 // caret + orange command chip are composed by renderCommandBand from the model's
 // pending command, so that arm's render does not consume the returned message.
 func (m Model) activeProjectNoticeBand() (role noticeBandRole, message string, ok bool) {
-	if m.flashText != "" {
-		return flashBandRole(m.flashKind), m.flashText, true
+	if role, message, live := m.themeFlashClaim(); live {
+		return role, message, true
+	}
+	// The filter line's position in the order is HERE, between the two flash tiers;
+	// it owns the section-header row rather than this slot, so it has no arm.
+	if role, message, live := m.flashClaim(); live {
+		return role, message, true
 	}
 	if m.commandPending {
 		return bandCommand, commandBandText, true
@@ -459,6 +509,29 @@ func flashBandRole(kind flashKind) noticeBandRole {
 		return bandSuccess
 	}
 	return bandWarning
+}
+
+// flashClaim is the §11.2 transient-flash contender: the band a live flash claims —
+// the role its kind selects plus its verbatim message — or ok=false when no flash is
+// live. Both pages' arbiters resolve the flash through it, so the one contender they
+// share cannot come to mean two things.
+func (m Model) flashClaim() (role noticeBandRole, message string, ok bool) {
+	if m.flashText == "" {
+		return bandWarning, "", false
+	}
+	return flashBandRole(m.flashKind), m.flashText, true
+}
+
+// themeFlashClaim is flashClaim narrowed to §14A's THEME-ORIGIN tier — the flashes
+// that claim the notice slot even while the filter line is live. It reads the origin
+// the flash carries (setThemeFlash) and NEVER the message text: precedence keyed on
+// wording would move a signal out of the tier on a copy edit, and would let any
+// unrelated message that happened to mention a theme fall into it.
+func (m Model) themeFlashClaim() (role noticeBandRole, message string, ok bool) {
+	if m.flashOrigin != flashOriginTheme {
+		return bandWarning, "", false
+	}
+	return m.flashClaim()
 }
 
 // noticeBandOnBandText selects the §2.9 on-band text token for the arbitrated

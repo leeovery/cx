@@ -43,6 +43,27 @@ const (
 	flashSuccess
 )
 
+// flashOrigin is WHERE an inline flash came from, and it exists for exactly one
+// reason: §14A gives the theme signals precedence over the filter line in the §11
+// notice band's order, and every other flash keeps today's position. That is a
+// change scoped to those flashes, so the FLASH has to carry the discrimination —
+// the band inferring it from the message text would re-order a signal the moment
+// its copy changed, and would grant the tier to any unrelated flash that happened
+// to mention a theme.
+//
+// flashOriginDefault is the zero value, so the construction-time seed keeps
+// today's order without naming an origin, and setFlash / setSuccessFlash reset to
+// it explicitly. Like flashKind it is irrelevant once flashText is empty.
+type flashOrigin int
+
+const (
+	// flashOriginDefault is an ordinary flash — today's band order, unchanged.
+	flashOriginDefault flashOrigin = iota
+	// flashOriginTheme is one of §14A's theme signals — the tier that claims the
+	// notice slot even while the filter line is live.
+	flashOriginTheme
+)
+
 // flashAutoClearDuration is how long an inline flash lingers before the
 // tick-based auto-clear fires. Spec § Inline flash > Clear conditions
 // notes "~3s as a reasonable default" — long enough to read, short

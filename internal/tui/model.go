@@ -567,6 +567,12 @@ type Model struct {
 	// notice-band primitive paints the matching bar colour + glyph. It is reset to
 	// flashWarning by every setFlash and is irrelevant once flashText is empty.
 	flashKind flashKind
+	// flashOrigin is the §14A precedence tier of the active inline flash: a
+	// theme-origin flash claims the §11 notice slot even while the filter line is
+	// live, while every other flash keeps today's order. It is reset to
+	// flashOriginDefault by setFlash / setSuccessFlash and stamped only by
+	// setThemeFlash, so the tier can never be inherited by an unrelated message.
+	flashOrigin flashOrigin
 
 	// byTagSignpost is the persistent "No tags yet" signpost flag (§11.3 / §5.3 —
 	// By Tag with zero tags anywhere). It is set true by rebuildSessionList whenever
@@ -2434,7 +2440,27 @@ func (m *Model) setFlash(text string) {
 	// the explicit opt-in to the green ✓ success variant. Resetting here means a
 	// success flash followed by a plain setFlash reverts to warning.
 	m.flashKind = flashWarning
+	// Default precedence tier (§14A). Resetting here — rather than leaving whatever
+	// the previous flash stamped — is what keeps the theme flashes' precedence over
+	// the filter line SCOPED to them: an ordinary flash raised after a theme one
+	// must not inherit the tier.
+	m.flashOrigin = flashOriginDefault
 	m.resyncPageLayouts()
+}
+
+// setThemeFlash records one of §14A's theme signals. It is setFlash PLUS the origin
+// stamp that gives the flash precedence over the filter line in the §11 notice band
+// (see activeNoticeBand), and it delegates rather than restating the assignments so
+// the two can never fork: a theme flash bumps the same generation, carries the same
+// warning kind, rides the same auto-clear tick, and re-syncs the same layouts.
+//
+// EVERY theme signal is raised through here and none through setFlash, because the
+// tier is granted by the SETTER, not by the wording — a copy edit must not be able
+// to move a signal out of the tier, and no unrelated message must be able to fall
+// into it.
+func (m *Model) setThemeFlash(text string) {
+	m.setFlash(text)
+	m.flashOrigin = flashOriginTheme
 }
 
 // setSuccessFlash records an inline flash styled as the §11.2 SUCCESS variant —
@@ -2447,6 +2473,8 @@ func (m *Model) setSuccessFlash(text string) {
 	m.flashGen++
 	m.flashText = text
 	m.flashKind = flashSuccess
+	// Default precedence tier, for the same reason setFlash resets it (§14A).
+	m.flashOrigin = flashOriginDefault
 	m.resyncPageLayouts()
 }
 
