@@ -77,3 +77,13 @@ func (e themeEnumerator) Reassemble(enumeration theme.Enumeration, keys theme.Ra
 func (e themeEnumerator) Resolve(enumeration theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
 	return e.loader.ResolveNominationFrom(enumeration, setting)
 }
+
+// ResolveSlot runs that same per-slot resolution for ONE slot against the same
+// retained enumeration, at §12.3's commit-time cadence: the newly-live opposite
+// slot on a constant → adaptive conversion, and the one `theme: loaded` that fires
+// outside construction (§8.4).
+//
+// It takes no directory and reads none, for Resolve's reason exactly.
+func (e themeEnumerator) ResolveSlot(enumeration theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	return e.loader.ResolveSlot(enumeration, slot, slug)
+}

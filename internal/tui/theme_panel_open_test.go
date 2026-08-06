@@ -66,6 +66,10 @@ func (e *recordingThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (th
 	return e.resolution, nil
 }
 
+func (e *recordingThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
+}
+
 // realThemeEnumerator is the PRODUCTION adapter's shape, staged here so the open
 // path can be driven against a real theme.Loader and a real directory — the only
 // way to assert that a mid-session file edit is picked up and that each open is a
@@ -89,6 +93,10 @@ func (e *realThemeEnumerator) Resolve(enumeration theme.Enumeration, setting the
 	return e.loader.ResolveNominationFrom(enumeration, setting)
 }
 
+func (e *realThemeEnumerator) ResolveSlot(enumeration theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	return e.loader.ResolveSlot(enumeration, slot, slug)
+}
+
 // nilProneThemeEnumerator is a POINTER-receiver seam whose methods dereference the
 // receiver, so a typed-nil boxed into the interface panics the moment it is
 // called. It exists to prove the guard rejects a typed nil rather than merely a
@@ -107,6 +115,11 @@ func (e *nilProneThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) t
 
 func (e *nilProneThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
 	return theme.Resolution{}, nil
+}
+
+func (e *nilProneThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	_ = e.union
+	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
 }
 
 // themeOpenTestUnion is a two-row union: one built-in and one unresolvable
@@ -176,15 +189,11 @@ func themeOpenTestLoader(t *testing.T) (theme.Loader, *logtest.Sink) {
 	return theme.NewLoader(theme.NewEventLogger(logger)), sink
 }
 
-// countThemeEvents counts sink records carrying the given message.
+// countThemeEvents counts sink records carrying the given message. It is the
+// count-only read of themeEventRecords rather than a second walk of the sink, so
+// the two cannot come to disagree about what "carrying the message" means.
 func countThemeEvents(sink *logtest.Sink, msg string) int {
-	n := 0
-	for _, r := range sink.Records() {
-		if r.Msg == msg {
-			n++
-		}
-	}
-	return n
+	return len(themeEventRecords(sink, msg))
 }
 
 // writeThemeFileForTest writes a COMPLETE theme file whose every token carries

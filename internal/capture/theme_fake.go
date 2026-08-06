@@ -9,7 +9,7 @@ import (
 // VALUES: the fixture's faked union, its retained enumeration and its per-slot
 // resolution records, with the palette threaded in from `--theme`.
 //
-// IT PERFORMS NO I/O ON ANY OF ITS THREE METHODS, and that is the requirement
+// IT PERFORMS NO I/O ON ANY OF ITS FOUR METHODS, and that is the requirement
 // rather than a property it happens to have. §7.1's no-real-config import guard
 // forbids internal/capture reaching config at all, so faking the seam wholesale
 // is the ONLY way the harness renders a panel — an invalid-theme row, a
@@ -110,6 +110,18 @@ func (f fakeThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Re
 		Nomination: theme.ConstantNomination(f.palette),
 		Slots:      f.slots,
 	}, nil
+}
+
+// ResolveSlot answers §8.4's commit-time load with the injected palette under the
+// slot and slug it was asked for — the fake's one palette, reported as every other
+// answer reports it (see the type comment).
+//
+// It is unreachable in a capture: a fixture wires NO theme persister (task 6-7), so
+// the conversion this serves returns before the load. It is implemented honestly
+// anyway, because a fake answering a fourth method differently from its other three
+// is exactly the divergence the injected palette exists to prevent.
+func (f fakeThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug, Theme: f.palette}, nil
 }
 
 // repaintUnion returns the union with every SELECTABLE row's palette replaced by

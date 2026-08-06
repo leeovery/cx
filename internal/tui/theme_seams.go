@@ -44,10 +44,23 @@ import (
 // §7.6's fatal and the panel DEGRADES on it rather than escalating; see
 // Model.applyInForceTheme, which states that policy once for all three panel
 // call sites.
+//
+// ResolveSlot is the COMMIT-TIME entry point — §8.4's one theme load outside
+// construction — and it is a FOURTH METHOD rather than a parameter on Resolve
+// because the two answer different questions at different cadences: Resolve
+// re-resolves a setting construction already reported and emits no
+// `theme: loaded`, while this resolves the ONE slot a constant → adaptive
+// conversion just made live and emits the line §12.3 catalogues for exactly that
+// moment. It shares its rule body with Resolve inside internal/theme (the same
+// charset check, the same embedded-set-first ordering, the same §8.5 per-slot
+// fallback, read off the SAME retained parse), so the badge path and the load path
+// cannot disagree about a slug — and it reads no directory, for the reason Resolve
+// does not.
 type ThemeEnumerator interface {
 	Open(keys theme.RawKeys) (theme.Enumeration, theme.Union)
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union
 	Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error)
+	ResolveSlot(e theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error)
 }
 
 // liveThemeEnumerator reports whether e is a seam that can actually be CALLED, as

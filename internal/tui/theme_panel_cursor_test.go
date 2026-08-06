@@ -37,6 +37,18 @@ type stubThemeEnumerator struct {
 	resolution  theme.Resolution
 	err         error
 	settings    []theme.Setting
+	// slotLoads records every §8.4 commit-time slot resolution the seam was asked
+	// for, which is how a suite driven off declared values observes the ASK itself.
+	// Two cases read it: requireNoSlotLoad, for a NON-CONVERTING commit asking for
+	// none at all, and the §7.6 degrade case, for a conversion whose no-op has to be
+	// the seam's ANSWER rather than a load that never ran.
+	slotLoads []slotLoad
+}
+
+// slotLoad is one recorded ResolveSlot call.
+type slotLoad struct {
+	slot theme.Slot
+	slug string
 }
 
 func (s *stubThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
@@ -50,6 +62,34 @@ func (s *stubThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme
 func (s *stubThemeEnumerator) Resolve(_ theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
 	s.settings = append(s.settings, setting)
 	return s.resolution, s.err
+}
+
+// ResolveSlot records the ask and answers with the declared resolution's record for
+// that slot — or, for a slot the fixture declared no record for, with the declared
+// NOMINATION's member for it.
+//
+// The fallback branch is the live one on a conversion: a fixture whose resolution is
+// a constant (newArrowPanelDeps) declares only a SlotConstant record, and §8.4's load
+// asks for the opposite light/dark slot. Answering it from the nomination is what
+// keeps a stub-driven conversion joining a palette the fixture chose — a zero Theme
+// in a live nomination slot renders through lipgloss's no-colour sentinel, which is
+// the silent colourless render New's dark seed exists to keep out of this package.
+func (s *stubThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	s.slotLoads = append(s.slotLoads, slotLoad{slot: slot, slug: slug})
+	if s.err != nil {
+		return theme.SlotResolution{}, s.err
+	}
+	for _, declared := range s.resolution.Slots {
+		if declared.Slot == slot {
+			return declared, nil
+		}
+	}
+	return theme.SlotResolution{
+		Slot:      slot,
+		Requested: slug,
+		Resolved:  slug,
+		Theme:     s.resolution.Nomination.Select(slot == theme.SlotDark),
+	}, nil
 }
 
 // themeCursorModel builds a Sessions-page model wired to a REAL loader over dir,

@@ -82,7 +82,9 @@ type appearanceGate struct {
 	// model — the value is that standing fallback and NOTHING ELSE. It is not
 	// detection-derived and must never be read as "the terminal is dark": no
 	// question was asked. What the terminal actually reported is retained
-	// separately on the model (originalBg + the arrival flag) for task 9-6.
+	// separately on the model (originalBg, the arrival flag and the reply's own
+	// classification), which is what §9.3's mid-session conversion classifies —
+	// see Model.retainedCanvasAnswer, and its warning against reading this field.
 	appearance canvasAppearance
 	// pending reports whether the detect-or-timeout window is OPEN (the first real
 	// paint must wait). It is named negatively on purpose: the zero value (false)

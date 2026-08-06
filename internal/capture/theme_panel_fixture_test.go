@@ -391,7 +391,7 @@ func badgeIn(text string) string {
 // §7.1's no-real-config import guard forbids internal/capture reaching config at
 // all, and §13.3 rests the whole panel-fixture route on the seam being fakeable
 // wholesale — so the fake must answer from declared values on every one of its
-// three methods.
+// four methods.
 //
 // It is checked STRUCTURALLY and behaviourally, because neither alone is enough.
 // A behavioural check can only prove the fake did not read the directories the
@@ -461,7 +461,8 @@ func TestFakeThemeEnumerator_NoIO(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FixtureByName: %v", err)
 		}
-		seam := fx.Deps(builtinTheme(t, "nord")).ThemeEnumerator
+		palette := builtinTheme(t, "nord")
+		seam := fx.Deps(palette).ThemeEnumerator
 
 		enumeration, union := seam.Open(fx.themeKeys)
 		if got, want := rowSortKeys(union.Rows), rowSortKeys(fx.themeUnion.Rows); !slices.Equal(got, want) {
@@ -476,6 +477,20 @@ func TestFakeThemeEnumerator_NoIO(t *testing.T) {
 		}
 		if len(resolution.Slots) != len(fx.themeSlots) {
 			t.Errorf("Resolve returned %d slot(s), want the declared %d", len(resolution.Slots), len(fx.themeSlots))
+		}
+		// ResolveSlot is unreachable in a capture (a fixture wires no theme
+		// persister), so this is the only pin on it answering like its three
+		// siblings: the slot and slug it was asked for, carrying the injected
+		// palette, off no directory read.
+		res, err := seam.ResolveSlot(enumeration, theme.SlotLight, "nord")
+		if err != nil {
+			t.Fatalf("ResolveSlot returned %v", err)
+		}
+		if res.Slot != theme.SlotLight || res.Requested != "nord" || res.Resolved != "nord" {
+			t.Errorf("ResolveSlot answered slot=%v requested=%q resolved=%q, want the light slot and %q on both slugs", res.Slot, res.Requested, res.Resolved, "nord")
+		}
+		if res.Theme != palette {
+			t.Errorf("ResolveSlot answered canvas %q, want the injected palette's %q — the fourth method must report the same palette as the other three", res.Theme.Canvas.Value, palette.Canvas.Value)
 		}
 		if _, err := os.Stat(missing); !os.IsNotExist(err) {
 			t.Errorf("the poisoned themes directory %s now exists (%v); something on the render path created it", missing, err)

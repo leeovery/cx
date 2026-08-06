@@ -30,12 +30,13 @@ import (
 // not (each is per EVENT rather than per condition). The other two belong to
 // later phases and have no site yet:
 //
-//	theme: loaded              INFO   here — from §8.5's per-slot resolution.
-//	                                  ALSO fires at commit time in Phase 9, for
+//	theme: loaded              INFO   here — from §8.5's per-slot resolution,
+//	                                  at construction AND at commit time, for
 //	                                  the newly-live opposite slot on a
 //	                                  constant → adaptive conversion (§8.4):
 //	                                  the same event at a different cadence,
-//	                                  which is why it must not dedup.
+//	                                  which is why it must not dedup. See
+//	                                  Loader.ResolveSlot for the commit entry.
 //	theme: fallback applied    WARN   here — from the same per-slot resolution.
 //	theme: rejected            WARN   here.
 //	theme: directory unusable  WARN   here.
@@ -108,12 +109,14 @@ func NewEventLogger(l *slog.Logger) *EventLogger {
 	return &EventLogger{logger: log.OrDiscard(l), seen: map[eventKey]struct{}{}}
 }
 
-// Loaded reports one nominated slot's theme actually loading, ONE line per
-// nomination — one under a constant, two under an adaptive pair.
+// Loaded reports one nominated slot's theme actually loading — ONE line per
+// RESOLVED SLOT: at construction, one under a constant and two under an adaptive
+// pair, plus the single slot §8.4's commit-time conversion makes live.
 //
 // It is NOT deduplicated, and that is the difference between it and every other
-// event on this seam: it is per LOAD rather than per condition, and Phase 9's
-// commit-time load is the same event at a different cadence.
+// event on this seam: it is per LOAD rather than per condition, and §8.4's
+// commit-time load is the same event at a different cadence — two conversions in
+// one panel session are two lines even where both name the same slug and slot.
 func (e *EventLogger) Loaded(slug string, slot Slot) {
 	if e == nil {
 		return

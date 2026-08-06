@@ -287,15 +287,29 @@ type Model struct {
 	// dark-built-in seed rather than selecting a zero Theme out of an empty
 	// nomination.
 	nomination theme.Nomination
-	// canvasMode is the light/dark answer the gate resolved. appearanceDarkCanvas
-	// is the zero value (the §8.8 no-answer fallback), so an unconfigured model
-	// paints the dark canvas. It is the painted mirror of gate.appearance: every
-	// resolution (OSC 11 reply, timeout) syncs it via syncResolvedMode, and it is
-	// what selects the active member out of an ADAPTIVE nomination.
+	// canvasMode is the light/dark answer in force. appearanceDarkCanvas is the
+	// zero value (the §8.8 no-answer fallback), so an unconfigured model paints
+	// the dark canvas. Until a conversion it is the painted mirror of
+	// gate.appearance: every gate resolution (OSC 11 reply, timeout) syncs it via
+	// syncResolvedMode, and it is what selects the active member out of an
+	// ADAPTIVE nomination.
 	//
-	// Under a constant (or no) nomination it is that standing fallback and
-	// nothing more — no question was asked, so it must never be read as a fact
-	// about the terminal.
+	// Under a constant (or no) nomination it starts as that standing fallback and
+	// nothing more — no question was asked, so it must not be read as a fact about
+	// the terminal — UNTIL §9.3's mid-session constant → adaptive conversion, the
+	// THIRD writer. loadNewlyLiveSlot records Model.retainedCanvasAnswer straight
+	// into this field: the terminal's own verdict where a reply arrived, §8.8's
+	// dark no-answer fallback where none did. So from that keypress on it is the
+	// answer IN FORCE rather than a value nothing ever asked for, while
+	// gate.appearance stays pinned on the constant's fallback and never moves again
+	// (a pinned gate's resolve always returns false, so nothing re-syncs).
+	//
+	// THAT DIVERGENCE IS DELIBERATE AND PERMANENT — LEAVE IT ALONE. The obvious
+	// "fix the drift" edit is to route the conversion through syncResolvedMode
+	// instead; do not. syncResolvedMode is where §11.4's startup canvas hex is
+	// captured, and re-capturing it mid-session is precisely how Portal comes to
+	// set a colour the user never chose back into their terminal on exit. See
+	// loadNewlyLiveSlot.
 	canvasMode canvasAppearance
 	// activeTheme is the palette EVERY renderer paints from (§3.4). The model
 	// holds it and passes it where a light/dark mode used to be passed, so
@@ -463,13 +477,24 @@ type Model struct {
 	// a different fact from originalBg being non-empty: a no-answer-shaped reply
 	// (nil Color) leaves the hex empty while still being an answer that arrived.
 	//
-	// The pair is what makes the reply CLASSIFIABLE later by a consumer that did
-	// not observe the arrival — task 9-6's mid-session constant → adaptive
-	// conversion (§9.3), which must distinguish "the terminal said light" from
-	// "nothing ever came back". It is retained under EVERY setting shape because
-	// the query is issued under every shape: a constant asks no light/dark
-	// question, so nothing here is ever turned into an answer at construction.
+	// bgReplyDark is what that reply SAID, classified by the reply's own IsDark at
+	// the moment it landed. The pair is what makes the answer readable later by a
+	// consumer that did not observe the arrival — §9.3's mid-session constant →
+	// adaptive conversion, which must distinguish "the terminal said light" from
+	// "nothing ever came back" (retainedCanvasAnswer is its one reader). Both are
+	// retained under EVERY setting shape because the query is issued under every
+	// shape: a constant asks no light/dark question, so nothing here is ever turned
+	// into an answer at construction.
+	//
+	// The classification is taken from tea.BackgroundColorMsg.IsDark rather than
+	// re-derived from the retained hex, so the conversion's answer is the SAME
+	// verdict the gate would have reached on the same reply (resolveFromDark reads
+	// the identical call). Re-deriving it would be a second luminance rule in a
+	// second package, free to drift from the one the gate uses — and it would have
+	// to special-case the empty hex a nil-colour reply leaves behind, which IsDark
+	// already answers (nil is dark).
 	bgReplyArrived bool
+	bgReplyDark    bool
 
 	// Preview page seams and live model. enumerator and reader are
 	// constructor-injected at TUI startup (wired in task 2-7) — declared
@@ -2642,14 +2667,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Two independent jobs ride this one message, and the ORDER is the point:
 		// the reply is RETAINED unconditionally, and only then offered to the gate.
 		//
-		// 1. Retain the terminal's ORIGINAL background, plus the fact a reply
-		//    arrived at all. restore-on-exit needs the hex so the launch sites can
-		//    SET it back on quit (terminals that ignore the OSC 111 reset still
-		//    honour the set), and §9.3's mid-session conversion needs both halves
-		//    so task 9-6 can classify a reply this launch never asked a question
-		//    of. The nil guard is required — BackgroundColorMsg.String() panics on
-		//    a nil Color (a no-answer) — which is exactly why the arrival is
-		//    tracked separately rather than inferred from a non-empty hex.
+		// 1. Retain the terminal's ORIGINAL background, the fact a reply arrived at
+		//    all, and what it SAID. restore-on-exit needs the hex so the launch
+		//    sites can SET it back on quit (terminals that ignore the OSC 111 reset
+		//    still honour the set), and §9.3's mid-session conversion needs the
+		//    arrival and the classification so it can use an answer this launch
+		//    never asked a question of (Model.retainedCanvasAnswer). The nil guard
+		//    is required — BackgroundColorMsg.String() panics on a nil Color (a
+		//    no-answer) — which is exactly why the arrival is tracked separately
+		//    rather than inferred from a non-empty hex, and why the classification
+		//    comes off IsDark (nil-safe) rather than off that hex.
 		//
 		// 2. Offer it to the §2.6 gate. msg.IsDark() is nil-safe (nil → dark), so a
 		//    no-answer-shaped reply collapses to the dark fallback. resolveFromDark
@@ -2659,6 +2686,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		//    COLORFGBG is deliberately NOT consulted here — OSC 11 is authoritative;
 		//    the weak COLORFGBG hint must never override it.
 		m.bgReplyArrived = true
+		m.bgReplyDark = msg.IsDark()
 		if msg.Color != nil {
 			m.originalBg = msg.String()
 		}

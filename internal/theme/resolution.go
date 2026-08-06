@@ -150,10 +150,10 @@ func (l Loader) ResolveNomination(s Setting, themesDir string) (Resolution, erro
 // THREE CALLERS SHARE IT, all of them the panel's: the open-time re-resolution
 // (§9.2 — the cursor lands on the theme actually rendering, and a mid-session
 // edit applies here), `Esc`'s close (§5.8 — persisted state resolves against the
-// panel's enumeration rather than against what construction loaded), and Phase
-// 9's mid-session slot load (§8.4 — a stale hand-edited slot resolves from the
-// retained enumeration, and only a slug it has no entry for falls through to the
-// embedded set).
+// panel's enumeration rather than against what construction loaded), and the
+// post-commit badge recompute (§9.2). The mid-session slot load (§8.4) resolves
+// against the SAME enumeration through the same rule body, but takes ResolveSlot
+// below: it is one slot rather than a setting, and it emits.
 //
 // A slug the enumeration has no entry for is `not found`, or `unreadable` where
 // the directory itself could not be listed (§5.5) — the same discrimination
@@ -169,8 +169,39 @@ func (l Loader) ResolveNominationFrom(e Enumeration, s Setting) (Resolution, err
 	return l.resolveNomination(s, l.enumerationPass(e))
 }
 
-// resolutionPass is everything that differs between the two entry points above:
-// where a slug LOADS from, and how a resolved slot is REPORTED.
+// ResolveSlot resolves ONE slot against a retained Enumeration and emits §12.3's
+// commit-time `theme: loaded` — the single theme load that happens outside
+// construction (§8.4).
+//
+// IT IS THE SAME RULE BODY ITS NEIGHBOUR RUNS. The charset check, the
+// embedded-set-first ordering, the per-slot mode-matched fallback, the structured
+// record and §7.6's fatal all arrive through resolveSlot and the enumeration's own
+// loader (see commitPass), so the badge path and the load path CANNOT DISAGREE
+// about what one slug means — which is the whole reason §5.8's retained parse is
+// the only source either of them reads.
+//
+// IT PERFORMS NO DIRECTORY READ, for ResolveNominationFrom's reason exactly: a read
+// here would be a THIRD parse of the same slug, neither construction's nor the
+// panel's, that can disagree with the row the user is looking at (§8.4).
+//
+// WHAT DIFFERS IS THE CADENCE, AND ONLY THE CADENCE. Its neighbour re-resolves a
+// setting construction already reported and therefore emits no `theme: loaded`
+// (§12.3, see reportFallback); this is a genuine LOAD of a slot nothing has
+// reported, so it emits one — carrying the slug that actually RENDERED, the
+// fallback's where one was applied. The two entry points are separate methods
+// rather than a flag precisely so that pairing is stated in a type (see
+// resolutionPass) and a later call site cannot pair them the other way round.
+//
+// The slug is the caller's already-defaulted one: an UNSET slot holds the shipped
+// default (§8.3), which ResolveSetting substitutes before anything here sees it, so
+// an untouched slot resolves from the embedded set with FellBack false rather than
+// arriving empty and being reported as a fallback.
+func (l Loader) ResolveSlot(e Enumeration, slot Slot, slug string) (SlotResolution, error) {
+	return l.resolveSlot(slot, slug, l.commitPass(e))
+}
+
+// resolutionPass is everything that differs between the entry points above: where
+// a slug LOADS from, and how a resolved slot is REPORTED.
 //
 // It is ONE value rather than two parameters threaded down two levels, and a pair
 // of functions rather than a flag, because the two travel together and neither is
@@ -198,13 +229,28 @@ func (l Loader) byNamePass(themesDir string) resolutionPass {
 	}
 }
 
-// enumerationPass is the panel's pass: the retained enumeration, at the
-// RE-RESOLUTION cadence — the fallback line alone, no `theme: loaded` (§12.3).
+// enumerationPass is the panel's RE-RESOLUTION pass: the retained enumeration, at
+// the re-resolution cadence — the fallback line alone, no `theme: loaded` (§12.3).
 func (l Loader) enumerationPass(e Enumeration) resolutionPass {
-	return resolutionPass{
-		load:   func(slug string) (Result, *Rejection) { return l.resolveFromEnumeration(slug, e) },
-		report: l.reportFallback,
-	}
+	return resolutionPass{load: l.enumerationLoad(e), report: l.reportFallback}
+}
+
+// commitPass is the panel's COMMIT pass: the SAME retained enumeration, at the
+// per-LOAD event cadence its by-name sibling uses.
+//
+// It differs from enumerationPass in the reporter and in nothing else, which is the
+// distinction §12.3 draws: re-resolving a setting construction already reported
+// announces nothing, while the newly-live opposite slot is a load that has never
+// been announced at all. Both share one loader (below) so the two cadences cannot
+// come to read different parses of the same slug.
+func (l Loader) commitPass(e Enumeration) resolutionPass {
+	return resolutionPass{load: l.enumerationLoad(e), report: l.reportSlot}
+}
+
+// enumerationLoad is the retained enumeration as a slugLoader — the ONE source both
+// enumeration-backed passes resolve through.
+func (l Loader) enumerationLoad(e Enumeration) slugLoader {
+	return func(slug string) (Result, *Rejection) { return l.resolveFromEnumeration(slug, e) }
 }
 
 // resolveFromEnumeration is the panel pass's third rung: the same ladder

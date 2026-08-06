@@ -455,6 +455,7 @@ type splitThemeEnumerator struct {
 	resolution  theme.Resolution
 	resolveErr  error
 	reassembles int
+	slotLoads   []slotLoad
 }
 
 func (e *splitThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
@@ -476,6 +477,29 @@ func (e *splitThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.
 		return theme.Resolution{}, e.resolveErr
 	}
 	return e.resolution, nil
+}
+
+// ResolveSlot records §8.4's commit-time asks and answers from the declared
+// resolution — its record for that slot, or the declared nomination's member where
+// no record was declared for it — so a split-union fixture can state whether the
+// conversion's load ran at all without a real loader, and answers it with a palette
+// the fixture chose either way (see stubThemeEnumerator.ResolveSlot).
+func (e *splitThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: slug})
+	if e.resolveErr != nil {
+		return theme.SlotResolution{}, e.resolveErr
+	}
+	for _, declared := range e.resolution.Slots {
+		if declared.Slot == slot {
+			return declared, nil
+		}
+	}
+	return theme.SlotResolution{
+		Slot:      slot,
+		Requested: slug,
+		Resolved:  slug,
+		Theme:     e.resolution.Nomination.Select(slot == theme.SlotDark),
+	}, nil
 }
 
 // themeRowsUnion wraps hand-declared rows as the union shape the seam hands back.

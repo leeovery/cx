@@ -722,12 +722,17 @@ func (m Model) themeSetting() theme.Setting {
 // and under a pair the member the light/dark answer names — light in a light
 // terminal, dark otherwise.
 //
-// The answer is the gate's SINGLE resolution (§8.8), read off the model rather
-// than asked for again: a constant never consulted detection at all and a pair
-// resolved exactly once before first paint, so a query here would reopen the race
-// the resolve-once rule closes. On a gate that was never armed the value is the
-// standing dark no-answer fallback, which is the right answer for the same reason
-// it is the right canvas.
+// The answer is read off the model rather than asked for again: a constant never
+// consulted detection at all and a pair resolved exactly once before first paint
+// (§8.8), so a query here would reopen the race the resolve-once rule closes.
+//
+// On a gate that was never armed the value starts as the standing dark no-answer
+// fallback, which is the right answer for the same reason it is the right canvas —
+// UNTIL §9.3's mid-session constant → adaptive conversion, which records
+// Model.retainedCanvasAnswer into Model.canvasMode while the pinned gate keeps that
+// fallback for good. From that commit on the mode read here is DELIBERATELY NOT
+// gate.appearance, and substituting one for the other closes a converted light
+// terminal onto the DARK slot. See Model.canvasMode and loadNewlyLiveSlot.
 //
 // The slot is matched on its Slot rather than taken by position, and ONE record
 // answers for both the palette and the cursor's target — which is what makes

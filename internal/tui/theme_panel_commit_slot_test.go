@@ -80,6 +80,27 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 	}
 }
 
+// requireNoSlotLoad fails unless the stub seam behind m was asked for NO §8.4
+// commit-time slot resolution at all.
+//
+// It is the SEAM-LEVEL statement of §8.4's "the load happens on the constant →
+// adaptive transition and nowhere else": a `d`/`l` over an adaptive PAIR changes
+// which slug a slot that is already live names, so both members are in hand and
+// there is nothing to resolve. TestCommitSlotLoad_NonConvertingCommitIsSilent states
+// the same rule from the other end — no `theme: loaded` line — and the two fail
+// independently: a load that ran while emitting nothing passes there and fails here.
+func requireNoSlotLoad(t *testing.T, m Model) {
+	t.Helper()
+
+	seam, ok := m.themeEnumerator.(*stubThemeEnumerator)
+	if !ok {
+		t.Fatalf("fixture: the seam is %T, want the recording stub — this is a statement about what the seam was ASKED", m.themeEnumerator)
+	}
+	if len(seam.slotLoads) != 0 {
+		t.Errorf("a non-converting commit asked the seam for slot load(s) %v, want none — §8.4 puts the load on the constant → adaptive transition and nowhere else", seam.slotLoads)
+	}
+}
+
 // requirePairKeys fails unless the model's raw keys are §8.2's adaptive shape:
 // these two slots, with the constant cleared.
 func requirePairKeys(t *testing.T, m Model, light, dark string) {
@@ -179,6 +200,7 @@ func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: target, slot: prefs.SlotDark})
 	requirePairKeys(t, m, light, target)
+	requireNoSlotLoad(t, m)
 	if !m.themePanel.open {
 		t.Error("`d` closed the panel; `Esc` is the ONLY way out (§9.2)")
 	}
@@ -203,6 +225,7 @@ func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: target, slot: prefs.SlotLight})
 	requirePairKeys(t, m, target, dark)
+	requireNoSlotLoad(t, m)
 	if !m.themePanel.open {
 		t.Error("`l` closed the panel; `Esc` is the ONLY way out (§9.2)")
 	}

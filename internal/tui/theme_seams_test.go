@@ -38,6 +38,10 @@ func (f fixtureThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme
 	return f.resolution, nil
 }
 
+func (f fixtureThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
+}
+
 // loaderThemeEnumerator is the shape the PRODUCTION adapter takes (task 8-7
 // wires it): a theme.Loader plus the resolved themes directory, closed over so
 // the seam's Open takes only the persisted keys — the same hiding
@@ -57,6 +61,10 @@ func (a loaderThemeEnumerator) Reassemble(e theme.Enumeration, keys theme.RawKey
 
 func (a loaderThemeEnumerator) Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error) {
 	return a.loader.ResolveNominationFrom(e, s)
+}
+
+func (a loaderThemeEnumerator) ResolveSlot(e theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+	return a.loader.ResolveSlot(e, slot, slug)
 }
 
 func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheLoader(t *testing.T) {

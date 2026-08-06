@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // §9.2's SLOT-FROM-CONSTANT CONFIRM: the panel's one gate, and the only place a
@@ -147,12 +148,13 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // AGAIN below rather than inferred from the nil error. commitSlot returns nil for
 // TWO outcomes — a write that landed, and the absence of a writer (a fixture or
 // `capturetool` model, task 6-7) — and the second returns before the mirror and the
-// recompute. loadNewlyLiveSlot is specified to run after a write that LANDED, on
-// mirrored keys; handing it the un-mirrored ones would have 9-6's load resolve the
-// wrong slot off keys that still hold the constant, and report a load for a write
-// that never happened. The distinction is re-derived at this ONE call site
-// deliberately: teaching commitSlot to report whether it wrote would widen the
-// shared path `Enter` and the pair-`d`/`l` route also take, which nothing needs yet.
+// recompute. loadNewlyLiveSlot runs after a write that LANDED, on mirrored keys;
+// handing it the un-mirrored ones would have it resolve off keys that still hold the
+// constant — whose slot slugs are both empty — and report a commit-time
+// `theme: loaded` for a write that never happened. The distinction is re-derived at
+// this ONE call site deliberately: teaching commitSlot to report whether it wrote
+// would widen the shared path `Enter` and the pair-`d`/`l` route also take, which
+// nothing needs yet.
 func (m *Model) confirmSlotAssignment() {
 	pending := m.resolveSlotConfirm()
 	if err := m.commitSlot(pending.slug, pending.slot); err != nil {
@@ -165,20 +167,24 @@ func (m *Model) confirmSlotAssignment() {
 	m.loadNewlyLiveSlot(pending.slot)
 }
 
-// loadNewlyLiveSlot is §9.3's OTHER HALF — "a file, not an answer" — and it is a
-// NO-OP until task 9-6 fills it in.
+// loadNewlyLiveSlot is §9.3's transition, both halves: the OPPOSITE slot's palette
+// (the file) and the in-force light/dark classification (the answer).
 //
 // Assigning a slot over a constant makes the slot the user did NOT assign live in
 // the same keypress, and §8.4 never loaded it: construction loads every NOMINATED
-// theme, and under a constant the slots are not read at all (§8.2). That load is
-// 9-6's; what is settled here is where it attaches, so landing it is filling one
-// function rather than re-deciding the commit path.
+// theme, and under a constant the slots are not read at all (§8.2). This is
+// therefore THE ONE THEME LOAD OUTSIDE CONSTRUCTION, which is why §12.3's cadence
+// column gives `theme: loaded` a commit-time entry at all.
 //
 // IT HANGS OFF THE CONFIRM, NOT OFF commitSlot, because the confirm is the ONLY
 // route that creates the state: a `d`/`l` over an adaptive pair changes which slug a
 // live slot names, and nothing becomes newly live. Putting the seam on the shared
 // path would give it a caller with nothing to do and a cleared constant it could no
-// longer see.
+// longer see. That route is ALSO where the converting condition comes from — §8.4's
+// "pre-commit keys carried a non-empty `theme`" — since handleSlotCommitKey raises
+// the confirm on a CONSTANT setting and on nothing else, so reaching here is the
+// condition rather than something to re-test against keys the mirror has since
+// cleared.
 //
 // IT RUNS AFTER A WRITE THAT LANDED — past commitSlot's own mirror and recompute
 // rather than between them, and never on the nil-persister path, which returns
@@ -188,11 +194,122 @@ func (m *Model) confirmSlotAssignment() {
 // raw keys and the retained enumeration (§9.2), which already resolve both slots.
 // Nothing renders between the two: both land inside one keypress.
 //
-// The slot is taken although nothing reads it yet — it is the slot that was JUST
-// ASSIGNED, so 9-6's load is the other one — following the same rule task 9-3's seam
-// took its own parameter by: threading it from the keypress is what keeps the load
-// from having to re-derive which key was pressed.
-func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {}
+// THE ASSIGNED SLOT IS DELIBERATELY NOT RE-READ, and this is the half a reader is
+// most likely to add "for symmetry". Its parse is already in hand — §5.8's retained
+// enumeration is what makes arrowing an O(1) restyle, and the previewed palette IS
+// that parse for the row the confirm captured — so resolving it again would re-parse
+// a file the panel already holds and mint a second answer for one slug.
+//
+// THE OPPOSITE SLUG COMES OFF THE MIRRORED KEYS, THROUGH themeSetting. The mirror
+// carries the other slot's raw value across untouched (mirrorThemeSlot), so that is
+// exactly §8.4's "raw persisted value from the pre-commit keys" — empty for an
+// untouched slot, the stale hand-edited slug otherwise — and routing it through the
+// setting is what substitutes §8.3's shipped default for the empty case at the ONE
+// site that owns that rule. An untouched slot therefore resolves the shipped default
+// from the embedded set with FellBack false, rather than arriving empty and being
+// reported as a fallback of a slug nobody set.
+//
+// ON THE §7.6 FATAL IT DEGRADES AND NOTHING MOVES, the policy applyInForceTheme
+// states for every panel call site of the seam: a settings surface must not become
+// the route by which a broken binary quits Portal mid-session. Returning BEFORE the
+// two assignments is what makes that a genuine no-op rather than a half-converted
+// model holding a light/dark answer with no pair to select from.
+//
+// IT NEVER CALLS ApplyTheme. A commit is a WRITE, NOT A NAVIGATION (§9.2), so the
+// pair is completed while the screen keeps previewing whatever the cursor is on. The
+// join is model consistency rather than a dependency of the close: task 8-10's `Esc`
+// re-resolves from persisted state regardless.
+func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
+	newlyLive := oppositeThemeSlot(assigned)
+	resolved, err := m.themeEnumerator.ResolveSlot(m.themePanel.enumeration, newlyLive, m.persistedSlotSlug(newlyLive))
+	if err != nil {
+		return
+	}
+
+	m.canvasMode = m.retainedCanvasAnswer()
+	m.nomination = joinNomination(newlyLive, resolved.Theme, m.activeTheme)
+}
+
+// oppositeThemeSlot is the half of the adaptive pair the keypress did NOT assign —
+// the one §8.4 loads.
+//
+// It maps the prefs slot the keypress threaded onto the resolution's own, which are
+// separate types because they name different things: one is what prefs.json writes,
+// the other is what a §8.5 fallback is matched against. There is no third value on
+// either side to fall through to — prefs.SaveThemeSlot rejects an out-of-range slot
+// and commitSlot has already returned on that error — so the light case and its
+// complement are the whole of it.
+func oppositeThemeSlot(assigned prefs.ThemeSlot) theme.Slot {
+	if assigned == prefs.SlotLight {
+		return theme.SlotDark
+	}
+	return theme.SlotLight
+}
+
+// persistedSlotSlug is the slug one slot of the mirrored keys nominates, with
+// §8.3's shipped default already substituted for an unset one.
+//
+// It reads through themeSetting rather than off RawKeys so the unset-slot rule has
+// the single site it has everywhere else in the panel — what the panel LISTS, MARKS
+// and RESOLVES all collapse §8.2's keys through that one function, and a second
+// substitution here is how an untouched slot would come to resolve one default in
+// the badges and another in the load.
+func (m Model) persistedSlotSlug(slot theme.Slot) string {
+	setting := m.themeSetting()
+	if slot == theme.SlotLight {
+		return setting.Light
+	}
+	return setting.Dark
+}
+
+// joinNomination completes §8.2's pair: the newly-loaded palette in the slot that
+// just became live, and the one already in hand in the slot the user assigned.
+//
+// THE ASSIGNED MEMBER IS THE PREVIEWED PALETTE, and that is an identity rather than
+// an approximation: §9.2's arrow-preview applies the cursor row's own palette, the
+// confirm captures the slug the cursor was on and swallows every key that could move
+// it, and a commit takes the CURSOR's slug — so the palette on screen is the parse
+// of the slug just written. Taking it from here is what keeps the assigned slot
+// unread.
+func joinNomination(newlyLive theme.Slot, loaded, assigned theme.Theme) theme.Nomination {
+	if newlyLive == theme.SlotLight {
+		return theme.AdaptivePair(loaded, assigned)
+	}
+	return theme.AdaptivePair(assigned, loaded)
+}
+
+// retainedCanvasAnswer is §9.3's ANSWER HALF: the light/dark classification of the
+// OSC 11 reply this launch already received, which a constant-theme launch retained
+// without ever turning into an answer.
+//
+// §9.3 dissolves the transition precisely because the answer already arrived —
+// Model.Init issues the OSC 11 query REGARDLESS of the setting's shape (§8.8), since
+// restore-on-exit needs the original background independently of detection. So a
+// conversion starts USING an answer already in hand: no new query, no new race, no
+// new gate, and §8.8's resolve-once rule untouched — a reply landing after this point
+// still never re-themes.
+//
+// IT IS NOT READ OFF THE GATE. A constant's gate is pinned and its appearance is the
+// STANDING DARK FALLBACK rather than a classification of the terminal (see
+// appearanceGate.appearance), so reading it would answer "dark" for every light
+// terminal in the product. The retained reply is the only value that is a fact about
+// the terminal.
+//
+// NO REPLY AT ALL FALLS TO DARK — §8.8's no-answer fallback, the same rule as
+// everywhere else. Two states reach it: a terminal that never answers OSC 11, where
+// nothing arrives however late the panel is opened, and §9.3's own case of a panel
+// opened within milliseconds of launch, before the answer landed.
+//
+// A NO-ANSWER-SHAPED REPLY IS NEITHER OF THEM. A nil colour still ARRIVES, leaving an
+// empty hex behind and no colour to classify — which is why the read is keyed on the
+// arrival rather than on a non-empty originalBg, and why dark is the answer either
+// way: IsDark reports a nil colour as dark.
+func (m Model) retainedCanvasAnswer() canvasAppearance {
+	if m.bgReplyArrived && !m.bgReplyDark {
+		return appearanceLightCanvas
+	}
+	return appearanceDarkCanvas
+}
 
 // reportThemeCommitFailure is §9.13's FAILED-COMMIT REPORT, and it is a NO-OP until
 // task 9-7 fills it in.

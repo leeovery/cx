@@ -2,7 +2,6 @@ package tui
 
 import (
 	"go/ast"
-	"go/token"
 	"maps"
 	"slices"
 	"strings"
@@ -896,12 +895,18 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 //
 // AND IT MUST NOT REACH §9.3'S OTHER HALF. commitSlot returns nil for BOTH a landed
 // write and this early return, and the nil-persister one returns BEFORE the mirror
-// and the recompute. Task 9-6's load is specified to run on mirrored keys, off which
-// it decides which slug the opposite slot now names; run here it would read keys
-// still holding the CONSTANT, resolve the wrong slot, and report a commit-time
-// `theme: loaded` (§12.3) for a write that never happened. The seam's body is empty
-// until 9-6 lands, so the refusal is asserted where it lives — on the guard the tail
-// is behind.
+// and the recompute. §8.4's load runs on mirrored keys, off which it decides which
+// slug the opposite slot now names; run here it would read keys still holding the
+// CONSTANT — whose slot slugs are both EMPTY — resolve §8.5's fallback for one of
+// them, and report a commit-time `theme: loaded` (§12.3) for a write that never
+// happened.
+//
+// THAT REFUSAL IS ASSERTED BEHAVIOURALLY, not structurally. While the seam was an
+// empty no-op no observation could tell a call that happened from one that did not,
+// so the guard was pinned by an AST scan for the early return; now that the seam has
+// a body the emitted line and the joined nomination are both observable, and the
+// scan is retired rather than kept alongside — it pinned one SHAPE of the guard,
+// while this pins the property the guard exists for.
 func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 	t.Run("the answer writes and moves nothing", func(t *testing.T) {
 		rows := arrowValidRows(4)
@@ -929,9 +934,40 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 	})
 
 	t.Run("the newly-live-slot load is behind the persister", func(t *testing.T) {
-		if !seamGuardedOnNilPersister(t, "confirmSlotAssignment", "loadNewlyLiveSlot") {
-			t.Error("confirmSlotAssignment reaches loadNewlyLiveSlot with no nil-persister guard ahead of it; commitSlot returns nil for a write that never happened, and §9.3's load runs on MIRRORED keys the nil path never sets")
+		dir := newConversionThemesDir(t)
+		loader, sink := themeOpenTestLoader(t)
+		keys := theme.RawKeys{Theme: conversionConstant}
+		setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+		resolution, err := theme.NewLoader(nil).ResolveNomination(setting, dir)
+		if err != nil {
+			t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 		}
+		m := Build(Deps{
+			Lister:          fakeLister{},
+			Theme:           resolution.Nomination,
+			ThemeEnumerator: &realThemeEnumerator{loader: loader, dir: dir},
+			ThemeKeys:       keys,
+		})
+		if m.themePersister != nil {
+			t.Fatalf("fixture: the model holds persister %#v, want none", m.themePersister)
+		}
+		m.termWidth, m.termHeight = arrowTermW, arrowTermH
+		m.applySessions(closePanelSessions())
+		m = openConversionPanel(t, m)
+		nomination := m.nomination
+
+		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
+
+		if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
+			t.Errorf("`y` over a nil persister emitted %d `theme: loaded` line(s), want none — no write landed for a load to follow\n%s", len(got), sink.Body())
+		}
+		if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
+			t.Errorf("`y` over a nil persister emitted %d `theme: fallback applied` line(s), want none — the un-mirrored keys' slots are both empty, which is the shape a load run here would resolve\n%s", len(got), sink.Body())
+		}
+		if m.nomination != nomination || !m.nomination.IsConstant() {
+			t.Errorf("`y` over a nil persister left the nomination %+v, want the untouched constant", m.nomination)
+		}
+		requireConstantKeys(t, m, conversionConstant)
 	})
 }
 
@@ -1132,78 +1168,4 @@ func themePanelSeamCallers(t *testing.T, name string) []string {
 	}
 	slices.Sort(callers)
 	return slices.Compact(callers)
-}
-
-// seamGuardedOnNilPersister reports whether the named production function reaches
-// its call to seam only PAST an `m.themePersister == nil` early return.
-//
-// It is structural for the same reason themePanelSeamCallers is: the seam's body is
-// empty until task 9-6 fills it, so no behavioural assertion can tell a call that
-// happened from one that did not. What it pins is the DISTINCTION commitSlot's error
-// cannot make — a nil return means either a landed write or the absence of a writer,
-// and only the first has the mirrored keys the seam is specified to run on.
-func seamGuardedOnNilPersister(t *testing.T, fnName, seam string) bool {
-	t.Helper()
-
-	body := packageFuncBody(t, fnName)
-	guard, call := token.NoPos, token.NoPos
-	ast.Inspect(body, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.IfStmt:
-			if guard == token.NoPos && isNilPersisterReturn(node) {
-				guard = node.Pos()
-			}
-		case *ast.CallExpr:
-			sel, ok := node.Fun.(*ast.SelectorExpr)
-			if ok && call == token.NoPos && sel.Sel.Name == seam {
-				call = node.Pos()
-			}
-		}
-		return true
-	})
-	return guard != token.NoPos && call != token.NoPos && guard < call
-}
-
-// isNilPersisterReturn reports whether the statement is `if <x>.themePersister ==
-// nil { return }` — the guard's shape, matched on the FIELD rather than on the
-// receiver's name so a rename of the receiver does not silently unpin it.
-func isNilPersisterReturn(stmt *ast.IfStmt) bool {
-	cond, ok := stmt.Cond.(*ast.BinaryExpr)
-	if !ok || cond.Op != token.EQL {
-		return false
-	}
-	field, ok := cond.X.(*ast.SelectorExpr)
-	if !ok || field.Sel.Name != "themePersister" {
-		return false
-	}
-	if ident, ok := cond.Y.(*ast.Ident); !ok || ident.Name != "nil" {
-		return false
-	}
-	returns := false
-	ast.Inspect(stmt.Body, func(n ast.Node) bool {
-		if _, ok := n.(*ast.ReturnStmt); ok {
-			returns = true
-		}
-		return true
-	})
-	return returns
-}
-
-// packageFuncBody returns the body of the named production function, failing the
-// test if the package no longer declares exactly one.
-func packageFuncBody(t *testing.T, name string) *ast.BlockStmt {
-	t.Helper()
-
-	var found []*ast.FuncDecl
-	for _, file := range parsePackageFilesByName(t) {
-		for _, decl := range file.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil && fn.Name.Name == name {
-				found = append(found, fn)
-			}
-		}
-	}
-	if len(found) != 1 {
-		t.Fatalf("the package declares %d function(s) named %s, want exactly 1", len(found), name)
-	}
-	return found[0].Body
 }
