@@ -17,10 +17,11 @@ node .claude/skills/workflow-start/scripts/gateway.cjs completed [{work_type_fil
 The output is one snapshot in three demarcated sections:
 
 - **DATA** — reasoning surface: the filter, counts, and the `UNITS` table — one line per work unit, `n  status  work_type  work_unit  last_phase`, numbering continuous across the completed and cancelled lists. Reason from it; never display or restate it.
+- **TITLE** — the view's chrome heading. Emit verbatim as markdown, directly above the display.
 - **DISPLAY** — the completed & cancelled list. Emit verbatim as a code block. Never redraw, reflow, or trim it.
 - **MENU** — the selection prompt. Emit verbatim as markdown (not a code block). Empty when nothing matches.
 
-Emit the DISPLAY section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
+Emit the TITLE section (markdown), then the DISPLAY section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
 
 #### If `completed_count` and `cancelled_count` are both 0
 
@@ -36,7 +37,7 @@ Emit the MENU section.
 
 **STOP.** Wait for user response.
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to caller.
 
@@ -54,15 +55,16 @@ Store the selected work unit's `UNITS` row — its name and status.
 · · · · · · · · · · · ·
 **{selected.name:(titlecase)}** ({selected.status})
 
-- **`r`/`reactivate`** — Set status back to in-progress
-- **`b`/`back`** — Return to the list
-- **Ask** — Ask a question about this work unit
-· · · · · · · · · · · ·
+**`◆ What would you like to do?`**
+
+**`r/reactivate`** → Set status back to in-progress
+**`b/back`**       → Return to the list
+**Ask**          → Ask a question about this work unit
 ```
 
 **STOP.** Wait for user response.
 
-#### If user chose `r`/`reactivate`
+#### If user chose `r/reactivate`
 
 Run the reactivate transaction — one command restores `status: in-progress`, clears a stale `completed_at`, re-indexes the work unit's knowledge-base chunks when it was cancelled (completed units retain theirs), and commits:
 
@@ -74,7 +76,7 @@ Emit the response's `DISPLAY: kb warning` section when present, then its `DISPLA
 
 → Return to caller.
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to **A. Display List**.
 

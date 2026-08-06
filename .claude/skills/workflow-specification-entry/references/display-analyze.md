@@ -8,7 +8,7 @@ Prompted when multiple completed discussions exist, no specifications or propose
 
 ## A. Display
 
-Emit the DISPLAY section from the Step 1 snapshot verbatim as a code block.
+Emit the TITLE section (markdown), then the DISPLAY section from the Step 1 snapshot verbatim as a code block.
 
 **Cache-Aware Message**
 
@@ -17,15 +17,13 @@ Emit the DISPLAY section from the Step 1 snapshot verbatim as a code block.
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> What happens next. Your discussions will be analyzed for natural
-> groupings. Each grouping becomes a proposed specification you can
-> start when ready. Results are cached and reused until discussions change.
+> What happens next. Your discussions will be analyzed for natural groupings. Each grouping becomes a proposed specification you can start when ready. Results are cached and reused until discussions change.
 
 · · · · · · · · · · · ·
-Proceed with analysis?
-- **`y`/`yes`**
-- **`n`/`no`**
-· · · · · · · · · · · ·
+**`◆ Proceed with analysis?`**
+
+**`y/yes`**
+**`n/no`**
 ```
 
 **STOP.** Wait for user response.
@@ -37,16 +35,13 @@ Proceed with analysis?
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Analysis outdated. A previous grouping analysis exists but
-> discussions have changed since it was created. Your discussions will
-> be re-analyzed for natural groupings. Results are cached and reused
-> until discussions change.
+> Analysis outdated. A previous grouping analysis exists but discussions have changed since it was created. Your discussions will be re-analyzed for natural groupings. Results are cached and reused until discussions change.
 
 · · · · · · · · · · · ·
-Proceed with analysis?
-- **`y`/`yes`**
-- **`n`/`no`**
-· · · · · · · · · · · ·
+**`◆ Proceed with analysis?`**
+
+**`y/yes`**
+**`n/no`**
 ```
 
 **STOP.** Wait for user response.

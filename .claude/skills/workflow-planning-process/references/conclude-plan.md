@@ -10,11 +10,10 @@
 
 ```
 · · · · · · · · · · · ·
-Ready to conclude?
+**`◆ Ready to conclude?`**
 
-- **`y`/`yes`** — Conclude plan and mark as completed
-- **`n`/`no`** — Go back and make changes
-· · · · · · · · · · · ·
+**`y/yes`** → Conclude plan and mark as completed
+**`n/no`**  → Go back and make changes
 ```
 
 **STOP.** Wait for user response.
@@ -54,8 +53,7 @@ Status has been marked as `completed`. The plan is ready for implementation.
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Planning complete. The implementation phase will execute
-> these tasks using TDD — tests first, then code.
+> Planning complete. The implementation phase will execute these tasks using TDD — tests first, then code.
 ```
 
 Invoke `/workflow-bridge {work_unit} planning`.

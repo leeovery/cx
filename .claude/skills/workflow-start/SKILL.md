@@ -7,55 +7,45 @@ allowed-tools: Bash(node .claude/skills/workflow-start/scripts/gateway.cjs), Bas
 Unified workflow entry point. Discovers state, shows all active work, and routes to start or continue skills.
 
 > **⚠️ ZERO OUTPUT RULE**: Do not narrate your processing. Produce no output until a step or reference file explicitly specifies display content. No "proceeding with...", no discovery summaries, no routing decisions, no transition text. Your first output must be content explicitly called for by the instructions.
+>
+> **⚠️ BANNER FIRST**: The session opens with Step 0's four display blocks — art, title, Initialisation heading, status line — emitted before anything else happens: before any tool call, before loading framework.md, before a single word of narration. No "I'll start by…" pre-line, ever. Emit the four blocks, then load framework.md, then run the boot.
 
 ## Instructions
 
-Load **[framework.md](../workflow-shared/references/framework.md)** and follow its instructions as written.
+Load **[framework.md](../workflow-shared/references/framework.md)** and follow its instructions as written — after Step 0's four display blocks: the BANNER FIRST rule above governs the ordering, and this load comes second.
 
 ---
 
 ## Step 0: Initialisation
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as a properties code block (```properties fence — it colours the art; the space between the two words is the token break that splits the colours, so emit every line byte-for-byte, the version stamp included):*
 
 ```
-●─────────────────────────────────────────────────────────────────●
-    ___   _____________   __________________
-   /   | / ____/ ____/ | / /_  __/  _/ ____/
-  / /| |/ / __/ __/ /  |/ / / /  / // /
- / ___ / /_/ / /___/ /|  / / / _/ // /___
-/_/  |_\____/_____/_/ |_/ /_/ /___/\____/
- _       ______  ____  __ __ ________    ____ _       _______
-| |     / / __ \/ __ \/ //_// ____/ /   / __ \ |     / / ___/
-| | /| / / / / / /_/ / ,<  / /_  / /   / / / / | /| / /\__ \
-| |/ |/ / /_/ / _, _/ /| |/ __/ / /___/ /_/ /| |/ |/ /___/ /
-|__/|__/\____/_/ |_/_/ |_/_/   /_____/\____/ |__/|__//____/
-
-●─────────────────────────────────────────────────────────────────●
-  Agentic Engineering Workflows (v0.6.33)
-●─────────────────────────────────────────────────────────────────●
-```
-
-> *Output the next fenced block as a code block:*
-
-```
-── Initialisation ───────────────────────────────
+█▀█░█▀▀░█▀▀░█▀█░▀█▀░▀█▀░█▀▀ █░█░█▀█░█▀▄░█░█░█▀▀░█░░░█▀█░█░█░█▀▀
+█▀█░█░█░█▀▀░█░█░░█░░░█░░█░░ █▄█░█░█░█▀▄░█▀▄░█▀▀░█░░░█░█░█▄█░▀▀█
+▀░▀░▀▀▀░▀▀▀░▀░▀░░▀░░▀▀▀░▀▀▀ ▀░▀░▀▀▀░▀░▀░▀░▀░▀░░░▀▀▀░▀▀▀░▀░▀░▀▀▀
+                                                        v0.6.44
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Setting up the session — running the system boot checks.
+# **`■ Workflow Start`**
+```
+
+> *Output the next fenced block as markdown (not a code block):*
+
+```
+**`□ Initialisation`**
+```
+
+> *Output the next fenced block as markdown (not a code block):*
+
+```
+> Checking the workflow system — applying any pending migrations, confirming the knowledge base, and scanning your active work.
 ```
 
 ### Step 0.1: Boot
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-> Checking the workflow system before anything runs — applying any
-> pending migrations, then confirming the knowledge base is ready.
-```
 
 **Run the boot pipeline — this is mandatory. You must complete it before proceeding.**
 
@@ -112,11 +102,10 @@ Migrations Applied
 
 ```
 · · · · · · · · · · · ·
-Ready to continue?
+**`◆ Ready to continue?`**
 
-- **`c`/`continue`** — Proceed
-- **Ask** — Ask questions about the changes
-· · · · · · · · · · · ·
+**`c/continue`** → Proceed
+**Ask**        → Ask questions about the changes
 ```
 
 **STOP.** Wait for user response.
@@ -163,20 +152,7 @@ The response's `system_config` object carries what the gate needs to branch. Loa
 
 ---
 
-## Step 1: Run Discovery
-
-> *Output the next fenced block as a code block:*
-
-```
-── Run Discovery ────────────────────────────────
-```
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-> Scanning your workflow directory. Looking for active work,
-> completed items, and inbox entries to show you the full picture.
-```
+## Step 1: Discover and Route
 
 !`node .claude/skills/workflow-start/scripts/gateway.cjs`
 
@@ -202,49 +178,12 @@ Parse the output to understand the current workflow state:
 - `completed_count` / `cancelled_count`
 - `has_inbox` / `inbox_count`, `has_archived` / `archived_count`
 
-Display and routing derive from the `view` snapshot at Step 3 — this dump is the index, not the display surface.
-
-→ Proceed to **Step 2**.
-
----
-
-## Step 2: Check State
-
-> *Output the next fenced block as a code block:*
-
-```
-── Check State ──────────────────────────────────
-```
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-> Determining what to show you. Routing based on whether
-> active work was found.
-```
+Display and routing derive from the `view` snapshot in **active-work.md** — this dump is the index, not the display surface.
 
 #### If `state.has_any_work` is false
 
 Load **[empty-state.md](references/empty-state.md)** and follow its instructions as written.
 
 #### Otherwise
-
-→ Proceed to **Step 3**.
-
----
-
-## Step 3: Display and Route
-
-> *Output the next fenced block as a code block:*
-
-```
-── Display and Route ────────────────────────────
-```
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-> Showing your active work and available options.
-```
 
 Load **[active-work.md](references/active-work.md)** and follow its instructions as written.

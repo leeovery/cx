@@ -76,11 +76,10 @@ Missing Dependencies
 
 ```
 · · · · · · · · · · · ·
-How would you like to proceed?
+**`◆ How would you like to proceed?`**
 
-- **`s`/`satisfied`** — Mark a dependency as satisfied externally
-- **`i`/`implement`** — Exit to implement blocking dependencies first
-· · · · · · · · · · · ·
+**`s/satisfied`** → Mark a dependency as satisfied externally
+**`i/implement`** → Exit to implement blocking dependencies first
 ```
 
 **STOP.** Wait for user response.
@@ -91,13 +90,16 @@ How would you like to proceed?
 
 **If `implement`:**
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as a properties code block (```properties fence):*
 
 ```
-Implementation Paused
+⚑ "{topic:(titlecase)}" is blocked until these dependencies are resolved
+```
 
-"{topic:(titlecase)}" is blocked until these dependencies are resolved.
-Use /workflow-start to navigate to the blocking work.
+> *Output the next fenced block as markdown (not a code block):*
+
+```
+> Use /workflow-start to navigate to the blocking work.
 ```
 
 **STOP.** Do not proceed — terminal condition.
@@ -124,13 +126,12 @@ Set `selected_topic` = `{dep_topic}`.
 
 ```
 · · · · · · · · · · · ·
-Which dependency has been satisfied?
+**`◆ Which dependency has been satisfied?`**
 
-- **`1`** — {dep_topic:(titlecase)} — {description}
-- **`2`** — ...
+**`1`** → {dep_topic:(titlecase)} — {description}
+**`2`** → ...
 
 Select an option:
-· · · · · · · · · · · ·
 ```
 
 **STOP.** Wait for user response.

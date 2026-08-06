@@ -80,17 +80,16 @@ Set `resumed` = `false`.
 
 #### If file exists
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resume Detection ─────────────────────────────
+**`□ Resume Detection`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An in-progress investigation file exists for this topic —
-> choose whether to pick it up or start fresh.
+> An in-progress investigation file exists for this topic — choose whether to pick it up or start fresh.
 ```
 
 Load **[resume-detection.md](../workflow-shared/references/resume-detection.md)** with artifact = `investigation`, file = `.workflows/{work_unit}/investigation/{topic}.md`, continue_step = `Step 2`, restart_targets = `the investigation file and the phase cache directory (rm -rf .workflows/.cache/{work_unit}/investigation/{topic}/ — content and agent state together)`, commit = `investigation({work_unit}): restart investigation`.
@@ -127,17 +126,16 @@ An earlier session already interviewed the user — don't re-interview. Fold in 
 
 #### Otherwise
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Symptom Gathering ────────────────────────────
+**`□ Symptom Gathering`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Gathering detailed symptoms — reproduction steps, error
-> messages, affected areas, and environmental context.
+> Gathering detailed symptoms — reproduction steps, error messages, affected areas, and environmental context.
 ```
 
 Read what the Symptoms section already holds — initialisation seeded it from the carrier, and that is the user's own account. Ask what it does not answer, and confirm rather than re-ask where it is thin. Putting a question they have already answered back to them reads as not having listened.
@@ -162,18 +160,16 @@ Load **[contextual-query.md](../workflow-knowledge/references/contextual-query.m
 
 ## Step 5: Investigation Plan
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Investigation Plan ───────────────────────────
+**`□ Investigation Plan`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Forming hypotheses and agreeing where to look and how
-> collaboratively to work — or re-confirming the existing plan
-> when resuming — before deep tracing begins.
+> Forming hypotheses and agreeing where to look and how collaboratively to work — or re-confirming the existing plan when resuming — before deep tracing begins.
 ```
 
 Load **[investigation-plan.md](references/investigation-plan.md)** and follow its instructions as written.
@@ -184,17 +180,16 @@ Load **[investigation-plan.md](references/investigation-plan.md)** and follow it
 
 ## Step 6: Code Analysis
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Code Analysis ────────────────────────────────
+**`□ Code Analysis`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Tracing the bug through the codebase — following code
-> paths, checking state, and narrowing down the root cause.
+> Tracing the bug through the codebase — following code paths, checking state, and narrowing down the root cause.
 ```
 
 Load **[analysis-patterns.md](references/analysis-patterns.md)** for tracing techniques and **[analysis-checkpoints.md](references/analysis-checkpoints.md)** for the collaboration protocol — both govern this step.
@@ -209,17 +204,16 @@ When the root cause is identified and every hypothesis is resolved:
 
 ## Step 7: Root Cause Synthesis
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Root Cause Synthesis ─────────────────────────
+**`□ Root Cause Synthesis`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Synthesising findings into a clear root cause statement,
-> contributing factors, and blast radius.
+> Synthesising findings into a clear root cause statement, contributing factors, and blast radius.
 ```
 
 Synthesize findings into a clear root cause:
@@ -241,17 +235,16 @@ Document in the investigation file and commit.
 
 ## Step 8: Root Cause Validation
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Root Cause Validation ────────────────────────
+**`□ Root Cause Validation`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Offering an independent validation pass on the root cause
-> before the findings are presented.
+> Offering an independent validation pass on the root cause before the findings are presented.
 ```
 
 Load **[root-cause-validation.md](references/root-cause-validation.md)** and follow its instructions as written.
@@ -262,17 +255,16 @@ Load **[root-cause-validation.md](references/root-cause-validation.md)** and fol
 
 ## Step 9: Findings Sign-off
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Findings Sign-off ────────────────────────────
+**`□ Findings Sign-off`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Presenting the investigation findings for your sign-off
-> before we explore the fix.
+> Presenting the investigation findings for your sign-off before we explore the fix.
 ```
 
 Load **[findings-signoff.md](references/findings-signoff.md)** and follow its instructions as written.
@@ -283,10 +275,10 @@ Load **[findings-signoff.md](references/findings-signoff.md)** and follow its in
 
 ## Step 10: Fix Exploration & Discussion
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Fix Exploration ──────────────────────────────
+**`□ Fix Exploration`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
@@ -303,17 +295,16 @@ Load **[fix-exploration.md](references/fix-exploration.md)** and follow its inst
 
 ## Step 11: Fix Validation
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Fix Validation ───────────────────────────────
+**`□ Fix Validation`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Offering an independent pressure-test of the agreed fix
-> direction before wrapping up.
+> Offering an independent pressure-test of the agreed fix direction before wrapping up.
 ```
 
 Load **[fix-validation.md](references/fix-validation.md)** and follow its instructions as written.
@@ -332,17 +323,16 @@ Load **[compliance-check.md](../workflow-shared/references/compliance-check.md)*
 
 ## Step 13: Conclude Investigation
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Conclude Investigation ───────────────────────
+**`□ Conclude Investigation`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Wrapping up. Final confirmation before marking the
-> investigation as complete.
+> Wrapping up. Final confirmation before marking the investigation as complete.
 ```
 
 Load **[conclude-investigation.md](references/conclude-investigation.md)** and follow its instructions as written.

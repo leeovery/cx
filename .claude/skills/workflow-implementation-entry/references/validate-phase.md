@@ -16,7 +16,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs render entry-gate {work_u
 
 #### If the response carried `DISPLAY: entry blocker`
 
-Emit the section verbatim per its marker.
+Emit both sections verbatim per their markers — the red blocker line, then its guidance.
 
 **STOP.** Do not proceed — terminal condition.
 
@@ -52,10 +52,14 @@ Render and emit the section verbatim:
 node .claude/skills/workflow-engine/scripts/engine.cjs render phase-note {work_unit}.implementation.{topic} --verb Reopening
 ```
 
+→ Load **[reconcile-advisory.md](../../workflow-shared/references/reconcile-advisory.md)** with downstream_phase = `implementation`.
+
 → Return to caller.
 
 #### If status is `in-progress`
 
 Proceed normally.
+
+→ Load **[reconcile-advisory.md](../../workflow-shared/references/reconcile-advisory.md)** with downstream_phase = `implementation`.
 
 → Return to caller.

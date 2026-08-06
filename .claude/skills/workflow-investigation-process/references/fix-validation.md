@@ -11,20 +11,17 @@ An independent agent pressure-tests the agreed fix direction — does it actuall
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An independent agent can pressure-test the agreed direction —
-> confirming it resolves the root cause and hunting for side
-> effects before the investigation concludes.
+> An independent agent can pressure-test the agreed direction — confirming it resolves the root cause and hunting for side effects before the investigation concludes.
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
 · · · · · · · · · · · ·
-Fix direction agreed. Run fix validation?
+**`◆ Fix direction agreed. Run fix validation?`**
 
-- **`y`/`yes`** — Run fix validation
-- **`s`/`skip`** — Skip to wrap-up
-· · · · · · · · · · · ·
+**`y/yes`**  → Run fix validation
+**`s/skip`** → Skip to wrap-up
 ```
 
 **STOP.** Wait for user response.
@@ -117,11 +114,10 @@ The risks live only in cache — each must land in the investigation file or be 
 
 ```
 · · · · · · · · · · · ·
-How should these risks be handled?
+**`◆ How should these risks be handled?`**
 
-- **`a`/`address`** — Work through them and fold the outcome into the fix direction
-- **`d`/`dismiss`** — Note them as considered-and-dismissed and proceed
-· · · · · · · · · · · ·
+**`a/address`** → Work through them and fold the outcome into the fix direction
+**`d/dismiss`** → Note them as considered-and-dismissed and proceed
 ```
 
 **STOP.** Wait for user response.

@@ -8,11 +8,10 @@
 
 ```
 · · · · · · · · · · · ·
-Ready to mark implementation as completed?
+**`◆ Ready to mark implementation as completed?`**
 
-- **`y`/`yes`** — Mark as completed
-- **`n`/`no`** — Go back and make changes
-· · · · · · · · · · · ·
+**`y/yes`** → Mark as completed
+**`n/no`**  → Go back and make changes
 ```
 
 **STOP.** Wait for user response.
@@ -38,8 +37,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} -m "im
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Implementation complete. The review phase will validate
-> your work against the specification and plan.
+> Implementation complete. The review phase will validate your work against the specification and plan.
 ```
 
 Invoke `/workflow-bridge {work_unit} implementation`.

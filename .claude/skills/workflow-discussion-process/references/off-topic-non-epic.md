@@ -14,10 +14,9 @@ The caller provides `work_type`, `work_unit`, `topic`, and the `concern` with it
 · · · · · · · · · · · ·
 **{concern}** is beyond this topic's scope.
 
-- **`l`/`log`** — Capture it as an idea in the inbox for later
-- **`p`/`pivot`** — Convert this work to an epic so it can hold the concern as its own topic
-- **`i`/`ignore`** — Note it in the Summary and move on
-· · · · · · · · · · · ·
+**`l/log`**    → Capture it as an idea in the inbox for later
+**`p/pivot`**  → Convert this work to an epic so it can hold the concern as its own topic
+**`i/ignore`** → Note it in the Summary and move on
 ```
 
 **STOP.** Wait for user response.
@@ -30,9 +29,8 @@ The caller provides `work_type`, `work_unit`, `topic`, and the `concern` with it
 · · · · · · · · · · · ·
 **{concern}** is beyond this topic's scope.
 
-- **`l`/`log`** — Capture it as an idea in the inbox for later
-- **`i`/`ignore`** — Note it in the Summary and move on
-· · · · · · · · · · · ·
+**`l/log`**    → Capture it as an idea in the inbox for later
+**`i/ignore`** → Note it in the Summary and move on
 ```
 
 **STOP.** Wait for user response.
@@ -49,13 +47,12 @@ Capture the concern via the `workflow-log-idea` skill so it lands in the inbox f
 
 2. Derive `proposed_name` — a kebab-case topic name for the concern.
 
-3. Judge `landing_phase` from the concern's nature (an open question needing exploration → `research`; a decision needing making → `discussion`), then load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{proposed_name}`, concern = `{concern}`, origin = `{topic}`, phase = `discussion`, landing_phase = `{landing_phase}`, date = `{today}`. It validates the name against the map and, on a clash, prompts to pick another or cancel. If `result` is `cancelled`, the topic wasn't created — note the concern in the Summary so it isn't lost; otherwise the concern landed as the `{landed_topic}` topic and the delivery committed itself.
+3. Judge `landing_phase` per **Judging the Landing Phase**, then load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{proposed_name}`, concern = `{concern}`, origin = `{topic}`, phase = `discussion`, landing_phase = `{landing_phase}`, date = `{today}`. It validates the name against the map and, on a clash, prompts to pick another or cancel. If `result` is `cancelled`, the topic wasn't created — note the concern in the Summary so it isn't lost; otherwise the concern landed as the `{landed_topic}` topic and the delivery committed itself.
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> This work is now an epic — continuing here with the current topic.
-> The concern is preserved for its own handling later.
+> This work is now an epic — continuing here with the current topic. The concern is preserved for its own handling later.
 ```
 
 → Return to caller for **B. Session Loop**.

@@ -18,9 +18,8 @@ node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.
 · · · · · · · · · · · ·
 Any additional context since the specification was completed?
 
-- **`c`/`continue`** — Continue with the specification as-is
-- **Add context** — Tell me the priorities, constraints, or new considerations
-· · · · · · · · · · · ·
+**`c/continue`**  → Continue with the specification as-is
+**Add context** → Tell me the priorities, constraints, or new considerations
 ```
 
 **STOP.** Wait for user response.
@@ -53,10 +52,14 @@ node .claude/skills/workflow-engine/scripts/engine.cjs render phase-note {work_u
 
 Set source="existing".
 
+→ Load **[reconcile-advisory.md](../../workflow-shared/references/reconcile-advisory.md)** with downstream_phase = `planning`.
+
 → Return to caller.
 
 #### If status is `in-progress`
 
 Set source="existing".
+
+→ Load **[reconcile-advisory.md](../../workflow-shared/references/reconcile-advisory.md)** with downstream_phase = `planning`.
 
 → Return to caller.

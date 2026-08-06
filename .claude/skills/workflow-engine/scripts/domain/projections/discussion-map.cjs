@@ -14,7 +14,7 @@
 const { renderTree } = require('../../kernel/render.cjs');
 const { TREE_WIDTH, treeHeader, titlecase, title, discussionGlyph } = require('../conventions.cjs');
 const { mapState, subtopicsOf } = require('../discussion-map.cjs');
-const { section, dotFrame, cmdOption } = require('./surfaces.cjs');
+const { section, menuFrame, cmdOption } = require('./surfaces.cjs');
 
 /** @typedef {import('../../kernel/render.cjs').TreeNode} TreeNode */
 /** @typedef {import('../discussion-map.cjs').SubtopicCounts} SubtopicCounts */
@@ -62,7 +62,7 @@ function discussionMap(topic, manifest) {
   const byName = new Map();
   for (const [name, sub] of Object.entries(subtopics)) {
     /** @type {TreeNode} */
-    const node = { title: title({ glyph: discussionGlyph(sub.status), label: titlecase(name), tag: sub.status }) };
+    const node = { title: title({ glyph: discussionGlyph(sub.status), label: titlecase(name) }), tag: sub.status };
     byName.set(name, { node, rank: rank(sub.status), kids: [] });
   }
 
@@ -83,7 +83,9 @@ function discussionMap(topic, manifest) {
   for (const { node, kids } of byName.values()) {
     if (kids.length) node.children = kids.sort(byRank).map((k) => k.node);
   }
-  return header + '\n' + renderTree(top.sort(byRank).map((t) => t.node), { width: TREE_WIDTH });
+  // childIndent 2 = the `✓ ` glyph width: subtrees drop from the parent's
+  // title, not from its status glyph.
+  return header + '\n' + renderTree(top.sort(byRank).map((t) => t.node), { width: TREE_WIDTH, childIndent: 2 });
 }
 
 /**
@@ -98,10 +100,12 @@ function discussionDeferGate(unresolvedCount) {
   return section(
     'MENU: defer gate',
     "emit verbatim as markdown only at the concluding step, then STOP for the user's response",
-    dotFrame([
+    menuFrame([
       one
         ? 'There is still 1 subtopic not yet decided — shown on the map above.'
         : `There are still ${unresolvedCount} subtopics not yet decided — shown on the map above.`,
+      '',
+      '**`◆ Defer and conclude?`**',
       '',
       cmdOption('y', 'yes', one ? 'Defer it and move toward concluding' : 'Defer them and move toward concluding'),
       cmdOption('n', 'no', 'Continue discussing'),

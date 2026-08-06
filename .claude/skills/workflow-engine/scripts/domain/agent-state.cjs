@@ -268,16 +268,14 @@ function publicRow(row) {
   };
 }
 
-// Kinds that are consumed by another agent, never surfaced to the user —
-// scan's `next` must not point at them.
+// Kinds that are consumed by another agent, never surfaced to the user.
 const NEVER_SURFACED = ['perspective'];
 
 /**
  * Scan: promote every in-flight row whose content file now exists, then
- * answer with the snapshot the surfacing protocol reads — counts per state,
- * the rows themselves, and `next`: the one thing to do now (surface the next
- * finding of a partially-surfaced row, else acknowledge the oldest pending
- * row), or null when there is nothing actionable.
+ * answer with the snapshot the surfacing protocol reads — the rows grouped
+ * by state. Which row and which finding to take next is the protocol's
+ * judgment, made from lane order and what the conversation just touched.
  * @param {string} cwd @param {string} workUnit @param {string} phase @param {string} topic
  */
 function scanAgents(cwd, workUnit, phase, topic) {
@@ -299,29 +297,15 @@ function scanAgents(cwd, workUnit, phase, topic) {
     if (promoted) saveState(cwd, workUnit, phase, topic, state);
 
     const byStatus = (/** @type {string} */ s) => rows.filter((r) => r.status === s);
-    const acked = byStatus('acknowledged');
-    const surfaceable = (/** @type {any} */ r) => !NEVER_SURFACED.includes(r.kind);
-    const surfacing = acked.find((r) => surfaceable(r) && unsurfaced(r).length > 0);
-    const pending = byStatus('pending');
-
-    /** @type {null | {action: string, id: string, finding?: string}} */
-    let next = null;
-    if (surfacing) {
-      next = { action: 'surface', id: surfacing.id, finding: unsurfaced(surfacing)[0] };
-    } else {
-      const first = pending.find(surfaceable);
-      if (first) next = { action: 'acknowledge', id: first.id };
-    }
 
     return {
       work_unit: workUnit,
       phase,
       topic,
       in_flight: byStatus('in-flight').map(publicRow),
-      pending: pending.map(publicRow),
-      acknowledged: acked.map(publicRow),
+      pending: byStatus('pending').map(publicRow),
+      acknowledged: byStatus('acknowledged').map(publicRow),
       incorporated: byStatus('incorporated').map(publicRow),
-      next,
     };
   });
 }
@@ -380,8 +364,10 @@ function announceAgent(cwd, workUnit, phase, topic, id) {
 }
 
 /**
- * Surface one finding. When the last unsurfaced finding is raised the row
- * incorporates automatically — the response's `status` says so.
+ * Surface one finding, or a comma-separated batch of them — a lane's whole
+ * screen lands in one call. Every id is validated before any is recorded, so
+ * a bad entry fails the batch whole. When the last unsurfaced finding is
+ * raised the row incorporates automatically — the response's `status` says so.
  * @param {string} cwd @param {string} workUnit @param {string} phase
  * @param {string} topic @param {string} id @param {string} finding
  */
@@ -389,19 +375,28 @@ function surfaceFinding(cwd, workUnit, phase, topic, id, finding) {
   requireWorkUnit(cwd, workUnit);
   validatePhase(phase);
   validateSegment(topic, 'topic');
+  const batch = String(finding).split(',').map((f) => f.trim());
+  if (batch.some((f) => f === '')) {
+    throw new Error('Invalid findings: a finding id, or a comma-separated list of them, with no empty entries');
+  }
+  if (new Set(batch).size !== batch.length) {
+    throw new Error('Invalid findings: duplicate ids');
+  }
   return io.withWorkUnitLock(workflowsDir(cwd), workUnit, () => {
     const state = loadState(cwd, workUnit, phase, topic);
     const row = requireRow(state, phase, topic, id);
     if (row.status !== 'acknowledged') {
       throw new Error(`Agent "${id}" is ${row.status} — only an acknowledged row surfaces findings`);
     }
-    if (!row.findings.includes(finding)) {
-      throw new Error(`Agent "${id}" has no finding "${finding}". Findings: ${row.findings.join(', ')}`);
+    for (const f of batch) {
+      if (!row.findings.includes(f)) {
+        throw new Error(`Agent "${id}" has no finding "${f}". Findings: ${row.findings.join(', ')}`);
+      }
+      if (row.surfaced.includes(f)) {
+        throw new Error(`Finding "${f}" is already surfaced on "${id}"`);
+      }
     }
-    if (row.surfaced.includes(finding)) {
-      throw new Error(`Finding "${finding}" is already surfaced on "${id}"`);
-    }
-    row.surfaced.push(finding);
+    row.surfaced.push(...batch);
     if (unsurfaced(row).length === 0) row.status = 'incorporated';
     saveState(cwd, workUnit, phase, topic, state);
     return { work_unit: workUnit, phase, topic, ...publicRow(row) };

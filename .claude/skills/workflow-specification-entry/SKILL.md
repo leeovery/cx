@@ -51,6 +51,7 @@ node .claude/skills/workflow-specification-entry/scripts/gateway.cjs view {work_
 The output is one snapshot in up to three demarcated sections:
 
 - **DATA** — reasoning surface: `scenario`, counts, `cache_status`, `discussions_checksum`, the discussion/specification detail (statuses, sources, consult references with slice hints), and — for scenarios with a menu — the `ACTIONS` key table (`key  action  topic  verb`). Reason from it; never display or restate it.
+- **TITLE** — the view's chrome heading. Emit verbatim as markdown, directly above the display.
 - **DISPLAY** — the scenario's overview block. Emitted verbatim as a code block, only where a later step directs.
 - **MENU** — the scenario's selection menu. Emitted verbatim as markdown (not a code block), only where a later step directs. Absent for menu-less scenarios.
 
@@ -94,17 +95,16 @@ Load **[check-prerequisites.md](references/check-prerequisites.md)** and follow 
 
 ## Step 6: Route Based on State
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Route Based on State ─────────────────────────
+**`□ Route Based on State`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Evaluating what discussions and specifications exist
-> to determine next steps.
+> Evaluating what discussions and specifications exist to determine next steps.
 ```
 
 Load **[route-scenario.md](references/route-scenario.md)** and follow its instructions as written.

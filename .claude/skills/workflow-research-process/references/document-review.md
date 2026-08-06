@@ -6,18 +6,16 @@
 
 The review agent catches *topical* gaps — areas that should have been explored. This check catches *conversational* gaps — substance that was discussed in the session but never made it into the research file. Only the main orchestrator can do this: you were in the conversation, a sub-agent wasn't.
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-·· Document Review ······························
+**`▪ Document Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Reconciling the session conversation against the research file.
-> Checking for gaps, hallucinations, and accuracy drift before
-> concluding.
+> Reconciling the session conversation against the research file. Checking for gaps, hallucinations, and accuracy drift before concluding.
 ```
 
 ## A. Re-Read the Research Document
@@ -76,7 +74,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} --topi
 
 Take the next unhandled note. Handled-ness lives in the walk and is recoverable from the document itself: a landed note reads as a reroute record, a kept note stays as prose — so a re-run after a context refresh re-presents kept notes, which costs a repeat ask, never a silent loss. A note addressed to *this* topic is not a reroute — treat it as undocumented substance: fold it into the document, no gate.
 
-Judge the target topic from the note's own addressing, and judge `landing_phase` from its nature — an open question needing exploration → `research`; a correction or decision owed → `discussion`. Present it:
+Judge the target topic from the note's own addressing, and `landing_phase` per **Judging the Landing Phase** in **[triage-landing.md](../../workflow-shared/references/triage-landing.md)**. Present it:
 
 > *Output the next fenced block as markdown (not a code block):*
 
@@ -90,13 +88,11 @@ Judge the target topic from the note's own addressing, and judge `landing_phase`
 
 ```
 · · · · · · · · · · · ·
-Land this note in "{target}"'s triage queue? If "{target}" is
-completed, landing reopens it.
+Land this note in "{target}"'s triage queue? If "{target}" is completed, landing reopens it.
 
-- **`y`/`yes`** — Land it there; this document keeps a reroute record
-- **`s`/`skip`** — Leave it as prose in this document
-- **Comment** — Tell me what to change (target, phase, or content)
-· · · · · · · · · · · ·
+**`y/yes`**   → Land it there; this document keeps a reroute record
+**`s/skip`**  → Leave it as prose in this document
+**Comment** → Tell me what to change (target, phase, or content)
 ```
 
 **STOP.** Wait for user response.
@@ -107,7 +103,7 @@ Build the concern from the note *plus* the session context it stems from — the
 
 → Load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{target}`, concern = `{the note's full context}`, origin = `{topic}`, phase = `research`, landing_phase = `{landing_phase}`, date = `{today}`.
 
-On return: if `result` is `landed`, the note is handled — replace the stranded prose with a reroute record in place, `Rerouted to {landed_topic} triage ({date}).`, and when the landing response carried `reconcile_flagged`, tell the user the target's completed discussion was flagged to reconcile. If `result` is `cancelled`, nothing was written — the note stays unhandled and re-presents; dropping it for good is the `skip` arm's job.
+On return: if `result` is `landed`, the note is handled — replace the stranded prose with a reroute record in place, `Rerouted to {landed_topic} triage ({date}).`, and when the landing response carried `reconcile_flagged` or `sources_staled`, tell the user what it flagged — the target's completed discussion (research landing) or the specification(s) named in `sources_staled` (discussion landing, their extraction now stale). If `result` is `cancelled`, nothing was written — the note stays unhandled and re-presents; dropping it for good is the `skip` arm's job.
 
 → Return to **C. Route Misdirected Knowledge**.
 
@@ -132,8 +128,7 @@ Summarise conversationally — do not dump a diff. One short paragraph or a hand
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Document review complete. {N} gap(s) captured, {M} correction(s)
-> applied. Proceeding to the final compliance check.
+> Document review complete. {N} gap(s) captured, {M} correction(s) applied. Proceeding to the final compliance check.
 ```
 
 → Return to caller.

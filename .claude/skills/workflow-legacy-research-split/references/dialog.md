@@ -16,10 +16,10 @@ Drive the per-source iteration: read source, identify themes, early sanity gate,
 
 Pop the next name from `remaining`. Set `current_source = name`.
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-·· Processing {current_source} ··················
+**`▪ Processing {current_source}`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
@@ -85,10 +85,11 @@ Candidate themes for {current_source}.md:
 
 ```
 · · · · · · · · · · · ·
-- **`y`/`yes`** — Proceed to draft cache files
-- **`a`/`abandon`** — Skip this source file
-- **Redirect** — Adjust the theme list (rename, merge two, split one, add, remove)
-· · · · · · · · · · · ·
+**`◆ Proceed with these themes?`**
+
+**`y/yes`**     → Proceed to draft cache files
+**`a/abandon`** → Skip this source file
+**Redirect**  → Adjust the theme list (rename, merge two, split one, add, remove)
 ```
 
 **STOP.** Wait for user response.
@@ -174,9 +175,7 @@ The `description` field gives the discovery map context; the cache file gives th
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Cache files drafted. They're first-class artifacts — you can
-> `cat` or open them in your editor between renders, and your
-> edits will land on the next display.
+> Cache files drafted. They're first-class artifacts — you can `cat` or open them in your editor between renders, and your edits will land on the next display.
 ```
 
 For each theme in `plan.json`, read the cache file, count paragraphs (blank-line-separated blocks), and take the first ~60 chars of the first paragraph as `content_preview`.
@@ -200,10 +199,11 @@ Source file will be renamed to {current_source}-superseded-{datetime}.md.
 
 ```
 · · · · · · · · · · · ·
-- **`y`/`yes`** — Apply this plan
-- **`a`/`abandon`** — Skip this source file
-- **Edit** — Modify cache files or plan.json (rename, merge, split, add, remove). To rewrite a draft, edit the cache file directly between renders.
-· · · · · · · · · · · ·
+**`◆ Apply this plan?`**
+
+**`y/yes`**     → Apply this plan
+**`a/abandon`** → Skip this source file
+**Edit**      → Modify cache files or plan.json (rename, merge, split, add, remove). To rewrite a draft, edit the cache file directly between renders.
 ```
 
 **STOP.** Wait for user response.
@@ -405,18 +405,15 @@ User specifies `theme_name`. Confirm before destructive removal:
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Removing "{theme_name}" will drop its drafted content. Has its
-> content been reabsorbed into another theme, or are you intentionally
-> discarding it?
+> Removing "{theme_name}" will drop its drafted content. Has its content been reabsorbed into another theme, or are you intentionally discarding it?
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
 · · · · · · · · · · · ·
-- **`y`/`yes`** — Remove the theme and drop its content
-- **`n`/`no`** — Back out
-· · · · · · · · · · · ·
+**`y/yes`** → Remove the theme and drop its content
+**`n/no`**  → Back out
 ```
 
 **STOP.** Wait for user response.

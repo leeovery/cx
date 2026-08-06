@@ -44,13 +44,27 @@ The previous concern's absorb is the natural break.
 
 #### If this is the session's first consult
 
-The session is starting: the offer precedes any session output — render it now, before the first question or thread.
+**If the sitting resumed existing work** (the artifact predates this session — a resume or reopen; after a context refresh, treat the sitting as resumed):
+
+Queued concerns may bear on the ground the session is about to build on: the offer precedes any session output — render it now, before the first question or thread.
 
 → Proceed to **B. Offer**.
 
+**If the sitting began at initialization** (a first start or restart — this session created the artifact):
+
+The topic has no conversational ground yet, and an agenda of other topics' concerns would seed the session away from its own material. Announce without offering — one line, count only, no titles:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render triage-announce {work_unit}.{phase}.{topic}
+```
+
+Emit its `DISPLAY: triage announce` section verbatim as a code block, then open the session from its own material. The first offer waits for a genuine break in the session's own thread — or the user asking for the queue; the natural-breaks checklist's just-opened signal never satisfies this deferral.
+
+→ Return to caller.
+
 #### If at a natural break
 
-A concern landed mid-session, or the user chose `later` earlier. Consult the natural-breaks checklist — a recent `later` defers the re-offer until the conversation has genuinely moved on.
+A concern landed mid-session, the user chose `later` earlier, or the sitting opened fresh with the queue announced. Consult the natural-breaks checklist — a recent `later` defers the re-offer until the conversation has genuinely moved on.
 
 → Proceed to **B. Offer**.
 
@@ -94,9 +108,9 @@ No opt-in. The check re-offers at a later break; the conclusion gate holds regar
 
 ## C. Raise One Concern
 
-Take the lowest-numbered concern still queued — or whichever the user asks for.
+Take the lowest-numbered concern still queued — or whichever the user asks for. Read its queue file — `.workflows/{work_unit}/{phase}/.triage/{topic}/{NNN-slug}.md` — with the Read tool. The entry is your brief, never the user's display: it reaches the conversation only through your breakdown, and the raw entry is shown only when the user asks.
 
-**If `phase` is `discussion`, arm the Discussion Map first** — the map tells the truth while the concern is live. Read the subtopic states:
+**If `phase` is `discussion`, arm the Discussion Map before presenting** — the map tells the truth while the concern is live, and routing a correction needs the body just read. Read the subtopic states:
 
 ```bash
 node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.discussion.{topic} subtopics
@@ -119,15 +133,7 @@ Route on the ground the concern reopens — the subtopic its title names (`{titl
 
 - `exploring` or `converging` — already live. Leave it.
 
-Present the concern whole — name its origin in a sentence, then render the entry:
-
-```bash
-node .claude/skills/workflow-engine/scripts/engine.cjs render concern {work_unit}.{phase}.{topic} --file {NNN-slug}.md
-```
-
-Emit its `DISPLAY: rerouted concern` section verbatim as markdown (not a code block) — its header and horizontal rules frame where the entry starts and ends. The render's output is also your read of the concern: the origin session carried everything it worked out, and the user decides from the substance, never from the title.
-
-Then break it down in your own voice before asking anything. The reopened ground may be days old and the reader cold — the verbatim entry is the record, the breakdown is what makes it workable: what the concern actually asks of this topic, how it sits against what this topic already decided, and a concrete rendering of the problem — a worked example in the topic's own terms, a small diagram where shape or flow helps, a before/after. Keep it simple and engineer-level, sized to the concern, and vary the shape across a multi-concern queue — identical breakdowns read as a template, not a colleague. The breakdown covers this concern alone: no other queued concern, open item, or finding rides along, and the closing question spans nothing the user hasn't seen. The test: the user can picture the problem before the first question arrives. End in a single opening question.
+Present the concern in your own voice — name its origin in a sentence, then break it down. The reopened ground may be days old and the reader cold — the entry is the record, the breakdown is what makes it workable: what the concern actually asks of this topic, how it sits against what this topic already decided, and a concrete rendering of the problem — a worked example in the topic's own terms, a small diagram where shape or flow helps, a before/after. Every substantive point in the entry surfaces in the breakdown — the user decides from the substance, never from the title. Keep it simple and engineer-level, sized to the concern, and vary the shape across a multi-concern queue — identical breakdowns read as a template, not a colleague. The breakdown covers this concern alone: no other queued concern, open item, or finding rides along, and the closing question spans nothing the user hasn't seen. The test: the user can picture the problem before the first question arrives. End in a single opening question.
 
 **STOP.** Wait for user response.
 

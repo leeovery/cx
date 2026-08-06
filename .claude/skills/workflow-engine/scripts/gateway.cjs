@@ -25,7 +25,11 @@
  */
 
 const SECTION = {
+  title:   '=== TITLE (emit verbatim as markdown — the view\'s chrome heading) ===',
   data:    '=== DATA (reason from this — never display or parse the sections below) ===',
+  // Plain fence, no language: any grammar eventually colours a stray word in
+  // uncontrolled prose (makefile's `private`/`include` did). Displays stay
+  // quiet; colour lives in the markdown chrome and menus.
   display: '=== DISPLAY (emit verbatim as a code block) ===',
   menu:    '=== MENU (emit verbatim as markdown) ===',
 };
@@ -33,6 +37,11 @@ const SECTION = {
 /** Render a DATA section. Objects become stable `key: value` lines. @param {object|string} body */
 function dataBlock(body) {
   return SECTION.data + '\n' + (typeof body === 'string' ? body : dataLines(body)) + '\n';
+}
+
+/** The chrome heading for a view — markdown, above the fenced display. @param {string} title */
+function titleBlock(title) {
+  return SECTION.title + '\n# **\`■ ' + title + '\`**\n';
 }
 
 /** @param {string} body display block, pre-rendered */
@@ -83,4 +92,4 @@ function runGateway(handlers, argv = process.argv.slice(2)) {
   process.stdout.write(String(out).replace(/\n+$/, '') + '\n');
 }
 
-module.exports = { runGateway, dataBlock, displayBlock, menuBlock, SECTION };
+module.exports = { runGateway, dataBlock, titleBlock, displayBlock, menuBlock, SECTION };

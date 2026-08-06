@@ -11,18 +11,16 @@ The caller passes:
 
 ## A. Read Source Files
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Summary Backfill ─────────────────────────────
+**`□ Summary Backfill`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Discovery items missing summary or description. Drafting
-> them from the existing research and discussion files for
-> review.
+> Discovery items missing summary or description. Drafting them from the existing research and discussion files for review.
 ```
 
 For each item in `items_to_recover`:
@@ -63,10 +61,11 @@ Proposed summaries for {N} topic(s):
 
 ```
 · · · · · · · · · · · ·
-- **`y`/`yes`** — Accept all summaries as drafted (description is auto-drafted silently)
-- **`e`/`edit`** — Edit one or more summary lines before accepting
-- **`s`/`skip`** — Skip the whole batch (leave fields blank)
-· · · · · · · · · · · ·
+**`◆ Accept these summaries?`**
+
+**`y/yes`**  → Accept all summaries as drafted (description is auto-drafted silently)
+**`e/edit`** → Edit one or more summary lines before accepting
+**`s/skip`** → Skip the whole batch (leave fields blank)
 ```
 
 **STOP.** Wait for user response.
@@ -121,16 +120,15 @@ Update the in-memory summary for that item with the user's response. Re-render t
 
 ```
 · · · · · · · · · · · ·
-{K} topic(s) have no source file to draft from:
+**`◆ {K} topic(s) have no source file to draft from:`**
 
 @foreach(item in items_to_recover where derived field is null)
 - {item.name:(titlecase)}
 @endforeach
 
-- **`p`/`provide`** — Tell me the summary for each and I'll write it
-- **`d`/`dismiss`** — Write a minimal name-derived summary noting the missing source, so this stops re-prompting
-- **`l`/`leave`** — Leave them unset; this flow re-offers next time
-· · · · · · · · · · · ·
+**`p/provide`** → Tell me the summary for each and I'll write it
+**`d/dismiss`** → Write a minimal name-derived summary noting the missing source, so this stops re-prompting
+**`l/leave`**   → Leave them unset; this flow re-offers next time
 ```
 
 **STOP.** Wait for user response.

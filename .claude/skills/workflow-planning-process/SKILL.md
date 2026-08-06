@@ -84,17 +84,16 @@ node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.
 
 #### Otherwise (planning entry exists)
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resume Detection ─────────────────────────────
+**`□ Resume Detection`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An in-progress plan exists for this topic — choose whether
-> to pick it up or start fresh.
+> An in-progress plan exists for this topic — choose whether to pick it up or start fresh.
 ```
 
 The subtree carries the current `phase` and `task` position (for the resume prompt below) and the `spec_commit` baseline (for spec-change detection).
@@ -185,18 +184,16 @@ Load **[verify-source-material.md](references/verify-source-material.md)** and f
 
 ## Step 6: Plan Construction
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Plan Construction ────────────────────────────
+**`□ Plan Construction`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Building the plan. Designing phases with goals and acceptance
-> criteria, then authoring detailed tasks for each phase. You'll
-> approve task lists and individual tasks as we go.
+> Building the plan. Designing phases with goals and acceptance criteria, then authoring detailed tasks for each phase. You'll approve task lists and individual tasks as we go.
 ```
 
 Load **[plan-construction.md](references/plan-construction.md)** and follow its instructions as written.
@@ -207,17 +204,16 @@ Load **[plan-construction.md](references/plan-construction.md)** and follow its 
 
 ## Step 7: Analyze Task Graph
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Analyze Task Graph ───────────────────────────
+**`□ Analyze Task Graph`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Analysing dependencies between tasks. Setting priority and
-> execution order based on what depends on what.
+> Analysing dependencies between tasks. Setting priority and execution order based on what depends on what.
 ```
 
 Load **[analyze-task-graph.md](references/analyze-task-graph.md)** and follow its instructions as written.
@@ -234,17 +230,16 @@ Load **[analyze-task-graph.md](references/analyze-task-graph.md)** and follow it
 
 #### Otherwise
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resolve External Dependencies ────────────────
+**`□ Resolve External Dependencies`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Checking for dependencies on other plans — tasks in one plan
-> may depend on tasks in another.
+> Checking for dependencies on other plans — tasks in one plan may depend on tasks in another.
 ```
 
 Load **[resolve-dependencies.md](references/resolve-dependencies.md)** and follow its instructions as written.
@@ -255,18 +250,16 @@ Load **[resolve-dependencies.md](references/resolve-dependencies.md)** and follo
 
 ## Step 9: Plan Review
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Plan Review ──────────────────────────────────
+**`□ Plan Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Reviewing the plan. Agents will check that tasks are
-> well-scoped, dependencies are sound, and nothing from the
-> specification was missed.
+> Reviewing the plan. Agents will check that tasks are well-scoped, dependencies are sound, and nothing from the specification was missed.
 ```
 
 Load **[plan-review.md](references/plan-review.md)** and follow its instructions as written.
@@ -285,17 +278,16 @@ Load **[compliance-check.md](../workflow-shared/references/compliance-check.md)*
 
 ## Step 11: Conclude the Plan
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Conclude the Plan ────────────────────────────
+**`□ Conclude the Plan`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Wrapping up. Final confirmation before marking the plan
-> as complete and handing off to implementation.
+> Wrapping up. Final confirmation before marking the plan as complete and handing off to implementation.
 ```
 
 Load **[conclude-plan.md](references/conclude-plan.md)** and follow its instructions as written.

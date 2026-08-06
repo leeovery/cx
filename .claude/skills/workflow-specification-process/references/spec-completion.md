@@ -42,11 +42,10 @@ of functionality to build."}
 
 ```
 · · · · · · · · · · · ·
-Confirm this assessment?
+**`◆ Confirm this assessment?`**
 
-- **`y`/`yes`** — Confirm assessment
-- **Comment** — Suggest a different classification
-· · · · · · · · · · · ·
+**`y/yes`**   → Confirm assessment
+**Comment** → Suggest a different classification
 ```
 
 **STOP.** Wait for user response.
@@ -87,7 +86,9 @@ node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.
 
 If any show `status: pending`, work them now per **[spec-construction.md](spec-construction.md)** → Exhaustive Extraction — extract the source's relevant content into the specification through the construction cycle, then mark it `incorporated`.
 
-> **CHECKPOINT**: Do not proceed to sign-off while any source is `pending`. Its material has not been extracted into the specification.
+If any show `status: stale`, the source discussion was re-decided after extraction — work them now per **[spec-construction.md](spec-construction.md)** → Reconcile Stale Sources. Reconciliation itself marks a row `incorporated`; when the section defers (the source discussion is still in-progress), the row stays `stale` and this spec cannot conclude yet — tell the user conclusion waits on that discussion re-deciding, commit the session's work, and stop here rather than looping on the checkpoint.
+
+> **CHECKPOINT**: Do not proceed to sign-off while any source is `pending` or `stale`. Pending material has not been extracted; stale material was extracted from a decision that has since moved — and stays stale while its discussion is mid-revision.
 
 Also confirm every consult reference is addressed:
 
@@ -109,11 +110,10 @@ If any show `status: pending`, work them now per **[spec-construction.md](spec-c
 
 ```
 · · · · · · · · · · · ·
-Ready to conclude?
+**`◆ Ready to conclude?`**
 
-- **`y`/`yes`** — Conclude specification and mark as completed
-- **Comment** — Add context before concluding
-· · · · · · · · · · · ·
+**`y/yes`**   → Conclude specification and mark as completed
+**Comment** → Add context before concluding
 ```
 
 **STOP.** Wait for user response.
@@ -141,7 +141,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs manifest set {work_unit}.
 
 Specification is complete when:
 - All topics have validated content
-- All sources are marked as `incorporated`
+- All sources are marked as `incorporated` — neither `pending` nor `stale`
 - All consult references are marked as `addressed`
 - At least one review cycle completed with no findings, OR user explicitly chose to proceed past the re-loop prompt
 - Every manifest `tracking` entry `complete`
@@ -202,8 +202,7 @@ Only supersede sources whose status is **not** `proposed`. A proposed source is 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Specification complete. The specification is the final artifact
-> for a cross-cutting concern — the pipeline completes here.
+> Specification complete. The specification is the final artifact for a cross-cutting concern — the pipeline completes here.
 ```
 
 Invoke `/workflow-bridge {work_unit} specification`.
@@ -213,8 +212,7 @@ Invoke `/workflow-bridge {work_unit} specification`.
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Specification complete. The planning phase will break this into
-> implementable tasks with dependencies and acceptance criteria.
+> Specification complete. The planning phase will break this into implementable tasks with dependencies and acceptance criteria.
 ```
 
 Invoke `/workflow-bridge {work_unit} specification`.

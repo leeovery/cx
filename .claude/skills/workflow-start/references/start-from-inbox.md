@@ -17,10 +17,11 @@ node .claude/skills/workflow-start/scripts/gateway.cjs inbox
 The output is one snapshot in three demarcated sections:
 
 - **DATA** — reasoning surface: `inbox_count`, `has_archived`, and the `ITEMS` table — one line per item, `n  type  date  slug  → path`. Reason from it; never display or restate it.
+- **TITLE** — the view's chrome heading. Emit verbatim as markdown, directly above the display.
 - **DISPLAY** — the numbered inbox list. Emit verbatim as a code block. Never redraw, reflow, or trim it.
-- **MENU** — the pickup menu. Emit verbatim as markdown (not a code block). The `a`/`archived` option renders only when the archived store has items.
+- **MENU** — the pickup menu. Emit verbatim as markdown (not a code block). The `a/archived` option renders only when the archived store has items.
 
-Emit the DISPLAY section, then the MENU section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
+Emit the TITLE section (markdown), then the DISPLAY section, then the MENU section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
 
 #### If `inbox_count` is 0
 
@@ -34,11 +35,11 @@ Emit the DISPLAY section, then the MENU section. A section is everything beneath
 
 ## B. Handle Selection
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to caller.
 
-#### If user chose `a`/`archived`
+#### If user chose `a/archived`
 
 → Load **[inbox-archived.md](inbox-archived.md)** and follow its instructions as written.
 

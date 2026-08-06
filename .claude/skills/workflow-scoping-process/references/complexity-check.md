@@ -41,12 +41,11 @@ This change may be more involved than a quick-fix:
 
 ```
 · · · · · · · · · · · ·
-How would you like to proceed?
+**`◆ How would you like to proceed?`**
 
-- **`c`/`continue`** — Continue as quick-fix anyway
-- **`f`/`feature`** — Promote to feature (full pipeline)
-- **`b`/`bugfix`** — Promote to bugfix (investigation pipeline)
-· · · · · · · · · · · ·
+**`c/continue`** → Continue as quick-fix anyway
+**`f/feature`**  → Promote to feature (full pipeline)
+**`b/bugfix`**   → Promote to bugfix (investigation pipeline)
 ```
 
 **STOP.** Wait for user response.
@@ -106,9 +105,8 @@ Lead with your read and one reason, then render the choice:
 · · · · · · · · · · · ·
 {One-line read + reason, e.g. "The concern is an open unknown — I'd start with research."}
 
-- **`r`/`research`** — Explore feasibility and options first, no decisions yet
-- **`d`/`discussion`** — Ready to discuss and make decisions
-· · · · · · · · · · · ·
+**`r/research`**   → Explore feasibility and options first, no decisions yet
+**`d/discussion`** → Ready to discuss and make decisions
 ```
 
 **STOP.** Wait for user response.
@@ -124,8 +122,7 @@ The promoted work unit re-enters the pipeline the way discovery hands off single
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Work type updated — entering plan mode to hand off the first
-> phase in a clean context.
+> Work type updated — entering plan mode to hand off the first phase in a clean context.
 ```
 
 Invoke `/workflow-bridge {work_unit} discovery {next_phase}` via the Skill tool.

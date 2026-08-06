@@ -17,13 +17,17 @@ The caller provides these via context before loading:
 - `concern` — the concern as a short title, plus the full context discussed about it.
 - `origin` — the topic the concern surfaced in (the current session's topic).
 - `phase` — the current session's phase, `research` or `discussion`. Recorded in the entry.
-- `landing_phase` — where the concern lands on the target, `research` or `discussion`: judged by the origin session from the concern's nature (an open question needing exploration → research; a decision needing making → discussion), recommended and confirmed at the caller's gate. The coherence findings gate always passes `discussion`. Any target state is legal — the delivery parks, leaves live work untouched, or reopens completed work as needed.
+- `landing_phase` — where the concern lands on the target, `research` or `discussion`: judged by the origin session per **Judging the Landing Phase** below, recommended and confirmed at the caller's gate. The coherence findings gate always passes `discussion`. Any target state is legal — the delivery parks, leaves live work untouched, or reopens completed work as needed.
 - `date` — today's date.
 
 After return, the caller reads these from conversation memory:
 
 - `result` — `landed` (concern delivered and committed by the engine) or `cancelled` (the reroute was dropped or blocked; nothing written).
 - `landed_topic` — the final target name (a new target may have been renamed during validation).
+
+## Judging the Landing Phase
+
+The concern's nature decides, never the target: an open question needing exploration → `research`; a correction or decision owed → `discussion`. The target's map `routing` and live state have no vote — a question landing on a discussion-routed topic still lands research-side.
 
 ## Triage Entry Shape
 
@@ -104,7 +108,7 @@ Surface the engine's error verbatim — it names the recovery path (e.g. a cance
 
 **Otherwise:**
 
-Set `landed_topic = {target}` and `result = landed`. When the response carries `reconcile_flagged`, the target's completed discussion was flagged for reconciliation — the caller's landing line should say so.
+Set `landed_topic = {target}` and `result = landed`. When the response carries `reconcile_flagged` or `sources_staled`, the landing marked completed downstream work to reconcile — on a research-side landing, the target's completed discussion (the landing reopened its ground); on a discussion-side landing, the specification(s) sourcing the target, named in `sources_staled`, whose extracted rows are now `stale` (`sources_staled` can arrive alone when the spec already carried a flag). The caller's landing line should say which.
 
 → Return to caller.
 
@@ -118,10 +122,9 @@ Never stub over a concluded artefact, and never land an entry no session will su
 · · · · · · · · · · · ·
 "{target}" is @if(lifecycle == 'handled') marked handled — fanned out into other topics @else cancelled @endif, so it won't pick up rerouted concerns.
 
-- **`o`/`open`** — @if(lifecycle == 'handled') Clear the handled marker @else Reactivate it @endif and land the concern there
-- **`e`/`elsewhere`** — Pick a different target
-- **`d`/`drop`** — Drop the reroute; the concern stays with the current topic
-· · · · · · · · · · · ·
+**`o/open`**      → @if(lifecycle == 'handled') Clear the handled marker @else Reactivate it @endif and land the concern there
+**`e/elsewhere`** → Pick a different target
+**`d/drop`**      → Drop the reroute; the concern stays with the current topic
 ```
 
 **STOP.** Wait for user response.

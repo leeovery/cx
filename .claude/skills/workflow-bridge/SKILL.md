@@ -23,17 +23,16 @@ This skill receives positional arguments:
 
 ## Step 1: Read Work Type and Run Discovery
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Read Work Type and Run Discovery ─────────────
+**`□ Read Work Type and Run Discovery`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Reading the work unit's type, then computing the next phase
-> from pipeline state when it isn't already known.
+> Reading the work unit's type, then computing the next phase from pipeline state when it isn't already known.
 ```
 
 Read work type from the manifest:
@@ -68,17 +67,16 @@ The output contains `next_phase`, `completed_phases` (in pipeline order), and `r
 
 ## Step 2: Route to Continuation Reference
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Route to Continuation Reference ──────────────
+**`□ Route to Continuation Reference`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Handing off to the continuation that builds the plan-mode
-> handoff for whatever phase comes next.
+> Handing off to the continuation that builds the plan-mode handoff for whatever phase comes next.
 ```
 
 Based on the completed phase and work type, load the appropriate continuation reference. The completed-phase check runs first so an epic concluding discovery routes to the deterministic discovery continuation; non-discovery epic completions fall through to the work-type branches below.

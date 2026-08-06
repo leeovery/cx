@@ -17,10 +17,11 @@ node .claude/skills/workflow-start/scripts/gateway.cjs archived
 The output is one snapshot in three demarcated sections:
 
 - **DATA** — reasoning surface: `archived_count` and the `ITEMS` table — one line per item, `n  type  date  slug  → path`. Reason from it; never display or restate it.
+- **TITLE** — the view's chrome heading. Emit verbatim as markdown, directly above the display.
 - **DISPLAY** — the numbered archived list. Emit verbatim as a code block. Never redraw, reflow, or trim it.
 - **MENU** — the selection prompt. Emit verbatim as markdown (not a code block). Empty when nothing is archived.
 
-Emit the DISPLAY section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
+Emit the TITLE section (markdown), then the DISPLAY section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
 
 #### If `archived_count` is 0
 
@@ -32,7 +33,7 @@ Emit the MENU section.
 
 **STOP.** Wait for user response.
 
-**If user chose `b`/`back`:**
+**If user chose `b/back`:**
 
 → Return to caller.
 
@@ -48,32 +49,35 @@ Store the selected item's `ITEMS` row — its type, slug, date, and path.
 
 ```
 · · · · · · · · · · · ·
-Selected: {item.title} ({item.type}, archived)
+Selected: **{item.title}** ({item.type}, archived)
 
-- **`v`/`view`** — View full content
-- **`u`/`unarchive`** — Restore to the inbox
-- **`d`/`delete`** — Permanently delete (removes the file from git)
-- **`b`/`back`** — Return to the archived list
-· · · · · · · · · · · ·
+**`◆ What would you like to do with it?`**
+
+**`v/view`**      → View full content
+**`u/unarchive`** → Restore to the inbox
+**`d/delete`**    → Permanently delete (removes the file from git)
+**`b/back`**      → Return to the archived list
 ```
 
 **STOP.** Wait for user response.
 
-#### If user chose `v`/`view`
+#### If user chose `v/view`
 
-Read the file and render its full content.
+Read the file and render its full content — as markdown, not a code block, so the item's own headings and formatting render properly.
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-  ── {item.title} ({item.type}) ──
+*[{item.type}] — {item.date}*
 
-  {item.full_content}
+{item.full_content}
 ```
+
+Emit the file content as-is — it is markdown and renders as such; its own `#` heading is the item's visible title. Skip a frontmatter block when one exists.
 
 → Return to **B. Action Menu**.
 
-#### If user chose `u`/`unarchive`
+#### If user chose `u/unarchive`
 
 Move the file back into its inbox folder and commit — one command:
 
@@ -89,7 +93,7 @@ Restored "{item.title}" to the inbox.
 
 → Return to **A. Select**.
 
-#### If user chose `d`/`delete`
+#### If user chose `d/delete`
 
 Deleting removes the file from the repo and cannot be undone — confirm first:
 
@@ -97,21 +101,19 @@ Deleting removes the file from the repo and cannot be undone — confirm first:
 
 ```
 · · · · · · · · · · · ·
-Permanently delete "{item.title}"? This removes the file from the
-repo and cannot be undone.
+Permanently delete "{item.title}"? This removes the file from the repo and cannot be undone.
 
-- **`y`/`yes`** — Delete permanently
-- **`n`/`no`** — Return
-· · · · · · · · · · · ·
+**`y/yes`** → Delete permanently
+**`n/no`**  → Return
 ```
 
 **STOP.** Wait for user response.
 
-**If user chose `n`/`no`:**
+**If user chose `n/no`:**
 
 → Return to **B. Action Menu**.
 
-**If user chose `y`/`yes`:**
+**If user chose `y/yes`:**
 
 ```bash
 node .claude/skills/workflow-engine/scripts/engine.cjs inbox delete {item.path}
@@ -125,6 +127,6 @@ Deleted "{item.title}".
 
 → Return to **A. Select**.
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to **A. Select**.

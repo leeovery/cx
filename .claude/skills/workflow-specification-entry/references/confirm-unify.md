@@ -33,10 +33,10 @@ Output: .workflows/{work_unit}/specification/unified/specification.md
 
 ```
 · · · · · · · · · · · ·
-Proceed?
-- **`y`/`yes`**
-- **`n`/`no`**
-· · · · · · · · · · · ·
+**`◆ Proceed?`**
+
+**`y/yes`**
+**`n/no`**
 ```
 
 **STOP.** Wait for user response.
@@ -62,10 +62,10 @@ Output: .workflows/{work_unit}/specification/unified/specification.md
 
 ```
 · · · · · · · · · · · ·
-Proceed?
-- **`y`/`yes`**
-- **`n`/`no`**
-· · · · · · · · · · · ·
+**`◆ Proceed?`**
+
+**`y/yes`**
+**`n/no`**
 ```
 
 **STOP.** Wait for user response.

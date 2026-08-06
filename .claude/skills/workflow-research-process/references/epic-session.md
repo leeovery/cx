@@ -34,9 +34,8 @@ When a concern surfaces that belongs to a *different* topic — raised in conver
 · · · · · · · · · · · ·
 **{concern}** belongs to a different topic, not this one.
 
-- **`r`/`reroute`** — Send it to the topic it belongs to; it picks it up later
-- **`k`/`keep`** — Keep exploring here for now
-· · · · · · · · · · · ·
+**`r/reroute`** → Send it to the topic it belongs to; it picks it up later
+**`k/keep`**    → Keep exploring here for now
 ```
 
 **STOP.** Wait for user response.
@@ -49,21 +48,15 @@ When a concern surfaces that belongs to a *different* topic — raised in conver
    node .claude/skills/workflow-discovery/scripts/gateway.cjs {work_unit}
    ```
 
-   Resolve the target, and judge `landing_phase` from the concern's nature: an open question needing exploration → `research`; a decision needing making → `discussion`. If one topic clearly matches, propose it — with the recommended phase — and confirm with the user (their reply may override the phase). If nothing fits, propose a new kebab-case name and confirm. If several plausible candidates exist — or a near-match you're unsure of — present them and let the user choose:
+   Resolve the target, and judge `landing_phase` per **Judging the Landing Phase** in **[triage-landing.md](../../workflow-shared/references/triage-landing.md)**. If one topic clearly matches, propose it — with the recommended phase — and confirm with the user (their reply may override the phase). If nothing fits, propose a new kebab-case name and confirm. If several plausible candidates exist — or a near-match you're unsure of — present them and let the user choose:
 
-   > *Output the next fenced block as markdown (not a code block):*
+   Write the candidates payload to `.workflows/.cache/{work_unit}/research/{topic}/reroute-candidates.json` with the Write tool (`{"concern": "…", "landing_phase": "…", "candidates": [{"name": "…", "lifecycle": "…"}]}` — every plausible home, lifecycle from the map read), then render it:
 
+   ```bash
+   node .claude/skills/workflow-engine/scripts/engine.cjs render reroute-candidates {work_unit}.research.{topic} --file .workflows/.cache/{work_unit}/research/{topic}/reroute-candidates.json
    ```
-   · · · · · · · · · · · ·
-   Where should "{concern}" land?
 
-   - **`1`** — {candidate} [{state}]
-   - **`2`** — {candidate} [{state}]
-   - **`n`/`new`** — Create a new topic for it
-
-   It reads as {concern_nature:[an open question — I'd land it research-side|a decision to make — I'd land it discussion-side]}. Reply with an option, appending a phase to override (e.g. `1 discussion`).
-   · · · · · · · · · · · ·
-   ```
+   Emit the call's MENU section verbatim per its marker.
 
    **STOP.** Wait for user response.
 
@@ -73,7 +66,7 @@ When a concern surfaces that belongs to a *different* topic — raised in conver
 
 3. Load **[triage-landing.md](../../workflow-shared/references/triage-landing.md)** with work_unit = `{work_unit}`, target = `{target}`, concern = `{concern}`, origin = `{topic}`, phase = `research`, landing_phase = `{landing_phase}`, date = `{today}`. If `result` is `cancelled`, nothing landed — → Return to **B. Session Loop**. Otherwise the concern landed in `{landed_topic}`'s `{landing_phase}` triage queue — the delivery committed itself.
 
-   **If the response carried `reconcile_flagged`:** also tell the user `{landed_topic}`'s completed discussion is flagged to reconcile against the reopened research.
+   **If the response carried `reconcile_flagged` or `sources_staled`:** also tell the user what the landing flagged — on a research landing, `{landed_topic}`'s completed discussion (to reconcile against the reopened research); on a discussion landing, the specification(s) named in `sources_staled`, whose extraction of `{landed_topic}` is now stale.
 
 → Return to **B. Session Loop**.
 
@@ -119,11 +112,10 @@ Before concluding, check for in-flight agents — run `node .claude/skills/workf
 
 ```
 · · · · · · · · · · · ·
-There are still {N} background agents working.
+**`◆ There are still {N} background agents working.`**
 
-- **`w`/`wait`** — Wait for results before concluding
-- **`p`/`proceed`** — Conclude now (results will persist in cache for reference)
-· · · · · · · · · · · ·
+**`w/wait`**    → Wait for results before concluding
+**`p/proceed`** → Conclude now (results will persist in cache for reference)
 ```
 
 **STOP.** Wait for user response.

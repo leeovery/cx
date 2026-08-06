@@ -98,7 +98,7 @@ Doubt resolves to satisfied — declining forfeits nothing; a later attempt recl
 
 The dispatched agent hasn't returned.
 
-**If it was dispatched this session and the user chose `p`/`proceed` at the session's in-flight gate:**
+**If it was dispatched this session and the user chose `p/proceed` at the session's in-flight gate:**
 
 The wait was already declined for this row — do not watch it. Its results persist for a later session; the final-review gate proceeds without it.
 
@@ -136,17 +136,16 @@ Findings from the current review are still being drained.
 
 ## C. Dispatch Final Review
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-·· Dispatch Final Review ························
+**`▪ Dispatch Final Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Dispatching a final review to catch any gaps before concluding.
-> This ensures the discussion is thorough for specification.
+> Dispatching a final review to catch any gaps before concluding. This ensures the discussion is thorough for specification.
 ```
 
 Record the dispatch — the engine allocates the id and answers with the content-file path:

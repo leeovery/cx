@@ -4,11 +4,11 @@
 
 ---
 
-Shows when materialized specifications exist and no proposed groupings remain (every grouping has already been started). The tree, the menu, and the `ACTIONS` table share one ordering and numbering; concluded specs live behind `c`/`completed`.
+Shows when materialized specifications exist and no proposed groupings remain (every grouping has already been started). The tree, the menu, and the `ACTIONS` table share one ordering and numbering; concluded specs live behind `c/completed`.
 
 ## A. Display
 
-Emit the DISPLAY section from the Step 1 snapshot verbatim as a code block.
+Emit the TITLE section (markdown), then the DISPLAY section from the Step 1 snapshot verbatim as a code block.
 
 → Proceed to **B. Menu**.
 

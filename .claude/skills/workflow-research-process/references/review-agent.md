@@ -29,6 +29,14 @@ At natural conversational breaks, check for completed results.
 
 ---
 
+## Lanes
+
+The shared surfacing protocol reads this declaration when presenting this phase's findings.
+
+- `explore` — the walked lane. Raises render under the heading `Needs Investigation`, and the raise's move is investigation: offer a deep-dive on the thread, never dispatched without the user's say.
+- `apply` — approving lands each fix as a pure correction: amend the affected sites in place, each amendment a dated note naming the source or finding that determines it. The confirmation says amended, never removed.
+- `route` — approving delivers each finding to its owning topic through the shared triage landing.
+
 ## A. Dispatch
 
 Record the dispatch — the engine allocates the id and answers with the content-file path; no file is created (the file's later existence is the completion signal):
@@ -45,6 +53,7 @@ The review agent receives:
 
 1. **Research file path(s)** — `.workflows/{work_unit}/research/{topic}.md` (for epic, include all research files in `.workflows/{work_unit}/research/` relevant to the current topic)
 2. **Output file path** — the `file` from the dispatch response. The agent writes its completed report there — pure markdown with one `### {ID}: {label}` section per finding (`F1`, `F2`, …), never frontmatter.
+3. **Maturity indication** — one line judging where the session stands, from the session itself: early exploration, threads deepening, or largely concluded.
 
 > *Output the next fenced block as a code block:*
 

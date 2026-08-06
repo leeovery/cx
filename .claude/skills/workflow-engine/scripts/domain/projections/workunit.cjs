@@ -12,8 +12,8 @@
 // ---------------------------------------------------------------------------
 
 const { box, renderTree } = require('../../kernel/render.cjs');
-const { TREE_WIDTH, titlecase, title } = require('../conventions.cjs');
-const { dotFrame, cmdOption } = require('./surfaces.cjs');
+const { TREE_WIDTH, titlecase, title, materialBlock } = require('../conventions.cjs');
+const { menuFrame, cmdOption } = require('./surfaces.cjs');
 const { typeConfig } = require('../workunit-detail.cjs');
 
 /** @typedef {import('../workunit-detail.cjs').WorkUnitEntry} WorkUnitEntry */
@@ -54,46 +54,47 @@ function nextPhaseStarted(unit) {
   return unit.phase_label.endsWith('(in-progress)');
 }
 
-/** Pipeline rows: completed phases, the next phase (in flight or ready), and any other phase in flight (a reopened phase mid-revisit is never dropped). @param {WorkUnitTypeConfig} cfg @param {WorkUnitEntry} unit */
+/** Pipeline rows: completed phases (an `· input moved` cue on flagged ones), the next phase (in flight or ready), and any other phase in flight (a reopened phase mid-revisit is never dropped). @param {WorkUnitTypeConfig} cfg @param {WorkUnitEntry} unit */
 function pipelineNodes(cfg, unit) {
+  const flaggedPhases = new Set((unit.reconcile_phases || []).map((r) => r.phase));
   const nodes = [];
   for (const phase of cfg.pipeline) {
     if (unit.completed_phases.includes(phase)) {
-      nodes.push({ title: title({ glyph: '✓', label: titlecase(phase), tag: 'completed' }) });
+      const tag = flaggedPhases.has(phase) ? 'completed · input moved' : 'completed';
+      nodes.push({ title: title({ glyph: '✓', label: titlecase(phase) }), tag });
     } else if (phase === unit.next_phase) {
       const started = nextPhaseStarted(unit);
       nodes.push({
-        title: title({
-          glyph: started ? '◐' : '→',
-          label: titlecase(phase),
-          tag: started ? 'in-progress' : 'ready',
-        }),
+        title: title({ glyph: started ? '◐' : '→', label: titlecase(phase) }),
+        tag: started ? 'in-progress' : 'ready',
       });
     } else if ((unit.in_progress_phases || []).includes(phase)) {
-      nodes.push({ title: title({ glyph: '◐', label: titlecase(phase), tag: 'in-progress' }) });
+      nodes.push({ title: title({ glyph: '◐', label: titlecase(phase) }), tag: 'in-progress' });
     }
   }
   return nodes;
 }
 
 /**
- * Section A — the work-unit status display. One code-block string: box cap,
- * seed/import callouts (types that surface them), and the pipeline tree.
+ * Section A — the work-unit status display. One code-block string: the
+ * MATERIAL block (types that surface seeds/imports), and the pipeline tree.
+ * The view's heading is the adapter's TITLE section, never drawn here.
  * @param {string} type  a WORK_UNIT_TYPES key
  * @param {WorkUnitEntry} unit
  * @returns {string}
  */
 function workUnitStatus(type, unit) {
   const cfg = typeConfig(type);
-  let out = box(titlecase(unit.name));
-  const callouts = [];
-  if ((unit.seeds_count || 0) > 0) callouts.push('  · seeded from the inbox');
-  if ((unit.imports_count || 0) > 0) {
-    callouts.push(`  · ${unit.imports_count} import${unit.imports_count === 1 ? '' : 's'}`);
-  }
-  if (callouts.length > 0) out += callouts.join('\n') + '\n\n';
-  out += `  PIPELINE (${cfg.workType})\n`;
+  let out = '';
+  const material = materialBlock({ seeds: unit.seeds_count || 0, imports: unit.imports_count || 0 });
+  if (material) out += material + '\n\n';
+  out += `PIPELINE (${cfg.workType})\n`;
   out += renderTree(pipelineNodes(cfg, unit), { width: TREE_WIDTH });
+  for (const r of unit.reconcile_phases || []) {
+    out += typeof r.from === 'string'
+      ? `\n  ⚑ ${titlecase(r.phase)} input moved — ${r.from} revised since it completed.\n`
+      : `\n  ⚑ ${titlecase(r.phase)} input moved — reconcile at next entry.\n`;
+  }
   if (unit.finalising) out += '\n  ⚑ All phases complete — ready to finalise.\n';
   return out.replace(/\n+$/, '\n');
 }
@@ -141,11 +142,15 @@ function workUnitMenu(type, unit) {
   if (unit.finalising || revisitable.length > 0) {
     const options = [cmdOption('y', 'yes', keys[0].label)];
     if (revisitable.length > 0) options.push(cmdOption('r', 'revisit', 'Revisit an earlier phase'));
-    rendered = dotFrame([
-      `${unit.finalising ? 'Finalising' : 'Continuing'} "${titlecase(unit.name)}" — ${unit.phase_label}.`,
+    // The statement is context above an explicit question — suppress the
+    // frame's label glyph or a short work-unit name earns a second diamond.
+    rendered = menuFrame([
+      `${unit.finalising ? 'Finalising' : 'Continuing'} "${titlecase(unit.name)}" — *${unit.phase_label}*.`,
+      '',
+      '**`◆ Proceed?`**',
       '',
       ...options,
-    ]);
+    ], { glyphLabel: false });
   }
 
   return { keys, rendered };
@@ -168,6 +173,7 @@ function workUnitData(type, unit, menu) {
   lines.push(`phase_label: ${unit.phase_label}`);
   lines.push(`finalising: ${unit.finalising === true}`);
   lines.push(`completed_phases: ${unit.completed_phases.join(', ') || '(none)'}`);
+  lines.push(`reconcile_pending: ${(unit.reconcile_phases || []).map((r) => `${r.phase} (${r.from})`).join(', ') || '(none)'}`);
   lines.push(`revisit_available: ${menu.keys.some((k) => k.action === 'revisit')}`);
   if (cfg.surfacesSeeds) {
     lines.push(`seeds_count: ${unit.seeds_count || 0}`);
@@ -202,16 +208,17 @@ function revisitablePhases(type, unit) {
  */
 function revisitPhasesSection(phases) {
   if (phases.length === 0) return '';
-  const body = dotFrame([
+  const body = menuFrame([
     'Which phase would you like to revisit?',
     '',
-    ...phases.map((phase, i) => cmdOption(String(i + 1), null, `${titlecase(phase)} — completed`)),
+    ...phases.map((phase, i) => cmdOption(String(i + 1), null, `${titlecase(phase)} — *completed*`)),
     cmdOption('b', 'back', 'Return to the previous menu'),
-    '',
-    'Select an option:',
   ]);
   const marker = '=== MENU: revisit phases (emit verbatim as markdown only at the revisit phase gate — never at the call) ===';
   return `${marker}\n${body}\n`;
 }
 
-module.exports = { workUnitStatus, workUnitMenu, workUnitData, revisitablePhases, revisitPhasesSection };
+/** The view's chrome heading. @param {WorkUnitEntry} unit */
+function workUnitTitle(unit) { return titlecase(unit.name); }
+
+module.exports = { workUnitStatus, workUnitTitle, workUnitMenu, workUnitData, revisitablePhases, revisitPhasesSection };

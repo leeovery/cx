@@ -61,17 +61,16 @@ ls .workflows/{work_unit}/specification/{topic}/specification.md 2>/dev/null && 
 
 #### If specification exists
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resume Detection ─────────────────────────────
+**`□ Resume Detection`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An in-progress scoping specification exists — choose whether
-> to pick it up or start fresh.
+> An in-progress scoping specification exists — choose whether to pick it up or start fresh.
 ```
 
 Read the plan and scoping statuses:
@@ -211,17 +210,16 @@ Load **[knowledge-usage.md](../workflow-knowledge/references/knowledge-usage.md)
 
 ## Step 2: Gather Context
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Gather Context ───────────────────────────────
+**`□ Gather Context`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Understanding what needs changing — reading code, asking
-> clarifying questions, and building a picture of the change.
+> Understanding what needs changing — reading code, asking clarifying questions, and building a picture of the change.
 ```
 
 Load **[gather-context.md](references/gather-context.md)** and follow its instructions as written.
@@ -250,17 +248,16 @@ Load **[complexity-check.md](references/complexity-check.md)** and follow its in
 
 ## Step 5: Write Specification
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Write Specification ──────────────────────────
+**`□ Write Specification`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Writing a lightweight specification for the change.
-> This captures what's changing and why.
+> Writing a lightweight specification for the change. This captures what's changing and why.
 ```
 
 Load **[write-specification.md](references/write-specification.md)** and follow its instructions as written.
@@ -271,10 +268,10 @@ Load **[write-specification.md](references/write-specification.md)** and follow 
 
 ## Step 6: Select Output Format
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Select Output Format ─────────────────────────
+**`□ Select Output Format`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
@@ -291,17 +288,16 @@ Load **[select-format.md](references/select-format.md)** and follow its instruct
 
 ## Step 7: Write Tasks
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Write Tasks ──────────────────────────────────
+**`□ Write Tasks`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Writing 1-2 task files for the change. Quick-fixes
-> are limited to two tasks maximum.
+> Writing 1-2 task files for the change. Quick-fixes are limited to two tasks maximum.
 ```
 
 Load **[write-tasks.md](references/write-tasks.md)** and follow its instructions as written.
@@ -312,10 +308,10 @@ Load **[write-tasks.md](references/write-tasks.md)** and follow its instructions
 
 ## Step 8: Conclude Scoping
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Conclude Scoping ─────────────────────────────
+**`□ Conclude Scoping`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*

@@ -11,16 +11,14 @@ Merge a feature's discussion into an existing epic as a new topic, then remove t
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> This will move the feature's discussion, research, seed, and imports
-> into the selected epic as a new topic and delete the feature work unit.
-> Git history serves as provenance.
+> This will move the feature's discussion, research, seed, and imports into the selected epic as a new topic and delete the feature work unit. Git history serves as provenance.
 ```
 
 Emit the `MENU: absorb target` section from the caller's `manage {selected.name}` snapshot verbatim as markdown (not a code block). Its numbering follows the snapshot's `available_epics` order.
 
 **STOP.** Wait for user response.
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to caller.
 
@@ -42,19 +40,20 @@ Default topic name = `{selected.name}` (the feature's work unit name).
 · · · · · · · · · · · ·
 Topic name in **{target_epic:(titlecase)}**: **{selected.name}**
 
-- **`y`/`yes`** — Use this name
-- **`b`/`back`** — Return
-- **Rename** — Enter a different name (kebab-case)
-· · · · · · · · · · · ·
+**`◆ Is this name okay?`**
+
+**`y/yes`**  → Use this name
+**`b/back`** → Return
+**Rename** → Enter a different name (kebab-case)
 ```
 
 **STOP.** Wait for user response.
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to caller.
 
-#### If user chose `y`/`yes`
+#### If user chose `y/yes`
 
 Set `topic` = `{selected.name}`.
 
@@ -173,19 +172,19 @@ Absorb Summary
 
 ```
 · · · · · · · · · · · ·
-Proceed?
-- **`y`/`yes`**
-- **`n`/`no`**
-· · · · · · · · · · · ·
+**`◆ Proceed?`**
+
+**`y/yes`**
+**`n/no`**
 ```
 
 **STOP.** Wait for user response.
 
-#### If user chose `n`/`no`
+#### If user chose `n/no`
 
 → Return to caller.
 
-#### If user chose `y`/`yes`
+#### If user chose `y/yes`
 
 → Proceed to **G. Absorb**.
 
@@ -231,19 +230,18 @@ Emit the response's `DISPLAY: kb warning` section when present, then its `DISPLA
 · · · · · · · · · · · ·
 **{selected.name:(titlecase)}** absorbed into **{target_epic:(titlecase)}**.
 
-- **`c`/`continue`** — Continue {target_epic:(titlecase)} as epic
-- **`b`/`back`** — Return to previous view
-· · · · · · · · · · · ·
+**`c/continue`** → Continue {target_epic:(titlecase)} as epic
+**`b/back`**     → Return to previous view
 ```
 
 **STOP.** Wait for user response.
 
-#### If user chose `c`/`continue`
+#### If user chose `c/continue`
 
 Invoke the `/workflow-continue-epic` skill.
 
 **STOP.** Do not proceed — terminal condition.
 
-#### If user chose `b`/`back`
+#### If user chose `b/back`
 
 → Return to caller.

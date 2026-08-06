@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadManifest } = require('./reads.cjs');
 const { titlecase } = require('./conventions.cjs');
-const { section, menu, cmdOption, promptOption, callout, subDetail, treeList } = require('./projections/surfaces.cjs');
+const { section, menu, cmdOption, promptOption, callout, subDetail, treeList, numberedTreeList } = require('./projections/surfaces.cjs');
 
 /**
  * Parse a 3-segment dotpath `work_unit.phase.topic`, validating the work unit
@@ -135,10 +135,8 @@ function resumeGate(cwd, args) {
     parts.push(section(
       'DISPLAY: triage warning',
       'emit verbatim as a code block, directly above the menu',
-      callout([
-        `${n} rerouted concern(s) from other topics wait in this topic's`,
-        'triage queue. Restart leaves them queued — they surface next session.',
-      ]),
+      callout(`${n} rerouted concern(s) from other topics wait in this topic's `
+        + 'triage queue. Restart leaves them queued — the restarted session raises them.'),
     ));
   }
   parts.push(section(
@@ -353,12 +351,15 @@ function tasksOverview(cwd, { dotpath, file }) {
   if (!Array.isArray(p.tasks) || p.tasks.length === 0) {
     throw new Error('render tasks-overview: "tasks" must be a non-empty array of {title, severity}');
   }
-  const lines = [`${p.label}: ${p.tasks.length} proposed task${p.tasks.length === 1 ? '' : 's'}`, ''];
+  // Its twin (findings-summary) is the canonical shape for a numbered
+  // payload list: em-dashed count header, rows at column 0 — nothing here
+  // hangs off anything, so nothing is indented.
+  const lines = [`${p.label} — ${p.tasks.length} proposed task${p.tasks.length === 1 ? '' : 's'}`, ''];
   p.tasks.forEach((t, i) => {
     if (!isFilled(t.title) || !isFilled(t.severity)) {
       throw new Error(`render tasks-overview: task ${i + 1} needs "title" and "severity"`);
     }
-    lines.push(`  ${i + 1}. ${t.title} (${t.severity})`);
+    lines.push(`${i + 1}. ${t.title} (${t.severity})`);
   });
   return section('DISPLAY: tasks overview', 'emit verbatim as a code block', lines.join('\n'));
 }
@@ -512,6 +513,140 @@ function findingsSummary(cwd, { dotpath, file }) {
   return section('DISPLAY: findings summary', 'emit verbatim as a code block', lines.join('\n'));
 }
 
+// reroute-offer — the off-topic reroute's consent gate. The concern and,
+// when one home is clear, the resolved target with its judged landing
+// phase are judgment content; the chrome and the options are fixed.
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function rerouteOffer(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render reroute-offer: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'reroute-offer');
+  const p = readJsonPayload(cwd, file, 'reroute-offer');
+  if (!isFilled(p.concern)) throw new Error('render reroute-offer: "concern" must be a non-empty string');
+  const hasTarget = isFilled(p.target);
+  const hasPhase = isFilled(p.landing_phase);
+  if (hasTarget !== hasPhase) {
+    throw new Error('render reroute-offer: "target" and "landing_phase" come together — both for a clear home, neither otherwise');
+  }
+  if (hasPhase && !['research', 'discussion'].includes(p.landing_phase)) {
+    throw new Error(`render reroute-offer: "landing_phase" must be "research" or "discussion", got "${p.landing_phase}"`);
+  }
+  const label = hasTarget
+    ? `**${p.concern}** belongs to a different topic, not this one.\nIt reads as **${p.target}**'s ground, landing ${p.landing_phase}-side — append a phase to override (e.g. \`r discussion\`).`
+    : `**${p.concern}** belongs to a different topic, not this one.`;
+  return section(
+    'MENU: reroute offer',
+    "emit verbatim as markdown, then STOP for the user's response",
+    menu(label, [
+      cmdOption('r', 'reroute', 'Send it to the topic it belongs to; it picks it up later'),
+      cmdOption('k', 'keep', 'Keep it here as a subtopic'),
+    ]),
+  );
+}
+
+// reroute-candidates — the ambiguous reroute's selection gate. The plausible
+// homes and the judged landing phase are judgment content; the numbering,
+// the new-topic option, and the override grammar are fixed.
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function rerouteCandidates(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render reroute-candidates: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'reroute-candidates');
+  const p = readJsonPayload(cwd, file, 'reroute-candidates');
+  if (!isFilled(p.concern)) throw new Error('render reroute-candidates: "concern" must be a non-empty string');
+  if (!['research', 'discussion'].includes(p.landing_phase)) {
+    throw new Error(`render reroute-candidates: "landing_phase" must be "research" or "discussion", got "${p.landing_phase}"`);
+  }
+  if (!Array.isArray(p.candidates) || p.candidates.length === 0) {
+    throw new Error('render reroute-candidates: "candidates" must be a non-empty array of {name, lifecycle}');
+  }
+  const options = p.candidates.map((c, i) => {
+    for (const field of ['name', 'lifecycle']) {
+      if (!isFilled(c[field])) throw new Error(`render reroute-candidates: candidate ${i + 1} is missing "${field}"`);
+    }
+    return cmdOption(String(i + 1), null, `${c.name} [${c.lifecycle}]`);
+  });
+  options.push(cmdOption('n', 'new', 'Create a new topic for it'));
+  const prompt = p.landing_phase === 'research'
+    ? 'It reads as an open question — I\'d land it research-side. Reply with an option, appending a phase to override (e.g. `1 discussion`).'
+    : 'It reads as a decision to make — I\'d land it discussion-side. Reply with an option, appending a phase to override (e.g. `1 research`).';
+  return section(
+    'MENU: reroute candidates',
+    "emit verbatim as markdown, then STOP for the user's response",
+    menu(`Where should "${p.concern}" land?`, options, { prompt }),
+  );
+}
+
+// finding-batch — a surfacing lane whose findings ask nothing of the user
+// beyond a yes: the `apply` batch (corrections determined by decisions
+// already made) and the `route` batch (concerns owned by a sibling topic).
+// The lane fixes the chrome; the payload carries only judgment content, so
+// the screen is one call and the prose holds no template.
+
+/** @type {Record<string, {intro: string, confirm: (n: number) => string, ask: string, line: (it: any, i: number) => string, fields: string[]}>} */
+const BATCH_LANES = {
+  apply: {
+    intro: "The fix follows from what's already decided. Nothing here is a choice.",
+    confirm: (n) => `Apply all ${n}, then move on`,
+    ask: "Tell me a number to expand, or one you don't think is settled",
+    fields: ['title', 'detail'],
+    line: (it, i) => `${i + 1}. ${it.title}`,
+  },
+  route: {
+    intro: "Not this topic's to answer. Each goes to its owner's triage queue as a concern, carrying the context built here.",
+    confirm: (n) => `Send all ${n}`,
+    ask: 'Tell me a number to expand, or one that should stay here',
+    fields: ['target', 'detail'],
+    line: (it, i) => `${i + 1}. → ${it.target}`,
+  },
+};
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string, file?: string}} args
+ * @returns {string}
+ */
+function findingBatch(cwd, { dotpath, file }) {
+  if (!file) throw new Error('render finding-batch: --file <payload.json> is required');
+  resolveAddress(cwd, dotpath, 'finding-batch');
+  const p = readJsonPayload(cwd, file, 'finding-batch');
+  const lane = BATCH_LANES[p.lane];
+  if (!lane) {
+    throw new Error(`render finding-batch: "lane" must be one of ${Object.keys(BATCH_LANES).join(', ')}`);
+  }
+  if (!Array.isArray(p.items) || p.items.length === 0) {
+    throw new Error(`render finding-batch: "items" must be a non-empty array of {${lane.fields.join(', ')}}`);
+  }
+  const lines = [lane.intro, ''];
+  p.items.forEach((it, i) => {
+    for (const field of lane.fields) {
+      if (!isFilled(it[field])) throw new Error(`render finding-batch: item ${i + 1} is missing "${field}"`);
+    }
+    lines.push(lane.line(it, i));
+    lines.push(subDetail(it.detail));
+    if (i < p.items.length - 1) lines.push('');
+  });
+  return [
+    section('DISPLAY: finding batch', 'emit verbatim as a code block', lines.join('\n')),
+    section(
+      'MENU: finding batch',
+      "emit verbatim as markdown, then STOP for the user's response",
+      menu('', [
+        cmdOption('y', 'yes', lane.confirm(p.items.length)),
+        promptOption('Ask', lane.ask),
+      ]),
+    ),
+  ].join('\n');
+}
+
 /**
  * @param {string} cwd
  * @param {{dotpath: string, file?: string}} args
@@ -588,9 +723,8 @@ function finding(cwd, { dotpath, file }) {
 
 // ---------------------------------------------------------------------------
 // Triage surfaces — the queue sidecar is engine-owned layout, so these
-// surfaces list it directly; entry *content* beyond the verbatim quotation
-// never populates a render from a parse — per-entry agenda values arrive as
-// a judgment payload.
+// surfaces list it directly; entry content never populates a render from a
+// parse — per-entry agenda values arrive as a judgment payload.
 // ---------------------------------------------------------------------------
 
 /**
@@ -604,37 +738,6 @@ function triageQueue(cwd, workUnit, phase, topic) {
     dir,
     files: fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort() : [],
   };
-}
-
-// concern — a rerouted triage-queue entry framed for markdown emission: a
-// bold header and horizontal rules top and tail the verbatim file content so
-// it reads as a bounded quotation, not the session's own voice (rules are
-// semantic markdown, not drawn borders; dot rails stay menu vocabulary). The
-// queue file is the payload; --file names the entry (basename only — the
-// engine owns the queue layout).
-
-/**
- * @param {string} cwd
- * @param {{dotpath: string, file?: string}} args
- * @returns {string}
- */
-function concern(cwd, { dotpath, file }) {
-  const { workUnit, phase, topic } = resolveAddress(cwd, dotpath, 'concern');
-  if (!file) throw new Error('render concern: --file <NNN-slug.md> is required');
-  if (file !== path.basename(file) || !file.endsWith('.md')) {
-    throw new Error(`render concern: --file must be a queue-file name, not a path (got "${file}")`);
-  }
-  const queue = triageQueue(cwd, workUnit, phase, topic);
-  if (!queue.files.includes(file)) {
-    throw new Error(`render concern: "${file}" is not in the ${topic} ${phase} triage queue`);
-  }
-  const body = fs.readFileSync(path.join(queue.dir, file), 'utf8').replace(/\s+$/, '');
-  if (!body) throw new Error(`render concern: "${file}" is empty`);
-  return section(
-    'DISPLAY: rerouted concern',
-    'emit verbatim as markdown',
-    ['**Rerouted concern**', '', '---', '', ...body.split('\n'), '', '---'].join('\n'),
-  );
 }
 
 // triage-offer — the offer gate over a non-empty queue: the agenda (count
@@ -666,13 +769,15 @@ function triageOffer(cwd, { dotpath, file }) {
   if (byFile.size !== files.length || files.some((f) => !byFile.has(f))) {
     throw new Error(`render triage-offer: payload items must cover the queue exactly (queue: ${files.join(', ')})`);
   }
+  // Header carries the count, rows hang off it, provenance takes the `↳`
+  // line — the queue is a flat set of concerns from any number of topics, so
+  // origin belongs per row rather than folded into the header.
   const agenda = [
-    callout(`${files.length} rerouted concern${files.length === 1 ? '' : 's'} waiting in this topic's triage queue:`),
-    '',
-    ...files.map((f, i) => {
+    `Triage Queue (${files.length} concern${files.length === 1 ? '' : 's'})`,
+    numberedTreeList(files.map((f) => {
       const it = /** @type {NonNullable<ReturnType<typeof byFile.get>>} */ (byFile.get(f));
-      return `  ${i + 1}. ${it.title} — from ${it.origin} (${it.from_phase}, ${it.from_date})`;
-    }),
+      return { text: it.title, note: `From ${it.origin} · ${it.from_phase} · ${it.from_date}` };
+    })),
   ];
   return [
     section('DISPLAY: triage agenda', 'emit verbatim as a code block', agenda.join('\n')),
@@ -685,6 +790,25 @@ function triageOffer(cwd, { dotpath, file }) {
       ]),
     ),
   ].join('\n');
+}
+
+// triage-announce — the fresh-sitting notice over a non-empty queue: one
+// count-only line, no agenda — the session opens on its own material and
+// the queue is offered at its first genuine break.
+
+/**
+ * @param {string} cwd
+ * @param {{dotpath: string}} args
+ * @returns {string}
+ */
+function triageAnnounce(cwd, { dotpath }) {
+  const { workUnit, phase, topic } = resolveAddress(cwd, dotpath, 'triage-announce');
+  const { files } = triageQueue(cwd, workUnit, phase, topic);
+  if (!files.length) throw new Error(`render triage-announce: the ${topic} ${phase} triage queue is empty — nothing to announce`);
+  const line = files.length === 1
+    ? "1 rerouted concern from another topic waits in this topic's triage queue — I'll raise it once the session finds its footing."
+    : `${files.length} rerouted concerns from other topics wait in this topic's triage queue — I'll raise them once the session finds its footing.`;
+  return section('DISPLAY: triage announce', 'emit verbatim as a code block', callout(line));
 }
 
 // triage-block — the conclusion blocker over a non-empty queue. Count comes
@@ -700,10 +824,19 @@ function triageBlock(cwd, { dotpath }) {
   const { files } = triageQueue(cwd, workUnit, phase, topic);
   if (!files.length) throw new Error(`render triage-block: the ${topic} ${phase} triage queue is empty — nothing blocks conclusion`);
   const doing = phase === 'research' ? 'exploration' : 'discussion';
-  return section('DISPLAY: triage block', 'emit verbatim as a code block', callout([
-    `Triage queue not empty — ${files.length} rerouted concern${files.length === 1 ? '' : 's'} awaiting ${doing}.`,
-    'Returning to the session to surface them before concluding.',
-  ]));
+  // A true blocker — the red register (see blocker()), guidance as markdown.
+  return [
+    section(
+      'DISPLAY: triage block',
+      'emit verbatim as a properties code block — ```properties fence',
+      `⚑ Triage queue not empty — ${files.length} rerouted concern${files.length === 1 ? '' : 's'} awaiting ${doing}`,
+    ),
+    section(
+      'DISPLAY: triage block guidance',
+      'emit verbatim as markdown',
+      '> Returning to the session to surface them before concluding.',
+    ),
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -760,14 +893,27 @@ function phaseCompleted(cwd, { dotpath, phase, paths }) {
  * @returns {string}
  */
 function earlyCompletionGate(cwd, { dotpath }) {
-  const { workUnit } = resolveWorkUnit(cwd, dotpath, 'early-completion-gate');
+  const { workUnit, manifest } = resolveWorkUnit(cwd, dotpath, 'early-completion-gate');
+  // A live reconcile flag makes the skip-review exit an informed choice: the
+  // gate names what completing now would carry unresolved.
+  const flagged = [];
+  for (const [phase, data] of Object.entries(manifest.phases || {})) {
+    for (const [name, item] of Object.entries((data && data.items) || {})) {
+      if (item && typeof item === 'object' && item.status === 'completed' && item.reconcile_needed !== undefined) {
+        flagged.push(`${phase}/${name} (${item.reconcile_needed})`);
+      }
+    }
+  }
+  const label = flagged.length > 0
+    ? `Implementation completed for "${titlecase(workUnit)}". ⚑ Input moved beneath ${flagged.join(', ')} — completing without review carries the pending reconcile unresolved.`
+    : `Implementation completed for "${titlecase(workUnit)}".`;
   return section(
     'MENU: early completion gate',
     "emit verbatim as markdown, then STOP for the user's response",
-    menu(`Implementation completed for "${titlecase(workUnit)}".`, [
+    menu(label, [
       cmdOption('y', 'yes', 'Proceed to review'),
       cmdOption('d', 'done', 'Complete without review'),
-    ]),
+    ], { question: 'Proceed to review?' }),
   );
 }
 
@@ -786,7 +932,7 @@ function revisitGate(cwd, { dotpath, prev, next }) {
     menu(`${titlecase(prev)} completed for "${titlecase(workUnit)}".`, [
       cmdOption('y', 'yes', `Proceed to ${next}`),
       cmdOption('r', 'revisit', 'Revisit an earlier phase'),
-    ]),
+    ], { question: `Proceed to ${next}?` }),
   );
 }
 
@@ -803,7 +949,7 @@ function epicAllDoneGate(cwd, { dotpath }) {
     menu(`All topics have completed review for "${titlecase(workUnit)}".`, [
       cmdOption('y', 'yes', 'Mark this epic as completed'),
       cmdOption('n', 'no', 'Return to the epic menu'),
-    ]),
+    ], { question: 'Mark it completed?' }),
   );
 }
 
@@ -840,13 +986,27 @@ function itemOf(manifest, phase, topic) {
   return (((manifest.phases || {})[phase] || {}).items || {})[topic];
 }
 
-/** @param {string} title @param {string[]} bodyLines */
-function blocker(title, bodyLines) {
-  return section(
-    'DISPLAY: entry blocker',
-    'emit verbatim as a code block, then STOP — terminal condition',
-    [title, '', ...bodyLines].join('\n'),
-  );
+// Blocked states render red: a `properties` fence colours the first token
+// (the ⚑) turquoise and everything after it red, and is the one highlighter
+// that never tokenises English — so the message stays uniform whatever words
+// it contains. One logical line only; a hard-wrapped continuation would
+// restart the per-line colouring mid-sentence, while soft-wrap keeps it
+// intact. Red means "you cannot proceed" — guidance travels in its own
+// markdown section as a signpost, so it reflows and stays calm.
+/** @param {string} fact @param {string} guidance */
+function blocker(fact, guidance) {
+  return [
+    section(
+      'DISPLAY: entry blocker',
+      'emit verbatim as a properties code block — ```properties fence',
+      `⚑ ${fact}`,
+    ),
+    section(
+      'DISPLAY: blocker guidance',
+      'emit verbatim as markdown, then STOP — terminal condition',
+      `> ${guidance}`,
+    ),
+  ].join('\n');
 }
 
 /**
@@ -866,16 +1026,16 @@ function entryGate(cwd, { dotpath, own }) {
     }
     const spec = itemOf(manifest, 'specification', topic) || {};
     if (spec.status === 'superseded') {
-      return blocker('Specification Superseded', [
-        `The specification for "${t}" was consolidated into`,
-        `"${titlecase(String(spec.superseded_by || ''))}". Work on that specification instead.`,
-      ]);
+      return blocker(
+        `The specification for "${t}" was consolidated into "${titlecase(String(spec.superseded_by || ''))}"`,
+        'Work on that specification instead.',
+      );
     }
     if (spec.status === 'promoted') {
-      return blocker('Specification Promoted', [
-        `"${t}" was promoted to the cross-cutting work unit`,
-        `"${String(spec.promoted_to || '')}". Continue it from that work unit.`,
-      ]);
+      return blocker(
+        `"${t}" was promoted to the cross-cutting work unit "${String(spec.promoted_to || '')}"`,
+        'Continue it from that work unit.',
+      );
     }
     return '';
   }
@@ -884,42 +1044,34 @@ function entryGate(cwd, { dotpath, own }) {
     const spec = itemOf(manifest, 'specification', topic);
     const status = spec && spec.status;
     if (!status) {
-      return blocker('Specification Missing', [
-        `No specification found for "${t}".`,
-        '',
+      return blocker(
+        `No specification found for "${t}"`,
         'The specification must be completed before planning can begin.',
-      ]);
+      );
     }
     if (status === 'in-progress') {
-      return blocker('Specification In Progress', [
-        `The specification for "${t}" is not yet completed.`,
-        '',
+      return blocker(
+        `The specification for "${t}" is not yet completed`,
         'The specification must be completed before planning can begin.',
-      ]);
+      );
     }
     if (status === 'proposed') {
-      return blocker('Specification Not Started', [
-        `"${t}" is a proposed grouping — the specification`,
-        "hasn't been started yet.",
-        '',
-        'Start the specification first, then return to planning once it',
-        'completes.',
-      ]);
+      return blocker(
+        `"${t}" is a proposed grouping — the specification hasn't been started yet`,
+        'Start the specification first, then return to planning once it completes.',
+      );
     }
     if (status === 'superseded') {
-      return blocker('Specification Superseded', [
-        `The specification for "${t}" was consolidated into`,
-        `"${titlecase(String(spec.superseded_by || ''))}".`,
-        '',
+      return blocker(
+        `The specification for "${t}" was consolidated into "${titlecase(String(spec.superseded_by || ''))}"`,
         'Plan the superseding specification instead.',
-      ]);
+      );
     }
     if (status === 'promoted') {
-      return blocker('Specification Promoted', [
-        `"${t}" was promoted to the cross-cutting work unit`,
-        `"${String(spec.promoted_to || '')}". Cross-cutting specifications inform other plans —`,
-        'they are not planned directly.',
-      ]);
+      return blocker(
+        `"${t}" was promoted to the cross-cutting work unit "${String(spec.promoted_to || '')}"`,
+        'Cross-cutting specifications inform other plans — they are not planned directly.',
+      );
     }
     return '';
   }
@@ -927,36 +1079,39 @@ function entryGate(cwd, { dotpath, own }) {
   if (phase === 'implementation') {
     const plan = itemOf(manifest, 'planning', topic);
     if (!plan || !plan.status) {
-      return blocker('Plan Missing', [
-        `No plan found for "${t}".`,
-        '',
+      return blocker(
+        `No plan found for "${t}"`,
         'A completed plan is required for implementation.',
-      ]);
+      );
     }
     if (plan.status !== 'completed') {
-      return blocker('Plan Not Completed', [`The plan for "${t}" is not yet completed.`]);
+      return blocker(
+        `The plan for "${t}" is not yet completed`,
+        'A completed plan is required for implementation.',
+      );
     }
     return '';
   }
 
   if (phase === 'review') {
     if (!itemOf(manifest, 'planning', topic)) {
-      return blocker('Plan Missing', [
-        `No plan found for "${t}".`,
-        '',
+      return blocker(
+        `No plan found for "${t}"`,
         'A completed plan and completed implementation are required for review.',
-      ]);
+      );
     }
     const impl = itemOf(manifest, 'implementation', topic);
     if (!impl) {
-      return blocker('Implementation Missing', [
-        `No implementation found for "${t}".`,
-        '',
+      return blocker(
+        `No implementation found for "${t}"`,
         'A completed implementation is required for review.',
-      ]);
+      );
     }
     if (impl.status !== 'completed') {
-      return blocker('Implementation Not Complete', [`The implementation for "${t}" is not yet completed.`]);
+      return blocker(
+        `The implementation for "${t}" is not yet completed`,
+        'A completed implementation is required for review.',
+      );
     }
     return '';
   }
@@ -967,18 +1122,16 @@ function entryGate(cwd, { dotpath, own }) {
     if (workType === 'bugfix') {
       const inv = itemOf(manifest, 'investigation', topic);
       if (!inv) {
-        return blocker('Source Material Missing', [
-          `No investigation found for "${wu}".`,
-          '',
+        return blocker(
+          `No investigation found for "${wu}"`,
           'A completed investigation is required before specification can begin.',
-        ]);
+        );
       }
       if (inv.status !== 'completed') {
-        return blocker('Investigation In Progress', [
-          `The investigation for "${wu}" is not yet completed.`,
-          '',
+        return blocker(
+          `The investigation for "${wu}" is not yet completed`,
           'The investigation must be completed before specification can begin.',
-        ]);
+        );
       }
       return '';
     }
@@ -986,37 +1139,32 @@ function entryGate(cwd, { dotpath, own }) {
       const items = ((manifest.phases || {}).discussion || {}).items || {};
       const names = Object.keys(items);
       if (names.length === 0) {
-        return blocker('Source Material Missing', [
-          `No discussions found for "${wu}".`,
-          '',
+        return blocker(
+          `No discussions found for "${wu}"`,
           'At least one completed discussion is required before specification can begin.',
-        ]);
+        );
       }
       if (!names.some((n) => items[n] && items[n].status === 'completed')) {
-        return blocker('No Completed Discussions', [
-          `No completed discussions found for "${wu}".`,
-          '',
-          'At least one completed discussion is required before specification can begin.',
-          'Run /workflow-start to continue an in-progress discussion.',
-        ]);
+        return blocker(
+          `No completed discussions found for "${wu}"`,
+          'At least one completed discussion is required before specification can begin. Run /workflow-start to continue an in-progress discussion.',
+        );
       }
       return '';
     }
     // feature / cross-cutting: the topic's own discussion.
     const disc = itemOf(manifest, 'discussion', topic);
     if (!disc) {
-      return blocker('Source Material Missing', [
-        `No discussion found for "${wu}".`,
-        '',
+      return blocker(
+        `No discussion found for "${wu}"`,
         'A completed discussion is required before specification can begin.',
-      ]);
+      );
     }
     if (disc.status !== 'completed') {
-      return blocker('Discussion In Progress', [
-        `The discussion for "${wu}" is not yet completed.`,
-        '',
+      return blocker(
+        `The discussion for "${wu}" is not yet completed`,
         'The discussion must be completed before specification can begin.',
-      ]);
+      );
     }
     return '';
   }
@@ -1029,10 +1177,13 @@ const SURFACES = {
   'resume-gate': resumeGate,
   'task-list': taskList,
   'findings-summary': findingsSummary,
+  'finding-batch': findingBatch,
   'finding': finding,
-  'concern': concern,
+  'triage-announce': triageAnnounce,
   'triage-offer': triageOffer,
   'triage-block': triageBlock,
+  'reroute-offer': rerouteOffer,
+  'reroute-candidates': rerouteCandidates,
   'proposed-task': proposedTask,
   'tasks-overview': tasksOverview,
   'author-task-gate': authorTaskGate,

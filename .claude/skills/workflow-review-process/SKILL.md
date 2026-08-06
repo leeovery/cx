@@ -61,17 +61,16 @@ Check if a review file exists at `.workflows/{work_unit}/review/{topic}/report.m
 
 #### If review file exists
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resume Detection ─────────────────────────────
+**`□ Resume Detection`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An in-progress review exists for this topic — choose whether
-> to pick it up or start fresh.
+> An in-progress review exists for this topic — choose whether to pick it up or start fresh.
 ```
 
 Gather coverage state. Read `completed_tasks` from the implementation manifest:
@@ -184,18 +183,16 @@ Load **[knowledge-usage.md](../workflow-knowledge/references/knowledge-usage.md)
 
 ## Step 5: QA Verification
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── QA Verification ──────────────────────────────
+**`□ QA Verification`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Dispatching task verifier agents. Each task is
-> independently verified against its acceptance criteria
-> and the specification.
+> Dispatching task verifier agents. Each task is independently verified against its acceptance criteria and the specification.
 ```
 
 Load **[invoke-task-verifiers.md](references/invoke-task-verifiers.md)** and follow its instructions as written.
@@ -208,17 +205,16 @@ Load **[invoke-task-verifiers.md](references/invoke-task-verifiers.md)** and fol
 
 ## Step 6: Produce Review
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Produce Review ───────────────────────────────
+**`□ Produce Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Synthesising agent findings into the review report.
-> Aggregating per-task results into an overall assessment.
+> Synthesising agent findings into the review report. Aggregating per-task results into an overall assessment.
 ```
 
 Load **[produce-review.md](references/produce-review.md)** and follow its instructions as written.
@@ -229,17 +225,16 @@ Load **[produce-review.md](references/produce-review.md)** and follow its instru
 
 ## Step 7: Present Review
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Present Review ───────────────────────────────
+**`□ Present Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Presenting the review findings. You'll see the
-> verdict, summary, and detailed per-task results.
+> Presenting the review findings. You'll see the verdict, summary, and detailed per-task results.
 ```
 
 Load **[present-review.md](references/present-review.md)** and follow its instructions as written.
@@ -258,17 +253,16 @@ Load **[compliance-check.md](../workflow-shared/references/compliance-check.md)*
 
 ## Step 9: Review Actions
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Review Actions ───────────────────────────────
+**`□ Review Actions`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Deciding what to do with the findings. You can
-> accept the review, request fixes, or ask questions.
+> Deciding what to do with the findings. You can accept the review, request fixes, or ask questions.
 ```
 
 Load **[review-actions-loop.md](references/review-actions-loop.md)** and follow its instructions as written.

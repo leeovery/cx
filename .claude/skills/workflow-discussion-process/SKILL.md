@@ -2,6 +2,11 @@
 name: workflow-discussion-process
 user-invocable: false
 allowed-tools: Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-discovery/scripts/gateway.cjs), Bash(node .claude/skills/workflow-discussion-process/scripts/gateway.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(mkdir -p .workflows/.cache/), Bash(ls .workflows/.cache/), Bash(rm .workflows/.cache/), Bash(rm -rf .workflows/.cache/)
+hooks:
+  SessionEnd:
+    - hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.claude/skills/workflow-engine/scripts/engine.cjs" presence cleanup'
 ---
 
 # Discussion Process
@@ -63,17 +68,16 @@ A first start, not a resume — no session has ever run and no subtopics exist, 
 
 #### Otherwise
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resume Detection ─────────────────────────────
+**`□ Resume Detection`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An in-progress discussion file exists for this topic — choose
-> whether to pick it up or start fresh.
+> An in-progress discussion file exists for this topic — choose whether to pick it up or start fresh.
 ```
 
 Show the current map state so the continue-or-restart choice is informed:
@@ -122,19 +126,19 @@ Load **[contextual-query.md](../workflow-knowledge/references/contextual-query.m
 
 ## Step 5: Discussion Session
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Discussion Session ───────────────────────────
+**`□ Discussion Session`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Discussion starting. I'll track our conversation on a Discussion
-> Map. You can lead wherever you want — I'll challenge thinking,
-> explore edge cases, and capture decisions as we go.
+> Discussion starting. I'll track our conversation on a Discussion Map. You can lead wherever you want — I'll challenge thinking, explore edge cases, and capture decisions as we go.
 ```
+
+Both blocks above are emitted before the reference loads.
 
 Load **[discussion-session.md](references/discussion-session.md)** and follow its instructions as written.
 
@@ -154,17 +158,16 @@ Load **[final-review.md](references/final-review.md)** and follow its instructio
 
 ## Step 7: Document Review
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Document Review ──────────────────────────────
+**`□ Document Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Reconciling the session conversation against the discussion file
-> to catch substance that was discussed but never captured.
+> Reconciling the session conversation against the discussion file to catch substance that was discussed but never captured.
 ```
 
 Load **[document-review.md](references/document-review.md)** and follow its instructions as written.
@@ -183,17 +186,16 @@ Load **[compliance-check.md](../workflow-shared/references/compliance-check.md)*
 
 ## Step 9: Conclude Discussion
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Conclude Discussion ──────────────────────────
+**`□ Conclude Discussion`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Wrapping up. Final confirmation before marking the
-> discussion as complete.
+> Wrapping up. Final confirmation before marking the discussion as complete.
 ```
 
 Load **[conclude-discussion.md](references/conclude-discussion.md)** and follow its instructions as written.

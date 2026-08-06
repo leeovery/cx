@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 
 const path = require('path');
+const { WORK_TYPE_PIPELINES } = require('../kernel/manifest-schema.cjs');
 const {
   phaseItems,
   computeAnalysisCacheStatus,
@@ -19,11 +20,9 @@ const {
 } = require('./derivations.cjs');
 
 // Every phase the epic detail iterates and the epic dashboard / thin dump
-// surface — discovery (the map) first, then the pipeline. The pipeline-only
-// view (research → review, for completion / next-phase and the start
-// dashboard) is domain/start.cjs's EPIC_PIPELINE_PHASES, derived from this
-// minus discovery — discovery is the map, not a pipeline phase.
-const EPIC_DETAIL_PHASES = ['discovery', 'research', 'discussion', 'specification', 'planning', 'implementation', 'review'];
+// surface — discovery (the map, not a pipeline phase) first, then the epic
+// pipeline from the schema's one home for pipeline order.
+const EPIC_DETAIL_PHASES = ['discovery', ...WORK_TYPE_PIPELINES.epic];
 
 /**
  * @typedef {object} SpecSource
@@ -43,6 +42,8 @@ const EPIC_DETAIL_PHASES = ['discovery', 'research', 'discussion', 'specificatio
  * @typedef {object} PhaseEntry
  * @property {string} name
  * @property {string} status
+ * @property {string|boolean} [reconcile_needed]  a live reconcile flag — the upstream phase that
+ *                                             moved, or `true` for a brief flag
  * @property {SpecSource[]} [sources]          specification items
  * @property {string} [format]                 planning items
  * @property {boolean} [deps_satisfied]        planning items
@@ -57,6 +58,7 @@ const EPIC_DETAIL_PHASES = ['discovery', 'research', 'discussion', 'specificatio
  * @typedef {object} ItemRef
  * @property {string} name
  * @property {string} phase
+ * @property {string|boolean} [reconcile_needed]  completed items only — a live reconcile flag
  * @property {string|null} [previous_status]   cancelled items only
  */
 
@@ -84,6 +86,7 @@ const EPIC_DETAIL_PHASES = ['discovery', 'research', 'discussion', 'specificatio
  * @property {string|null} current_phase
  * @property {string|null} research_state  the research item's raw status, null when none exists
  * @property {boolean} triage_parked  a `triaged` stub (parked rerouted concerns) exists in either phase
+ * @property {boolean} reconcile_pending  a phase item beneath the row carries a live reconcile flag
  * @property {string|null} next_action
  */
 
@@ -206,6 +209,7 @@ function epicDetail(cwd, manifest) {
     for (const item of items) {
       /** @type {PhaseEntry} */
       const entry = { name: item.name, status: item.status || 'unknown' };
+      if (item.reconcile_needed !== undefined) entry.reconcile_needed = item.reconcile_needed;
 
       if (phase === 'specification' && item.sources) {
         const sourcesArr = Array.isArray(item.sources)
@@ -250,7 +254,10 @@ function epicDetail(cwd, manifest) {
         inProgressItems.push({ name: item.name, phase });
       }
       if (item.status === 'completed') {
-        completedItems.push({ name: item.name, phase });
+        completedItems.push({
+          name: item.name, phase,
+          ...(item.reconcile_needed !== undefined ? { reconcile_needed: item.reconcile_needed } : {}),
+        });
       }
       if (item.status === 'cancelled') {
         cancelledItems.push({ name: item.name, phase, previous_status: item.previous_status || null });

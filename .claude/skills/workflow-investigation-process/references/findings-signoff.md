@@ -15,9 +15,7 @@ Pull current values from the investigation file — the file is authoritative, n
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> This is the sign-off on the investigation record — everything
-> below is read from the investigation file. Fix exploration
-> comes next.
+> This is the sign-off on the investigation record — everything below is read from the investigation file. Fix exploration comes next.
 ```
 
 Retell the investigation file's findings as a markdown narrative (not a code block, no structured template) in four beats:
@@ -27,7 +25,7 @@ Retell the investigation file's findings as a markdown narrative (not a code blo
 3. **What else it touches** — the Blast Radius: which parts of the product share the broken path.
 4. **Why nobody caught it** — the testing gap, edge case, or recent change, plainly.
 
-Every substantive point in those sections appears in the retelling — nothing softened, nothing dropped. The code-perspective retelling is one `t` away; the record file itself one `v` away.
+Each beat lands in a paragraph the user takes in at a glance — complete in coverage, compact in telling. The code-perspective retelling is one `t` away; the record file itself one `v` away.
 
 → On return, proceed to **B. Sign-off Gate**.
 
@@ -39,13 +37,12 @@ Every substantive point in those sections appears in the retelling — nothing s
 
 ```
 · · · · · · · · · · · ·
-Do these findings match your understanding?
+**`◆ Do these findings match your understanding?`**
 
-- **`y`/`yes`** — Findings are correct, move to fix exploration
-- **`t`/`technical`** — Retell the findings from the code's perspective
-- **`v`/`view`** — Show the full investigation file
-- **Provide feedback** — Tell me what's off or unclear
-· · · · · · · · · · · ·
+**`y/yes`**            → Findings are correct, move to fix exploration
+**`t/technical`**      → Retell the findings from the code's perspective
+**`v/view`**           → Show the full investigation file
+**Provide feedback** → Tell me what's off or unclear
 ```
 
 **STOP.** Wait for user response.

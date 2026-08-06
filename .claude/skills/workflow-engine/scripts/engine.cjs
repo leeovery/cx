@@ -31,7 +31,7 @@ const { archiveItems, restoreItems, deleteItems } = require('./domain/inbox.cjs'
 const { stampAnalysisCache } = require('./domain/cache.cjs');
 const agentState = require('./domain/agent-state.cjs');
 const { boot } = require('./domain/boot.cjs');
-const { beatPresence, clearPresence, scanPresence, deferralSection } = require('./domain/presence.cjs');
+const { beatPresence, clearPresence, scanPresence, cleanupPresence, deferralSection } = require('./domain/presence.cjs');
 const { createWorkUnit } = require('./domain/workunit-create.cjs');
 const { completeWorkUnit, cancelWorkUnit, reactivateWorkUnit, pivotWorkUnit } = require('./domain/workunit-lifecycle.cjs');
 const { absorbWorkUnit } = require('./domain/workunit-absorb.cjs');
@@ -147,6 +147,7 @@ Commands:
   presence beat <work-unit> <phase> <topic>
   presence clear <work-unit> <phase> <topic>
   presence scan <work-unit>
+  presence cleanup [session-id]
   topic complete <work-unit> <phase> <topic>
   topic reopen <work-unit> <phase> <topic>
   topic supersede <work-unit> <phase> <topic> --by <topic>
@@ -166,7 +167,7 @@ Commands:
   agent scan     <work-unit> <phase> <topic>
   agent ack      <work-unit> <phase> <topic> <id> (--findings <F1,F2,…> | --clean)
   agent announce <work-unit> <phase> <topic> <id>
-  agent surface  <work-unit> <phase> <topic> <id> <finding>
+  agent surface  <work-unit> <phase> <topic> <id> <finding>[,<finding>…]
   agent incorporate <work-unit> <phase> <topic> <id>
   commit <work-unit> -m <message> [--plan <topic>]
   commit --inbox -m <message>
@@ -175,9 +176,12 @@ Commands:
   render task-list   <wu.planning.topic> --file <payload.json>
   render findings-summary <wu.phase.topic> --file <payload.json>
   render finding          <wu.phase.topic> --file <payload.json>
-  render concern          <wu.phase.topic> --file <NNN-slug.md>
+  render finding-batch    <wu.phase.topic> --file <payload.json>
+  render triage-announce  <wu.phase.topic>
   render triage-offer     <wu.phase.topic> --file <payload.json>
   render triage-block     <wu.phase.topic>
+  render reroute-offer    <wu.phase.topic> --file <payload.json>
+  render reroute-candidates <wu.phase.topic> --file <payload.json>
   render proposed-task    <wu.phase.topic> --file <payload.json> --gate gated|auto [--comment-hint STR]
   render tasks-overview   <wu.phase.topic> --file <payload.json>
   render author-task-gate <wu.planning.topic> --m N --total N --title STR
@@ -542,7 +546,23 @@ function runPresence(argv) {
       respondSections(deferralSection(res));
       return;
     }
-    throw new Error('Usage: engine presence <beat|clear|scan> …');
+    if (command === 'cleanup') {
+      // The SessionEnd hook's target: session id from the argument or the
+      // hook's stdin JSON. Root resolution favours the invocation cwd (a
+      // project root has `.workflows`), falling back to CLAUDE_PROJECT_DIR
+      // for hooks fired from a drifted cwd.
+      if (rest.length > 1) throw new Error('Usage: engine presence cleanup [session-id]');
+      let sessionId = rest[0] || null;
+      if (!sessionId && !process.stdin.isTTY) {
+        try { sessionId = (JSON.parse(fs.readFileSync(0, 'utf8')) || {}).session_id || null; } catch { sessionId = null; }
+      }
+      const cwd = fs.existsSync(path.join(process.cwd(), '.workflows'))
+        ? process.cwd()
+        : (process.env.CLAUDE_PROJECT_DIR || process.cwd());
+      respond(cleanupPresence(cwd, sessionId));
+      return;
+    }
+    throw new Error('Usage: engine presence <beat|clear|scan|cleanup> …');
   } catch (err) {
     failJson(err);
   }
@@ -778,7 +798,7 @@ function runAgent(argv) {
     }
     if (command === 'surface') {
       if (!workUnit || !phase || !topic || !id || !finding || positional.length !== 5) {
-        throw new Error('Usage: engine agent surface <work-unit> <phase> <topic> <id> <finding>');
+        throw new Error('Usage: engine agent surface <work-unit> <phase> <topic> <id> <finding>[,<finding>…]');
       }
       respond(agentState.surfaceFinding(cwd, workUnit, phase, topic, id, finding));
       return;

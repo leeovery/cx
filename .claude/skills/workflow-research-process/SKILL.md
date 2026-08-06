@@ -2,6 +2,11 @@
 name: workflow-research-process
 user-invocable: false
 allowed-tools: Bash(node .claude/skills/workflow-knowledge/scripts/knowledge.cjs), Bash(node .claude/skills/workflow-discovery/scripts/gateway.cjs), Bash(node .claude/skills/workflow-engine/scripts/engine.cjs), Bash(mkdir -p .workflows/.cache/), Bash(ls .workflows/.cache/), Bash(rm .workflows/.cache/), Bash(rm -rf .workflows/.cache/)
+hooks:
+  SessionEnd:
+    - hooks:
+        - type: command
+          command: 'node "$CLAUDE_PROJECT_DIR/.claude/skills/workflow-engine/scripts/engine.cjs" presence cleanup'
 ---
 
 # Research Process
@@ -63,17 +68,16 @@ A first start, not a resume — no session has ever run. Parked concerns wait in
 
 #### Otherwise
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Resume Detection ─────────────────────────────
+**`□ Resume Detection`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> An in-progress research file exists for this topic — choose
-> whether to pick it up or start fresh.
+> An in-progress research file exists for this topic — choose whether to pick it up or start fresh.
 ```
 
 Load **[resume-detection.md](../workflow-shared/references/resume-detection.md)** with artifact = `research`, file = `.workflows/{work_unit}/research/{topic}.md`, continue_step = `Step 2`, restart_targets = `the research file and the phase cache directory (rm -rf .workflows/.cache/{work_unit}/research/{topic}/ — content and agent state together) — stale agent results would poison the restarted session's review gates`, commit = `research({work_unit}): restart research`.
@@ -122,18 +126,16 @@ Load **[contextual-query.md](../workflow-knowledge/references/contextual-query.m
 
 ## Step 6: Research Session
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Research Session ─────────────────────────────
+**`□ Research Session`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Starting the research session. This is open-ended exploration
-> — follow threads, surface options, and document findings.
-> No decisions needed at this stage.
+> Starting the research session. This is open-ended exploration — follow threads, surface options, and document findings. No decisions needed at this stage.
 ```
 
 Load **[route-session.md](references/route-session.md)** and follow its instructions as written.

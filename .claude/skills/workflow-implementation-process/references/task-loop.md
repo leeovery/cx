@@ -22,7 +22,7 @@ H. Update progress + phase check + commit
 
 **Engine gate sections**: `engine task` responses carry rendered `=== DISPLAY … ===` / `=== MENU … ===` sections after their JSON line — the loop's state-derived gates, parameterised from manifest state. Emit a section only where a stage below prescribes it: DISPLAY verbatim as a code block, MENU verbatim as markdown (not a code block). A section is everything beneath its `===` marker up to the next marker or the end of the response — the marker lines themselves are never emitted. Section content is emitted byte-for-byte — never redrawn, reflowed, or re-derived.
 
-→ Load **[product-lens.md](../../workflow-shared/references/product-lens.md)** and follow its instructions as written — the register for the review and task-result retellings in **E** and **G**. Findings cache files and records stay fully technical.
+→ Load **[product-lens.md](../../workflow-shared/references/product-lens.md)** and follow its instructions as written — the register and depth for the review and task-result summaries in **E** and **G**. Findings cache files and records stay fully technical.
 
 Read `work_type` once here at loop entry — it selects the executor's workflow reference (TDD vs verification) for every task and never changes mid-loop, so **[invoke-executor.md](invoke-executor.md)** consumes it from session context rather than re-reading it per invocation:
 
@@ -91,7 +91,7 @@ Stage A re-detects any remaining blocked tasks on the loop back.
    ```bash
    node .claude/skills/workflow-engine/scripts/engine.cjs task start {work_unit} {topic} {internal_id}
    ```
-   The response's `gates` carry `task_gate_mode` and `fix_gate_mode` — stages E and G branch on these values. Do not re-read them mid-task: an `a`/`auto` opt-in is made by this flow itself, so you already know the current mode. When the task gate is `gated`, the response also carries the `MENU: task gate` section that **G. Task Gate** emits — never emit it here.
+   The response's `gates` carry `task_gate_mode` and `fix_gate_mode` — stages E and G branch on these values. Do not re-read them mid-task: an `a/auto` opt-in is made by this flow itself, so you already know the current mode. The response also carries the task-gate section that **G. Task Gate** emits — `MENU: task gate` when gated, `DISPLAY: task gate auto-approved` when auto — never emit it here.
 3. Mark the task as in-progress — follow the format's **updating.md** status transition.
 
 → Proceed to **B. Execute Task**.
@@ -130,10 +130,9 @@ Task {internal_id}: {Task Name} — {blocked/failed}
 · · · · · · · · · · · ·
 Task {status:[blocked|failed]}. How would you like to proceed?
 
-- **`r`/`retry`** — Re-invoke the executor with your comments (provide below)
-- **`s`/`skip`** — Skip this task and move to the next
-- **`t`/`stop`** — Stop implementation entirely
-· · · · · · · · · · · ·
+**`r/retry`** → Re-invoke the executor with your comments (provide below)
+**`s/skip`**  → Skip this task and move to the next
+**`t/stop`**  → Stop implementation entirely
 ```
 
 **STOP.** Wait for user response.
@@ -164,6 +163,14 @@ Task {status:[blocked|failed]}. How would you like to proceed?
 
 #### If `VERDICT` is `approved`
 
+**If the review carries `COMMENT_CORRECTIONS`:**
+
+Apply each correction now with the Edit tool — replace its OLD text with its NEW text at the named file, verbatim; an empty NEW deletes the comment. Corrections touch no executable logic, so nothing re-runs and no fix round opens. A correction whose OLD text no longer matches the file is dropped — name it in the result summary at **G. Task Gate**.
+
+→ Proceed to **G. Task Gate**.
+
+**If it carries none:**
+
 → Proceed to **G. Task Gate**.
 
 ---
@@ -176,6 +183,9 @@ Write the reviewer's findings to `.workflows/.cache/{work_unit}/implementation/{
 ISSUES:
 {copy ISSUES from reviewer output, including FIX, ALTERNATIVE, and CONFIDENCE per issue}
 
+COMMENT_CORRECTIONS:
+{copy COMMENT_CORRECTIONS from reviewer output — omit the section when the review carries none}
+
 NOTES:
 {copy NOTES from reviewer output}
 ```
@@ -185,7 +195,7 @@ Record the attempt via the engine (increments `fix_attempts` and appends the fin
 node .claude/skills/workflow-engine/scripts/engine.cjs task fix-attempt {work_unit} {topic} {internal_id} --findings-file .workflows/.cache/{work_unit}/implementation/{topic}/attempt-findings.md
 ```
 
-`{N}` below is the response's `attempts`. The response also carries the `MENU: fix gate` section that **F. Fix Approval Gate** emits — never emit it here.
+`{N}` below is the response's `attempts`. The response also carries a fix-gate section — `MENU: fix gate`, emitted by **F. Fix Approval Gate**, or `DISPLAY: fix gate auto-accepted`, emitted by this stage's auto branch — never emit it here.
 
 #### If the response's `threshold_reached` is `true`
 
@@ -199,7 +209,7 @@ Emit the response's `DISPLAY: fix threshold` section.
 Review for Task {internal_id}: {Task Name} — needs changes (attempt {N})
 ```
 
-Retell the reviewer's findings as a product-lens markdown narrative (not a code block): each issue as what is wrong or at risk in what was built, with the proposed fix, any alternative, and the reviewer's confidence; non-blocking notes last.
+Present the reviewer's findings as a product-lens summary (markdown, not a code block): each issue in a sentence or two — what is wrong or at risk in what was built and the proposed fix, with the alternative or the reviewer's confidence only where it changes the call; non-blocking notes in one line.
 
 → On return, proceed to **F. Fix Approval Gate**.
 
@@ -211,11 +221,13 @@ Retell the reviewer's findings as a product-lens markdown narrative (not a code 
 Review for Task {internal_id}: {Task Name} — needs changes (attempt {N})
 ```
 
-Retell the reviewer's findings as a product-lens markdown narrative (not a code block): each issue as what is wrong or at risk in what was built, with the proposed fix, any alternative, and the reviewer's confidence; non-blocking notes last.
+Present the reviewer's findings as a product-lens summary (markdown, not a code block): each issue in a sentence or two — what is wrong or at risk in what was built and the proposed fix, with the alternative or the reviewer's confidence only where it changes the call; non-blocking notes in one line.
 
 Branch on the response's `fix_gate_mode`.
 
 **If `fix_gate_mode` is `auto`:**
+
+Emit the `DISPLAY: fix gate auto-accepted` section from this task's most recent `fix-attempt` response, after the findings summary. The turn does not end here — the executor dispatch follows in the same turn.
 
 → Return to **B. Execute Task**.
 
@@ -227,7 +239,7 @@ Branch on the response's `fix_gate_mode`.
 
 ## F. Fix Approval Gate
 
-Emit the `MENU: fix gate` section from this task's most recent `fix-attempt` response. The `a`/`auto` option is present only while the fix gate is `gated` — a threshold-forced gate in auto mode omits it.
+Emit the `MENU: fix gate` section from this task's most recent `fix-attempt` response. The `a/auto` option is present only while the fix gate is `gated` — a threshold-forced gate in auto mode omits it.
 
 **STOP.** Wait for user response.
 
@@ -281,11 +293,13 @@ Task {internal_id}: {Task Name} — approved
 Phase: {phase number} — {phase name}
 ```
 
-Retell the executor's SUMMARY as a product-lens markdown narrative (not a code block): what the product now does that it didn't before, the decisions worth knowing, and how it was verified. After a fix round, include what changed since the last gate.
+Present the executor's SUMMARY as a product-lens summary (markdown, not a code block) in four beats: what this part of the product did before, what it does now, any issues hit on the way, and anything to watch. After a fix round, include what changed since the last gate. When comment corrections were applied at **D. Review Task**, add a line saying so — naming any that were dropped.
 
 Branch on the `task_gate_mode` carried by this task's `start` response.
 
 #### If `task_gate_mode` is `auto`
+
+Emit the `DISPLAY: task gate auto-approved` section from this task's `start` response, after the result summary. The turn does not end here — the commit follows in the same turn.
 
 → Proceed to **H. Update Progress and Commit**.
 

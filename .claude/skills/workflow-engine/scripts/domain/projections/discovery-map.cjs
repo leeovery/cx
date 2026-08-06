@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 const { box, renderTree, wrapWithPrefix } = require('../../kernel/render.cjs');
-const { TREE_WIDTH, treeHeader, titlecase, title, discoveryGlyph, discoveryLifecycleLabel } = require('../conventions.cjs');
+const { TREE_WIDTH, treeHeader, titlecase, title, stateNote, discoveryGlyph, discoveryLifecycleLabel } = require('../conventions.cjs');
 
 /** @typedef {import('../../kernel/render.cjs').TreeNode} TreeNode */
 
@@ -23,6 +23,7 @@ const { TREE_WIDTH, treeHeader, titlecase, title, discoveryGlyph, discoveryLifec
  * @property {string|null} [routing]
  * @property {string|null} [research_state]  the research item's raw status, null when none exists
  * @property {boolean} [triage_parked]  a `triaged` stub (parked rerouted concerns) exists in either phase
+ * @property {boolean} [reconcile_pending]  a phase item beneath the row carries a live reconcile flag
  * @property {string|null} [summary]
  */
 
@@ -62,22 +63,21 @@ function breakdown(summary) {
   return ' — ' + present.map(([key, label]) => `${summary[key]} ${label}`).join(' · ');
 }
 
-/** Map rows as kernel tree nodes: glyph + name + [lifecycle label]. @param {DiscoveryMapRow[]} rows */
+// Map rows as kernel tree nodes: glyph + name, lifecycle spelled out on a
+// `↳ state` line — no tag column (long names never stretch a shared column).
+/** @param {DiscoveryMapRow[]} rows */
 function mapNodes(rows) {
   return rows.map((row) => ({
-    title: title({
-      glyph: discoveryGlyph(row.lifecycle),
-      label: titlecase(row.name),
-      tag: discoveryLifecycleLabel(row.lifecycle, row.routing ?? null, row.research_state ?? null, row.triage_parked ?? false),
-    }),
+    title: title({ glyph: discoveryGlyph(row.lifecycle), label: titlecase(row.name) }),
+    body: [stateNote(discoveryLifecycleLabel(row.lifecycle, row.routing ?? null, row.research_state ?? null, row.triage_parked ?? false, row.reconcile_pending ?? false))],
   }));
 }
 
-/** Proposed rows: ○ (fresh-to-be) + name + [routing], summary wrapping beneath. @param {ProposedTopic[] } proposed */
+/** Proposed rows: ○ (fresh-to-be) + name, summary beneath, routing on the `↳ state` line. @param {ProposedTopic[] } proposed */
 function proposedNodes(proposed) {
   return proposed.map((t) => ({
-    title: title({ glyph: '○', label: titlecase(t.name), tag: t.routing }),
-    body: [t.summary],
+    title: title({ glyph: '○', label: titlecase(t.name) }),
+    body: [t.summary, stateNote(`routed to ${t.routing}`)],
   }));
 }
 
@@ -90,10 +90,11 @@ function proposedNodes(proposed) {
  * @returns {string}
  */
 function discoveryMapView(workUnit, map) {
-  const head = box(`Discovery — ${titlecase(workUnit)}`)
-    + treeHeader(`Discovery Map (${map.summary.total} topics${breakdown(map.summary)})`) + '\n';
+  const head = ''
+    + treeHeader(`Discovery Map (${map.summary.total} topic${map.summary.total === 1 ? '' : 's'}`
+      + `${breakdown(map.summary)})`) + '\n';
   if (map.rows.length === 0) return head + '  (empty)\n';
-  return head + renderTree(mapNodes(map.rows), { width: TREE_WIDTH });
+  return head + renderTree(mapNodes(map.rows), { width: TREE_WIDTH, gap: true });
 }
 
 /**
@@ -110,22 +111,27 @@ function discoverySynthesisView(workUnit, map, proposed) {
   if (!Array.isArray(proposed) || proposed.length === 0) {
     throw new Error('discoverySynthesisView: proposed set is empty — nothing to render');
   }
-  const parts = [`  Synthesised Discovery Map — ${titlecase(workUnit)}\n`];
+  const parts = [`Synthesised Discovery Map — ${titlecase(workUnit)}\n`];
   const hasExisting = map.rows.length > 0;
 
-  parts.push(`  ${hasExisting ? 'New this session' : 'Proposed topics'} (${proposed.length}):`);
-  parts.push(renderTree(proposedNodes(proposed), { width: TREE_WIDTH }));
+  parts.push(`${hasExisting ? 'New this session' : 'Proposed topics'} (${proposed.length})`);
+  parts.push(renderTree(proposedNodes(proposed), { width: TREE_WIDTH, gap: true }));
 
   if (hasExisting) {
-    parts.push(`  Already on the map (${map.rows.length}):`);
-    parts.push(renderTree(mapNodes(map.rows), { width: TREE_WIDTH }));
+    parts.push(`Already on the map (${map.rows.length})`);
+    parts.push(renderTree(mapNodes(map.rows), { width: TREE_WIDTH, gap: true }));
   }
 
-  const footer = `${proposed.length} topic(s). Summaries come from the exploration; `
-    + 'routing is my read of where each one goes next.';
-  parts.push(wrapWithPrefix(footer, { width: TREE_WIDTH, prefix: '  ' }).join('\n') + '\n');
+  // A closing sentence, not a detail of the tree above it — column 0.
+  const footer = `${proposed.length} topic${proposed.length === 1 ? '' : 's'}. `
+    + 'Summaries come from the exploration; routing is my read of where each one goes next.';
+  parts.push(wrapWithPrefix(footer, { width: TREE_WIDTH, prefix: '' }).join('\n') + '\n');
 
   return parts.join('\n');
 }
 
-module.exports = { discoveryMapView, discoverySynthesisView };
+/** The view's chrome heading. @param {string} workUnit */
+function discoveryTitle(workUnit) { return `Discovery — ${titlecase(workUnit)}`; }
+
+module.exports = {
+  discoveryTitle, discoveryMapView, discoverySynthesisView };

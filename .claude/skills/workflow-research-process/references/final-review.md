@@ -82,7 +82,7 @@ Doubt resolves to satisfied — declining forfeits nothing; a later attempt recl
 
 The dispatched agent hasn't returned.
 
-**If it was dispatched this session and the user chose `p`/`proceed` at the session's in-flight gate:**
+**If it was dispatched this session and the user chose `p/proceed` at the session's in-flight gate:**
 
 The wait was already declined for this row — do not watch it. Its results persist for a later session; the final-review gate proceeds without it.
 
@@ -120,17 +120,16 @@ Findings from the current review are still being drained.
 
 ## C. Dispatch Final Review
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-·· Dispatch Final Review ························
+**`▪ Dispatch Final Review`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Dispatching a final review to catch any gaps before concluding.
-> This ensures the research is thorough for discussion.
+> Dispatching a final review to catch any gaps before concluding. This ensures the research is thorough for discussion.
 ```
 
 Record the dispatch — the engine allocates the id and answers with the content-file path:
@@ -147,6 +146,7 @@ The review agent receives:
 
 1. **Research file path(s)** — `.workflows/{work_unit}/research/{topic}.md` (for epic, include all research files in `.workflows/{work_unit}/research/` relevant to the current topic)
 2. **Output file path** — the `file` from the dispatch response. The agent writes its completed report there — pure markdown with one `### {ID}: {label}` section per finding (`F1`, `F2`, …), never frontmatter.
+3. **Maturity indication** — one line judging where the session stands. At conclusion this is `largely concluded` unless the session genuinely stopped early.
 
 When the agent returns:
 

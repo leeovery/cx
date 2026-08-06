@@ -54,7 +54,7 @@ The map is already sequenced.
 
 ## D. Check All-Done
 
-The scoped discovery derives `all_done` — true only when at least one non-cancelled review item exists and every non-cancelled one is completed, nothing is in progress or awaiting its next phase, no completed discussion is unaccounted, and the discovery map has settled (or the epic has none). Read it from the most recent discovery output.
+The scoped discovery derives `all_done` — true only when at least one non-cancelled review item exists and every non-cancelled one is completed, nothing is in progress or awaiting its next phase, no completed discussion is unaccounted, no item carries a live reconcile flag (`reconcile_pending: (none)` — a flagged item's entry flow must clear it first), and the discovery map has settled (or the epic has none). Read it from the most recent discovery output.
 
 #### If `all_done` is `true`
 
@@ -66,7 +66,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs render epic-all-done-gate
 
 **STOP.** Wait for user response.
 
-**If user chose `y`/`yes`:**
+**If user chose `y/yes`:**
 
 Complete the work unit — one command sets `status: completed`, stamps `completed_at`, and commits:
 
@@ -78,7 +78,7 @@ Emit the response's `DISPLAY: confirmation` section verbatim per its marker.
 
 **STOP.** Do not proceed — terminal condition.
 
-**If user chose `n`/`no`:**
+**If user chose `n/no`:**
 
 → Proceed to **E. Display and Menu**.
 

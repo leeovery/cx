@@ -122,7 +122,10 @@ function discover(cwd, workUnit) {
         });
       }
 
-      spec.has_pending_sources = (spec.sources || []).some(s => s.status === 'pending');
+      // Stale counts as pending work: an extraction the source moved out from
+      // under still blocks conclusion, so the actionable/concluded split, the
+      // sort rank, and the Continuing/Refining verb all treat it as open.
+      spec.has_pending_sources = (spec.sources || []).some(s => s.status === 'pending' || s.status === 'stale');
 
       specifications.push(spec);
     }
@@ -313,13 +316,16 @@ function view(workUnit) {
   const menu = engine.project.specificationMenu(detail);
   const display = engine.project.specificationDisplay(detail);
   const parts = [engine.gateway.dataBlock(viewData(result, detail, menu.keys))];
-  if (display) parts.push(engine.gateway.displayBlock(display));
+  if (display) {
+    parts.push(engine.gateway.titleBlock(engine.project.SPEC_TITLE));
+    parts.push(engine.gateway.displayBlock(display));
+  }
   if (menu.rendered) parts.push(engine.gateway.menuBlock(menu.rendered));
   return parts.join('\n');
 }
 
-// The concluded-specs sub-view: keys table as DATA, the heading as DISPLAY,
-// the Refine pick menu as MENU.
+// The concluded-specs sub-view: keys table as DATA, the view's heading as
+// TITLE, the spec list as DISPLAY, the Refine pick menu as MENU.
 function completedMenu(workUnit) {
   const { detail } = buildDetail(workUnit);
   const sub = engine.project.specificationCompletedMenu(detail);
@@ -329,6 +335,7 @@ function completedMenu(workUnit) {
   }
   return [
     engine.gateway.dataBlock(dataLines.join('\n')),
+    engine.gateway.titleBlock(sub.title),
     engine.gateway.displayBlock(sub.display),
     engine.gateway.menuBlock(sub.rendered),
   ].join('\n');

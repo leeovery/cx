@@ -28,11 +28,14 @@ node .claude/skills/workflow-continue-epic/scripts/gateway.cjs view {work_unit} 
 
 The output is one snapshot in three demarcated sections:
 
-- **DATA** — reasoning surface: state flags, `phase_counts` (in-progress / proposed / total per phase), and the `ACTIONS` table — one line per menu key, `key  action  topic  → route`, with `(recommended)` / `(blocked: …)` markers. Reason from it; never display or restate it.
+- **DATA** — reasoning surface: state flags, `phase_counts` (in-progress / proposed / total per phase), and the `ACTIONS` table — one line per menu key, `key  action  topic  → route`, with `(recommended)` / `(blocked: …)` / `(in session: …)` markers. Reason from it; never display or restate it.
+- **TITLE** — the view's chrome heading. Emit verbatim as markdown, directly above the display.
 - **DISPLAY** — the dashboard and key. Emit verbatim as a code block. Never redraw, reflow, or trim it.
 - **MENU** — the selection menu. Emit verbatim as markdown (not a code block).
 
-Emit the DISPLAY section, then the MENU section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
+When held sessions exist, the snapshot appends one `MENU: in-session gate — {key}` section per marked entry — emitted only where **B**'s in-session branch says so, never at the call.
+
+Emit the TITLE section (markdown), then the DISPLAY section, then the MENU section. A section is everything beneath its `===` marker up to the next marker — the marker lines themselves are never emitted.
 
 **STOP.** Wait for user response.
 
@@ -62,9 +65,10 @@ Blocking dependencies:
 
 ```
 · · · · · · · · · · · ·
-- **`u`/`unblock`** — Mark a dependency as satisfied externally
-- **`b`/`back`** — Return to menu
-· · · · · · · · · · · ·
+**`◆ Unblock a dependency?`**
+
+**`u/unblock`** → Mark a dependency as satisfied externally
+**`b/back`**    → Return to menu
 ```
 
 **STOP.** Wait for user response.
@@ -99,6 +103,20 @@ Commit the change.
 
 #### Otherwise
 
+**If the selected entry carries an `(in session: …)` marker:**
+
+Another live session holds this topic open. Emit the snapshot's `MENU: in-session gate — {key}` section for the selected entry — verbatim per its marker.
+
+**STOP.** Wait for user response.
+
+**If user chose `back`:**
+
+→ Return to **A. State Display and Menu**.
+
+**If user chose `yes`:**
+
+Continue with the **Soft gate check** below.
+
 **Soft gate check** — before routing, check whether the selection conflicts with a phase-completion recommendation. Advisory, not blocking. Read the counts from `phase_counts` in DATA.
 
 | Selected `action` | Condition | Gate message |
@@ -119,9 +137,10 @@ Commit the change.
 The system will re-analyse if you revisit later — proceeding
 now is safe, but may require rework.
 
-- **`y`/`yes`** — Proceed anyway
-- **`b`/`back`** — Return to menu
-· · · · · · · · · · · ·
+**`◆ Proceed anyway?`**
+
+**`y/yes`**  → Proceed anyway
+**`b/back`** → Return to menu
 ```
 
 Gate messages are self-contained first lines. Compose the count prefix into the message (e.g., "3 of 5 research topics still in-progress. Topic analysis works best with all research available.").
@@ -158,7 +177,7 @@ Render the completed-topics list and pick menu:
 node .claude/skills/workflow-continue-epic/scripts/gateway.cjs completed-menu {work_unit}
 ```
 
-Emit the DISPLAY section, then the MENU section. Match the user's input to its `ACTIONS` entry by `key`.
+Emit the TITLE section (markdown), then the DISPLAY section, then the MENU section. Match the user's input to its `ACTIONS` entry by `key`.
 
 **STOP.** Wait for user response.
 
@@ -182,7 +201,7 @@ Render the cancellable-topics list and pick menu:
 node .claude/skills/workflow-continue-epic/scripts/gateway.cjs cancel-menu {work_unit}
 ```
 
-Emit the DISPLAY section, then the MENU section. Match the user's input to its `ACTIONS` entry by `key`.
+Emit the TITLE section (markdown), then the DISPLAY section, then the MENU section. Match the user's input to its `ACTIONS` entry by `key`.
 
 **STOP.** Wait for user response.
 
@@ -198,12 +217,12 @@ Store the selected entry's `phase` and `topic`. Confirm with the user:
 
 ```
 · · · · · · · · · · · ·
-Cancel "{topic:(titlecase)}" in {phase}? This will mark it as
-cancelled. You can reactivate it later.
+Cancelling **{topic:(titlecase)}** in {phase} will mark it as cancelled — it can be reactivated later.
 
-- **`y`/`yes`** — Confirm cancellation
-- **`n`/`no`** — Return to menu
-· · · · · · · · · · · ·
+**`◆ Cancel it?`**
+
+**`y/yes`** → Confirm cancellation
+**`n/no`**  → Return to menu
 ```
 
 **STOP.** Wait for user response.
@@ -234,7 +253,7 @@ Render the cancelled-topics list and pick menu:
 node .claude/skills/workflow-continue-epic/scripts/gateway.cjs reactivate-menu {work_unit}
 ```
 
-Emit the DISPLAY section, then the MENU section. Match the user's input to its `ACTIONS` entry by `key`.
+Emit the TITLE section (markdown), then the DISPLAY section, then the MENU section. Match the user's input to its `ACTIONS` entry by `key`.
 
 **STOP.** Wait for user response.
 

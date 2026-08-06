@@ -12,7 +12,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs topic queue {work_unit} r
 
 **If `count` is non-zero:**
 
-A rerouted concern is still queued — it must be discussed and folded before concluding. Render the blocker and emit its `DISPLAY: triage block` section verbatim as a code block:
+A rerouted concern is still queued — it must be discussed and folded before concluding. Render the blocker and emit both its sections verbatim per their markers — the red blocker line, then its guidance:
 
 ```bash
 node .claude/skills/workflow-engine/scripts/engine.cjs render triage-block {work_unit}.research.{topic}
@@ -40,7 +40,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs render triage-block {work
    git status --porcelain -- .workflows
    ```
 
-   **If dirt remains under another topic's paths:** run `node .claude/skills/workflow-engine/scripts/engine.cjs presence scan {work_unit}`. Dirt under a `live` row's topic belongs to that session — leave it. For each dirty topic with no live presence — a crashed session's leavings — commit it action-scoped: `node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} --topic {phase}/{dirty_topic} -m "chore({work_unit}/{dirty_topic}): sweep session leavings"`.
+   **If dirt remains under another topic's paths:** run `node .claude/skills/workflow-engine/scripts/engine.cjs presence scan {work_unit}`. Dirt under a `held` row's topic belongs to that session — leave it, however long it has idled. For each dirty topic with no held presence — a dead session's leavings — commit it action-scoped: `node .claude/skills/workflow-engine/scripts/engine.cjs commit {work_unit} --topic {phase}/{dirty_topic} -m "chore({work_unit}/{dirty_topic}): sweep session leavings"`.
 
    **Otherwise:** nothing to sweep — continue.
 
@@ -53,8 +53,7 @@ node .claude/skills/workflow-engine/scripts/engine.cjs render triage-block {work
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> Research complete. The discussion phase will use these findings
-> to make decisions about architecture and approach.
+> Research complete. The discussion phase will use these findings to make decisions about architecture and approach.
 ```
 
 6. Invoke `/workflow-bridge {work_unit} research`.

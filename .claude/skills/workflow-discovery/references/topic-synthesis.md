@@ -10,7 +10,7 @@ The harvest ceremony. Analyse the session's exploration as a whole, produce a to
 
 You have three sources of truth:
 
-1. **The Exploration section** of the active session log at `.workflows/{work_unit}/discovery/sessions/session-{session_number:03d}.md`. Read it now if you haven't recently — your in-context memory might be stale.
+1. **The Exploration section** of the active session log at `.workflows/{work_unit}/discovery/sessions/session-{session_number:03d}.md`. Read it now, every time, whatever is already in context.
 2. **In-context memory of the conversation.** When not compacted, this carries detail the Exploration summary may have skipped.
 3. **The existing discovery map** from Step 7's discovery output. Continuing sessions add to it; first sessions seed it.
 
@@ -84,12 +84,11 @@ Emit the `=== DISPLAY` section verbatim **as a code block** — it shows the pro
 
 ```
 · · · · · · · · · · · ·
-Confirm to commit, or tell me what to adjust.
+**`◆ Confirm to commit, or tell me what to adjust.`**
 
-- **`y`/`yes`** — Commit these topics and conclude
-- **`e`/`explore`** — Go back to exploration; not ready to commit yet
-- **Adjust** — Tell me what to change (split, merge, rename, re-route, edit summary)
-· · · · · · · · · · · ·
+**`y/yes`**     → Commit these topics and conclude
+**`e/explore`** → Go back to exploration; not ready to commit yet
+**Adjust**    → Tell me what to change (split, merge, rename, re-route, edit summary)
 ```
 
 **STOP.** Wait for user response.

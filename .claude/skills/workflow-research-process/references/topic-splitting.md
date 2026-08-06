@@ -19,16 +19,16 @@ following threads have accumulated alongside the original scope:
   • {thread_1} — {brief description}
   • {thread_2} — {brief description}
 
-Want to split these into separate research files?
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
 · · · · · · · · · · · ·
-- **`y`/`yes`** — Split them out
-- **`n`/`no`** — Keep everything together for now
-· · · · · · · · · · · ·
+**`◆ Want to split these into separate research files?`**
+
+**`y/yes`** → Split them out
+**`n/no`**  → Keep everything together for now
 ```
 
 **STOP.** Wait for user response.
@@ -65,14 +65,13 @@ Then offer the user a choice of which topic to continue with:
 
 ```
 · · · · · · · · · · · ·
-Which topic would you like to continue with?
+**`◆ Which topic would you like to continue with?`**
 
 @foreach(topic in available_topics)
-- **`{N}`** — {topic:(titlecase)} [in-progress]
+**`{N}`** → {topic:(titlecase)} [in-progress]
 @endforeach
 
 Select an option (enter number):
-· · · · · · · · · · · ·
 ```
 
 **STOP.** Wait for user response.

@@ -16,13 +16,10 @@ Load **[framework.md](../workflow-shared/references/framework.md)** and follow i
 
 ## Step 0: Initialisation
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-●───────────────────────────────────────────────●
-  Continue Epic
-●───────────────────────────────────────────────●
-
+# **`■ Continue Epic`**
 ```
 
 → Proceed to **Step 1**.
@@ -51,7 +48,7 @@ Parse the discovery output to understand:
 - one line per closed epic — `{name} (last phase: {phase})`
 - `completed_count` / `cancelled_count` — the header counts
 
-The per-epic state surface (`all_done`, `analysis_caches`, `needs_sequencing`, the discovery map) is the scoped dump Step 4 runs after validation; display and routing come from the `view` snapshot at Step 8.
+The per-epic state surface (`all_done`, `reconcile_pending`, `analysis_caches`, `needs_sequencing`, the discovery map) is the scoped dump Step 4 runs after validation; display and routing come from the `view` snapshot at Step 8.
 
 **IMPORTANT**: Use ONLY this script for discovery. Do NOT run additional bash commands (ls, head, cat, etc.) to gather state.
 
@@ -87,10 +84,10 @@ Store the work_unit.
 
 ## Step 3: Select Epic
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Select Epic ──────────────────────────────────
+**`□ Select Epic`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
@@ -129,17 +126,16 @@ Then read `discovery_map` from the most recent discovery output and filter for r
 
 #### Otherwise
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Backfill ─────────────────────────────────────
+**`□ Backfill`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
-> One-time recovery work found — legacy research splits or
-> discovery-map rows missing a summary or description.
+> One-time recovery work found — legacy research splits or discovery-map rows missing a summary or description.
 ```
 
 Load **[backfill-checks.md](references/backfill-checks.md)** with work_unit = `{work_unit}`, qualifying_sources = `{qualifying_sources}`, items_to_recover = `{items_to_recover}`.
@@ -164,10 +160,10 @@ Read `needs_sequencing` from the most recent discovery output.
 
 #### If `needs_sequencing` is true
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Sequence Map ─────────────────────────────────
+**`□ Sequence Map`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
@@ -194,10 +190,10 @@ node .claude/skills/workflow-continue-epic/scripts/gateway.cjs {work_unit}
 
 ## Step 8: Display State and Menu
 
-> *Output the next fenced block as a code block:*
+> *Output the next fenced block as markdown (not a code block):*
 
 ```
-── Epic State ───────────────────────────────────
+**`□ Epic State`**
 ```
 
 > *Output the next fenced block as markdown (not a code block):*
