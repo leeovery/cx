@@ -259,6 +259,25 @@ type Model struct {
 	// unwired state (a fixture / capturetool model), so every call site must
 	// nil-guard exactly as the mode persister's does.
 	themePersister ThemePersister
+	// themeCommitFailed is §9.13's OUTSTANDING-FAILURE STATE: a theme write failed
+	// and the user has not been told about it on a surface they are left looking at.
+	//
+	// IT IS A STATE, NOT A MESSAGE, and the two have different lifetimes on purpose.
+	// The panel's message slot reports the failure until the NEXT KEYPRESS; this runs
+	// from the failed write until a SUBSEQUENT COMMIT SUCCEEDS, and nothing else
+	// clears it. Arrowing away therefore dismisses the message while leaving this
+	// set, which is what stops the very next `Esc` — a close re-resolves PERSISTED
+	// state (§9.2), silently dropping the theme the user chose — reinstating the
+	// silent revert §9.13 exists to close.
+	//
+	// IT LIVES ON THE MODEL RATHER THAN ON themePanel because it must OUTLIVE the
+	// panel: closing discards that struct whole, and the close is exactly when the
+	// report is due.
+	//
+	// A NIL PERSISTER NEVER SETS IT. That is the absence of a writer rather than a
+	// failed write (see commitConstant), so a capture or fixture model cannot enter
+	// the reported-failure state at all.
+	themeCommitFailed bool
 	// themeKeys are prefs.json's three theme keys AS READ (§8.4) — control-stripped
 	// and post-translation, the value the panel LISTS a persisted-but-unresolvable
 	// slug from and MARKS its `●` by.

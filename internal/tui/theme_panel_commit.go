@@ -48,9 +48,10 @@ import (
 // nothing rather than persisting a setting nothing can resolve — an unselectable
 // row carries no palette to commit, and an empty theme name is not a name.
 //
-// The error is RETURNED rather than handled here: task 9-7 owns §9.13's message
-// slot line, the outstanding-failure state, and the fact that the theme stays
-// applied in memory.
+// The error is RETURNED rather than handled here, and the REPORT is not the
+// caller's job either way: §9.13's message-slot line and its outstanding-failure
+// state are raised inside commitConstant, so a call site that discards the value
+// still reports.
 func (m *Model) commitSelectedConstant() error {
 	slug, ok := committableThemeSlug(m.themePanel.list)
 	if !ok {
@@ -83,8 +84,9 @@ func committableThemeSlug(l list.Model) (string, bool) {
 // A NIL PERSISTER IS INERT, NOT FAILED. A fixture or `capturetool` model wires
 // none (task 6-7), so a commit during a capture writes nowhere and mutates
 // nothing — it is the ABSENCE OF A WRITER rather than a failed write, so it must
-// never be routed into task 9-7's failure path: there is no report to make and no
-// outstanding state to hold. It follows the modePersister nil-guard precedent
+// never be routed into §9.13's failure path, which is why applyCommitResult sits
+// PAST this guard: there is no report to make and no outstanding state to hold. It
+// follows the modePersister nil-guard precedent
 // exactly. Mutating the keys anyway would be worse than pointless: it would leave
 // the panel claiming a constant nothing persisted, which `Esc` would then resolve
 // to.
@@ -109,6 +111,10 @@ func committableThemeSlug(l list.Model) (string, bool) {
 // re-resolves stale keys and lands the user back on the theme they just replaced,
 // which is exactly what the successful path exists to prevent.
 //
+// THE RESULT GOES THROUGH applyCommitResult BEFORE EITHER BRANCH, and it sits PAST
+// the nil guard deliberately: that is what makes §9.13's report a statement about a
+// WRITE THAT WAS ATTEMPTED rather than about the absence of a writer.
+//
 // THE RECOMPUTE IS THE LAST STEP AND IS REACHED ONLY FROM HERE — past both early
 // returns, and AFTER the mirror, since §9.2's re-derivation is a function of the
 // keys this line has just set. Both returns above skipping it is the point: a
@@ -118,12 +124,45 @@ func (m *Model) commitConstant(slug string) error {
 	if m.themePersister == nil {
 		return nil
 	}
-	if err := m.themePersister.CommitTheme(slug); err != nil {
+	err := m.themePersister.CommitTheme(slug)
+	m.applyCommitResult(err)
+	if err != nil {
 		return err
 	}
 	m.themeKeys = theme.RawKeys{Theme: slug}
 	m.recomputeThemePanel()
 	return nil
+}
+
+// applyCommitResult is §9.13's whole failure semantics, in ONE place: what a write
+// that did not land reports, and what a write that did land discharges.
+//
+// IT IS REACHED FROM EVERY COMMIT AND ONLY PAST THE NIL GUARD — `Enter`'s constant,
+// `d`/`l` over a pair, and the confirm's `y`, which routes through commitSlot. A nil
+// persister returns before it, because that is the ABSENCE OF A WRITER rather than a
+// failed write: there is nothing to report and nothing to hold outstanding, and a
+// capture model must not be able to enter the reported state.
+//
+// ON FAILURE IT MUTATES NOTHING ELSE, and the caller's early return is what keeps
+// that true: no key mutation, no recompute and no ApplyTheme, so the theme stays
+// applied in memory while the `●` cannot move — nothing it derives from changed.
+//
+// THE TWO LIFETIMES ARE DIFFERENT AND BOTH ARE DELIBERATE. The MESSAGE persists only
+// until the next keypress (updateThemePanel clears it), while the STATE runs until a
+// subsequent commit succeeds — see Model.themeCommitFailed for why splitting them is
+// what makes the report survive an arrow.
+//
+// IT DOES NOT LOG. The persister is the single emission site for
+// `theme: commit failed` (§8.9 closes the `theme` component's emitters at three);
+// logging here would double the event and make this package a fourth.
+func (m *Model) applyCommitResult(err error) {
+	if err != nil {
+		m.raiseThemePanelCommitFailed()
+		m.themeCommitFailed = true
+		return
+	}
+	m.clearThemePanelCommitFailed()
+	m.themeCommitFailed = false
 }
 
 // handleSlotCommitKey is §9.2's `d` and `l` as the KEYS dispatch them, with the
@@ -147,12 +186,13 @@ func (m *Model) commitConstant(slug string) error {
 // or slugless row asks nothing rather than asking about a setting nothing can
 // resolve.
 //
-// THE ERROR IS DISCARDED HERE AND ONLY HERE, exactly as `Enter`'s arm discards
-// its own — task 9-7 owns §9.13's message-slot line and the outstanding-failure
-// state, and until it lands a failed write is silent except for cmd's own
-// `theme: commit failed` record. It leaves nothing behind either way: on failure
-// the raw keys are untouched, so the `●` cannot move. The confirmed path does NOT
-// discard its own error: it hands it to that seam (confirmSlotAssignment).
+// THE ERROR IS DISCARDED HERE, exactly as `Enter`'s arm discards its own, and
+// discarding it costs the user nothing: §9.13's message-slot line and its
+// outstanding-failure state are raised inside the commit, so the value is a return
+// rather than a report waiting to be delivered. It leaves nothing behind either
+// way: on failure the raw keys are untouched, so the `●` cannot move. The confirmed
+// path reads its own error for a different reason — it gates §8.4's newly-live-slot
+// load on the write having landed (confirmSlotAssignment).
 func (m Model) handleSlotCommitKey(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
 	if !m.themeSetting().IsConstant {
 		_ = (&m).commitSelectedSlot(slot)
@@ -176,8 +216,8 @@ func (m Model) handleSlotCommitKey(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
 // nothing can resolve.
 //
 // The error is RETURNED rather than handled here, for the same reason
-// commitSelectedConstant returns its own: task 9-7 renders §9.13's line from the
-// value.
+// commitSelectedConstant returns its own: §9.13's line is raised inside the commit
+// rather than by whoever holds the value.
 func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
 	slug, ok := committableThemeSlug(m.themePanel.list)
 	if !ok {
@@ -194,8 +234,9 @@ func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
 // nil persister is INERT rather than failed, the mirror is a MIRROR rather than a
 // re-read, it is applied to the CONSTRUCTION-TIME SNAPSHOT rather than to the
 // merged bytes the persister's read-modify-write just had in hand, ON ERROR
-// NOTHING MOVES, and the recompute is the last step and is reached only past both
-// early returns. Those five are stated once, on commitConstant, and hold here
+// NOTHING MOVES, the result goes through applyCommitResult past that nil guard and
+// before either branch, and the recompute is the last step and is reached only past
+// both early returns. Those six are stated once, on commitConstant, and hold here
 // verbatim; what follows is only what a SLOT commit adds.
 //
 // THE OTHER SLOT IS LEFT EXACTLY AS IT WAS, and that untouched-other-slot rule is
@@ -222,7 +263,9 @@ func (m *Model) commitSlot(slug string, slot prefs.ThemeSlot) error {
 	if m.themePersister == nil {
 		return nil
 	}
-	if err := m.themePersister.CommitThemeSlot(slug, slot); err != nil {
+	err := m.themePersister.CommitThemeSlot(slug, slot)
+	m.applyCommitResult(err)
+	if err != nil {
 		return err
 	}
 	m.themeKeys = mirrorThemeSlot(m.themeKeys, slug, slot)

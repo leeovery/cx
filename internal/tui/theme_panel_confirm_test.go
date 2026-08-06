@@ -188,13 +188,29 @@ func requireConfirmLive(t *testing.T, m Model, pending themeSlotConfirm) {
 	}
 }
 
-// requireConfirmResolved fails unless the confirm is gone — both the message slot
-// and the pending assignment, which are raised and cleared as one act.
+// requireConfirmResolved fails unless the confirm is gone AND the slot is empty —
+// the ordinary resolution, where nothing took the row the question vacated.
 func requireConfirmResolved(t *testing.T, m Model) {
 	t.Helper()
 
+	requireConfirmGone(t, m)
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
 		t.Errorf("the resolved confirm left the message %+v, want the slot empty", got)
+	}
+}
+
+// requireConfirmGone fails unless the confirm itself is gone — the question and the
+// pending assignment, which are raised and cleared as one act.
+//
+// It is separate from requireConfirmResolved because §9.13's failed-commit line
+// legitimately takes the slot the question vacated: the confirm is resolved there
+// too, and asserting an EMPTY slot would read that report as a confirm still
+// standing.
+func requireConfirmGone(t *testing.T, m Model) {
+	t.Helper()
+
+	if m.themePanel.confirming() {
+		t.Errorf("the confirm is still live, holding %+v", m.themePanel.message)
 	}
 	if got := m.themePanel.pending; got != (themeSlotConfirm{}) {
 		t.Errorf("the resolved confirm left the pending assignment %+v, want the zero value", got)
@@ -831,8 +847,10 @@ func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 // land, so the panel still marks it with the bare `●`.
 //
 // The confirm itself resolves EITHER WAY — the question has been answered, so the
-// footer comes back — and the error goes to the seam task 9-7 fills. §9.13's
-// message-slot line is that task's, so the slot is asserted EMPTY here.
+// footer comes back — and §9.13's line then takes the slot the question vacated.
+// That ordering is what makes §9.1's two contenders mutually exclusive on this path:
+// the confirm gates the write, so by the time a write can fail it has already
+// resolved.
 func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -859,7 +877,7 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	if got := themePanelRowLabels(m); !slices.Equal(got, labels) {
 		t.Errorf("a failed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes (§9.2)", got, labels)
 	}
-	requireConfirmResolved(t, m)
+	requireConfirmGone(t, m)
 	requireStandingFooter(t, m)
 	if m.activeTheme != previewed {
 		t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
@@ -868,10 +886,19 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 		t.Errorf("a failed commit scheduled %T, want nothing", cmd)
 	}
 
-	// The report is task 9-7's: the failure is HANDED to its seam from the one arm
-	// that can produce one, and the message slot stays empty until it lands.
-	if got := themePanelSeamCallers(t, "reportThemeCommitFailure"); !slices.Equal(got, []string{"confirmSlotAssignment"}) {
-		t.Errorf("the failed-commit seam is called from %v, want exactly [confirmSlotAssignment] — §9.13's report has one route in", got)
+	// The REPORT itself, which is the confirm's whole share of §9.13: the question is
+	// down, the standing footer is back, and the failed-commit line is what the slot
+	// now holds.
+	requireCommitFailedMessage(t, m)
+	if !m.themeCommitFailed {
+		t.Error("a failed confirmed commit left no outstanding failure; the state runs until a commit SUCCEEDS (§9.13)")
+	}
+
+	// And it is the SHARED path's report rather than a second copy of the semantics:
+	// the confirm writes through commitSlot, which is one of the two routes into the
+	// handler that owns them.
+	if got := themePanelSeamCallers(t, "applyCommitResult"); !slices.Equal(got, []string{"commitConstant", "commitSlot"}) {
+		t.Errorf("§9.13's result handler is called from %v, want exactly [commitConstant commitSlot] — the failure semantics live in one place", got)
 	}
 
 	// The control: the same fixture with the write landing DOES clear the constant

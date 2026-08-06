@@ -591,8 +591,8 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 		t.Errorf("the repeat commit changed the frame\nonce:  %q\ntwice: %q", escSeq(once), escSeq(got))
 	}
 
-	// The NO-ERROR half, which the keypress itself discards (task 9-7 owns the
-	// report): a third identical commit through the helper reports success rather
+	// The NO-ERROR half, which the keypress itself discards (the report is raised
+	// inside the commit): a third identical commit through the helper reports success rather
 	// than merely writing again.
 	if err := (&m).commitSelectedSlot(prefs.SlotDark); err != nil {
 		t.Errorf("a repeated commit returned %v, want nil — a commit is always re-attemptable (§9.13)", err)
@@ -686,8 +686,11 @@ func isPrefsSelector(expr ast.Expr, sel string) bool {
 // write that never landed. Committing the slug the slot already holds leaves those
 // keys byte-identical either way, and would assert nothing.
 //
-// The error is RETURNED rather than swallowed: task 9-7 renders §9.13's message
-// slot line and holds the failure outstanding from the value.
+// The error is RETURNED rather than swallowed, and the panel REPORTS it: §9.13's
+// message-slot line is raised from the value while everything the `●` derives from
+// is left exactly as it was. What this file asserts is the untouched half; the
+// report's own behaviour — its copy, its lifetime and the outstanding state behind
+// it — is covered by the failure suite.
 func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 	opened := arrowValidRows(4)
 	reassembled := arrowValidRows(2)
@@ -722,8 +725,8 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		if m.activeTheme != previewed {
 			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
 		}
-		if got := m.themePanel.message; got.Kind != themeMessageNone {
-			t.Errorf("a failed slot commit raised the message %+v; §9.13's line is task 9-7's", got)
+		if got := m.themePanel.message; got.Kind != themeMessageCommitFailed {
+			t.Errorf("a failed slot commit left the message %+v, want §9.13's failed-commit line reported in the slot", got)
 		}
 		if cmd != nil {
 			t.Errorf("a failed slot commit scheduled %T, want nothing", cmd)
@@ -747,7 +750,7 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		persister.err = errThemeCommitFailed
 
 		if err := (&m).commitSelectedSlot(prefs.SlotDark); !errors.Is(err, errThemeCommitFailed) {
-			t.Errorf("commitSelectedSlot returned %v, want the persister's error — task 9-7 renders §9.13's line from the returned value", err)
+			t.Errorf("commitSelectedSlot returned %v, want the persister's error — the caller reads the outcome from it", err)
 		}
 
 		requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
@@ -779,7 +782,7 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 // A fixture or `capturetool` model carries NO persister (task 6-7), so a slot
 // commit during a capture writes nowhere. It is the ABSENCE OF A WRITER rather
 // than a failed write — it raises no message and no outstanding-failure state
-// (task 9-7) — which is why it mutates nothing either: there is nothing on disk
+// — which is why it mutates nothing either: there is nothing on disk
 // for the in-memory keys to mirror, and a panel claiming a slot nothing persisted
 // is what `Esc` would then resolve to.
 func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {

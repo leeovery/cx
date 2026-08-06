@@ -128,10 +128,10 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 //
 // THE CONFIRM COMES DOWN FIRST AND UNCONDITIONALLY. The question has been answered
 // whichever way the write goes, so the footer is restored on both paths and §9.13's
-// failed-commit line — task 9-7's — is raised into a slot the confirm has already
-// vacated rather than one it is competing for. §9.1's single-slot arbiter has
-// exactly these two contenders and they can never be live at once precisely because
-// this ordering holds.
+// failed-commit line is raised into a slot the confirm has already vacated rather
+// than one it is competing for. §9.1's single-slot arbiter has exactly these two
+// contenders and they can never be live at once precisely because this ordering
+// holds.
 //
 // THE WRITE IS commitSlot's, NOT A SECOND COPY OF IT. Every rule that path carries
 // applies here unchanged — the nil persister is INERT rather than failed, the mirror
@@ -139,10 +139,13 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // read-modify-write just held, on error NOTHING moves, and the recompute is its last
 // step and is reached only past both early returns.
 //
-// ON FAILURE THE ERROR GOES TO TASK 9-7'S SEAM and the constant is NOT cleared in
-// memory, so the badges still show it — §9.13's "a failed commit does not move the
-// `●`" falls out of commitSlot leaving the keys untouched rather than out of a
-// second rule stated here.
+// ON FAILURE THIS ARM ONLY RETURNS. §9.13's report — the message slot's line and
+// the outstanding-failure state — is raised inside commitSlot (applyCommitResult),
+// so the confirm's failure path is the shared one rather than a second copy of the
+// semantics; and the constant is NOT cleared in memory, so the badges still show it,
+// which falls out of commitSlot leaving the keys untouched rather than out of a rule
+// stated here. The two message contenders cannot collide on this path because the
+// question came down first: §9.1's slot is vacated before any write happens.
 //
 // A NIL PERSISTER IS INERT, NOT COMMITTED, and that is why the persister is read
 // AGAIN below rather than inferred from the nil error. commitSlot returns nil for
@@ -158,7 +161,6 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *Model) confirmSlotAssignment() {
 	pending := m.resolveSlotConfirm()
 	if err := m.commitSlot(pending.slug, pending.slot); err != nil {
-		m.reportThemeCommitFailure(err)
 		return
 	}
 	if m.themePersister == nil {
@@ -310,20 +312,6 @@ func (m Model) retainedCanvasAnswer() canvasAppearance {
 	}
 	return appearanceDarkCanvas
 }
-
-// reportThemeCommitFailure is §9.13's FAILED-COMMIT REPORT, and it is a NO-OP until
-// task 9-7 fills it in.
-//
-// The report is a state rather than a message — outstanding from the moment a write
-// fails until a subsequent commit succeeds, surviving the panel's close as a
-// main-screen flash — and none of that can be half-built here. What is settled is
-// that a failed write is HANDED the error rather than discarding it, from the one
-// arm that can produce one.
-//
-// Until it lands the failure is silent except for cmd's own `theme: commit failed`
-// record, and it leaves nothing behind: commitSlot returns before mutating anything,
-// so the `●` cannot move.
-func (m *Model) reportThemeCommitFailure(err error) {}
 
 // The two answer letters, as the dispatch matches them. They are the terse forms
 // §9.2 pins and the ones themePanelConfirmKeymap advertises in the substituted

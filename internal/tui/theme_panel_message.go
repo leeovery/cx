@@ -108,6 +108,20 @@ func (m *Model) clearThemePanelMessage() {
 	m.setThemePanelMessage(themePanelMessage{})
 }
 
+// clearThemePanelCommitFailed empties the slot ONLY when it holds §9.13's line —
+// the raise's counterpart, and the whole of that message's lifetime.
+//
+// THE KIND CHECK IS THE POINT rather than an optimisation, because this runs on
+// paths where the OTHER contender can be live: the panel's key dispatch clears this
+// message ahead of EVERY key, and the answers to §9.2's confirm are keys. Clearing
+// the slot unconditionally would take the question off screen at the moment the user
+// answers it.
+func (m *Model) clearThemePanelCommitFailed() {
+	if m.themePanel.message.Kind == themeMessageCommitFailed {
+		m.clearThemePanelMessage()
+	}
+}
+
 // setThemePanelMessage installs the slot's whole value AND re-derives the panel's
 // layout from it — the single act every writer above performs, so none of them can
 // do half of it.
@@ -132,11 +146,11 @@ func (m *Model) clearThemePanelMessage() {
 // re-point it carries is idempotent (a message is not a theme swap).
 //
 // IT ASSUMES THE PANEL IS OPEN, which every writer above is: the confirm's raise and
-// clear are panel-scoped and §9.13's line is raised from a commit, which only fires
-// while themePanel.open. A call with the panel CLOSED would size a zero list.Model
-// against the closed panel's zero width — unreachable today, and left unguarded
-// rather than defended speculatively; task 9-7 owns the one message specified to
-// OUTLIVE a keypress, so it is that task's business to keep the assumption true.
+// clear are panel-scoped, and §9.13's line — the one message specified to OUTLIVE a
+// keypress — is raised from a commit and cleared by the panel's own key dispatch,
+// both of which fire only while themePanel.open. A call with the panel CLOSED would
+// size a zero list.Model against the closed panel's zero width — unreachable today,
+// and left unguarded rather than defended speculatively.
 func (m *Model) setThemePanelMessage(message themePanelMessage) {
 	m.themePanel.message = message
 	m.applyThemePanelListStyles()

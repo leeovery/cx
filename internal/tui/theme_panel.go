@@ -1096,8 +1096,21 @@ func (m *Model) applyThemePanelCanvasMode() {
 // what would let a user who had just set both slots wipe the pair on their way
 // out.
 //
+// §9.13's FAILED-COMMIT LINE IS CLEARED AHEAD OF THE DISPATCH, and the
+// FALL-THROUGH is the point: the message persists until the NEXT KEYPRESS, and that
+// keypress still performs its own action — one key, one intent, the shape
+// updateSessionList's actionable-key clear already uses. The keypress that RAISES
+// the line is unaffected, because the raise happens inside the dispatch below.
+//
+// IT CLEARS THE MESSAGE AND NOT THE STATE. The outstanding failure
+// (Model.themeCommitFailed) runs until a commit SUCCEEDS, which is what stops the
+// very next `Esc` — a close re-resolves persisted state — reinstating the silent
+// revert §9.13 exists to close.
+//
 // The ENTRY side of this routing is themePanelEntry / handleThemePanelKey above.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	(&m).clearThemePanelCommitFailed()
+
 	switch {
 	case keyIsCtrlC(msg):
 		return m, tea.Quit
@@ -1115,11 +1128,10 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyIsCode(msg, tea.KeyEnter):
 		// §9.2's commit-a-constant, and it deliberately does NOT close: the panel
 		// stays open, the cursor stays where it is, and nothing is re-themed. The
-		// error is DISCARDED HERE and only here — task 9-7 owns §9.13's message
-		// slot line and the outstanding-failure state, and until it lands a failed
-		// write is silent except for cmd's own `theme: commit failed` record. It
-		// leaves nothing behind either way: on failure the raw keys are untouched,
-		// so the `●` cannot move.
+		// error is DISCARDED because this arm has nothing left to do with it —
+		// §9.13's message-slot line and its outstanding-failure state are raised
+		// inside the commit — and on failure the raw keys are untouched, so the `●`
+		// cannot move.
 		_ = (&m).commitSelectedConstant()
 		return m, nil
 	case isRuneKey(msg, "d"):

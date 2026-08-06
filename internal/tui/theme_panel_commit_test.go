@@ -422,9 +422,10 @@ func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 // persisted' and would be lying if it moved". The marker is derived from the raw
 // keys, so the mechanism is that the keys are not touched at all.
 //
-// The error is RETURNED rather than swallowed: task 9-7 renders §9.13's message
-// slot line and holds the failure outstanding from the value, so a commit path
-// that only logged would recreate the silent "applied but not persisted" state.
+// The error is RETURNED rather than swallowed, and the commit path also REPORTS
+// it: §9.13's message-slot line and its outstanding-failure state are raised inside
+// the commit, so a path that only logged would recreate the silent "applied but not
+// persisted" state.
 func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 	rows := arrowValidRows(4)
 	persisted, target := rows[0].Slug, rows[2].Slug
@@ -452,7 +453,7 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 		persister.err = errThemeCommitFailed
 
 		if err := (&m).commitSelectedConstant(); !errors.Is(err, errThemeCommitFailed) {
-			t.Errorf("commitSelectedConstant returned %v, want the persister's error — task 9-7 renders §9.13's line from the returned value", err)
+			t.Errorf("commitSelectedConstant returned %v, want the persister's error — the caller reads the outcome from it", err)
 		}
 	})
 }
@@ -461,7 +462,7 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 //
 // A fixture or `capturetool` model carries NO persister (task 6-7), so a commit
 // during a capture writes nowhere. It is the ABSENCE OF A WRITER rather than a
-// failed write — it raises no message and no outstanding-failure state (task 9-7)
+// failed write — it raises no message and no outstanding-failure state
 // — which is why it mutates nothing either: there is nothing on disk for the
 // in-memory keys to mirror.
 func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
