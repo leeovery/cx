@@ -52,11 +52,28 @@ import (
 // slot line, the outstanding-failure state, and the fact that the theme stays
 // applied in memory.
 func (m *Model) commitSelectedConstant() error {
-	row, ok := selectedThemeRow(m.themePanel.list)
-	if !ok || !row.Selectable() || row.Slug == "" {
+	slug, ok := committableThemeSlug(m.themePanel.list)
+	if !ok {
 		return nil
 	}
-	return m.commitConstant(row.Slug)
+	return m.commitConstant(slug)
+}
+
+// committableThemeSlug is the slug a commit key acts on: the CURSOR's row, or the
+// false return that writes nothing.
+//
+// It states the guard described on commitSelectedConstant ONCE, for the three keys
+// that need it — `Enter`, `d`/`l` over a pair, and `d`/`l` over a constant, where
+// the slug is what §9.2's confirm records as PENDING. Three copies of one defensive
+// condition is three places for it to drift apart, and the confirm's copy would be
+// the one that matters: it decides what a question the user has already answered
+// goes on to write.
+func committableThemeSlug(l list.Model) (string, bool) {
+	row, ok := selectedThemeRow(l)
+	if !ok || !row.Selectable() || row.Slug == "" {
+		return "", false
+	}
+	return row.Slug, true
 }
 
 // commitConstant writes theme = slug and clears both slots (§8.2 mutual
@@ -116,46 +133,34 @@ func (m *Model) commitConstant(slug string) error {
 // constant means the slots are not read at all, so writing a slot here would
 // CLEAR THE CONSTANT as a side effect — and §9.2 puts a confirm in front of
 // exactly that: "this is the one place a keypress described as inert can silently
-// cost the user a setting they chose". The confirm is task 9-5's, so until it
-// lands this path writes NOTHING rather than writing directly. The interim
-// inertness is deliberate: a direct commit here is precisely the silent loss the
-// confirm exists to prevent, and the phase's task order is what keeps that loss
-// unreachable in an intermediate state.
+// cost the user a setting they chose". So over a constant this keypress ASKS
+// (theme_panel_confirm.go) and writes nothing; the write happens on `y`.
 //
 // THE SHAPE IS READ THROUGH themeSetting, NOT OFF THE RAW KEY. The two answer
 // identically — §8.2's tiebreak is "a non-empty `theme` wins" and the model's keys
 // are already control-stripped — but the tiebreak has ONE site, and what this
 // keypress GATES on must not be able to disagree with what the panel LISTS,
-// MARKS and RESOLVES, all three of which read it through that same helper. It
-// also hands task 9-5 the value its confirm has to name: the constant that would
-// be cleared.
+// MARKS and RESOLVES, all three of which read it through that same helper.
+//
+// THE CURSOR'S SLUG IS RESOLVED ON THIS KEYPRESS ON BOTH PATHS, through the same
+// guard, so the question names the row the user is looking at and an unselectable
+// or slugless row asks nothing rather than asking about a setting nothing can
+// resolve.
 //
 // THE ERROR IS DISCARDED HERE AND ONLY HERE, exactly as `Enter`'s arm discards
 // its own — task 9-7 owns §9.13's message-slot line and the outstanding-failure
 // state, and until it lands a failed write is silent except for cmd's own
 // `theme: commit failed` record. It leaves nothing behind either way: on failure
-// the raw keys are untouched, so the `●` cannot move.
+// the raw keys are untouched, so the `●` cannot move. The confirmed path does NOT
+// discard its own error: it hands it to that seam (confirmSlotAssignment).
 func (m Model) handleSlotCommitKey(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
-	if m.themeSetting().IsConstant {
-		return m.raiseSlotConfirm(slot)
+	if !m.themeSetting().IsConstant {
+		_ = (&m).commitSelectedSlot(slot)
+		return m, nil
 	}
-	_ = (&m).commitSelectedSlot(slot)
-	return m, nil
-}
-
-// raiseSlotConfirm is §9.2's SLOT-FROM-CONSTANT CONFIRM, and it is a NO-OP until
-// task 9-5 fills it in.
-//
-// THE SEAM EXISTS NOW SO THE INERT CASE HAS A NAME. The confirm's own state — the
-// message-slot line naming the constant that will be cleared, the nested
-// key-exclusive scope, the swapped footer — is 9-5's, and none of it can be
-// half-built here. What CAN be settled here is where it attaches, so that landing
-// it is filling one function rather than re-deciding the gate above.
-//
-// The slot is taken although nothing reads it yet: it is what the confirm writes
-// when the user answers `y`, and threading it from the keypress is what keeps the
-// answer from having to re-derive which key was pressed.
-func (m Model) raiseSlotConfirm(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
+	if slug, ok := committableThemeSlug(m.themePanel.list); ok {
+		(&m).raiseSlotConfirm(slug, slot)
+	}
 	return m, nil
 }
 
@@ -174,11 +179,11 @@ func (m Model) raiseSlotConfirm(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
 // commitSelectedConstant returns its own: task 9-7 renders §9.13's line from the
 // value.
 func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
-	row, ok := selectedThemeRow(m.themePanel.list)
-	if !ok || !row.Selectable() || row.Slug == "" {
+	slug, ok := committableThemeSlug(m.themePanel.list)
+	if !ok {
 		return nil
 	}
-	return m.commitSlot(row.Slug, slot)
+	return m.commitSlot(slug, slot)
 }
 
 // commitSlot writes ONE SLOT and clears the constant (§8.2's mutual exclusion,

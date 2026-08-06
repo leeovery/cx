@@ -93,19 +93,53 @@ type themePanelMessage struct {
 // Installing the whole value is what clears the other contender (see
 // themePanelMessage).
 func (m *Model) raiseThemePanelConfirm() {
-	m.themePanel.message = themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeKeys.Theme}
+	m.setThemePanelMessage(themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeKeys.Theme})
 }
 
 // raiseThemePanelCommitFailed raises §9.13's failed-commit line, clearing whatever
 // the slot held.
 func (m *Model) raiseThemePanelCommitFailed() {
-	m.themePanel.message = themePanelMessage{Kind: themeMessageCommitFailed}
+	m.setThemePanelMessage(themePanelMessage{Kind: themeMessageCommitFailed})
 }
 
 // clearThemePanelMessage empties the slot, which costs the panel no row at all
 // (§9.1's unreserved-when-empty rule).
 func (m *Model) clearThemePanelMessage() {
-	m.themePanel.message = themePanelMessage{}
+	m.setThemePanelMessage(themePanelMessage{})
+}
+
+// setThemePanelMessage installs the slot's whole value AND re-derives the panel's
+// layout from it — the single act every writer above performs, so none of them can
+// do half of it.
+//
+// THE RE-SIZE IS NOT COSMETIC. The slot changes the panel's vertical budget in BOTH
+// directions at once (themePanelListSize): the message costs its measured rows,
+// while §9.2's nested confirm scope hands two footer rows back. renderThemePanel
+// sizes its per-frame copy from the message it is handed, so a model left on the
+// pre-message budget keeps a `bubbles/list` PerPage the drawn frame does not have —
+// and `Ctrl+↑`/`Ctrl+↓` then move a different distance than the screen scrolls, with
+// no rendered frame revealing it. That is the class resizeThemePanel re-sizes for,
+// and the one the main screen already answers with resyncPageLayouts on every notice
+// band raise and clear.
+//
+// IT IS HERE RATHER THAN AT THE CALL SITES for the same reason: the confirm swallows
+// the arrows (§9.2), so the stale page is harmless while IT is live — but §9.13's
+// failed-commit line persists with the arrows LIVE, so the fix has to be inherited
+// by whoever raises it rather than remembered at each raise.
+//
+// It re-invokes the SAME function the open and the resize run rather than a second
+// copy of the arithmetic, which is what keeps the three in step; the delegate
+// re-point it carries is idempotent (a message is not a theme swap).
+//
+// IT ASSUMES THE PANEL IS OPEN, which every writer above is: the confirm's raise and
+// clear are panel-scoped and §9.13's line is raised from a commit, which only fires
+// while themePanel.open. A call with the panel CLOSED would size a zero list.Model
+// against the closed panel's zero width — unreachable today, and left unguarded
+// rather than defended speculatively; task 9-7 owns the one message specified to
+// OUTLIVE a keypress, so it is that task's business to keep the assumption true.
+func (m *Model) setThemePanelMessage(message themePanelMessage) {
+	m.themePanel.message = message
+	m.applyThemePanelListStyles()
 }
 
 // themePanelFooterScope is the keymap scope the panel's footer renders for the

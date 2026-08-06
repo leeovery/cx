@@ -384,6 +384,11 @@ type themePanel struct {
 	// RESOLVED theme changes as a side effect of a write the user was told is inert.
 	message themePanelMessage
 
+	// pending is the assignment a LIVE confirm will apply on `y` (§9.2) — the slug
+	// the cursor was on when the question was asked, and the slot the keypress
+	// named.
+	pending themeSlotConfirm
+
 	// width is the panel's OUTER width, border column included — the value
 	// themePanelWidthFor chooses between themePanelMinWidth and themePanelPreferredWidth.
 	width int
@@ -888,10 +893,18 @@ func (m *Model) closeThemePanel() {
 // behaviour would strand the user rendering a theme they never chose, with the
 // surface that could change it gone and a terminal too narrow to reopen it: the
 // state §11.4 names as the one where a colour the user never chose survives Portal's
-// exit. A live slot-from-constant confirm is SILENTLY CANCELLED by this close —
-// nothing has been written at that point (§9.2), so there is no partial state to
-// leave behind; it is worth stating because the confirm is otherwise specified as
-// resolvable only by a keypress.
+// exit.
+//
+// A LIVE SLOT-FROM-CONSTANT CONFIRM IS SILENTLY CANCELLED by this close, and it is
+// stated because the confirm is otherwise specified (§9.2) as resolvable only by a
+// keypress — this is its one other exit. Nothing has been written at that point, so
+// there is no partial state to leave behind, and the cancel is STRUCTURAL rather
+// than a step of its own: the question and the pending assignment it would write
+// both live on the panel struct, which closeThemePanel discards WHOLE. A second
+// explicit clear here would be a no-op that could drift from the one that matters —
+// the same argument that keeps this path on closeThemePanel rather than on a
+// teardown of its own. The cancelled confirm raises NO flash of its own: the only
+// report due on this path is the geometry event's pinned copy below.
 //
 // THE SEAM IS LIVE ON THIS PATH. closeThemePanel re-resolves through
 // m.themeEnumerator with no nil guard, and this new caller is safe for the same
@@ -1055,7 +1068,7 @@ func (m *Model) applyThemePanelCanvasMode() {
 // exactly as they found it bar the write — no close, no re-theme, no cursor move.
 // What is asserted of them at the ROUTING level is unchanged by that: the PAGE's
 // binding never fires (no Projects delete modal), whether the keypress writes or —
-// over a constant, until task 9-5's confirm lands — writes nothing.
+// over a constant — raises §9.2's confirm instead (theme_panel_confirm.go).
 //
 // THE NAVIGATION ARM SITS AHEAD OF THE SWALLOW-EVERYTHING DEFAULT and is matched
 // against the panel LIST'S OWN KeyMap — the same way the Sessions page matches
@@ -1083,6 +1096,14 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case keyIsCtrlC(msg):
 		return m, tea.Quit
+	case m.themePanel.confirming():
+		// §9.2's slot-from-constant confirm is KEY-EXCLUSIVE WITHIN THE PANEL, so its
+		// arm sits ahead of every other one below — the arrows (a cursor move
+		// mid-question would re-theme the screen behind the answer), the commit keys,
+		// and the `Esc` close, which the confirm takes as a CANCEL because the
+		// innermost thing resolves first. Only `Ctrl-C` above it survives: it is the
+		// global quit §9.7 keeps live everywhere, not a third answer.
+		return m.updateSlotConfirm(msg)
 	case keyIsCode(msg, tea.KeyEscape):
 		(&m).closeThemePanel()
 		return m, nil

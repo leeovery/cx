@@ -377,11 +377,12 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 // the constant, the untouched dark slot falls back to the shipped default, and
 // `Esc` in a dark terminal lands on `tokyo-night` rather than `nord`.
 //
-// The confirm is task 9-5's, so THIS task's behaviour is INERT rather than a
-// direct write — a silent constant-clear is exactly the loss the confirm exists to
-// prevent, and the phase's task order exists so that loss is never reachable in an
-// intermediate state. Nothing is written, nothing is mutated, and the message slot
-// stays empty (the confirm seam is a no-op until 9-5 fills it).
+// So the KEYPRESS ITSELF WRITES NOTHING: it asks, and the write happens on `y`
+// (task 9-5, theme_panel_confirm.go). What this file keeps asserting is the GATE at
+// the `d`/`l` dispatch — no prefs call, no mutated keys, no re-theme, no close and
+// no deferred write riding a tea.Cmd — while the question's own behaviour (its copy,
+// its swapped footer, and the three inputs that resolve it) is covered by the
+// confirm's suite.
 //
 // The POSITIVE CONTROL is the same keypress over an adaptive setting, which does
 // write — so the absence above is the gate rather than an unwired key.
@@ -400,28 +401,24 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			m, persister := newCommitPanelModel(t, rows, persisted)
 			m = arrowToThemeRow(t, m, target)
 			previewed := m.activeTheme
-			before := m.View().Content
 
 			m, cmd := pressSlotKey(t, m, tc.press)
 
 			if len(persister.slugs) != 0 {
-				t.Errorf("%q wrote %v over a constant; the write is deferred to task 9-5's confirm (§9.2)", tc.name, persister.slugs)
+				t.Errorf("%q wrote %v over a constant; the write waits for the confirm's `y` (§9.2)", tc.name, persister.slugs)
 			}
 			requireConstantKeys(t, m, persisted)
 			if !m.themePanel.open {
 				t.Errorf("%q closed the panel over a constant", tc.name)
 			}
-			if got := m.themePanel.message; got.Kind != themeMessageNone {
-				t.Errorf("%q raised the message %+v; the confirm seam is a no-op until task 9-5", tc.name, got)
+			if got := m.themePanel.message; got.Kind != themeMessageConfirm {
+				t.Errorf("%q left the message %+v; over a constant the keypress ASKS (§9.2)", tc.name, got)
 			}
 			if m.activeTheme != previewed {
 				t.Errorf("%q rendered canvas %s, want the previewed %s left alone", tc.name, m.activeTheme.Canvas.Value, previewed.Canvas.Value)
 			}
 			if cmd != nil {
 				t.Errorf("%q over a constant scheduled %T, want nothing", tc.name, cmd)
-			}
-			if got := m.View().Content; got != before {
-				t.Errorf("%q over a constant changed the composed frame\nbefore: %q\nafter:  %q", tc.name, escSeq(before), escSeq(got))
 			}
 
 			// Positive control: the SAME key over an ADAPTIVE setting writes, so the
