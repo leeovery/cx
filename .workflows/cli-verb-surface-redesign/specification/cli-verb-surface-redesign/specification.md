@@ -1,5 +1,15 @@
 # Specification: CLI Verb Surface Redesign
 
+> **Corrigendum 2026-08-07** (from `theming-system`): "`portal doctor` exits **0 iff every check passes; non-zero (1) if any check reports a problem**" — corrected: the report carries **two classes of line** and the exit code is **0 iff every Portal-health check passes**; `⚠`-marked user-content diagnostics never participate (there is deliberately no repair path for user content, so such a line would hold the exit permanently non-zero over something that is not the resurrection machinery the exit code speaks about), and every run now ends with a closing summary distinguishing the two counts.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): "`portal doctor --fix` **re-runs the diagnosis after applying repairs** and exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable**" — corrected: the exit is driven **solely** by the post-repair *Portal-health* checks, and because the user-content scan is read-only it runs on the `--fix` path too, so its `⚠` lines and the summary's advisory suffix appear in **both** renders while `--fix` gains no repair step for them.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): "The authoritative check catalog (the set `doctor` inspects — planning implements the concrete probe per check)" — corrected: that catalog is the **Portal-health** class alone; `doctor` also reads user-authored config it does not own (the themes directory and the persisted theme name) and reports those findings as `⚠` advisories outside the catalog and outside the exit code.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): the Command Surface Summary's public table omitted **`portal theme export <slug>`** — corrected: it is a public, bootstrap-exempt verb (the `theme` group's only member) that writes one theme's file to stdout.
+>
+> **Corrigendum 2026-08-07** (from `theming-system`): `uninstall`'s "config (`projects.json`, `aliases`, `hooks.json`, `prefs.json`, `terminals.json`)" — corrected: the user-authored `themes/` drop-in directory sits alongside those files under `~/.config/portal/` and is likewise untouched.
+
 ## Specification
 
 ## Overview
@@ -271,7 +281,7 @@ Rejected: sessions+directories merged into one slot (noisy); nothing at all (los
 `portal state cleanup` is replaced by a public **`portal uninstall`** that is **runtime-only and fully recoverable**. The command *is* the teardown — nothing hidden behind a flag — and it touches **no files at all**.
 
 - **Removes only Portal's tmux-server footprint:** kills the `_portal-saver` daemon and unregisters the global tmux hooks. This is precisely the part that is hard to do by hand (locating the daemon, unregistering the exact hook entries) — the reason the command earns its place.
-- **Touches no filesystem** — the state dir (`sessions.json`, logs) *and* config (`projects.json`, `aliases`, `hooks.json`, `prefs.json`, `terminals.json`) are both left untouched. Nothing irreversible happens.
+- **Touches no filesystem** — the state dir (`sessions.json`, logs) *and* config (`projects.json`, `aliases`, `hooks.json`, `prefs.json`, `terminals.json`, and the user-authored `themes/` drop-in directory) are both left untouched. Nothing irreversible happens.
 - **Prints the completion path**, e.g.:
   ```
   Portal's tmux runtime removed. Your saved sessions and config are untouched at ~/.config/portal/.
@@ -296,7 +306,7 @@ Name kept (`uninstall`).
 
 `portal clean` is **deleted** and `state status` is subsumed. A new public **`portal doctor`** consolidates diagnosis and low-stakes repair.
 
-- **`portal doctor`** — a read-only health report across all of Portal. The authoritative check catalog (the set `doctor` inspects — planning implements the concrete probe per check):
+- **`portal doctor`** — a read-only health report across all of Portal. The authoritative catalog of **Portal-health checks** — the class the exit code is drawn from, its informational host-terminal line excepted (planning implements the concrete probe per check):
   - daemon alive;
   - global tmux hooks registered without duplicates (exactly one Portal entry per managed event);
   - `_portal-saver` session up;
@@ -306,6 +316,8 @@ Name kept (`uninstall`).
   - host terminal detected + supported (see "Host-terminal detection folded in" below).
 
   **Subsumes `state status`.**
+
+  The catalog is not the whole report: `doctor` also reads user-authored content it does not own — the themes directory and the persisted theme name — and renders those findings as a second class of line that is `⚠`-marked and outside the exit code, followed by a closing summary. See the Exit-code contract.
 - **`portal doctor --fix`** — performs the low-stakes, reversible-by-reconstruction repairs it diagnoses: prune stale hooks, prune stale projects, sweep logs. One coherent surface (diagnose, optionally repair the diagnosis) instead of a grab-bag verb plus scattered prune commands.
   - `--fix` is an action-behind-a-flag but is explicitly *not* the hidden-destructive pattern rejected on `uninstall`: it is the obvious paired verb to a diagnosis, and everything it does is low-stakes and reconstructable.
   - **Log-sweep is outside the diagnose→repair loop.** The catalog has no "logs" check (logs auto-rotate and retention-sweep in the log handler, so there is no stale-logs *health state* to report). `--fix`'s log-sweep is therefore a deliberate unconditional maintenance side-action — not the repair of a diagnosed condition — and does **not** participate in the exit-code contract (a stale-log state can never make `doctor` non-zero). The other two `--fix` repairs (prune stale hooks, prune stale projects) *do* pair with the "no stale entries" catalog check.
@@ -313,10 +325,23 @@ Name kept (`uninstall`).
 
 ### Exit-code contract
 
-- `portal doctor` exits **0 iff every check passes; non-zero (1) if any check reports a problem** — a scriptable health gate (`portal doctor && …`).
+The report carries **two classes of line**, and only one of them is the health gate:
+
+| Class | Marker | Drives the exit code |
+|---|---|---|
+| **Portal-health checks** — the catalog above, bar its informational host-terminal line | the existing pass/fail markers | **Yes** |
+| **User-content diagnostics** — a finding about content the *user* authored, which Portal reads but does not own | **`⚠`**, Portal's established warning glyph (glyph-backed, so it survives a colourless terminal) | **No** |
+
+- `portal doctor` exits **0 iff every Portal-health check passes; non-zero (1) if any Portal-health check reports a problem** — a scriptable health gate (`portal doctor && …`). User-content diagnostics sit outside that gate: a report may carry any number of `⚠` lines and still exit 0.
+- **Why the second class is exempt.** There is deliberately **no repair path** for user content — `--fix` prunes a stale hook entry because Portal can reconstruct one; it cannot repair someone's colours — so a `⚠` line would hold a scriptable exit **permanently** non-zero until the user hand-edits a file, unlike every Portal-health check, which is either `--fix`-repairable or reports genuine runtime breakage. The exit code exists as a signal about the **resurrection machinery** — daemon alive, hooks registered, state sane — and a stray junk file in a directory Portal merely reads is not that: Portal is working, it simply did not use one file. Letting it hold the diagnostic red means an automated health check fires about the daemon because someone left a half-written config lying around. The user still gets a loud, persistent signal — the `⚠` line, on every run — without conscripting a signal that means something else.
+- **The class is open-ended.** Theme diagnostics (an invalid drop-in `.theme` file, an unreadable themes directory, a persisted theme name that no longer resolves) are its **first** member, not its definition: a later finding about user-authored content joins by carrying `⚠`, with no further amendment here. The class is also **distinct from** the informational host-terminal line below — that reports an environmental state Portal detected, this reports content Portal read; the two share only the property of not driving the exit code, and are not merged.
+- **Advisories render as a trailing block** — after the whole check catalog (including the informational host-terminal line, which stays a check) and before the closing summary. They never interleave: the catalog is one line per check in a fixed order and a fixed length, whereas the advisory block is 0..N lines whose cardinality depends on what a user happens to have in a directory, so interleaving would move a given check's position with someone's file collection.
 - A **down server** counts as **unhealthy → non-zero** (because `doctor` is bootstrap-exempt and starts nothing, so daemon / saver / hooks checks fail). It is reported honestly and distinctly — "Portal runtime not running — run `portal open` to start" vs. actual corruption — not a crash, just an unhealthy report.
-- `portal doctor --fix` **re-runs the diagnosis after applying repairs** and exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable**.
+- `portal doctor --fix` **re-runs the diagnosis after applying repairs** and exits **0 iff everything is healthy post-repair, non-zero if anything remains unhealthy or unfixable** — driven **solely** by the post-repair Portal-health checks. The user-content scan is read-only, so it runs on the `--fix` path too: its `⚠` lines and the summary's advisory suffix appear in **both** renders (the initial diagnosis and the post-repair re-diagnosis), each collected freshly for the render it accompanies rather than carried down, so both halves of a report describe the same moment. There is no repair to perform, so `--fix` gains no step for this class — and suppressing the lines would make `--fix` a *less* informative diagnosis than a plain run.
 - The **host-terminal check is informational only** — it is *outside* the pass/fail set. An unsupported/remote terminal is an environmental state, not a Portal-health defect (single-target `open` still works; only the multi-window burst is unavailable), so it is reported honestly but never makes `doctor` (or `doctor --fix`) non-zero. Only genuine runtime-health failures (daemon / hooks / saver / state dir / `sessions.json` / stale entries) drive the exit code.
+- **A closing summary distinguishes the two counts**, so the exit code's meaning is legible without reading this contract. It is the report's last line on **every run**, written once per render — `doctor --fix` therefore prints two — and it is a line the report **gains**, not one it changes: the header and the one-line-per-check catalog keep their shape, with the advisory block and the summary trailing them. Two forms for the checks: `<N> checks passed` when every counted check passed, `<N> of <T> checks passed` otherwise (the failing form is the one the summary exists for, since that is when the exit code needs explaining). When advisories are present, either form takes the suffix ` · <M> advisory` at M=1 / ` · <M> advisories` above; at **M=0 the suffix is suppressed entirely**, so a clean install never reads " · 0 advisories".
+  - `<N>` and `<T>` count **Portal-health checks only** — the pass/fail class that drives the exit code. The informational host-terminal line and any check that could not be evaluated count toward **neither**: both are documented as never driving the exit code, and counting a not-evaluable check in the total alone would render "6 of 7 checks passed" beside exit 0, which is precisely the illegibility the summary exists to remove.
+  - `<M>` counts advisory **lines**, so it counts problems rather than detections — one user-content problem is one line, and a finding already reported by a line carrying strictly more is not counted twice.
 
 ### Host-terminal detection folded in (`--detect` retired)
 
@@ -415,6 +440,7 @@ These are deferred future scope, not unresolved decisions — recorded so planni
 | `portal hook {set,rm,list}` | resume hooks | **renamed from `hooks`** (`hooks` kept as a silent alias) |
 | `portal doctor [--fix]` | health report; `--fix` repairs | **new** — subsumes `state status`, replaces `clean`, folds in `spawn --detect` |
 | `portal uninstall` | runtime-only teardown | **new** — replaces `state cleanup` |
+| `portal theme export <slug>` | writes one theme's file to stdout (built-ins and drop-ins); bootstrap-exempt | **new** — the `theme` group's only member |
 | `portal init [shell] [--cmd name]` | shell integration | unchanged |
 | `portal version` | version | unchanged |
 | `portal completion` | cobra built-in | unchanged |
