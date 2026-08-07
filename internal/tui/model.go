@@ -1702,13 +1702,14 @@ func (m *Model) ApplyTheme(th theme.Theme) {
 // inputs). It is O(1) — no I/O, no list content touched, and deliberately NOT a
 // rebuild.
 //
-// What it re-points, on BOTH lists: the row delegate, the bubbles/list-owned help
-// style, the zero-items body style, the two pagination dot styles PLUS the
-// rendered Paginator dot strings list.New snapshots off them at construction, the
-// title bar, the centred pagination wrapper, the title box (unset — see
-// stripListTitleColours) and the filter input's style set. Plus the §9 preview's
-// copied palette. Each of those is pinned by an assertion in
-// restyle_repoint_test.go.
+// What it re-points on EVERY list it reaches — the row delegate, the
+// bubbles/list-owned help style, the zero-items body style, the two pagination dot
+// styles PLUS the rendered Paginator dot strings list.New snapshots off them at
+// construction, the title bar, the centred pagination wrapper and the title box
+// (unset — see stripListTitleColours) — is the single applyListCanvasMode
+// sequence, which each arm hands its own delegate. Plus both filter inputs' style
+// sets and the §9 preview's copied palette. Each of those is pinned by an
+// assertion in restyle_repoint_test.go.
 //
 // THE PANEL'S LIST IS THE THIRD INSTANCE and §11.2 names it the worst case of the
 // class — assigned once at open, re-themed on every arrow keypress. It is covered
@@ -1750,47 +1751,72 @@ func (m *Model) ApplyTheme(th theme.Theme) {
 // Styles.DefaultFilterCharacterMatch is deliberately absent from that record: it
 // is Underline(true) and nothing else, so it is not a colour-bearing value at all.
 func (m *Model) applyCanvasMode() {
-	// NO_COLOR carve-out (§2.5): paint no canvas at all. The delegate drops its
-	// Background(canvas) leaf paint (Colourless), the footer help styles drop their
-	// canvas background and foreground hue, and the title bar carries no canvas
-	// background — every cell renders on the terminal's native bg. Foreground hue
-	// is stripped FREE by the writer layer (colorprofile honours NO_COLOR), so
-	// state stays glyph-distinct (§2.2).
 	m.styleFilterInput()
 	// The §9 preview holds a WHOLE PALETTE copied onto it once, by the Space
-	// handler that opens the page — the only surface outside the two lists that
-	// caches a colour-bearing value rather than re-deriving it per frame. Re-point
-	// it here, from the same active palette, so the preview's chrome can never be
-	// left painting the theme that happened to be live when it was opened.
+	// handler that opens the page — the only surface outside the lists that caches
+	// a colour-bearing value rather than re-deriving it per frame. Re-point it
+	// here, from the same active palette, so the preview's chrome can never be left
+	// painting the theme that happened to be live when it was opened.
 	m.preview.th = m.activeTheme
-	if m.colourless {
-		m.sessionList.SetDelegate(m.sessionDelegate())
-		colourlessHelpStyles(&m.sessionList)
-		colourlessNoItemsStyle(&m.sessionList)
-		colourlessPaginationDots(&m.sessionList)
-		// The shared §3.2 title-bar geometry (see listTitleBarStyle) — no left pad,
-		// and the one-row section-header bottom gap. Under NO_COLOR the padding row is
-		// native-bg (UnsetBackground).
-		m.sessionList.Styles.TitleBar = listTitleBarStyle(m.sessionList.Styles.TitleBar.UnsetBackground())
-		m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
-		m.applyProjectCanvasMode()
-		m.applyThemePanelCanvasMode()
-		return
-	}
-	m.sessionList.SetDelegate(m.sessionDelegate())
-	canvasHelpStyles(&m.sessionList, m.activeTheme)
-	canvasNoItemsStyle(&m.sessionList, m.activeTheme)
-	canvasPaginationDots(&m.sessionList, m.activeTheme)
-	// Background the title bar so its leading left-pad cells (bubbles/list's
-	// TitleBar PaddingLeft) are canvas rather than the terminal background.
-	canvas := m.activeTheme.Canvas.Color()
-	// The shared §3.2 title-bar geometry (see listTitleBarStyle); the gap row
-	// inherits the canvas Background so it is canvas-painted with no terminal-bg
-	// island.
-	m.sessionList.Styles.TitleBar = listTitleBarStyle(m.sessionList.Styles.TitleBar.Background(canvas))
-	m.sessionList.Styles.Title = stripListTitleColours(m.sessionList.Styles.Title)
+	applyPageListCanvasMode(&m.sessionList, m.sessionDelegate(), m.activeTheme, m.colourless)
 	m.applyProjectCanvasMode()
 	m.applyThemePanelCanvasMode()
+}
+
+// applyListCanvasMode is THE per-list restyle sequence: the whole re-point of one
+// `bubbles/list` instance onto a palette — its row delegate, the bubbles/list-owned
+// help style, the zero-items body style, the two pagination dot styles plus the
+// rendered Paginator dot strings, the title bar's background and the title box
+// (unset — see stripListTitleColours).
+//
+// IT HAS EXACTLY ONE HOME, and that is its reason for existing. Every list Portal
+// owns needs all of these steps, so a per-list copy of them multiplies by the
+// number of lists AND by the two branches of the fork below — and a step missing
+// from one copy is invisible until that surface silently keeps the previous
+// theme's colours. A further list, or a further cached `bubbles/list` style, is one
+// edit here.
+//
+// The NO_COLOR carve-out (§2.5) is the fork INSIDE it, for the same reason: paint
+// no canvas at all. The delegate drops its Background(canvas) leaf paint (its own
+// Colourless flag, assembled by the caller), the help style drops its canvas
+// background and the title bar carries none, so every cell renders on the
+// terminal's native bg. Foreground hue is stripped FREE by the writer layer
+// (colorprofile honours NO_COLOR), so state stays glyph-distinct (§2.2).
+//
+// THE TITLE BAR'S GEOMETRY IS DELIBERATELY NOT HERE. It serves the section-header
+// surgery, which only the two page lists perform, so it is applied by
+// applyPageListCanvasMode — an explicit difference between the callers rather than
+// a carve-out inside the sequence they share.
+func applyListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.Theme, colourless bool) {
+	l.SetDelegate(delegate)
+	if colourless {
+		colourlessHelpStyles(l)
+		colourlessNoItemsStyle(l)
+		colourlessPaginationDots(l)
+		l.Styles.TitleBar = l.Styles.TitleBar.UnsetBackground()
+		l.Styles.Title = stripListTitleColours(l.Styles.Title)
+		return
+	}
+	canvasHelpStyles(l, th)
+	canvasNoItemsStyle(l, th)
+	canvasPaginationDots(l, th)
+	// Background the title bar so its leading left-pad cells (bubbles/list's
+	// TitleBar PaddingLeft) are canvas rather than the terminal background.
+	l.Styles.TitleBar = l.Styles.TitleBar.Background(th.Canvas.Color())
+	l.Styles.Title = stripListTitleColours(l.Styles.Title)
+}
+
+// applyPageListCanvasMode is applyListCanvasMode plus the one thing the two PAGE
+// lists carry and the §9.1 slide-over's list does not: the shared §3.2 title-bar
+// geometry (see listTitleBarStyle) — no left pad, and the one-row section-header
+// bottom gap the section-header surgery renders into.
+//
+// It layers the geometry over the background the sequence just set rather than
+// replacing it, so the gap row inherits the canvas and is painted with no
+// terminal-bg island — or, under the NO_COLOR carve-out, is native-bg.
+func applyPageListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.Theme, colourless bool) {
+	applyListCanvasMode(l, delegate, th, colourless)
+	l.Styles.TitleBar = listTitleBarStyle(l.Styles.TitleBar)
 }
 
 // stripListTitleColours drops the bubbles/list default Title box colours (its
@@ -1856,31 +1882,18 @@ func sectionHeaderBlockRows() int {
 		Render(renderSectionHeaderRow("", 0, theme.Theme{}, true)))
 }
 
-// applyProjectCanvasMode re-points the §6 Projects screen's leaf styles at the
-// model's resolved canvasMode (or the NO_COLOR carve-out), mirroring the Sessions
-// branch of applyCanvasMode for the project list: the two-line ProjectDelegate
-// paints every run through the resolved Mode (or drops hue under Colourless), the
-// help/pagination styles carry the canvas, and the bubbles/list TitleBar default
-// left-pad + Title box colours are stripped (the shared listTitleBarStyle, so the
-// §6 section-header surgery in viewProjectList replaces line 0 and preserves the
-// blank gap row on line 1, the SAME contract applySectionHeader relies on).
+// applyProjectCanvasMode re-points the §6 Projects screen's list at the model's
+// resolved canvasMode (or the NO_COLOR carve-out) through the shared page-list
+// sequence. Its ONLY difference from the Sessions arm is the delegate: the
+// two-line ProjectDelegate, which paints every run through the resolved Mode (or
+// drops hue under Colourless).
+//
+// It is a page list, so it takes the shared title-bar geometry with it: the §6
+// section-header surgery in viewProjectList replaces line 0 and preserves the
+// blank gap row on line 1, the SAME contract applySectionHeader relies on.
 func (m *Model) applyProjectCanvasMode() {
-	if m.colourless {
-		m.projectList.SetDelegate(ProjectDelegate{Theme: m.activeTheme, Colourless: true})
-		colourlessHelpStyles(&m.projectList)
-		colourlessNoItemsStyle(&m.projectList)
-		colourlessPaginationDots(&m.projectList)
-		m.projectList.Styles.TitleBar = listTitleBarStyle(m.projectList.Styles.TitleBar.UnsetBackground())
-		m.projectList.Styles.Title = stripListTitleColours(m.projectList.Styles.Title)
-		return
-	}
-	m.projectList.SetDelegate(ProjectDelegate{Theme: m.activeTheme})
-	canvasHelpStyles(&m.projectList, m.activeTheme)
-	canvasNoItemsStyle(&m.projectList, m.activeTheme)
-	canvasPaginationDots(&m.projectList, m.activeTheme)
-	canvas := m.activeTheme.Canvas.Color()
-	m.projectList.Styles.TitleBar = listTitleBarStyle(m.projectList.Styles.TitleBar.Background(canvas))
-	m.projectList.Styles.Title = stripListTitleColours(m.projectList.Styles.Title)
+	delegate := ProjectDelegate{Theme: m.activeTheme, Colourless: m.colourless}
+	applyPageListCanvasMode(&m.projectList, delegate, m.activeTheme, m.colourless)
 }
 
 // styleFilterInput restyles BOTH the Sessions and Projects bubbles/list

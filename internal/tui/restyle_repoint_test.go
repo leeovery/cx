@@ -89,6 +89,18 @@ func probeThemeAfter() theme.Theme  { return syntheticProbePalette(0xBB) }
 // trivially. Rendering first is what makes the post-swap assertions meaningful.
 func newRestyleProbeModel(t *testing.T, before theme.Theme) Model {
 	t.Helper()
+	return populateRestyleProbe(t, Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(before)}))
+}
+
+// populateRestyleProbe is the probe's shared body: size the model, fill both lists
+// with enough content to paginate, and render both pages under whatever palette the
+// caller built it from.
+//
+// It takes an already-built model so a probe needing extra seams — the panel's
+// enumerator, in newRestylePanelProbeModel — assembles its own Deps without this
+// file growing a second copy of the population.
+func populateRestyleProbe(t *testing.T, m Model) Model {
+	t.Helper()
 	const w, h = 120, 24
 
 	sessions := make([]tmux.Session, 0, 60)
@@ -103,7 +115,6 @@ func newRestyleProbeModel(t *testing.T, before theme.Theme) Model {
 		})
 	}
 
-	m := Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(before)})
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -137,14 +148,16 @@ func restyleTo(m *Model, after theme.Theme) {
 	m.ApplyTheme(after)
 }
 
-// probedList names one of the two bubbles/list instances the restyle path owns.
+// probedList names one of the two PAGE bubbles/list instances the restyle path
+// owns.
 type probedList struct {
 	name string
 	list *list.Model
 }
 
-// probedLists returns the two list instances under test. The panel's third
-// instance is a later phase's; it is deliberately not pre-built here.
+// probedLists returns the two page list instances the per-style probes run over.
+// The panel's third instance exists only while the panel is open, so it is probed
+// at the rendered-output granularity instead (restyledSurfaces).
 func probedLists(m *Model) []probedList {
 	return []probedList{
 		{"sessions", &m.sessionList},
@@ -307,4 +320,135 @@ func TestRestylePath_RepointsPreviewChrome(t *testing.T) {
 	assertRepointed(t, "previewModel chrome (accent.mode marker)",
 		chromeLineForTest(m.preview),
 		tokenFgSeq(t, after.AccentMode), tokenFgSeq(t, before.AccentMode))
+}
+
+// restylePanelProbeRows is the panel union size the probe below opens over: enough
+// rows that the panel's own list PAGINATES at the probe's terminal height, so the
+// rendered dot row — the exemplar of the once-assigned cache class, since
+// bubbles/list reads its dot strings out of the styles at construction — is on the
+// frame the scan reads.
+const restylePanelProbeRows = 20
+
+// newRestylePanelProbeModel is newRestyleProbeModel with the §9.1 slide-over OPEN
+// over it, so all THREE bubbles/list instances the restyle path owns hold caches
+// assigned under `before`.
+//
+// EVERY UNION ROW CARRIES `before`, which is what makes the open safe as set-up:
+// opening applies the cursor row's theme, so a row painted from anything else would
+// repaint the model off the palette the two page lists were just rendered under and
+// the swap below would no longer be a swap. The panel is opened through the
+// production `t` keypress rather than assembled here, and the closing View is the
+// panel's own A-render — the counterpart of the two page renders
+// populateRestyleProbe performs, and equally not optional: the caches under test are
+// assigned once, so a surface rendered only after the swap passes trivially.
+func newRestylePanelProbeModel(t *testing.T, before theme.Theme) Model {
+	t.Helper()
+
+	rows := make([]theme.Row, 0, restylePanelProbeRows)
+	for i := range restylePanelProbeRows {
+		rows = append(rows, theme.Row{Slug: arrowSlug(i), Source: theme.SourceBuiltin, Theme: before})
+	}
+
+	m := populateRestyleProbe(t, Build(newArrowPanelDeps(t, rows, arrowSlug(0))))
+	m = pressThemeKey(t, m)
+	if !m.themePanel.open {
+		t.Fatal("probe setup: the panel did not open, so its list instance was never built")
+	}
+	if got := m.themePanel.list.Paginator.TotalPages; got < 2 {
+		t.Fatalf("probe setup: want a multi-page panel list, got TotalPages=%d", got)
+	}
+	if m.activeTheme != before {
+		t.Fatalf("probe setup: the open painted canvas %s, want the pre-swap %s", m.activeTheme.Canvas.Value, before.Canvas.Value)
+	}
+	_ = m.View()
+
+	return m
+}
+
+// restyledSurface is one rendered surface the stale-colour scan runs over.
+type restyledSurface struct {
+	name     string
+	rendered string
+}
+
+// restyledSurfaces renders the three lists the restyle path owns, each through the
+// renderer production composes it with: the two page views, and the panel block at
+// the content height overlayThemePanelOnContent renders it at.
+//
+// They are rendered SEPARATELY rather than read off one composed frame so a
+// survivor names the surface it survived on; the composed frame would report only
+// that some cell somewhere kept the old palette.
+func restyledSurfaces(t *testing.T, m *Model) []restyledSurface {
+	t.Helper()
+
+	m.activePage = PageSessions
+	sessions := m.viewSessionList()
+	m.activePage = PageProjects
+	projects := m.viewProjectList()
+	m.activePage = PageSessions
+
+	return []restyledSurface{
+		{"sessions", sessions},
+		{"projects", projects},
+		{"theme panel", renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless)},
+	}
+}
+
+// TestRestylePath_NoStaleColourSurvivesOnAnyList swaps the palette while the panel
+// is OPEN and asserts no value of the pre-swap one survives on any of the three
+// lists' rendered output.
+//
+// It is the file's per-style probes stated at the granularity §11.2's class
+// actually bites at — a whole rendered surface rather than one named cache — and
+// over all three instances rather than the two page lists: the panel's is the one
+// §11.2 calls the worst case, assigned once at open and re-themed on every arrow.
+// Every token of the pre-swap palette is scanned for, so a cache nobody thought to
+// name is caught by the same pass as the ones that are.
+//
+// THE SWAP IS ApplyTheme, the production entry point the panel's arrow-preview,
+// open and close all drive. A COMMIT is deliberately not it: a commit is a write,
+// not a navigation (§9.2) — it recomputes rows and badges and never re-themes — so
+// driving one here would assert over a frame nothing had swapped.
+func TestRestylePath_NoStaleColourSurvivesOnAnyList(t *testing.T) {
+	before, after := probeThemeBefore(), probeThemeAfter()
+	m := newRestylePanelProbeModel(t, before)
+
+	for _, surface := range restyledSurfaces(t, &m) {
+		if !strings.Contains(surface.rendered, tokenBgSeq(t, before.Canvas)) {
+			t.Fatalf("probe setup: the %s surface carries no pre-swap canvas, so a clean scan after the swap would prove nothing about it", surface.name)
+		}
+	}
+
+	restyleTo(&m, after)
+
+	for _, surface := range restyledSurfaces(t, &m) {
+		t.Run(surface.name, func(t *testing.T) {
+			if stale := staleRuns(t, surface.rendered, before); len(stale) > 0 {
+				t.Errorf("the %s surface still renders %v from the pre-swap palette — a cached style on that list was never re-pointed: %q", surface.name, stale, escSeq(surface.rendered))
+			}
+			if !strings.Contains(surface.rendered, tokenBgSeq(t, after.Canvas)) {
+				t.Errorf("the %s surface carries no post-swap canvas, so the clean scan above is an unpainted surface rather than a re-pointed one: %q", surface.name, escSeq(surface.rendered))
+			}
+		})
+	}
+}
+
+// staleRuns returns every token of the given palette whose foreground or
+// background run appears on the surface, named with the side it was found on.
+//
+// It scans the WHOLE palette rather than a list of named caches: a cache nobody
+// thought to name is exactly the member this class loses, so the scan must not be
+// derived from the same hand-maintained list it is meant to backstop.
+func staleRuns(t *testing.T, rendered string, palette theme.Theme) []string {
+	t.Helper()
+	var found []string
+	for _, tok := range palette.All() {
+		if strings.Contains(rendered, tokenFgSeq(t, tok)) {
+			found = append(found, tok.Name+" (foreground)")
+		}
+		if strings.Contains(rendered, tokenBgSeq(t, tok)) {
+			found = append(found, tok.Name+" (background)")
+		}
+	}
+	return found
 }

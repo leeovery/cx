@@ -1118,52 +1118,41 @@ func (m *Model) applyThemePanelListStyles() {
 // restyling without re-feeding the paginator leaves the library's hardcoded greys
 // rendering under every theme — identical before and after a swap, which §13.4's
 // swap-and-diff guard structurally cannot see, precisely because nothing changed.
-// The shared canvas/colourless helpers are reused verbatim so the panel's dots
-// cannot drift from the two lists'.
+// Running the SHARED applyListCanvasMode sequence is what stops the panel's dots —
+// and every other member of the class — drifting from the two page lists'.
 //
-// The HELP, TITLE and NO-ITEMS styles are re-pointed although the panel disables the
-// first two (newThemePanelList turns off its title, status bar and help, drawing all
-// of that itself) and the built-in rows make the third unreachable (§7.6's build-time
-// guarantee means the union always holds at least one row, so `bubbles/list` never
-// renders its zero-items body here). They are here because §11.2 names them, and
-// because the alternative is a carve-out: a surface that deliberately ignores the
-// active theme is exactly the shape §13.4's guard exists to catch, and re-pointing
-// them costs one assignment each while making a future SetShowTitle(true) — or a
-// union that could genuinely empty — incapable of shipping a stale palette. Skipping
-// Styles.NoItems on an unreachability argument is precisely the shape applyCanvasMode's
-// residue record was rewritten to forbid, since a blanket claim of that kind is what
-// let this style sit unnoticed on the two main lists while reaching a real frame. The
-// TitleBar padding the two main lists set is NOT copied — that serves the
-// section-header surgery, which the panel has no equivalent of.
+// The HELP, TITLE and NO-ITEMS styles come with that sequence although the panel
+// disables the first two (newThemePanelList turns off its title, status bar and
+// help, drawing all of that itself) and the built-in rows make the third unreachable
+// (§7.6's build-time guarantee means the union always holds at least one row, so
+// `bubbles/list` never renders its zero-items body here). Taking them is the whole
+// point of sharing the sequence: the alternative is a carve-out, and a surface that
+// deliberately ignores the active theme is exactly the shape §13.4's guard exists to
+// catch. They cost one assignment each while making a future SetShowTitle(true) — or
+// a union that could genuinely empty — incapable of shipping a stale palette.
+// Skipping Styles.NoItems on an unreachability argument is precisely the shape
+// applyCanvasMode's residue record was rewritten to forbid, since a blanket claim of
+// that kind is what let this style sit unnoticed on the two main lists while
+// reaching a real frame.
+//
+// IT IS THE BARE SEQUENCE AND NOT applyPageListCanvasMode: the title-bar geometry
+// that wrapper adds serves the section-header surgery, which the panel has no
+// equivalent of.
 //
 // The DELEGATE goes through Model.themeRowDelegate, the single construction point
 // (§11.2), so the previewed theme, the colourless flag and the panel's inner width
 // are assembled in exactly one place.
 //
-// The `open` GUARD is what makes armThemePanel's mid-arm ApplyTheme safe: the panel
-// struct is installed before its list is built, so this path would otherwise run
-// against the zero list.Model. See armThemePanel's ordering note.
+// The `open` GUARD stays HERE rather than inside the shared sequence — it is a fact
+// about this panel, not about restyling a list. It is what makes armThemePanel's
+// mid-arm ApplyTheme safe: the panel struct is installed before its list is built,
+// so this path would otherwise run against the zero list.Model. See armThemePanel's
+// ordering note.
 func (m *Model) applyThemePanelCanvasMode() {
 	if !m.themePanel.open {
 		return
 	}
-	l := &m.themePanel.list
-	l.SetDelegate(m.themeRowDelegate())
-	// Hoisted above the branch: unsetting the title box's third-party default
-	// colours is the same act on both paths (the two main lists repeat it per
-	// branch only because their TitleBar padding differs alongside it).
-	l.Styles.Title = stripListTitleColours(l.Styles.Title)
-	if m.colourless {
-		colourlessHelpStyles(l)
-		colourlessNoItemsStyle(l)
-		colourlessPaginationDots(l)
-		l.Styles.TitleBar = l.Styles.TitleBar.UnsetBackground()
-		return
-	}
-	canvasHelpStyles(l, m.activeTheme)
-	canvasNoItemsStyle(l, m.activeTheme)
-	canvasPaginationDots(l, m.activeTheme)
-	l.Styles.TitleBar = l.Styles.TitleBar.Background(m.activeTheme.Canvas.Color())
+	applyListCanvasMode(&m.themePanel.list, m.themeRowDelegate(), m.activeTheme, m.colourless)
 }
 
 // updateThemePanel is §9.7's key-exclusive input routing: the panel OWNS the
