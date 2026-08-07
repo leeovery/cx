@@ -80,7 +80,7 @@ The same screens render in light mode and under `NO_COLOR` (see [Configuration](
 
 ## Features
 
-- **Modern Vivid TUI**: a colourful, keyboard-driven picker that owns its own light or dark canvas (auto-detected, or pinned via `appearance`, and honours `NO_COLOR`), with an in-app `?` keymap on every page.
+- **Modern Vivid TUI**: a colourful, keyboard-driven picker that owns its own canvas, with an in-app `?` keymap on every page. Three themes ship — Tokyo Night, Tokyo Night Day, and Nord — switched with `t` and matched to your terminal's background unless you pin one; drop-in `.theme` files restyle every screen, and `NO_COLOR` is honoured.
 - **Session grouping and tags**: flip the list between flat, by project, and by tag with one key. Tags live on directories, so every session opened there inherits them.
 - **Scrollback preview**: hit `Space` for a read-only peek at any session's saved scrollback, cycling windows and panes without attaching.
 - **Reboot-safe sessions**: starts the tmux server and restores structure, layout, working dirs, and ANSI scrollback after a reboot, optionally re-running per-pane commands via resume hooks. Replaces tmux-resurrect / tmux-continuum.
@@ -257,13 +257,14 @@ Navigation is **arrows only** (no vim or page-jump aliases). Press **`?`** on an
 | `s` | Switch view: cycle Flat → By Project → By Tag (sessions list only) |
 | `m` | Multi-select mode: enter marks the highlighted session, then toggle any row's mark (sessions list only) |
 | `x` | Toggle between Sessions and Projects |
+| `t` | Open the theme picker |
 | `r` | Rename session |
 | `k` | Kill session |
 | `n` | New session in the current directory |
 | `?` | Show the full keymap for the current page |
 | `q` / `Esc` | Quit (`Esc` clears an active filter first) |
 
-The TUI has three views: session list, project picker, and scrollback preview. It paints its own light/dark canvas (set `appearance` in `prefs.json`, or `NO_COLOR` for a colourless render; see [Configuration](#configuration)).
+The TUI has three views: session list, project picker, and scrollback preview. It paints its own canvas in the colours of the active theme — press `t` for the theme picker, or name a theme in `prefs.json` (see [Configuration](#configuration) and [docs/theming.md](docs/theming.md)); `NO_COLOR` gives a colourless render.
 
 ### Scrollback Preview
 
@@ -376,13 +377,16 @@ Portal resolves its config directory using XDG: `$XDG_CONFIG_HOME/portal/` if se
 | `aliases` | Path aliases (key=value, one per line) | `PORTAL_ALIASES_FILE` |
 | `projects.json` | Remembered project directories | `PORTAL_PROJECTS_FILE` |
 | `hooks.json` | Per-pane resume hooks (pane → event → command) | `PORTAL_HOOKS_FILE` |
-| `prefs.json` | UI preferences: last-used session-list grouping mode and the owned-canvas `appearance` (`auto`/`light`/`dark`) | `PORTAL_PREFS_FILE` |
+| `prefs.json` | UI preferences: last-used session-list grouping mode and the theme setting — `theme` for a pinned theme, or the `theme_light` / `theme_dark` pair | `PORTAL_PREFS_FILE` |
 | `terminals.json` | Host-terminal window recipes for [multi-select](#multi-select-mode) / multi-target `x` on custom terminals (Ghostty is built in). User-authored, read-only. | `PORTAL_TERMINALS_FILE` |
+| `themes/` | Drop-in theme files (`<slug>.theme`); see [docs/theming.md](docs/theming.md). Portal never creates it — no directory simply means no drop-ins. | `PORTAL_THEMES_DIR` |
 | `state/` | Saved session structure + scrollback for automatic restoration on reboot. Contains: `sessions.json` (structure index), `scrollback/*.bin` (per-pane content), `daemon.pid` + `daemon.version` (liveness markers), `portal.log` (structured, rotating diagnostics; see [Logging](#logging)). See [Privacy Considerations](#privacy-considerations). | `PORTAL_STATE_DIR` |
+
+Two of those overrides end in `_DIR` rather than `_FILE`: `themes/` and `state/` resolve a directory, not a single file.
 
 Projects are auto-populated when you create new sessions, pruned automatically by the daemon, and cleanable on demand with `xctl doctor --fix`.
 
-**Appearance.** Portal paints its own light or dark canvas so its colours always sit on the surface they were tuned for. By default (`"appearance": "auto"`) it detects your terminal's background and matches it, falling back to dark if the terminal doesn't answer. Set `"appearance": "light"` or `"dark"` in `prefs.json` to pin the canvas and skip detection, which helps when auto-detection misfires (for example under tmux passthrough). Setting `NO_COLOR` to any non-empty value disables the canvas and renders on your terminal's native colours.
+**Theme.** Every colour Portal draws comes from the active theme, painted onto its own canvas so the palette always sits on the surface it was tuned for. Three themes ship — `tokyo-night`, `tokyo-night-day`, and `nord` — and by default Portal picks a light or dark one by asking your terminal what colour its background is, falling back to dark if the terminal doesn't answer. Press `t` in the picker to choose a theme, or set `"theme": "<slug>"` in `prefs.json` to pin one whatever the terminal looks like; your own themes are `.theme` files dropped into the themes directory. Setting `NO_COLOR` to any non-empty value disables the canvas and renders on your terminal's native colours — with no colour to theme, `t` is unavailable there. See [docs/theming.md](docs/theming.md) for the colour roles, the file format, the naming rules, and how the light/dark pair is set.
 
 **Custom terminals (`terminals.json`).** Portal opens host windows natively on Ghostty. For any other terminal, add a recipe — see [docs/custom-terminals.md](docs/custom-terminals.md) for the full setup guide.
 
