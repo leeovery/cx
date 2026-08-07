@@ -55,15 +55,17 @@ func remainingPanelFixtureNames() []string {
 	}
 }
 
-// allPanelFixtureNames is every `theme-panel-*` fixture Phase 8 ships: task
-// 8-15's two setting-state frames plus this task's five.
+// allPanelFixtureNames is every `theme-panel-*` fixture §13.3 specifies: the two
+// setting-state frames, the five that followed them, and the message-slot set —
+// the slot-from-constant confirm, the failed-commit line and the panel at its
+// minimum height with a message live.
 //
-// Phase 9's three — the slot-from-constant confirm, the failed-commit line and
-// the minimum-height-with-a-message frame — are deliberately NOT here. All three
-// are commit-path states (§9.2, §9.13), and Phase 8's message slot is always
-// empty.
+// The last three arrived separately because all three are COMMIT-PATH states
+// (§9.2, §9.13): until a commit key could write, the message slot had no setter
+// and a fixture for any of them could only render a state nothing could reach.
 func allPanelFixtureNames() []string {
-	return append(capturePanelFixtureNames(), remainingPanelFixtureNames()...)
+	names := append(capturePanelFixtureNames(), remainingPanelFixtureNames()...)
+	return append(names, messagePanelFixtureNames()...)
 }
 
 // The sizes the two size-sensitive frames are captured at, declared here because
@@ -638,20 +640,18 @@ func validThemeFileBody() []byte {
 	return []byte(b.String())
 }
 
-// TestPanelFixture_NoMessageSlotFixtures: it adds no Phase 9 frame.
+// TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet: it registers exactly the
+// specified panel fixtures.
 //
-// §13.3 mandates the message slot in BOTH states and the panel at its minimum
-// height with a message live — and all three are PHASE 9's, because both of the
-// slot's contenders are commit-path states: §9.2's slot-from-constant confirm and
-// §9.13's failed-commit line. Phase 8's slot is always empty (themePanel.message
-// has no setter), so a fixture for any of them here could only render a state the
-// phase cannot reach.
+// §13.3 names the panel surfaces that must be visible before release, and a
+// registry holding MORE than them is as much a problem as one holding fewer: an
+// unnamed extra `theme-panel-*` fixture is a frame nobody specified, driven by
+// §13.4's guard and reviewed by no one against anything.
 //
-// It is stated as an EXACT SET rather than as three absent names, because a Phase 9
-// frame need not be called what this test guessed. The cost is that Phase 9 must
-// extend the set as it adds them, which is the point of a phase boundary rather
-// than an inconvenience.
-func TestPanelFixture_NoMessageSlotFixtures(t *testing.T) {
+// It is stated as an EXACT SET rather than as a list of required names, which is
+// what lets it name a surplus. The cost is that a task adding a specified frame
+// extends the set as it lands, which is the point rather than an inconvenience.
+func TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet(t *testing.T) {
 	var panels []string
 	for _, name := range capture.FixtureNames() {
 		if strings.HasPrefix(name, "theme-panel-") {
@@ -663,6 +663,6 @@ func TestPanelFixture_NoMessageSlotFixtures(t *testing.T) {
 	slices.Sort(panels)
 	slices.Sort(want)
 	if !slices.Equal(panels, want) {
-		t.Errorf("the registry holds panel fixtures %v, want exactly Phase 8's %v — the confirm, the failed-commit line and the minimum-height-with-a-message frame are all Phase 9's commit-path states", panels, want)
+		t.Errorf("the registry holds panel fixtures %v, want exactly the specified set %v", panels, want)
 	}
 }

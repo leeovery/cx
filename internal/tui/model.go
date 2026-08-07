@@ -275,8 +275,10 @@ type Model struct {
 	// report is due.
 	//
 	// A NIL PERSISTER NEVER SETS IT. That is the absence of a writer rather than a
-	// failed write (see commitConstant), so a capture or fixture model cannot enter
-	// the reported-failure state at all.
+	// failed write (see commitConstant), so no model can enter the reported-failure
+	// state by COMMITTING without one — a capture included. §13.3's fixture seed
+	// declares it directly instead, because §9.13's report is a specified surface
+	// and a frame of it has to be capturable.
 	themeCommitFailed bool
 	// themeKeys are prefs.json's three theme keys AS READ (§8.4) — control-stripped
 	// and post-translation, the value the panel LISTS a persisted-but-unresolvable
@@ -400,17 +402,39 @@ type Model struct {
 	// Empty is a no-op — production never sets it (WithInitialThemeCursor is wired
 	// only by the offline capture harness).
 	initialThemeCursor string
-	insideTmux         bool
-	currentSession     string
-	modal              modalState
-	pendingKillName    string
-	pendingKillWindows int
-	renameInput        textinput.Model
-	renameTarget       string
-	pendingDeletePath  string
-	pendingDeleteName  string
-	command            []string
-	commandPending     bool
+	// initialThemeConfirm is the capture-only seed for §9.2's slot-from-constant
+	// confirm: it raises the question against the persisted constant once the panel
+	// has opened, exactly as an `l` over that setting would.
+	//
+	// It exists for the same reason the cursor anchor does — a fixture is a ONE-SHOT
+	// RENDER — and it declares STATE rather than text: the copy is composed by the
+	// message slot from its own pinned constants, so a fixture can never ship a
+	// paraphrase of it.
+	//
+	// False is a no-op; production never sets it.
+	initialThemeConfirm bool
+	// initialThemeCommitFailed is the capture-only seed for §9.13's failed-commit
+	// report: it raises the message slot's line AND sets the outstanding-failure
+	// state once the panel has opened, exactly as a write that did not land does.
+	//
+	// It declares STATE rather than text for the same reason its sibling does, and
+	// both halves are seeded because §9.13 gives them different lifetimes — a frame
+	// showing the line while the state was unset would be a shape production cannot
+	// reach.
+	//
+	// False is a no-op; production never sets it.
+	initialThemeCommitFailed bool
+	insideTmux               bool
+	currentSession           string
+	modal                    modalState
+	pendingKillName          string
+	pendingKillWindows       int
+	renameInput              textinput.Model
+	renameTarget             string
+	pendingDeletePath        string
+	pendingDeleteName        string
+	command                  []string
+	commandPending           bool
 
 	// Bootstrap loading state
 	serverStarted     bool
@@ -1258,6 +1282,40 @@ func WithInitialCursor(name string) Option {
 func WithInitialThemeCursor(slug string) Option {
 	return func(m *Model) {
 		m.initialThemeCursor = slug
+	}
+}
+
+// WithInitialThemeConfirm seeds §9.2's slot-from-constant confirm for the offline
+// capture harness: the question is raised against the persisted constant once the
+// panel has opened (armThemePanel), with the slug under the seeded cursor as the
+// assignment it would apply.
+//
+// A fixture is a ONE-SHOT RENDER, so a state reached by pressing a key is
+// otherwise uncapturable — and this one is §13.3's mandated frame for the message
+// slot's confirm half AND the only visual proof of the footer substitution.
+//
+// IT SEEDS STATE, NEVER TEXT. The copy is composed by the message slot from
+// §14A's pinned format, so nothing here can put a paraphrase on a captured frame.
+// False is a no-op; production never sets it.
+func WithInitialThemeConfirm(on bool) Option {
+	return func(m *Model) {
+		m.initialThemeConfirm = on
+	}
+}
+
+// WithInitialThemeCommitFailed seeds §9.13's failed-commit report for the offline
+// capture harness: once the panel has opened (armThemePanel) the message slot
+// carries the pinned line and the outstanding-failure state is set, exactly as a
+// write that did not land leaves them.
+//
+// It is §13.3's mandated frame for the slot's other half, and the only surface on
+// which the deliberate absence of a `bg.attention` band is checkable at all.
+//
+// IT SEEDS STATE, NEVER TEXT — the copy is the message slot's own pinned constant.
+// False is a no-op; production never sets it.
+func WithInitialThemeCommitFailed(on bool) Option {
+	return func(m *Model) {
+		m.initialThemeCommitFailed = on
 	}
 }
 

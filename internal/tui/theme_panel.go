@@ -620,9 +620,10 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // the resolution just applied, and applyThemePanelListStyles re-points its chrome
 // on the very next line.
 //
-// THE CAPTURE SEED IS LAST, AND IT MOVES THE CURSOR AND NOTHING ELSE (§13.3's
-// fourth fixture input, wired only by the offline harness — see
-// Model.initialThemeCursor). It re-anchors BY ROW IDENTITY, through the same
+// THE CURSOR SEED RUNS AFTER THE RESOLUTION'S ANCHOR AND BEFORE THE MESSAGE SEED,
+// AND IT MOVES THE CURSOR AND NOTHING ELSE (§13.3's fourth fixture input, wired
+// only by the offline harness — see Model.initialThemeCursor). It re-anchors BY
+// ROW IDENTITY, through the same
 // anchor the resolution's answer went through, so a fixture cannot seed a cursor
 // onto a row the union does not hold. It applies NO theme: the palette stays the
 // one `--theme` pinned, which is what keeps the flag meaningful on precisely the
@@ -641,6 +642,44 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 	m.applyThemePanelListStyles()
 	m.anchorThemePanelCursor(cursor)
 	m.anchorThemePanelCursor(m.initialThemeCursor)
+	m.seedThemePanelMessage()
+}
+
+// seedThemePanelMessage installs §13.3's capture-only MESSAGE STATE on a panel
+// that has just opened — the offline harness's only route to §9.1's slot, which is
+// otherwise reached by a keypress that a one-shot render never makes.
+//
+// IT RUNS LAST, AFTER THE CURSOR SEED, and both halves of that are load-bearing.
+// The confirm records the slug under the cursor as the assignment it would apply,
+// so a seed that ran first would name whichever row §9.2's open happened to anchor;
+// and raising a message re-derives the panel's vertical budget
+// (setThemePanelMessage), which re-sizes the list from the index it finds — so the
+// cursor has to be where the frame wants it before the budget is taken.
+//
+// EACH SEED DECLARES STATE AND ROUTES THROUGH THE PRODUCTION WRITER, never a
+// second copy of it: the confirm goes through raiseSlotConfirm exactly as
+// handleSlotCommitKey's constant branch does, and the failure through
+// reportCommitFailure, the one site that pairs §9.13's line with its
+// outstanding-failure state. The copy is therefore composed from §14A's pinned
+// constants by the message slot itself, and a fixture cannot ship a paraphrase of
+// it.
+//
+// THE SEEDS ARE ALTERNATIVES RATHER THAN A PAIR, and the switch is §9.1's exclusion
+// rather than a preference: the slot is a single-slot arbiter whose two contenders
+// can never be live at once, because a confirm resolves before any write happens.
+//
+// The confirm's SLOT is light, and it is immaterial to the frame: the question
+// names the constant being cleared rather than the half being written, and nothing
+// is written until `y` — which a capture never presses.
+func (m *Model) seedThemePanelMessage() {
+	switch {
+	case m.initialThemeConfirm:
+		if slug, ok := committableThemeSlug(m.themePanel.list); ok {
+			m.raiseSlotConfirm(slug, prefs.SlotLight)
+		}
+	case m.initialThemeCommitFailed:
+		m.reportCommitFailure()
+	}
 }
 
 // applyInForceTheme is §5.8's RE-RESOLUTION, and it is the whole of what the

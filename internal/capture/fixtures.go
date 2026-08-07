@@ -76,6 +76,21 @@ type Fixture struct {
 	// only by arrowing, and a fixture is a one-shot render. It is PLACEMENT ONLY
 	// and applies no theme (see tui.Deps.InitialThemeCursor).
 	initialThemeCursor string
+	// initialThemeConfirm seeds §9.2's slot-from-constant confirm on the opened
+	// panel, exactly as an `l` over a persisted constant raises it. It is the only
+	// route to the confirm half of §9.1's message slot: a fixture is a ONE-SHOT
+	// RENDER, so a state reached by a keypress has to be declarable directly — the
+	// same reasoning that gives the panel its cursor seed.
+	//
+	// IT DECLARES STATE, NEVER TEXT. The slot composes §14A's copy from its own
+	// pinned constants, so no fixture can put a paraphrase on a captured frame.
+	initialThemeConfirm bool
+	// initialThemeCommitFailed seeds §9.13's failed-commit report on the opened
+	// panel: the message slot's line and the outstanding-failure state together. A
+	// capture wires NO theme persister (task 6-7), so the state is unreachable by
+	// committing however many keys a fixture pressed — declaring it is the only
+	// route. It declares STATE, never text, exactly as its confirm sibling does.
+	initialThemeCommitFailed bool
 	// initialDetection seeds the §6.2 host-terminal detection cache with a resolved
 	// identity (nil for every fixture that does not capture the proactive banner). It
 	// is the only way to render the otherwise async-resolved detection in the inert
@@ -172,19 +187,23 @@ type Fixture struct {
 // no-op §9.7's nil guard gives it.
 func (f *Fixture) Deps(th theme.Theme) tui.Deps {
 	return tui.Deps{
-		Theme:              theme.ConstantNomination(th),
-		ThemeKeys:          f.themeKeys,
-		ThemeEnumerator:    f.themeEnumerator(th),
-		InitialThemeCursor: f.initialThemeCursor,
-		Lister:             f.Lister,
-		Killer:             fakeKiller{},
-		Renamer:            fakeRenamer{},
-		Creator:            fakeCreator{},
-		ProjectStore:       f.projectStore,
-		ProjectEditor:      f.projectEditor,
-		AliasEditor:        f.aliasEditor,
-		Enumerator:         fakeEnumerator{groups: f.enumeratorGroups},
-		Reader:             fakeScrollbackReader{content: f.scrollback},
+		Theme:               theme.ConstantNomination(th),
+		ThemeKeys:           f.themeKeys,
+		ThemeEnumerator:     f.themeEnumerator(th),
+		InitialThemeCursor:  f.initialThemeCursor,
+		InitialThemeConfirm: f.initialThemeConfirm,
+		// §9.1's slot is a single-slot arbiter, so a fixture declares AT MOST one of
+		// these two — the seeds are alternatives and the model treats them as such.
+		InitialThemeCommitFailed: f.initialThemeCommitFailed,
+		Lister:                   f.Lister,
+		Killer:                   fakeKiller{},
+		Renamer:                  fakeRenamer{},
+		Creator:                  fakeCreator{},
+		ProjectStore:             f.projectStore,
+		ProjectEditor:            f.projectEditor,
+		AliasEditor:              f.aliasEditor,
+		Enumerator:               fakeEnumerator{groups: f.enumeratorGroups},
+		Reader:                   fakeScrollbackReader{content: f.scrollback},
 		// DirReader/DirRunner are deliberately left nil: the fixture sessions are
 		// pre-stamped (Session.Dir set), so the lazy pane-read fallback never
 		// fires — and the harness has no tmux server to read panes from anyway.
@@ -289,6 +308,12 @@ func FixtureByName(name string) (*Fixture, error) {
 		return themePanelPaginatedFixture(), nil
 	case "theme-panel-projects":
 		return themePanelProjectsFixture(), nil
+	case "theme-panel-confirm":
+		return themePanelConfirmFixture(), nil
+	case "theme-panel-commit-failed":
+		return themePanelCommitFailedFixture(), nil
+	case "theme-panel-min-height-message":
+		return themePanelMinHeightMessageFixture(), nil
 	case "preview-screen":
 		return previewScreenFixture(), nil
 	case "loading-screen":
@@ -306,7 +331,7 @@ func FixtureByName(name string) (*Fixture, error) {
 // (a standalone tea.Model resolved by the capture tool, NOT a tui.Model-backed
 // *Fixture) so the swatch is discoverable from the same listing.
 func FixtureNames() []string {
-	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "theme-panel-invalid-row", "theme-panel-dir-unreadable", "theme-panel-narrow", "theme-panel-paginated", "theme-panel-projects", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
+	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "theme-panel-invalid-row", "theme-panel-dir-unreadable", "theme-panel-narrow", "theme-panel-paginated", "theme-panel-projects", "theme-panel-confirm", "theme-panel-commit-failed", "theme-panel-min-height-message", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
 	sort.Strings(names)
 	return names
 }
@@ -844,6 +869,112 @@ func themePanelConstantPreviewingFixture() *Fixture {
 	}
 	fx.initialThemeCursor = theme.DefaultLightSlug
 	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
+	return fx
+}
+
+// themePanelConfirmFixture builds the deterministic "theme-panel-confirm" fixture:
+// the constant-while-previewing frame's list, keys, union and cursor exactly, with
+// §9.2's slot-from-constant confirm raised on the opened panel — captured through a
+// tape whose terminal lands the panel on §9.8's MINIMUM WIDTH.
+//
+// IT IS THE ONLY VISUAL PROOF OF THE FOOTER SUBSTITUTION. While the confirm is live
+// it is key-exclusive within the panel and resolves on `y`/`n`/`Esc` alone, so the
+// standing `⏎ set theme` / `d set as dark` / `l set as light` / `esc close` would
+// advertise four keys of which NONE would act — §14.3's dead end. The footer becomes
+// `y confirm` / `n cancel`, and no other frame shows that.
+//
+// THE MINIMUM WIDTH IS THE OTHER HALF. §9.1 warns the slot "may wrap to two rows"
+// there and §14A calls panel wording "a layout constraint as much as a copy choice",
+// so the one copy the spec says might not fit has to be capturable at the width it
+// might not fit at. Every other panel fixture but the narrow one is captured wide
+// enough to take the preferred width, where the confirm fits on one line and the
+// warning is about nothing observable.
+//
+// THE FIXTURE DATA IS DELIBERATELY IDENTICAL to the constant-while-previewing
+// frame's, so the two are a controlled pair: the persisted CONSTANT is what makes
+// the confirm the state a real `l` would produce (§9.2 raises it over a constant and
+// over nothing else), and everything that differs between the images is the
+// question, its footer and the width.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme tokyo-night-day` — the previewed row the cursor is
+// seeded onto, deliberately NOT the persisted constant `nord` the confirm names.
+// §9.2's invariant is that the cursor's row is always what is painted behind the
+// panel, and the two are different rows here by design.
+//
+// IT CANNOT BE AUTOMATED. An incoherent frame is indistinguishable from a correct
+// one to a reviewer — same rows, same question, same cursor, wrong colours — and
+// §13.4's guard enumerates fixtures and diffs colours, so it passes either way.
+func themePanelConfirmFixture() *Fixture {
+	fx := themePanelConstantPreviewingFixture()
+	fx.name = "theme-panel-confirm"
+	fx.initialThemeConfirm = true
+	return fx
+}
+
+// themePanelCommitFailedFixture builds the deterministic
+// "theme-panel-commit-failed" fixture: the adaptive-pair frame's list, keys, union
+// and cursor exactly, with §9.13's failed-commit report raised on the opened panel.
+//
+// IT IS THE ONLY PLACE THE ABSENCE OF A BAND IS CHECKABLE. §9.1's table gives the
+// line `accent.attention` for both the `⚠` and the text and NO `bg.attention` band,
+// and the whole point of that decision is that the main screen's full-width warning
+// band would read as HEAVY inside a 27–34 column panel — a judgement only an image
+// settles, and one no assertion can make for a reviewer.
+//
+// THE BADGES ARE THE OTHER SUBJECT, and the adaptive pair is chosen for it: §9.13
+// forbids a failed write moving the `●` (the marker means "what is PERSISTED" and
+// would be lying if it moved), and two slot badges on two different rows show that
+// far more legibly than a single bare `●` would.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme nord`, the adaptive pair's dark slot — the row §9.2's
+// open anchors the cursor to under capturetool's gate-free dark fallback (§8.8).
+//
+// IT CANNOT BE AUTOMATED. An incoherent frame is indistinguishable from a correct
+// one to a reviewer, and §13.4's guard enumerates fixtures and diffs colours, so it
+// passes either way.
+func themePanelCommitFailedFixture() *Fixture {
+	fx := themePanelAdaptivePairFixture()
+	fx.name = "theme-panel-commit-failed"
+	fx.initialThemeCommitFailed = true
+	return fx
+}
+
+// themePanelMinHeightMessageFixture builds the deterministic
+// "theme-panel-min-height-message" fixture: the failed-commit frame's data exactly,
+// captured through a tape whose terminal lands the panel ON §9.8's HEIGHT FLOOR and
+// at its minimum width.
+//
+// IT IS THE ONLY SURFACE ON WHICH THE FLOOR ARITHMETIC IS OBSERVABLE. §9.8 defines
+// the floor as header + footer + one list row + one message row, and §13.3 requires
+// a frame of it because that arithmetic "is only observable on a frame that renders
+// it". It is also the only check that §9.1's per-dimension rule holds: the slot
+// WRAPS at the minimum width but is TRUNCATED to one line at the minimum height,
+// because a second row there would leave zero list rows or overflow the frame.
+//
+// THE FAILED-COMMIT LINE IS THE CONTENDER, DELIBERATELY. §9.2's confirm substitutes
+// a SHORTER footer, so a frame built on it would render the floor's arithmetic for a
+// scope the floor is not computed from — and the floor is deliberately the STANDING
+// scope's, because it must hold for the footer that is live longest rather than for
+// the transient one.
+//
+// THE FIXTURE DATA IS DELIBERATELY IDENTICAL to the failed-commit frame's, so the
+// two are a controlled pair: everything that differs between the images is the size.
+// A fixture cannot resize itself — it opens through captureKeys and is a one-shot
+// render — so the floor is reachable ONLY by capturing at a terminal that lands on
+// it.
+//
+// # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
+//
+// Capture it with `--theme nord`, the adaptive pair's dark slot — the row §9.2's
+// open anchors the cursor to under capturetool's gate-free dark fallback (§8.8), and
+// at the floor the ONE list row that renders is that row.
+func themePanelMinHeightMessageFixture() *Fixture {
+	fx := themePanelCommitFailedFixture()
+	fx.name = "theme-panel-min-height-message"
 	return fx
 }
 

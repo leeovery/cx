@@ -140,8 +140,9 @@ func (m *Model) commitConstant(slug string) error {
 // IT IS REACHED FROM EVERY COMMIT AND ONLY PAST THE NIL GUARD — `Enter`'s constant,
 // `d`/`l` over a pair, and the confirm's `y`, which routes through commitSlot. A nil
 // persister returns before it, because that is the ABSENCE OF A WRITER rather than a
-// failed write: there is nothing to report and nothing to hold outstanding, and a
-// capture model must not be able to enter the reported state.
+// failed write: there is nothing to report and nothing to hold outstanding, so a
+// capture model cannot report a failure by COMMITTING (§13.3's seed declares that
+// state directly instead, through the shared report below — a seed is not a write).
 //
 // ON FAILURE IT MUTATES NOTHING ELSE, and the caller's early return is what keeps
 // that true: no key mutation, no recompute and no ApplyTheme, so the theme stays
@@ -157,12 +158,31 @@ func (m *Model) commitConstant(slug string) error {
 // logging here would double the event and make this package a fourth.
 func (m *Model) applyCommitResult(err error) {
 	if err != nil {
-		m.raiseThemePanelCommitFailed()
-		m.themeCommitFailed = true
+		m.reportCommitFailure()
 		return
 	}
 	m.clearThemePanelCommitFailed()
 	m.themeCommitFailed = false
+}
+
+// reportCommitFailure raises §9.13's report WHOLE: the message slot's line and the
+// outstanding-failure state together.
+//
+// IT IS THE ONE SITE THAT PAIRS THEM, and the pairing is the point rather than
+// tidiness, because their LIFETIMES DIFFER — the line until the next keypress, the
+// state until a subsequent commit succeeds — so half a report is a reachable and
+// silent wrong answer either way round. A line without the state is dismissed by
+// the next arrow and never reaches the close, reinstating the silent revert §9.13
+// exists to name; a state without the line reports nothing at the moment it
+// happens, which is the surface the user is looking at.
+//
+// It is reached from a write that did not land (applyCommitResult) and from
+// §13.3's capture seed, which DECLARES the state for a frame of it: a fixture wires
+// no persister at all, so no capture could arrive here by committing, and §9.13's
+// report is a specified surface that has to be capturable.
+func (m *Model) reportCommitFailure() {
+	m.raiseThemePanelCommitFailed()
+	m.themeCommitFailed = true
 }
 
 // handleSlotCommitKey is §9.2's `d` and `l` as the KEYS dispatch them, with the

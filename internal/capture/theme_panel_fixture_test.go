@@ -51,6 +51,9 @@ func panelFixtureNames() []string {
 		"theme-panel-narrow",
 		"theme-panel-paginated",
 		"theme-panel-projects",
+		"theme-panel-confirm",
+		"theme-panel-commit-failed",
+		"theme-panel-min-height-message",
 	}
 }
 

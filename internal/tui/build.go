@@ -144,6 +144,27 @@ type Deps struct {
 	// no theme, so the rendered palette stays the one the nomination carries. Empty
 	// is a no-op; production never sets it.
 	InitialThemeCursor string
+	// InitialThemeConfirm seeds §9.2's slot-from-constant confirm once the theme
+	// panel has opened, exactly as an `l` over a persisted constant would raise it.
+	// It exists for the offline capture harness, which renders one-shot frames: the
+	// confirm is otherwise reached only by a keypress, and it is the only surface on
+	// which the footer substitution (`y confirm` / `n cancel` in place of the
+	// standing four keys, none of which would act) can be seen.
+	//
+	// It is a BOOL because it declares STATE and never text: the copy is composed
+	// from §14A's pinned format by the message slot itself, so no fixture can ship a
+	// paraphrase. False is a no-op; production never sets it.
+	InitialThemeConfirm bool
+	// InitialThemeCommitFailed seeds §9.13's failed-commit report once the theme
+	// panel has opened: the message slot's pinned line plus the outstanding-failure
+	// state, exactly as a write that did not land leaves them. It exists for the
+	// offline capture harness, which renders one-shot frames and wires NO theme
+	// persister at all — so a capture could not reach the state by committing even
+	// if it pressed the key.
+	//
+	// Like its confirm sibling it is a BOOL because it declares STATE and never
+	// text. False is a no-op; production never sets it.
+	InitialThemeCommitFailed bool
 	// InitialDetection seeds the §6 host-terminal detection cache on the first frame
 	// with the given identity already resolved (via spawn.ResolveAdapter, so a
 	// non-NULL Apple Terminal resolves unsupported and the proactive §6.2 banner
@@ -288,10 +309,14 @@ func Build(deps Deps) Model {
 	// items ingest (evaluateDefaultPage), since it must survive the initial SetItems.
 	opts = append(opts, WithInitialMultiSelect(deps.InitialMultiSelect))
 	opts = append(opts, WithInitialCursor(deps.InitialCursor))
-	// The PANEL cursor seed (§13.3) is applied here alongside its session-list
-	// sibling, but it lands much later: the panel does not exist until `t` is
-	// pressed, so armThemePanel consumes it. Empty on every production model.
+	// The PANEL seeds (§13.3) are applied here alongside their session-list sibling,
+	// but they land much later: the panel does not exist until `t` is pressed, so
+	// armThemePanel consumes all of them. The cursor anchor places the cursor; the
+	// two message seeds raise §9.1's slot in one or other of its states. Unset on
+	// every production model.
 	opts = append(opts, WithInitialThemeCursor(deps.InitialThemeCursor))
+	opts = append(opts, WithInitialThemeConfirm(deps.InitialThemeConfirm))
+	opts = append(opts, WithInitialThemeCommitFailed(deps.InitialThemeCommitFailed))
 
 	// Seed the §6 picker-burst capture-only frames (all no-ops when unset, the
 	// production default). WithInitialGoneFlagged is applied AFTER WithInitial

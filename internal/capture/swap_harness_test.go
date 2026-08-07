@@ -114,6 +114,18 @@ func capturedStates() []capturedStateWant {
 		// Reached by the `x` then `t` its captureKeys type: the slide-over over the
 		// Projects page, which every other panel fixture leaves unrendered.
 		{fixture: "theme-panel-projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects", "Themes", "● light", "● dark"}},
+		// §13.3's message-slot surfaces, whose seeds raise §9.1's slot on the opened
+		// panel. Each names its own contender AND rules out what must not be live
+		// beside it — the confirm's whole subject is the SUBSTITUTED footer, so a
+		// frame still advertising `set as dark` is exactly what to catch.
+		{fixture: "theme-panel-confirm", page: tui.PageSessions, present: []string{sessionRow, "Themes", "clear constant nord?  y / n", "confirm", "cancel"}, absent: []string{"No sessions yet", "set as dark", "set as light"}},
+		{fixture: "theme-panel-commit-failed", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ couldn't save theme", "● light", "● dark", "set as dark"}, absent: []string{"No sessions yet", "confirm", "cancel"}},
+		// The minimum-height frame's captured state at THIS size is the failed-commit
+		// frame's, by construction: its subject is §9.8's floor, which is a function of
+		// the terminal rather than of the fixture, so the arithmetic is asserted at its
+		// own size by TestPanelFixture_MinHeightMessageFrame. What belongs here is only
+		// that the driver opened the panel with the message live.
+		{fixture: "theme-panel-min-height-message", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ couldn't save theme", "● light", "● dark"}, absent: []string{"No sessions yet"}},
 		// Reached by the `x` its tape types: the fixture opens on Sessions (the
 		// production no-arg default) and the capture is of the Projects page.
 		{fixture: "projects", page: tui.PageProjects, present: []string{"flow-v1-api", "Projects"}},

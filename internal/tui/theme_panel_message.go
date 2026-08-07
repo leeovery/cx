@@ -147,8 +147,9 @@ func (m *Model) clearThemePanelCommitFailed() {
 //
 // IT ASSUMES THE PANEL IS OPEN, which every writer above is: the confirm's raise and
 // clear are panel-scoped, and §9.13's line — the one message specified to OUTLIVE a
-// keypress — is raised from a commit and cleared by the panel's own key dispatch,
-// both of which fire only while themePanel.open. A call with the panel CLOSED would
+// keypress — is raised from a commit or from armThemePanel's capture seed and
+// cleared by the panel's own key dispatch, all of which fire only while
+// themePanel.open. A call with the panel CLOSED would
 // size a zero list.Model against the closed panel's zero width — unreachable today,
 // and left unguarded rather than defended speculatively.
 func (m *Model) setThemePanelMessage(message themePanelMessage) {
