@@ -219,9 +219,14 @@ theme that never loads, whatever is inside it.
   capitals, and no leading hyphen (it would read as a flag everywhere a slug is
   typed). There is no length limit.
 - **The extension must be exactly lowercase `.theme`.**
+- **Three slugs are already taken** — the built-ins' own, listed under *The
+  built-in themes* below. `nord.theme` is rejected as `reserved name` however
+  good the palette inside it is, and the copy in the workflow below is named
+  `nord-lee` for exactly that reason.
 
-Break either and the file is rejected as `bad name` — an unselectable row in the
-theme picker, and a line in `portal doctor` saying which rule the name broke:
+Break the slug rule or the extension rule and the file is rejected as
+`bad name` — an unselectable row in the theme picker, and a line in
+`portal doctor` saying which rule the name broke:
 
 ```
 ⚠ theme file Nord.theme: slug must be lowercase letters, digits and hyphens
@@ -317,3 +322,164 @@ cannot read — prints the reason on stderr, writes nothing to stdout, and exits
 $ portal theme export nord-le
 no theme named nord-le
 ```
+
+## The built-in themes
+
+Portal ships three built-in themes:
+
+| Slug | Palette |
+|---|---|
+| `tokyo-night` | Tokyo Night — dark |
+| `tokyo-night-day` | Tokyo Night Day — light |
+| `nord` | Nord — dark |
+
+**All three slugs are reserved.** A file of your own called `nord.theme` is
+rejected as `reserved name`: the answer comes from the slug alone, before the
+file is opened, so nothing you write inside it changes the outcome.
+
+The reason is the one given under *Naming the file*: an invalid theme falls back
+to a built-in, so a file you supply must never be able to take the name of the
+built-in that *is* the fallback.
+
+The fix is a rename, and it is the line the drop-in workflow already uses:
+
+```sh
+portal theme export nord > ~/.config/portal/themes/nord-lee.theme
+```
+
+Any name outside the three works, provided it keeps to the naming rules above —
+`nord-lee` is a convention, not a rule. `portal doctor` names both the collision
+and the fix:
+
+```
+⚠ theme file nord.theme: nord is a built-in — rename it (e.g. nord-mine.theme)
+```
+
+**The theme picker will not tell you which rows are built-in.** A built-in is an
+ordinary theme file — same keys, same parser, same rules — and it is listed
+exactly like a drop-in, deliberately. So this list and `portal theme export` are
+where the reserved names are discoverable; the alternative is meeting one when
+your file is rejected.
+
+## Choosing a theme
+
+The theme setting lives in `prefs.json`, alongside Portal's other UI preferences
+— `$XDG_CONFIG_HOME/portal/prefs.json`, or `~/.config/portal/prefs.json`. The
+theme picker writes it for you, and **the file is hand-editable**: it is plain
+JSON, and editing it is a supported route rather than a workaround. A change
+lands at the next launch.
+
+There are **two states, not three**.
+
+**Constant** — one theme, whatever the terminal looks like:
+
+```json
+{
+  "theme": "nord"
+}
+```
+
+Detection is never consulted. The theme you name is the theme that paints, from
+the first frame.
+
+**Adaptive** — a light theme and a dark theme, with detection choosing between
+them:
+
+```json
+{
+  "theme_light": "tokyo-night-day",
+  "theme_dark": "nord"
+}
+```
+
+**"Nothing set" and "a pair nominated" are the same state.** What Portal ships
+*is* a pair — `theme_light = tokyo-night-day`, `theme_dark = tokyo-night` — so a
+file with no theme keys in it is an adaptive setting whose two slots hold their
+defaults. There is no third, unconfigured state to be in.
+
+### Partial pairs do not exist
+
+An unset slot holds the shipped default rather than nothing, so overriding one
+slot leaves the other exactly where it was:
+
+```json
+{
+  "theme_dark": "nord"
+}
+```
+
+That is `theme_light = tokyo-night-day`, `theme_dark = nord`. Light is not
+missing and there is nothing to complete — a partially overridden pair and the
+shipped default are the same mechanism, not two.
+
+### One form or the other
+
+Portal's own writes keep the two forms apart: committing a constant clears both
+slots, and assigning a slot clears the constant. Whichever you set last is what
+the file carries, so **the picker can never leave both present**.
+
+A hand-edited file can, and that is the only way to reach the state, so it has a
+rule of its own: **`theme` wins**. A non-empty `theme` is a constant and the two
+slots are not read at all. They are also not cleared — nothing prunes them — so a
+stale slot becomes live the moment the constant goes.
+
+### How light and dark is decided
+
+Detection asks **the terminal what colour its background is**, over OSC 11. It
+does not read the operating system's light/dark setting. The two routinely
+disagree — a terminal pinned dark on a light desktop is the ordinary case — and
+the terminal is the one Portal lives inside. The picker is on screen for seconds
+at a time, so blending with what surrounds it is the whole point of detecting
+anything.
+
+The query races a short timeout at startup and resolves **once**, so Portal never
+paints one theme and flips to another a moment later. **A terminal that does not
+answer resolves to dark.** Under a constant none of this applies — there is
+nothing to choose, and nothing is waited for.
+
+The one accepted cost: OSC 11 answers when asked and does not announce a later
+change, so Portal is correct *at launch* rather than live-following. Change your
+terminal's background mid-session and Portal notices at the next launch.
+
+### Going back to the shipped pair
+
+Every action in the theme picker *sets* something; nothing clears. So returning
+to the shipped pair after pinning a theme is a hand-edit — delete the theme keys
+from `prefs.json`.
+
+Deleting them is not the same as writing the shipped slugs back in by hand:
+`"theme_dark": "tokyo-night"` turns an inherited default into a pin, and a later
+change to what Portal ships would no longer reach you. An absent key follows the
+default; a present one is your choice.
+
+## Attribution
+
+Both palettes Portal ships were ported from someone else's work, and they keep
+their own names:
+
+| Theme | Source |
+|---|---|
+| `tokyo-night`, `tokyo-night-day` | Tokyo Night — https://github.com/tokyo-night/tokyo-night-vscode-theme |
+| `nord` | Nord — https://www.nordtheme.com/ |
+
+Each file carries the same credit in its header, so an exported copy travels with
+it.
+
+Attribution lives here and in the repository, and **nowhere in the interface** —
+there is no credits screen and nothing in the theme picker.
+
+### Nord ships with two values corrected
+
+Nord's canvas is `#2E3440`, a mid-dark rather than a near-black, and two of the
+palette's own colours do not clear Portal's contrast floors against it. Both ship
+corrected, under Nord's own name:
+
+- **`state.destructive`** — Nord's red is not legible enough on that canvas for
+  text Portal expects you to read.
+- **`state.positive`** — one green serves both the canvas and the selected row,
+  so it has to clear the selection tint as well; Nord's green clears the canvas
+  and not the tint.
+
+Both are minimal, perceptually close to Nord's own values, and judged by eye. The
+reasoning sits as a `#` comment beside the value in the file, so
+`portal theme export nord` prints it.
