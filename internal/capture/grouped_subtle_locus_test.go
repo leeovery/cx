@@ -22,9 +22,10 @@ import (
 // de-emphasised but still readable. Only a human eye on a grouped Nord frame can.
 //
 // What this test does is make that gate impossible to take on a frame where the
-// token is invisible: it renders the SAME fixture the grouped Nord tape drives,
-// under the SAME theme, through the SAME production constructor, and proves every
-// `··· N` count on the frame is painted in nord's text.subtle over nord's canvas.
+// token is invisible: it renders the SAME fixture the grouped Nord capture is
+// taken from, under the SAME theme, through the SAME production constructor, and
+// proves every `··· N` count on the frame is painted in nord's text.subtle over
+// nord's canvas.
 // Without it a reviewer could sign off a locus-free frame and the gate would have
 // judged nothing at all.
 
@@ -33,9 +34,7 @@ import (
 //
 // By-Project is the right surface rather than By-Tag: its group headings are
 // project names and its counts include a group of 2 alongside the pinned Unknown
-// catch-all, so the frame carries several count loci. The tape
-// (testdata/vhs/sessions-by-project-nord.tape) names this same fixture — the two
-// must not drift, which is why the name is a constant here.
+// catch-all, so the frame carries several count loci.
 const groupedNordFixture = "sessions-by-project"
 
 // groupCountPattern matches a rendered group count — the §5.1 `··· N` tally
@@ -92,7 +91,7 @@ func flattenCmd(cmd tea.Cmd) []tea.Msg {
 // real Init → Update flow, and returns the painted frame.
 //
 // The CONSTANT nomination is what capturetool passes (§13.3), so the gate is
-// already resolved and the frame is the un-gated one the tape screenshots rather
+// already resolved and the frame is the un-gated one a capture screenshots rather
 // than the neutral held blank.
 func renderFixtureFrame(t *testing.T, fixture string, palette theme.Theme, width, height int) string {
 	t.Helper()
@@ -154,7 +153,7 @@ func TestGroupedRender_CarriesTextSubtleCountLocus(t *testing.T) {
 		}
 	}
 
-	// 1280×800 at the tape's 16px JetBrains Mono is roughly this cell grid; the
+	// A 1280×800 capture at 16px JetBrains Mono is roughly this cell grid; the
 	// assertion is size-insensitive, and a frame this tall keeps every group on
 	// the first page.
 	frame := renderFixtureFrame(t, groupedNordFixture, nord, 120, 40)

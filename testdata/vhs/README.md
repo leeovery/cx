@@ -1,9 +1,10 @@
 # Portal TUI — visual-capture harness (`vhs`)
 
-This directory is Portal's **permanent visual-test rig**. Every TUI-changing task
-screenshots the live TUI through here and compares the capture to a committed
-Paper design reference (spec § 15). It is the objective visual gate that lets the
-per-task implement → review loop terminate.
+This directory is where the TUI gets **looked at**. A task that changes what the
+picker renders writes a `vhs` tape here, screenshots the live TUI through it, and
+judges the frame — against a committed design reference where one exists. It is
+what lets the implement → review loop terminate on something visual rather than on
+an assertion about a string.
 
 The capture mechanism is a **separate harness binary** (`cmd/capturetool`) that
 imports Portal's real `internal/tui`, builds the production model via the shared
@@ -13,18 +14,45 @@ daemon, never runs bootstrap, and never touches `~/.config/portal`. The shipped
 `portal` binary is untouched: it has no new command and does not import the
 harness fakes/fixtures (an import-guard test enforces this).
 
-## Contents
+This matters more than it looks: **Portal cannot be run from a scratch build to
+check a visual change** — a scratch build disturbs the running daemon and its
+bootstrap touches real state. The harness is the only route to seeing a change
+before release.
 
-| Path | What |
-|---|---|
-| `sessions-flat.tape` | vhs tape that drives the `sessions-flat` fixture and screenshots it |
-| `sessions-flat.png` | The captured frame (current design) — committed, overwritten in place so "latest" is always current |
-| `contrast-validation-{dark,light}.tape` | vhs tapes that drive the `contrast-validation` swatch (the §16.5 lock-in/bail gate, task 1-9) in each owned-canvas mode |
-| `contrast-validation-{dark,light}.png` | The captured swatch frames — labelled tint bands the human eyeballs against `#0b0c14` / `#e1e2e7` |
-| `LOCK-IN.md` | The committed lock-in/bail record (pinned hexes + derivations + ratios + a PENDING human-eyeball decision section) |
-| `trail/<screen>/<phase>-<task>.png` | **Per-task snapshots** of each screen — a committed, browsable visual history (see "Capture trail" below) |
-| `reference/sessions-modern-vivid-v2.png` | The committed Paper export of frame **Sessions — Modern Vivid v2** (the build target) — the comparison reference, kept in-repo so no live MCP is needed |
-| `.gifcache/*.gif` | Transient vhs byproduct (vhs requires an `Output`); tapes write it into the hidden `.gifcache/` subdir so the dir listing stays clean. **git-ignored**, not committed |
+## What lives here, and for how long
+
+**PNGs and the tapes that render them are scaffolding, not a durable asset.**
+There is no visual-regression obligation — nothing diffs a capture against a
+committed baseline — so a permanent image set would only be a directory of files
+that rot the first time a colour token is renamed. The rule:
+
+> A capture and its tape are **created as work proceeds**, **committed while the
+> work is being collaborated on** (so the reviewer and the human open the same
+> frame the implementer did), and **cleared out at sign-off**.
+
+So an empty-looking directory is the normal resting state. If you are here to
+change a screen, you are expected to add a tape, capture, and take it away again
+when the work lands.
+
+| Path | What | Lifetime |
+|---|---|---|
+| `<fixture>.tape` | The `vhs` tape that drives one fixture and screenshots it | Scaffolding — cleared at sign-off |
+| `<fixture>.png` | The captured frame | Scaffolding — cleared at sign-off |
+| `reference/*.png` | Committed design exports — the frames the code was built *against* | **Kept** |
+| `LOCK-IN.md` | The light-tint lock-in record — pinned hexes, derivations, contrast ratios and the eyeball decision that settled them. A historical record; the captures it names were cleared long ago | **Kept** |
+| `.gifcache/*.gif` | Transient `vhs` byproduct (`vhs` requires an `Output`); tapes write it into the hidden subdir so the listing stays clean | **git-ignored**, never committed |
+
+**Why `reference/` is exempt.** A capture is a render *of the code*, which is why
+it rots and why the rule above exists. A reference frame is the **design** the code
+was built against — exported and committed *before* implementation so the
+implementer and the reviewer could self-check against it. It does not go stale the
+way a capture does; it is a record of what was specified, and for some screens it is
+the only reference that exists. Keep them, and keep pointing comments at them.
+
+**The fixtures and the harness are permanent.** The Go fixture definitions in
+`internal/capture`, `cmd/capturetool` and the `vhs` route all stay. Only the images
+and tapes are transient. Deleting a fixture is a different act entirely, with a
+consequence — see "Adding (or removing) a fixture" below.
 
 ## One-time setup: install + verify `vhs`
 
@@ -54,15 +82,57 @@ ttyd --version
 ffmpeg -version
 ```
 
+## Viewing a screen live
+
+No tape needed to just *look* at something:
+
+```bash
+go run ./cmd/capturetool --fixture sessions-flat
+go run ./cmd/capturetool --fixture theme-panel-confirm --theme nord
+```
+
+`capture.FixtureNames()` lists every fixture; an empty or unknown `--fixture` errors
+with the list. **The tool replays no keys of its own**, so a screen reached by a
+keystroke — the theme slide-over, the Projects page, the preview — is reached by
+pressing that key yourself. The tape types it for you; live, you do. (A fixture
+declares that sequence in `captureKeys`, which is what the offline driver replays.)
+
+### `--theme <slug|path>` (default `tokyo-night`)
+
+One flag pins the palette, and it takes **either** a built-in slug **or an explicit
+path to a `.theme` file**:
+
+```bash
+--theme nord                      # a built-in: tokyo-night, tokyo-night-day, nord
+--theme ./mytheme.theme           # a file — the only way to eyeball a drop-in
+--theme ~/themes/mytheme.txt      # any extension; a separator makes it a path
+```
+
+Slug versus path is decided by a path separator **or** the `.theme` suffix, so
+`nord` is a slug and `nord.theme`, `./nord.theme` and `/abs/anything.txt` are all
+paths. A path is an **input, not config discovery** — nothing here reads prefs or
+resolves the themes directory, which is what keeps the harness's no-real-config
+guarantee intact.
+
+**Invalid input is a hard error with a non-zero exit, never a fallback** — silently
+rendering the wrong theme at a visual gate is the failure this tool exists to
+prevent. A file whose *name* would be rejected by the themes directory (bad name, or
+a built-in's slug) warns on stderr and renders anyway, so an author can see their
+theme before renaming the file.
+
+There is no `--appearance` flag: a theme **is** light or dark, so there is no mode
+left to pin. Setting `NO_COLOR=1` in the environment renders the colourless path on
+the terminal's native background, whatever `--theme` named.
+
 ## Running a tape
 
 From the **project root** (paths in the tape are repo-root-relative):
 
 ```bash
-vhs testdata/vhs/sessions-flat.tape
+vhs testdata/vhs/<name>.tape
 ```
 
-This writes `testdata/vhs/sessions-flat.png` (overwriting the committed one).
+This writes the `Screenshot` path the tape names.
 
 ### Gotcha 1 — sandbox / loopback networking
 
@@ -83,43 +153,35 @@ run fine sandboxed — only the `vhs` invocation needs loopback access.
 vhs tape paths that contain a `/` **must be quoted**, or the tape parser errors:
 
 ```
-Output "testdata/vhs/.gifcache/sessions-flat.gif" # ✅ quoted
-Screenshot "testdata/vhs/sessions-flat.png"       # ✅ quoted
-Output testdata/vhs/.gifcache/sessions-flat.gif   # ❌ parser error
+Output "testdata/vhs/.gifcache/<name>.gif" # ✅ quoted
+Screenshot "testdata/vhs/<name>.png"       # ✅ quoted
+Output testdata/vhs/.gifcache/<name>.gif   # ❌ parser error
 ```
 
-### Determinism (the acceptance gate)
+### Gotcha 3 — vhs fails silently on write
 
-The gate for this harness is **determinism, not a frame match**: two runs of the
-same tape from a clean checkout must produce **byte-comparable** PNGs.
+`vhs` will run the tape, report no error, and **not produce the PNG**. You then
+pixel-check a stale or absent image, which reads either as "the change didn't
+render" or — worse — as a false pass against a previous capture. A colour change is
+visible *only* in the image; no assertion anywhere would catch a capture that never
+landed.
+
+**Hash the target before and after, confirm the hash changed, and retry on
+failure**, before trusting or reviewing any capture:
 
 ```bash
-vhs testdata/vhs/sessions-flat.tape && shasum -a 256 testdata/vhs/sessions-flat.png
-vhs testdata/vhs/sessions-flat.tape && shasum -a 256 testdata/vhs/sessions-flat.png
-# the two hashes must match (or: cmp the two PNGs)
+shasum -a 256 testdata/vhs/<name>.png     # before (may not exist yet)
+vhs testdata/vhs/<name>.tape
+shasum -a 256 testdata/vhs/<name>.png     # must differ
 ```
 
-Determinism is load-bearing because the fixture data is injected **in-memory** —
-the harness reads no real config and contacts no tmux server, so the only inputs
-are the fixed fixture + the fixed font/size/dimensions pinned in the tape.
+### Determinism
 
-## Capture trail (per-task history)
-
-The canonical `testdata/vhs/<screen>.png` is the **latest** capture — overwritten
-in place so the reviewer/human always open the current frame. But a single
-overwritten file destroys the screen's *history* once reskin tasks begin. So each
-task that (re)captures a screen also commits a permanent, task-stamped snapshot:
-
-```
-testdata/vhs/trail/<screen>/<phase>-<task>.png    # e.g. trail/sessions-flat/1-1.png
-```
-
-This gives a committed, browsable evolution of every screen — `1-1` (baseline),
-`1-3`, `1-5`, … side by side — without `git` archaeology. The orchestrator copies
-the fresh capture into the trail when it commits the task. Parity-only tasks whose
-capture is byte-identical to the prior frame reuse it (no new trail entry — the gap
-in numbering means "unchanged here"). Open the trail files in any image viewer
-(images do not render in the Claude Code terminal).
+Two runs of the same tape from a clean checkout must produce **byte-comparable**
+PNGs. Determinism is load-bearing because the fixture data is injected
+**in-memory** — the harness reads no real config and contacts no tmux server — and
+because `--theme` pins a single palette with no light/dark detection and no
+first-paint wait, so there is no gate to race.
 
 ## The capture tool + fixture design
 
@@ -127,65 +189,66 @@ in numbering means "unchanged here"). Open the trail files in any image viewer
 cmd/capturetool/main.go     # the separate harness binary (package main; NOT a portal subcommand)
 internal/capture/           # in-memory fakes + named fixtures (imported ONLY by the capture tool)
   fakes.go                  #   every tmux seam, faked: read seams return canned data; mutators are no-ops
-  fixtures.go               #   FixtureByName / FixtureNames + the deterministic session sets
+  fixtures.go               #   FixtureByName / FixtureNames + the deterministic fixture data
+  theme_fake.go             #   the faked theme enumeration a panel fixture declares its rows through
+  harness.go                #   builds a fixture's model and replays its captureKeys
   swatch.go                 #   the contrast-validation swatch (a standalone tea.Model; NOT tui.Build)
 ```
 
 The tool takes `--fixture <name>`, resolves it via `resolveProgram`, and runs the
 resulting Bubble Tea model on the alt screen. Most fixtures resolve to the
-production model with `tui.Build(fixture.Deps())` — exactly the model and launch
-shape `cmd/open.go` uses, so the captured frame is the **real** TUI.
+production model with `tui.Build(fixture.Deps(theme))` — exactly the model and
+launch shape `cmd/open.go` uses, so the captured frame is the **real** TUI.
 
-**One deliberate exception:** the `contrast-validation` swatch (the §16.5
-lock-in/bail gate, task 1-9) is a standalone validation surface — a labelled set
-of tint bands on the owned canvas — that does **not** route through `tui.Build`.
-The four light-tint *surfaces* it validates (selection row, separator/footer
-borders, warning band, loading track) are built in later phases; the swatch
-validates the colour TOKENS before those phases invest in the surfaces
-(anti-sunk-cost). It is driven by `--appearance dark|light` to pin the owned
-canvas, identically to the other fixtures.
+Fixtures are deliberately shallow: they do just enough to visualise what is meant to
+be visualised. **They are about look, not behaviour**, and need not be functionally
+complete.
 
-### Adding a new fixture / screen
+**One deliberate exception:** the `contrast-validation` swatch is a standalone
+validation surface — a labelled set of tint bands on the theme's own canvas — that
+does **not** route through `tui.Build`. It is how a new light theme's pinned surface
+tints get settled by eye, so it takes a `--theme` like everything else.
 
-1. **Add the fixture** in `internal/capture/fixtures.go`: add a `case "<name>"`
-   to `FixtureByName`, add `"<name>"` to `FixtureNames`, and write a
-   `*Fixture`-returning builder with the canned seam data (sessions, projects,
-   etc.). Keep the data fixed — determinism is the gate.
-2. **Add a tape** `testdata/vhs/<name>.tape` modelled on `sessions-flat.tape`:
-   set the same `FontFamily "JetBrains Mono"` + fixed `Width`/`Height`, launch
-   `go run ./cmd/capturetool --fixture <name>`, `Sleep` for first paint (and send
-   any keys needed to reach the target screen), then `Screenshot "<...>.png"`.
-3. **Commit the reference** under `reference/<frame>.png` (see below) and the
-   captured `<name>.png`.
+### Adding (or removing) a fixture
 
-The fixture set lives entirely in `internal/capture`, which the `portal` binary
-must never import — keep it that way (the import-guard test in
-`cmd/capturetool/import_guard_test.go` will fail if production grows a dependency
-on it).
+1. **Add the fixture** in `internal/capture/fixtures.go`: add a `case "<name>"` to
+   `FixtureByName`, add `"<name>"` to `FixtureNames`, and write a `*Fixture`-returning
+   builder with the canned seam data (sessions, projects, theme rows, cursor
+   position, …). Keep the data fixed — determinism is the gate. If the frame is
+   reached by a keystroke, declare it in `captureKeys` rather than only in the tape,
+   so the tape and the offline driver cannot drift.
+2. **Add a tape** `testdata/vhs/<name>.tape` modelled on an existing one (see git
+   history — the directory is normally empty). Set `FontFamily "JetBrains Mono"` +
+   `FontSize 16`, fix `Width`/`Height` (vhs sizes in **pixels**, so record the
+   resulting column/row count in a comment), `Set Shell "bash"` for a deterministic
+   prompt, launch `go run ./cmd/capturetool --fixture <name> --theme <slug>`, `Sleep`
+   for the compile + first paint, type any keys, then `Screenshot "<...>.png"`.
+3. **Clear the tape and the PNG at sign-off.** Leave the fixture.
 
-## The Paper design reference
+**Do not delete a fixture to tidy up.** The swap-and-diff completeness guard renders
+*every* fixture the harness declares and never names one, so the fixture list **is**
+the coverage list — removing a fixture silently shrinks the guard rather than failing
+it, and the screen it covered goes quietly unchecked.
 
-The comparison reference is a **committed PNG export of the task's named Paper
-frame** (spec § 15.1 / § 15.5) — kept in-repo (`reference/`) so neither
-implementation nor CI needs a live `paper` MCP.
+The fixture set lives entirely in `internal/capture`, which the `portal` binary must
+never import — keep it that way (the import-guard test in
+`cmd/capturetool/import_guard_test.go` will fail if production grows a dependency on
+it).
 
-`reference/sessions-modern-vivid-v2.png` is the **Sessions — Modern Vivid v2**
-frame (860×680 @2x). **This task ships the pre-reskin capture against it** —
-`sessions-flat.png` is the current, un-reskinned baseline and is NOT expected to
-match the Paper frame yet; later reskin tasks converge it.
+## The design reference
 
-### Refreshing the reference (orchestrator-run)
+`reference/` holds committed PNG exports of the named design frames, kept in-repo so
+neither implementation nor review needs a live design-tool connection. Export and
+commit the frame **before** implementing against it.
 
-Sub-agents have **no `paper` MCP access**. When a frame changes in Paper, the
-**orchestrator** re-exports and re-commits it via the `paper` MCP — exporting the
-frame by its node-id (`get_screenshot` / export) and overwriting
-`reference/<frame>.png`. There is no agent-runnable command for this step.
+Sub-agents have no design-tool access, so re-exporting a changed frame is the
+orchestrator's job — there is no agent-runnable command for it.
 
 ## How the comparison is judged
 
-The capture is compared to the Paper reference for **layout, structure, and
-colour-role match** — **agent/user-judged, NOT a pixel-diff CI gate**. Paper is an
-HTML approximation (the real terminal uses the user's font + the §2.9 token
-hexes), so an exact pixel diff would always fail. The implementer self-checks, the
-reviewer gates, and the human opens both images side by side (spec § 15.4 / §
-15.5). The only automated gate here is the **determinism** check above.
+The capture is compared to its reference for **layout, structure, and colour-role
+match** — **agent/user-judged, NOT a pixel-diff gate**. The design export is an HTML
+approximation (the real terminal uses the user's font and the theme's own hexes), so
+an exact pixel diff would always fail. The implementer self-checks, the reviewer
+gates, and the human opens both images side by side. Do not read colour values off a
+reference frame: the tokens are the contract, the frame is an illustration of them.

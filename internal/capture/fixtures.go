@@ -143,9 +143,9 @@ type Fixture struct {
 	// loaded state to its CAPTURED one — the same sequence the fixture's tape
 	// typed, declared once here so the two cannot drift.
 	//
-	// The tapes were deleted in Phase 3 (§13.2 retires them as scaffolding along
-	// with the reference images), so this IS the sole surviving declaration of
-	// those sequences; they were recovered from git history to populate it.
+	// Captures and the tapes that render them are scaffolding and do not live in
+	// the repository, so the sequences are declared and kept here rather than in
+	// a tape.
 	//
 	// Most fixtures reach their captured state through a SEED and need no script.
 	// Three do not: `projects` types `x` (it opens on Sessions, the production
@@ -1337,8 +1337,8 @@ func themePanelProjectsFixture() *Fixture {
 // the full-height accent.violet left-bar selection over the bg.selection tint, and
 // the §6.3 condensed footer — is visible in the screenshot.
 //
-// It opens on the Sessions page (the production default for a no-arg launch); the
-// tape (testdata/vhs/projects.tape) types `x` to switch to the Projects page. The
+// It opens on the Sessions page (the production default for a no-arg launch) and
+// types `x` through its captureKeys to switch to the Projects page. The
 // first project (flow-v1-api) is the cursor row in the reference, so it carries the
 // full-height violet bar + selection tint in the capture. The session set is the
 // sessions-flat set so the pre-`x` Sessions frame is a realistic, deterministic
