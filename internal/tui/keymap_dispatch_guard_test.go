@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -64,6 +65,25 @@ type dispatchProbe struct {
 func assertDescriptorDispatchParity(t *testing.T, page string, entries []keymapEntry, probes map[string]dispatchProbe) {
 	t.Helper()
 
+	for _, drift := range descriptorDispatchDrift(t, entries, probes) {
+		t.Errorf("%s: %s", page, drift)
+	}
+}
+
+// descriptorDispatchDrift is the correspondence above computed as a VALUE rather
+// than reported as a failure — the two directions, in order, one message per
+// violation and an empty result for a scope in parity.
+//
+// It is split from the assertion so the guard itself can be guarded: a suite that
+// deliberately deletes a dispatch arm, or adds a descriptor entry nothing probes,
+// has to be able to observe that this check REPORTS it. Driven through the
+// assertion that is impossible — the deliberate breakage would fail the very test
+// making the point.
+func descriptorDispatchDrift(t *testing.T, entries []keymapEntry, probes map[string]dispatchProbe) []string {
+	t.Helper()
+
+	var drift []string
+
 	// Direction 1: every non-help descriptor Key is honoured by dispatch.
 	descriptorKeys := map[string]bool{}
 	for _, e := range entries {
@@ -75,20 +95,21 @@ func assertDescriptorDispatchParity(t *testing.T, page string, entries []keymapE
 		descriptorKeys[e.Key] = true
 		probe, ok := probes[e.Key]
 		if !ok {
-			t.Errorf("%s: descriptor advertises key %q with no dispatch probe — either dispatch does not honour it or the guard is stale", page, e.Key)
+			drift = append(drift, fmt.Sprintf("descriptor advertises key %q with no dispatch probe — either dispatch does not honour it or the guard is stale", e.Key))
 			continue
 		}
 		if !probe.honour(t) {
-			t.Errorf("%s: descriptor key %q is NOT honoured by the live dispatch (no bound effect) — descriptor↔dispatch drift", page, e.Key)
+			drift = append(drift, fmt.Sprintf("descriptor key %q is NOT honoured by the live dispatch (no bound effect) — descriptor↔dispatch drift", e.Key))
 		}
 	}
 
 	// Direction 2: every probed (bound) dispatch key appears in the descriptor.
 	for key := range probes {
 		if !descriptorKeys[key] {
-			t.Errorf("%s: dispatch binds key %q but the descriptor omits it — descriptor↔dispatch drift", page, key)
+			drift = append(drift, fmt.Sprintf("dispatch binds key %q but the descriptor omits it — descriptor↔dispatch drift", key))
 		}
 	}
+	return drift
 }
 
 // TestSessionsDescriptorDispatchParity guards that the sessionsKeymap descriptor
