@@ -204,6 +204,22 @@ const (
 	themePanelNoColorFlash     = "theme picker needs colour — NO_COLOR is set"
 	themePanelNarrowEntryFlash = "terminal too narrow for the theme picker"
 	themePanelShortEntryFlash  = "terminal too short for the theme picker"
+
+	// themeNotSavedFlash is §14A's CLOSE-REPORT copy, VERBATIM — what the user is
+	// left reading on the main screen when the panel closes with a failed commit
+	// outstanding (§9.13).
+	//
+	// IT CARRIES NO `⚠` OF ITS OWN, and §9.13 says so explicitly. It is raised into
+	// the notice band, whose warning role PREPENDS the status glyph — as it does for
+	// the five siblings above — so a glyph in the copy would render two. The report
+	// is glyph-backed all the same; the band supplies it, not the string. Contrast
+	// the panel's own failed-commit line (themePanelCommitFailedMessage,
+	// `⚠ couldn't save theme`), which keeps its glyph precisely because the panel's
+	// message slot adds none.
+	//
+	// It names the LOG rather than a retry, because the panel is gone by the time it
+	// is read and `theme: commit failed` is already written there.
+	themeNotSavedFlash = "theme not saved — see portal.log"
 )
 
 // themePanelWidthFor is §9.8's WIDTH LADDER: the panel's outer width for a given
@@ -862,15 +878,46 @@ func themePanelRowIndex(rows []theme.Row, slug string) int {
 // visually-applied theme never written. And closing is ONE FRAME: no animation,
 // no transition, no intermediate width.
 //
-// THE POST-CLOSE STEP BELONGS TO THE CALLER, and this is the ONE close every
-// caller routes through. §9.8's forced close calls it and then raises its flash;
-// Phase 9's `⚠ theme not saved` line and its outstanding-failure discharge attach
-// the same way. Neither forks the path — a second close implementation is exactly
-// what "a forced close takes the `Esc` path exactly" forbids, since two of them
-// can drift.
-func (m *Model) closeThemePanel() {
+// THE POST-CLOSE STEP IS A SINGLE STEP OF ITS OWN, and this is the ONE close every
+// caller routes through — §9.8's forced close included, which calls this and then
+// decides only whether its own geometry flash is still due. A second close
+// implementation is exactly what "a forced close takes the `Esc` path exactly"
+// forbids, since two of them can drift.
+func (m *Model) closeThemePanel() tea.Cmd {
 	m.applyInForceTheme(m.themePanel.enumeration)
 	m.themePanel = themePanel{}
+	return m.reportOutstandingCommitFailure()
+}
+
+// reportOutstandingCommitFailure is §9.13's CLOSE REPORT: with a failed commit
+// outstanding, the close raises §14A's main-screen flash and CLEARS the state in
+// the same act.
+//
+// THE REPORT MUST SURVIVE THE CLOSE, which is the whole reason this step exists.
+// `Esc` re-resolves persisted state (§9.2), so composed without it the very next
+// keypress both takes the panel's message down and drops the theme the user chose —
+// with no `●` movement to signal it, since §9.13 forbids the marker moving on a
+// write that did not land, and nothing at all on the main screen. The
+// "reported rather than silent" property would hold for exactly one keystroke.
+//
+// RAISING IT DISCHARGES THE STATE, and the discharge is not a tidy-up: it is the
+// report the state exists to produce, so once made the state has done its job.
+// Without it, re-opening the panel and pressing `Esc` would re-fire a flash about a
+// failure already reported, on every close for the life of the process.
+//
+// It goes through setThemeFlash, which is what gives it §14A's precedence over a
+// filter line the user may have had applied throughout the panel's whole life — the
+// contender that would otherwise keep this report off the band entirely, destroying
+// it rather than deferring it, since the discharge happens whether or not a band
+// rendered. The tick is the ORDINARY main-screen flash auto-clear, unlike the
+// panel's own message slot, whose line deliberately takes no lifecycle at all.
+func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
+	if !m.themeCommitFailed {
+		return nil
+	}
+	m.setThemeFlash(themeNotSavedFlash)
+	m.themeCommitFailed = false
+	return flashTickCmd(m.flashGen)
 }
 
 // resizeThemePanel is §9.8's RESIZE CONDITION, and it is the second of
@@ -899,12 +946,24 @@ func (m *Model) closeThemePanel() {
 // to that.
 //
 // THE FORCED CLOSE TAKES THE `Esc` PATH EXACTLY — closeThemePanel, the same
-// function, never a second teardown — and then raises its flash, which is the
-// post-close step that function's contract leaves to its caller. Any other
-// behaviour would strand the user rendering a theme they never chose, with the
-// surface that could change it gone and a terminal too narrow to reopen it: the
-// state §11.4 names as the one where a colour the user never chose survives Portal's
-// exit.
+// function, never a second teardown — and then raises its geometry flash if that
+// close has not already spoken. Any other behaviour would strand the user rendering
+// a theme they never chose, with the surface that could change it gone and a
+// terminal too narrow to reopen it: the state §11.4 names as the one where a colour
+// the user never chose survives Portal's exit.
+//
+// WITH A COMMIT FAILURE OUTSTANDING BOTH FLASHES ARE DUE AT ONCE AND THE REPORT
+// WINS (§9.13). The band has ONE slot and the two say different things: a geometry
+// event the user can see for themselves — their terminal just got smaller and the
+// panel vanished — against an unsaved setting they must act on. Losing the geometry
+// flash costs nothing; losing the report on the one path where the user cannot
+// reopen the panel to retry is exactly the failure §9.13 closes.
+//
+// THE FLAG IS READ BEFORE THE CLOSE, AND THE ORDER IS LOAD-BEARING. The close's own
+// report step DISCHARGES the outstanding state as part of raising the flash, so a
+// post-close `if !m.themeCommitFailed` always sees false and would overwrite the
+// report the close has just placed in the single-slot band — the naive shape, wrong
+// in a way no reading of the rule catches.
 //
 // A LIVE SLOT-FROM-CONSTANT CONFIRM IS SILENTLY CANCELLED by this close, and it is
 // stated because the confirm is otherwise specified (§9.2) as resolvable only by a
@@ -915,30 +974,37 @@ func (m *Model) closeThemePanel() {
 // explicit clear here would be a no-op that could drift from the one that matters —
 // the same argument that keeps this path on closeThemePanel rather than on a
 // teardown of its own. The cancelled confirm raises NO flash of its own: the only
-// report due on this path is the geometry event's pinned copy below.
+// reports due on this path are the geometry event's pinned copy and §9.13's.
 //
 // THE SEAM IS LIVE ON THIS PATH. closeThemePanel re-resolves through
 // m.themeEnumerator with no nil guard, and this new caller is safe for the same
 // reason `Esc` is: it fires only while themePanel.open, and `open` is set in exactly
 // one place (armThemePanel), reachable only through openThemePanel's nil guard.
 //
-// The flash is raised WITHOUT scheduling an auto-clear tick, because the resize is
-// not a cmd-returning site — it clears on the next actionable key exactly as the
-// burst's unsupported no-op flash does, and a geometry report the user can see for
-// themselves is the right thing to leave standing until they touch a key. It goes
-// through setThemeFlash so it claims the notice slot over a filter line the user may
-// have had applied throughout the panel's whole life (§14A).
-func (m *Model) resizeThemePanel() {
+// THE GEOMETRY FLASH IS RAISED WITHOUT AN AUTO-CLEAR TICK — it clears on the next
+// actionable key exactly as the burst's unsupported no-op flash does, and a geometry
+// report the user can see for themselves is the right thing to leave standing until
+// they touch a key. §9.13's report is the opposite call and brings its own tick,
+// which is the command returned here. Both go through setThemeFlash so either claims
+// the notice slot over a filter line the user may have had applied throughout the
+// panel's whole life (§14A).
+func (m *Model) resizeThemePanel() tea.Cmd {
 	if !m.themePanel.open {
-		return
+		return nil
 	}
 	if dim, ok := themePanelFloor(m.contentWidth(), m.contentHeight(), m.themePanel.union.DirUnusable); !ok {
-		m.closeThemePanel()
-		m.setThemeFlash(themePanelForcedCloseFlash(dim))
-		return
+		// Order matters: the read precedes the close, which discharges the flag as it
+		// reports. Reading it afterwards always yields false.
+		willReport := m.themeCommitFailed
+		cmd := m.closeThemePanel()
+		if !willReport {
+			m.setThemeFlash(themePanelForcedCloseFlash(dim))
+		}
+		return cmd
 	}
 	m.themePanel.width, _ = themePanelWidthFor(m.contentWidth())
 	m.applyThemePanelListStyles()
+	return nil
 }
 
 // rowItems pairs each union row with the badge it carries — the SINGLE item
@@ -1121,6 +1187,12 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case keyIsCtrlC(msg):
+		// §9.13's UNDELIVERED REPORT. With a commit failure outstanding this exit
+		// raises NOTHING and discharges NOTHING: the main screen is going away, so
+		// there is nowhere to put a flash, and `theme: commit failed` is already
+		// written (§12.3) as the record. A post-TUI stderr warning was the alternative
+		// and is refused — it would put a message about a colour preference on the
+		// channel Portal reserves for bootstrap failures.
 		return m, tea.Quit
 	case m.themePanel.confirming():
 		// §9.2's slot-from-constant confirm is KEY-EXCLUSIVE WITHIN THE PANEL, so its
@@ -1131,8 +1203,11 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// global quit §9.7 keeps live everywhere, not a third answer.
 		return m.updateSlotConfirm(msg)
 	case keyIsCode(msg, tea.KeyEscape):
-		(&m).closeThemePanel()
-		return m, nil
+		// The command is §9.13's close report riding out of the panel: nil unless a
+		// commit failure was outstanding, in which case the close raised the flash the
+		// user is left reading and the tick that auto-clears it.
+		cmd := (&m).closeThemePanel()
+		return m, cmd
 	case keyIsCode(msg, tea.KeyEnter):
 		// §9.2's commit-a-constant, and it deliberately does NOT close: the panel
 		// stays open, the cursor stays where it is, and nothing is re-themed. The

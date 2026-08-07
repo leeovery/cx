@@ -345,9 +345,23 @@ func newGeometryPanelModel(t *testing.T, contentW, contentH int) Model {
 // live Update, so every resize assertion covers the production path.
 func resizeForTest(t *testing.T, m Model, contentW, contentH int) Model {
 	t.Helper()
+	m, _ = resizeForTestCmd(t, m, contentW, contentH)
+	return m
+}
+
+// resizeForTestCmd is resizeForTest's cmd-returning twin, for the assertions that
+// are ABOUT the command rather than about the model the resize leaves behind.
+//
+// A resize is handled in a PRE-STEP of Update, before the message reaches the arms
+// that return: a command raised there reaches the runtime only by being folded onto
+// whichever arm fires. Discarding it — which resizeForTest does, and which is the
+// right convenience everywhere the command is beside the point — cannot tell a
+// propagated command from a swallowed one.
+func resizeForTestCmd(t *testing.T, m Model, contentW, contentH int) (Model, tea.Cmd) {
+	t.Helper()
 	termW, termH := geometryTerm(contentW, contentH)
-	updated, _ := m.Update(tea.WindowSizeMsg{Width: termW, Height: termH})
-	return updated.(Model)
+	updated, cmd := m.Update(tea.WindowSizeMsg{Width: termW, Height: termH})
+	return updated.(Model), cmd
 }
 
 // requireRenderedPanelWidth asserts the panel is want cells wide in the model, in

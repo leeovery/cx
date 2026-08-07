@@ -198,6 +198,16 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				},
 				want: specShortClosedFlash,
 			},
+			{
+				name: "the close report",
+				raise: func(t *testing.T) Model {
+					t.Helper()
+					m, _ := newCloseReportModel(t)
+					m, _ = closePanelForTest(t, m)
+					return m
+				},
+				want: specThemeNotSavedFlash,
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				m := tc.raise(t)

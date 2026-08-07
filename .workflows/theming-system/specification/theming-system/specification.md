@@ -1242,7 +1242,7 @@ This recreates "applied but not persisted", but as a *reported* state rather tha
 
 **"Outstanding" is a state, not a message.** A commit failure is outstanding from the moment a write fails until a **subsequent commit succeeds** — nothing else clears it. In particular arrowing away does not: that dismisses the *message* (which persists only until the next keypress) while leaving the state, which is what stops the very next `Esc` reinstating the silent revert this section exists to close. And because a successful retry clears it, a `d` that fails followed by an `l` that succeeds raises no flash — the user is not told a theme was not saved when it was.
 
-**So closing the panel with a failed commit outstanding raises a main-screen flash**: `⚠ theme not saved — see portal.log`. **Raising the flash discharges the state** — it is the report the state exists to produce, so once made the state has done its job. Without that, reopening the panel and pressing `Esc` would re-fire the flash about a failure already reported, on every close for the life of the process.
+**So closing the panel with a failed commit outstanding raises a main-screen flash**: `theme not saved — see portal.log`. The copy carries no `⚠` of its own — the notice band's warning role prepends the status glyph, as it does for the five other flashes in §14A's table; the panel's own message slot copy (`⚠ couldn't save theme`) keeps its glyph because that surface adds none. **Raising the flash discharges the state** — it is the report the state exists to produce, so once made the state has done its job. Without that, reopening the panel and pressing `Esc` would re-fire the flash about a failure already reported, on every close for the life of the process.
 
 **`Ctrl-C` with a failure outstanding is accepted as an undelivered report.** It is the one exit §9.7 keeps live inside the panel, and the main screen is going away, so there is nowhere to raise a flash. **The log is the record** — `theme: commit failed` is already written (§12.3) — and the alternative, a post-TUI stderr warning, would put a message about a colour preference on the same channel Portal reserves for bootstrap failures.
 
@@ -1811,7 +1811,7 @@ Every new user-facing string is pinned here, following Portal's existing convent
 | `t` below the **height** floor (§9.8) | `terminal too short for the theme picker` |
 | Resize below the **width** floor with the panel open (§9.8) | `terminal too narrow — theme picker closed` |
 | Resize below the **height** floor with the panel open (§9.8) | `terminal too short — theme picker closed` |
-| Panel closed with a failed commit outstanding (§9.13) | `⚠ theme not saved — see portal.log` |
+| Panel closed with a failed commit outstanding (§9.13) | `theme not saved — see portal.log` |
 
 **Notice-band precedence for these flashes.** The band is a single-slot arbiter whose existing order is *filter line → burst progress → transient flash → multi-select banner → unsupported banner → no-tags signpost*. All six theme signals route through the **transient flash** slot, which composes correctly with everything below it — a flash outranks the multi-select banner, so the nesting §9.7 allows works — and needs no answer for burst progress, since §9.7 swallows `t` during a pending burst.
 

@@ -454,8 +454,8 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 // Projects analogue — nothing on this page owns a second row to co-render with.
 //
 // The slot is deliberately NOT scoped to the entry-blocked flashes: it takes any
-// flashText, whatever set it. §9.13's `⚠ theme not saved — see portal.log` lands
-// in this same slot in Phase 9, and closing the panel DISCHARGES that outstanding
+// flashText, whatever set it. §9.13's `theme not saved — see portal.log` lands
+// in this same slot, and closing the panel DISCHARGES that outstanding
 // state whether or not a flash rendered — so a slot that filtered by set-site
 // would destroy the report rather than defer it.
 //

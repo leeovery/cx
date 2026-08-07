@@ -2691,7 +2691,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update handles messages and updates the model.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	// Forward WindowSizeMsg to both page lists so they have correct dimensions
 	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
 		m.termWidth = wsm.Width
@@ -2705,7 +2705,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// place while the terminal clears the render floor and force-closes with a
 		// pinned flash below it. It is sequenced last because the forced close raises a
 		// notice band, which re-syncs both page layouts the two calls above just set.
-		(&m).resizeThemePanel()
+		//
+		// A forced close CAN return a command — §9.13's close report brings its own
+		// auto-clear tick — and this pre-step must not swallow it. It cannot return
+		// here either: the resize is a pre-step, and the message still has to reach the
+		// arms below (the preview forwards its own re-sized copy). So the command is
+		// batched onto whichever of this function's many returns fires, which is what
+		// the deferred fold-in does. It is registered ONLY when there is something to
+		// carry, so every other path pays nothing and reads as it always did.
+		if closed := (&m).resizeThemePanel(); closed != nil {
+			defer func() { cmd = tea.Batch(closed, cmd) }()
+		}
 	}
 
 	// Handle cross-view messages regardless of view state
