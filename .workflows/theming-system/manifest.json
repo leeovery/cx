@@ -221,7 +221,23 @@
             "theming-system-10-9": "tick-275a80",
             "theming-system-10-10": "tick-417ab6",
             "theming-system-10": "tick-f98f60",
-            "theming-system-8-17": "tick-e4dcf8"
+            "theming-system-8-17": "tick-e4dcf8",
+            "theming-system-11": "tick-64eec3",
+            "theming-system-11-1": "tick-70a3ce",
+            "theming-system-11-2": "tick-55fadb",
+            "theming-system-11-3": "tick-56c2d3",
+            "theming-system-11-4": "tick-452a30",
+            "theming-system-11-5": "tick-753ee1",
+            "theming-system-11-6": "tick-60a015",
+            "theming-system-11-7": "tick-130ec3",
+            "theming-system-11-8": "tick-a1a369",
+            "theming-system-11-9": "tick-97c325",
+            "theming-system-11-10": "tick-70c515",
+            "theming-system-11-11": "tick-3ccb13",
+            "theming-system-11-12": "tick-4bc5b5",
+            "theming-system-11-13": "tick-181bcd",
+            "theming-system-11-14": "tick-04a827",
+            "theming-system-11-15": "tick-5f2317"
           },
           "storage_paths": [
             ".tick/"
@@ -265,7 +281,7 @@
           "status": "in-progress",
           "task_gate_mode": "auto",
           "fix_gate_mode": "auto",
-          "analysis_gate_mode": "gated",
+          "analysis_gate_mode": "auto",
           "fix_attempts": 0,
           "analysis_cycle_total": 1,
           "analysis_cycle_session": 1,
@@ -402,7 +418,28 @@
             8,
             9,
             10
-          ]
+          ],
+          "staging": {
+            "c1": {
+              "tasks": {
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved",
+                "8": "approved",
+                "9": "approved",
+                "10": "approved",
+                "11": "approved",
+                "12": "approved",
+                "13": "approved",
+                "14": "approved",
+                "15": "approved"
+              }
+            }
+          }
         }
       }
     }
