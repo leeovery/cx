@@ -1,5 +1,11 @@
 # Specification: Portal Observability Layer
 
+> **Corrigendum 2026-08-07** (from `theming-system`): the closed component value space omitted `theme` — corrected: `theme` is declared here, with its owners, attr keys, levels, cadences and event catalog.
+> **Corrigendum 2026-08-07** (from `theming-system`): "A closed subsystem-prefix taxonomy (15 components)" / "Closed component value space (15 total)" — corrected: the space holds **18** components. `spawn` (added by `multi-window-spawn`) and `resolve` (added by `cli-verb-surface-redesign`) shipped under amendments that were never landed in this file, and `theming-system` adds `theme`; membership is verified against `internal/log`'s bindings.
+> **Corrigendum 2026-08-07** (from `theming-system`): "Closed attr-key value space (49 keys)" — corrected: **64 keys**, after declaring the `spawn` (8 new), `resolve` (2 new) and `theme` (5 new) groups and counting the keys they cross-list (`session`, `target`, `reason`, `path`) once each.
+> **Corrigendum 2026-08-07** (from `theming-system`): `spawn`'s and `resolve`'s attr keys were undeclared here, for the same reason their components were — corrected: both groups are declared, verified against their emission sites.
+> **Corrigendum 2026-08-07** (from `theming-system`): "Every package that logs binds its component name once at package init" read as one package per component — corrected: the rule is bind once **per package, per component**; a component may be bound by several packages, and a package that is handed a bound logger through a seam binds nothing at all.
+
 ## Overview
 
 ### Purpose
@@ -12,7 +18,7 @@ Portal's logging is incidental — lines added ad hoc, not a deliberate observab
 - Calendar-daily log rotation with a configurable size-cap safety valve, replacing the 1 MiB churn-prone scheme.
 - Bounded, auditable retention (default 30 days) with per-deletion breadcrumbs.
 - A locked log-level contract (DEBUG/INFO/WARN/ERROR), production default INFO.
-- A closed subsystem-prefix taxonomy (15 components), a closed attr-key vocabulary, and mandatory per-record baseline attrs.
+- A closed subsystem-prefix taxonomy (18 components), a closed attr-key vocabulary, and mandatory per-record baseline attrs.
 - Defensive invariants (per-process lifecycle markers, rotated-file immutability, `O_CREAT|O_EXCL` first-of-day open) that make log destruction detectable post-hoc.
 - Instrumentation catalogs: state-mutation audit trail, cycle-level summaries, saver/daemon lifecycle events, hydrate-helper forensic trail, and a boundary-context-preservation sweep.
 
@@ -31,7 +37,8 @@ Portal's logging is incidental — lines added ad hoc, not a deliberate observab
 11. Diagnostic context preservation at boundaries
 12. Cycle-level summary cadence and shape
 13. Saver and daemon lifecycle event taxonomy
-14. Hook-firing observability limit
+14. The `theme` component event catalog
+15. Hook-firing observability limit
 
 ---
 
@@ -101,7 +108,7 @@ First match wins. `bootstrap` is the explicit default for any invocation not mat
 
 ### Consumer usage
 
-Every package that logs binds its component name once at package init:
+A package that logs binds each component it emits under **once**, at package init:
 
 ```go
 import "github.com/leeovery/portal/internal/log"
@@ -110,6 +117,14 @@ var logger = log.For("<component-name-from-taxonomy>")
 ```
 
 Call sites then use `logger.{Debug,Info,Warn,Error}` directly with `slog.Attr` args (`"key", value` variadic form), attr keys drawn from the closed vocabulary.
+
+**The rule is bind-once *per package, per component* — not one package per component**, and the taxonomy is deliberately not partitioned by package:
+
+- **A component may be bound by several packages.** `signal` is bound in `cmd`, `cmd/bootstrap` and `internal/state`; `bootstrap`, `hooks`, `clean` and `spawn` each span two. The component names a *subsystem*, and a subsystem's code need not live in one package for `grep "<component>:"` to reconstruct it.
+- **A package may bind several components.** `cmd` holds package-level bindings for `daemon`, `hydrate`, `notify`, `hooks`, `bootstrap`, `restore`, `preview`, `signal`, `capture`, `spawn`, `resolve` and `theme`.
+- **A package handed an already-bound logger through a seam binds nothing.** `internal/theme` emits the whole `theme` component through an injected logger and never calls `log.For` at all; the single `log.For("theme")` binding lives in `cmd` (see *The `theme` component event catalog*). `internal/spawn`'s shared emission helpers take an injected logger the same way — `cmd` passes its own binding in for the CLI burst and injects that same binding into `internal/tui` for the picker burst, so the TUI binds nothing either — alongside that package's own binding, which covers its detection path and its `terminals.json` load.
+
+What the rule forbids is a *second* binding of the same component inside one package — invisible at review, because every call site still looks correct in isolation.
 
 ### Migration sweep (single PR, big-bang — no adapter shim, no co-existence period)
 
@@ -140,14 +155,14 @@ Same call site, JSON handler:
 
 Grep idiom preserved: `grep "hydrate:" portal.log` produces the per-subsystem audit trail. Programmatic filtering also works: handlers route by `component` attr, JSON tooling indexes it.
 
-Call-site binding is the factory pattern defined in *The `internal/log` package* — each consumer binds its component once at init via `var logger = log.For("<component>")`.
+Call-site binding is the factory pattern defined in *The `internal/log` package* — a consumer binds each component it emits under once at init via `var logger = log.For("<component>")`, or is handed an already-bound logger through a seam and binds nothing.
 
-### Closed component value space (15 total)
+### Closed component value space (18 total)
 
 ```
 bootstrap  daemon  restore  hydrate  notify  hooks  preview
 saver  capture  signal  log-rotate  clean  aliases  projects
-process
+process  spawn  resolve  theme
 ```
 
 This list is the **single source of truth** for the component count.
@@ -169,10 +184,15 @@ This list is the **single source of truth** for the component count.
 | `aliases` | `aliases` store mutations |
 | `projects` | `projects.json` store mutations |
 | `process` | Portal-binary lifecycle markers (`start` / `exit` / `exec` / `panic` / `log-level resolved`) only, regardless of subcommand |
+| `spawn` | The multi-window spawn service — host-terminal detection, adapter resolution, per-window ack outcomes, and the burst's batch summary. Bound in `internal/spawn` and again in `cmd`; both burst surfaces (the picker's multi-select burst and `portal open`'s multi-target burst) emit through `internal/spawn`'s single-sourced renderers, so the two paths cannot drift |
+| `resolve` | `portal open`'s resolution decision — one INFO per bare positional resolved through the guessing chain (glob and domain-pinned targets are deterministic and emit nothing). Bound and emitted **only** in `cmd/open.go`; `internal/resolver` stays a pure, log-free library |
+| `theme` | Theme load / enumeration / persistence **outcomes**, emitted from three sites across two packages: the loader in `internal/theme` (which binds nothing — it emits through an injected logger seam), `cmd/config.go`'s one-shot `appearance` → theme translation, and the `cmd`-owned theme persister behind the panel's commit. Full catalog, levels and cadences: *The `theme` component event catalog* |
 
 `process` is reserved for portal-binary lifecycle/diagnostic markers only; subsystem-level lifecycle events have their own components. `tmux` is **deliberately excluded** — `internal/tmux` is a thin wrapper; logging at that layer produces extreme volume per tmux call. Tmux-call detail rides as DEBUG breadcrumbs under the caller's component.
 
-### Closed attr-key value space (49 keys)
+`prefs` and `terminals` are **deliberately excluded** too, on a different argument from `tmux`'s: they are dumb stores — a tolerant decode and a write — with no runtime behaviour and therefore no outcomes worth a trail. (`prefs.json` likewise stays outside the *State-mutation audit trail*'s closed file set.) What earns `theme` a component where those two are refused is that the theme loader **has** outcomes: a nomination that would not parse, a themes directory that could not be read, a shipped palette standing in for the one the user asked for.
+
+### Closed attr-key value space (64 keys)
 
 **Contextual** (set per call as relevant) — 14:
 
@@ -199,7 +219,36 @@ This list is the **single source of truth** for the component count.
 
 **Hydrate** (set per hook-firing exec-chain event) — 3: `result`, `hook_present`, `bytes`.
 
-**Process** (set per `process:` lifecycle/diagnostic line) — 7: `cmd`, `args`, `target`, `code`, `resolved`, `source`, `raw`. `target` + `args` are the **shared exec-handoff attrs** used by both `process: exec` and `hydrate: exec`, so the two `syscall.Exec` markers are structurally parallel. The `process: panic` line additionally carries `reason` — that key is **defined in the Lifecycle group and cross-listed here** (not a separate key; the 49-key total counts it once).
+**Process** (set per `process:` lifecycle/diagnostic line) — 7: `cmd`, `args`, `target`, `code`, `resolved`, `source`, `raw`. `target` + `args` are the **shared exec-handoff attrs** used by both `process: exec` and `hydrate: exec`, so the two `syscall.Exec` markers are structurally parallel. The `process: panic` line additionally carries `reason` — that key is **defined in the Lifecycle group and cross-listed here** (not a separate key; the 64-key total counts it once).
+
+**Spawn** (set per `spawn:` event — host-terminal detection, `terminals.json` load, per-window outcome, batch summary) — 8:
+
+| Key | What |
+|---|---|
+| `batch` | The burst's option-name-safe nanoid — the `@portal-spawn-<batch>-<token>` ack channel's namespace |
+| `terminal` | Detected host-terminal name |
+| `bundle_id` | Detected host terminal's macOS bundle id (absent on a NULL / remote identity) |
+| `resolution` | Which route resolved the adapter — `config` (a `terminals.json` recipe) / `native` / `unsupported` |
+| `ack` | One window's token-ack outcome — `confirmed` / `timeout` / `failed` |
+| `opened` | Batch summary — sessions actually surfaced, the trigger's self-attach counted only on full success |
+| `total` | Batch summary — N, the whole target set including the trigger's own surface |
+| `detail` | The opaque lower-layer string: the driver's OS-specific text (osascript output, AppleEvent code), the detection route, or a rejected `terminals.json` entry's reason. Carried verbatim and **never parsed** by the logging layer |
+
+The per-window records also carry `session` — **defined in the Contextual group and cross-listed here** (not a separate key; the 64-key total counts it once).
+
+**Resolve** (set on the single `resolve: resolved` decision line) — 2: `domain` (which arm of the grammar answered — `session` / `path` / `alias` / `zoxide`, or `miss`), `resolved_path` (the resolved directory, the session name on a session hit, empty on a miss). The same line carries `target`, the raw input — **defined in the Process group and cross-listed here** (counts once).
+
+**Theme** (set per `theme:` event) — 5:
+
+| Key | What |
+|---|---|
+| `slug` | A theme's identity — its filename stem. On `theme: loaded` this is the palette that actually rendered; on `theme: fallback applied` it is the nomination that failed |
+| `slot` | Which half of an adaptive pair a line is about — `light` / `dark`. **Absent under a constant setting**: not an empty string and not the word "constant" |
+| `token` | The offending token list on a rejection whose reason names one (`missing tokens`, `bad colour`). `theme: rejected` is its **only** consumer |
+| `count` | `theme: enumerated` — rows the panel's union produced, built-ins included |
+| `rejected` | `theme: enumerated` — the unselectable subset of those rows |
+
+Theme events also carry `reason` (Lifecycle group) and `path` (Contextual group) — **cross-listed, not separate keys; the 64-key total counts each once**. `path` is the identity attr for a rejection with no usable slug and for `theme: directory unusable`.
 
 **Baseline** (auto-injected per-record by the configured handler) — 4: `component` (set per package via `log.For`), `pid`, `version`, `process_role`.
 
@@ -918,6 +967,53 @@ Tick-rate events (capture loop, self-supervision probe) are NOT INFO. They're co
 - `cmd/bootstrap/` — all `saver:` lifecycle events (placeholder creation, respawn, kill-barrier, daemon-ready observation, and `placeholder died` — bootstrap observes the saver from outside, per *Subsystem prefix taxonomy* § Process/subsystem boundary).
 - `cmd/state_daemon.go` — daemon lifecycle (`lock acquired`, `self-eject`, `shutdown`). The daemon's process startup is marked by `process: start process_role=daemon`, not a `daemon:` event.
 - `internal/tmux/portal_saver.go` — kill-barrier escalation.
+
+---
+
+## The `theme` component event catalog
+
+### Decision
+
+The closed catalog below covers every `theme` event. Adding new events requires explicit amendment of this specification, exactly as the saver/daemon catalog does.
+
+The component earns its place on one argument: **a launch that could not use the theme the user asked for should leave a passive record.** The panel's row is only visible if the user opens the panel, and `portal doctor`'s line only if the user runs it — the log is the only trail that exists without the user going looking. That is also what separates `theme` from `prefs` and `terminals` (see *Closed component value space*): those are dumb stores, while the theme loader has parse / validate / fallback **outcomes**.
+
+Two rules are part of the amendment rather than call-site detail:
+
+1. **Rejections are WARN, not INFO.** `portal doctor` treats a rejected theme as advisory for *exit-code* purposes, but "your config did not work" is a warning in a log; the exit-code posture and the log level are separate decisions and do not have to agree.
+2. **The component records where a theme is *used*, never where one is *diagnosed*.** `portal doctor` and `portal theme export` both enumerate or parse and can hit every rejection reason — and **neither emits a single `theme` event**; nor does the offline `capturetool`. Three reasons compound: the log's job is to be the record that exists without the user looking, and those commands *are* the user looking (their whole output is the diagnostic); doctor is the run most likely to hit a full reject set, so emitting there would put the largest WARN volume on the surface needing it least; and a read-only diagnosis command that writes WARNs about the state it just printed is exactly the side effect its read-only claim rules out. It also makes the per-process dedup below determinate — the emitting processes are TUI launches, and nothing else.
+
+### Mechanical rule — the catalog
+
+| Event | Level | Cadence and deduplication | Attrs |
+|---|---|---|---|
+| `loaded` | INFO | One line per **resolved slot** at TUI construction — one under a constant setting, two under an adaptive pair — plus the one load that happens outside construction: the newly-live opposite slot when a mid-session commit converts a constant into an adaptive pair. **Not deduplicated** — it is per *load*, not per condition. The panel's re-resolutions (open, `Esc`, the post-commit recompute) resolve a setting construction already reported and emit no `loaded` line. | `slug`, `slot` where one applies |
+| `enumerated` | INFO | Once per **panel open** — the enumeration re-reads the directory on every open, and one open is one line, so five opens are five lines. Fires on an absent themes directory and on an unusable one alike: the panel opened either way, which is what the event records. An open **refused below the size floor** also emits it — the enumeration ran before the refusal, so the line records a read that genuinely happened. **Not deduplicated** (a per-event INFO, not a repeated warning). | `count`, `rejected` |
+| `rejected` | WARN | One per rejected file, from the enumeration. **Deduplicated per process on `slug`+`reason`, or `path`+`reason` where the file yields no slug** (the `bad name` class, whose filename produces no usable identity — without the `path` half, the class most likely to recur across opens would be the one class with no dedup key). | `slug` or `path`, `reason`, `token` where the reason names one |
+| `directory unusable` | WARN | The themes directory is unreadable, or a regular file sits where a directory belongs. Emitted by **both** the panel's enumeration and the construction-time by-name read, which is what gives a user who never opens the panel a record at all. **Deduplicated per process on `path`+`reason`**, which is what stops the two paths double-reporting. An **absent** directory emits nothing — zero drop-ins is the common case, not a fault. | `path`, `reason` |
+| `fallback applied` | WARN | A nominated theme would not load and the mode-matched shipped default stood in. **Deduplicated per process on `slug`+`reason`**: a persistently broken active theme re-resolves at construction, again on every panel open and again on every `Esc`, and "per fallback" read literally would turn a forensic trail into running commentary. | `slug` (the nomination that **failed**), `slot` where one applies, `reason` |
+| `appearance migrated` | INFO | One-shot, emitted **only on a successful persist that actually wrote a theme key** — never on compute (the write is best-effort and retries, so a compute-time emission could legitimately fire on several consecutive launches and "one-shot" would be false) and never on a marker-only write (which translated nothing). A failed, skipped or never-completed write emits nothing at all: **the absence of the event is the failure signal.** | `slug` (no `slot` — the translation always writes a constant) |
+| `commit failed` | WARN | Per failed write, from the theme persister behind the panel's commit. A successful commit emits nothing. The migration path deliberately does **not** emit it — its failure signal is the absence of `appearance migrated` — which keeps this event single-sited. | `slug`, `slot` (absent when committing a constant), `reason` |
+
+Two orderings are load-bearing. `fallback applied` is emitted **before** its paired `loaded`, so a reader meets the cause before the consequence. And `loaded` carries the slug of the palette that **actually rendered** — the fallback's, where one was applied — because if both events named the slug that failed, a `grep "theme:"` on a broken install could not answer which palette is on screen, which is the greppability the component is justified on.
+
+The dedup key is `(event, identity, reason)`: the event is part of it so the catalogs cannot collide on a shared identity, and the reason is part of it because the same file reported for a *different* reason is a different problem and earns its own line.
+
+### Mechanical rule — emission control
+
+**Whether anything is written is the caller's decision, not the loader's.** The loader takes a logger seam and emits through it unconditionally; `cmd` constructs that seam with a **real** component logger on the paths where a theme is *used* (TUI construction, the panel, the theme persister) and with **`log.Discard()`** on `portal doctor`, `portal theme export` and `capturetool`. A discarding caller runs the identical code path in silence — no branch, no flag, no second implementation to keep in step.
+
+**The per-process dedup state lives on that injected logger**, not as package state in the leaf. One TUI process therefore shares one dedup scope across every path that enumerates — the construction-time by-name read and the panel's enumeration hit the same conditions and must not double up — while concurrent Portal processes each own their own, and a test controls it simply by injecting a fresh one. Check-and-record is one critical section, so two paths enumerating at once cannot both read "unseen" and both emit.
+
+`internal/theme` **binds nothing**: the single `log.For("theme")` binding lives in `cmd`, and is what the seams on the used paths are constructed with — the diagnosis-shaped seams get `log.Discard()` instead (above). This is the seam case of the bind-once rule (see *Subsystem prefix taxonomy* § Consumer usage), and a second binding inside `cmd` is what a guard test exists to catch.
+
+### Calling code locations
+
+- `internal/theme` — `loaded`, `enumerated`, `rejected`, `directory unusable`, `fallback applied`, all through the injected seam.
+- `cmd/config.go` — `appearance migrated`, from the persist half of the one-shot `appearance` → theme translation.
+- `cmd`'s theme persister — `commit failed`, the panel's commit write. It is the only site: `prefs` is a leaf that must not import `internal/log`, and the TUI emitting it would make `internal/tui` a fourth emitting site.
+
+**The exec path (`portal open <target>`) emits nothing**, because it constructs no TUI and discovery is lazy — the loader never runs there at all. On the path Portal is most careful to keep free of cost, this component adds nothing.
 
 ---
 
