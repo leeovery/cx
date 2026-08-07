@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-08-07
+
+✨ Added
+- Themes. Press `t` in the picker to open the theme selector — the interface re-themes live behind it as you move the cursor, `Enter` sets it, and `d` / `l` assign it to the dark or light half of a light/dark pair. Full guide in `docs/theming.md`.
+- Three built-in themes: `tokyo-night` (dark), `tokyo-night-day` (light), and `nord` (dark).
+- Drop-in themes — any `.theme` file in `~/.config/portal/themes/` (or `PORTAL_THEMES_DIR`) is picked up automatically, and the directory is re-read every time the theme selector opens, so edit-and-reopen is the whole loop.
+- `portal theme export <slug>` prints a theme's file to stdout, comments and all — the way to copy a built-in as a starting point for your own: `mkdir -p ~/.config/portal/themes && portal theme export nord > ~/.config/portal/themes/nord-mine.theme`.
+- `portal doctor` now reports theme problems: a themes directory it can't read, a theme file it rejected and why, and a theme named in `prefs.json` that no longer resolves.
+
+🔧 Changed
+- The canvas setting in `prefs.json` is now `theme` (one theme, always) or `theme_light` / `theme_dark` (a pair, with detection choosing between them), replacing `appearance`.
+- Your existing `appearance` setting is translated automatically the first time you open the picker, so there is nothing you need to do: `dark` becomes `theme: tokyo-night`, `light` becomes `theme: tokyo-night-day`, and `auto` needs nothing — the shipped default is already the light/dark pair it meant.
+- The old `appearance` key is left in `prefs.json` untouched, so an older Portal still honours it if you downgrade. It keeps whatever it already said — theme changes made from here on are not written back to it.
+- Light/dark detection now chooses between your two themes rather than between two fixed canvases. It asks the terminal what colour its background is, over OSC 11 — not the operating system's light/dark setting; the two routinely disagree, and the terminal is the one Portal is drawn inside.
+- The Sessions footer drops `↑↓ navigate` (arrows in a list are a given, and it's still listed in `?` help) and gains `t theme` and `m multi` in its place; the Projects footer gains `t theme` too.
+
 ## [0.10.5] - 2026-07-27
 
 🔧 Changed
