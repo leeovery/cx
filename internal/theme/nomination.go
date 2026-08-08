@@ -1,9 +1,9 @@
 package theme
 
 // Nomination is the LOADED theme setting: the palette (or palettes) the
-// resolved setting nominates, with every file already read (§8.4).
+// resolved setting nominates, with every file already read.
 //
-// It has exactly two states, mirroring §8.2's two-state setting:
+// It has exactly two states, mirroring the two-state theme setting:
 //
 //   - CONSTANT — one Theme, active from frame one. Detection is never consulted,
 //     so a constant's first paint waits for nothing.
@@ -12,11 +12,12 @@ package theme
 //     the timeout lands, which is before anything is painted — so there is no
 //     frame to render in the interval and nothing a provisional member would be
 //     for. Handing one out would also invite a second resolution to reconcile
-//     with §8.8's resolve-once rule.
+//     with the gate's resolve-once rule.
 //
-// It is what the TUI constructor takes where it took a light/dark appearance
-// (§13.3): a theme IS the mode, so there is no mode left to pin, and the gate's
-// job narrows from "choose a canvas" to "choose between values already in hand".
+// It is what the TUI constructor takes where it once took a light/dark
+// appearance: a theme IS the mode, so there is no mode left to pin, and the
+// gate's job narrows from "choose a canvas" to "choose between values already in
+// hand".
 //
 // CONSTRUCTOR-ONLY. The fields are unexported so the two states can only be
 // reached through ConstantNomination and AdaptivePair; a zero value is NEITHER
@@ -46,10 +47,10 @@ type nominationState int
 const (
 	// nominationUnset is the zero value: a Nomination nobody constructed.
 	nominationUnset nominationState = iota
-	// nominationConstant is §8.2's constant state — one theme, no detection.
+	// nominationConstant is the constant state — one theme, no detection.
 	nominationConstant
-	// nominationAdaptive is §8.2's adaptive state — a light and a dark theme,
-	// with the gate choosing between them.
+	// nominationAdaptive is the adaptive state — a light and a dark theme, with
+	// the gate choosing between them.
 	nominationAdaptive
 )
 
@@ -90,7 +91,7 @@ func (n Nomination) Constant() Theme {
 // adaptive pair's active member.
 //
 // Under a CONSTANT it returns the constant for either answer. That is not a
-// convenience: detection is never consulted for a constant (§8.2), so there is no
+// convenience: detection is never consulted for a constant, so there is no
 // answer to honour, and having the accessor honour one anyway would make a
 // stray gate resolution able to change what a constant paints.
 //

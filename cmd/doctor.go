@@ -29,8 +29,8 @@ var ErrDoctorUnhealthy = errors.New("doctor unhealthy")
 // checks all report when the tmux server is down. It is distinct from the
 // corruption / dead-daemon details on purpose: a down server is an honest
 // "Portal isn't running" state (doctor is bootstrap-exempt and starts nothing),
-// not evidence of corruption. Reported unhealthy → non-zero, per the spec's
-// Exit-code contract.
+// not evidence of corruption. Reported unhealthy → non-zero, per the exit-code
+// contract.
 const doctorRuntimeNotRunning = "Portal runtime not running — run portal open to start"
 
 // runtimeDownResult is the single source of the "runtime not running" result
@@ -81,16 +81,15 @@ type checkResult struct {
 // make doctorUnhealthy true: advisories are simply never passed to it, which is
 // the structural form of "an advisory does not drive the exit code".
 //
-// That exclusion is §12.2's amendment to doctor's contract, not an oversight:
-// there is deliberately no repair path for a user's broken theme file, so a
-// failing line would hold a scriptable exit permanently non-zero over something
-// that is not the resurrection machinery the exit code speaks about.
+// That exclusion is deliberate, not an oversight: there is no repair path for a
+// user's broken theme file, so a failing line would hold a scriptable exit
+// permanently non-zero over something that is not the resurrection machinery the
+// exit code speaks about.
 //
-// line is the full §14A copy INCLUDING its leading "⚠ ". The copy table pins each
-// line together with its glyph, so a producer owns the whole string and the
+// line is the full pinned copy INCLUDING its leading "⚠ ". The copy table pins
+// each line together with its glyph, so a producer owns the whole string and the
 // renderer only indents it — prefixing the glyph at render time would split one
-// pinned string across two sites (and a copy test could no longer compare against
-// the table verbatim). slug and fromPrefs are the identity §12.2's
+// pinned string across two sites. slug and fromPrefs are the identity the
 // one-slug-one-line union dedups on (an unresolvable persisted slug outranks the
 // same slug's file-validity line); the renderer reads neither, only line.
 type advisory struct {
@@ -142,7 +141,7 @@ type DoctorDeps struct {
 	ProjectStore *project.Store
 	// PrefsStore reads prefs.json for the persisted-theme advisory — the line
 	// reporting that the theme a user CHOSE no longer resolves. Production wraps
-	// loadPrefsStoreNoMigrate(), the NON-migrating variant (§10.5, §12.2): see
+	// loadPrefsStoreNoMigrate(), the NON-migrating variant: see
 	// resolveDoctorDeps for why the migrating one may never appear here. A nil
 	// pointer (an unresolvable config path) produces no lines rather than an
 	// error, matching the advisory class's degrade-to-silence shape.
@@ -214,13 +213,12 @@ func resolveDoctorDeps() *DoctorDeps {
 	}
 	// The prefs store is built on the same best-effort footing, and through the
 	// NON-MIGRATING variant, ALWAYS. loadPrefsStore — the migrating one, which
-	// computes and dispatches §10.5's one-shot appearance translation — must
-	// never appear anywhere in doctor's call graph: doctor heals nothing on the
+	// computes and dispatches the one-shot appearance translation — MUST NEVER
+	// appear anywhere in doctor's call graph: doctor heals nothing on the
 	// read-only path, and a one-shot config mutation as a side effect of running
-	// a diagnosis is precisely what would break that claim (§12.2). Task 6-5's
-	// TestLoadPrefsStore_SingleProductionCaller is what keeps the migrating
-	// loader pinned to its single TUI-construction caller, and this call site
-	// must not become its second.
+	// a diagnosis is precisely what would break that claim. The migrating loader
+	// belongs to TUI construction alone, and this call site must not become its
+	// second caller.
 	if prefsStore, err := loadPrefsStoreNoMigrate(); err == nil {
 		deps.PrefsStore = prefsStore
 	}
@@ -291,7 +289,7 @@ var doctorCmd = &cobra.Command{
 			return err
 		}
 		// The theme producers supply this render's advisory block, handed over
-		// already assembled into §12.2's one-slug-one-line union so <M> counts
+		// already assembled into the one-slug-one-line union so <M> counts
 		// problems rather than detections (collectThemeAdvisories).
 		//
 		// It is computed HERE rather than inside runDoctorDiagnosis because it is
@@ -320,8 +318,8 @@ var doctorCmd = &cobra.Command{
 			return err
 		}
 		// The advisory block is RE-COLLECTED for this render rather than the first
-		// pass's slice being carried down (§12.2: the theme scan runs on the `--fix`
-		// path too). Two things ride on that:
+		// pass's slice being carried down — the theme scan runs on the `--fix`
+		// path too. Two things ride on that:
 		//
 		// It is what makes the second report a genuine RE-DIAGNOSIS of the same
 		// read-only condition rather than a replay of the first — the same claim the
@@ -347,7 +345,7 @@ var doctorCmd = &cobra.Command{
 // initial diagnosis render and BEFORE the re-diagnosis.
 //
 // The exit code is driven exclusively by the post-repair re-diagnosis, never by
-// these repairs directly (per the spec's Exit-code contract), so every repair is
+// these repairs directly, so every repair is
 // best-effort: a failure is logged under the bootstrap component and swallowed,
 // leaving the condition for the re-diagnosis to observe and report. The error
 // return is reserved for a future catastrophic pre-diagnosis failure; today
@@ -361,17 +359,17 @@ var doctorCmd = &cobra.Command{
 // and runs regardless of server state.
 //
 // THE THEME ADVISORIES HAVE NO REPAIR STEP HERE, and their absence from the list
-// above is a decision rather than an omission (§12.2: "doctor can prune a stale
-// hook entry; it cannot repair someone's colours"). The repairs this function
+// above is a decision rather than an omission: doctor can prune a stale hook
+// entry, but it cannot repair someone's colours. The repairs this function
 // owns are reversible BY RECONSTRUCTION — a pruned stale hook or project record
 // is one Portal itself re-derives from live tmux state — whereas every theme
 // "repair" available is the destruction of something only the user can author: a
 // junk `.theme` file is someone's half-written palette, and a prefs.json key
 // naming a missing slug is their choice, still correct the moment they restore
 // the file it names. So there is no file rewrite, no prefs write, no directory
-// creation, no seeding (§5.5: Portal never creates or seeds the themes
-// directory, and `--fix` is the one doctor path that writes, so it is the one
-// that must decline) and no pruning of an invalid drop-in. The theme lines are
+// creation, no seeding (Portal never creates or seeds the themes directory, and
+// `--fix` is the one doctor path that writes, so it is the one that must
+// decline) and no pruning of an invalid drop-in. The theme lines are
 // read-only in BOTH passes, which is why they need nothing from this function
 // and appear in both renders unchanged.
 func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) error {
@@ -753,8 +751,8 @@ func checkSessionsJSON(dir string, dirErr error) checkResult {
 // line it writes, once per render — so `doctor --fix`, which renders twice,
 // prints two.
 //
-// The summary's FRAMING is a local choice, not a spec pin: the copy table pins
-// the wording only, so the two-space indent (matching the body lines), the
+// The summary's FRAMING is a local choice: the copy table pins the wording only,
+// so the two-space indent (matching the body lines), the
 // absent marker and name columns, and the absence of any blank line before it
 // are chosen here for visual continuity with the report's existing shape. A
 // later layout change therefore has exactly one home. The advisory block adopts
@@ -864,7 +862,7 @@ func doctorCheckCounts(results []checkResult) (passed, total int) {
 //
 // <M> is the length of the slice handed in, never a producer's raw finding
 // count: the summary counts LINES, so it counts problems rather than detections
-// — which is what §12.2's one-slug-one-line rule exists to keep true. Taking the
+// — which is what the one-slug-one-line rule exists to keep true. Taking the
 // slice rather than an int is what makes that structural. Like doctorCheckCounts
 // this explains the exit code and never computes it; advisories reach the
 // summary and nothing else.

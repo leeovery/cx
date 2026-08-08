@@ -13,7 +13,7 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §9.1 slide-over theme panel: a full-height, right-edge, LEFT-BORDER-ONLY
+// The slide-over theme panel: a full-height, right-edge, LEFT-BORDER-ONLY
 // block composited over the already-composed page view, with the page beneath
 // deliberately NOT re-laid-out.
 //
@@ -22,39 +22,39 @@ import (
 // modal theme picker would render the canvas plus its own frame and PREVIEW
 // NOTHING — and live preview is the entire feature. Non-blanking is the only shape
 // that can do the job, and every downstream constraint inherits from that one fact:
-// the ~27–34 column budget (§9.8), the four-element row-composition priority
-// (§9.5), the message slot's truncation rule (§9.1), and the accepted cost of
-// covering three footer entries and cutting a label mid-word.
+// the ~27–34 column budget, the four-element row-composition priority, the
+// message slot's truncation rule, and the accepted cost of covering three footer
+// entries and cutting a label mid-word.
 //
-// EVERY PANEL SURFACE RESOLVES TO AN EXISTING TOKEN (§9.1's table): the body is
+// EVERY PANEL SURFACE RESOLVES TO AN EXISTING TOKEN: the body is
 // `canvas`, the left border and the header rule are `border`, the header label is
 // `accent.mode`, the pinned directory row is `accent.attention`. The reference
 // frames' `#0C0C16` body on a `#2B3050` border is deliberately NOT ADOPTED — they
 // are per-frame literals, and expressing that distinction would need a 20th token
 // whose only role is "the panel's background is a bit different from the canvas".
-// Resolving every surface to an existing token is what keeps §2.1's colour-literal
-// guard and §13.4's swap-and-diff guard satisfied with no carve-out.
+// Resolving every surface to an existing token is what keeps the colour-literal
+// guard and the swap-and-diff guard satisfied with no carve-out.
 //
 // THE PANEL DOES NOT ANIMATE. "Slide-over" names the SHAPE — full-height,
 // right-edge, left-border-only, as against a floating dialog — not a motion idiom.
 // Opening and closing are one frame each, because an animated open would interact
-// badly with three pinned behaviours: §11.3's OSC 11 emission would fire repeatedly
+// badly with three pinned behaviours: the OSC 11 emission would fire repeatedly
 // through a canvas-bearing slide, intermediate panel widths would render frames no
 // fixture covers, and `t` followed immediately by `Esc` would need a race resolved.
 
 const (
-	// themePanelPreferredWidth / themePanelMinWidth are the two ends of §9.8's
+	// themePanelPreferredWidth / themePanelMinWidth are the two ends of the
 	// column ladder (name, markers, slot indicators, border, gutter, padding). A
 	// FIXED width is predictable to lay out against; a content-driven one would make
 	// the panel jump around as the theme library changes.
 	//
-	// Both ends are ~13% wider than the pair task 8-11 shipped, because at 30 columns
+	// Both ends are ~13% wider than the pair first shipped, because at 30 columns
 	// the badges crowded the right edge and `set as light` ran to the border. Only the
 	// ENDS moved: the `contentW / 2` cap and the clamp shape are untouched, so the
-	// ladder is still §2.7's staged shrink. The cost is that the overlay covers four
-	// more columns of the main footer, cutting one further entry short — which §9.1
-	// already sanctions as the mid-label cut the overlay makes wherever its border
-	// falls, and which is the least theme-informative part of the screen.
+	// ladder is still a staged shrink. The cost is that the overlay covers four more
+	// columns of the main footer, cutting one further entry short — the same accepted
+	// mid-label cut the overlay makes wherever its border falls, and the least
+	// theme-informative part of the screen.
 	//
 	// themePanelWidthFor chooses between them for a given terminal, and
 	// themePanelFloor refuses below the minimum; renderThemePanel renders at
@@ -83,30 +83,30 @@ const (
 	// directory row, the message slot and the vertical key list.
 	themePanelGutterWidth = 1
 
-	// themePanelHeaderLabel is §9.1's header copy. There is deliberately NO theme
+	// themePanelHeaderLabel is the panel's header copy. There is deliberately NO theme
 	// count beside it — noise at this list size.
 	themePanelHeaderLabel = "Themes"
 
-	// themePanelDirUnreadable is §9.5's pinned chrome copy for an unusable themes
+	// themePanelDirUnreadable is the pinned chrome copy for an unusable themes
 	// directory, verbatim. It is deliberately SHORT — 16 columns — so it fits the
-	// panel's minimum width WITHOUT truncation: it is the one row §9.5's composition
+	// panel's minimum width WITHOUT truncation: it is the one row the composition
 	// rules cannot degrade (no label, no badge, no reason, so none of the four
 	// priorities apply) and the one that must not become nonsense, being what stands
 	// between the user and the "completely in the dark" state. The header's `Themes`
 	// label supplies the context the copy drops.
 	themePanelDirUnreadable = flashWarningGlyph + " dir unreadable"
 
-	// themePanelMinBodyRows is the one list row §9.8's floor guarantees. Below it the
+	// themePanelMinBodyRows is the one list row the height floor guarantees. Below it the
 	// panel refuses to open at all (themePanelFloor), so the clamp is a floor rather
 	// than a degradation step.
 	themePanelMinBodyRows = 1
 
-	// themePanelFloorMessageRows is the ONE message row §9.8's floor counts, and it
-	// is counted EVEN THOUGH §9.1 does not reserve the slot when empty.
+	// themePanelFloorMessageRows is the ONE message row the floor counts, and it is
+	// counted EVEN THOUGH the slot is not reserved when empty.
 	//
-	// Both of the slot's contenders are NON-SUPPRESSIBLE: §9.2's confirm gates a
-	// write that must not happen silently, and §9.13's failed-commit line is
-	// specified to persist until the next keypress. A floor computed without this row
+	// Both of the slot's contenders are NON-SUPPRESSIBLE: the confirm gates a write
+	// that must not happen silently, and the failed-commit line persists until the
+	// next keypress. A floor computed without this row
 	// therefore puts the panel exactly one row short at the moment a message appears
 	// — asking "clear constant <slug>?" about a row that has just been pushed off
 	// screen, which is the one question the user cannot answer.
@@ -116,15 +116,15 @@ const (
 // THE PANEL'S HEADER REGION IS MEASURED OFF THE PAGE'S, NEVER RESTATED.
 //
 // The panel is composited over the page at the content region's Y=0, so its rows
-// and the page's are the SAME terminal rows. §9.1's slide-over is a surface inside
+// and the page's are the SAME terminal rows. The slide-over is a surface inside
 // the content region rather than a second column beside it, and that only reads if
 // the two run ONE rhythm: `Themes` on the page's `Sessions N` row, the panel's first
 // theme row on the page's first session row, and one rule shared between them.
 //
-// Task 8-6 pinned the header at a restated two rows, which put `Themes` on the
-// WORDMARK row and the panel's first row three rows above the first session row. A
-// literal is what drifted, so these four are derived from the page's own renderers:
-// a change to the header block or the section header moves the panel with it.
+// A restated two-row header put `Themes` on the WORDMARK row and the panel's
+// first row three rows above the first session row. A literal is what drifted, so
+// these four are derived from the page's own renderers: a change to the header
+// block or the section header moves the panel with it.
 //
 //   - themePanelHeaderRuleRow — the rows above the rule, which is the page header
 //     block's BAND. Nothing is drawn in them (see themePanelHeaderBlock).
@@ -164,8 +164,8 @@ func themePanelBorderFromRow() int {
 	return themePanelHeaderRuleRow() + 1
 }
 
-// themePanelDim names the dimension §9.8's floor refused on, so the entry gate and
-// the resize path select §14A's per-dimension copy from ONE answer rather than each
+// themePanelDim names the dimension the render floor refused on, so the entry gate
+// and the resize path select the per-dimension copy from ONE answer rather than each
 // re-deciding which dimension was at fault.
 //
 // dimNone is the zero value and the "nothing failed" answer, which is what a
@@ -175,16 +175,16 @@ type themePanelDim int
 const (
 	// dimNone is no failure: both dimensions cleared the floor.
 	dimNone themePanelDim = iota
-	// dimWidth is §9.8's width floor — the content region cannot hold even the
+	// dimWidth is the width floor — the content region cannot hold even the
 	// minimum panel.
 	dimWidth
-	// dimHeight is §9.8's height floor — the content region cannot hold header +
+	// dimHeight is the height floor — the content region cannot hold header +
 	// footer + one list row + one message row (+ the directory row when unusable).
 	dimHeight
 )
 
 const (
-	// themePanelNarrowClosedFlash / themePanelShortClosedFlash are §14A's pinned
+	// themePanelNarrowClosedFlash / themePanelShortClosedFlash are the pinned
 	// forced-close copy, VERBATIM. They are the resize half of the same pair the
 	// entry strings below belong to, so the two live side by side and neither can be
 	// re-worded at a call site.
@@ -192,7 +192,7 @@ const (
 	themePanelShortClosedFlash  = "terminal too short — theme picker closed"
 
 	// themePanelNoColorFlash / themePanelNarrowEntryFlash / themePanelShortEntryFlash
-	// are §14A's pinned BLOCKED-ENTRY copy, VERBATIM — the three strings §9.7's gate
+	// are the pinned BLOCKED-ENTRY copy, VERBATIM — the three strings the entry gate
 	// can answer with.
 	//
 	// They are CONSTANTS for the reason spawn.UnsupportedNoopMessage is: a pinned
@@ -205,11 +205,11 @@ const (
 	themePanelNarrowEntryFlash = "terminal too narrow for the theme picker"
 	themePanelShortEntryFlash  = "terminal too short for the theme picker"
 
-	// themeNotSavedFlash is §14A's CLOSE-REPORT copy, VERBATIM — what the user is
-	// left reading on the main screen when the panel closes with a failed commit
-	// outstanding (§9.13).
+	// themeNotSavedFlash is the CLOSE-REPORT copy, VERBATIM — what the user is left
+	// reading on the main screen when the panel closes with a failed commit
+	// outstanding.
 	//
-	// IT CARRIES NO `⚠` OF ITS OWN, and §9.13 says so explicitly. It is raised into
+	// IT CARRIES NO `⚠` OF ITS OWN, deliberately. It is raised into
 	// the notice band, whose warning role PREPENDS the status glyph — as it does for
 	// the five siblings above — so a glyph in the copy would render two. The report
 	// is glyph-backed all the same; the band supplies it, not the string. Contrast
@@ -222,18 +222,17 @@ const (
 	themeNotSavedFlash = "theme not saved — see portal.log"
 )
 
-// themePanelWidthFor is §9.8's WIDTH LADDER: the panel's outer width for a given
+// themePanelWidthFor is the WIDTH LADDER: the panel's outer width for a given
 // content-region width, and whether the region can hold a panel at all.
 //
 // THE DERIVATION, not the number. The panel takes HALF the content region, clamped
 // to the [minimum, preferred] ends declared above. The half-width cap is what keeps
 // the previewed page visible while the terminal is wide enough to afford it — a
 // preview surface that covers the surface being previewed is no preview — and the
-// clamp is what turns that into §2.7's STAGED shrink rather than a proportional one
+// clamp is what turns that into a STAGED shrink rather than a proportional one
 // that would shrink forever: ≥68 content columns take the preferred 34; 54–67 walk
 // down through 33…27; 27–53 sit on the 27-column minimum; below 27 the floor
-// refuses. §9.8 leaves the exact thresholds to implementation, exactly as §2.7 does
-// for its own degradation steps.
+// refuses.
 //
 // THE WIDTH IS CLAMPED ON THE REFUSING PATH TOO. Both callers — the open sequence
 // and the resize — take w and ignore ok, because themePanelFloor has already
@@ -245,28 +244,27 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 	return min(max(contentW/2, themePanelMinWidth), themePanelPreferredWidth), contentW >= themePanelMinWidth
 }
 
-// themePanelMinHeight is §9.8's HEIGHT FLOOR: header + footer + one list row + one
-// message row, plus §9.5's pinned directory row when the themes directory is
+// themePanelMinHeight is the HEIGHT FLOOR: header + footer + one list row + one
+// message row, plus the pinned directory row when the themes directory is
 // unusable.
 //
 // NOTHING HERE IS A LITERAL. The footer is measured (themePanelFooterHeight), so a
 // change to the scope it is handed moves the floor with no second edit; the HEADER
 // is measured too (themePanelHeaderRows), which is what makes it follow the page's
-// own header and section header. A restated header count is exactly what task 8-6
-// shipped and exactly what drifted — so the floor grows by precisely the rows the
-// header gained, with no second edit here either.
+// own header and section header. A restated header count is exactly what drifted
+// before — so the floor grows by precisely the rows the header gained, with no
+// second edit here either.
 //
 // THE MESSAGE ROW IS UNCONDITIONAL and the DIRECTORY ROW IS CONDITIONAL, and both
-// halves are load-bearing. The message row is counted although §9.1 leaves the slot
+// halves are load-bearing. The message row is counted although the slot is
 // unreserved when empty, because neither contender can be suppressed (see
 // themePanelFloorMessageRows). The directory row is counted only when it renders,
 // because counting it always would refuse terminals that would have rendered a
-// perfectly good panel — §9.8's degrade-don't-refuse doctrine — while counting it
-// never would let the warning consume the single list row, leaving nothing
-// selectable on screen at exactly the moment §9.5 requires built-in and persisted
-// rows to render beneath it.
+// perfectly good panel — degrade, don't refuse — while counting it never would let
+// the warning consume the single list row, leaving nothing selectable on screen at
+// exactly the moment built-in and persisted rows must render beneath it.
 //
-// EVERY CALLER PASSES THE STANDING SCOPE, AND §9.2's NESTED CONFIRM SCOPE ADDS NO
+// EVERY CALLER PASSES THE STANDING SCOPE, AND THE NESTED CONFIRM SCOPE ADDS NO
 // ROW TO THE FLOOR. That is the non-obvious half of "the slot's height feeds the
 // floor arithmetic unchanged", and it holds for one reason: the confirm's footer is
 // STRICTLY SHORTER than the standing one (two Core entries against four), so a
@@ -285,12 +283,12 @@ func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
 }
 
 // themePanelFloor is THE render-floor predicate, and it has TWO callers by design:
-// §9.7's entry condition and §9.8's resize condition. They must not each derive
+// the entry condition and the resize condition. They must not each derive
 // their own arithmetic — a terminal that passes one check and fails the other is
 // precisely the state that opens a broken frame or refuses a panel that fitted — so
 // the answer is computed here and consumed, never recomputed.
 //
-// It reports WHICH dimension failed so both callers select §14A's per-dimension
+// It reports WHICH dimension failed so both callers select the per-dimension
 // copy from the same result. WIDTH IS CHECKED FIRST, so a terminal failing both
 // reports narrow: that is the dimension the user can act on with the same gesture
 // that broke it, and pinning the order is what keeps the two callers' copy
@@ -305,7 +303,7 @@ func themePanelFloor(contentW, contentH int, dirUnusable bool) (dim themePanelDi
 	return dimNone, true
 }
 
-// themePanelForcedCloseFlash is §14A's forced-close copy for the dimension the
+// themePanelForcedCloseFlash is the forced-close copy for the dimension the
 // floor refused on.
 //
 // dimNone is impossible here — the caller reaches this only on a refusal — and it
@@ -318,7 +316,7 @@ func themePanelForcedCloseFlash(dim themePanelDim) string {
 	return themePanelNarrowClosedFlash
 }
 
-// themePanelEntryFlash is §14A's BLOCKED-ENTRY copy for the dimension the floor
+// themePanelEntryFlash is the BLOCKED-ENTRY copy for the dimension the floor
 // refused on — the entry-side mirror of themePanelForcedCloseFlash, degrading to the
 // width copy on the unreachable dimNone for the same reason.
 func themePanelEntryFlash(dim themePanelDim) string {
@@ -330,26 +328,26 @@ func themePanelEntryFlash(dim themePanelDim) string {
 
 // themePanel is the slide-over's state.
 //
-// ITS list IS THE THIRD `bubbles/list` INSTANCE, and §11.2 names it the WORST CASE
-// of the cached-style class: its `bubbles/list`-owned styles (pagination dots, its
-// own help/title styles) are assigned ONCE here at construction, while it is the one
-// surface whose theme changes on EVERY arrow keypress (§9.11 requires the panel's
-// own chrome to re-theme, no exceptions). Those styles are RE-POINTED by task 8-9's
-// restyle path — the same path the main list uses — never rebuilt: a rebuild is
-// §11.1's expensive path, and it would be worse here, on a per-keypress surface.
+// ITS list IS THE THIRD `bubbles/list` INSTANCE, and the WORST CASE of the
+// cached-style class: its `bubbles/list`-owned styles (pagination dots, its own
+// help/title styles) are assigned ONCE here at construction, while it is the one
+// surface whose theme changes on EVERY arrow keypress — the panel's own chrome
+// re-themes with no exceptions. Those styles are RE-POINTED by the restyle path —
+// the same path the main list uses — never rebuilt: a rebuild is the expensive
+// path, and it would be worse here, on a per-keypress surface.
 //
 // The panel's own delegate is the other half of that rule, and it is REPLACED
 // rather than re-derived: themeRowDelegate carries its theme, its colourless flag
 // and its width as FIELDS, so the delegate is a VALUE the model assembles at the
 // single construction point Model.themeRowDelegate and hands to the list — once
-// when the panel opens (task 8-7, through newThemePanelList), then RE-POINTED from
-// that same site by task 8-9's restyle and by resizeThemePanel (SetDelegate, never a
-// second construction site).
+// when the panel opens (through newThemePanelList), then RE-POINTED from that same
+// site by the restyle path and by resizeThemePanel (SetDelegate, never a second
+// construction site).
 //
 // renderThemePanel takes no Model and never touches the delegate, so the rows are
 // drawn with whatever the model last assigned. Keeping that in step with the theme
 // the panel is RENDERED at is therefore the MODEL's job, not the renderer's — which
-// is why 8-9's restyle re-points the delegate on the same keypress that moves the
+// is why the restyle re-points the delegate on the same keypress that moves the
 // preview.
 type themePanel struct {
 	// open gates the whole surface, and it means "the panel is LIVE" rather than
@@ -361,46 +359,46 @@ type themePanel struct {
 	// list is the panel's own bubbles/list instance (see the type comment).
 	list list.Model
 
-	// enumeration is the ONE directory read, retained for the panel's lifetime
-	// (§5.8) so arrowing previews from values already in hand and §9.2's post-commit
-	// recompute re-derives with no fresh I/O. openThemePanel fills it and the
-	// open-time re-resolution reads it (applyThemePanelResolution); `Esc`'s close
-	// re-resolves against it one last time before dropping it (closeThemePanel),
-	// and §9.2's commit recompute is its other reader.
+	// enumeration is the ONE directory read, retained for the panel's lifetime so
+	// arrowing previews from values already in hand and the post-commit recompute
+	// re-derives with no fresh I/O. openThemePanel fills it and the open-time
+	// re-resolution reads it (applyThemePanelResolution); `Esc`'s close re-resolves
+	// against it one last time before dropping it (closeThemePanel), and the commit
+	// recompute is its other reader.
 	enumeration theme.Enumeration
 
-	// union is §9.4's finished row set, already ordered and already carrying each
-	// row's single §6.2 reason.
+	// union is the finished row set, already ordered and already carrying each
+	// row's single rejection reason.
 	union theme.Union
 
-	// badges is §9.5's `●` table, keyed by theme.Row.BadgeKey — a fact about the
+	// badges is the `●` table, keyed by theme.Row.BadgeKey — a fact about the
 	// whole SETTING rather than about one row, which is why it is held here and
 	// looked up per row rather than derived at the delegate. It is derived at open
 	// from the seam's own re-resolution against the retained enumeration — the
-	// panel's parse, never construction's (§5.8) — and rowItems assembles the list
+	// panel's parse, never construction's — and rowItems assembles the list
 	// through it.
 	//
-	// §9.2's post-commit recompute re-derives it against that SAME enumeration
+	// The post-commit recompute re-derives it against that SAME enumeration
 	// (refreshThemePanelBadges), which is what makes the `●` mean "what is
 	// persisted" after a write as well as before one. Those two are its only
 	// writers: a FAILED commit reaches neither, so the marker cannot move on a
-	// write that did not land (§9.13).
+	// write that did not land.
 	badges map[string]theme.Badge
 
-	// message is §9.1's message slot: a SINGLE-SLOT ARBITER holding at most one of
-	// its two contenders — the slot-from-constant confirm (§9.2) and the
-	// failed-commit line (§9.13). The two can never be live at once, because a
+	// message is the panel's message slot: a SINGLE-SLOT ARBITER holding at most one
+	// of its two contenders — the slot-from-constant confirm and the failed-commit
+	// line. The two can never be live at once, because a
 	// confirm resolves before any write happens; theme_panel_message.go holds the
 	// value, its pinned copy, its renderer and the three writers that install it.
 	//
-	// `Enter` RAISES NO CONFIRM, and that is a decision rather than a gap. §9.2
-	// gives the commit-a-constant key no confirm even over a pair — it visibly does
-	// what it says, and the theme is already previewing behind the panel. The
+	// `Enter` RAISES NO CONFIRM, and that is a decision rather than a gap. The
+	// commit-a-constant key has no confirm even over a pair — it visibly does what
+	// it says, and the theme is already previewing behind the panel. The
 	// asymmetry with `d`/`l` is the point: the confirm guards the case where the
 	// RESOLVED theme changes as a side effect of a write the user was told is inert.
 	message themePanelMessage
 
-	// pending is the assignment a LIVE confirm will apply on `y` (§9.2) — the slug
+	// pending is the assignment a LIVE confirm will apply on `y` — the slug
 	// the cursor was on when the question was asked, and the slot the keypress
 	// named.
 	pending themeSlotConfirm
@@ -413,28 +411,28 @@ type themePanel struct {
 // newThemePanelList constructs the panel's `bubbles/list` instance.
 //
 // Every piece of chrome the list can draw for itself is DISABLED, because the panel
-// supplies all of it: the §9.1 header (title), the pinned `⚠ dir unreadable` row and
-// the message slot (status bar), and the §9.1 vertical keymap footer (help).
-// Filtering is off by decision — panel search is deferred (§1.4), which is also why
+// supplies all of it: the header (title), the pinned `⚠ dir unreadable` row and
+// the message slot (status bar), and the vertical keymap footer (help). Filtering
+// is off by decision — panel search is deferred, which is also why
 // themeRowItem.FilterValue is never consulted.
 //
-// Pagination is deliberately LEFT ON: §9.8 pins overflow to scroll through the
-// `bubbles/list` machinery, and §11.2 requires the dots to be exercised by a
-// paginating fixture so the swap-and-diff guard is not blind at the new site.
+// Pagination is deliberately LEFT ON: overflow scrolls through the `bubbles/list`
+// machinery, and a paginating fixture exercises the dots so the swap-and-diff
+// guard is not blind at that site.
 //
 // The nav keymap is PINNED through the shared pinArrowOnlyNav, exactly as the
-// Sessions and Projects lists pin theirs: §12.2's revision is arrows only, and the
-// v2 DefaultKeyMap re-introduces the vim aliases (h/j/k/l, g/G) plus
+// Sessions and Projects lists pin theirs: navigation is arrows only, and the v2
+// DefaultKeyMap re-introduces the vim aliases (h/j/k/l, g/G) plus
 // PgUp/PgDn/Home/End/b/u/f/d. On the panel two of those additionally COLLIDE with
-// its own commit keys — the default binds `l` to NextPage and `d` to NextPage,
-// which §9.2 gives to the light and dark slots — so pinning here is what keeps a
-// banned key from ever reaching the list's own Update.
+// its own commit keys — the default binds `l` and `d` to NextPage, and the panel
+// gives those to the light and dark slots — so pinning here is what keeps a banned
+// key from ever reaching the list's own Update.
 //
 // The list is created at zero size and sized at open by applyThemePanelListStyles,
 // which the centred dot row's explicit width depends on. renderThemePanel re-applies
 // the SAME size per frame on its own copy, from the height it is actually rendered
-// at (see themePanelListSize) — the model's list carries the size so its PAGE is the
-// drawn page, which is what makes §9.2's `Ctrl+↑`/`Ctrl+↓` move a page rather than a
+// at (see themePanelListSize) — the model's list carries the size so its PAGE is
+// the drawn page, which is what makes `Ctrl+↑`/`Ctrl+↓` move a page rather than a
 // row.
 func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model {
 	l := list.New(items, delegate, 0, 0)
@@ -446,7 +444,7 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 	return l
 }
 
-// themePanelEntry is §9.7's ENTRY GATE: the ONE place the pre-read decision to open
+// themePanelEntry is the panel's ENTRY GATE: the ONE place the pre-read decision to open
 // the panel is made, answering either "open" or the pinned copy the refusal flashes.
 //
 // NOTHING BLOCKS `t` EXCEPT a modal, a pending burst, `NO_COLOR`, a terminal below
@@ -459,7 +457,7 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 //     rune arm. That is CONSISTENCY with the lock rather than an exception to it —
 //     the model is mid-async-operation and only `Ctrl-C`/`Esc` are live — so there is
 //     deliberately no burst branch here to keep the lock decided in one place.
-//   - PREVIEW and LOADING bind no `t` at all (§9.6). Preview's body is captured real
+//   - PREVIEW and LOADING bind no `t` at all. Preview's body is captured real
 //     ANSI scrollback that is deliberately out-of-theme, so a live preview would
 //     re-theme the frame chrome alone, and it is ALREADY a full-screen overlay, so the
 //     panel would stack an overlay on an overlay. Loading is inert by design (animation
@@ -467,11 +465,11 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 //     notice band to flash into — and it is not a corner case, since the cold + TUI
 //     path holds it for at least LoadingMinDuration with the user watching.
 //
-// That split IS §9.7's feedback rule: FLASH where the key is bound and the user could
+// That split IS the feedback rule: FLASH where the key is bound and the user could
 // reasonably expect it to work, SILENT where it is not bound at all — exactly how `s`
 // already behaves.
 //
-// THE TWO REFUSALS BELOW ARE DELIBERATELY OPPOSITE CALLS (§9.10), and conflating them
+// THE TWO REFUSALS BELOW ARE DELIBERATELY OPPOSITE CALLS, and conflating them
 // gets one of them wrong:
 //
 //   - `NO_COLOR` is a CAPABILITY ABSENCE — Portal paints no canvas and imposes no
@@ -479,11 +477,11 @@ func newThemePanelList(items []list.Item, delegate list.ItemDelegate) list.Model
 //     colour, and a commit would persist a choice with zero visible feedback. It is
 //     blocked PROACTIVELY, following the multi-select precedent exactly, which is what
 //     keeps the user out of a walkable dead end.
-//   - A NARROW OR SHORT terminal is a SPACE SHORTAGE, where §2.7 mandates degrade:
-//     the panel shrinks through §9.8's ladder and refuses only once even the minimum
-//     cannot render.
+//   - A NARROW OR SHORT terminal is a SPACE SHORTAGE, where the rule is degrade:
+//     the panel shrinks through the width ladder and refuses only once even the
+//     minimum cannot render.
 //
-// It reads themePanelFloor — the SAME predicate §9.8's resize condition reads — with
+// It reads themePanelFloor — the SAME predicate the resize condition reads — with
 // dirUnusable FALSE, because that flag is a product of the enumeration and the read
 // happens on this keypress, after this decision. openThemePanel re-applies the same
 // predicate with the real flag; see its note for why neither shortcut is taken.
@@ -497,15 +495,15 @@ func (m Model) themePanelEntry() (blockedFlash string, ok bool) {
 	return "", true
 }
 
-// handleThemePanelKey is §9.6's `t`, and it is what BOTH pages' dispatch arms call:
+// handleThemePanelKey is the `t` handler, and it is what BOTH pages' dispatch arms call:
 // the gate above decides, and this either opens or raises the refusal's copy.
 //
 // ONE HANDLER, TWO CALL SITES. Sessions and Projects must answer `t` identically —
-// theme is a GLOBAL setting (§9.6) — and two arms each consulting the gate for
-// themselves is how one page comes to flash where the other opens. Both pages raise
-// the flash through their OWN band with no branch here, because the band is arbitrated
-// per page from the same m.flashText (§14A gave Projects its own transient-flash slot
-// for exactly these six signals).
+// theme is a GLOBAL setting — and two arms each consulting the gate for themselves
+// is how one page comes to flash where the other opens. Both pages raise the flash
+// through their OWN band with no branch here, because the band is arbitrated per
+// page from the same m.flashText (Projects has its own transient-flash slot for
+// exactly these signals).
 func (m Model) handleThemePanelKey() (tea.Model, tea.Cmd) {
 	flash, ok := m.themePanelEntry()
 	if !ok {
@@ -523,8 +521,8 @@ func (m Model) handleThemePanelKey() (tea.Model, tea.Cmd) {
 // the proactive multi-select block does, with the next-actionable-key clear at the top
 // of each page's update remaining the authoritative route.
 //
-// It is raised through setThemeFlash, which is what gives it §14A's precedence over
-// the filter line. §9.10's `NO_COLOR` refusal is the reason that matters here: it is
+// It is raised through setThemeFlash, which is what gives it precedence over the
+// filter line. The `NO_COLOR` refusal is the reason that matters here: it is
 // a PROACTIVE block, so a flash that could not claim the slot would produce nothing
 // at all — the walkable dead end the block exists to prevent, reached by another
 // route.
@@ -533,41 +531,41 @@ func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
 	return m, flashTickCmd(m.flashGen)
 }
 
-// openThemePanel is §9.6's `t`: the ONE directory read, the parse results
+// openThemePanel is what `t` runs: the ONE directory read, the parse results
 // retained for the panel's lifetime, the list assembled from the union they
-// produced, and §9.2's opening state resolved against them (armThemePanel).
+// produced, and the opening state resolved against them (armThemePanel).
 //
-// THE READ HAPPENS HERE, ON THE KEYPRESS, AND NOWHERE ELSE. §5.7 keeps
-// construction free of it — a cold path that is explicitly latency-engineered
-// must not become an N-file scan-parse-validate sweep — and §5.8 makes it happen
-// on EVERY open rather than once per process, because caching buys nothing
+// THE READ HAPPENS HERE, ON THE KEYPRESS, AND NOWHERE ELSE. Construction stays
+// free of it — a cold path that is explicitly latency-engineered must not become
+// an N-file scan-parse-validate sweep — and it happens on EVERY open rather than
+// once per process, because caching buys nothing
 // measurable while breaking the loop the whole drop-in route exists for: copy a
 // built-in, edit it, see it, without relaunching Portal.
 //
 // The KEYS it is handed are the construction-time snapshot and are deliberately
-// NOT re-read (§8.4) — see Model.themeKeys for the asymmetry and its reason.
+// NOT re-read — see Model.themeKeys for the asymmetry and its reason.
 //
 // A nil seam is a silent no-op (the modePersister nil-guard precedent), so a
 // fixture or capturetool model that wires none simply has no panel.
 //
 // THE FLOOR IS RE-EVALUATED HERE, against the SAME predicate the entry gate read and
-// with the REAL directory verdict this read has just produced. §9.5's pinned
+// with the REAL directory verdict this read has just produced. The pinned
 // `⚠ dir unreadable` row raises the height floor by one, and DirUnusable does not
 // exist until the enumeration runs — so the one predicate is evaluated twice rather
 // than the arithmetic being re-derived, which is what themePanelFloor's
 // "compute it once" forbids. Both shortcuts are refused, in opposite directions:
 //
 //   - Assuming TRUE at the gate would refuse terminals that render a perfectly good
-//     panel, contradicting §9.8's degrade-don't-refuse doctrine outright.
+//     panel, contradicting the degrade-don't-refuse rule outright.
 //   - Assuming FALSE and never re-checking would open a panel whose list body is ZERO
-//     ROWS — the warning consuming the single row §9.5 requires built-in and persisted
-//     rows to render BENEATH it, which is the "completely in the dark" state that row
-//     exists to prevent.
+//     ROWS — the warning consuming the single row built-in and persisted rows must
+//     render BENEATH, which is the "completely in the dark" state that row exists to
+//     prevent.
 //
 // THE COST IS ACCEPTED RATHER THAN WORKED AROUND: a refusal on this path has already
-// read the directory and already emitted `theme: enumerated` (§12.3). The
-// enumeration genuinely happened, so the record is honest; splitting the read from its
-// emission would fork task 8-1's seam for one rare edge. The enumeration is simply
+// read the directory and already emitted `theme: enumerated`. The enumeration
+// genuinely happened, so the record is honest; splitting the read from its
+// emission would fork the seam for one rare edge. The enumeration is simply
 // discarded — nothing is armed, so no panel state survives — and the SAME pinned copy
 // the gate would have raised is flashed. Only the height can fail here (the width is
 // independent of the flag and the gate already cleared it), and selecting through the
@@ -586,16 +584,16 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 }
 
 // armThemePanel installs one enumeration's results as the live panel state, and
-// §9.2's opening state with them: the badges, the theme actually rendering, and
-// the row the cursor lands on.
+// the opening state with them: the badges, the theme actually rendering, and the
+// row the cursor lands on.
 //
-// THE WIDTH COMES FROM §9.8's LADDER, not from the preferred width, so the width a
+// THE WIDTH COMES FROM THE LADDER, not from the preferred width, so the width a
 // panel OPENS at and the width it degrades to on a resize are the same function of
 // the same input. Opening at the preferred width and narrowing only if the user
-// happened to resize afterwards would contradict §9.8's staged shrink outright, and
+// happened to resize afterwards would contradict the staged shrink outright, and
 // would leave the degraded band reachable by no fixture at all — a fixture opens
 // through captureKeys and never resizes. The `ok` return is DISCARDED because it is
-// unreachable here: task 8-13's entry gate already refused below the floor, and
+// unreachable here: the entry gate already refused below the floor, and
 // themePanelWidthFor clamps its width to the minimum on that impossible path rather
 // than making this site branch on a state it cannot be in.
 //
@@ -621,7 +619,7 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 // on the very next line.
 //
 // THE CURSOR SEED RUNS AFTER THE RESOLUTION'S ANCHOR AND BEFORE THE MESSAGE SEED,
-// AND IT MOVES THE CURSOR AND NOTHING ELSE (§13.3's fourth fixture input, wired
+// AND IT MOVES THE CURSOR AND NOTHING ELSE (the capture-only panel cursor seed, wired
 // only by the offline harness — see Model.initialThemeCursor). It re-anchors BY
 // ROW IDENTITY, through the same
 // anchor the resolution's answer went through, so a fixture cannot seed a cursor
@@ -645,13 +643,13 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 	m.seedThemePanelMessage()
 }
 
-// seedThemePanelMessage installs §13.3's capture-only MESSAGE STATE on a panel
-// that has just opened — the offline harness's only route to §9.1's slot, which is
+// seedThemePanelMessage installs the capture-only MESSAGE STATE on a panel that
+// has just opened — the offline harness's only route to the message slot, which is
 // otherwise reached by a keypress that a one-shot render never makes.
 //
 // IT RUNS LAST, AFTER THE CURSOR SEED, and both halves of that are load-bearing.
 // The confirm records the slug under the cursor as the assignment it would apply,
-// so a seed that ran first would name whichever row §9.2's open happened to anchor;
+// so a seed that ran first would name whichever row the open happened to anchor;
 // and raising a message re-derives the panel's vertical budget
 // (setThemePanelMessage), which re-sizes the list from the index it finds — so the
 // cursor has to be where the frame wants it before the budget is taken.
@@ -659,13 +657,12 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 // EACH SEED DECLARES STATE AND ROUTES THROUGH THE PRODUCTION WRITER, never a
 // second copy of it: the confirm goes through raiseSlotConfirm exactly as
 // handleSlotCommitKey's constant branch does, and the failure through
-// reportCommitFailure, the one site that pairs §9.13's line with its
-// outstanding-failure state. The copy is therefore composed from §14A's pinned
-// constants by the message slot itself, and a fixture cannot ship a paraphrase of
-// it.
+// reportCommitFailure, the one site that pairs the failed-commit line with its
+// outstanding-failure state. The copy is therefore composed from the message
+// slot's own pinned constants, and a fixture cannot ship a paraphrase of it.
 //
-// THE SEEDS ARE ALTERNATIVES RATHER THAN A PAIR, and the switch is §9.1's exclusion
-// rather than a preference: the slot is a single-slot arbiter whose two contenders
+// THE SEEDS ARE ALTERNATIVES RATHER THAN A PAIR, and the switch states the slot's
+// exclusion rather than a preference: it is a single-slot arbiter whose two contenders
 // can never be live at once, because a confirm resolves before any write happens.
 //
 // The confirm's SLOT is light, and it is immaterial to the frame: the question
@@ -682,35 +679,35 @@ func (m *Model) seedThemePanelMessage() {
 	}
 }
 
-// applyInForceTheme is §5.8's RE-RESOLUTION, and it is the whole of what the
+// applyInForceTheme is the panel's RE-RESOLUTION, and it is the whole of what the
 // panel's OPEN and its CLOSE have in common: the persisted setting taken from the
 // model's raw keys, resolved against the RETAINED enumeration, the one member in
 // force selected from the answer, and that member applied through
 // Model.ApplyTheme — the same production restyle path every other caller drives.
 //
 // THE DEGRADE POLICY BELOW IS STATED HERE RATHER THAN RESTATED at each site,
-// because it governs EVERY panel call site of Resolve — this open (§9.2),
-// `Esc`'s close (§5.8) and Phase 9's commit recompute — so the three cannot each
-// invent their own. THE BODY IS SHARED BY THE OPEN AND THE CLOSE ONLY: a commit
-// recomputes rows and badges and never the rendered theme (§11.1, §9.2), so it
+// because it governs EVERY panel call site of Resolve — this open, `Esc`'s close
+// and the commit recompute — so the three cannot each invent their own. THE BODY
+// IS SHARED BY THE OPEN AND THE CLOSE ONLY: a commit recomputes rows and badges
+// and never the rendered theme, so it
 // takes the policy without taking the apply — routing it through here would swap
 // the screen off the preview the user is still looking at. Sharing the body
 // between the two that DO apply is also what makes the theme applied and the row
 // the open anchors come from ONE evaluation (see inForceSlot).
 //
-// IT RESOLVES AGAINST THE RETAINED PARSE AND NEVER THE FILESYSTEM (§8.4): a read
-// here would produce a THIRD parse of the same slug, neither construction's nor
-// the panel's, that can disagree with the rows the user is looking at. The
-// light/dark answer is likewise READ OFF THE MODEL rather than asked for again —
-// §8.8's gate resolves exactly once.
+// IT RESOLVES AGAINST THE RETAINED PARSE AND NEVER THE FILESYSTEM: a read here
+// would produce a THIRD parse of the same slug, neither construction's nor the
+// panel's, that can disagree with the rows the user is looking at. The light/dark
+// answer is likewise READ OFF THE MODEL rather than asked for again — the gate
+// resolves exactly once.
 //
-// THE ERROR POLICY. The only error Resolve can return is §7.6's fatal, from a
+// THE ERROR POLICY. The only error Resolve can return is the broken-builtin fatal, from a
 // binary whose embedded set cannot supply a fallback, which the build-time
 // guarantee makes unreachable in a correctly built binary. The panel therefore
 // DEGRADES RATHER THAN ESCALATING: nothing is applied, the caller leaves the
 // state it holds exactly as it was, and nothing is written. A settings surface
 // must not become the route by which a broken binary quits Portal mid-session,
-// and §7.6 puts the fatal on the STARTUP path deliberately. A resolution naming
+// and that fatal belongs on the STARTUP path. A resolution naming
 // no slot at all takes the same path, for the same reason: it is a shape nothing
 // production can produce, and degrading is what keeps a fixture that returns one
 // from painting a colourless picker.
@@ -738,22 +735,22 @@ func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.
 	return resolution, inForce, true
 }
 
-// applyThemePanelResolution is §9.2's "the cursor lands on the theme that is
+// applyThemePanelResolution is what makes "the cursor lands on the theme that is
 // actually rendering": the re-resolution above, plus the two things only the OPEN
 // needs from it — the badge table refreshed from the answer, and the row identity
 // the cursor belongs on.
 //
 // THE RE-RESOLUTION IS THE POINT, and it is why opening is not a passive read.
-// §5.8 makes the panel's parse supersede the construction-time one, so this is
-// where a mid-session edit lands: an edited-but-still-valid active theme
-// re-renders with its new values, and one that has been INVALIDATED flips to
-// §8.5's fallback here rather than at `Esc` — deferring would leave the panel
+// The panel's parse supersedes the construction-time one, so this is where a
+// mid-session edit lands: an edited-but-still-valid active theme re-renders with
+// its new values, and one that has been INVALIDATED flips to the mode-matched
+// fallback here rather than at `Esc` — deferring would leave the panel
 // listing a theme as invalid while the screen still renders it. The mirror case
 // falls out of the same call: a theme that was broken at construction becomes
 // loadable the moment the user fixes the file, and this open applies THEIRS.
 //
 // The empty string is the degrade path's identity, which anchorThemePanelCursor
-// reads as "leave the cursor where it is". It is unambiguous: §5.2's anchored
+// reads as "leave the cursor where it is". It is unambiguous: the anchored slug
 // charset makes an empty slug illegal, so a resolved slot can never carry one.
 // Badges are left untouched on that path for the same reason the theme is.
 func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
@@ -766,10 +763,10 @@ func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
 	return inForce.Resolved
 }
 
-// themeSetting collapses the model's construction-time raw keys onto §8.2's
+// themeSetting collapses the model's construction-time raw keys onto the
 // two-state setting.
 //
-// It routes through ResolveSetting rather than restating §8.2's tiebreak, which
+// It routes through ResolveSetting rather than restating the tiebreak, which
 // is the same single site the union assembly and doctor's line resolve through —
 // so what the panel LISTS, what it MARKS and what it RESOLVES cannot disagree
 // about which slug is live. Re-running it on already-stripped keys is safe:
@@ -783,21 +780,21 @@ func (m Model) themeSetting() theme.Setting {
 // and under a pair the member the light/dark answer names — light in a light
 // terminal, dark otherwise.
 //
-// The answer is read off the model rather than asked for again: a constant never
-// consulted detection at all and a pair resolved exactly once before first paint
-// (§8.8), so a query here would reopen the race the resolve-once rule closes.
+// The answer is READ OFF THE MODEL rather than asked for again: a constant never
+// consulted detection at all and a pair resolved exactly once before first paint,
+// so a query here would reopen the race the resolve-once rule closes.
 //
 // On a gate that was never armed the value starts as the standing dark no-answer
 // fallback, which is the right answer for the same reason it is the right canvas —
-// UNTIL §9.3's mid-session constant → adaptive conversion, which records
+// UNTIL the mid-session constant → adaptive conversion, which records
 // Model.retainedCanvasAnswer into Model.canvasMode while the pinned gate keeps that
 // fallback for good. From that commit on the mode read here is DELIBERATELY NOT
 // gate.appearance, and substituting one for the other closes a converted light
 // terminal onto the DARK slot. See Model.canvasMode and loadNewlyLiveSlot.
 //
 // The slot is matched on its Slot rather than taken by position, and ONE record
-// answers for both the palette and the cursor's target — which is what makes
-// §9.2's invariant structural: the theme applied and the row anchored come from
+// answers for both the palette and the cursor's target — which is what makes the
+// invariant structural: the theme applied and the row anchored come from
 // the same slot, so they cannot be two lookups that disagree.
 //
 // The false return is a resolution naming no slot at all — not a state the
@@ -818,17 +815,17 @@ func inForceSlot(r theme.Resolution, mode canvasAppearance) (theme.SlotResolutio
 
 // anchorThemePanelCursor puts the cursor on the row whose IDENTITY is slug.
 //
-// ANCHORING IS BY IDENTITY AND NEVER BY INDEX (§9.2). An index silently breaks
+// ANCHORING IS BY IDENTITY AND NEVER BY INDEX. An index silently breaks
 // the invariant the moment a row is inserted above the cursor — the screen keeps
 // previewing one theme while the cursor sits on another — and that is exactly what
-// Phase 9's commit recompute does, since clearing a slot can remove the row that
+// the commit recompute does, since clearing a slot can remove the row that
 // existed only because the slot named it, and assigning one can mint a new row
 // above the cursor.
 //
-// The target is the RESOLVED slug, never the requested one: under §8.5's fallback
-// those differ, and the fallback's row is the one that is painted. The persisted
-// row keeps its `●` and stays where it is — `●` is what is SET, the cursor is what
-// is PREVIEWED (§9.5) — and it is unselectable, so parking the cursor there would
+// The target is the RESOLVED slug, never the requested one: under a fallback those
+// differ, and the fallback's row is the one that is painted. The persisted row
+// keeps its `●` and stays where it is — `●` is what is SET, the cursor is what is
+// PREVIEWED — and it is unselectable, so parking the cursor there would
 // put it somewhere the arrows, which skip unselectable rows, cannot return to.
 //
 // An EMPTY slug is the degrade path's no-op: applyThemePanelResolution's error
@@ -847,20 +844,20 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 // else the raw persisted string — which is the same value the ordering and the
 // badge lookup key on, so a row can be found by exactly what it is listed under.
 // A `reserved name` row shares its key with the built-in it collides with by
-// definition (§6.2), and the built-in sorts first (§9.5), so the first match is
-// always the selectable one the slug actually resolved to.
+// definition, and the built-in sorts first, so the first match is always the
+// selectable one the slug actually resolved to.
 //
 // THE MATCH IS FILTERED ON Selectable, AND THAT IS NOT REDUNDANT WITH THE ORDER.
-// §9.2's invariant is that the cursor is always on a selectable row, and this
-// function has a second caller the resolver does not control: §13.3's capture seed
-// (Model.initialThemeCursor) re-anchors by identity from a string a FIXTURE declares,
-// and §13.3 mandates fixtures built from an invalid drop-in and an unreadable themes
+// The cursor must always be on a selectable row, and this function has a second
+// caller the resolver does not control: the capture seed
+// (Model.initialThemeCursor) re-anchors by identity from a string a FIXTURE
+// declares, and fixtures are built from an invalid drop-in and an unreadable themes
 // directory — whose rows are exactly the unselectable ones. A cursor parked there
-// would sit somewhere the arrows, which skip unselectable rows (§9.5), cannot return
-// to. Falling through is the same degrade a seed naming no row at all already takes.
+// would sit somewhere the arrows, which skip unselectable rows, cannot return to.
+// Falling through is the same degrade a seed naming no row at all already takes.
 //
-// THE FINAL CLAMP IS A STRUCTURAL GUARD, NOT A LIVE PATH. Built-ins are always valid
-// (§7.6's build-time guarantee), so a union with no selectable row is unreachable.
+// THE FINAL CLAMP IS A STRUCTURAL GUARD, NOT A LIVE PATH. Built-ins are always
+// valid, so a union with no selectable row is unreachable.
 // The guard is here because the alternative to degrading is indexing out of range
 // inside a list the user is looking at.
 func themePanelRowIndex(rows []theme.Row, slug string) int {
@@ -871,27 +868,27 @@ func themePanelRowIndex(rows []theme.Row, slug string) int {
 	return max(slices.IndexFunc(rows, theme.Row.Selectable), 0)
 }
 
-// closeThemePanel is §9.2's `Esc`: it discards an uncommitted preview, renders
-// the RESOLVED PERSISTED STATE, and then drops everything the panel retained so
-// the next open RE-READS (§5.8) rather than replaying a stale parse.
+// closeThemePanel is `Esc`: it discards an uncommitted preview, renders the
+// RESOLVED PERSISTED STATE, and then drops everything the panel retained so the
+// next open RE-READS rather than replaying a stale parse.
 //
 // IT DOES NOT RESTORE A THEME SNAPSHOTTED AT OPEN. That is the naive
 // implementation, it is wrong in BOTH directions, and it must not be "simplified"
 // back into one:
 //
 //   - BACKWARDS — a user who broke their active theme's file mid-session would be
-//     handed back a palette the config no longer yields. §5.8 is explicit: Portal
-//     shows what the config NOW says, not a stale copy it happens to still hold,
-//     so a close lands on §8.5's fallback exactly as the open did.
-//   - FORWARDS — a Phase 9 commit writes prefs and leaves the panel OPEN, so an
-//     `Esc` AFTER one must resolve to the NEWLY persisted state (§9.2). `Esc`
+//     handed back a palette the config no longer yields. Portal shows what the
+//     config NOW says, not a stale copy it happens to still hold, so a close lands
+//     on the mode-matched fallback exactly as the open did.
+//   - FORWARDS — a commit writes prefs and leaves the panel OPEN, so an `Esc`
+//     AFTER one must resolve to the NEWLY persisted state. `Esc`
 //     equals "what you had before" only when nothing was committed, which is why
 //     the mechanism has to be re-resolution from the start rather than a snapshot
 //     that happens to agree today.
 //
-// §11.1 names this the caller that MATTERS MOST: a missed re-point here leaves a
+// THIS IS THE RESTYLE CALLER THAT MATTERS MOST: a missed re-point here leaves a
 // preview the user explicitly discarded painting the main screen, with no surface
-// left open to explain it — and §13.4's completeness guard drives the
+// left open to explain it — and the swap-and-diff completeness guard drives the
 // arrow-preview entry point only.
 //
 // THE ORDER IS LOAD-BEARING: the resolution reads the retained enumeration, so
@@ -905,20 +902,20 @@ func themePanelRowIndex(rows []theme.Row, slug string) int {
 // width, so there is no frame to reclaim here. That is stated as a NEGATIVE
 // deliberately: a reader who "completes" the close with a reclaim step is one
 // step from adding the open-time reduction that would justify it, which reflows
-// the surface being previewed and falsifies both §9.1's cut-mid-label cost and
+// the surface being previewed and falsifies both the accepted cut-mid-label cost and
 // the panel's Projects fixture. A notice band raised or cleared while the panel
 // was open is already handled on its own path — resyncPageLayouts, which re-sizes
-// both page lists for the band (§14A gave Projects its own flash slot, so both
-// pages route through it); closing adds nothing to it.
+// both page lists for the band (Projects has its own flash slot, so both pages
+// route through it); closing adds nothing to it.
 //
 // NOTHING IS WRITTEN — no prefs write, no tmux option, no file. Every write is an
-// explicit keypress (§9.2), which is what eliminates the "applied but not
+// explicit keypress, which is what eliminates the "applied but not
 // persisted" state persist-on-close would reach, where Portal dies with the
 // visually-applied theme never written. And closing is ONE FRAME: no animation,
 // no transition, no intermediate width.
 //
 // THE POST-CLOSE STEP IS A SINGLE STEP OF ITS OWN, and this is the ONE close every
-// caller routes through — §9.8's forced close included, which calls this and then
+// caller routes through — the forced close included, which calls this and then
 // decides only whether its own geometry flash is still due. A second close
 // implementation is exactly what "a forced close takes the `Esc` path exactly"
 // forbids, since two of them can drift.
@@ -928,14 +925,14 @@ func (m *Model) closeThemePanel() tea.Cmd {
 	return m.reportOutstandingCommitFailure()
 }
 
-// reportOutstandingCommitFailure is §9.13's CLOSE REPORT: with a failed commit
-// outstanding, the close raises §14A's main-screen flash and CLEARS the state in
-// the same act.
+// reportOutstandingCommitFailure is the CLOSE REPORT: with a failed commit
+// outstanding, the close raises the main-screen flash and CLEARS the state in the
+// same act.
 //
 // THE REPORT MUST SURVIVE THE CLOSE, which is the whole reason this step exists.
-// `Esc` re-resolves persisted state (§9.2), so composed without it the very next
-// keypress both takes the panel's message down and drops the theme the user chose —
-// with no `●` movement to signal it, since §9.13 forbids the marker moving on a
+// `Esc` re-resolves persisted state, so composed without it the very next keypress
+// both takes the panel's message down and drops the theme the user chose — with no
+// `●` movement to signal it, since the marker must not move on a
 // write that did not land, and nothing at all on the main screen. The
 // "reported rather than silent" property would hold for exactly one keystroke.
 //
@@ -944,7 +941,7 @@ func (m *Model) closeThemePanel() tea.Cmd {
 // Without it, re-opening the panel and pressing `Esc` would re-fire a flash about a
 // failure already reported, on every close for the life of the process.
 //
-// It goes through setThemeFlash, which is what gives it §14A's precedence over a
+// It goes through setThemeFlash, which is what gives it precedence over a
 // filter line the user may have had applied throughout the panel's whole life — the
 // contender that would otherwise keep this report off the band entirely, destroying
 // it rather than deferring it, since the discharge happens whether or not a band
@@ -959,26 +956,26 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 	return flashTickCmd(m.flashGen)
 }
 
-// resizeThemePanel is §9.8's RESIZE CONDITION, and it is the second of
-// themePanelFloor's two callers (§9.7's entry gate is the other): while the terminal
+// resizeThemePanel is the RESIZE CONDITION, and it is the second of
+// themePanelFloor's two callers (the entry gate is the other): while the terminal
 // stays above the render floor the panel DEGRADES IN PLACE, and below either
-// dimension's floor it FORCE-CLOSES with §14A's pinned per-dimension copy.
+// dimension's floor it FORCE-CLOSES with the pinned per-dimension copy.
 //
 // DEGRADE IN PLACE IS THREE THINGS, and the third is the one that is easy to miss:
 // the ladder re-runs (so the width follows the terminal), the body arithmetic
 // re-runs (so the model's list derives the SAME page the drawn frame does — a stale
-// PerPage makes §9.2's `Ctrl+↑`/`Ctrl+↓` move a different distance than the screen
+// PerPage makes `Ctrl+↑`/`Ctrl+↓` move a different distance than the screen
 // scrolls, which no rendered frame reveals), and the panel's DELEGATE is re-pointed.
 // The delegate matters because it holds its composition budget as a FIELD — unlike
 // SessionDelegate, which reads the width off the list it renders into — and the only
 // other caller of Model.themeRowDelegate runs on a THEME SWAP, which a
 // tea.WindowSizeMsg is not. A resize with no arrow after it would otherwise leave
-// every row composing against the pre-resize budget: §11.2's "invisible until a
-// resize during a live preview", exactly. All three come from re-invoking
+// every row composing against the pre-resize budget — invisible until a resize
+// during a live preview, exactly. All three come from re-invoking
 // applyThemePanelListStyles — the SAME function the open runs — rather than from a
 // second copy of the arithmetic here.
 //
-// THE MAIN SCREEN IS DELIBERATELY NOT RE-LAID-OUT to the reduced width (§9.1). The
+// THE MAIN SCREEN IS DELIBERATELY NOT RE-LAID-OUT to the reduced width. The
 // panel is composited over a page composed at the UNREDUCED content width, so a
 // panel width change never reflows the surface being previewed; the caller has
 // already re-sized both page lists to the full content region and this adds nothing
@@ -988,15 +985,15 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 // function, never a second teardown — and then raises its geometry flash if that
 // close has not already spoken. Any other behaviour would strand the user rendering
 // a theme they never chose, with the surface that could change it gone and a
-// terminal too narrow to reopen it: the state §11.4 names as the one where a colour
-// the user never chose survives Portal's exit.
+// terminal too narrow to reopen it — the state in which a colour the user never
+// chose survives Portal's exit.
 //
 // WITH A COMMIT FAILURE OUTSTANDING BOTH FLASHES ARE DUE AT ONCE AND THE REPORT
-// WINS (§9.13). The band has ONE slot and the two say different things: a geometry
+// WINS. The band has ONE slot and the two say different things: a geometry
 // event the user can see for themselves — their terminal just got smaller and the
 // panel vanished — against an unsaved setting they must act on. Losing the geometry
 // flash costs nothing; losing the report on the one path where the user cannot
-// reopen the panel to retry is exactly the failure §9.13 closes.
+// reopen the panel to retry is exactly the failure the report closes.
 //
 // THE FLAG IS READ BEFORE THE CLOSE, AND THE ORDER IS LOAD-BEARING. The close's own
 // report step DISCHARGES the outstanding state as part of raising the flash, so a
@@ -1005,15 +1002,16 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 // in a way no reading of the rule catches.
 //
 // A LIVE SLOT-FROM-CONSTANT CONFIRM IS SILENTLY CANCELLED by this close, and it is
-// stated because the confirm is otherwise specified (§9.2) as resolvable only by a
-// keypress — this is its one other exit. Nothing has been written at that point, so
+// stated because the confirm is otherwise resolvable only by a keypress — this is
+// its one other exit. Nothing has been written at that point, so
 // there is no partial state to leave behind, and the cancel is STRUCTURAL rather
 // than a step of its own: the question and the pending assignment it would write
 // both live on the panel struct, which closeThemePanel discards WHOLE. A second
 // explicit clear here would be a no-op that could drift from the one that matters —
 // the same argument that keeps this path on closeThemePanel rather than on a
 // teardown of its own. The cancelled confirm raises NO flash of its own: the only
-// reports due on this path are the geometry event's pinned copy and §9.13's.
+// reports due on this path are the geometry event's pinned copy and the
+// failed-commit report.
 //
 // THE SEAM IS LIVE ON THIS PATH. closeThemePanel re-resolves through
 // m.themeEnumerator with no nil guard, and this new caller is safe for the same
@@ -1023,10 +1021,10 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 // THE GEOMETRY FLASH IS RAISED WITHOUT AN AUTO-CLEAR TICK — it clears on the next
 // actionable key exactly as the burst's unsupported no-op flash does, and a geometry
 // report the user can see for themselves is the right thing to leave standing until
-// they touch a key. §9.13's report is the opposite call and brings its own tick,
+// they touch a key. The failed-commit report is the opposite call and brings its own tick,
 // which is the command returned here. Both go through setThemeFlash so either claims
 // the notice slot over a filter line the user may have had applied throughout the
-// panel's whole life (§14A).
+// panel's whole life.
 func (m *Model) resizeThemePanel() tea.Cmd {
 	if !m.themePanel.open {
 		return nil
@@ -1047,7 +1045,7 @@ func (m *Model) resizeThemePanel() tea.Cmd {
 }
 
 // rowItems pairs each union row with the badge it carries — the SINGLE item
-// assembly site, which task 8-9's restyle re-invokes rather than re-deriving.
+// assembly site, which the restyle path re-invokes rather than re-deriving.
 //
 // The badge is looked up through Row.BadgeKey and NEVER through Slug: a
 // `reserved name` row's slug is identical to the built-in's it collides with by
@@ -1074,9 +1072,9 @@ func (p themePanel) rowItems() []list.Item {
 // SIZING TO themePanelMinBodyRows WOULD BE A DEFECT, not a deferral. `bubbles/list`
 // derives Paginator.PerPage from the height it is given, so a list left at the floor
 // has a ONE-ROW page and NextPage/PrevPage advance the cursor by exactly one row —
-// §9.2's `Ctrl+↑`/`Ctrl+↓` would route perfectly and still do nothing `↑`/`↓` does
-// not, and §9.8's "overflow: scroll, through the bubbles/list machinery" would be
-// unimplemented on a panel that renders as though it were. resizeThemePanel re-applies
+// `Ctrl+↑`/`Ctrl+↓` would route perfectly and still do nothing `↑`/`↓` does not,
+// and overflow-scrolls-through-the-bubbles/list-machinery would be unimplemented
+// on a panel that renders as though it were. resizeThemePanel re-applies
 // this on a tea.WindowSizeMsg; that path owns the panel's page CHANGING, not its
 // existing at all.
 //
@@ -1101,22 +1099,21 @@ func (m *Model) applyThemePanelListStyles() {
 	m.applyThemePanelCanvasMode()
 }
 
-// applyThemePanelCanvasMode is the restyle path's THIRD arm (§11.2), beside the
-// Sessions and Projects ones: it re-points the panel list's `bubbles/list`-owned
-// styles and its row delegate onto the model's active palette.
+// applyThemePanelCanvasMode is the restyle path's THIRD arm, beside the Sessions
+// and Projects ones: it re-points the panel list's `bubbles/list`-owned styles and
+// its row delegate onto the model's active palette.
 //
-// §11.2 names the panel's instance the WORST CASE of the cached-style class — its
-// styles are assigned once at open while its theme changes on EVERY arrow keypress
-// (§9.11 requires the panel's own chrome to re-theme, no exceptions) — and assigns
-// it to "the same restyle path as the main list, extended to cover the panel's
-// instance". IT IS NOT A REBUILD: no item is re-derived and no content is touched.
-// §11.1 rules the rebuild out as the expensive path, and it would be worse here, on
-// a per-keypress surface.
+// The panel's instance is the WORST CASE of the cached-style class — its styles are
+// assigned once at open while its theme changes on EVERY arrow keypress, and the
+// panel's own chrome re-themes with no exceptions — so it is covered by the same
+// restyle path the main list takes, extended to reach it. IT IS NOT A REBUILD: no
+// item is re-derived and no content is touched. A rebuild is the expensive path,
+// and it would be worse here, on a per-keypress surface.
 //
 // The DOTS are the class's exemplar and the reason this cannot be skipped:
 // `bubbles/list` reads its dot STRINGS out of the styles once at construction, so
 // restyling without re-feeding the paginator leaves the library's hardcoded greys
-// rendering under every theme — identical before and after a swap, which §13.4's
+// rendering under every theme — identical before and after a swap, which the
 // swap-and-diff guard structurally cannot see, precisely because nothing changed.
 // Running the SHARED applyListCanvasMode sequence is what stops the panel's dots —
 // and every other member of the class — drifting from the two page lists'.
@@ -1124,11 +1121,11 @@ func (m *Model) applyThemePanelListStyles() {
 // The HELP, TITLE and NO-ITEMS styles come with that sequence although the panel
 // disables the first two (newThemePanelList turns off its title, status bar and
 // help, drawing all of that itself) and the built-in rows make the third unreachable
-// (§7.6's build-time guarantee means the union always holds at least one row, so
+// (built-ins are always valid, so the union always holds at least one row and
 // `bubbles/list` never renders its zero-items body here). Taking them is the whole
 // point of sharing the sequence: the alternative is a carve-out, and a surface that
-// deliberately ignores the active theme is exactly the shape §13.4's guard exists to
-// catch. They cost one assignment each while making a future SetShowTitle(true) — or
+// deliberately ignores the active theme is exactly the shape the swap-and-diff
+// guard exists to catch. They cost one assignment each while making a future SetShowTitle(true) — or
 // a union that could genuinely empty — incapable of shipping a stale palette.
 // Skipping Styles.NoItems on an unreachability argument is precisely the shape
 // applyCanvasMode's residue record was rewritten to forbid, since a blanket claim of
@@ -1140,7 +1137,7 @@ func (m *Model) applyThemePanelListStyles() {
 // equivalent of.
 //
 // The DELEGATE goes through Model.themeRowDelegate, the single construction point
-// (§11.2), so the previewed theme, the colourless flag and the panel's inner width
+// so the previewed theme, the colourless flag and the panel's inner width
 // are assembled in exactly one place.
 //
 // The `open` GUARD stays HERE rather than inside the shared sequence — it is a fact
@@ -1155,7 +1152,7 @@ func (m *Model) applyThemePanelCanvasMode() {
 	applyListCanvasMode(&m.themePanel.list, m.themeRowDelegate(), m.activeTheme, m.colourless)
 }
 
-// updateThemePanel is §9.7's key-exclusive input routing: the panel OWNS the
+// updateThemePanel is the panel's key-exclusive input routing: the panel OWNS the
 // keyboard while it is open.
 //
 // Pass-through is genuinely bad — `k` would kill the highlighted session while you
@@ -1166,30 +1163,30 @@ func (m *Model) applyThemePanelCanvasMode() {
 //
 // NON-BLANKING AND KEY-EXCLUSIVE ARE NOT IN TENSION, which is worth saying because
 // the pair reads like a contradiction: seeing the list without being able to drive it
-// IS the live-preview premise (§9.1). The page stays fully rendered because it is what
+// IS the live-preview premise. The page stays fully rendered because it is what
 // the theme is being judged against, not because it is still interactive.
 //
-// `d` AND `l` ARE PANEL-OWNED (§9.2 gives them the dark and light slots), not
+// `d` AND `l` ARE PANEL-OWNED (they take the dark and light slots), not
 // swallowed page keys. Their arms sit ahead of the swallow-everything default and
 // commit one half of the adaptive pair (theme_panel_commit.go), leaving the panel
 // exactly as they found it bar the write — no close, no re-theme, no cursor move.
 // What is asserted of them at the ROUTING level is unchanged by that: the PAGE's
 // binding never fires (no Projects delete modal), whether the keypress writes or —
-// over a constant — raises §9.2's confirm instead (theme_panel_confirm.go).
+// over a constant — raises the confirm instead (theme_panel_confirm.go).
 //
 // THE NAVIGATION ARM SITS AHEAD OF THE SWALLOW-EVERYTHING DEFAULT and is matched
 // against the panel LIST'S OWN KeyMap — the same way the Sessions page matches
-// CursorUp / CursorDown / PrevPage / NextPage — so §12.2's arrow-only revision is
+// CursorUp / CursorDown / PrevPage / NextPage — so the arrow-only rule is
 // stated once, at newThemePanelList's pinArrowOnlyNav, rather than restated as a
 // second literal key list here. A key the keymap does not bind cannot match, so
 // there is nothing to keep the two in step.
 //
-// `Esc` IS THE ONLY WAY OUT (§9.2 — `Enter` deliberately does not close), and it
+// `Esc` IS THE ONLY WAY OUT (`Enter` deliberately does not close), and it
 // routes to closeThemePanel, which re-resolves persisted state before dropping
 // what the panel retained. It is consumed HERE and never reaches the page
 // beneath, where it is the progressive-back key: closing must not clear an
 // applied filter, must not exit multi-select, and must not quit — the innermost
-// surface resolves first, which is how the panel NESTS over multi-select (§9.7).
+// surface resolves first, which is how the panel NESTS over multi-select.
 //
 // `Enter` COMMITS AND STAYS (theme_panel_commit.go). Its arm sits ahead of the
 // swallow-everything default and returns the panel exactly as it found it bar the
@@ -1198,7 +1195,7 @@ func (m *Model) applyThemePanelCanvasMode() {
 // what would let a user who had just set both slots wipe the pair on their way
 // out.
 //
-// §9.13's FAILED-COMMIT LINE IS CLEARED AHEAD OF THE DISPATCH, and the
+// THE FAILED-COMMIT LINE IS CLEARED AHEAD OF THE DISPATCH, and the
 // FALL-THROUGH is the point: the message persists until the NEXT KEYPRESS, and that
 // keypress still performs its own action — one key, one intent, the shape
 // updateSessionList's actionable-key clear already uses. The keypress that RAISES
@@ -1206,8 +1203,8 @@ func (m *Model) applyThemePanelCanvasMode() {
 //
 // IT CLEARS THE MESSAGE AND NOT THE STATE. The outstanding failure
 // (Model.themeCommitFailed) runs until a commit SUCCEEDS, which is what stops the
-// very next `Esc` — a close re-resolves persisted state — reinstating the silent
-// revert §9.13 exists to close.
+// very next `Esc` — a close re-resolves persisted state — from reinstating the
+// silent revert the report exists to close.
 //
 // The ENTRY side of this routing is themePanelEntry / handleThemePanelKey above.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -1215,32 +1212,31 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case keyIsCtrlC(msg):
-		// §9.13's UNDELIVERED REPORT. With a commit failure outstanding this exit
-		// raises NOTHING and discharges NOTHING: the main screen is going away, so
-		// there is nowhere to put a flash, and `theme: commit failed` is already
-		// written (§12.3) as the record. A post-TUI stderr warning was the alternative
-		// and is refused — it would put a message about a colour preference on the
-		// channel Portal reserves for bootstrap failures.
+		// THE UNDELIVERED REPORT. With a commit failure outstanding this exit raises
+		// NOTHING and discharges NOTHING: the main screen is going away, so there is
+		// nowhere to put a flash, and `theme: commit failed` is already written as the
+		// record. A post-TUI stderr warning is refused — it would put a message about a
+		// colour preference on the channel Portal reserves for bootstrap failures.
 		return m, tea.Quit
 	case m.themePanel.confirming():
-		// §9.2's slot-from-constant confirm is KEY-EXCLUSIVE WITHIN THE PANEL, so its
+		// The slot-from-constant confirm is KEY-EXCLUSIVE WITHIN THE PANEL, so its
 		// arm sits ahead of every other one below — the arrows (a cursor move
 		// mid-question would re-theme the screen behind the answer), the commit keys,
 		// and the `Esc` close, which the confirm takes as a CANCEL because the
 		// innermost thing resolves first. Only `Ctrl-C` above it survives: it is the
-		// global quit §9.7 keeps live everywhere, not a third answer.
+		// global quit that stays live everywhere, not a third answer.
 		return m.updateSlotConfirm(msg)
 	case keyIsCode(msg, tea.KeyEscape):
-		// The command is §9.13's close report riding out of the panel: nil unless a
+		// The command is the close report riding out of the panel: nil unless a
 		// commit failure was outstanding, in which case the close raised the flash the
 		// user is left reading and the tick that auto-clears it.
 		cmd := (&m).closeThemePanel()
 		return m, cmd
 	case keyIsCode(msg, tea.KeyEnter):
-		// §9.2's commit-a-constant, and it deliberately does NOT close: the panel
-		// stays open, the cursor stays where it is, and nothing is re-themed. The
-		// error is DISCARDED because this arm has nothing left to do with it —
-		// §9.13's message-slot line and its outstanding-failure state are raised
+		// Commit-a-constant, and it deliberately does NOT close: the panel stays
+		// open, the cursor stays where it is, and nothing is re-themed. The error is
+		// DISCARDED because this arm has nothing left to do with it — the
+		// message-slot line and its outstanding-failure state are raised
 		// inside the commit — and on failure the raw keys are untouched, so the `●`
 		// cannot move.
 		_ = (&m).commitSelectedConstant()
@@ -1256,37 +1252,36 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// themePanelNavKey reports whether msg is one of the four keys §9.2 gives the
-// panel's cursor: `↑`/`↓` to step and `Ctrl+↑`/`Ctrl+↓` to page.
+// themePanelNavKey reports whether msg is one of the four keys the panel gives its
+// cursor: `↑`/`↓` to step and `Ctrl+↑`/`Ctrl+↓` to page.
 //
 // It matches against the LIVE KeyMap rather than against key literals, so the
 // panel's routing and the list's own dispatch are driven by one binding set.
 // GoToStart / GoToEnd are deliberately absent: pinArrowOnlyNav empties them
-// (§12.2 drops `g`/`G` and `Home`/`End`), so there is nothing to route.
+// (`g`/`G` and `Home`/`End` are not bound), so there is nothing to route.
 func themePanelNavKey(km list.KeyMap, msg tea.KeyPressMsg) bool {
 	return key.Matches(msg, km.CursorUp, km.CursorDown, km.PrevPage, km.NextPage)
 }
 
-// moveThemePanelCursor is §9.2's arrow-preview in the three steps it is specified
-// as: move, skip, preview.
+// moveThemePanelCursor is the arrow-preview in its three steps: move, skip,
+// preview.
 //
 // THE PREVIEW IS THE POINT — a panel that lists themes without showing them is a
-// config screen with extra steps — and it takes the §11.1 RESTYLE and nothing else:
-// Model.ApplyTheme, the production entry point §13.4's completeness guard drives,
-// against a palette that is ALREADY IN HAND (§5.8). No file is read, no union is
+// config screen with extra steps — and it takes the RESTYLE and nothing else:
+// Model.ApplyTheme, the production entry point the swap-and-diff completeness
+// guard drives, against a palette that is ALREADY IN HAND. No file is read, no union is
 // reassembled, no directory is touched and the session list is not rebuilt.
 //
 // OSC 11 NEEDS NOTHING HERE, DELIBERATELY. View assigns v.BackgroundColor
 // declaratively from the active theme's canvas and Bubble Tea DIFFS it, so hovering
-// N themes emits exactly once per DISTINCT canvas landed on (§11.3). The query is
+// N themes emits exactly once per DISTINCT canvas landed on. The query is
 // issued only from Init, so a later switch opens no new race and the canvas-echo
 // guard needs no new handling — which is why there is no suppression and no
 // debounce here, and why none should be added.
 //
 // The MIXED-MODE FLASH is likewise left alone: arrowing past a light theme in a
-// dark terminal flips the whole canvas near-white and back, and §9.2 is explicit
-// that this is the feature rather than a defect (ordering same-mode themes first
-// was proposed as a mitigation and rejected).
+// dark terminal flips the whole canvas near-white and back. That is the feature
+// rather than a defect — the previewed theme is what the frame shows.
 func (m *Model) moveThemePanelCursor(msg tea.KeyPressMsg) tea.Cmd {
 	var cmd tea.Cmd
 	m.themePanel.list, cmd = m.themePanel.list.Update(msg)
@@ -1296,9 +1291,9 @@ func (m *Model) moveThemePanelCursor(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 // skipUnselectableThemeRow keeps the panel cursor off the unselectable rows after
-// the list has processed a navigation key — §9.5's "arrow keys skip invalid rows,
-// REUSING THE MECHANISM that already skips group-header rows on the Sessions
-// list". It is model.go's skipHeaderRow applied to Row.Selectable, and it composes
+// the list has processed a navigation key: arrow keys skip invalid rows, REUSING
+// THE MECHANISM that already skips group-header rows on the Sessions list. It is
+// model.go's skipHeaderRow applied to Row.Selectable, and it composes
 // with paging for the same reason that one does: the step is taken on the list, so
 // it crosses a page boundary exactly as an ordinary move would.
 //
@@ -1321,8 +1316,8 @@ func (m *Model) moveThemePanelCursor(msg tea.KeyPressMsg) tea.Cmd {
 //
 // THE BOUND IS TWICE THE ROW COUNT, and the doubling is the reversal's: the walk
 // can reach a boundary and then retrace the whole span it just covered. Built-ins
-// are always valid (§7.6's build-time guarantee), so a union with no selectable row
-// is unreachable and the loop always terminates on the check — the bound exists so
+// are always valid, so a union with no selectable row is unreachable and the loop
+// always terminates on the check — the bound exists so
 // that a future all-invalid union degrades instead of spinning on a keypress.
 func (m *Model) skipUnselectableThemeRow(msg tea.KeyPressMsg) {
 	l := &m.themePanel.list
@@ -1347,13 +1342,13 @@ func (m *Model) skipUnselectableThemeRow(msg tea.KeyPressMsg) {
 	}
 }
 
-// previewSelectedThemeRow applies the cursor's row to the whole frame — §9.2's "the
-// app re-themes live behind the panel", and the one place the panel writes to the
+// previewSelectedThemeRow applies the cursor's row to the whole frame — the app
+// re-themes live behind the panel — and is the one place the panel writes to the
 // rendered palette.
 //
 // The palette comes off the ROW, which carries it because the enumeration parsed it
-// at open and the panel retains the results for its lifetime (§5.8). That retention
-// is what keeps the swap the O(1) restyle of §11.1: there is nothing here to read.
+// at open and the panel retains the results for its lifetime. That retention is
+// what keeps the swap an O(1) restyle: there is nothing here to read.
 //
 // A row already painting the screen is skipped, so an arrow that could not move —
 // or a reversal that turned back to the row it started on — costs no restyle at all.
@@ -1393,9 +1388,9 @@ func selectedThemeRow(l list.Model) (theme.Row, bool) {
 // There must be exactly one place those three are assembled, and a source guard
 // keeps it that way. Two construction sites can disagree about width or
 // colourlessness, and that disagreement is invisible until a resize during a live
-// preview — on the surface §11.2 calls the worst case of the cached-style class.
-// Task 8-9's restyle path re-invokes THIS method rather than rebuilding a delegate
-// of its own.
+// preview — on the surface that is the worst case of the cached-style class. The
+// restyle path re-invokes THIS method rather than rebuilding a delegate of its
+// own.
 func (m Model) themeRowDelegate() themeRowDelegate {
 	return themeRowDelegate{
 		Theme:      m.activeTheme,
@@ -1415,7 +1410,7 @@ func themePanelInnerWidth(width int) int {
 }
 
 // themePanelListSize is the (width, height) the panel's list is sized to at a given
-// render height: the inner content width, and §9.1's layout remainder —
+// render height: the inner content width, and the layout remainder —
 //
 //	height − header − directory row(0 or 1) − message slot(0 or 1) − footer
 //
@@ -1438,7 +1433,7 @@ func themePanelInnerWidth(width int) int {
 // arithmetic reads the same measurements).
 //
 // THE FOOTER'S ENTRIES ARE THE SLOT'S OWN SCOPE (themePanelFooterScope), resolved
-// here and again at render time from the SAME message — §9.2's nested confirm scope
+// here and again at render time from the SAME message — the nested confirm scope
 // temporarily replaces the standing footer with a shorter one, and a budget
 // reserving four rows while a two-row footer renders would leave two rows of the
 // panel unaccounted for. The saving lands in the LIST BODY, which is the block this
@@ -1454,14 +1449,14 @@ func themePanelListSize(p themePanel, height int) (width, rows int) {
 	return inner, max(height-reserved, themePanelMinBodyRows)
 }
 
-// renderThemePanel renders the §9.1 slide-over as a block of EXACTLY height rows,
+// renderThemePanel renders the slide-over as a block of EXACTLY height rows,
 // each EXACTLY p.width cells, laid out top to bottom as:
 //
 //	header (measured) · directory row (0 or 1) · list body · message slot (0 or 1) · footer
 //
 // th is the PREVIEWED theme — every chrome surface THIS FUNCTION renders (the
 // border, the header, the pinned directory row, the message slot, the footer and
-// the canvas backfill) is painted from it per frame, with nothing cached (§9.11).
+// the canvas backfill) is painted from it per frame, with nothing cached.
 // The one surface it does NOT reach is the LIST's rows: those are drawn by the
 // delegate the model assigned (see themePanel's type comment), so a th that
 // disagrees with that delegate's own theme renders themed chrome over stale rows —
@@ -1483,7 +1478,7 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	return themePanelBlock(rows, height, p.width, th, colourless)
 }
 
-// themePanelHeaderBlock is §9.1's header region, cut to the PAGE's rhythm: a rule
+// themePanelHeaderBlock is the panel's header region, cut to the PAGE's rhythm: a rule
 // in the page's own rule lane, the label `Themes` in accent.mode (bold) on the
 // page's section-header row, and blank rows everywhere else — one per row the page
 // spends on its header block and its section header (see the measurement note above
@@ -1514,18 +1509,18 @@ func themePanelHeaderBlock(width int, th theme.Theme, colourless bool) []string 
 	return rows
 }
 
-// themePanelDirRow renders §9.5's `⚠ dir unreadable` warning, or "" when the themes
+// themePanelDirRow renders the `⚠ dir unreadable` warning, or "" when the themes
 // directory is usable.
 //
 // IT IS CHROME PINNED TO THE VIEWPORT, NOT A LIST DELEGATE. A list row participates
 // in pagination, so the warning would vanish the moment the user paged down — and
-// §9.5 justifies the row as what stands between the user and the "completely in the
-// dark" state, which a page-1-only warning does not do. As chrome it is always
+// the row is what stands between the user and the "completely in the dark" state,
+// which a page-1-only warning does not do. As chrome it is always
 // visible and needs no arrow-skip rule. Built-in rows and persisted-slug rows still
 // render BENEATH it, the persisted rows especially, or a user with an unreadable
 // directory loses the `●` entirely.
 //
-// The glyph and the text share one accent.attention run (§9.1's table), and the copy
+// The glyph and the text share one accent.attention run, and the copy
 // is never truncated (see themePanelDirUnreadable).
 func themePanelDirRow(unusable bool, th theme.Theme, colourless bool) string {
 	if !unusable {
@@ -1551,7 +1546,7 @@ func themePanelDirRowHeight(unusable bool) int {
 // height rows.
 //
 // LEFT BORDER ONLY — no top, bottom or right edge. That is what makes the panel read
-// as a slide-over rather than as an inset bordered dialog like the modals (§9.1), and
+// as a slide-over rather than as an inset bordered dialog like the modals, and
 // it is the only thing distinguishing the panel from the list behind it.
 //
 // THE BORDER STARTS BELOW THE HEADER RULE, not at the top of the frame. It is the
@@ -1573,7 +1568,7 @@ func themePanelDirRowHeight(unusable bool) int {
 // Rows are padded but never truncated: every row this file composes is authored to
 // fit the minimum inner width (the header label is 6 cells, the pinned warning 16,
 // the widest footer row 15, and a list row is exactly inner cells by construction),
-// and below §9.8's minimum the panel refuses to open at all (themePanelFloor) — so there
+// and below the minimum width the panel refuses to open at all (themePanelFloor) — so there
 // is no width at which a row has to degrade.
 func themePanelBlock(rows []string, height, width int, th theme.Theme, colourless bool) string {
 	inner := themePanelInnerWidth(width)
@@ -1651,12 +1646,12 @@ func (p themePanelPainter) paint(row string) string {
 //
 // COMPOSITE, DO NOT RE-LAY-OUT. base is composed at the UNREDUCED content width and
 // the main screen is deliberately NOT re-laid-out while the panel is open. That is
-// what keeps the swap the O(1) restyle of §11.1 and keeps the surface being
+// what keeps the swap an O(1) restyle and keeps the surface being
 // previewed from reflowing under the user — the opposite of what a preview wants.
 //
 // The consequence is accepted rather than worked around: the overlay CUTS WHEREVER
 // ITS LEFT BORDER FALLS, mid-label included — `x proje▏`. That is not a violation of
-// §14.4's "never truncate a label", which governs how the footer lays ITSELF out as
+// the "never truncate a label" rule, which governs how the footer lays ITSELF out as
 // the terminal narrows; the panel is an opaque layer over a footer that laid out at
 // full width. Reflowing to the reduced width would produce a cleaner edge and was
 // rejected for that cost.
@@ -1687,7 +1682,7 @@ func appendBlock(rows []string, block string) []string {
 //
 // IT EXISTS FOR THE LIST BODY, the one block that can exceed the height it was
 // sized to: `bubbles/list` renders a hard minimum of three rows — one item, a blank,
-// the paginator — however few it is given, while §9.8's floor budgets the body ONE
+// the paginator — however few it is given, while the render floor budgets the body ONE
 // row. Cutting the overflow HERE cuts it off the body, which is where it belongs:
 // the rows lost are the paginator and its blank, chrome the panel can spare. Left
 // uncut it comes off the BOTTOM of the assembled block instead, where themePanelBlock
@@ -1696,8 +1691,8 @@ func appendBlock(rows []string, block string) []string {
 //
 // Raising themePanelMinBodyRows to the list's own minimum was the alternative and is
 // refused: paired with the refuse threshold it would need, it silently redefines
-// §9.8's floor from one row to three — a spec-facing change §9.8 does not authorise —
-// and refuses the panel on terminals where it can still degrade. Degrading the
+// the render floor from one row to three, and refuses the panel on terminals where
+// it can still degrade. Degrading the
 // paginator keeps the floor literally true and spends chrome rather than the keymap.
 func clampBlockHeight(block string, rows int) string {
 	if blockHeight(block) <= rows {

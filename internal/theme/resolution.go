@@ -1,6 +1,6 @@
 package theme
 
-// Slot names which of §8.2's setting slots one resolution is about.
+// Slot names which of the theme setting's slots one resolution is about.
 //
 // The three values are the three positions a slug can occupy, and they are what
 // makes the fallback MODE-MATCHED: the slot a nomination came from is the only
@@ -25,12 +25,12 @@ const (
 //
 // The record is structured rather than folded into a palette because every later
 // surface needs the parts separately, and none of them can recover the parts from
-// a Theme: §12.3's `theme: fallback applied` carries the slug that FAILED and
-// its reason, Phase 7's doctor line renders `theme <slug> (<slot>) does not
-// resolve: <reason>`, and §9.5's badge table keeps the `●` on the PERSISTED slug
-// while the fallback's own row carries no badge.
+// a Theme: `theme: fallback applied` carries the slug that FAILED and its reason,
+// doctor's line renders `theme <slug> (<slot>) does not resolve: <reason>`, and
+// the panel's badge table keeps the `●` on the PERSISTED slug while the
+// fallback's own row carries no badge.
 type SlotResolution struct {
-	// Slot is which of §8.2's slots this record is about.
+	// Slot is which of the setting's slots this record is about.
 	Slot Slot
 
 	// Requested is the slug that was nominated — the SHIPPED DEFAULT's slug when
@@ -38,13 +38,13 @@ type SlotResolution struct {
 	//
 	// That the two converge is deliberate, and it is why this record carries no
 	// "was this slot set?" flag. ResolveSetting substitutes the shipped default
-	// into the Setting BEFORE this function sees it (§8.3: "nothing set" and
-	// "pair nominated" are the same state), so Setting{Light: DefaultLightSlug} is
+	// into the Setting BEFORE this function sees it — "nothing set" and "pair
+	// nominated" are the same state — so Setting{Light: DefaultLightSlug} is
 	// identical whether the slot was unset or explicitly set to that slug. The
 	// distinction survives only in RawKeys, which this function is deliberately
 	// not given.
 	//
-	// Nothing needs it, either: §9.5's badge table keys all three of its rows on
+	// Nothing needs it, either: the badge table keys all three of its cases on
 	// this one field — a set-and-loadable slot badges the persisted slug, a set
 	// but unloadable one still badges the persisted slug, and a never-set one
 	// badges the shipped default's slug, which is exactly the value here in each
@@ -59,11 +59,11 @@ type SlotResolution struct {
 	Resolved string
 
 	// FellBack reports whether Requested and Resolved name different themes —
-	// that is, whether §8.5's fallback was applied.
+	// that is, whether the mode-matched fallback was applied.
 	FellBack bool
 
 	// Reason is why the nomination was not usable, populated IFF FellBack. It is
-	// exactly one of §6.2's reasons, whatever the cause: a deleted file, a renamed
+	// exactly one reason, whatever the cause: a deleted file, a renamed
 	// file, a typo in prefs.json, an illegal slug, a missing token, a bad colour
 	// and an unreadable file or directory all take the same path and differ only
 	// here.
@@ -92,109 +92,108 @@ type Resolution struct {
 }
 
 // ResolveNomination loads every theme a Setting nominates — one under a
-// constant, two under a pair — substituting §8.5's mode-matched default for any
-// slot that will not load, and reports per slot what was asked for, what loaded
-// and why they differ.
+// constant, two under a pair — substituting the mode-matched default for any slot
+// that will not load, and reports per slot what was asked for, what loaded and
+// why they differ.
 //
-// It WRITES NOTHING, and that is a decision rather than an omission (§6.3):
-// falling back must never overwrite the persisted theme name in prefs.json.
-// Portal keeps the user's choice and renders the fallback, so fixing the theme
-// file restores it on the next launch with no re-selection — where persisting the
-// fallback would turn a transient failure into a destructive one, at the moment
-// the user is least able to tell what happened.
+// It WRITES NOTHING, and that is a decision rather than an omission: falling back
+// must never overwrite the persisted theme name in prefs.json. Portal keeps the
+// user's choice and renders the fallback, so fixing the theme file restores it on
+// the next launch with no re-selection — where persisting the fallback would turn
+// a transient failure into a destructive one, at the moment the user is least able
+// to tell what happened.
 //
 // Both slots resolve independently and NEITHER SHORT-CIRCUITS THE OTHER: a
 // broken light slot leaves a loadable dark slot exactly as it was, and two broken
 // slots in one launch produce two fallbacks rather than one plus an abandoned
 // resolution.
 //
-// It EMITS §12.3's per-slot pair — `theme: fallback applied` where one was, then
+// It EMITS the per-slot pair — `theme: fallback applied` where one was, then
 // `theme: loaded` for the slug that actually loaded — through the injected seam,
 // from the one place that holds every slot's outcome. That is what keeps the
 // cadence single-sited: ONE `loaded` per slot, one under a constant and two under
 // a pair, never one combined line. See reportSlot.
 //
-// The error is §7.6's should-never-happen state: the FALLBACK itself did not
+// The error is the should-never-happen state: the FALLBACK itself did not
 // resolve. A nomination failing is ordinary and is absorbed silently by the
 // fallback; a fallback failing means the embedded set cannot supply the theme
 // Portal falls back to, and there is nothing left to paint. See resolveSlot.
 //
-// A CALLER SIMPLY RETURNS IT. It is BrokenBuiltinError — §14A's pinned sentence
-// — and it is meant to travel the ordinary error path to main.go's single
-// os.Exit owner, which prints it as one line and exits non-zero. Nothing on the
-// way is expected to inspect it, re-word it, log it or substitute a palette for
-// it: the Resolution alongside it is the zero value precisely so there is
-// nothing to be tempted to render.
+// A CALLER SIMPLY RETURNS IT. It is BrokenBuiltinError — the pinned user-facing
+// sentence — and it is meant to travel the ordinary error path to main.go's
+// single os.Exit owner, which prints it as one line and exits non-zero. Nothing
+// on the way is expected to inspect it, re-word it, log it or substitute a
+// palette for it: the Resolution alongside it is the zero value precisely so
+// there is nothing to be tempted to render.
 func (l Loader) ResolveNomination(s Setting, themesDir string) (Resolution, error) {
 	return l.resolveNomination(s, l.byNamePass(themesDir))
 }
 
 // ResolveNominationFrom re-runs that entire resolution — the same charset check,
 // the same embedded-set-first ordering, the same per-slot mode-matched fallback,
-// the same structured record and the same §7.6 fatal — against a RETAINED
-// Enumeration instead of the themes directory.
+// the same structured record and the same broken-builtin fatal — against a
+// RETAINED Enumeration instead of the themes directory.
 //
 // ONE DIFFERENCE AND ONE ONLY: where the slug is looked up once the embedded set
 // has declined. Everything else is literally the same code (see
 // resolveNomination), so the two entry points cannot drift about what a slug
 // means, which slot falls back to what, or when a fallback is fatal.
 //
-// IT PERFORMS NO DIRECTORY READ, AND THAT IS THE WHOLE POINT. §8.4 refuses a
-// commit-time — and equally an open-time — directory read because it would
-// produce a THIRD parse of the same slug, neither construction's nor the panel's,
-// that can disagree with the row the user is looking at. That reintroduces exactly
-// the staleness split §5.8 exists to close: the panel's parse is the fresher truth
-// by §5.8's own rule, so resolving against it is what keeps the panel row and the
-// applied theme incapable of disagreeing.
+// IT PERFORMS NO DIRECTORY READ, AND THAT IS THE WHOLE POINT. A commit-time — and
+// equally an open-time — directory read would produce a THIRD parse of the same
+// slug, neither construction's nor the panel's, that can disagree with the row
+// the user is looking at. The panel's retained parse is the fresher truth, so
+// resolving against it is what keeps the panel row and the applied theme
+// incapable of disagreeing.
 //
-// THREE CALLERS SHARE IT, all of them the panel's: the open-time re-resolution
-// (§9.2 — the cursor lands on the theme actually rendering, and a mid-session
-// edit applies here), `Esc`'s close (§5.8 — persisted state resolves against the
-// panel's enumeration rather than against what construction loaded), and the
-// post-commit badge recompute (§9.2). The mid-session slot load (§8.4) resolves
-// against the SAME enumeration through the same rule body, but takes ResolveSlot
-// below: it is one slot rather than a setting, and it emits.
+// The panel's paths share it: the open-time re-resolution (the cursor lands on
+// the theme actually rendering, and a mid-session edit applies here), `Esc`'s
+// close (persisted state resolves against the panel's enumeration rather than
+// against what construction loaded), and the post-commit badge recompute. The
+// mid-session slot load resolves against the SAME enumeration through the same
+// rule body, but takes ResolveSlot below: it is one slot rather than a setting,
+// and it emits.
 //
 // A slug the enumeration has no entry for is `not found`, or `unreadable` where
-// the directory itself could not be listed (§5.5) — the same discrimination
+// the directory itself could not be listed — the same discrimination
 // unresolvedRejection draws for the union's own persisted rows, so a row and the
 // theme that actually rendered can never state different reasons for one slug.
 //
-// It emits NO `theme: loaded` (§12.3): that event's cadence is construction plus
-// the one commit-time load outside it, and a per-open/per-`Esc` line would turn a
-// per-load INFO into the running commentary its neighbours dedup to avoid. The
-// `theme: fallback applied` WARN still fires, deduplicated per process — §12.3
-// names the panel open and the `Esc` as sites that apply one. See resolutionPass.
+// It emits NO `theme: loaded`: that event's cadence is construction plus the one
+// commit-time load outside it, and a per-open/per-`Esc` line would turn a per-load
+// INFO into the running commentary its neighbours dedup to avoid. The
+// `theme: fallback applied` WARN still fires, deduplicated per process — the panel
+// open and the `Esc` are both sites that can apply one. See resolutionPass.
 func (l Loader) ResolveNominationFrom(e Enumeration, s Setting) (Resolution, error) {
 	return l.resolveNomination(s, l.enumerationPass(e))
 }
 
-// ResolveSlot resolves ONE slot against a retained Enumeration and emits §12.3's
+// ResolveSlot resolves ONE slot against a retained Enumeration and emits the
 // commit-time `theme: loaded` — the single theme load that happens outside
-// construction (§8.4).
+// construction.
 //
 // IT IS THE SAME RULE BODY ITS NEIGHBOUR RUNS. The charset check, the
 // embedded-set-first ordering, the per-slot mode-matched fallback, the structured
-// record and §7.6's fatal all arrive through resolveSlot and the enumeration's own
-// loader (see commitPass), so the badge path and the load path CANNOT DISAGREE
-// about what one slug means — which is the whole reason §5.8's retained parse is
-// the only source either of them reads.
+// record and the broken-builtin fatal all arrive through resolveSlot and the
+// enumeration's own loader (see commitPass), so the badge path and the load path
+// CANNOT DISAGREE about what one slug means — which is the whole reason the
+// panel's retained parse is the only source either of them reads.
 //
-// IT PERFORMS NO DIRECTORY READ, for ResolveNominationFrom's reason exactly: a read
-// here would be a THIRD parse of the same slug, neither construction's nor the
-// panel's, that can disagree with the row the user is looking at (§8.4).
+// IT PERFORMS NO DIRECTORY READ, for ResolveNominationFrom's reason exactly: a
+// read here would be a THIRD parse of the same slug, neither construction's nor
+// the panel's, that can disagree with the row the user is looking at.
 //
 // WHAT DIFFERS IS THE CADENCE, AND ONLY THE CADENCE. Its neighbour re-resolves a
 // setting construction already reported and therefore emits no `theme: loaded`
-// (§12.3, see reportFallback); this is a genuine LOAD of a slot nothing has
-// reported, so it emits one — carrying the slug that actually RENDERED, the
-// fallback's where one was applied. The two entry points are separate methods
-// rather than a flag precisely so that pairing is stated in a type (see
-// resolutionPass) and a later call site cannot pair them the other way round.
+// (see reportFallback); this is a genuine LOAD of a slot nothing has reported, so
+// it emits one — carrying the slug that actually RENDERED, the fallback's where
+// one was applied. The two entry points are separate methods rather than a flag
+// precisely so that pairing is stated in a type (see resolutionPass) and a later
+// call site cannot pair them the other way round.
 //
 // The slug is the caller's already-defaulted one: an UNSET slot holds the shipped
-// default (§8.3), which ResolveSetting substitutes before anything here sees it, so
-// an untouched slot resolves from the embedded set with FellBack false rather than
+// default, which ResolveSetting substitutes before anything here sees it, so an
+// untouched slot resolves from the embedded set with FellBack false rather than
 // arriving empty and being reported as a fallback.
 func (l Loader) ResolveSlot(e Enumeration, slot Slot, slug string) (SlotResolution, error) {
 	return l.resolveSlot(slot, slug, l.commitPass(e))
@@ -206,15 +205,15 @@ func (l Loader) ResolveSlot(e Enumeration, slot Slot, slug string) (SlotResoluti
 // It is ONE value rather than two parameters threaded down two levels, and a pair
 // of functions rather than a flag, because the two travel together and neither is
 // meaningful alone: a pass resolving against a retained parse is by definition the
-// one that must not emit `theme: loaded` (§12.3). Naming that correspondence in a
-// type is what stops a third call site pairing them the other way round.
+// one that must not emit `theme: loaded`. Naming that correspondence in a type is
+// what stops another call site pairing them the other way round.
 type resolutionPass struct {
-	// load is §8.4's by-name ladder for this pass — the whole of it, so the
-	// FALLBACK resolves through the identical route the nomination did and the
-	// embedded set is consulted first on both.
+	// load is the by-name ladder for this pass — the whole of it, so the FALLBACK
+	// resolves through the identical route the nomination did and the embedded set
+	// is consulted first on both.
 	load slugLoader
 
-	// report is §12.3's per-slot emission at this pass's cadence, and it hands the
+	// report is the per-slot emission at this pass's cadence, and it hands the
 	// record straight back so a caller states the outcome once (see reportSlot).
 	report func(SlotResolution) SlotResolution
 }
@@ -230,7 +229,7 @@ func (l Loader) byNamePass(themesDir string) resolutionPass {
 }
 
 // enumerationPass is the panel's RE-RESOLUTION pass: the retained enumeration, at
-// the re-resolution cadence — the fallback line alone, no `theme: loaded` (§12.3).
+// the re-resolution cadence — the fallback line alone, no `theme: loaded`.
 func (l Loader) enumerationPass(e Enumeration) resolutionPass {
 	return resolutionPass{load: l.enumerationLoad(e), report: l.reportFallback}
 }
@@ -238,8 +237,8 @@ func (l Loader) enumerationPass(e Enumeration) resolutionPass {
 // commitPass is the panel's COMMIT pass: the SAME retained enumeration, at the
 // per-LOAD event cadence its by-name sibling uses.
 //
-// It differs from enumerationPass in the reporter and in nothing else, which is the
-// distinction §12.3 draws: re-resolving a setting construction already reported
+// It differs from enumerationPass in the reporter and in nothing else, which is
+// the whole distinction: re-resolving a setting construction already reported
 // announces nothing, while the newly-live opposite slot is a load that has never
 // been announced at all. Both share one loader (below) so the two cadences cannot
 // come to read different parses of the same slug.
@@ -264,7 +263,7 @@ func (l Loader) resolveFromEnumeration(slug string, e Enumeration) (Result, *Rej
 
 // entryResult answers what one slug loads to WITHIN a retained enumeration:
 // the entry's own palette, the entry's own single rejection, or — where nothing
-// answers to the slug — §5.5's verdict on the directory itself.
+// answers to the slug — the verdict on the directory itself.
 //
 // NOTHING IS RE-DERIVED. The palette and the rejection ride across from the entry
 // exactly as the ladder produced them at enumeration time, which is what makes the
@@ -276,11 +275,11 @@ func (l Loader) resolveFromEnumeration(slug string, e Enumeration) (Result, *Rej
 // be listed, `unreadable` where it could not, because the theme may be sitting
 // right there in a directory nothing can read.
 //
-// A `bad name` entry can never match: it carries no slug (§6.2 rung 1), and the
-// slug being looked up is valid by the time this is reached (resolveNamed's
-// charset check). The Result carries no Source bytes, since an enumeration
-// retains parses rather than files; only `portal theme export` reads that field,
-// and it resolves by name.
+// A `bad name` entry can never match: it carries no slug, and the slug being
+// looked up is valid by the time this is reached (resolveNamed's charset check).
+// The Result carries no Source bytes, since an enumeration retains parses rather
+// than files; that field is read by `portal theme export`, which resolves by
+// name.
 func entryResult(slug string, e Enumeration) (Result, *Rejection) {
 	for _, entry := range e.Entries {
 		if entry.Slug != slug {
@@ -294,7 +293,7 @@ func entryResult(slug string, e Enumeration) (Result, *Rejection) {
 	return Result{}, unresolvedRejection(e)
 }
 
-// resolveNomination is the resolution both entry points ARE — §8.2's two setting
+// resolveNomination is the resolution both entry points ARE — the two setting
 // states, resolved slot by slot through whichever pass it was handed.
 //
 // It is shared rather than duplicated because every rule stated in
@@ -329,27 +328,27 @@ func (l Loader) resolveNomination(s Setting, pass resolutionPass) (Resolution, e
 	}, nil
 }
 
-// resolveSlot loads one slot's nominated slug, or §8.5's mode-matched default in
-// its place.
+// resolveSlot loads one slot's nominated slug, or the mode-matched default in its
+// place.
 //
 // ONE NOT-LOADABLE PATH SERVES EVERY CAUSE. A deleted file, a renamed file, a
 // typo in prefs.json, an illegal persisted slug, a missing token, a bad colour
 // and an unreadable file or directory are seven stories with one shape: the
 // nomination did not load, so the slot's default does, the persisted name is
 // kept, and the reason rides along for the surfaces to report. Nothing here
-// branches on the cause, which is what keeps §6.2's reasons a vocabulary rather
-// than a control flow.
+// branches on the cause, which is what keeps the rejection reasons a vocabulary
+// rather than a control flow.
 //
 // AN UNSET SLOT IS NOT A FALLBACK AT ALL. ResolveSetting has already substituted
 // the shipped default into the Setting, so an unset slot arrives here as an
-// ordinary slug and resolves with FellBack false — which is precisely §8.5's "no
-// new mechanism": one rule ("an unset slot holds the shipped default") applied to
-// a slot that is SET BUT UNLOADABLE rather than unset. It is also why this record
-// needs no set-ness flag: unset and set-to-the-default resolve identically, and
-// Requested already says which slug the badge sits on.
+// ordinary slug and resolves with FellBack false — no new mechanism, just the one
+// rule ("an unset slot holds the shipped default") applied to a slot that is SET
+// BUT UNLOADABLE rather than unset. It is also why this record needs no set-ness
+// flag: unset and set-to-the-default resolve identically, and Requested already
+// says which slug the badge sits on.
 //
 // The fallback resolves through the SAME by-name resolver the nomination did, so
-// §8.4's ordering applies to it too: the embedded set is consulted first, and a
+// the ordering applies to it too: the embedded set is consulted first, and a
 // user's `tokyo-night.theme` can never become the thing Portal falls back to.
 //
 // THE TWO FAILURES ARE NOT THE SAME FAILURE, and the whole of the escalation is
@@ -359,23 +358,22 @@ func (l Loader) resolveNomination(s Setting, pass resolutionPass) (Resolution, e
 // itself: when THAT fails, the embedded set cannot supply the theme Portal falls
 // back to, and there is nothing honest left to paint.
 //
-// So a failed fallback returns BrokenBuiltinError — §14A's pinned sentence,
-// naming the FALLBACK's slug — and never a second fallback and never a
-// compiled-in palette. §7.6 removed the safety net beneath this point on
-// purpose, rejecting "a compiled-in last-resort palette equal to Tokyo Night
-// Dark" in exactly those terms: a build-time guarantee beats a runtime crutch.
-// THIS PATH MUST NOT GROW ONE LATER — a palette here would paint values nobody
-// chose while every test resting on the guarantee still passed.
+// So a failed fallback returns BrokenBuiltinError — the pinned user-facing
+// sentence, naming the FALLBACK's slug — and never a second fallback and never a
+// compiled-in palette. There is deliberately no safety net beneath this point: a
+// build-time guarantee that the embedded set resolves beats a runtime crutch.
+// THIS PATH MUST NOT GROW A LAST-RESORT PALETTE LATER — one here would paint
+// values nobody chose while everything resting on the guarantee still looked fine.
 //
 // The error is ORDINARY and travels the normal return path: no panic, no exit
-// and no log line. Nothing is emitted for it either — §12.3's events report what
-// a slot RESOLVED TO, and this slot resolved to nothing (see reportSlot).
+// and no log line. Nothing is emitted for it either — the events report what a
+// slot RESOLVED TO, and this slot resolved to nothing (see reportSlot).
 //
 // In a correctly built binary the second failure is unreachable, which is
-// precisely why Loader.BuiltinSource exists: an unreachable fatal with no test
-// is a path nobody has ever run, so a test stages the broken binary by injecting
-// a byte source that omits or corrupts a fallback. Production carries a nil
-// field and one branch.
+// precisely why Loader.BuiltinSource exists: an unreachable fatal nobody can
+// exercise is a path nobody has ever run, so the broken binary is staged by
+// injecting a byte source that omits or corrupts a fallback. Production carries a
+// nil field and one branch.
 func (l Loader) resolveSlot(slot Slot, slug string, pass resolutionPass) (SlotResolution, error) {
 	result, rejection := pass.load(slug)
 	if rejection == nil {
@@ -398,7 +396,7 @@ func (l Loader) resolveSlot(slot Slot, slug string, pass resolutionPass) (SlotRe
 	}), nil
 }
 
-// reportSlot emits §12.3's record of ONE slot's outcome and hands the resolution
+// reportSlot emits the record of ONE slot's outcome and hands the resolution
 // straight back, so a caller states the outcome once (the reportDirectoryUnusable
 // shape, for the same reason).
 //
@@ -409,13 +407,12 @@ func (l Loader) resolveSlot(slot Slot, slug string, pass resolutionPass) (SlotRe
 // It emits from the ASSEMBLED RECORD rather than from the branch that produced
 // it, which is what makes `theme: loaded` structurally incapable of naming the
 // slug that FAILED: the only slug it can reach is Resolved, the one whose palette
-// is in Theme. Both events naming the failed nomination is exactly the state
-// §12.3 says a broken install must never be logged in — a `grep "theme:"` could
-// then not answer which palette is actually rendering — so the impossibility is
-// worth more here than a saved line at each call site.
+// is in Theme. If both events named the failed nomination, a `grep "theme:"`
+// could not answer which palette is actually rendering on a broken install — so
+// the impossibility is worth more here than a saved line at each call site.
 //
 // A slot that could not resolve AT ALL emits nothing, because it never reaches
-// here: the fallback failing is §7.6's should-never-happen state, nothing loaded,
+// here: the fallback failing is the should-never-happen state, nothing loaded,
 // and no fallback was applied to report.
 func (l Loader) reportSlot(r SlotResolution) SlotResolution {
 	l.reportFallback(r)
@@ -426,16 +423,15 @@ func (l Loader) reportSlot(r SlotResolution) SlotResolution {
 // reportFallback is the RE-RESOLUTION cadence: the failure line alone, with no
 // `theme: loaded` behind it.
 //
-// It is the panel's reporter — the open-time re-resolution, `Esc`'s close and
-// Phase 9's recompute all resolve the SAME persisted setting they were already
+// It is the panel's reporter — the open-time re-resolution, `Esc`'s close and the
+// post-commit recompute all resolve the SAME persisted setting they were already
 // resolved for, so nothing was loaded that construction did not already report.
-// §12.3 pins that split explicitly on both sides: `theme: loaded` is catalogued
-// as construction plus the one commit-time load, while `theme: fallback applied`
-// names "again on every panel open… and again on every `Esc`" among its cadences
-// and deduplicates per process on `slug`+`reason` rather than being suppressed at
-// a site.
+// The split holds on both sides: `theme: loaded` is construction plus the one
+// commit-time load, while `theme: fallback applied` legitimately recurs on every
+// panel open and every `Esc` and is deduplicated per process on `slug`+`reason`
+// rather than being suppressed at a site.
 //
-// THE POLICY IS SINGLE-SITED HERE, not restated at the three panel call sites: an
+// THE POLICY IS SINGLE-SITED HERE, not restated at the panel's call sites: an
 // emission wired onto the shared body instead would put a per-load INFO on a
 // per-keypress path, which is the running commentary the neighbouring dedup rules
 // exist to prevent.
@@ -446,21 +442,20 @@ func (l Loader) reportFallback(r SlotResolution) SlotResolution {
 	return r
 }
 
-// fallbackSlugFor is §8.5's table: `theme_light` falls to the light default,
-// `theme_dark` and a constant `theme` to the dark one.
+// fallbackSlugFor is the fallback table: `theme_light` falls to the light
+// default, `theme_dark` and a constant `theme` to the dark one.
 //
 // It is MODE-MATCHED because a single fixed fallback would throw a
 // light-terminal user with a typo in their light slot onto a dark palette — a
 // bigger surprise than falling to the light default, and the one outcome the
-// whole mechanism exists to avoid. That alternative was considered and rejected.
+// whole mechanism exists to avoid.
 //
 // The values are DefaultLightSlug and DefaultDarkSlug rather than literals, and
 // that is not merely tidiness: the fallback values ARE the shipped default's
-// values, and §8.3's second reason for shipping an adaptive pair — "it degrades
-// to a constant dark default" — is true ONLY because an unresolvable slot lands
-// on the theme the shipped default already nominates. CHANGING THESE VALUES, OR
-// ADOPTING THE REJECTED SINGLE-FIXED-FALLBACK ALTERNATIVE, SILENTLY INVALIDATES
-// THAT ARGUMENT: nothing stops compiling and no floor moves — the reasoning
+// values, and the shipped adaptive pair degrades to a constant dark default ONLY
+// because an unresolvable slot lands on the theme the shipped default already
+// nominates. CHANGING THESE VALUES, OR ADOPTING A SINGLE FIXED FALLBACK, SILENTLY
+// BREAKS THAT: nothing stops compiling and no contrast floor moves — the property
 // simply stops holding.
 func fallbackSlugFor(slot Slot) string {
 	if slot == SlotLight {

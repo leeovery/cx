@@ -5,12 +5,12 @@ import (
 	"strings"
 )
 
-// hexValueLength is the length of a well-formed value — §4.3's `#RRGGBB`, a '#'
-// and exactly six digits. Six digits cost nothing and remove a parse branch, so
-// there is no `#RGB` shorthand and no 8-digit `#RRGGBBAA` alpha form.
+// hexValueLength is the length of a well-formed value — `#RRGGBB`, a '#' and
+// exactly six digits. There is no `#RGB` shorthand and no 8-digit `#RRGGBBAA`
+// alpha form.
 const hexValueLength = len("#RRGGBB")
 
-// The §14A detail phrases the two stages are built from, in ladder order.
+// The detail phrases the two stages are built from, in ladder order.
 // detailBadColourPair renders ONE offending pair; the pairs are joined with ", "
 // into `text.primary = #GGGGGG, canvas = blue`. detailMissingTokens takes the
 // whole joined list, producing `missing text.primary, bg.subtle`.
@@ -27,24 +27,24 @@ const (
 )
 
 // themeFromPairs turns the pairs a file declared into the Theme it describes, or
-// into exactly one `bad colour` or `missing tokens` rejection (§4.3–§4.6).
+// into exactly one `bad colour` or `missing tokens` rejection.
 //
-// The two stages are §6.2's last two rungs and run in that order: every known
-// key's value is validated first, and the presence check runs only on a file
-// whose every known value is well-formed. A file that is both bad-coloured and
-// short of a token is `bad colour`, and its detail says nothing whatsoever about
-// presence — detail enumerates WITHIN the reason, never across two.
+// The two stages are the rejection ladder's last two rungs and run in that
+// order: every known key's value is validated first, and the presence check runs
+// only on a file whose every known value is well-formed. A file that is both
+// bad-coloured and short of a token is `bad colour`, and its detail says nothing
+// whatsoever about presence — detail enumerates WITHIN the reason, never across
+// two.
 //
-// Unknown keys are ignored entirely, key AND value. §4.6's forward-compatibility
-// lever requires it: if a removed token's stale line could reject a file on its
-// value, "old files keep working" would hold only for values that happen to
-// still be well-formed hex, which is a far weaker guarantee than the one §4.4
-// states. It is also what makes a wrong-case key — matching is case-sensitive —
-// fail as `missing tokens` rather than on its value.
+// Unknown keys are ignored entirely, key AND value. Forward compatibility
+// requires it: if a removed token's stale line could reject a file on its value,
+// "old files keep working" would hold only for values that happen to still be
+// well-formed hex. It is also what makes a wrong-case key — matching is
+// case-sensitive — fail as `missing tokens` rather than on its value.
 //
-// Validity here is syntactic, never perceptual (§6.1). Nothing is asked about
-// whether the colours are good, readable or clear a contrast floor; floors are
-// the bundled tier's concern.
+// Validity here is syntactic, never perceptual. Nothing is asked about whether
+// the colours are good, readable or clear a contrast floor; floors are the
+// bundled tier's concern.
 //
 // On rejection the Theme is the zero value. A caller never sees a partly
 // populated palette alongside an error.
@@ -72,9 +72,9 @@ func themeFromPairs(pairs []Pair) (Theme, *Rejection) {
 // rather than only the value — so a parsed theme's fields agree with the names
 // All() reports for them.
 //
-// The stored value is upper-cased, which is §4.3's canonical form: two hex
-// comparison sites depend on it — the startup canvas hex retained for the
-// exit-time restore (§11.4) and background diffing (§11.3) — so a file written
+// The stored value is upper-cased into the canonical form: the hex comparisons
+// downstream — the startup canvas hex retained for the exit-time terminal
+// background restore, and background diffing — depend on it, so a file written
 // `#c0caf5` must not fail to match one written `#C0CAF5`. The offender detail is
 // deliberately NOT canonicalised: it echoes back what the user wrote.
 func applyPairs(refs []fieldRef, pairs []Pair) *Rejection {
@@ -100,13 +100,14 @@ func applyPairs(refs []fieldRef, pairs []Pair) *Rejection {
 }
 
 // requireEveryToken returns the one `missing tokens` rejection enumerating every
-// token no pair populated, in §2.4 order, or nil once all 19 are declared.
+// token no pair populated, in canonical table order, or nil once all 19 are
+// declared.
 //
-// §4.5 admits no partial file and no merge-over-a-base, so this is the whole of
-// the presence rule. The Portal-specific hazard it closes is that the canvas is
-// ITSELF a token: a partial theme supplying a new canvas while inheriting
-// text.primary would produce a foreground measured against a background it was
-// never tuned for.
+// A theme file must declare the whole palette: there is no partial file and no
+// merge-over-a-base. The hazard that closes is that the canvas is ITSELF a
+// token — a partial theme supplying a new canvas while inheriting text.primary
+// would produce a foreground measured against a background it was never tuned
+// for.
 //
 // A field is populated iff its value is non-empty, because a stored value is
 // always a well-formed hex — applyPairs writes nothing else — and this runs only
@@ -131,8 +132,8 @@ func requireEveryToken(refs []fieldRef) *Rejection {
 // indexByName keys the canonical table's rows by token name, so classifying a
 // pair is one lookup against the same table All() and TokenNames() derive from.
 //
-// The lookup is case-sensitive, which is §4.2's rule: `Text.Primary` is an
-// unknown key, not text.primary written loudly.
+// The lookup is case-sensitive: `Text.Primary` is an unknown key, not
+// text.primary written loudly.
 func indexByName(refs []fieldRef) map[string]fieldRef {
 	index := make(map[string]fieldRef, len(refs))
 	for _, ref := range refs {

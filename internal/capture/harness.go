@@ -6,14 +6,14 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// This file is the fixture DRIVER: the seam §13.4's swap-and-diff completeness
-// guard drives a fixture from, as distinct from fixtures.go, which is the fixture
+// This file is the fixture DRIVER: the seam the swap-and-diff completeness guard
+// drives a fixture from, as distinct from fixtures.go, which is the fixture
 // catalogue.
 //
 // It performs no config discovery of any kind — no XDG lookup, no prefs read, no
 // themes-directory read. A palette arrives as an injected value, exactly as an
 // explicit `--theme <path>` does, which is what keeps internal/capture's
-// no-real-config guarantee intact (§13.3).
+// no-real-config guarantee intact.
 
 // keyRune builds the key-press message for a printable rune, carrying both the
 // code and its text so the model's rune-key matchers see it exactly as a real
@@ -22,7 +22,7 @@ func keyRune(r rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
 
-// keyPageDown builds the `Ctrl+↓` key-press message — §12.2's page-forward key,
+// keyPageDown builds the `Ctrl+↓` key-press message — the page-forward key,
 // which the panel's list binds through the shared pinArrowOnlyNav.
 //
 // It is a CODE PLUS A MODIFIER rather than a key type of its own, which is how
@@ -38,12 +38,12 @@ func keyPageDown() tea.KeyPressMsg {
 // tea program running.
 //
 // The theme is injected as the CONSTANT nomination shape, exactly as capturetool
-// passes it (§13.3): a constant needs no light/dark detection, so the gate is
-// resolved at construction and the frame is un-gated and byte-stable. It is
-// handed to Deps rather than assigned afterwards, because the palette drives TWO
-// seams — the nomination and the panel's faked enumerator, whose Resolve must
-// report the same palette or task 8-8's open-time apply repaints the frame off
-// `--theme`. See Fixture.Deps.
+// passes it: a constant needs no light/dark detection, so the gate is resolved at
+// construction and the frame is un-gated and byte-stable. It is handed to Deps
+// rather than assigned afterwards, because the palette drives TWO seams — the
+// nomination and the panel's faked enumerator, whose Resolve must report the same
+// palette or the panel's open-time apply repaints the frame off `--theme`. See
+// Fixture.Deps.
 //
 // Fixtures reach their captured state through Init/Update, so a bare Build returns
 // a model that has ingested nothing — a blank or loading frame. The drive order
@@ -86,14 +86,14 @@ func (f *Fixture) ModelAt(th theme.Theme, w, h int) tui.Model {
 
 // RenderSwapRender renders the fixture under theme a, swaps it live to theme b
 // through the production entry point, and renders it again — returning both
-// frames. It is the seam §13.4's completeness guard drives.
+// frames. It is the seam the swap-and-diff completeness guard drives.
 //
 // EXACTLY ONE MODEL IS CONSTRUCTED, and that is the whole point. The caches the
 // guard exists to catch are assigned once at construction, so a harness that built
 // two models — one per theme — would assign every cached style correctly in each
-// and hand back two perfectly correct frames while live swap was broken. That is
-// §13.4's named vacuous-pass shape, and the fixture harness's one-shot render is
-// precisely the shape that invites it.
+// and hand back two perfectly correct frames while live swap was broken: a
+// vacuous pass, and the fixture harness's one-shot render is precisely the shape
+// that invites it.
 //
 // The A-render is therefore NOT optional set-up: it is what populates those
 // caches. A fixture rendered only after the swap passes trivially.
@@ -110,18 +110,16 @@ func (f *Fixture) RenderSwapRender(a, b theme.Theme, w, h int) (before, after st
 
 // Colourless reports whether the fixture renders under the NO_COLOR carve-out.
 //
-// It is the discriminator §13.4's guard excludes on: a colourless render contains
-// no theme hexes at all, so there is nothing to diff and inclusion would be
-// meaningless rather than merely redundant. Reading the flag off the fixture's own
-// Deps makes that exclusion STRUCTURAL rather than a hand-maintained name list, so
-// a colourless fixture added later is excluded automatically.
+// It is the discriminator the swap-and-diff guard excludes on: a colourless
+// render contains no theme hexes at all, so there is nothing to diff and
+// inclusion would be meaningless rather than merely redundant. Reading the flag
+// off the fixture's own Deps makes that exclusion STRUCTURAL rather than a
+// hand-maintained name list, so a colourless fixture added later is excluded
+// automatically.
 //
-// The palette handed to Deps is the ZERO one, and that is the one call site where
-// it is the honest argument: a colourless fixture paints from no palette at all,
-// and the flag being read is decided before any of them.
-//
-// No fixture sets it today; the accessor exists so that one which does is handled
-// without anyone remembering the rule.
+// The palette handed to Deps is the ZERO one, and that is the call site where it
+// is the honest argument: a colourless fixture paints from no palette at all, and
+// the flag being read is decided before any of them.
 func (f *Fixture) Colourless() bool {
 	return f.Deps(theme.Theme{}).NoColor
 }

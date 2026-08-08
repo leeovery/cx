@@ -148,7 +148,7 @@ func projectsFilePath() (string, error) {
 // and does NOTHING else: it resolves the path and constructs the store, reading
 // no bytes and computing no translation.
 //
-// It is the read `portal doctor` uses (§10.5). Doctor must read prefs.json to
+// It is the read `portal doctor` uses. Doctor must read prefs.json to
 // report an unresolvable theme, but its contract is that it HEALS NOTHING on
 // the read-only path — and a one-shot config mutation as a side effect of
 // running a diagnosis is exactly what would break that claim.
@@ -165,29 +165,29 @@ func loadPrefsStoreNoMigrate() (*prefs.Store, error) {
 	return prefs.NewStore(path), nil
 }
 
-// prefsLoad is what the migrating prefs load produces. Keys is §8.4's "as read":
-// the POST-translation in-memory value, not the on-disk bytes.
+// prefsLoad is what the migrating prefs load produces. Keys is the theme setting
+// "as read": the POST-translation in-memory value, not the on-disk bytes.
 type prefsLoad struct {
 	// Store is the ONE store instance for the process — it serves the initial
 	// grouping-mode read, the theme keys here, and the theme persister.
 	Store *prefs.Store
-	// Keys are the theme keys THIS LAUNCH renders and the panel reads, with
-	// §10.2's translation already applied in memory where §10.3's no-op
-	// condition allowed it.
+	// Keys are the theme keys THIS LAUNCH renders and the panel reads, with the
+	// appearance translation already applied in memory where its no-op condition
+	// allowed it.
 	Keys prefs.ThemeKeys
 	// TranslationPending reports that the migration marker is not yet recorded,
 	// so the write half is still owed. It is true even when nothing translated:
-	// §10.2's "Nothing" refers to the theme keys, and the marker is what stops
+	// "nothing translated" refers to the theme keys, and the marker is what stops
 	// the condition being re-evaluated forever.
 	TranslationPending bool
-	// TranslatedSlug is §10.2's mapping of the retained raw appearance; "" when
+	// TranslatedSlug is the theme slug the retained raw appearance maps to; "" when
 	// there is nothing to translate.
 	TranslatedSlug string
 }
 
-// loadPrefsStore creates the process's prefs store and computes §10.5's
-// appearance translation — the COMPUTE half only. It writes nothing: the
-// persist and its `theme: appearance migrated` event belong to the caller.
+// loadPrefsStore creates the process's prefs store and computes the one-shot
+// appearance translation — the COMPUTE half only. It writes nothing: the persist
+// and its `theme: appearance migrated` event belong to the caller.
 //
 // Separating computing from persisting is what makes the fix safe: the
 // translated theme is used in memory immediately, so a launch renders the
@@ -195,9 +195,9 @@ type prefsLoad struct {
 // failed write leaves the condition true and the next launch retries.
 //
 // Ownership sits here rather than in prefs because three constraints meet at
-// this call site (§10.5): prefs is a deliberate leaf that must not import
-// internal/log, the translation happens at prefs load, and the `theme`
-// component records it. prefs stays dumb.
+// this call site: prefs is a deliberate leaf that must not import internal/log,
+// the translation happens at prefs load, and the `theme` component records it.
+// prefs stays dumb.
 //
 // EVERY DEGENERATE READ IS TOLERATED AND DISCARDED, exactly as the initial-mode
 // read discards its own: a missing, empty, corrupt or unreadable prefs.json
@@ -215,7 +215,7 @@ func loadPrefsStore() (prefsLoad, error) {
 
 	load := prefsLoad{Store: store, Keys: keys}
 
-	// The trigger is the MARKER, never the absence of theme keys (§10.3):
+	// The trigger is the MARKER, never the absence of theme keys:
 	// absence-gating is re-armable, so a user who hand-edits their keys away to
 	// return to the shipped pair would be silently re-pinned on the next launch.
 	if state.Migrated {
@@ -225,25 +225,24 @@ func loadPrefsStore() (prefsLoad, error) {
 	load.TranslationPending = true
 	load.TranslatedSlug = translateAppearance(state.Appearance)
 
-	// §10.3's no-op condition, applied to the IN-MEMORY half against the
-	// load-time snapshot — the only moment early enough to affect what is
-	// painted. A theme key the user has already set is what renders; scoping the
-	// condition to the write alone would flip them to the translated theme for
-	// exactly one launch, which is §10.1's failure delivered by the mechanism
-	// added to prevent it.
+	// The no-op condition, applied to the IN-MEMORY half against the load-time
+	// snapshot — the only moment early enough to affect what is painted. A theme
+	// key the user has already set is what renders; scoping the condition to the
+	// write alone would flip them to the translated theme for exactly one launch,
+	// which is the very surprise the translation exists to prevent.
 	if load.TranslatedSlug != "" && keys.Theme == "" && keys.Light == "" && keys.Dark == "" {
-		// §8.2's two states: a pinned mode becomes a pinned CONSTANT, so
-		// detection stays off for them just as it was.
+		// A pinned appearance becomes a pinned CONSTANT, so detection stays off
+		// for them just as it was.
 		load.Keys = prefs.ThemeKeys{Theme: load.TranslatedSlug}
 	}
 
-	// TranslatedSlug is deliberately NOT zeroed by the check above. §10.5 checks
-	// the condition TWICE against two reads: here for the in-memory half, and
-	// again at the write's read-modify-write re-read, where it also absorbs a
-	// commit another instance made in between. Collapsing them into one would
-	// lose the second read's job.
+	// TranslatedSlug is deliberately NOT zeroed by the check above. The condition
+	// is checked TWICE against two reads: here for the in-memory half, and again
+	// at the write's read-modify-write re-read, where it also absorbs a commit
+	// another instance made in between. Collapsing them into one would lose the
+	// second read's job.
 
-	// §10.5's PERSIST half, dispatched off the launch path. It is the last thing
+	// The PERSIST half, dispatched off the launch path. It is the last thing
 	// the load does, nothing here waits on it, no error is propagated, and the
 	// returned prefsLoad is identical whether the write lands, fails or never
 	// finishes — which is what "best-effort and non-blocking" buys: Portal
@@ -261,8 +260,8 @@ func loadPrefsStore() (prefsLoad, error) {
 	//     either the old bytes or the new ones.
 	//   - An unfinished or failed write leaves `theme_migrated` unset, so the
 	//     condition is still true and the next launch simply retries.
-	//   - The write decides everything at its own read-modify-write re-read
-	//     (§8.9), never against the snapshot read above. That is what stops a
+	//   - The write decides everything at its own read-modify-write re-read,
+	//     never against the snapshot read above. That is what stops a
 	//     deferred write reverting a theme the user committed in the window
 	//     between compute and persist.
 	persistTranslation(store, load.TranslatedSlug)
@@ -270,7 +269,7 @@ func loadPrefsStore() (prefsLoad, error) {
 	return load, nil
 }
 
-// persistTranslation performs §10.5's best-effort, NON-BLOCKING persist of the
+// persistTranslation performs the best-effort, NON-BLOCKING persist of the
 // one-shot appearance translation: it dispatches the write off the launch path
 // so nothing the user waits for — first paint least of all — waits on it.
 //
@@ -285,68 +284,63 @@ var persistTranslation = func(store *prefs.Store, slug string) {
 	go runTranslationPersist(store, slug)
 }
 
-// runTranslationPersist writes §10.5's translation and emits §12.3's
+// runTranslationPersist writes the translation and emits
 // `theme: appearance migrated` — INFO, and ONLY when a theme key was actually
 // persisted.
 //
-// That predicate is the whole point of the event, and each rejected alternative
-// breaks it differently:
-//
-//   - Emitted on COMPUTE it could legitimately fire on several consecutive
-//     launches (the write is best-effort and retries), so "one-shot" would be
-//     false.
-//   - Emitted on a MARKER-ONLY write it would announce a migration that
-//     translated nothing — `appearance` was `auto`, or the user already had a
-//     theme key set.
+// That predicate is the whole point of the event. Emitting it on COMPUTE would
+// let it fire on several consecutive launches (the write is best-effort and
+// retries), so "one-shot" would be false; emitting it on a MARKER-ONLY write
+// would announce a migration that translated nothing — `appearance` was `auto`,
+// or the user already had a theme key set.
 //
 // prefs reports that predicate as a first-class result rather than as an
 // inference from the error, so this is a plain read of `persisted`.
 //
 // NOTHING IS EMITTED ON FAILURE — no `theme: commit failed`, no WARN, no
 // user-facing surface. The absence of `theme: appearance migrated` after a
-// translation IS the failure signal (§10.5), which is what keeps the
-// commit-failed event single-sited on the panel's theme persister (§8.9). An
-// error and a not-persisted run are therefore the same silent return.
+// translation IS the failure signal, which is what keeps the commit-failed event
+// single-sited on the panel's theme persister. An error and a not-persisted run
+// are therefore the same silent return.
 //
 // The translation is also deliberately SILENT TO THE USER AT RUNTIME — no flash,
 // no notice band, no banner. It runs at prefs load, before any surface exists to
-// render a notice into; there is nothing to explain, because §10.2 preserves
-// intent exactly (a pinned mode becomes a pinned theme and detection stays off,
-// just as it was); and §6.3 has already refused the single-slot notice band a
-// permanent extra contender for a rarer event. The CHANGELOG (§12.5) is the
+// render a notice into; there is nothing to explain, because the translation
+// preserves intent exactly (a pinned appearance becomes a pinned theme and
+// detection stays off, just as it was); and the single-slot notice band must not
+// gain a permanent extra contender for a rarer event. The CHANGELOG is the
 // compensating channel.
 //
-// Attrs: `slug` alone, drawn from §12.3's closed key set — the constant actually
-// persisted, which is what makes the line greppable per theme. NO `slot`: the
-// translation always writes a constant (§8.2), so a slot attr would have no
-// value to carry. §12.3 pins the event's level and cadence but not its attrs, so
-// the choice is recorded here beside the emission.
+// Attrs: `slug` alone, from the component's closed key set — the constant
+// actually persisted, which is what makes the line greppable per theme. NO
+// `slot`: the translation always writes a constant, so a slot attr would have no
+// value to carry.
 func runTranslationPersist(store *prefs.Store, slug string) {
 	persisted, err := store.SaveTranslation(slug)
 	if err != nil || !persisted {
-		return // the absence of the event IS the failure signal (§10.5)
+		return // the absence of the event IS the failure signal
 	}
 
 	themeLogger.Info("appearance migrated", "slug", slug)
 }
 
-// translateAppearance maps a retained raw `appearance` value onto §10.2's
-// equivalent theme slug: the single source of that table.
+// translateAppearance maps a retained raw `appearance` value onto its equivalent
+// theme slug: the single source of that table.
 //
 //	dark  -> the shipped dark default   (a pinned mode becomes a pinned theme)
 //	light -> the shipped light default
 //	auto / absent / anything else -> "" (nothing to translate)
 //
 // THE MATCH IS EXACT, deliberately. The translation's job is to reproduce THE
-// OLD BINARY'S reading of the value, and the appearance decode §8.8 deleted
-// matched the three tokens exactly — so anything that binary treated as `auto`
-// (`Dark`, `" dark"`, a hand-edit's trailing newline) must translate to
-// nothing. Trimming or lowercasing here would change the meaning of a value
-// rather than preserve it, which is the one thing §10.2 may not do.
+// OLD BINARY'S reading of the value, and the deleted appearance decode matched
+// the three tokens exactly — so anything that binary treated as `auto` (`Dark`,
+// `" dark"`, a hand-edit's trailing newline) must translate to nothing. Trimming
+// or lowercasing here would change the meaning of a value rather than preserve
+// it, which is the one thing the translation may not do.
 //
 // A present-but-unrecognised value translating to nothing does NOT leave the
-// translation pending forever: §10.2's "Nothing" refers to the theme keys, and
-// the marker is recorded either way (§10.3).
+// translation pending forever: "nothing translated" refers to the theme keys, and
+// the marker is recorded either way.
 //
 // Both slugs come from theme's shipped-default constants, never from literals,
 // so the shipped pair has exactly one definition.

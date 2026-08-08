@@ -1,14 +1,14 @@
 package theme
 
-// Reason is one of §6.2's seven reject classes — why a theme is not usable.
+// Reason is one of the seven reject classes — why a theme is not usable.
 //
 // The string value of each constant is the terse label the surfaces render
-// VERBATIM: the panel row prints it behind §14A's "⚠ " prefix, doctor prints it
+// VERBATIM: the panel row prints it behind a "⚠ " prefix, doctor prints it
 // before the detail, and the theme log component carries it as the `reason`
 // attr. They are user-facing copy rather than internal identifiers.
 type Reason string
 
-// The seven reject classes, declared in §6.2's evaluation order.
+// The seven reject classes, declared in evaluation order.
 //
 // The first six are a ladder: they are evaluated in this order and the first
 // failure short-circuits, which is what guarantees a theme always has exactly
@@ -33,15 +33,15 @@ const (
 // Rejection is why one theme is not usable: exactly one reason, plus the detail
 // naming what is wrong within that reason.
 //
-// The invariant is §6.2's, and it is what the whole rejection machinery is
-// shaped around: a Rejection always carries EXACTLY ONE reason, and its detail
-// never spans two. A file that is both duplicate-keyed and missing tokens is
-// `bad syntax`, and its detail says nothing whatsoever about presence. Detail
-// enumerates WITHIN the reason — every missing token, or every bad-coloured
-// pair — never across reasons.
+// One invariant is what the whole rejection machinery is shaped around: a
+// Rejection always carries EXACTLY ONE reason, and its detail never spans two. A
+// file that is both duplicate-keyed and missing tokens is `bad syntax`, and its
+// detail says nothing whatsoever about presence. Detail enumerates WITHIN the
+// reason — every missing token, or every bad-coloured pair — never across
+// reasons.
 //
-// Detail is rendered by whoever produces the rejection, in the exact §14A form
-// its surfaces print: nothing downstream re-derives, re-orders, re-wraps or
+// Detail is rendered by whoever produces the rejection, in the exact form its
+// surfaces print: nothing downstream re-derives, re-orders, re-wraps or
 // re-prefixes it. Line carries the same line number in machine-readable form
 // for the one reason that has one (`bad syntax`), and is 0 for every other.
 //
@@ -52,7 +52,7 @@ const (
 //
 // Err carries the underlying OS error for the one reason produced by something
 // other than Portal's own rules (`unreadable`), and is nil for every other. It
-// is the SAME error the Detail renders, kept in structured form because §14A's
+// is the SAME error the Detail renders, kept in structured form because the
 // detail for that reason is the OS error verbatim: a caller wanting to classify
 // the failure — a denial versus a dangling symlink — matches on the error rather
 // than on the text of a message meant for a human.
@@ -69,8 +69,8 @@ type Rejection struct {
 //
 // This is the generic propagation form only. Every surface that shows a
 // rejection to a user composes its own line from Reason and Detail — the panel
-// has room for the label alone (§9.5), doctor frames the pair differently again
-// per §14A — so none of them parses this string back apart.
+// has room for the label alone, doctor frames the pair differently again — so
+// none of them parses this string back apart.
 func (r *Rejection) Error() string {
 	if r.Detail == "" {
 		return string(r.Reason)

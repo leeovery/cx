@@ -8,47 +8,46 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §11 shared notice-band primitive + single-slot arbiter.
+// The shared notice-band primitive + single-slot arbiter.
 //
-// §11 intro pins one convention for inline notices: a `▌` left-bar accent line
-// directly under the title separator, above the section header (full-width), the
-// section header + list shifting down. The notice slot holds AT MOST ONE band —
-// a transient flash (§11.2) takes the slot temporarily, replacing any persistent
-// band (no-tags signpost §11.3, command-pending banner §11.4) for its duration,
-// then the persistent band returns. A persistent (violet info) band and a
-// transient flash never display at once — the transient flash wins while shown.
+// Inline notices follow one convention: a `▌` left-bar accent line directly under
+// the title separator, above the section header (full-width), the section header +
+// list shifting down. The notice slot holds AT MOST ONE band — a transient flash
+// takes the slot temporarily, replacing any persistent band (the no-tags signpost,
+// the command-pending banner) for its duration, then the persistent band returns. A
+// persistent (violet info) band and a transient flash never display at once — the
+// transient flash wins while shown.
 //
 // This file owns the band ROLE vocabulary, the shared render primitive, and the
 // Sessions-page arbiter that funnels both notice sources through a single slot.
 // The per-band tint, on-band text token, message wording, and (for flashes) the
-// ⚠/✓ glyph + bold/dim are selected by the CONSUMING tasks (4-2/4-3/4-4) — this
-// task supplies the structural slot + the one-row-per-delegate height recompute
-// (F10).
+// ⚠/✓ glyph + bold/dim are selected by the consuming call sites; this file supplies
+// the structural slot and the height recompute that goes with it.
 
-// noticeBarGlyph is the §11 left-bar accent glyph — a solid block pinned far-left
-// in the band's role colour (accent.orange / state.green / accent.violet). Under
-// NO_COLOR (§2.5) the glyph + its position survive; only the colour drops.
+// noticeBarGlyph is the left-bar accent glyph — a solid block pinned far-left in
+// the band's role colour (accent.orange / state.green / accent.violet). Under
+// NO_COLOR the glyph + its position survive; only the colour drops.
 const noticeBarGlyph = "▌"
 
-// flashWarningGlyph / flashSuccessGlyph are the §11.2 flash status glyphs. They
-// follow the message on the warning / success flash band so the two variants stay
-// distinguishable by GLYPH alone (§2.2 — never colour-only), which is what keeps
-// the NO_COLOR carve-out legible: the ⚠ / ✓ survives even when the tint and bar
-// colour drop. The persistent info band (§11.3 signpost) carries NO status glyph.
+// flashWarningGlyph / flashSuccessGlyph are the flash status glyphs. They follow
+// the message on the warning / success flash band so the two variants stay
+// distinguishable by GLYPH alone — never colour-only — which is what keeps the
+// NO_COLOR carve-out legible: the ⚠ / ✓ survives even when the tint and bar colour
+// drop. The persistent info band (the signpost) carries NO status glyph.
 const (
 	flashWarningGlyph = "⚠"
 	flashSuccessGlyph = "✓"
 )
 
-// noticeBandRole is one of the §11 MV notice-band role variants. The role selects
-// the left-bar colour token and the band's tint:
+// noticeBandRole is one of the notice-band role variants. The role selects the
+// left-bar colour token and the band's tint:
 //
 //   - bandWarning → accent.orange (transient / warning flash, bg.warning tint)
 //   - bandSuccess → state.green   (transient / success flash, bg.warning tint)
-//   - bandInfo    → accent.violet (persistent §11.3 info band, bg.selection tint)
-//   - bandCommand → accent.violet (persistent §11.4 command-pending banner, bg.selection tint)
+//   - bandInfo    → accent.violet (persistent info band, bg.selection tint)
+//   - bandCommand → accent.violet (persistent command-pending banner, bg.selection tint)
 //
-// The two INFO bands (bandInfo §11.3 signpost, bandCommand §11.4 command-pending)
+// The two INFO bands (the signpost's bandInfo and the command-pending bandCommand)
 // are the SAME info-message element: an identical violet `▌` left-bar on the SAME
 // bg.selection tint. They share one render base (renderNoticeBand) so their bar +
 // tint can never drift; bandCommand layers a `▸` caret + an orange command chip on
@@ -60,29 +59,29 @@ const (
 	bandWarning noticeBandRole = iota
 	// bandSuccess is the transient success flash role — a state.green left-bar.
 	bandSuccess
-	// bandInfo is the persistent §11.3 info band role — an accent.violet left-bar on
-	// the subtle bg.selection tint (the SAME tint as the §11.4 command-pending band:
+	// bandInfo is the persistent info band role — an accent.violet left-bar on
+	// the subtle bg.selection tint (the SAME tint as the command-pending band:
 	// the signpost and the command banner are one info-message element).
 	bandInfo
-	// bandCommand is the persistent §11.4 command-pending banner role — an
+	// bandCommand is the persistent command-pending banner role — an
 	// accent.violet left-bar on the bg.selection tint, identical to bandInfo's base;
 	// it layers a `▸` caret + an orange command chip on top (renderCommandBand).
 	bandCommand
 )
 
-// commandBandCaret is the §11.4 `▸` lead glyph that follows the `▌` left-bar on the
+// commandBandCaret is the `▸` lead glyph that follows the `▌` left-bar on the
 // command-pending banner, just before the fixed text. It survives the NO_COLOR
 // carve-out (its position/glyph carry the banner's intent colourlessly).
 const commandBandCaret = "▸"
 
-// commandBandText is the spec-exact §11.4 fixed banner wording, sourced once here
+// commandBandText is the fixed banner wording, sourced once here
 // as the single source of truth. The joined pending command renders beside it in an
 // accent.orange chip (renderCommandBand).
 const commandBandText = "Pick a project to run"
 
-// barToken returns the §2.9 role token whose foreground paints the role's
-// left-bar. No literal hex survives here — the colour is sourced from the closed
-// MV vocabulary so a re-theme moves the band bars with every other element.
+// barToken returns the role token whose foreground paints the role's left-bar. No
+// literal hex survives here — the colour is sourced from the closed token
+// vocabulary so a re-theme moves the band bars with every other element.
 func (r noticeBandRole) barToken(th theme.Theme) theme.Token {
 	switch r {
 	case bandWarning:
@@ -94,11 +93,11 @@ func (r noticeBandRole) barToken(th theme.Theme) theme.Token {
 	}
 }
 
-// tintToken returns the §2.9 surface token whose background fills the band's row.
+// tintToken returns the surface token whose background fills the band's row.
 // The transient flashes (warning AND success) sit on the single co-tuned
-// bg.warning tint (§2.9 — no invented success-specific tint; the bar colour + ✓
-// glyph carry the success distinction, §11.2). The TWO persistent info bands —
-// bandInfo (§11.3 signpost) AND bandCommand (§11.4 command-pending) — share the
+// bg.warning tint — no invented success-specific tint; the bar colour + ✓
+// glyph carry the success distinction. The TWO persistent info bands —
+// the signpost's bandInfo AND the command-pending bandCommand — share the
 // SAME violet-anchored bg.selection surface, because they are one info-message
 // element (the signpost and the command banner must look identical at the base:
 // same `▌` bar, same tint). This single shared mapping is the regression guard
@@ -113,10 +112,10 @@ func (r noticeBandRole) tintToken(th theme.Theme) theme.Token {
 	}
 }
 
-// statusGlyph returns the §11.2 status glyph that follows the bar on the role's
-// band, or "" for the persistent info band (which carries no status glyph). The
-// glyph is what keeps the warning / success variants distinguishable without
-// relying on colour (§2.2) and is what survives the NO_COLOR carve-out (§2.5).
+// statusGlyph returns the status glyph that follows the bar on the role's band, or
+// "" for the persistent info band (which carries no status glyph). The glyph is
+// what keeps the warning / success variants distinguishable without relying on
+// colour, and is what survives the NO_COLOR carve-out.
 func (r noticeBandRole) statusGlyph() string {
 	switch r {
 	case bandWarning:
@@ -130,7 +129,7 @@ func (r noticeBandRole) statusGlyph() string {
 
 // noticeBandTintStyle returns the band's BACKGROUND-fill style: Background(tint)
 // for the role's surface token (bg.warning for the flashes, bg.selection for the
-// info bands), or a bare style under the NO_COLOR carve-out (§2.5) so the band
+// info bands), or a bare style under the NO_COLOR carve-out so the band
 // renders on the terminal's native bg. Every band cell (bar, glyph, message, the
 // gaps, and the right pad) is painted through this so the whole row is one
 // uniform tint with no terminal-bg island.
@@ -154,11 +153,11 @@ func noticeBandFgStyle(fg, tint theme.Token, th theme.Theme, colourless bool) li
 		Background(tint.Color())
 }
 
-// bandBase is the §11 info-band base treatment shared by EVERY band render path:
-// the role's resolved tint token plus the two pre-rendered cells that paint that
-// tint — the `▌` left-bar (in the role colour) and a single tint-painted gap cell.
-// Both renderNoticeBand (the §11.3 signpost + the §11.2 flashes) and
-// renderCommandBand (the §11.4 command-pending banner) derive their bar + tint from
+// bandBase is the info-band base treatment shared by EVERY band render path: the
+// role's resolved tint token plus the two pre-rendered cells that paint that tint —
+// the `▌` left-bar (in the role colour) and a single tint-painted gap cell. Both
+// renderNoticeBand (the signpost and the flashes) and
+// renderCommandBand (the command-pending banner) derive their bar + tint from
 // here, so the two info bands (signpost, command) can never diverge in bar glyph,
 // bar colour, or tint — there is exactly ONE place that assembles them.
 type bandBase struct {
@@ -168,7 +167,7 @@ type bandBase struct {
 }
 
 // newBandBase builds the shared info-band base for a role: the tint token + the
-// tint-painted `▌` bar and gap cells. The NO_COLOR carve-out (§2.5) is honoured by
+// tint-painted `▌` bar and gap cells. The NO_COLOR carve-out is honoured by
 // the underlying style helpers, so under colourless the bar/gap carry no SGR.
 func newBandBase(role noticeBandRole, th theme.Theme, colourless bool) bandBase {
 	tint := role.tintToken(th)
@@ -179,15 +178,15 @@ func newBandBase(role noticeBandRole, th theme.Theme, colourless bool) bandBase 
 	}
 }
 
-// renderNoticeBand renders the §11 shared notice band: a far-left `▌` left-bar in
-// the role colour, then — for the §11.2 flashes — a `⚠`/`✓` status glyph, then the
+// renderNoticeBand renders the shared notice band: a far-left `▌` left-bar in
+// the role colour, then — for the flashes — a `⚠`/`✓` status glyph, then the
 // message in the supplied on-band text token, all on the role's tint and padded to
 // exactly width cells so each line spans the full row like the section header it
 // sits above (single-line when the message fits, wrapping to multi-line otherwise
-// — see below). The flash bands (warning / success) fill the row with the bg.warning
-// tint (§11.2); the persistent info band (§11.3 signpost) carries no status glyph
-// and sits on the bg.selection tint — the SAME tint as the §11.4 command-pending
-// banner, since the two are one info-message element. This is the shared base both
+// — see below). The flash bands (warning / success) fill the row with the
+// bg.warning tint; the persistent info band (the signpost) carries no status glyph
+// and sits on the bg.selection tint — the SAME tint as the command-pending banner,
+// since the two are one info-message element. This is the shared base both
 // info bands render through (renderCommandBand layers its caret + chip on top), so
 // the bar + tint can never diverge between them.
 //
@@ -202,14 +201,14 @@ func newBandBase(role noticeBandRole, th theme.Theme, colourless bool) bandBase 
 // with the role's tint (noticeBandPadRight) so the tint spans all wrapped lines with
 // no terminal-bg island on any line.
 //
-// onBandText is the §2.9 text token the consuming task selects for the message
-// (e.g. text.on-warning for the flashes, text.on-selection for the signpost). The
-// role selects the tint and the status glyph (role.tintToken / role.statusGlyph).
+// onBandText is the text token the caller selects for the message (text.on-warning
+// for the flashes, text.on-selection for the signpost). The role selects the tint
+// and the status glyph (role.tintToken / role.statusGlyph).
 //
-// Under the NO_COLOR carve-out (§2.5) the bar colour, the on-band text hue, and
-// the tint all drop; the `▌` bar, its position, the `⚠`/`✓` glyph (line 1), and the
-// message text survive on the terminal's native fg/bg so the band's STATE stays
-// legible colourlessly (§2.2 — glyph-distinct, never colour-only). The bar survives
+// Under the NO_COLOR carve-out the bar colour, the on-band text hue, and the tint
+// all drop; the `▌` bar, its position, the `⚠`/`✓` glyph (line 1), and the message
+// text survive on the terminal's native fg/bg so the band's STATE stays legible
+// colourlessly — glyph-distinct, never colour-only. The bar survives
 // on every wrapped line.
 func renderNoticeBand(role noticeBandRole, message string, onBandText theme.Token, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
@@ -267,28 +266,28 @@ func renderNoticeBand(role noticeBandRole, message string, onBandText theme.Toke
 	return strings.Join(lines, "\n")
 }
 
-// commandChipPadX is the §11.4 command chip's horizontal padding (cells each side)
+// commandChipPadX is the command chip's horizontal padding (cells each side)
 // inside its tinted box — so the chip reads `│ npm run dev │` compactly, matching
 // the reference's compact orange command chip.
 const commandChipPadX = 1
 
-// renderCommandBand renders the §11.4 command-pending banner: the §11 info-band
-// BASE (the bandCommand role's `▌` violet left-bar on the bg.selection tint, sourced
-// from the SAME newBandBase used by the §11.3 signpost so the bar + tint cannot
+// renderCommandBand renders the command-pending banner: the info-band BASE (the
+// bandCommand role's `▌` violet left-bar on the bg.selection tint, sourced from the
+// SAME newBandBase used by the signpost so the bar + tint cannot
 // diverge between the two info bands) WITH a `▸` violet caret + the fixed `Pick a
 // project to run` text (text.on-selection) + the joined pending command in an
 // accent.orange chip layered on, padded to exactly width cells so the band occupies
 // the full row like the section header it sits above.
 //
-// The chip is a small box treatment (§11.4): the joined command in accent.orange on
-// a bg.warning surface fill with one cell of horizontal padding each side, so it
-// reads as a distinct orange chip ON the violet-tinted band. Both tints are existing
-// §2.9 surface tokens (no invented token, no literal hex).
+// The chip is a small box treatment: the joined command in accent.orange on a
+// bg.warning surface fill with one cell of horizontal padding each side, so it
+// reads as a distinct orange chip ON the violet-tinted band. Both tints are
+// existing surface tokens (no invented token, no literal hex).
 //
-// Under the NO_COLOR carve-out (§2.5) the bar/caret/text/chip colours and both tints
-// drop; the `▌` bar, the `▸` caret, the text, and the chip command survive on the
+// Under the NO_COLOR carve-out the bar/caret/text/chip colours and both tints drop;
+// the `▌` bar, the `▸` caret, the text, and the chip command survive on the
 // terminal's native fg/bg, so the chip degrades to a colourless padded box still
-// distinguishable by position (§2.2 — never colour-only).
+// distinguishable by position, never colour-only.
 func renderCommandBand(command []string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	base := newBandBase(bandCommand, th, colourless)
@@ -301,7 +300,7 @@ func renderCommandBand(command []string, width int, th theme.Theme, colourless b
 	return noticeBandPadRight(row, lipgloss.Width(row), w, base.tint, th, colourless)
 }
 
-// renderCommandChip renders the §11.4 command chip: the joined command in
+// renderCommandChip renders the command chip: the joined command in
 // accent.orange on a bg.warning surface fill (the orange-anchored subtle tint) with
 // commandChipPadX cells of horizontal padding each side, so it reads as a distinct
 // orange box ON the violet-tinted band. Under NO_COLOR all colours + the fill drop,
@@ -329,16 +328,16 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 	return padRightWithStyle(seg, segWidth, w, noticeBandTintStyle(tint, th, colourless))
 }
 
-// activeNoticeBand is the §11 single-slot arbiter for the Sessions page: it
+// activeNoticeBand is the single-slot arbiter for the Sessions page: it
 // returns the ONE band that owns the notice slot, if any. The single-slot rule —
 // a transient flash wins over any persistent band while shown; otherwise the
 // active persistent band occupies the slot:
 //
 //   - a THEME-ORIGIN flash → the slot, ABOVE the filter line (see below).
 //   - flashText != ""  → the transient flash takes the slot; its flashKind selects
-//     the warning (bandWarning) or success (bandSuccess) styling (§11.2).
-//   - byTagSignpost     → the persistent no-tags info band (bandInfo) — §11.3 —
-//     UNLESS §5 multi-select mode is active, which replaces the section header with
+//     the warning (bandWarning) or success (bandSuccess) styling.
+//   - byTagSignpost     → the persistent no-tags info band (bandInfo),
+//     UNLESS multi-select mode is active, which replaces the section header with
 //     the `N selected` banner and suppresses the signpost (a flash still wins).
 //
 // At most one is ever returned, so the two independent band sources collapse to a
@@ -346,7 +345,7 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 // are consumed by viewSessionList's single insertion step; the on-band text token
 // is selected at the render site so each band keeps its existing on-band colour.
 //
-// §14A: A THEME-ORIGIN FLASH OUTRANKS THE FILTER LINE, AND ONLY IT DOES. The filter
+// A THEME-ORIGIN FLASH OUTRANKS THE FILTER LINE, AND ONLY IT DOES. The filter
 // line is the one contender above the flash tier that can be live throughout a
 // panel's open, use and close — a filter can sit applied-but-unfocused on this list
 // the whole time — and two guarantees fail SILENTLY if a theme signal cannot claim
@@ -356,7 +355,7 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 //     failure whether or not a flash rendered, so a report that cannot claim the
 //     slot is DESTROYED rather than deferred — which is the silent revert that
 //     report exists to close.
-//   - The proactive `NO_COLOR` block (§9.10), which would produce nothing at all:
+//   - The proactive `NO_COLOR` block, which would produce nothing at all:
 //     the walkable dead end it exists to prevent, reached by another route.
 //
 // The asymmetry is the justification: a filter line is a persistent restatement of a
@@ -370,27 +369,25 @@ func noticeBandPadRight(seg string, segWidth, w int, tint theme.Token, th theme.
 // ordering above is what keeps that true if either ever moves.
 //
 // The PROJECTS page has its own arbiter (activeProjectNoticeBand) over its own
-// contender set — §14A gave it the transient flash and nothing else. The two are
+// contender set — the transient flash and nothing else. The two are
 // deliberately separate functions rather than one page-parameterised arbiter:
 // every contender here except the flash is a Sessions element, so a merged one
 // would be a page switch wearing a shared name.
 func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool) {
-	// §6-6 precedence seam — do NOT collapse to strict single-slot. This flash arm
-	// takes the §11 band slot REGARDLESS of m.multiSelectMode, so the spawn-failure /
+	// Precedence seam — do NOT collapse to strict single-slot. This flash arm takes
+	// the band slot REGARDLESS of m.multiSelectMode, so the spawn-failure /
 	// permission flash (setFlash from handleBurstPartialFailure) deliberately
 	// CO-RENDERS with the `N selected` multi-select banner across TWO physical rows —
-	// this §11 band under the title separator, the banner on the section-header row
+	// this band under the title separator, the banner on the section-header row
 	// (applySectionHeader). This is informative by design: the user sees the failure
-	// AND that they remain in multi-select with the retry set still marked. It is the
-	// intended reading of the spec's "Notice-band precedence (single slot, highest
-	// wins)" clause (§ Mode affordance) for this flash tier — decision recorded during
-	// implementation analysis, 2026-07-14. Its pre-flight-abort SIBLING in the same
-	// spec flash tier is DIFFERENT by design: that one is a section-header claimant
-	// (applySectionHeader's abortBannerText branch) that DOES replace the banner. A
-	// later reader must NOT add `&& !m.multiSelectMode` here to force a single row.
+	// AND that they remain in multi-select with the retry set still marked. Its
+	// pre-flight-abort SIBLING in the same flash tier is DIFFERENT by design: that one
+	// is a section-header claimant (applySectionHeader's abortBannerText branch) that
+	// DOES replace the banner. A later reader must NOT add `&& !m.multiSelectMode`
+	// here to force a single row.
 	//
-	// Both flash tiers carry that exception: §9.7 lets the theme panel NEST over
-	// multi-select, so a theme signal raised there co-renders with the banner too.
+	// Both flash tiers carry that exception: the theme panel NESTS over multi-select,
+	// so a theme signal raised there co-renders with the banner too.
 	if role, message, live := m.themeFlashClaim(); live {
 		return role, message, true
 	}
@@ -400,13 +397,12 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 	if role, message, live := m.flashClaim(); live {
 		return role, message, true
 	}
-	// §5 multi-select mode replaces the section header with the `N selected` banner
-	// and §6.2 the resolved-unsupported terminal replaces it with the `⚠ unsupported
-	// terminal` banner; both own the section-header row, so the persistent By-Tag
-	// signpost is suppressed while either does (a transient flash, handled above,
-	// still wins the slot). unsupportedBannerActive is the SAME predicate
-	// applySectionHeader's §6.2 claimant reads, so the suppression and the swap can
-	// never drift.
+	// Multi-select mode replaces the section header with the `N selected` banner and
+	// a resolved-unsupported terminal replaces it with the `⚠ unsupported terminal`
+	// banner; both own the section-header row, so the persistent By-Tag signpost is
+	// suppressed while either does (a transient flash, handled above, still wins the
+	// slot). unsupportedBannerActive is the SAME predicate applySectionHeader's own
+	// claimant reads, so the suppression and the swap can never drift.
 	if m.byTagSignpost && !m.multiSelectMode && !m.unsupportedBannerActive() {
 		return bandInfo, byTagSignpostText, true
 	}
@@ -418,25 +414,24 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 // activeProjectNoticeBand is the single-slot arbiter for the PROJECTS page: it
 // returns the ONE band that owns that page's notice slot, if any.
 //
-//	§14A: "Projects gains a transient-flash slot. The existing arbiter is
-//	Sessions-only — every one of its six contenders is a Sessions element — yet
-//	§9.6 binds `t` on Projects and §14.2 puts `t theme` in its footer, and all six
-//	of these flashes are reachable there."
+// Projects has a transient-flash slot of its own because `t` is bound on this page
+// and every theme flash is reachable here, while the Sessions arbiter's other
+// contenders are all Sessions elements.
 //
-// The order — a transient flash wins the slot while shown, otherwise the §11.4
+// The order — a transient flash wins the slot while shown, otherwise the
 // command-pending banner holds it:
 //
 //   - a THEME-ORIGIN flash → the slot, ABOVE the filter line (see below).
 //   - flashText != "" → the transient flash takes the slot; its flashKind selects
-//     the warning (bandWarning) or success (bandSuccess) styling (§11.2).
-//   - commandPending  → the persistent §11.4 command-pending banner (bandCommand).
+//     the warning (bandWarning) or success (bandSuccess) styling.
+//   - commandPending  → the persistent command-pending banner (bandCommand).
 //
-// §14A: A THEME-ORIGIN FLASH OUTRANKS THE FILTER LINE HERE TOO, and for the same
+// A THEME-ORIGIN FLASH OUTRANKS THE FILTER LINE HERE TOO, and for the same
 // two guarantees the Sessions arbiter states — the failed-commit report, which is
 // DESTROYED rather than deferred if it cannot claim the slot (closing the panel
-// discharges the outstanding failure whether or not a flash rendered), and §9.10's
+// discharges the outstanding failure whether or not a flash rendered), and the
 // proactive `NO_COLOR` block, which would otherwise produce nothing at all. `t` is
-// bound on this page because theme is a global setting (§9.6), so every one of those
+// bound on this page because theme is a global setting, so every one of those
 // signals is reachable here and the rule cannot be Sessions-only. The filter line
 // claims this page's section-header row (applyProjectsSectionHeader), a different
 // physical row, so the two co-render; the ordering below is what keeps the theme
@@ -444,17 +439,16 @@ func (m Model) activeNoticeBand() (role noticeBandRole, message string, ok bool)
 //
 // PROJECTS GETS THE FLASH CONTENDER ALONE, not the full arbiter. The no-tags
 // signpost, the multi-select banner, the unsupported banner and the burst-progress
-// band are all Sessions elements with NO Projects analogue, and §14A is explicit
-// that "inventing them would be scope for nothing" — so a later reader must not
-// port one here to make the two arbiters look symmetrical. The asymmetry is the
-// decision.
+// band are all Sessions elements with NO Projects analogue, so a later reader must
+// not port one here to make the two arbiters look symmetrical. The asymmetry is
+// the decision.
 //
 // It ARBITRATES, never co-renders: the band is one slot, and the Sessions arm's
 // deliberate multi-select co-render exception (see activeNoticeBand) has no
 // Projects analogue — nothing on this page owns a second row to co-render with.
 //
 // The slot is deliberately NOT scoped to the entry-blocked flashes: it takes any
-// flashText, whatever set it. §9.13's `theme not saved — see portal.log` lands
+// flashText, whatever set it. The `theme not saved — see portal.log` report lands
 // in this same slot, and closing the panel DISCHARGES that outstanding
 // state whether or not a flash rendered — so a slot that filtered by set-site
 // would destroy the report rather than defer it.
@@ -501,7 +495,7 @@ func (m Model) renderActiveProjectNoticeBand() string {
 	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
 }
 
-// flashBandRole maps an inline-flash kind (§11.2) to the shared notice-band role
+// flashBandRole maps an inline-flash kind to the shared notice-band role
 // that selects its bar colour, tint, and status glyph. flashWarning is the
 // default, so an unparameterised setFlash routes to bandWarning.
 func flashBandRole(kind flashKind) noticeBandRole {
@@ -511,7 +505,7 @@ func flashBandRole(kind flashKind) noticeBandRole {
 	return bandWarning
 }
 
-// flashClaim is the §11.2 transient-flash contender: the band a live flash claims —
+// flashClaim is the transient-flash contender: the band a live flash claims —
 // the role its kind selects plus its verbatim message — or ok=false when no flash is
 // live. Both pages' arbiters resolve the flash through it, so the one contender they
 // share cannot come to mean two things.
@@ -522,7 +516,7 @@ func (m Model) flashClaim() (role noticeBandRole, message string, ok bool) {
 	return flashBandRole(m.flashKind), m.flashText, true
 }
 
-// themeFlashClaim is flashClaim narrowed to §14A's THEME-ORIGIN tier — the flashes
+// themeFlashClaim is flashClaim narrowed to the THEME-ORIGIN tier — the flashes
 // that claim the notice slot even while the filter line is live. It reads the origin
 // the flash carries (setThemeFlash) and NEVER the message text: precedence keyed on
 // wording would move a signal out of the tier on a copy edit, and would let any
@@ -534,7 +528,7 @@ func (m Model) themeFlashClaim() (role noticeBandRole, message string, ok bool) 
 	return m.flashClaim()
 }
 
-// noticeBandOnBandText selects the §2.9 on-band text token for the arbitrated
+// noticeBandOnBandText selects the on-band text token for the arbitrated
 // band role. The warning/success flash carries text.on-warning; the persistent
 // info signpost carries text.on-selection — the bright white co-tuned for the
 // bg.selection tint the info band sits on (the same token the selected
@@ -560,7 +554,7 @@ func (m Model) renderActiveNoticeBand() string {
 	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
 }
 
-// renderSessionBandSlot renders the FULL §11 Sessions notice slot for the model's
+// renderSessionBandSlot renders the FULL Sessions notice slot for the model's
 // current width / canvas mode — the arbitrated band PLUS one canvas-painted
 // full-width blank row BENEATH it (the band→section-header breathing gap), or the
 // empty string when no band owns the slot. The blank sits ONLY below the band: the
@@ -569,12 +563,12 @@ func (m Model) renderActiveNoticeBand() string {
 // listView.
 //
 // This is the SINGLE source of truth for what the slot inserts: both
-// viewSessionList (composition) and sessionBandHeight (the F10 height reserve)
+// viewSessionList (composition) and sessionBandHeight (the height reserve)
 // consume it, so the reserved row count is, by construction, exactly the rendered
 // height of what is composed — the two can never drift. The blank is an explicit
 // canvas-painted full-width row (blankCanvasRow) rather than a bare "" left for
 // the outer fill to pad, so the slot's height is deterministic and the row paints
-// to the owned canvas with no ragged/zero-width gap (and survives NO_COLOR §2.5).
+// to the owned canvas with no ragged/zero-width gap (and survives NO_COLOR).
 func (m Model) renderSessionBandSlot() string {
 	band := m.renderActiveNoticeBand()
 	if band == "" {

@@ -6,7 +6,7 @@ import (
 )
 
 // modal_footer.go owns the SINGLE canonical implementation of the footer key-hint
-// shape and the confirm/cancel footer row — the §3.4 / §8.x footer contract. Before
+// shape and the confirm/cancel footer row — the shared footer contract. Before
 // this file the `<key/glyph> <label>` primitive (key glyph in accent.blue, a one-cell
 // canvas-painted gap, label in text.detail, joined horizontally) was independently
 // re-authored across the kill/delete/rename modals, the Preview nav footer and the
@@ -30,7 +30,7 @@ type footerHintGroup struct {
 
 // renderKeyHint renders one `<key> <label>` footer hint: the key glyph in keyTok over
 // the owned canvas, a single canvas-painted gap, then the label in text.detail — joined
-// horizontally. It is the ONE place the §3.4 / §8.x footer key-hint shape is authored;
+// horizontally. It is the ONE place the footer key-hint shape is authored;
 // every modal/footer hint routes through it (callers default keyTok to accent.blue).
 //
 // An empty key takes the label-only fast path (no glyph, no gap) — the form the edit

@@ -6,7 +6,7 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §8.3 kill-confirm modal. A reskin (not a rewrite): the confirm/cancel LOGIC
+// The kill-confirm modal. A reskin (not a rewrite): the confirm/cancel LOGIC
 // is unchanged (handled in updateKillConfirmModal); this file owns only the kill
 // modal's DATA. The destructive-confirm panel grammar (the state.red ▲ <Title>
 // header, the state.red+bold target name row, the canvas blank separator, the
@@ -15,19 +15,19 @@ import (
 // kill title / consequence / window-count / footer verb and calls the shared renderer.
 
 const (
-	// killTitle is the header title text (state.red), the §8.3 `Kill session?`.
+	// killTitle is the header title text (state.red): `Kill session?`.
 	killTitle = "Kill session?"
-	// killConsequence is the §8.3 consequence line — the irreversibility warning,
+	// killConsequence is the consequence line — the irreversibility warning,
 	// rendered in text.detail and word-wrapped within the panel body width.
 	killConsequence = "Ends the tmux session and all its panes. Can't be undone."
 
 	// Footer confirm copy. The y key glyph renders in accent.blue, the kill label in
-	// text.detail (§8.3). The cancel hint (`esc cancel`) is owned by destructive_confirm.go.
+	// text.detail. The cancel hint (`esc cancel`) is owned by destructive_confirm.go.
 	killKeyConfirm   = "y"
 	killLabelConfirm = "kill"
 )
 
-// renderKillModalContent composes the §8.3 kill-confirm modal body for the given
+// renderKillModalContent composes the kill-confirm modal body for the given
 // session name + window count by supplying the kill DATA to the shared
 // destructive-confirm renderer. The window count rides the name row via nameTrailer
 // (`<name>  · N window(s)`); kill has no extra body rows.

@@ -7,32 +7,31 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §3.4 condensed Sessions footer: a SINGLE row of the Core keymap keys on
+// The condensed Sessions footer: a SINGLE row of the Core keymap keys on
 // the left (↑↓ navigate · ⏎ attach · / filter · ␣ preview · s switch
 // view · x projects) with a right-aligned `? help` hint pinned to the content
 // width, over a 1px footer top rule. It replaces the former manual
 // three-column keymap footer for Sessions; the help-only keys
-// (n/r/k/q/Ctrl+↑/↓) live in the ? help modal (Phase 3), not the footer.
+// (n/r/k/q/Ctrl+↑/↓) live in the ? help modal, not the footer.
 //
-// The footer is the FIRST consumer of the §12.1 keymap descriptor (task 2-1,
-// sessionsKeymap): the entries are filtered to Core and rendered FROM the
-// descriptor, so the footer and the ? help modal never drift from a second
-// hand-authored binding list.
+// The footer renders FROM the keymap descriptor (sessionsKeymap), with the
+// entries filtered to Core, so the footer and the ? help modal never drift
+// from a second hand-authored binding list.
 //
-// Every cell carries the owned canvas background (leaf .Background(canvas), §1),
+// Every cell carries the owned canvas background (leaf .Background(canvas)),
 // mirroring header.go / section_header.go, so the right-aligned spacer gap is
-// canvas-painted with no terminal-bg island. Under the NO_COLOR carve-out (§2.5)
+// canvas-painted with no terminal-bg island. Under the NO_COLOR carve-out
 // every hue and the canvas drop; the glyphs stay structurally distinct on the
 // terminal's native fg/bg.
 
 const (
-	// footerRuleGlyph is the 1px footer top-rule glyph, drawn in the `border` token — the SAME token as the title rule (§2.2
+	// footerRuleGlyph is the 1px footer top-rule glyph, drawn in the `border` token — the SAME token as the title rule (the token layer
 	// consolidated the two border roles into one).
 	// It uses the UPPER one-eighth block so the rule lands at the TOP edge of its
 	// cell, opening breathing room BELOW it before the key row (the header rule uses
 	// the LOWER block ▁ to sit low; the footer rule mirrors it high so the border is
 	// not crowded against the keybindings). The footer rule and the header rule are
-	// the SAME token and differ only in glyph weight — §2.2 dropped the second
+	// the SAME token and differ only in glyph weight — there is no second
 	// border role, so there is no distinct footer hue left to conflate.
 	footerRuleGlyph = "▔"
 	// footerKeyLabelGap is the single space between a key glyph and its label
@@ -42,16 +41,16 @@ const (
 	// canvas space inline.
 	footerKeyLabelGap = " "
 	// footerEntrySeparator is the " · " dot separator between footer entries in the
-	// left cluster (the §3.4 dot-separated condensed row). Rendered in text.detail
+	// left cluster (the dot-separated condensed row). Rendered in text.detail
 	// so it reads as quiet chrome between the brighter key glyphs.
 	footerEntrySeparator = " · "
 )
 
 // footerEllipsis is the overflow marker the narrow-degrade path appends to the
-// left cluster when one or more lower-priority entries are dropped (§2.7).
+// left cluster when one or more lower-priority entries are dropped.
 const footerEllipsis = "…"
 
-// renderSessionsFooter renders the §14.2 condensed Sessions footer
+// renderSessionsFooter renders the condensed Sessions footer
 // (`⏎ attach · / filter · ␣ preview · s switch view · x projects · t theme ·
 // m multi`, right-aligned `? help`) for the given descriptor entries, content
 // width and resolved canvas mode (and the NO_COLOR carve-out). It is the single
@@ -60,8 +59,8 @@ const footerEllipsis = "…"
 // SAME entries/width/mode and agree on its height exactly.
 //
 // IT TAKES ITS ENTRIES AS A PARAMETER rather than calling sessionsKeymap itself
-// (§14.3). The footer is filtered in lockstep with `?` help through the ONE
-// call-site filter (Model.sessionsHelpKeymap), which drops a blocked `t` (§9.10)
+// The footer is filtered in lockstep with `?` help through the ONE
+// call-site filter (Model.sessionsHelpKeymap), which drops a blocked `t`
 // or a blocked `m` (unsupported terminal) — so a footer sourcing the static
 // descriptor for itself is exactly how the two surfaces come to disagree about one
 // key. Both the render and the budget pass the same filtered slice.
@@ -71,31 +70,31 @@ const footerEllipsis = "…"
 // left cluster + a spacer + the ? help no longer fit, lower-priority Core entries
 // drop from the RIGHT (with an ellipsis marker) so the row degrades gracefully on
 // ONE line — it never wraps to a second line (which would steal a list row) and
-// the ? help right anchor is never dropped while it fits (§14.4).
+// the ? help right anchor is never dropped while it fits.
 func renderSessionsFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return renderCondensedFooter(entries, width, th, colourless)
 }
 
-// renderProjectsFooter renders the §14.2 condensed Projects footer
+// renderProjectsFooter renders the condensed Projects footer
 // (`⏎ new session · x sessions · e edit · / filter · t theme`, right-aligned
 // `? help`) through the SAME condensed-footer machinery as the Sessions footer —
 // replacing the former three-column keymap footer for the Projects page. Same
 // two-row shape (the shared 1px footer top rule + one key row), so it is
 // height-neutral against the Sessions footer's reserved budget.
 //
-// Like its Sessions sibling it takes its entries as a parameter: §14.2 puts
-// `t theme` in this footer too, so Projects needs the matching call-site filter
-// (Model.projectsHelpKeymap) — §9.10 names only the Sessions site, but the
+// Like its Sessions sibling it takes its entries as a parameter: `t theme` is in
+// this footer too, so Projects needs the matching call-site filter
+// (Model.projectsHelpKeymap) — the block is stated for the Sessions site, but the
 // mechanism is the same and the second call site is required.
 func renderProjectsFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return renderCondensedFooter(entries, width, th, colourless)
 }
 
-// renderCommandPendingFooter renders the §11.4 command-pending Projects footer:
+// renderCommandPendingFooter renders the command-pending Projects footer:
 // `⏎ run here · n run in cwd · esc cancel` (left cluster) + the right-aligned
 // `? help` anchor, over the shared 1px footer top rule. The left cluster
 // entries are derived from the commandPendingKeymap() descriptor — the single binding
-// source (§11.4) — mapped to MV chrome (key glyphs accent.blue, labels text.detail,
+// source — mapped to MV chrome (key glyphs accent.blue, labels text.detail,
 // the `enter` binding shown as its declarative HelpKey `⏎` glyph). It routes through
 // the shared renderFilterFooter machinery so the `? help` anchor + the two-row
 // structure stay byte-consistent with the standard / filter footers; only the entries
@@ -104,13 +103,13 @@ func renderCommandPendingFooter(width int, th theme.Theme, colourless bool) stri
 	return renderFilterFooter(commandPendingFooterEntries(th), width, th, colourless)
 }
 
-// commandPendingFooterEntries maps the §11.4 descriptor (commandPendingKeymap) to the
+// commandPendingFooterEntries maps the descriptor (commandPendingKeymap) to the
 // filter-footer entry shape: each entry's Action becomes the label and its glyph comes
 // from helpKeyGlyph (the declarative HelpKey when set — `enter`'s `⏎` — else the terse
 // Key), the SAME glyph resolution the descriptor-driven help path uses. This retires
 // the former inline `enter→⏎` rewrite, folding the command-pending footer into the
 // shared descriptor/entry vocabulary. Every key glyph is accent.blue per the MV footer
-// convention (§3.4 / §8.4); labels render in text.detail.
+// convention; labels render in text.detail.
 func commandPendingFooterEntries(th theme.Theme) []filterFooterEntry {
 	descriptor := commandPendingKeymap()
 	entries := make([]filterFooterEntry, 0, len(descriptor))
@@ -123,9 +122,8 @@ func commandPendingFooterEntries(th theme.Theme) []filterFooterEntry {
 	return entries
 }
 
-// The §5 multi-select mode footer copy — the spec-exact entry glyphs + labels fixed
-// by the delivered Paper frame (design/sessions-multi-select-active.png) and the spec
-// (Multi-Select Mode → Mode affordance):
+// The multi-select mode footer copy — the pinned entry glyphs + labels, fixed by
+// the delivered design frame:
 //
 //	↑↓ navigate · m toggle · ␣ preview · ⏎ open · esc cancel
 //
@@ -147,7 +145,7 @@ const (
 	multiSelectCancelLabel  = "cancel"
 )
 
-// multiSelectFooterText is the spec-exact §5 mode-footer copy assembled from the
+// multiSelectFooterText is the pinned mode-footer copy assembled from the
 // per-entry constants above (separators the shared footerEntrySeparator ` · `). It is
 // the single source of truth the copy-pin test asserts the render against.
 const multiSelectFooterText = multiSelectNavGlyph + footerKeyLabelGap + multiSelectNavLabel +
@@ -156,9 +154,9 @@ const multiSelectFooterText = multiSelectNavGlyph + footerKeyLabelGap + multiSel
 	footerEntrySeparator + multiSelectOpenGlyph + footerKeyLabelGap + multiSelectOpenLabel +
 	footerEntrySeparator + multiSelectCancelGlyph + footerKeyLabelGap + multiSelectCancelLabel
 
-// multiSelectFooterEntries returns the §5 multi-select mode footer entries in frame
+// multiSelectFooterEntries returns the multi-select mode footer entries in frame
 // order. Every key glyph is accent.blue and every label text.detail — the standard MV
-// footer colour convention (§3.4). It mirrors filteringFooterEntries' entry-list shape
+// footer colour convention. It mirrors filteringFooterEntries' entry-list shape
 // so the cluster renders through the shared renderFilterCluster machinery.
 func multiSelectFooterEntries(th theme.Theme) []filterFooterEntry {
 	return []filterFooterEntry{
@@ -170,13 +168,13 @@ func multiSelectFooterEntries(th theme.Theme) []filterFooterEntry {
 	}
 }
 
-// renderMultiSelectFooter renders the §5 multi-select mode footer: the five spec-exact
+// renderMultiSelectFooter renders the multi-select mode footer: the five pinned
 // entries as a dot-separated left cluster over the shared 1px footer top rule,
 // with NO right-aligned `? help` anchor (the delivered frame has none). It reuses
 // renderFilterCluster (via fitFilterCluster) for the cluster body so the dot
 // separators, canvas-painted gaps, and NO_COLOR carve-out match the other footers
 // byte-for-byte, and hands the width-pad to assembleRightAnchoredRow with an EMPTY
-// right segment (the §2.7 pad-to-width path — no anchor). At a narrow width
+// right segment (the pad-to-width path — no anchor). At a narrow width
 // fitFilterCluster drops trailing entries with an ellipsis so the row degrades on ONE
 // line without wrapping. Two rows (rule + entry row), height-neutral against the
 // reserved sessionFooterHeight budget. It does NOT route through
@@ -193,7 +191,7 @@ func renderMultiSelectFooter(width int, th theme.Theme, colourless bool) string 
 // fitFilterCluster renders the given filter-footer entries as a dot-separated left
 // cluster that fits within w cells, greedily including entries in order and, when the
 // full cluster does not fit, dropping trailing entries and appending an ellipsis
-// marker so the row degrades on ONE line without wrapping (§2.7). It owns only the
+// marker so the row degrades on ONE line without wrapping. It owns only the
 // per-glyph filterFooterEntry cluster renderer + its budget (the multi-select footer
 // has no right anchor, so the full width is the budget), delegating the shared
 // try-full-then-greedy-prefix-with-ellipsis loop to fitClusterToWidth — the SAME loop
@@ -210,7 +208,7 @@ func fitFilterCluster(entries []filterFooterEntry, w int, th theme.Theme, colour
 	return fitClusterToWidth(len(entries), w, renderCluster, sep, ellipsis)
 }
 
-// fitClusterToWidth is the shared §2.7 narrow-degrade fitter behind both the standard
+// fitClusterToWidth is the shared narrow-degrade fitter behind both the standard
 // keymap footer (fitLeftCluster) and the per-glyph filter footer (fitFilterCluster).
 // Given the entry count, the width budget, a renderCluster closure that renders the
 // first n entries (returning the cluster string and its exact rendered width), and the
@@ -228,7 +226,7 @@ func fitClusterToWidth(count, budget int, renderCluster func(n int) (string, int
 		return full, fullWidth
 	}
 
-	// Narrow degrade (§2.7): include as many leading entries as fit, then append an
+	// Narrow degrade: include as many leading entries as fit, then append an
 	// ellipsis marker. Find the largest prefix whose rendered width (with the separator
 	// + ellipsis appended) still fits the budget.
 	ellipsisWidth := lipgloss.Width(ellipsis)
@@ -252,14 +250,14 @@ func fitClusterToWidth(count, budget int, renderCluster func(n int) (string, int
 
 	// Not even one entry + ellipsis fits: render just the ellipsis if it fits, else an
 	// empty cluster (the row degrades to blank canvas / the surviving right anchor at
-	// extreme narrowness, §2.7).
+	// extreme narrowness).
 	if ellipsisWidth <= budget {
 		return ellipsis, ellipsisWidth
 	}
 	return "", 0
 }
 
-// renderCondensedFooter is the shared §3.4 / §6.3 condensed-footer renderer for a
+// renderCondensedFooter is the shared condensed-footer renderer for a
 // per-page keymap descriptor: the descriptor's Core entries form the dot-separated
 // left cluster and the single right-aligned entry (the ? help hint) is pinned to
 // the right, over the 1px footer top rule. It is the single render entry
@@ -287,7 +285,7 @@ func footerTopRule(w int, th theme.Theme, colourless bool) string {
 // canvas-painted flex spacer, then the right-aligned ? help. The row is always
 // exactly w cells wide. When the full left cluster does not fit beside the ? help,
 // lower-priority Core entries are dropped (with an ellipsis) until it fits — the
-// ? help anchor survives as long as possible (§2.7), and the row never wraps.
+// ? help anchor survives as long as possible, and the row never wraps.
 func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool) string {
 	core, right := splitFooterEntries(entries)
 
@@ -317,7 +315,7 @@ func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool)
 // made once. Callers render their OWN left cluster (the footer-specific
 // fitLeftCluster ellipsis logic stays out of here).
 //
-// THE ANCHOR SURVIVES; THE LEFT CLUSTER GIVES WAY BENEATH IT (§14.4). `? help` is
+// THE ANCHOR SURVIVES; THE LEFT CLUSTER GIVES WAY BENEATH IT. `? help` is
 // never dropped while it fits: it is right-aligned, and it is the escape hatch that
 // makes every dropped entry recoverable — the help modal lists the full keymap
 // regardless of footer width, so a user on a narrow terminal loses the reminder,
@@ -338,7 +336,7 @@ func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool)
 //     contextual filter footers, which do not fit their cluster at all, reach it as
 //     soon as the two collide, and there too the anchor is what is kept.
 //  4. NOT EVEN THE ANCHOR — an empty row of exactly w canvas cells. Consistent with
-//     §2.7's degrade-never-break, and Portal's documented 40-column minimum sits
+//     the degrade-never-break rule, and Portal's documented 40-column minimum sits
 //     well above it.
 func assembleRightAnchoredRow(left string, leftWidth int, rightSeg string, rightWidth, w int, th theme.Theme, colourless bool) string {
 	if rightSeg == "" {
@@ -358,7 +356,7 @@ func assembleRightAnchoredRow(left string, leftWidth int, rightSeg string, right
 // splitFooterEntries partitions a keymap descriptor into the ordered Core entries
 // that form the footer's left cluster and the single right-aligned entry (the ?
 // help hint) the footer pins to the right. Non-Core (help-only) entries are
-// dropped — they live in the ? help modal, not the footer (§3.4 / §8.5). The
+// dropped — they live in the ? help modal, not the footer. The
 // right-aligned entry is excluded from the left cluster slice.
 func splitFooterEntries(entries []keymapEntry) (core []keymapEntry, right *keymapEntry) {
 	for i := range entries {
@@ -381,7 +379,7 @@ func splitFooterEntries(entries []keymapEntry) (core []keymapEntry, right *keyma
 // (rightWidth, plus one spacer cell). It greedily includes entries in priority
 // order (descriptor order — navigate is highest priority, projects lowest) and, if
 // the full cluster does not fit, drops trailing entries and appends an ellipsis
-// marker so the row truncates on ONE line without wrapping (§2.7). It owns only the
+// marker so the row truncates on ONE line without wrapping. It owns only the
 // keymapEntry cluster renderer + its right-anchor-reserved budget, delegating the
 // shared narrow-degrade loop to fitClusterToWidth (the SAME loop fitFilterCluster
 // uses). Returns the rendered cluster and its exact rendered width (always ≤ w).

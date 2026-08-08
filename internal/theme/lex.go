@@ -7,12 +7,12 @@ import (
 )
 
 // utf8BOM is the UTF-8 byte-order mark. It is stripped from the first bytes of a
-// theme file and nowhere else (§4.2).
+// theme file and nowhere else.
 const utf8BOM = "\uFEFF"
 
-// The §14A detail phrases a `bad syntax` rejection is built from. badSyntax
-// renders one behind "line N: ", producing the exact string doctor prints
-// verbatim — `line 4: quoted value`, `line 7: not a key = value pair`,
+// The detail phrases a `bad syntax` rejection is built from. badSyntax renders
+// one behind "line N: ", producing the exact string doctor prints verbatim —
+// `line 4: quoted value`, `line 7: not a key = value pair`,
 // `line 12: duplicate key text.primary`.
 const (
 	detailNotAPair     = "not a key = value pair"
@@ -26,21 +26,20 @@ const (
 // A Pair is lexical only: the key is whatever the file wrote, not necessarily
 // one of the 19 token names, and the value is an untouched string that has not
 // been near a colour parser. Line is retained because it is the only carrier of
-// WHICH line is wrong in a later §14A detail.
+// WHICH line is wrong in a later rejection detail.
 type Pair struct {
 	Key, Value string
 	Line       int
 }
 
 // lexPairs turns theme-file bytes into the pairs the file declares, in file
-// order, or into exactly one `bad syntax` rejection (§4.2).
+// order, or into exactly one `bad syntax` rejection.
 //
 // It is purely lexical. It never asks whether a key is one of the 19, never
-// validates a value, and never compares two values — which is what §6.2's ladder
-// requires, since a lexical failure aborts the parse before any value-level or
-// presence check runs. It is also why the duplicate-key check here is
-// unconditional rather than scoped to known keys or to differing values: making
-// it conditional would add branches to buy nothing.
+// validates a value, and never compares two values — which is what the rejection
+// ladder requires, since a lexical failure aborts the parse before any
+// value-level or presence check runs. It is also why the duplicate-key check
+// here is unconditional rather than scoped to known keys or to differing values.
 //
 // A file that declares nothing — empty, blank, or comments only — is NOT a
 // lexical failure. It lexes to zero pairs and fails later as `missing tokens`:
@@ -112,13 +111,13 @@ func lexLine(text string, line int) (Pair, *Rejection) {
 // trimLine drops one trailing carriage return, so a CRLF file lexes identically
 // to its LF twin, then trims both ends — before anything is classified, so
 // indentation ahead of a key gets the same tolerance the comment rule already
-// grants '#' (§4.2).
+// grants '#'.
 func trimLine(raw string) string {
 	return strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
 }
 
-// wellFormedKey reports whether key satisfies §4.2's rule: non-empty, no
-// whitespace, no '='.
+// wellFormedKey reports whether key is non-empty and free of whitespace and
+// '='.
 //
 // Without the whitespace half, `text primary = …` would be a well-formed pair
 // with an unknown key, which is IGNORED — and the file would then fail as
@@ -137,7 +136,7 @@ func wellFormedKey(key string) bool {
 
 // startsQuoted reports whether the value opens with a quote.
 //
-// §4.2 defines "quoted" by the FIRST character alone — matched or not, either
+// "Quoted" is defined by the FIRST character alone — matched or not, either
 // quote — so `"#FFFFFF"`, `'#FFFFFF'` and `"#FFFFFF` are alike. Defining it by a
 // matched outer pair would send the unmatched case on down the ladder to
 // `bad colour`, telling the user their colour is wrong when their quoting is.
@@ -145,13 +144,13 @@ func startsQuoted(value string) bool {
 	return strings.HasPrefix(value, `"`) || strings.HasPrefix(value, "'")
 }
 
-// badSyntax builds the one rejection a lexical failure produces, rendering
-// §14A's "line N: <phrase>" detail; Line carries the same number in
-// machine-readable form.
+// badSyntax builds the one rejection a lexical failure produces, rendering the
+// "line N: <phrase>" detail; Line carries the same number in machine-readable
+// form.
 //
 // Every lexical failure routes through here, so a second detail shape cannot
-// grow: §6.2 gives a rejected theme exactly one reason, and §14A gives
-// `bad syntax` exactly one detail format.
+// grow: a rejected theme carries exactly one reason, and `bad syntax` has
+// exactly one detail format.
 func badSyntax(line int, phrase string) *Rejection {
 	return &Rejection{
 		Reason: ReasonBadSyntax,

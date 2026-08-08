@@ -70,13 +70,13 @@ func parseMode(s string) SessionListMode {
 	}
 }
 
-// migrationMarker is §8.1's decode for the one-shot appearance-translation gate:
-// anything that is not literal `true` — absent, empty, corrupt, wrong-typed,
-// unrecognised — is false.
+// migrationMarker is the tolerant decode for the one-shot appearance-translation
+// gate: anything that is not literal `true` — absent, empty, corrupt,
+// wrong-typed, unrecognised — is false.
 //
 // It never returns an error, and that totality is the point rather than
-// tidiness. prefs.json has two decodes (§8.9) and a field-level error breaks
-// BOTH: the tolerant load path treats any error as corruption and collapses to a
+// tidiness. prefs.json has two decodes and a field-level error breaks BOTH: the
+// tolerant load path treats any error as corruption and collapses to a
 // zero record (losing session_list_mode, every theme key and the retained raw
 // appearance), while the write path's strict re-read aborts every subsequent
 // write. This is the field a user is most likely to hand-edit wrongly
@@ -84,9 +84,9 @@ func parseMode(s string) SessionListMode {
 // would lock them out of their own prefs.
 //
 // The failure direction is deliberate: false means "run the translation again",
-// and the translation is idempotent by §10.5, so a corrupt marker costs one
-// redundant write rather than a wrong theme. That is what keeps this decode as
-// dumb as the string keys either side of it.
+// and the translation is idempotent, so a corrupt marker costs one redundant
+// write rather than a wrong theme. That is what keeps this decode as dumb as the
+// string keys either side of it.
 type migrationMarker bool
 
 // UnmarshalJSON accepts every JSON value — including null, an array and an
@@ -123,7 +123,7 @@ type prefsFile struct {
 	// Appearance is a plain string that is read and preserved, NEVER parsed — the
 	// enum, its tolerant decode and its two accessors died with their last caller,
 	// but this slot in the file stays so a downgraded binary still honours the
-	// user's pin (spec §8.8, §10.4). Do not delete the field:
+	// user's pin. Do not delete the field:
 	// prefs.json decodes into this plain struct, so any key not declared here is
 	// dropped on re-encode — and every writer re-encodes the whole file, so the
 	// first `s` keypress after upgrade would silently erase the pin, invisible
@@ -132,9 +132,9 @@ type prefsFile struct {
 	Theme      string `json:"theme,omitempty"`
 	ThemeLight string `json:"theme_light,omitempty"`
 	ThemeDark  string `json:"theme_dark,omitempty"`
-	// ThemeMigrated is §10.3's one-shot gate for the appearance translation, and
-	// it is declared HERE — before its first writer exists (the combined
-	// translation save) — on purpose. An undeclared key is dropped on re-encode
+	// ThemeMigrated is the one-shot gate for the appearance translation, and it is
+	// declared HERE — beside the keys the translation writes — on purpose. An
+	// undeclared key is dropped on re-encode
 	// and every writer re-encodes the whole file, so a marker written by a newer
 	// instance would be silently erased by an older code path in the same
 	// release, re-arming a translation that must fire exactly once ever.
@@ -156,15 +156,15 @@ type ThemeKeys struct {
 	Dark  string
 }
 
-// MigrationState is §10.3's one-shot gate's input, read in one go: the retained
-// raw appearance value and whether the translation has already been recorded.
+// MigrationState is the one-shot gate's input, read in one go: the retained raw
+// appearance value and whether the translation has already been recorded.
 //
 // Appearance is the on-disk value VERBATIM and unparsed. prefs has no Appearance
-// enum any more — §8.8 killed the type and its API with its last caller, keeping
-// only the slot in the file — and it must not regrow one: the dark/light/auto
-// mapping belongs to the translation, which is the only thing in the new binary
-// that looks at the value at all (§10.4 keeps it as a frozen legacy value for a
-// downgraded binary).
+// enum any more — the type and its API died with their last caller, keeping only
+// the slot in the file — and IT MUST NOT REGROW ONE: the dark/light/auto mapping
+// belongs to the translation, which is the only thing in this binary that looks at
+// the value at all. The slot is retained purely as a frozen legacy value a
+// downgraded binary can still honour.
 type MigrationState struct {
 	Appearance string
 	Migrated   bool
@@ -202,9 +202,9 @@ func NewStore(path string) *Store {
 // avoid clobbering a sibling field's value with a default when the file is present.
 //
 // This is the LOAD-path decode and it is not usable on the write path. prefs.json
-// has two decodes and they must differ (spec §8.9): reading is tolerant per §8.1 —
-// missing, empty or unrecognised falls to the shipped default per field — while the
-// write-path re-read (readFileStrict) judges syntax and aborts. Routing a writer
+// has two decodes and THEY MUST DIFFER: reading is tolerant — missing, empty or
+// unrecognised falls to the shipped default per field — while the write-path
+// re-read (readFileStrict) judges syntax and aborts. Routing a writer
 // through here would remove the abort's only trigger: a stray comma collapses to a
 // zero-valued record with no error, so the writer merges into an empty struct and
 // commits it, erasing session_list_mode, every theme key and the retained raw
@@ -232,8 +232,7 @@ func (s *Store) readFile() (prefsFile, bool, error) {
 // the read half of every read-modify-write in this store, and it judges syntax so
 // a writer never merges into a record the file does not actually contain.
 //
-// Its three outcomes are the two conditions §8.9 discriminates, plus the ordinary
-// one:
+// Its three outcomes are:
 //
 //   - Absent file — returns (zero prefsFile, false, nil). There is nothing to
 //     merge and nothing to lose, so the caller proceeds and CREATES the file. This
@@ -246,8 +245,8 @@ func (s *Store) readFile() (prefsFile, bool, error) {
 //   - Present and decodable — returns (record, true, nil).
 //
 // It judges SYNTAX only. Unrecognised VALUES in syntactically valid JSON are
-// absorbed exactly as the load path absorbs them (§8.1); treating them as fatal
-// would make hand-editing prefs.json a way to lock yourself out of every write.
+// absorbed exactly as the load path absorbs them; treating them as fatal would
+// make hand-editing prefs.json a way to lock yourself out of every write.
 //
 // The one subtlety is the *json.UnmarshalTypeError carve-out, and the
 // discriminator is `Field != ""` rather than the error type alone:
@@ -255,7 +254,7 @@ func (s *Store) readFile() (prefsFile, bool, error) {
 //   - Field non-empty — a wrong TYPE on a declared field. encoding/json skips just
 //     that field (it keeps its zero value) and still populates every other one, so
 //     the decoded record is complete enough to merge into and the write proceeds.
-//     The offending value is normalised away on re-encode, which is §8.1's tolerant
+//     The offending value is normalised away on re-encode, which is tolerant
 //     absorption, not a loss this rule is meant to catch.
 //   - Field empty — a TOP-LEVEL type mismatch (`[1,2]`, `"x"`, `3` as the whole
 //     document). That yields the same error type but a wholly zero-valued struct,
@@ -288,11 +287,10 @@ func (s *Store) readFileStrict() (prefsFile, bool, error) {
 //
 // The re-read happens immediately before the write, not at load. A stale
 // in-memory snapshot is what silently reverts another instance's commit, and
-// AtomicWrite does not help because that is a lost update, not a partial write
-// (§8.9).
+// AtomicWrite does not help because that is a lost update, not a partial write.
 //
-// fn receives whether the file existed — the marker write needs it, since §8.1
-// bars recording a migration marker in a file that does not exist — and returns
+// fn receives whether the file existed — the marker write needs it, since a
+// migration marker must not be recorded in a file that does not exist — and returns
 // false to skip the write entirely: no bytes touched, no error. A readFileStrict
 // error is returned verbatim and nothing is written; prefs is a leaf with no
 // logging, so an abort is reported BY RETURNING and the caller decides
@@ -348,8 +346,8 @@ func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
 	return ThemeKeys{Theme: f.Theme, Light: f.ThemeLight, Dark: f.ThemeDark}, nil
 }
 
-// LoadMigrationState reads §10.3's gate inputs — the retained raw appearance and
-// the migration marker — in one read.
+// LoadMigrationState reads the translation gate's inputs — the retained raw
+// appearance and the migration marker — in one read.
 //
 // It applies the exact same tolerant policy as Load and LoadThemeKeys: a missing
 // file, an empty or corrupt/unparseable file, and either key missing all yield a
@@ -394,20 +392,20 @@ func (s *Store) Save(mode SessionListMode) error {
 // SaveTheme persists slug as the constant theme, clearing both adaptive slots in
 // the same write.
 //
-// The clear is §8.2's mutual exclusion enforced on write: committing a constant
-// clears both slots, so "both a constant and a pair are present" cannot arise
-// from Portal's own writes and the two-state model holds as a rule rather than
-// as a type. The commit and the clear ride ONE mutate — and so one AtomicWrite —
-// because two writes would leave a reachable window where the file holds both
-// forms.
+// The clear is the setting's mutual exclusion enforced on write: committing a
+// constant clears both slots, so "both a constant and a pair are present" cannot
+// arise from Portal's own writes and the two-state model holds as a rule rather
+// than as a type. The commit and the clear ride ONE mutate — and so one
+// AtomicWrite — because two writes would leave a reachable window where the file
+// holds both forms.
 //
 // Clearing is writing the empty string, which omitempty renders as key-absent —
-// matching §8.3's "an unset slot holds the shipped default" and keeping a
-// hand-edited file clean.
+// matching "an unset slot holds the shipped default" and keeping a hand-edited
+// file clean.
 //
-// The write is unconditional, which is what makes §9.13's "a commit is always
-// re-attemptable" free: committing the same slug again simply rewrites the same
-// bytes. §10.3's no-op condition belongs to SaveTranslation alone.
+// The write is unconditional, which is what makes a commit always re-attemptable:
+// committing the same slug again simply rewrites the same bytes. The no-op
+// condition belongs to SaveTranslation alone.
 //
 // The slug is persisted VERBATIM. prefs has no slug knowledge: no charset check,
 // no trimming, no lowercasing, no default substitution and no theme-wins
@@ -426,13 +424,12 @@ func (s *Store) SaveTheme(slug string) error {
 
 // SaveThemeSlot persists slug into one half of the adaptive pair, clearing the
 // constant in the same write and leaving the OTHER slot exactly as it was — the
-// property that makes §9.5's `● both` reachable in two keypresses.
+// property that makes a `● both` badge reachable in two keypresses.
 //
-// It is the mirror of SaveTheme and carries the same four rules: mutual
-// exclusion enforced on write (§8.2), both mutations in ONE AtomicWrite, a
-// cleared key written as the empty string so omitempty omits it (§8.3), and an
-// unconditional write (§9.13). It performs NO slug validation either — see
-// SaveTheme.
+// It is the mirror of SaveTheme and carries the same four rules: mutual exclusion
+// enforced on write, both mutations in ONE AtomicWrite, a cleared key written as
+// the empty string so omitempty omits it, and an unconditional write. It performs
+// NO slug validation either — see SaveTheme.
 //
 // An out-of-range slot writes nothing at all: the guard runs before the mutator,
 // so the file is neither read nor written, and the returned error names the
@@ -457,21 +454,21 @@ func (s *Store) SaveThemeSlot(slug string, slot ThemeSlot) error {
 	})
 }
 
-// SaveMigrationMarker records §10.3's one-shot gate — the marker that says the
-// appearance translation has run — and writes NOTHING else. All three theme
-// keys, session_list_mode and the retained raw appearance round-trip through it
-// untouched, and it neither reads nor enforces §8.2's mutual exclusion: the
-// marker is orthogonal to which theme keys are set, which is precisely the
-// property §10.3 exists to guarantee against a re-armable absence gate.
+// SaveMigrationMarker records the one-shot gate — the marker that says the
+// appearance translation has run — and writes NOTHING else. All three theme keys,
+// session_list_mode and the retained raw appearance round-trip through it
+// untouched, and it neither reads nor enforces the theme keys' mutual exclusion:
+// the marker is orthogonal to which theme keys are set, which is precisely what
+// makes the gate a recorded fact rather than a re-armable absence.
 //
-// It takes task 6-1's abort-on-undecodable rule and deliberately NOT its
-// create-on-absent half. An absent prefs.json means a fresh install, which has
-// no appearance to translate, so creating the file purely to record a marker
-// would add a side effect to a path this feature otherwise leaves free (the same
-// restraint §5.5 shows by refusing to create the themes directory). Declining is
-// not a failure: nil is returned, the condition is re-evaluated next launch for
-// the cost of an absent-field check on a read that is already happening, and the
-// file appears the moment the user changes anything.
+// It takes the abort-on-undecodable rule and deliberately NOT a create-on-absent
+// half. An absent prefs.json means a fresh install, which has no appearance to
+// translate, so creating the file purely to record a marker would add a side
+// effect to a path that otherwise leaves the filesystem alone (the same restraint
+// that refuses to create the themes directory). Declining is not a failure: nil is
+// returned, the condition is re-evaluated next launch for the cost of an
+// absent-field check on a read that is already happening, and the file appears the
+// moment the user changes anything.
 //
 // Absence is judged at the SAME RMW re-read as everything else — mutate's
 // `existed` — never against a stat taken at load. prefs.json can appear in
@@ -481,9 +478,9 @@ func (s *Store) SaveThemeSlot(slug string, slot ThemeSlot) error {
 //
 // It has no reporting surface and needs none: it runs at prefs load, before any
 // panel exists. Its failure signal is the absence of the migration event, and it
-// retries next launch (§10.5) — so, unlike the theme savers, no `theme: commit
-// failed` is emitted for it. prefs is a leaf, so an abort is reported BY
-// RETURNING and the caller decides non-fatality.
+// retries next launch — so, unlike the theme savers, no `theme: commit failed` is
+// emitted for it. prefs is a leaf, so an abort is reported BY RETURNING and the
+// caller decides non-fatality.
 func (s *Store) SaveMigrationMarker() error {
 	return s.mutate(func(f *prefsFile, existed bool) bool {
 		if !existed {
@@ -494,67 +491,67 @@ func (s *Store) SaveMigrationMarker() error {
 	})
 }
 
-// SaveTranslation records §10.5's one-shot appearance translation: the
-// translated theme key AND the migration marker, in exactly ONE atomic write,
-// reporting whether a theme key was actually persisted.
+// SaveTranslation records the one-shot appearance translation: the translated
+// theme key AND the migration marker, in exactly ONE atomic write, reporting
+// whether a theme key was actually persisted.
 //
-// One write, not two. §8.9's field-specific savers each perform their own
+// One write, not two. The field-specific savers each perform their own
 // read-modify-write, so issuing SaveTheme followed by SaveMigrationMarker would
-// leave a reachable window — and §10.5's write is best-effort and non-blocking,
-// i.e. explicitly liable to be cut short. A failure landing between them
-// persists the theme key with the marker unset; the next launch then finds the
-// marker false, sees a theme key already set, writes only the marker, and
-// therefore never emits `theme: appearance migrated`. The translation would
-// have succeeded while the log says it failed — the one reading §12.3 designs
-// that event to make impossible.
+// leave a reachable window — and the translation's write is best-effort and
+// non-blocking, i.e. explicitly liable to be cut short. A failure landing between
+// them persists the theme key with the marker unset; the next launch then finds
+// the marker false, sees a theme key already set, writes only the marker, and
+// therefore never emits `theme: appearance migrated`. The translation would have
+// succeeded while the log says it failed — exactly the reading that event exists
+// to make impossible.
 //
 // THE WHOLE DECISION IS MADE INSIDE THE MUTATOR, against the re-read bytes about
-// to be merged, never against a load-time snapshot (§8.9). Because the write is
+// to be merged, never against a load-time snapshot. Because the write is
 // non-blocking a user can commit a theme in the window between compute and
-// persist, and evaluated against the stale snapshot the pending translation
-// would write its own key over the one they just committed and clear the slots —
-// §10.3's own failure, displaced from cross-launch to intra-process. The same
-// re-read is what lets this instance observe that ANOTHER instance already set
-// the marker.
+// persist, and evaluated against the stale snapshot the pending translation would
+// write its own key over the one they just committed and clear the slots — the
+// very destruction the gate exists to prevent, displaced from cross-launch to
+// intra-process. The same re-read is what lets this instance observe that ANOTHER
+// instance already set the marker.
 //
 // The four branches, in order:
 //
 //   - The file does not exist — nothing is written and nothing is created. It
-//     inherits task 6-1's ABORT half but not its create half (§8.1 bars the
-//     migration from creating prefs.json: a fresh install has no appearance to
-//     translate). The spec does not say whether an absent file at the re-read is
-//     an error or a no-op; it is a silent no-op returning nil, because the write
-//     is best-effort with no reporting surface (§8.9) and an error would invite
-//     a caller to treat an ordinary fresh install as a failure.
+//     inherits the ABORT half of the write policy but not a create half: the
+//     migration must not create prefs.json, because a fresh install has no
+//     appearance to translate. An absent file at the re-read is a silent no-op
+//     returning nil, because the write is best-effort with no reporting surface
+//     and an error would invite a caller to treat an ordinary fresh install as a
+//     failure.
 //   - The marker is already true — nothing is written. Another instance recorded
-//     the translation in between; the trigger fires exactly once ever (§10.3).
+//     the translation in between; the trigger fires exactly once ever.
 //   - Any theme key is already set, OR the slug is empty — the MARKER ALONE is
-//     recorded. "Skip" means skip the theme keys, not the whole write (§8.9):
-//     recording the marker is what stops the translation staying pending
-//     forever. A set key is a choice the user has already made and this refuses
-//     to clobber it (§10.3); an empty slug means there was nothing to translate
-//     (`appearance` was `auto`, absent or unrecognised — §10.2), which is a
-//     legitimate call and never an error. This branch is also why mutual
-//     exclusion is satisfied trivially on the writing branch below rather than by
-//     a second rule: everything with a key set is absorbed HERE, so the write
-//     only ever runs with all three keys empty and has nothing to clear.
-//   - Otherwise — the theme key is written, both slots are cleared (§8.2's
-//     mutual exclusion: it writes a constant) and the marker is recorded, all in
-//     the one write, and persisted is true.
+//     recorded. "Skip" means skip the theme keys, not the whole write: recording
+//     the marker is what stops the translation staying pending forever. A set key
+//     is a choice the user has already made and this refuses to clobber it; an
+//     empty slug means there was nothing to translate (`appearance` was `auto`,
+//     absent or unrecognised), which is a legitimate call and never an error. This
+//     branch is also why mutual exclusion is satisfied trivially on the writing
+//     branch below rather than by a second rule: everything with a key set is
+//     absorbed HERE, so the write only ever runs with all three keys empty and has
+//     nothing to clear.
+//   - Otherwise — the theme key is written, both slots are cleared (mutual
+//     exclusion: it writes a constant) and the marker is recorded, all in the one
+//     write, and persisted is true.
 //
-// persisted is a first-class result, not an inference from the error: task 6-6's
+// persisted is a first-class result, not an inference from the error:
 // `theme: appearance migrated` fires only when a theme key was ACTUALLY
-// persisted (§10.5), and a marker-only run translated nothing.
+// persisted, and a marker-only run translated nothing.
 //
 // It emits NOTHING — prefs is a leaf. The migration's failure signal is the
 // ABSENCE of `theme: appearance migrated`, and `theme: commit failed` stays
-// single-sited on the theme persister (§8.9), so this saver never logs and never
+// single-sited on the theme persister, so this saver never logs and never
 // reports. An abort is reported BY RETURNING, and the caller decides
 // non-fatality.
 //
 // An aborted or failed write leaves the marker unset, so the condition is still
-// true and the next launch retries (§10.5) — which is exactly what makes a
-// best-effort write safe here.
+// true and the next launch retries — which is exactly what makes a best-effort
+// write safe here.
 func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 	err = s.mutate(func(f *prefsFile, existed bool) bool {
 		if !existed {
@@ -574,7 +571,7 @@ func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 
 		f.Theme = slug
 		// Already empty by construction — see the branch above — so this states
-		// §8.2's rule rather than doing work.
+		// the mutual-exclusion rule rather than doing work.
 		f.ThemeLight = ""
 		f.ThemeDark = ""
 		persisted = true
@@ -590,11 +587,11 @@ func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 }
 
 // atomicWrite is fileutil.AtomicWrite behind a package-level indirection so the
-// write-path tests can COUNT commits. "One atomic write per save" is a contract
-// (§8.9: the commit and its mutual-exclusion clear land together, so no partial
-// state is reachable) and it is not observable from the filesystem afterwards —
-// a second write leaves no trace, so a post-hoc assertion could only ever prove
-// "at least one". Production never reassigns it.
+// write-path tests can COUNT commits. "One atomic write per save" is a contract —
+// the commit and its mutual-exclusion clear land together, so no partial state is
+// reachable — and it is not observable from the filesystem afterwards: a second
+// write leaves no trace, so a post-hoc assertion could only ever prove "at least
+// one". Production never reassigns it.
 var atomicWrite = fileutil.AtomicWrite
 
 // write marshals the prefsFile and commits it via AtomicWrite (temp file + rename).

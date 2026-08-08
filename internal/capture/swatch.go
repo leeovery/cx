@@ -12,13 +12,13 @@ import (
 
 // ContrastValidationFixture is the registered fixture name for the contrast-
 // validation swatch — the labelled-tint surface the human eyeball gate judges a
-// theme's pinned tints on (§7.5, §13.5).
+// theme's pinned tints on.
 const ContrastValidationFixture = "contrast-validation"
 
 // NewContrastValidationModel builds the contrast-validation swatch tea.Model for
 // the theme the capture harness pins via --theme.
 //
-// It takes a WHOLE PALETTE rather than a mode (§13.3): a theme carries its own
+// It takes a WHOLE PALETTE rather than a mode: a theme carries its own
 // canvas, so a light theme is judged against its own near-white surface and a
 // dark one against its own near-black, and there is no compiled-in palette left
 // for the swatch to fall back to. The result is a tea.Model so the capture tool
@@ -28,18 +28,17 @@ func NewContrastValidationModel(th theme.Theme) tea.Model {
 }
 
 // swatchModel is the contrast-validation swatch — a self-contained tea.Model the
-// offline capture harness renders for the visual gate §7.5 and §13.5 require of
-// a light theme's pinned tints. It is NOT the real Sessions surface, and it
-// deliberately does NOT route through tui.Build: it is a standalone validation
-// surface that renders, for each of the four pinned tints, a labelled band
-// filled with that tint carrying its on-tint foreground text on the theme's own
-// canvas.
+// offline capture harness renders for the human visual gate on a theme's pinned
+// tints. It is NOT the real Sessions surface, and it deliberately does NOT route
+// through tui.Build: it is a standalone validation surface that renders, for each
+// of the four pinned tints, a labelled band filled with that tint carrying its
+// on-tint foreground text on the theme's own canvas.
 //
 // The human captures this per theme (vhs) and eyeballs each tint against that
-// theme's canvas — the wash-out risk the numeric floors alone cannot catch,
-// which is why the light-tint pins are eyeball-established rather than computed
-// (§13.5). The §13.5 foreground-on-tint pairings are rendered explicitly so they
-// are eyeballed ON their tints, not just numerically verified.
+// theme's canvas — the wash-out risk the numeric floors alone cannot catch, which
+// is why the light-tint pins are eyeball-established rather than computed. The
+// foreground-on-tint pairings are rendered explicitly so they are eyeballed ON
+// their tints, not just numerically verified.
 type swatchModel struct {
 	th theme.Theme
 
@@ -150,10 +149,9 @@ const (
 // own canvas. Kept pure (theme-in, string-out) so it is unit-testable without a
 // tea.Program.
 //
-// The §2.4 token names are written as literals here — the label a human reads
-// off a capture is the name they will type into a theme file, so it is not
-// derived from a Token.Name (a Theme built by hand carries values without names,
-// §3.2) and not shared with the tests that pin it.
+// The token names are written as literals here — the label a human reads off a
+// capture is the name they will type into a theme file, so it is not derived from
+// a Token.Name (a Theme built by hand carries values without names).
 func renderSwatch(th theme.Theme) string {
 	var b strings.Builder
 
@@ -165,8 +163,8 @@ func renderSwatch(th theme.Theme) string {
 	b.WriteString(title)
 	b.WriteString("\n\n")
 
-	// bg.selection: the selected session row, carrying every §13.5
-	// foreground-on-tint pairing that tint has — the name (text.on-selection),
+	// bg.selection: the selected session row, carrying every foreground-on-tint
+	// pairing that tint has — the name (text.on-selection),
 	// the path (text.tertiary), the window count (text.secondary) and the
 	// `● attached` marker (state.positive, the single token that must clear
 	// against the canvas AND against this tint).
@@ -190,7 +188,7 @@ func renderSwatch(th theme.Theme) string {
 
 	// bg.subtle: the loading-bar empty track with its accent.primary fill over
 	// it, so the bar reads against the track and the track against the canvas.
-	// Nothing renders text on this tint (§13.5), so it carries no pairing.
+	// Nothing renders text on this tint, so it carries no pairing.
 	b.WriteString(tintLabel(th, "bg.subtle", th.BgSubtle))
 	b.WriteString("\n")
 	b.WriteString(subtleBand(th))
@@ -198,8 +196,8 @@ func renderSwatch(th theme.Theme) string {
 	b.WriteString(caption(th, "bar: accent.primary over the track"))
 	b.WriteString("\n\n")
 
-	// border: the sole border token after the §2.2 consolidation — one rule on
-	// the canvas, where there were a separator and a footer rule before.
+	// border: the sole border token — one rule on the canvas, where there were a
+	// separator and a footer rule before.
 	b.WriteString(tintLabel(th, "border", th.Border))
 	b.WriteString("\n")
 	b.WriteString(borderRule(th))
@@ -214,8 +212,8 @@ func tintLabel(th theme.Theme, name string, tok theme.Token) string {
 }
 
 // caption renders one line of text.muted on the canvas — the label above each
-// band and the §13.5 pairing legend below it, which together are how the human
-// knows which token each surface and each on-tint foreground is.
+// band and the pairing legend below it, which together are how the human knows
+// which token each surface and each on-tint foreground is.
 func caption(th theme.Theme, text string) string {
 	return onCanvas(th, th.TextMuted).Render(text)
 }
@@ -227,14 +225,14 @@ func onCanvas(th theme.Theme, tok theme.Token) lipgloss.Style {
 }
 
 // onTint is the style for a foreground token rendered ON a background. Every
-// §13.5 pairing goes through it, which is what guarantees the pairing is
-// eyeballed against its tint rather than against the canvas.
+// pairing goes through it, which is what guarantees the pairing is eyeballed
+// against its tint rather than against the canvas.
 func onTint(tok theme.Token, tint color.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(tok.Color()).Background(tint)
 }
 
 // selectionBand fills bandWidth cells with the bg.selection tint and lays every
-// §13.5 selected-row foreground over it: the name (text.on-selection), the path
+// selected-row foreground over it: the name (text.on-selection), the path
 // (text.tertiary), the window count (text.secondary) and the `● attached`
 // marker (state.positive). Each run keeps the tint as its background so every
 // pairing is rendered ON the tint.
@@ -251,7 +249,7 @@ func selectionBand(th theme.Theme) string {
 }
 
 // attentionBand fills bandWidth cells with the bg.attention tint and lays the
-// §13.5 warning message in text.on-attention over it.
+// warning message in text.on-attention over it.
 func attentionBand(th theme.Theme) string {
 	tint := th.BgAttention.Color()
 	return padBand(onTint(th.TextOnAttention, tint).Render(swatchAttentionMsg), tint)

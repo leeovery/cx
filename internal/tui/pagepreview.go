@@ -13,7 +13,7 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// previewMarker is the §9.1 peek-mode marker rendered at the left of the header
+// previewMarker is the peek-mode marker rendered at the left of the header
 // compartment in accent.cyan — a `◉` filled circle + the word `preview`. It
 // signals "peek mode" (read-only scrollback), deliberately distinct from the
 // violet main UI. Matches the Preview Screen (MV) reference frame glyph.
@@ -22,11 +22,11 @@ const previewMarker = "◉ preview"
 // minSessionNameCells is the lower bound on the display-cell budget allocated
 // to the session name before the header cascade drops the counters segment
 // (tier 2 → tier 3). Below this minimum a truncated name reads as garbage rather
-// than a recognisable name. Per §9.1 header width-cascade.
+// than a recognisable name, per the header width-cascade.
 const minSessionNameCells = 8
 
 // previewFrameOverhead is the total number of frame rows AND frame columns the
-// §9.1 full-screen joined panel occupies around the body compartment:
+// full-screen joined panel occupies around the body compartment:
 //
 //   - Rows: top border + header + header-divider + footer-divider + footer +
 //     bottom border = 6 chrome rows wrapping the body.
@@ -47,16 +47,14 @@ const previewChromeRowOverhead = previewFrameOverhead
 // previewPlaceholder is the canonical user-facing string rendered into the
 // viewport when the ScrollbackReader returns the unified "no content
 // available" shape — (nil, nil) — collapsing ENOENT, zero-byte .bin, and
-// zero-line file (only an unterminated partial) per § Architecture Summary
-// > Test seams > ScrollbackReader return contract. Chrome counts are
+// zero-line file (only an unterminated partial) into one shape. Chrome counts are
 // unaffected: the placeholder lives strictly inside the viewport surface.
 const previewPlaceholder = "(no saved content)"
 
 // previewReadError is the canonical user-facing string rendered into the
 // viewport when the ScrollbackReader returns (nil, err) — an OS-level read
-// failure such as EACCES or EIO — per § Read-Failure Handling > Placeholder
-// > Error string. Uniform across errno types: every error produces this
-// byte-identical string. Distinct from previewPlaceholder so the (nil, err)
+// failure such as EACCES or EIO. Uniform across errno types: every error produces
+// this byte-identical string. Distinct from previewPlaceholder so the (nil, err)
 // outcome is observably different from (nil, nil). No per-pane error cache
 // exists on previewModel; future focus changes onto the same pane retry the
 // read fresh via the dispatcher.
@@ -68,8 +66,7 @@ const previewReadError = "(unable to read scrollback)"
 // emoji = 2, combining marks = 0 — so output width matches what a terminal
 // will paint, not byte length or rune count. Used by the preview frame's
 // chrome cascade (tier 1 window-name truncation, tier 2 8-cell minimum) per
-// specification.md § Display-cell-aware truncation and
-// § Width cascade > Tier 1.
+// display-cell-aware truncation and the width cascade's first tier.
 //
 // Contract:
 //   - budget <= 0 returns "".
@@ -106,7 +103,7 @@ func truncateToCells(s string, budget int) string {
 // non-empty line in s, ignoring empty lines (including any trailing
 // empty element produced by a terminating newline). Used to protect
 // the right border from unterminated SGR sequences in the scrollback
-// body — see spec § SGR reset injection.
+// body — see the SGR reset injection below.
 //
 // Pure: no I/O. Idempotent in observable behaviour — terminals collapse
 // "\x1b[0m\x1b[0m" to a single reset, so re-applying does not corrupt rendering.
@@ -120,17 +117,17 @@ func injectSGRResets(s string) string {
 	return strings.Join(lines, "\n")
 }
 
-// chromeSegSpace is the single space joining the §9.1 header segments (marker ·
+// chromeSegSpace is the single space joining the header segments (marker ·
 // session · counters). One space between each, matching the Preview Screen (MV)
 // reference frame.
 const chromeSegSpace = " "
 
-// previewFooterGap is the inter-group gap in the §9.1 footer — two canvas spaces
+// previewFooterGap is the inter-group gap in the footer — two canvas spaces
 // between each `<glyph> <label>` group (`←→ window  ⇥ pane  ⏎ attach  ␣ back`),
 // matching the Preview Screen (MV) reference frame's group spacing.
 const previewFooterGap = "  "
 
-// previewCounters formats the §9.1 slash-form counters from the 0-based
+// previewCounters formats the slash-form counters from the 0-based
 // ordinals: "Window x/y · Pane x/y". Always 1-based for display (the raw tmux
 // indices never surface here — that is the responsibility of the caller, which
 // passes ordinal positions, not raw indices).
@@ -138,11 +135,11 @@ func previewCounters(windowIdx, windowCount, paneIdx, paneCount int) string {
 	return fmt.Sprintf("Window %d/%d · Pane %d/%d", windowIdx+1, windowCount, paneIdx+1, paneCount)
 }
 
-// previewHeaderSegments is the structural, UNSTYLED content of the §9.1 header
+// previewHeaderSegments is the structural, UNSTYLED content of the header
 // compartment after the width cascade: the `◉ preview` marker (always present),
 // the session name (possibly truncated), and the `Window x/y · Pane x/y`
 // counters ("" when the cascade drops them at narrow widths). View() styles each
-// segment with its §2.9 token (marker accent.cyan, session text.primary,
+// segment with its role token (marker accent.cyan, session text.primary,
 // counters text.detail).
 type previewHeaderSegments struct {
 	marker   string
@@ -150,7 +147,7 @@ type previewHeaderSegments struct {
 	counters string // "" when the cascade drops the counters segment
 }
 
-// selectPreviewHeaderTier runs the §9.1 header width cascade against a target
+// selectPreviewHeaderTier runs the header width cascade against a target
 // content width (the joined panel's contentWidth — the body width). It degrades
 // gracefully as the panel narrows, re-styled from the prior single-bar cascade
 // (tier mechanism preserved):
@@ -193,10 +190,10 @@ func selectPreviewHeaderTier(width int, session string, windowIdx, windowCount, 
 	return previewHeaderSegments{marker: previewMarker, session: truncateToCells(session, sessBudget)}
 }
 
-// composePreviewHeaderRow composes the STYLED §9.1 header compartment row at the
+// composePreviewHeaderRow composes the STYLED header compartment row at the
 // given panel content width: the accent.cyan `◉ preview` marker + text.primary
 // session name + text.detail `Window x/y · Pane x/y` counters, joined by single
-// spaces. Under the NO_COLOR carve-out (§2.5 / §9.2) every segment renders
+// spaces. Under the NO_COLOR carve-out every segment renders
 // colourless (no foreground SGR) but the structure stays present. The row's
 // natural width is <= contentWidth (the cascade fits it); renderJoinedPanel's
 // panelInsetRow pads it to the uniform frame width.
@@ -227,8 +224,8 @@ func composePreviewHeaderRow(contentWidth, windowIdx, windowCount, paneIdx, pane
 	return row
 }
 
-// previewFooterGroups derives the §9.1 footer nav-hint groups from the Core
-// entries of the shared previewKeymap descriptor (§12.1) — the single source of
+// previewFooterGroups derives the footer nav-hint groups from the Core
+// entries of the shared previewKeymap descriptor — the single source of
 // truth that also feeds the ? help. Each Core entry's glyph is the descriptor
 // Key (already a glyph form) and the label is its terse Action. The descriptor
 // order (window, pane, attach, back) is the footer's left-to-right order,
@@ -244,7 +241,7 @@ func previewFooterGroups() []footerHintGroup {
 	return groups
 }
 
-// composePreviewFooterRow composes the STYLED §9.1 footer compartment row within
+// composePreviewFooterRow composes the STYLED footer compartment row within
 // contentWidth (the panel body width), degrading progressively so the footer
 // never overflows the full-screen panel:
 //
@@ -298,7 +295,7 @@ func previewFooterFromGroups(groups []footerHintGroup, labelled bool, th theme.T
 }
 
 // previewModel renders a single tmux pane's saved scrollback inside a
-// viewport, wrapped in the §9.1 full-screen accent.cyan joined panel (header,
+// viewport, wrapped in the full-screen accent.cyan joined panel (header,
 // body, footer compartments) composed by View().
 //
 // Construction is performed via NewPreviewModel — the type is intentionally
@@ -320,19 +317,19 @@ type previewModel struct {
 	viewport   viewport.Model
 	width      int
 	height     int
-	// th is the ACTIVE PALETTE the §9.1 peek-mode chrome is painted from. The
+	// th is the ACTIVE PALETTE the peek-mode chrome is painted from. The
 	// parent model assigns m.activeTheme onto it after construction so the
 	// accent.mode frame + top bar are drawn from the same theme as every other
 	// surface. A zero value renders through lipgloss.Color("")'s no-colour
 	// sentinel, which is why the assignment is not optional.
 	th theme.Theme
-	// colourless is the §2.5 NO_COLOR carve-out flag mirrored from the parent
+	// colourless is the NO_COLOR carve-out flag mirrored from the parent
 	// model. When set the chrome drops its hue (no foreground SGR) but keeps
-	// the structure — marker, session, counters, hints, frame glyphs (§9.2).
+	// the structure — marker, session, counters, hints, frame glyphs.
 	colourless bool
-	// helpOpen tracks whether the §8.5 per-page `?` help is overlaid on the
+	// helpOpen tracks whether the per-page `?` help is overlaid on the
 	// preview. While set the help panel is composited OVER the live preview View
-	// (the preview stays visible behind it — §9, NOT the §8.1 blank-screen path)
+	// (the preview stays visible behind it, NOT the blank-screen path)
 	// and the preview is key-exclusive: `?` toggles it closed, `Esc` dismisses it
 	// (without backing out of the preview), and every other preview key is inert.
 	helpOpen bool
@@ -348,7 +345,7 @@ type previewModel struct {
 //     run through the single shared dispatcher (placeholder for (nil, nil),
 //     bytes verbatim otherwise) and the viewport is anchored at scroll-tail.
 //
-// The (nil, err) error-string branch is owned by Phase 4 task 4-2; this
+// The (nil, err) error-string branch is owned by the read-failure path; this
 // constructor does not encode error wording itself — it delegates to the
 // shared helper.
 func NewPreviewModel(session string, enumerator TmuxEnumerator, reader ScrollbackReader, attacher PreviewAttacher, width, height int) (previewModel, bool) {
@@ -434,7 +431,7 @@ func (m previewModel) degenerate() bool {
 	return len(m.groups) == 1 && len(m.groups[0].PaneIndices) == 1
 }
 
-// innerWidth returns the body width available inside the §9.1 joined panel —
+// innerWidth returns the body width available inside the joined panel —
 // the model's total width minus previewFrameOverhead (2 side borders + the
 // 2·panelRowInset per-row inset), clamped to ≥ 0. It is the joined panel's
 // contentWidth: the viewport, the header cascade target, and the footer fit
@@ -443,7 +440,7 @@ func (m previewModel) innerWidth() int {
 	return max(0, m.width-previewFrameOverhead)
 }
 
-// innerHeight returns the body height available inside the §9.1 joined panel —
+// innerHeight returns the body height available inside the joined panel —
 // the model's total height minus previewChromeRowOverhead (top + header +
 // 2 dividers + footer + bottom = 6 chrome rows), clamped to ≥ 0. Peer of
 // innerWidth; sizing the viewport to it makes the body fill the available
@@ -457,8 +454,7 @@ func (m previewModel) innerHeight() int {
 // outcome to viewport content, anchored at scroll-tail. Shared by every
 // focus-changing branch of Update (←/→ window, Tab pane) AND by
 // NewPreviewModel's initial-open path, so the three observable shapes are
-// dispatched in exactly one place per § Architecture Summary > Test seams >
-// ScrollbackReader return contract:
+// dispatched in exactly one place, over the ScrollbackReader return contract:
 //
 //   - (bytes != nil, _) — bytes rendered verbatim.
 //   - (nil, nil) — placeholder ("(no saved content)") rendered. Collapses
@@ -466,8 +462,7 @@ func (m previewModel) innerHeight() int {
 //     partial) into one shape.
 //   - (nil, err != nil) — OS-level read failure. Renders the canonical
 //     error string ("(unable to read scrollback)") uniformly across errno
-//     types per § Read-Failure Handling > Placeholder > Error string. No
-//     per-pane error state is cached on the model; refocusing the same
+//     types. No per-pane error state is cached on the model; refocusing the same
 //     pane (cycle away and back) re-issues a fresh Tail call through
 //     this dispatcher, so a transient error can recover on retry.
 //
@@ -485,8 +480,8 @@ func (m previewModel) readFocusedPaneIntoViewport() viewport.Model {
 	switch {
 	case bytes == nil && err == nil:
 		vp.SetContent(previewPlaceholder)
-	// The (nil, nil) arm above takes precedence so the (nil, err) shape from
-	// the spec's three-shape contract lands here cleanly. The helper never
+	// The (nil, nil) arm above takes precedence so the (nil, err) shape of the
+	// reader's three-shape contract lands here cleanly. The helper never
 	// returns (bytes != nil, err != nil); this arm is shaped defensively to
 	// route any such future drift to the user-visible error string rather
 	// than silently rendering bytes alongside an ignored error.
@@ -524,7 +519,7 @@ type previewSessionsRefreshedMsg struct {
 }
 
 // Update routes Esc/Space to a synthesised previewDismissedMsg, intercepts
-// Home / End for preview-owned top/bottom jumps, intercepts the §9.3 spatial
+// Home / End for preview-owned top/bottom jumps, intercepts the spatial
 // nav keys (`←`/`→` window, `Tab` next pane — REPLACING the former
 // `]`/`[` window + `Ctrl+←`/`Ctrl+→` pane) BEFORE delegating to the viewport
 // (which binds plain `←`/`→` for horizontal scroll, so window nav must win, and
@@ -538,17 +533,15 @@ type previewSessionsRefreshedMsg struct {
 // behaviour are preserved.
 //
 // reader.Tail is intentionally NOT called for scroll/resize: those operate on
-// the already-loaded N-line buffer per § Refresh Semantics (resize is not a
-// read trigger; viewport-internal scroll does not re-read). The window/pane
-// cycle IS a read trigger — each lands a single synchronous Tail for the newly
-// focused pane.
+// the already-loaded N-line buffer: a resize is not a read trigger, and
+// viewport-internal scroll does not re-read. The window/pane cycle IS a read
+// trigger — each lands a single synchronous Tail for the newly focused pane.
 func (m previewModel) Update(msg tea.Msg) (previewModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// bubbles v2 exposes viewport.SetWidth / SetHeight (the spec's
-		// `viewport.SetSize(W, H)` — the v1.0.0 TODO that this upgrade
-		// resolves). Switching from the v1 direct field assignment to the
-		// methods engages the viewport's YOffset auto-clamping uniformly;
+		// bubbles v2 exposes viewport.SetWidth / SetHeight in place of v1's
+		// direct field assignment. Using the methods engages the viewport's
+		// YOffset auto-clamping uniformly;
 		// the preview's observable resize contract is unchanged because cycle
 		// handlers re-anchor via GotoBottom and Home/End jumps are explicit.
 		m.width = msg.Width
@@ -568,12 +561,12 @@ func (m previewModel) Update(msg tea.Msg) (previewModel, tea.Cmd) {
 
 // handlePreviewKey routes the preview-owned key bindings. It returns
 // handled=false (and a zero model/cmd) when the key is not preview-owned, so the
-// caller delegates it to the embedded viewport. The §9.3 spatial nav keys
+// caller delegates it to the embedded viewport. The spatial nav keys
 // (`←`/`→` window, `Tab` next pane) are matched here — BEFORE viewport
 // delegation — so the arrows win over the viewport's plain-arrow horizontal
 // scroll and Tab is never swallowed by the viewport.
 func (m previewModel) handlePreviewKey(msg tea.KeyPressMsg) (handled bool, next previewModel, cmd tea.Cmd) {
-	// §8.5/§9.3: while the `?` help overlay is open the preview is key-exclusive.
+	// While the `?` help overlay is open the preview is key-exclusive.
 	// `?` toggles it closed, `Esc` dismisses it (WITHOUT falling through to the
 	// preview-back path), and every other key is consumed inert. Handled first so
 	// no other binding can leak while the overlay is up.
@@ -587,7 +580,7 @@ func (m previewModel) handlePreviewKey(msg tea.KeyPressMsg) (handled bool, next 
 	}
 
 	switch {
-	// `?` — open the §8.5 per-page help overlay. Bound before the back keys so it
+	// `?` — open the per-page help overlay. Bound before the back keys so it
 	// wins over any future `?`-bearing binding; consumes the key (no cmd).
 	case isRuneKey(msg, "?"):
 		m.helpOpen = true
@@ -611,9 +604,9 @@ func (m previewModel) handlePreviewKey(msg tea.KeyPressMsg) (handled bool, next 
 	// positions) via currentRawIndices, so non-contiguous indices and non-zero
 	// pane-base-index sessions address the right tmux target. Dispatch is
 	// unconditional regardless of viewport content state (real bytes,
-	// "(no saved content)" placeholder, or OS read error) per spec § Other edge
-	// cases > Mid-load. nil attacher is a defensive silent no-op so non-attach-
-	// wired test callsites can construct previewModel without nil-panicking.
+	// "(no saved content)" placeholder, or OS read error) — including mid-load. A
+	// nil attacher is a defensive silent no-op so non-attach-wired callers can
+	// construct previewModel without nil-panicking.
 	case keyIsCode(msg, tea.KeyEnter):
 		if m.attacher == nil {
 			return true, m, nil
@@ -638,11 +631,9 @@ func (m previewModel) handlePreviewKey(msg tea.KeyPressMsg) (handled bool, next 
 }
 
 // cycleWindow moves the focused window by delta (wrapping), resets paneIdx to 0
-// (per § Multi-pane Rendering Shape > Pane focus on window cycle — per-window
-// pane focus is not retained), and synchronously re-reads the new pane's tail-N
-// (§ Refresh Semantics > Read Trigger Events). A single-window session is a
-// silent no-op (no read, no index change) — the window keys iterate windows, not
-// panes.
+// (per-window pane focus is not retained), and synchronously re-reads the new
+// pane's tail-N. A single-window session is a silent no-op (no read, no index
+// change) — the window keys iterate windows, not panes.
 func (m previewModel) cycleWindow(delta int) previewModel {
 	if len(m.groups) <= 1 {
 		return m
@@ -666,17 +657,17 @@ func (m previewModel) cyclePane(delta int) previewModel {
 	return m
 }
 
-// View renders the §9.1 full-screen "peek mode" preview as a single-tone
+// View renders the full-screen "peek mode" preview as a single-tone
 // accent.cyan joined panel (the same hand-drawn rounded shape as the modals,
 // via renderJoinedPanel) with THREE compartments:
 //
 //   - Header: `◉ preview` (accent.cyan) + session (text.primary) +
 //     `Window x/y · Pane x/y` (text.detail), width-cascaded to fit.
-//   - Body: the untouched captured ANSI scrollback (§9.2) — passed through
+//   - Body: the untouched captured ANSI scrollback — passed through
 //     injectSGRResets so unterminated SGR sequences cannot bleed into the right
 //     border, and NEVER themed. The viewport is sized to innerHeight so the body
 //     fills the available height (footer flush at the bottom).
-//   - Footer: the §9.3 nav hints — glyphs accent.blue, labels text.detail,
+//   - Footer: the nav hints — glyphs accent.blue, labels text.detail,
 //     space-separated (`←→ window  ⇥ pane  ⏎ attach  ␣ back`).
 //
 // The border AND the two compartment dividers all render in accent.cyan (the
@@ -707,9 +698,9 @@ func (m previewModel) View() string {
 		m.th, m.colourless,
 	)
 
-	// §8.5/§9.3: the `?` help OVERLAYS the preview without blanking it — the
+	// The `?` help OVERLAYS the preview without blanking it — the
 	// composed preview stays the background and the descriptor-driven generic help
-	// panel is composited centred ON TOP (NOT the §8.1 cleared-canvas path the
+	// panel is composited centred ON TOP (NOT the cleared-canvas path the
 	// Sessions/Projects help uses). Skipped on the common closed path.
 	if m.helpOpen {
 		return overlayHelpOnPreview(preview, previewKeymap(), m.th, m.colourless)
@@ -717,9 +708,9 @@ func (m previewModel) View() string {
 	return preview
 }
 
-// overlayHelpOnPreview composites the §8.5 generic help panel centred OVER the
+// overlayHelpOnPreview composites the generic help panel centred OVER the
 // already-composed preview string, so the preview content stays visible behind it
-// (§9 — the Preview `?` help overlays, it does NOT blank). The full-screen preview
+// (the Preview `?` help overlays, it does NOT blank). The full-screen preview
 // is the Z=0 background layer at (0,0); the help panel is the Z=1 foreground layer
 // centred over it. The lipgloss Compositor honours each layer's X/Y/Z and draws the
 // panel cells over the background, leaving every cell outside the panel showing the

@@ -9,7 +9,7 @@ import (
 )
 
 // destructive_confirm.go owns the SINGLE destructive-confirm panel grammar shared by
-// the §8.3 kill modal and the §8.6 delete-project modal — two modals that render the
+// the kill modal and the delete-project modal — two modals that render the
 // identical "destructive confirm" element: a state.red ▲ <Title> header, a state.red +
 // bold target name row, an optional set of extra body rows (the delete modal's project
 // path), ONE canvas-painted blank separator, a text.detail consequence word-wrapped at
@@ -20,23 +20,23 @@ import (
 // exactly one place, so a future change is a single edit and the two modals can never
 // silently diverge.
 //
-// Destructive emphasis is carried by glyph + colour + bold (§2.2/§2.5), never colour
+// Destructive emphasis is carried by glyph + colour + bold, never colour
 // alone: the ▲ triangle and the title + target name render in state.red AND bold, so
 // under the NO_COLOR carve-out the ▲ glyph + bold still mark the action as destructive
 // on the terminal's native fg.
 
 const (
 	// destructiveTitleGlyph is the destructive ▲ triangle that opens the header —
-	// state.red per §2.9 (red is destructive-only). Glyph + colour + bold (§2.2). The
+	// state.red (red is destructive-only). Glyph + colour + bold. The
 	// single definition shared by the kill and delete modals.
 	destructiveTitleGlyph = "▲"
 	// destructiveBodyWidth is the word-wrap target for the consequence line (in cells)
 	// and the panel's minimum content width, so the panel stays a consistent size
 	// regardless of target-name/path length and the consequence wraps to the ~two lines
-	// the §8.3/§8.6 references show. The single definition shared by both modals.
+	// the reference frames show. The single definition shared by both modals.
 	destructiveBodyWidth = 52
 	// destructiveKeyCancel / destructiveLabelCancel are the always-present cancel hint —
-	// the dismiss key lives in the footer (§8.1) as `esc cancel` for every destructive
+	// the dismiss key lives in the footer as `esc cancel` for every destructive
 	// confirm.
 	destructiveKeyCancel   = "esc"
 	destructiveLabelCancel = "cancel"
@@ -90,7 +90,7 @@ func renderDestructiveConfirm(spec destructiveConfirmSpec, th theme.Theme, colou
 }
 
 // destructiveHeaderRow renders `▲ <Title>` — the ▲ glyph and the title text both in
-// state.red and bold (glyph + colour + bold, §2.2). Under NO_COLOR the state.red hue
+// state.red and bold (glyph + colour + bold). Under NO_COLOR the state.red hue
 // drops (native fg) but the glyph + bold remain so the destructive signal survives.
 func destructiveHeaderRow(title string, th theme.Theme, colourless bool) string {
 	style := headerStyle(th.StateDestructive, th, colourless).Bold(true)
@@ -130,7 +130,7 @@ func destructiveNameRow(name, trailer string, th theme.Theme, colourless bool) s
 
 // destructiveConsequenceRows word-wraps the consequence sentence to destructiveBodyWidth
 // and renders each wrapped line in text.detail — so the panel grows to the body width
-// and the consequence reads across the wrapped lines of the §8.3/§8.6 reference. The
+// and the consequence reads across the wrapped lines of the reference frames. The
 // single word-wrap loop shared by both modals.
 func destructiveConsequenceRows(text string, th theme.Theme, colourless bool) []string {
 	wrapped := ansi.Wordwrap(text, destructiveBodyWidth, "")

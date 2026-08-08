@@ -7,9 +7,9 @@
 // server, spawns no daemon, runs no orphan-sweep, and reads no real config.
 //
 // Its sole job is to render a deterministic, named fixture so vhs can screenshot
-// the live TUI and a reviewer can compare it to the committed Paper reference
-// (spec § 15). The captured frame is the REAL production TUI because the model is
-// built through the exact constructor cmd/open.go uses.
+// the live TUI and a reviewer can compare it to the committed design reference.
+// The captured frame is the REAL production TUI because the model is built
+// through the exact constructor cmd/open.go uses.
 //
 // Usage:
 //
@@ -20,7 +20,7 @@
 // --theme names either a built-in (resolved out of the embedded set) or an
 // explicit path to a theme file. Both are an INPUT rather than config discovery —
 // nothing here reads prefs, resolves the themes directory or looks at XDG — which
-// is what keeps internal/capture's no-real-config guarantee intact (§13.3).
+// is what keeps internal/capture's no-real-config guarantee intact.
 //
 // Run via vhs (see testdata/vhs/README.md). The portal binary never imports
 // internal/capture — an import guard test enforces that production stays clean.
@@ -42,14 +42,13 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// defaultThemeSlug is the built-in --theme resolves to when the flag is
-// omitted: the shipped dark default (§13.3). Every capture taken without the
-// flag depends on it.
+// defaultThemeSlug is the built-in --theme resolves to when the flag is omitted:
+// the shipped dark default. Every capture taken without the flag depends on it.
 const defaultThemeSlug = "tokyo-night"
 
 // themeFileExtension is the extension that marks a --theme argument as a FILE
 // even when it carries no directory at all (`nord.theme` in the working
-// directory). It is a local restatement of §5.3's one extension because
+// directory). It is a local restatement of the theme-file extension because
 // internal/theme keeps its own copy unexported — the loader decides validity,
 // this program only decides which of its two entry points to call.
 const themeFileExtension = ".theme"
@@ -58,8 +57,8 @@ const themeFileExtension = ".theme"
 // non-zero exit.
 //
 // There are exactly two flags, and --appearance is deliberately NOT among them:
-// §8.8 deleted the light/dark injection it resolved into, and a theme IS the
-// mode (§13.3), so there is nothing left for it to pin.
+// the light/dark injection it resolved into no longer exists, and a theme IS the
+// mode, so there is nothing left for it to pin.
 func main() {
 	fixture := flag.String("fixture", "", "named fixture to render (e.g. sessions-flat)")
 	themeArg := flag.String("theme", defaultThemeSlug, "theme to render: a built-in slug (e.g. tokyo-night) or a path to a .theme file")
@@ -94,9 +93,9 @@ func run(fixture, themeArg string) error {
 		return err
 	}
 
-	// Restore the terminal's original background on exit (§ background restore-
-	// on-exit). The owned canvas paint sets the terminal background via OSC 11;
-	// terminals that ignore the OSC 111 reset would keep the canvas colour, so
+	// Restore the terminal's original background on exit. The owned canvas paint
+	// sets the terminal background via OSC 11; terminals that ignore the OSC 111
+	// reset would keep the canvas colour, so
 	// SET the captured original back. No-op when no OSC 11 response was captured.
 	// Wired identically to cmd/open.go via the shared tui helper. Writes to
 	// os.Stdout (the program's output) so the sequence reaches the terminal.
@@ -115,13 +114,13 @@ func run(fixture, themeArg string) error {
 // take a whole Theme before the render layer does. Returning tea.Model lets
 // run() drive both identically.
 //
-// ONE flag drives BOTH branches (§13.3), which is why the theme is resolved here
-// rather than inside either: the swatch validates the tints a screen then renders,
-// so a capture of one and a capture of the other must be the same palette or the
-// gate compares a screen against a swatch of something else.
+// ONE flag drives BOTH branches, which is why the theme is resolved here rather
+// than inside either: the swatch validates the tints a screen then renders, so a
+// capture of one and a capture of the other must be the same palette or the gate
+// compares a screen against a swatch of something else.
 //
 // It is resolved FIRST, and a failure returns a nil model: an unusable theme means
-// nothing renders at all, on either branch (§13.3's no-fallback rule).
+// nothing renders at all, on either branch — there is no fallback palette.
 func resolveProgram(fixture, themeArg string, warnings io.Writer) (tea.Model, error) {
 	pinned, err := resolveTheme(newThemeLoader(), themeArg, warnings)
 	if err != nil {
@@ -139,12 +138,11 @@ func resolveProgram(fixture, themeArg string, warnings io.Writer) (tea.Model, er
 
 // themeLoader is the seam --theme resolves through: theme.Loader's two input
 // entry points, the embedded built-in set and an explicit path, and nothing else.
-// Neither reads config, which is what keeps §13.3's import-guard invariant true.
+// Neither reads config, which is what keeps the no-real-config invariant true.
 //
-// It is an interface so a test can drive the built-in rejection branch, which
-// §7.6's build-time guarantee makes unreachable through the shipped set — the
-// alternative being to break a shipped .theme file, which would fail that
-// guarantee's own test instead.
+// It is an interface so the built-in rejection branch can be driven at all: the
+// build-time validation of the embedded set makes that branch unreachable through
+// the shipped themes, and the alternative would be breaking a shipped .theme file.
 type themeLoader interface {
 	LoadBuiltin(slug string) (theme.Result, *theme.Rejection, bool)
 	LoadPath(path string) (theme.Result, *theme.Rejection)
@@ -153,10 +151,9 @@ type themeLoader interface {
 // newThemeLoader builds the loader --theme resolves through, handed
 // log.Discard.
 //
-// capturetool is §12.3's fifth caller and neither USES nor DIAGNOSES a theme —
-// it is an offline renderer whose output is a frame — so it emits no `theme`
-// events at all, and Discard leaves the loader's per-process dedup state owned
-// rather than dangling.
+// capturetool neither USES nor DIAGNOSES a theme — it is an offline renderer
+// whose output is a frame — so it emits no `theme` events at all, and Discard
+// leaves the loader's per-process dedup state owned rather than dangling.
 func newThemeLoader() theme.Loader {
 	return theme.NewLoader(theme.NewEventLogger(log.Discard()))
 }
@@ -165,7 +162,7 @@ func newThemeLoader() theme.Loader {
 // writing any non-blocking FILENAME warning to warnings (stderr in production)
 // rather than refusing to render.
 //
-// Failure is always HARD and never a fallback (§13.3). Silently rendering the
+// Failure is always HARD and never a fallback. Silently rendering the
 // wrong theme at a visual gate is precisely the failure this tool exists to
 // prevent, and the gate's whole job is judging colours the tests cannot.
 func resolveTheme(loader themeLoader, arg string, warnings io.Writer) (theme.Theme, error) {
@@ -177,7 +174,7 @@ func resolveTheme(loader themeLoader, arg string, warnings io.Writer) (theme.The
 
 // isThemePath reports whether the --theme argument names a FILE rather than a
 // built-in slug: it does if it carries a path separator, or if it ends in
-// `.theme` (§13.3).
+// `.theme`.
 //
 // The separator half is load-bearing rather than a convenience. Without it a real
 // file with an unexpected extension — `./mytheme.txt`, or an editor's `.bak` —
@@ -185,22 +182,23 @@ func resolveTheme(loader themeLoader, arg string, warnings io.Writer) (theme.The
 // wrong problem entirely, for a file that plainly exists. The extension half is
 // what lets a file in the working directory be named without a `./` prefix.
 //
-// A slug can never be mistaken for a path in the other direction: §5.2's charset
-// admits neither separators nor dots, so no valid slug can satisfy either half.
+// A slug can never be mistaken for a path in the other direction: the slug
+// charset admits neither separators nor dots, so no valid slug can satisfy either
+// half.
 func isThemePath(arg string) bool {
 	return strings.ContainsRune(arg, filepath.Separator) || strings.HasSuffix(arg, themeFileExtension)
 }
 
 // resolveBuiltinTheme resolves a --theme SLUG out of the embedded set.
 //
-// Both failures are hard: an unknown slug and a built-in whose file the §6.2
+// Both failures are hard: an unknown slug and a built-in whose file the rejection
 // ladder refused each return an error naming the slug (and, where there is one,
 // the reason).
 //
 // It emits NO filename warning, deliberately. A slug argument names a built-in by
 // design, so a `reserved name` check here would fire on the normal, documented
 // invocation — `--theme nord` would warn the user about the very thing they asked
-// for (§13.3).
+// for.
 func resolveBuiltinTheme(loader themeLoader, slug string) (theme.Theme, error) {
 	result, rejection, found := loader.LoadBuiltin(slug)
 	switch {
@@ -213,11 +211,11 @@ func resolveBuiltinTheme(loader themeLoader, slug string) (theme.Theme, error) {
 }
 
 // resolvePathTheme resolves a --theme PATH through the loader's explicit-path
-// entry point, which runs §6.2's four CONTENT rungs and neither filename one.
+// entry point, which runs the four CONTENT rungs and neither filename one.
 //
 // Only the content reasons can therefore reject, and any of them is a hard error
-// carrying the reason — never a fallback. The palette that comes back has NO SLUG
-// (§3.2): a theme handed in by path has no identity, and nothing downstream is
+// carrying the reason — never a fallback. The palette that comes back has NO
+// SLUG: a theme handed in by path has no identity, and nothing downstream is
 // given one.
 //
 // The warnings are emitted only once the file has loaded, so a broken file reports
@@ -232,19 +230,19 @@ func resolvePathTheme(loader themeLoader, path string, warnings io.Writer) (them
 	return result.Theme, nil
 }
 
-// warnAboutFilename emits §6.2's two FILENAME reasons — `bad name` and
+// warnAboutFilename emits the two FILENAME reasons — `bad name` and
 // `reserved name` — as non-blocking stderr lines about a path argument.
 //
 // The candidate slug exists SOLELY to produce these two lines and is never used as
-// identity (§13.3): without deriving one there is no `reserved name` to detect,
-// since §6.2 decides both filename reasons from the slug alone.
+// identity: without deriving one there is no `reserved name` to detect, since both
+// filename reasons are decided from the slug alone.
 //
 // Warning rather than blocking is what the flag's stated purpose demands. This is
 // the only visual-verification route someone authoring a drop-in has, so it is the
 // one place a fatal filename is worth catching before the file reaches the themes
 // directory — while refusing to render would leave that author with no route at
-// all, and would break the workflow §12.1 publishes, where an exported built-in is
-// a reserved slug right up until the user renames it.
+// all, and would break the published export workflow, where an exported built-in
+// is a reserved slug right up until the user renames it.
 //
 // One line per reason, and the two are mutually exclusive: a name yielding no slug
 // has none to collide with.
@@ -259,8 +257,8 @@ func warnAboutFilename(w io.Writer, base string) {
 }
 
 // resolveModel maps a fixture name to the production tui.Model via the shared
-// tui.Build constructor, passing the CONSTANT nomination shape (§13.3): the one
-// palette --theme resolved, pinned as the whole theme setting.
+// tui.Build constructor, passing the CONSTANT nomination shape: the one palette
+// --theme resolved, pinned as the whole theme setting.
 //
 // Constant is what makes a capture usable as a visual gate. A constant needs no
 // light/dark detection, so the model is resolved at construction — no OSC 11
@@ -282,7 +280,7 @@ func resolveModel(fixture string, pinned theme.Theme) (tui.Model, error) {
 	// the panel's open-time apply repaints the frame off --theme. Fixture.Deps is
 	// the one place the pair is assembled.
 	deps := fx.Deps(pinned)
-	// NO_COLOR carve-out (§2.5): read the env (present and non-empty, the
+	// NO_COLOR carve-out: read the env (present and non-empty, the
 	// no-color.org convention) and inject the single colourless flag so the
 	// NO_COLOR tape (NO_COLOR=1 inline) renders the colourless native-bg path —
 	// the same flag cmd/open.go drives in production. It is read AFTER the theme

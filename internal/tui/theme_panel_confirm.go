@@ -8,11 +8,11 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// §9.2's SLOT-FROM-CONSTANT CONFIRM: the panel's one gate, and the only place a
+// THE SLOT-FROM-CONSTANT CONFIRM: the panel's one gate, and the only place a
 // keypress the user was told is inert can silently cost them a setting they chose.
 //
-// `d`/`l` are described as inert — they assign a slot, and §9.2 states plainly that
-// committing to a non-active slot changes nothing on screen. Over a CONSTANT that
+// `d`/`l` are described as inert — they assign a slot, and committing to a
+// non-active slot changes nothing on screen. Over a CONSTANT that
 // description is false in a way the user cannot see coming: on `"theme": "nord"`,
 // pressing `l` clears the constant, the untouched dark slot falls back to the
 // shipped default, and `Esc` in a dark terminal lands on `tokyo-night` rather than
@@ -27,12 +27,13 @@ import (
 //     would re-theme the screen while the user is answering about a row that has just
 //     stopped being the previewed one.
 //   - IT RESOLVES ON EXACTLY THREE INPUTS — `y`/`Y`, `n`/`N`/`Esc`, and `Ctrl-C`,
-//     which quits rather than cancels (§9.7 keeps it live everywhere; swallowing it
+//     which quits rather than cancels (the global quit stays live everywhere;
+//     swallowing it
 //     would take away the exit key inside a settings surface). Everything else is
 //     SWALLOWED, and the question persists: nothing has been written, so there is no
 //     partial state to leave behind.
 //   - `Esc` CANCELS RATHER THAN CLOSES, because the innermost thing resolves first —
-//     the same nesting rule the panel already applies over multi-select (§9.7).
+//     the same nesting rule the panel already applies over multi-select.
 //
 // NOTHING IS WRITTEN UNTIL `y`. The raise records what it WOULD write and nothing
 // more, so a cancel is inert by construction rather than by an undo.
@@ -53,7 +54,7 @@ type themeSlotConfirm struct {
 	slot prefs.ThemeSlot
 }
 
-// confirming reports whether §9.2's confirm is live — the ONE liveness predicate,
+// confirming reports whether the confirm is live — the ONE liveness predicate,
 // read off the message slot rather than off a second flag beside it.
 //
 // The slot is the confirm's whole visible existence (the question, and the footer
@@ -64,7 +65,7 @@ func (p themePanel) confirming() bool {
 	return p.message.Kind == themeMessageConfirm
 }
 
-// raiseSlotConfirm asks §9.2's question: it records the pending assignment and
+// raiseSlotConfirm asks the question: it records the pending assignment and
 // raises the confirm naming the constant that will be cleared.
 //
 // NOTHING IS WRITTEN HERE. That is the whole point of the gate — the write happens
@@ -74,7 +75,7 @@ func (p themePanel) confirming() bool {
 // The message's own datum is the PERSISTED constant, read by the writer from
 // m.themeKeys (see Model.raiseThemePanelConfirm for why the raw key rather than the
 // resolution): the confirm names what is being CLEARED, while the pending value
-// below names what is being SET. Under §8.5's fallback those two rows are not even
+// below names what is being SET. Under a fallback those two rows are not even
 // the same theme.
 func (m *Model) raiseSlotConfirm(slug string, slot prefs.ThemeSlot) {
 	m.themePanel.pending = themeSlotConfirm{slug: slug, slot: slot}
@@ -84,7 +85,7 @@ func (m *Model) raiseSlotConfirm(slug string, slot prefs.ThemeSlot) {
 // resolveSlotConfirm takes the question down — the message slot emptied and the
 // footer restored with it — and hands the caller what was pending.
 //
-// IT IS THE ONE RESOLUTION SITE, reached by all three of §9.2's answers, so a
+// IT IS THE ONE RESOLUTION SITE, reached by all three answers, so a
 // confirm cannot be cleared in one direction and left standing in the other. The
 // pending value is RETURNED rather than read afterwards, which is what lets the
 // clear happen first: `y`'s commit runs against a panel that has already stopped
@@ -96,12 +97,12 @@ func (m *Model) resolveSlotConfirm() themeSlotConfirm {
 	return pending
 }
 
-// updateSlotConfirm is §9.2's key-exclusive arm: the three inputs that resolve the
+// updateSlotConfirm is the confirm's key-exclusive arm: the three inputs that resolve the
 // confirm, and the swallow that everything else meets.
 //
 // `Ctrl-C` IS DELIBERATELY ABSENT FROM THIS SWITCH. It is answered one level up, at
 // updateThemePanel's own first arm, because it is not a confirm answer — it is the
-// global quit §9.7 keeps live EVERYWHERE, and restating it here would be a second
+// global quit that stays live EVERYWHERE, and restating it here would be a second
 // place for it to be conditionally lost.
 //
 // THE DEFAULT ARM IS THE FEATURE. Arrows, paging, `Enter`, the other slot key, a
@@ -122,14 +123,14 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// confirmSlotAssignment is §9.2's `y`: the constant cleared and the slot written in
-// ONE atomic prefs write (task 6-2's prefs.SaveThemeSlot), mirrored in memory, and
+// confirmSlotAssignment is `y`: the constant cleared and the slot written in
+// ONE atomic prefs write (prefs.SaveThemeSlot), mirrored in memory, and
 // the panel recomputed against it.
 //
 // THE CONFIRM COMES DOWN FIRST AND UNCONDITIONALLY. The question has been answered
-// whichever way the write goes, so the footer is restored on both paths and §9.13's
+// whichever way the write goes, so the footer is restored on both paths and the
 // failed-commit line is raised into a slot the confirm has already vacated rather
-// than one it is competing for. §9.1's single-slot arbiter has exactly these two
+// than one it is competing for. The single-slot arbiter has exactly these two
 // contenders and they can never be live at once precisely because this ordering
 // holds.
 //
@@ -139,18 +140,18 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // read-modify-write just held, on error NOTHING moves, and the recompute is its last
 // step and is reached only past both early returns.
 //
-// ON FAILURE THIS ARM ONLY RETURNS. §9.13's report — the message slot's line and
+// ON FAILURE THIS ARM ONLY RETURNS. The failure report — the message slot's line and
 // the outstanding-failure state — is raised inside commitSlot (applyCommitResult),
 // so the confirm's failure path is the shared one rather than a second copy of the
 // semantics; and the constant is NOT cleared in memory, so the badges still show it,
 // which falls out of commitSlot leaving the keys untouched rather than out of a rule
 // stated here. The two message contenders cannot collide on this path because the
-// question came down first: §9.1's slot is vacated before any write happens.
+// question came down first: the slot is vacated before any write happens.
 //
 // A NIL PERSISTER IS INERT, NOT COMMITTED, and that is why the persister is read
 // AGAIN below rather than inferred from the nil error. commitSlot returns nil for
 // TWO outcomes — a write that landed, and the absence of a writer (a fixture or
-// `capturetool` model, task 6-7) — and the second returns before the mirror and the
+// `capturetool` model) — and the second returns before the mirror and the
 // recompute. loadNewlyLiveSlot runs after a write that LANDED, on mirrored keys;
 // handing it the un-mirrored ones would have it resolve off keys that still hold the
 // constant — whose slot slugs are both empty — and report a commit-time
@@ -169,20 +170,21 @@ func (m *Model) confirmSlotAssignment() {
 	m.loadNewlyLiveSlot(pending.slot)
 }
 
-// loadNewlyLiveSlot is §9.3's transition, both halves: the OPPOSITE slot's palette
+// loadNewlyLiveSlot is the constant → adaptive transition, both halves: the
+// OPPOSITE slot's palette
 // (the file) and the in-force light/dark classification (the answer).
 //
 // Assigning a slot over a constant makes the slot the user did NOT assign live in
-// the same keypress, and §8.4 never loaded it: construction loads every NOMINATED
-// theme, and under a constant the slots are not read at all (§8.2). This is
-// therefore THE ONE THEME LOAD OUTSIDE CONSTRUCTION, which is why §12.3's cadence
+// the same keypress, and construction never loaded it: construction loads every NOMINATED
+// theme, and under a constant the slots are not read at all. This is
+// therefore THE ONE THEME LOAD OUTSIDE CONSTRUCTION, which is why the event cadence
 // column gives `theme: loaded` a commit-time entry at all.
 //
 // IT HANGS OFF THE CONFIRM, NOT OFF commitSlot, because the confirm is the ONLY
 // route that creates the state: a `d`/`l` over an adaptive pair changes which slug a
 // live slot names, and nothing becomes newly live. Putting the seam on the shared
 // path would give it a caller with nothing to do and a cleared constant it could no
-// longer see. That route is ALSO where the converting condition comes from — §8.4's
+// longer see. That route is ALSO where the converting condition comes from — the
 // "pre-commit keys carried a non-empty `theme`" — since handleSlotCommitKey raises
 // the confirm on a CONSTANT setting and on nothing else, so reaching here is the
 // condition rather than something to re-test against keys the mirror has since
@@ -193,33 +195,33 @@ func (m *Model) confirmSlotAssignment() {
 // before both (see confirmSlotAssignment). That ordering is deliberate: the load
 // needs the MIRRORED keys to know which slug the opposite slot now names, while the
 // recompute needs nothing the load produces — it derives rows and badges from the
-// raw keys and the retained enumeration (§9.2), which already resolve both slots.
+// raw keys and the retained enumeration, which already resolve both slots.
 // Nothing renders between the two: both land inside one keypress.
 //
 // THE ASSIGNED SLOT IS DELIBERATELY NOT RE-READ, and this is the half a reader is
-// most likely to add "for symmetry". Its parse is already in hand — §5.8's retained
+// most likely to add "for symmetry". Its parse is already in hand — the retained
 // enumeration is what makes arrowing an O(1) restyle, and the previewed palette IS
 // that parse for the row the confirm captured — so resolving it again would re-parse
 // a file the panel already holds and mint a second answer for one slug.
 //
 // THE OPPOSITE SLUG COMES OFF THE MIRRORED KEYS, THROUGH themeSetting. The mirror
 // carries the other slot's raw value across untouched (mirrorThemeSlot), so that is
-// exactly §8.4's "raw persisted value from the pre-commit keys" — empty for an
+// exactly the raw persisted value from the pre-commit keys — empty for an
 // untouched slot, the stale hand-edited slug otherwise — and routing it through the
-// setting is what substitutes §8.3's shipped default for the empty case at the ONE
+// setting is what substitutes the shipped default for the empty case at the ONE
 // site that owns that rule. An untouched slot therefore resolves the shipped default
 // from the embedded set with FellBack false, rather than arriving empty and being
 // reported as a fallback of a slug nobody set.
 //
-// ON THE §7.6 FATAL IT DEGRADES AND NOTHING MOVES, the policy applyInForceTheme
+// ON THE BROKEN-BUILTIN FATAL IT DEGRADES AND NOTHING MOVES, the policy applyInForceTheme
 // states for every panel call site of the seam: a settings surface must not become
 // the route by which a broken binary quits Portal mid-session. Returning BEFORE the
 // two assignments is what makes that a genuine no-op rather than a half-converted
 // model holding a light/dark answer with no pair to select from.
 //
-// IT NEVER CALLS ApplyTheme. A commit is a WRITE, NOT A NAVIGATION (§9.2), so the
+// IT NEVER CALLS ApplyTheme. A commit is a WRITE, NOT A NAVIGATION, so the
 // pair is completed while the screen keeps previewing whatever the cursor is on. The
-// join is model consistency rather than a dependency of the close: task 8-10's `Esc`
+// join is model consistency rather than a dependency of the close: the `Esc`
 // re-resolves from persisted state regardless.
 func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
 	newlyLive := oppositeThemeSlot(assigned)
@@ -233,11 +235,11 @@ func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
 }
 
 // oppositeThemeSlot is the half of the adaptive pair the keypress did NOT assign —
-// the one §8.4 loads.
+// the one construction loads.
 //
 // It maps the prefs slot the keypress threaded onto the resolution's own, which are
 // separate types because they name different things: one is what prefs.json writes,
-// the other is what a §8.5 fallback is matched against. There is no third value on
+// the other is what a fallback is matched against. There is no third value on
 // either side to fall through to — prefs.SaveThemeSlot rejects an out-of-range slot
 // and commitSlot has already returned on that error — so the light case and its
 // complement are the whole of it.
@@ -249,11 +251,11 @@ func oppositeThemeSlot(assigned prefs.ThemeSlot) theme.Slot {
 }
 
 // persistedSlotSlug is the slug one slot of the mirrored keys nominates, with
-// §8.3's shipped default already substituted for an unset one.
+// the shipped default already substituted for an unset one.
 //
 // It reads through themeSetting rather than off RawKeys so the unset-slot rule has
 // the single site it has everywhere else in the panel — what the panel LISTS, MARKS
-// and RESOLVES all collapse §8.2's keys through that one function, and a second
+// and RESOLVES all collapse the raw keys through that one function, and a second
 // substitution here is how an untouched slot would come to resolve one default in
 // the badges and another in the load.
 func (m Model) persistedSlotSlug(slot theme.Slot) string {
@@ -264,11 +266,11 @@ func (m Model) persistedSlotSlug(slot theme.Slot) string {
 	return setting.Dark
 }
 
-// joinNomination completes §8.2's pair: the newly-loaded palette in the slot that
+// joinNomination completes the pair: the newly-loaded palette in the slot that
 // just became live, and the one already in hand in the slot the user assigned.
 //
 // THE ASSIGNED MEMBER IS THE PREVIEWED PALETTE, and that is an identity rather than
-// an approximation: §9.2's arrow-preview applies the cursor row's own palette, the
+// an approximation: the arrow-preview applies the cursor row's own palette, the
 // confirm captures the slug the cursor was on and swallows every key that could move
 // it, and a commit takes the CURSOR's slug — so the palette on screen is the parse
 // of the slug just written. Taking it from here is what keeps the assigned slot
@@ -280,15 +282,15 @@ func joinNomination(newlyLive theme.Slot, loaded, assigned theme.Theme) theme.No
 	return theme.AdaptivePair(assigned, loaded)
 }
 
-// retainedCanvasAnswer is §9.3's ANSWER HALF: the light/dark classification of the
+// retainedCanvasAnswer is the transition's ANSWER HALF: the light/dark classification of the
 // OSC 11 reply this launch already received, which a constant-theme launch retained
 // without ever turning into an answer.
 //
-// §9.3 dissolves the transition precisely because the answer already arrived —
-// Model.Init issues the OSC 11 query REGARDLESS of the setting's shape (§8.8), since
+// The transition dissolves precisely because the answer already arrived —
+// Model.Init issues the OSC 11 query REGARDLESS of the setting's shape, since
 // restore-on-exit needs the original background independently of detection. So a
 // conversion starts USING an answer already in hand: no new query, no new race, no
-// new gate, and §8.8's resolve-once rule untouched — a reply landing after this point
+// new gate, and the resolve-once rule untouched — a reply landing after this point
 // still never re-themes.
 //
 // IT IS NOT READ OFF THE GATE. A constant's gate is pinned and its appearance is the
@@ -297,9 +299,9 @@ func joinNomination(newlyLive theme.Slot, loaded, assigned theme.Theme) theme.No
 // terminal in the product. The retained reply is the only value that is a fact about
 // the terminal.
 //
-// NO REPLY AT ALL FALLS TO DARK — §8.8's no-answer fallback, the same rule as
+// NO REPLY AT ALL FALLS TO DARK — the standing no-answer fallback, the same rule as
 // everywhere else. Two states reach it: a terminal that never answers OSC 11, where
-// nothing arrives however late the panel is opened, and §9.3's own case of a panel
+// nothing arrives however late the panel is opened, and the case of a panel
 // opened within milliseconds of launch, before the answer landed.
 //
 // A NO-ANSWER-SHAPED REPLY IS NEITHER OF THEM. A nil colour still ARRIVES, leaving an
@@ -314,7 +316,7 @@ func (m Model) retainedCanvasAnswer() canvasAppearance {
 }
 
 // The two answer letters, as the dispatch matches them. They are the terse forms
-// §9.2 pins and the ones themePanelConfirmKeymap advertises in the substituted
+// the confirm accepts and the ones themePanelConfirmKeymap advertises in the substituted
 // footer; the descriptor carries them for DISPLAY and this pair for DISPATCH, which
 // is the parity keymap_dispatch_guard_test's contract exists to hold.
 const (
@@ -323,7 +325,7 @@ const (
 )
 
 // themeConfirmAnswer reports whether msg answers the confirm with the given letter,
-// in EITHER case (§9.2: "`y` or `Y` confirms", "`n`, `N` or `Esc` cancels").
+// in EITHER case: `y` or `Y` confirms, `n`, `N` or `Esc` cancels.
 //
 // IT IS NOT isRuneKey, AND THE DIFFERENCE IS THE UPPERCASE HALF. AN UPPERCASE ANSWER
 // NEVER REACHES PORTAL WITH A CLEAR MODIFIER FIELD — the two encodings CONVERGE on
@@ -335,7 +337,7 @@ const (
 // (1442-1444), and Text — empty out of the code parse — is filled in as the shifted
 // "Y" (decoder.go:1504-1517). isRuneKey requires `Mod == 0`, so pinning
 // the dispatch to it would leave `Y` dead on EVERY terminal rather than on some
-// richer-protocol subset — a key §9.2 names as an answer, silently swallowed
+// richer-protocol subset — a key that is an answer, silently swallowed
 // everywhere. (Its `Text == ch` comparison fails the case anyway; the point is that
 // case-folding ALONE would not save it, and that ModShift is not a Kitty-only
 // concern the mask could narrow away.)

@@ -7,22 +7,22 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §3.1 shared header block: the PORTAL wordmark + violet block caret on the
+// The shared header block: the PORTAL wordmark + violet block caret on the
 // left, the right-aligned "session manager" subtitle on the same band, over a
 // full-width separator rule. It is the first visible chrome of every owned-canvas
 // surface (Sessions first; later surfaces compose the same block).
 //
 // Every cell the header emits carries the owned canvas background (leaf
-// .Background(canvas), §1) so there is no terminal-bg island behind the band or
+// .Background(canvas)) so there is no terminal-bg island behind the band or
 // in the right-aligned spacer gap. The outer fill in View() (model.fillCanvas)
 // still owns the line-end pad and the empty rows below — this only paints the
-// header's own cells. Under the NO_COLOR carve-out (§2.5) the header drops every
+// header's own cells. Under the NO_COLOR carve-out the header drops every
 // hue and the canvas background, rendering on the terminal's native fg/bg with
 // the structure (wordmark / caret / subtitle / rule) intact.
 
 const (
 	// fullWordmark is the letter-spaced PORTAL wordmark (≈0.26em letter-spacing
-	// approximated as one cell between each glyph, §3.1). It is the default,
+	// approximated as one cell between each glyph). It is the default,
 	// full-width form.
 	fullWordmark = "P O R T A L"
 	// headerCompactWordmark is the narrow-degrade step-2 collapse: the same letters
@@ -30,9 +30,9 @@ const (
 	// width without overflowing.
 	headerCompactWordmark = "PORTAL"
 	// headerCaret is the one retained retro flourish — a solid block caret in
-	// accent.violet, immediately right of the wordmark (§3.1).
+	// accent.violet, immediately right of the wordmark.
 	headerCaret = "▌"
-	// headerSubtitle is the right-aligned subtitle in text.detail (§3.1).
+	// headerSubtitle is the right-aligned subtitle in text.detail.
 	headerSubtitle = "session manager"
 	// headerRuleGlyph is the full-width separator rule glyph (border.separator).
 	// The lower-block sits at the BOTTOM edge of its cell (not the vertical middle
@@ -47,13 +47,13 @@ const (
 // viewLoading) so the header still composes before the first WindowSizeMsg.
 const headerFallbackWidth = 80
 
-// minTerminalWidth is the minimum supported terminal width (§2.7). At or below
+// minTerminalWidth is the minimum supported terminal width. At or below
 // the per-dimension thresholds below the header degrades rather than overflows;
 // this is the floor the narrow-degrade tests exercise.
 const minTerminalWidth = 40
 
-// Narrow-degrade thresholds (§2.7, progressive per-dimension). Pinned here as the
-// implementation detail the spec defers. Measured against the full band layout:
+// Narrow-degrade thresholds, progressive per-dimension. Measured against the full
+// band layout:
 //
 //   - headerSubtitleMinWidth: the band is `<wordmark>+caret  <subtitle>` with at
 //     least a two-cell gap. Full wordmark+caret is 13 cells (11 letter-spaced + a
@@ -104,7 +104,7 @@ func headerCanvasBg(th theme.Theme, colourless bool) lipgloss.Style {
 }
 
 // headerWordmarkFor selects the wordmark form for the given laid-out width: the
-// compact form below the wordmark threshold (§2.7 step 2), the full letter-spaced
+// compact form below the wordmark threshold (degrade step 2), the full letter-spaced
 // form otherwise.
 func headerWordmarkFor(width int) string {
 	if width < headerWordmarkMinWidth {
@@ -114,15 +114,15 @@ func headerWordmarkFor(width int) string {
 }
 
 // headerShowsSubtitle reports whether the right-aligned subtitle renders at the
-// given laid-out width (§2.7 step 1 drops it below the subtitle threshold).
+// given laid-out width (degrade step 1 drops it below the subtitle threshold).
 func headerShowsSubtitle(width int) bool {
 	return width >= headerSubtitleMinWidth
 }
 
 // headerSeparatorRule renders the full-width separator rule beneath the header
-// band (§3.1). It is one row of the heavy box-drawing horizontal in
+// band. It is one row of the heavy box-drawing horizontal in
 // border.separator (terminal 2px ≈ a heavy/thick horizontal rule, matching the
-// Paper frame weight). Under the NO_COLOR carve-out the rule keeps its glyphs but
+// design's rule weight). Under the NO_COLOR carve-out the rule keeps its glyphs but
 // drops the colour and the canvas, rendering on the terminal's native fg/bg.
 func headerSeparatorRule(width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
@@ -141,7 +141,7 @@ func blankCanvasRow(w int, th theme.Theme, colourless bool) string {
 	return headerCanvasBg(th, colourless).Render(strings.Repeat(" ", w))
 }
 
-// renderHeaderBlock renders the §3.1 header block for the given terminal width and
+// renderHeaderBlock renders the header block for the given terminal width and
 // resolved canvas mode (and NO_COLOR carve-out). Three rows, top to bottom:
 //
 //	band, rule, blank
@@ -173,7 +173,7 @@ func blankCanvasRow(w int, th theme.Theme, colourless bool) string {
 // applyCanvasMode, which the list measures and reserves separately.)
 //
 // The block never overflows: a width below the per-dimension thresholds drops the
-// subtitle then collapses the wordmark to its compact form (§2.7).
+// subtitle then collapses the wordmark to its compact form.
 func renderHeaderBlock(width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	band := headerBand(w, th, colourless)
@@ -244,7 +244,7 @@ func headerPadRight(seg string, segWidth, w int, th theme.Theme, colourless bool
 // cell out to w carries the canvas. A segment already at/over w is returned
 // unchanged, matching its sibling's clamp.
 //
-// It exists for §14.4's bottom rung — the width at which the `? help` anchor
+// It exists for the footer's bottom degrade rung — the width at which the `? help` anchor
 // survives ALONE, with no left cluster beside it to flex a spacer against.
 func headerPadLeft(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
 	if segWidth >= w {

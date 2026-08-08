@@ -19,7 +19,7 @@ import (
 // skipTmuxCheck contains command names that do not require tmux.
 // If any command in the parent chain matches, the tmux check is skipped.
 //
-// Per the resurrection spec, the exempt set is:
+// The exempt set is:
 //   - alias / help / init / version: user-facing config or help
 //   - hook: hook set/rm/list are pure config-file operations that need
 //     only $TMUX_PANE (already guaranteed because they run inside a tmux
@@ -185,9 +185,8 @@ var rootCmd = &cobra.Command{
 
 		runner, client, registerHooks := buildBootstrapDeps()
 
-		// Latch-driven three-way branch (spec § Latch-Check Placement &
-		// Abridged-Path Wiring). The verdict is read EXACTLY ONCE here and
-		// threaded downstream — it is never re-read:
+		// Latch-driven three-way branch. The verdict is read EXACTLY ONCE here
+		// and threaded downstream — it is never re-read:
 		//
 		//   - satisfied (present AND stored version == running version) ->
 		//     ABRIDGED path below: liveness-only EnsureSaver + sync-plumbing
@@ -225,7 +224,7 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
-		// §10.2 startup flip — concurrent full-bootstrap route on the TUI path.
+		// Startup flip — concurrent full-bootstrap route on the TUI path.
 		//
 		// shouldRunConcurrentBootstrap scopes the concurrent full bootstrap to the
 		// TUI path (`isTUIPath` decides TUI) when the latch is NOT satisfied — i.e.
@@ -261,11 +260,9 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Feed every soft warning into the package-level sink so the TUI
-		// path can drain post-loading-page dismissal (task 6-10). The CLI
-		// path (every command except `portal open` with zero positional
-		// args) drains here so warnings precede the command's own
-		// stdout/stderr — see spec, Observability → Proactive Health
-		// Signals → TUI interaction.
+		// path can drain it once the loading page dismisses. The CLI path
+		// (every command except `portal open` with zero positional args)
+		// drains here so warnings precede the command's own stdout/stderr.
 		for _, w := range warnings {
 			bootstrapWarnings.Add(w)
 		}
@@ -313,9 +310,9 @@ func isTUIPath(cmd *cobra.Command, args []string) bool {
 // anyOpenDomainPin reports whether a domain-pin flag (-s/-p/-z/-a) is set on an
 // open invocation. Such invocations dispatch a single resolved target directly
 // (never the TUI picker), so they must take the synchronous direct-path
-// bootstrap — matching the retired `attach`'s behaviour (spec § attach —
-// Retired: "--session/--path never fall back to the TUI picker") and the
-// command-agnostic bootstrap fast-path. -f/--filter and -e/--exec still launch
+// bootstrap — matching the retired `attach`'s behaviour (--session/--path never
+// fall back to the TUI picker) and the command-agnostic bootstrap fast-path.
+// -f/--filter and -e/--exec still launch
 // the picker, so they are NOT domain pins and do not flip isTUIPath. At
 // PersistentPreRunE time cobra has already parsed flags, so Flags().Changed is
 // populated on the matched openCmd.
@@ -327,9 +324,9 @@ func anyOpenDomainPin(cmd *cobra.Command) bool {
 	return slices.ContainsFunc(openDomainPinFlags, cmd.Flags().Changed)
 }
 
-// shouldRunConcurrentBootstrap is the routing decider for the §10.2 startup
-// flip: it reports whether this invocation takes the concurrent + loading-screen
-// route rather than the synchronous one.
+// shouldRunConcurrentBootstrap is the routing decider for the startup flip: it
+// reports whether this invocation takes the concurrent + loading-screen route
+// rather than the synchronous one.
 //
 // The concurrent/loading route fires whenever a FULL bootstrap runs on the TUI
 // path — keyed off latch-not-satisfied (the verdict computed once upstream in
@@ -348,8 +345,8 @@ func anyOpenDomainPin(cmd *cobra.Command) bool {
 //     classifies synchronous.
 //
 // latchSatisfied is passed in rather than recomputed here: the abridged branch
-// returns upstream on the satisfied path (see Task 2-3), so by the time this
-// decider is reached !latchSatisfied is effectively always true — but it is
+// returns upstream on the satisfied path, so by the time this decider is
+// reached !latchSatisfied is effectively always true — but it is
 // threaded explicitly to preserve the single-read invariant and to keep the
 // contract self-describing.
 func shouldRunConcurrentBootstrap(cmd *cobra.Command, args []string, client *tmux.Client, latchSatisfied bool) bool {

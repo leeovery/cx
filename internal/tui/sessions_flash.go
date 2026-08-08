@@ -7,9 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Sessions-page inline-flash tick-based auto-clear infrastructure (spec
-// § Inline flash — feature-local infrastructure > Clear conditions,
-// § Replacement on rapid successive bails).
+// Sessions-page inline-flash tick-based auto-clear infrastructure — the clear
+// conditions and the replacement rule on rapid successive bails.
 //
 // The state primitives (setFlash, clearFlash, flashText, flashGen) live
 // on Model in model.go. This file groups the tick-clear plumbing:
@@ -24,11 +23,8 @@ import (
 // handler compares the captured gen against the live m.flashGen and
 // clears only on match. setFlash bumps flashGen monotonically, so any
 // superseded tick mismatches and is silently dropped.
-//
-// No caller schedules a tick in this task (2-3) — tasks 2-5 and 2-6
-// wire the scheduling at bail and replacement-bail moments.
 
-// flashKind is the §11.2 MV styling variant of an active inline flash. The zero
+// flashKind is the styling variant of an active inline flash. The zero
 // value is flashWarning so the externally-killed bail (which calls the
 // unparameterised setFlash) stays the orange ⚠ warning band; flashSuccess is the
 // explicit green ✓ success variant. The arbiter (activeNoticeBand) maps it to the
@@ -44,7 +40,7 @@ const (
 )
 
 // flashOrigin is WHERE an inline flash came from, and it exists for exactly one
-// reason: §14A gives the theme signals precedence over the filter line in the §11
+// reason: the theme signals take precedence over the filter line in the
 // notice band's order, and every other flash keeps today's position. That is a
 // change scoped to those flashes, so the FLASH has to carry the discrimination —
 // the band inferring it from the message text would re-order a signal the moment
@@ -59,15 +55,14 @@ type flashOrigin int
 const (
 	// flashOriginDefault is an ordinary flash — today's band order, unchanged.
 	flashOriginDefault flashOrigin = iota
-	// flashOriginTheme is one of §14A's theme signals — the tier that claims the
+	// flashOriginTheme is one of the theme signals — the tier that claims the
 	// notice slot even while the filter line is live.
 	flashOriginTheme
 )
 
 // flashAutoClearDuration is how long an inline flash lingers before the
-// tick-based auto-clear fires. Spec § Inline flash > Clear conditions
-// notes "~3s as a reasonable default" — long enough to read, short
-// enough not to linger.
+// tick-based auto-clear fires. ~3s is long enough to read and short enough not
+// to linger.
 const flashAutoClearDuration = 3 * time.Second
 
 // flashTickMsg is the Bubble Tea message emitted by a scheduled
@@ -93,8 +88,7 @@ func flashTickCmd(gen uint64) tea.Cmd {
 
 // isActionableKey reports whether a tea.KeyPressMsg is an actionable
 // keystroke — i.e. one that should clear an active inline flash as a
-// side effect (spec § Inline flash > Clear conditions, § Flash
-// interaction with filter input).
+// side effect, including while filter input is focused.
 //
 // Defensive shape: a key press carrying a non-zero Code (any named key like
 // KeyEnter, KeyEscape, KeyDown, or a printable rune) OR non-empty Text counts
@@ -112,9 +106,9 @@ func isActionableKey(msg tea.KeyPressMsg) bool {
 	return msg.Code != 0 || msg.Text != ""
 }
 
-// formatSessionGoneFlash returns the spec-exact wording for the
-// session-killed-externally bail flash: `session "<name>" no longer exists`
-// (spec § Session-killed-externally bail path > Behaviour). Literal
+// formatSessionGoneFlash returns the pinned wording for the
+// session-killed-externally bail flash: `session "<name>" no longer exists`.
+// Literal
 // double-quote bytes wrap the name — never %q — so output is byte-exact
 // regardless of name content (spaces, dashes, unicode, etc.).
 //

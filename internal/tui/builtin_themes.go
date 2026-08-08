@@ -23,12 +23,12 @@ func defaultDarkTheme() theme.Theme {
 // loadBuiltinTheme loads one built-in by slug, returning the zero Theme if the
 // embedded set somehow does not carry it.
 //
-// There is deliberately NO fallback beneath it. §7.6 makes a broken built-in
+// There is deliberately NO fallback beneath it. A broken built-in is
 // impossible at BUILD time rather than handled at runtime — the embedded set is
 // parsed and validated by a unit test, and the two default slugs are asserted to
 // resolve within it — so a rejection here would mean a binary shipped with a
-// broken default. §8.5's per-slot fallback belongs to the nomination's RESOLUTION
-// (Phase 5), not to this seed; inventing an interim fallback here would be a
+// broken default. The per-slot fallback belongs to the nomination's RESOLUTION,
+// not to this seed; inventing an interim fallback here would be a
 // second, unspecified resolution policy.
 func loadBuiltinTheme(loader theme.Loader, slug string) theme.Theme {
 	loaded, _, _ := loader.LoadBuiltin(slug)

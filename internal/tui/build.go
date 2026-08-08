@@ -46,19 +46,19 @@ type Deps struct {
 	DirReader       session.PaneCurrentPathReader
 	DirRunner       resolver.CommandRunner
 	ModePersister   ModePersister
-	// ThemePersister is §8.9's theme-commit seam. Production (cmd/open.go) passes
+	// ThemePersister is the theme-commit seam. Production (cmd/open.go) passes
 	// its own cmd-owned persister — the single emission site for
 	// `theme: commit failed` — and the offline capture harness passes none, so a
 	// commit during a capture writes nowhere, exactly as ModePersister behaves.
 	ThemePersister ThemePersister
-	// ThemeEnumerator is §13.3's panel seam — the TmuxEnumerator /
-	// ScrollbackReader idiom applied to §9.4's union. Production (cmd/open.go)
+	// ThemeEnumerator is the panel's theme seam — the TmuxEnumerator /
+	// ScrollbackReader idiom applied to the theme union. Production (cmd/open.go)
 	// passes an adapter closing over the process's theme.Loader and the resolved
 	// themes directory; a fixture passes a fake holding a hand-built union, which
 	// is what lets internal/capture render a panel under its no-real-config import
 	// guard. Nil is the ordinary unwired state and makes `t` a silent no-op.
 	ThemeEnumerator ThemeEnumerator
-	// Detector + Resolve are the async host-terminal detection seams (§6). Both are
+	// Detector + Resolve are the async host-terminal detection seams. Both are
 	// injected together by cmd/open.go (Detector = spawn.NewDetector(client), Resolve
 	// = the config-aware resolver's Resolve, loaded once from terminals.json) and
 	// nil in the offline capture harness. Nil-tolerant: a nil Detector leaves
@@ -66,7 +66,7 @@ type Deps struct {
 	Detector TerminalDetector
 	Resolve  spawn.AdapterResolver
 
-	// §6-3 N≥2 picker-burst seams. Injected together by cmd/open.go (defaults
+	// N≥2 picker-burst seams. Injected together by cmd/open.go (defaults
 	// client.HasSession / a shared server-option ack channel / os.Executable /
 	// os.Getenv) and nil in the offline capture harness. Nil-tolerant: a nil field
 	// leaves that capability unwired, matching an omitted With* option. The RESOLVE
@@ -75,7 +75,7 @@ type Deps struct {
 	AckChannel    spawn.AckChannelFull
 	SpawnExe      spawn.ExecutableResolver
 	SpawnGetenv   func(string) string
-	// SpawnLogger is the §6-10 spawn-component logger the burst completion chokepoint
+	// SpawnLogger is the spawn-component logger the burst completion chokepoint
 	// emits its batch summary + per-window detail through. Injected by cmd/open.go
 	// (log.For("spawn")) and nil in the offline capture harness. Nil-tolerant: the
 	// emit methods route through log.OrDiscard, so a nil logger silently discards.
@@ -85,31 +85,31 @@ type Deps struct {
 	CWD         string
 	InitialMode prefs.SessionListMode
 	// Theme is the LOADED theme setting — one Theme under a constant, both under
-	// an adaptive pair (§8.4). It is the SINGLE driver of the owned canvas (§1)
+	// an adaptive pair. It is the SINGLE driver of the owned canvas
 	// and replaces the light/dark appearance that used to be injected here: a
-	// theme IS the mode, so there is no mode left to pin (§13.3).
+	// theme IS the mode, so there is no mode left to pin.
 	//
 	// Build injects it via WithThemeNomination and the model resolves the painted
 	// palette from its SHAPE — a constant paints from frame one with no detection,
-	// a pair resolves through OSC 11 detection (the §2.6 detect-or-timeout gate)
+	// a pair resolves through OSC 11 detection (the detect-or-timeout gate)
 	// with a dark fallback. The offline capture harness always passes the CONSTANT
 	// shape, so its frames are un-gated and byte-stable.
 	Theme theme.Nomination
 	// ThemeKeys are prefs.json's three theme keys AS READ — control-stripped,
-	// post-translation, no defaults substituted (§8.4). The nomination alone is
+	// post-translation, no defaults substituted. The nomination alone is
 	// insufficient for the panel in three ways it cannot recover: a slug that never
 	// loaded is not in it, a badge needs the PERSISTED slug rather than the
-	// nomination's wherever the two differ under a fallback, and §14A's confirm
+	// nomination's wherever the two differ under a fallback, and the confirm
 	// renders the persisted constant. Its zero value is the shipped adaptive pair —
 	// what an unconfigured install renders anyway — so there is no nil-guard.
 	//
 	// It is a SNAPSHOT: the panel re-reads the themes directory on every open
-	// (§5.8) but never re-reads prefs.json, because prefs is what Portal itself
-	// writes and re-reading it would import another instance's commit (§8.4).
+	// on every open but never re-reads prefs.json, because prefs is what Portal
+	// itself writes and re-reading it would import another instance's commit.
 	//
-	// There is deliberately NO per-slot resolution record beside it. §9.5's `●`
+	// There is deliberately NO per-slot resolution record beside it. The `●`
 	// needs one, but the panel derives it at OPEN from ThemeEnumerator.Resolve —
-	// the re-resolution against the enumeration it just read (§5.8) — and badges
+	// the re-resolution against the enumeration it just read — and badges
 	// exist only while the panel is open. An injected record would be a second,
 	// staler source of truth for which slug carries the marker, and the one a
 	// fixture author would reach for; a fixture declares its slots through the
@@ -117,34 +117,34 @@ type Deps struct {
 	ThemeKeys theme.RawKeys
 
 	InitialFilter string
-	// InitialFlash seeds the §11.2 inline WARNING flash on the first frame (the
+	// InitialFlash seeds the inline WARNING flash on the first frame (the
 	// orange ▌ bar + ⚠ + message on the bg.warning tint). It exists for the offline
 	// capture harness: the flash is otherwise transient (set only by the
 	// preview-bail path), so the fixture seeds the band directly to screenshot it.
 	// Empty (the production default) leaves no flash. Only the warning variant is
 	// seedable — the success variant is not separately captured.
 	InitialFlash string
-	// InitialMultiSelect seeds the §5 multi-select mode on the first frame with the
+	// InitialMultiSelect seeds multi-select mode on the first frame with the
 	// named sessions pre-marked (keyed on Session.Name). It exists for the offline
 	// capture harness: multi-select is otherwise entered by the `m` key, so the
 	// fixture seeds the mode directly to screenshot it. Empty (the production
 	// default) leaves the model in normal mode.
 	InitialMultiSelect []string
-	// InitialCursor seeds the §5 capture-only cursor anchor: the name of the session
+	// InitialCursor seeds the capture-only cursor anchor: the name of the session
 	// row the cursor lands on once the list loads. It exists so the multi-select
 	// capture can put the cursor on a marked (banded) row. Empty is a no-op;
 	// production never sets it (the live picker keeps the default index-0 cursor).
 	InitialCursor string
-	// InitialThemeCursor seeds §13.3's fourth panel-fixture input: the row IDENTITY
+	// InitialThemeCursor seeds the capture-only panel cursor anchor: the row IDENTITY
 	// the theme panel's cursor lands on once the panel has opened. It exists for
-	// the offline capture harness, which renders one-shot frames: §9.2 puts the
+	// the offline capture harness, which renders one-shot frames: the open puts the
 	// cursor on the theme actually rendering at open, so the mandated
 	// constant-while-previewing frame — a cursor on a row OTHER than the marked one
 	// — is otherwise reachable only by arrowing. It is PLACEMENT ONLY and applies
 	// no theme, so the rendered palette stays the one the nomination carries. Empty
 	// is a no-op; production never sets it.
 	InitialThemeCursor string
-	// InitialThemeConfirm seeds §9.2's slot-from-constant confirm once the theme
+	// InitialThemeConfirm seeds the slot-from-constant confirm once the theme
 	// panel has opened, exactly as an `l` over a persisted constant would raise it.
 	// It exists for the offline capture harness, which renders one-shot frames: the
 	// confirm is otherwise reached only by a keypress, and it is the only surface on
@@ -152,10 +152,10 @@ type Deps struct {
 	// standing four keys, none of which would act) can be seen.
 	//
 	// It is a BOOL because it declares STATE and never text: the copy is composed
-	// from §14A's pinned format by the message slot itself, so no fixture can ship a
+	// from the message slot's own pinned format, so no fixture can ship a
 	// paraphrase. False is a no-op; production never sets it.
 	InitialThemeConfirm bool
-	// InitialThemeCommitFailed seeds §9.13's failed-commit report once the theme
+	// InitialThemeCommitFailed seeds the failed-commit report once the theme
 	// panel has opened: the message slot's pinned line plus the outstanding-failure
 	// state, exactly as a write that did not land leaves them. It exists for the
 	// offline capture harness, which renders one-shot frames and wires NO theme
@@ -165,15 +165,15 @@ type Deps struct {
 	// Like its confirm sibling it is a BOOL because it declares STATE and never
 	// text. False is a no-op; production never sets it.
 	InitialThemeCommitFailed bool
-	// InitialDetection seeds the §6 host-terminal detection cache on the first frame
+	// InitialDetection seeds the host-terminal detection cache on the first frame
 	// with the given identity already resolved (via spawn.ResolveAdapter, so a
-	// non-NULL Apple Terminal resolves unsupported and the proactive §6.2 banner
+	// non-NULL Apple Terminal resolves unsupported and the proactive banner
 	// renders). It exists for the offline capture harness: detection is otherwise an
 	// async lifecycle dispatched on reaching PageSessions, so the fixture seeds the
 	// resolved cache directly to screenshot the banner. Nil (the production default)
 	// leaves detection unwired.
 	InitialDetection *spawn.Identity
-	// InitialGoneFlagged seeds the §6-7 pre-flight abort state on the first frame: the
+	// InitialGoneFlagged seeds the pre-flight abort state on the first frame: the
 	// gone-row set (the delegate draws the red ⚠ + `session gone` badge for it) plus
 	// the red section-header abort banner text, composed identically to
 	// handlePreflightAbort. It exists for the offline capture harness: the abort is
@@ -181,7 +181,7 @@ type Deps struct {
 	// fixture seeds it directly (over an in-multi-select model) to screenshot the
 	// frame. Empty (the production default) leaves no abort banner.
 	InitialGoneFlagged []string
-	// InitialBurstOpening seeds the §6-5 in-burst Opening band on the first frame as
+	// InitialBurstOpening seeds the in-burst Opening band on the first frame as
 	// (done, total): a non-zero pair marks the burst pending and seeds the `Opening
 	// done/total…` counters. It exists for the offline capture harness: the burst is
 	// otherwise driven by dispatchBurst + its progress goroutine, so the fixture seeds
@@ -192,13 +192,13 @@ type Deps struct {
 	ServerStarted       bool
 	InsideTmux          bool
 	CurrentSession      string
-	// ProgressReceiver is the §10.2 concurrent cold-boot route's channel-receive
+	// ProgressReceiver is the concurrent cold-boot route's channel-receive
 	// tea.Cmd. cmd/open.go sets it only on the cold + TUI path (bootstrap deferred
 	// to a goroutine); nil on every synchronous path. When set, Build wires
 	// WithProgressReceiver so Init streams live per-step progress from the channel
 	// and the channel owns the terminal BootstrapCompleteMsg.
 	ProgressReceiver tea.Cmd
-	// NoColor is the NO_COLOR carve-out decision (§2.5). The cmd layer reads
+	// NoColor is the NO_COLOR carve-out decision. The cmd layer reads
 	// os.Getenv("NO_COLOR") (present and non-empty, the no-color.org convention)
 	// and injects the boolean here so internal/tui stays env-free. Build sets ONE
 	// colourless flag on the model (WithColourless); every canvas-dependent surface
@@ -260,10 +260,10 @@ func Build(deps Deps) Model {
 	// the painted palette from its shape: constant → immediate; pair → OSC 11
 	// detect-or-timeout.
 	opts = append(opts, WithThemeNomination(deps.Theme))
-	// NoColor is the single NO_COLOR carve-out (§2.5). When set it WINS over the
+	// NoColor is the single NO_COLOR carve-out. When set it WINS over the
 	// shape-driven gate (New consumes it after the options apply): the canvas is
 	// suppressed and detection is skipped, though both nominated themes are still
-	// held and the dark member still selected (§9.10). Always injected — false is
+	// held and the dark member still selected. Always injected — false is
 	// the no-op coloured path, so omitting it leaves the canvas painted.
 	opts = append(opts, WithColourless(deps.NoColor))
 	if deps.ModePersister != nil {
@@ -273,52 +273,52 @@ func Build(deps Deps) Model {
 		opts = append(opts, WithThemePersister(deps.ThemePersister))
 	}
 	// The raw persisted keys are always injected — the zero value is meaningful
-	// (§8.4: no keys IS the shipped adaptive pair), so there is nothing to guard.
+	// (no keys IS the shipped adaptive pair), so there is nothing to guard.
 	opts = append(opts, WithThemeKeys(deps.ThemeKeys))
 	// The panel seam is injected through its own nil-tolerant option rather than
 	// behind an `if deps.ThemeEnumerator != nil` gate like its persister
 	// neighbours: the gate cannot see a TYPED nil, and the option can (see
 	// WithThemeEnumerator). One guard, in the one place that catches both shapes.
 	opts = append(opts, WithThemeEnumerator(deps.ThemeEnumerator))
-	// Async host-terminal detection seams (§6). Always injected via nil-tolerant
+	// Async host-terminal detection seams. Always injected via nil-tolerant
 	// options — a nil Detector/Resolve leaves detection unwired, mirroring the
 	// capture harness (which passes neither).
 	opts = append(opts, WithTerminalDetector(deps.Detector))
 	opts = append(opts, WithResolve(deps.Resolve))
 
-	// §6-3 N≥2 picker-burst seams. Always injected via nil-tolerant options — a nil
+	// N≥2 picker-burst seams. Always injected via nil-tolerant options — a nil
 	// seam leaves the burst unwired, mirroring the capture harness (which passes
 	// none). Production supplies all four via cmd/open.go's buildTUIModel.
 	opts = append(opts, WithSessionExists(deps.SessionExists))
 	opts = append(opts, WithAckChannel(deps.AckChannel))
 	opts = append(opts, WithSpawnExe(deps.SpawnExe))
 	opts = append(opts, WithSpawnGetenv(deps.SpawnGetenv))
-	// §6-10 spawn batch-summary logger. Always injected via the nil-tolerant option —
+	// Spawn batch-summary logger. Always injected via the nil-tolerant option —
 	// a nil logger (the capture harness) leaves emission discarded.
 	opts = append(opts, WithSpawnLogger(deps.SpawnLogger))
 
-	// Seed the §11.2 inline warning flash for the capture harness (no-op when empty,
+	// Seed the inline warning flash for the capture harness (no-op when empty,
 	// the production default). Applied as an Option so it is set before the
 	// armAppearanceDetection / first WindowSizeMsg resync reserves the band row.
 	opts = append(opts, WithInitialFlash(deps.InitialFlash))
 
-	// Seed the §5 multi-select mode + cursor anchor for the capture harness (both
+	// Seed multi-select mode + the cursor anchor for the capture harness (both
 	// no-ops when empty, the production default). Applied as Options in the same
 	// window as WithInitialFlash — before armAppearanceDetection — so the marked-set
 	// delegate is armed on the first frame; the cursor anchor is applied later, once
 	// items ingest (evaluateDefaultPage), since it must survive the initial SetItems.
 	opts = append(opts, WithInitialMultiSelect(deps.InitialMultiSelect))
 	opts = append(opts, WithInitialCursor(deps.InitialCursor))
-	// The PANEL seeds (§13.3) are applied here alongside their session-list sibling,
+	// The PANEL seeds are applied here alongside their session-list sibling,
 	// but they land much later: the panel does not exist until `t` is pressed, so
 	// armThemePanel consumes all of them. The cursor anchor places the cursor; the
-	// two message seeds raise §9.1's slot in one or other of its states. Unset on
+	// two message seeds raise the message slot in one or other of its states. Unset on
 	// every production model.
 	opts = append(opts, WithInitialThemeCursor(deps.InitialThemeCursor))
 	opts = append(opts, WithInitialThemeConfirm(deps.InitialThemeConfirm))
 	opts = append(opts, WithInitialThemeCommitFailed(deps.InitialThemeCommitFailed))
 
-	// Seed the §6 picker-burst capture-only frames (all no-ops when unset, the
+	// Seed the picker-burst capture-only frames (all no-ops when unset, the
 	// production default). WithInitialGoneFlagged is applied AFTER WithInitial
 	// MultiSelect so its delegate refresh observes the seeded marked set (survivors
 	// keep their ●, the gone row shows the red flag). WithInitialDetection seeds the
@@ -338,7 +338,7 @@ func Build(deps Deps) Model {
 	if deps.InsideTmux && deps.CurrentSession != "" {
 		m = m.WithInsideTmux(deps.CurrentSession)
 	}
-	// Open the §2.6 detect-or-timeout first-paint window for the LIVE picker. New
+	// Open the detect-or-timeout first-paint window for the LIVE picker. New
 	// constructs an adaptive gate already resolved to the dark fallback (so
 	// directly constructed test models paint immediately); production opens the
 	// window here so the live program holds the neutral blank frame until OSC 11

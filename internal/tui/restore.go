@@ -11,9 +11,9 @@ import (
 // after the Bubble Tea program has returned, by explicitly SETTING the captured
 // original back via OSC 11 (ansi.SetBackgroundColor emits ESC]11;<original>).
 //
-// Why set-back instead of relying on the reset: the owned canvas paint (§ owned
-// canvas) sets the terminal's default background via OSC 11 so the canvas
-// extends into the window gutter. Bubble Tea restores on exit via OSC 111
+// Why set-back instead of relying on the reset: the owned canvas paint sets the
+// terminal's default background via OSC 11 so the canvas extends into the window
+// gutter. Bubble Tea restores on exit via OSC 111
 // (ResetBackgroundColor), but some terminals (mosh/Blink) IGNORE the reset — so
 // the canvas colour sticks after Portal quits. Those same terminals DO honour
 // the OSC 11 set, so writing the captured original back reliably restores them.
@@ -23,14 +23,13 @@ import (
 // and lets Bubble Tea's own OSC 111 reset stand. Any write error is ignored —
 // terminal restoration must never fail the caller's exit path.
 //
-// Under the NO_COLOR carve-out (§2.5 / §9.10) it writes NOTHING AT ALL. Portal
-// paints no canvas and sets no OSC 11 background there, so there is nothing to
-// restore — and the set-back would not be free: the OSC 11 query is issued under
-// every setting shape, so an original IS captured, and explicitly setting a
-// terminal's own reported RGB back is idempotent in RGB terms but not a no-op on
-// a transparent or blurred background, which it would make opaque. The startup
-// canvas hex is still captured as normal under NO_COLOR (§9.10) — defined and
-// unused.
+// Under the NO_COLOR carve-out it writes NOTHING AT ALL. Portal paints no canvas
+// and sets no OSC 11 background there, so there is nothing to restore — and the
+// set-back would not be free: the OSC 11 query is issued under every setting
+// shape, so an original IS captured, and explicitly setting a terminal's own
+// reported RGB back is idempotent in RGB terms but not a no-op on a transparent
+// or blurred background, which it would make opaque. The startup canvas hex is
+// still captured as normal under NO_COLOR — defined and unused.
 //
 // CANVAS-ECHO GUARD — DO NOT DROP THIS GUARD. The OSC 11 query is async and
 // non-gating, so it RACES the canvas set: on some terminals (timing-dependent — a
@@ -43,15 +42,17 @@ import (
 // correctly). Terminals that ignore OSC 111 report a genuine original — not the
 // canvas — so they still get the set-back.
 //
-// THE COMPARISON IS ANCHORED TO THE RETAINED STARTUP CANVAS HEX (§11.4) — the
-// canvas in force during the STARTUP window, captured on the model when the gate
-// selected the active member — and NEVER to the active theme. Under a switchable
-// theme those diverge two ways, and both leave a colour the user never chose stuck
-// in their terminal after Portal exits: a theme committed mid-session, and a quit
+// THE COMPARISON IS ANCHORED TO THE RETAINED STARTUP CANVAS HEX — the canvas in
+// force during the STARTUP window, captured on the model when the gate selected
+// the active member — and NEVER TO THE ACTIVE THEME. Under a switchable theme
+// those diverge two ways, and both leave a colour the user never chose stuck in
+// their terminal after Portal exits: a theme committed mid-session, and a quit
 // with an uncommitted preview active (the panel's previewed theme is the model's
-// active one). Re-deriving the comparison from a theme at exit reintroduces both.
-// It needs no new race handling: the query is issued once from Init, so a later
-// theme switch issues no new query and creates no new race (§11.3).
+// active one). Re-deriving the comparison from a theme at exit — a
+// canvas-hex-of-the-active-theme helper, in any form — reintroduces both, so no
+// such helper may come back. The anchoring needs no new race handling: the query
+// is issued once from Init, so a later theme switch issues no new query and
+// creates no new race.
 //
 // Both program-launch sites (cmd/capturetool and cmd/open.go) call this with the
 // program's output writer after p.Run() returns, so they restore identically.

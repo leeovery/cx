@@ -23,29 +23,27 @@ import (
 )
 
 // resolveLogger binds the "resolve" log component once for the whole open
-// command (a spec-governed amendment to the closed log taxonomy — see the spec
-// § Wrong-guess feedback). openCmd.RunE emits exactly one INFO decision line per
-// bare positional resolved through the guessing chain, so a confusing guess is
-// reconstructable from portal.log. internal/resolver stays a pure, log-free
-// library: the binding and emission live only here.
+// command. openCmd.RunE emits exactly one INFO decision line per bare positional
+// resolved through the guessing chain, so a confusing guess is reconstructable
+// from portal.log. internal/resolver stays a pure, log-free library: the binding
+// and emission live only here.
 var resolveLogger = log.For("resolve")
 
-// themeLogger binds the "theme" log component once for the whole cmd package (a
-// spec-governed amendment to the closed taxonomy, §12.3, with `spawn` and
-// `resolve` as direct precedent).
+// themeLogger binds the "theme" log component once for the whole cmd package,
+// with `spawn` and `resolve` as direct precedent in the closed taxonomy.
 //
 // The component is legitimately emitted from more than one PACKAGE — the loader
-// in internal/theme, the §10.5 translation and the §8.9 theme persister here —
+// in internal/theme, the appearance translation and the theme persister here —
 // because CLAUDE.md's rule is bind once per PACKAGE, which `spawn` and
 // `bootstrap` already span several files under. This is that one binding for
 // cmd: every theme seam constructed here is handed this logger, and nothing else
 // in the package calls log.For("theme").
 //
-// Emission is the CALLER's decision, not the loader's (§12.3): a real component
-// logger goes where a theme is USED — TUI construction, and later the panel and
-// the persister — while `portal doctor`, `portal theme export` and capturetool
-// pass log.Discard() because the component records where a theme is used, never
-// where one is diagnosed.
+// Emission is the CALLER's decision, not the loader's: a real component logger
+// goes where a theme is USED — TUI construction, the panel and the persister —
+// while `portal doctor`, `portal theme export` and capturetool pass
+// log.Discard() because the component records where a theme is used, never where
+// one is diagnosed.
 var themeLogger = log.For("theme")
 
 // openTUIFunc is the function used to launch the TUI. Tests override it via
@@ -78,17 +76,17 @@ type OpenDeps struct {
 	// AckWriter writes the @portal-spawn-<batch>-<token> confirmation marker for
 	// a spawned window (the hidden --ack carrier). When nil, buildAckWriter falls
 	// back to a real @portal-spawn- server-option channel over the shared tmux
-	// client. See writeAckMarker and the spec § Hidden --ack flag.
+	// client. See writeAckMarker.
 	AckWriter spawn.AckWriter
 	// ThemeLoader is the loader TUI construction resolves the persisted theme
 	// setting through. When nil, buildThemeLoader builds the production one (the
 	// embedded built-in set, this package's `theme` component logger).
 	//
-	// It exists for ONE state, and because that state is otherwise unreachable
-	// (§7.6): a binary whose embedded set cannot supply the theme a slot falls back
-	// to. A test injects a loader carrying a BuiltinSource that omits or corrupts a
-	// fallback slug — the seam theme.Loader declares for exactly this — so the
-	// fatal openTUI returns on that path is a path something has actually run.
+	// It exists for ONE state, and because that state is otherwise unreachable: a
+	// binary whose embedded set cannot supply the theme a slot falls back to.
+	// Injecting a loader carrying a BuiltinSource that omits or corrupts a
+	// fallback slug — the seam theme.Loader declares for exactly this — is what
+	// makes the fatal openTUI returns on that path a path something has run.
 	ThemeLoader *theme.Loader
 }
 
@@ -131,8 +129,7 @@ type AttachConnector struct {
 // The exec'd argv is `tmux attach-session -t =<name>`:
 //   - `=` prefixes the target so tmux uses exact-match resolution rather
 //     than prefix match — uniform with HasSession / SelectWindow /
-//     SelectPane / SwitchClient. See spec § Pre-select + attach sequence
-//     > Exact-match target syntax.
+//     SelectPane / SwitchClient.
 func (ac *AttachConnector) Connect(name string) error {
 	tmuxPath := ac.tmuxPath
 	if tmuxPath == "" {
@@ -210,8 +207,8 @@ in host-terminal windows.`,
 			return err
 		}
 
-		// --ack <batch>:<token> is the hidden internal receipt flag (spec § Hidden
-		// --ack flag): a spawned host window writes the @portal-spawn-<batch>-<token>
+		// --ack <batch>:<token> is the hidden internal receipt flag: a spawned
+		// host window writes the @portal-spawn-<batch>-<token>
 		// server option as its last act before the attach/mint handoff. Validate the
 		// value fast, at the very TOP of RunE — before the -f branch and the pin
 		// blocks (which touch tmux via ListSessionNames) — so a malformed value is a
@@ -223,14 +220,13 @@ in host-terminal windows.`,
 			}
 		}
 
-		// -f/--filter is the sole non-composing flag (spec § -f/--filter is the sole
-		// non-composing flag; § Target-set composition): not a target, but a "skip
+		// -f/--filter is the sole non-composing flag: not a target, but a "skip
 		// resolution, open the picker pre-filtered" redirect. Handled BEFORE
 		// resolution AND before the pin dispatch blocks — it never routes through the
 		// query resolver, so `open -f x -s y` is rejected rather than resolving the
 		// pin. It is mutually exclusive with a positional target AND with every domain
 		// pin (-s/-p/-z/-a); only the command (-e/--) may accompany it, specialising
-		// the picker to filtered-Projects mode (Task 2-7). An empty value is rejected,
+		// the picker to filtered-Projects mode. An empty value is rejected,
 		// mirroring the empty -e guard.
 		if cmd.Flags().Changed("filter") {
 			filterVal, _ := cmd.Flags().GetString("filter")
@@ -243,15 +239,14 @@ in host-terminal windows.`,
 			return openTUIFunc(cmd, filterVal, command, serverWasStarted(cmd))
 		}
 
-		// Multi-target routing gate (spec § Atomic pre-flight & partial failure; §
-		// The trigger absorbs the first target). Recover the ordered target set from
+		// Multi-target routing gate. Recover the ordered target set from
 		// the RAW argv — cobra collapses repeated same-flag values (`open -s a -s b`)
 		// and splits positionals from flags, losing the interleaved order and repeats
 		// the burst needs. Positioned AFTER the --ack guard and the -f branch but
 		// BEFORE the single-pin blocks, so a 2-pin set (`-s a -s b`) bursts rather
 		// than hitting the single -s block. A set of 2+ targets bursts; a single
 		// glob-expandable target also bursts because it may expand to K≥2 (overriding
-		// Phase 1's single-glob first-match). Everything else (zero targets, a single
+		// the single-glob first-match). Everything else (zero targets, a single
 		// non-glob / -p / -z target) falls through to the UNCHANGED single-target path
 		// below.
 		ordered := orderedOpenTargets(openOwnArgs())
@@ -259,12 +254,12 @@ in host-terminal windows.`,
 			return dispatchOpenBurst(cmd, ordered, command)
 		}
 
-		// Domain-pinning flags (spec § Domain-pinning flags): each pin resolves its
+		// Domain-pinning flags: each pin resolves its
 		// value in ONE domain only and dispatches the hit through the shared outcome
 		// switch (openResolved) via resolvePinAndOpen. Checked in a FIXED precedence
 		// order — session → path → alias → zoxide, the order of openDomainPinFlags —
-		// and the first changed pin short-circuits. A pin never mints-to-picker (spec
-		// § Pinned-domain contract): a miss hard-fails and no resolve line is emitted
+		// and the first changed pin short-circuits. A pin never mints-to-picker: a
+		// miss hard-fails and no resolve line is emitted
 		// (pins are deterministic, not guesses). The block sits BEFORE the no-target
 		// early-return so `open -s <name>` with an empty positional resolves the pin
 		// rather than launching the picker. A future pin is added in ONE place: it is
@@ -293,16 +288,16 @@ in host-terminal windows.`,
 			return err
 		}
 
-		// Resolution-decision receipt (spec § Wrong-guess feedback — tmux is the
-		// receipt): single-sourced via emitResolveDecision, which owns the
+		// Resolution-decision receipt — tmux is the receipt: single-sourced via
+		// emitResolveDecision, which owns the
 		// !HasGlobMeta gate and the locked attr set. A mid-chain hard error
 		// (DirNotFoundError) returned above never reaches here: classification did
 		// not complete, so no decision line fires.
 		emitResolveDecision(query, result)
 
 		if miss, ok := result.(*resolver.MissResult); ok {
-			// Total miss: hard-fail with the escape-hatch message (spec § Miss
-			// handling). Handled inline in the bare-positional path — pins never
+			// Total miss: hard-fail with the escape-hatch message. Handled inline
+			// in the bare-positional path — pins never
 			// yield a MissResult. A plain (non-usage) error → exit code 1 via
 			// main.classify; the TUI picker is never launched on a miss. The em-dash
 			// is U+2014. The wording is single-sourced in singleMissError.
@@ -335,7 +330,7 @@ var openDomainPinFlags = []string{"session", "path", "alias", "zoxide"}
 //	              for tilde/relative expansion + existence + is-directory
 //	              validation). Because it stats the literal path, a glob-named dir
 //	              (~/tmp/foo[1]) is reachable here, bypassing the bare-positional
-//	              glob pre-check (spec § Glob targets).
+//	              glob pre-check.
 //	-a/--alias    look the key up directly in the alias store, bypassing the
 //	              session→path→alias precedence — the ONLY way to reach an alias
 //	              key shadowed by a same-named session (glob expands against the
@@ -374,14 +369,14 @@ func resolvePinAndOpen(cmd *cobra.Command, flag string, resolve func(*resolver.Q
 // openResolved dispatches a resolved query result to its outcome: a session-
 // domain hit attaches (openSessionFunc); a directory-domain hit mints
 // (openPathFunc), threading the mint-scoped command. It is the single shared
-// dispatch point for the -s/--session pin, the mint pins (later Phase 2 tasks),
-// and the bare-positional path, so every entry point routes a resolved result
+// dispatch point for the -s/--session pin, the mint pins and the bare-positional
+// path, so every entry point routes a resolved result
 // through the identical outcome switch. A MissResult is deliberately NOT handled
 // here — the bare path renders its own escape-hatch message inline, and pins
 // never yield a miss — so any unexpected result type is a defensive error.
 //
-// A command (-e/--) is mint-scoped (spec § Command passthrough — mint-scoped):
-// an existing (attach) session has no safe command-injection channel (send-keys
+// A command (-e/--) is mint-scoped: an existing (attach) session has no safe
+// command-injection channel (send-keys
 // corrupts a busy pane; respawn-pane -k destroys running work), so a command can
 // never run in an attach target. The guard lives here, in the *SessionResult
 // arm, so it covers BOTH the bare-positional session hit and the -s pin (both
@@ -394,7 +389,7 @@ func openResolved(cmd *cobra.Command, result resolver.QueryResult, command []str
 		}
 		// The --ack marker write is the LAST act before the attach handoff, and
 		// strictly AFTER the command guard above — a command+attach usage error
-		// must fire without writing a marker (spec § Hidden --ack flag).
+		// must fire without writing a marker.
 		writeAckMarker(cmd)
 		return openSessionFunc(cmd, r.Name)
 	case *resolver.PathResult:
@@ -410,7 +405,7 @@ func openResolved(cmd *cobra.Command, result resolver.QueryResult, command []str
 // the last act before the attach/mint handoff, when the hidden --ack flag is
 // present (a no-op when absent). The value was already validated at the top of
 // RunE, so the re-parse here is guaranteed to succeed. The write is best-effort
-// (spec § Hidden --ack flag): a failure logs at DEBUG under the spawn component
+// a failure logs at DEBUG under the spawn component
 // and falls through to the connector — the spawned window still attaches, a
 // false negative the parent's poll classifies as failed, never an orphan.
 func writeAckMarker(cmd *cobra.Command) {
@@ -442,7 +437,7 @@ func buildAckWriter(cmd *cobra.Command) spawn.AckWriter {
 	return spawn.NewServerOptionAckChannel(client, client)
 }
 
-// emitResolveDecision writes the single spec-governed resolve-decision INFO line
+// emitResolveDecision writes the single resolve-decision INFO line
 // for a bare positional resolved through the guessing chain — the SINGLE source
 // shared by both bare paths (the single-target openCmd.RunE arm and the
 // resolveOpenSurfaces burst arm), so the locked attr set (target/domain/
@@ -452,13 +447,13 @@ func buildAckWriter(cmd *cobra.Command) spawn.AckWriter {
 // identically: glob (and pinned) targets are deterministic, not guesses, so they
 // emit no line. One INFO line per guessing-chain target — emitted on a miss too
 // (domain=miss, empty resolved_path) — so a confusing guess is reconstructable
-// from portal.log (spec § Wrong-guess feedback — tmux is the receipt).
+// from portal.log — tmux is the receipt.
 func emitResolveDecision(target string, result resolver.QueryResult) {
 	if resolver.HasGlobMeta(target) {
 		return
 	}
 	domain, resolvedPath := resolveDecision(result)
-	// domain.String() yields the spec-governed closed-taxonomy attr value
+	// domain.String() yields the closed-taxonomy attr value
 	// (session/path/alias/zoxide/miss) as a plain string, so the emitted log line
 	// is byte-identical to the pre-typed-Domain wording.
 	resolveLogger.Info("resolved", "target", target, "domain", domain.String(), "resolved_path", resolvedPath)
@@ -466,7 +461,7 @@ func emitResolveDecision(target string, result resolver.QueryResult) {
 
 // resolveDecision derives the (domain, resolved_path) attrs for the resolve
 // decision log line from a completed classification result. resolved_path is
-// overloaded per the spec: the resolved directory for a path/alias/zoxide hit,
+// overloaded: the resolved directory for a path/alias/zoxide hit,
 // the session name for a session hit, and empty for a miss. It reads the domain
 // off the already-obtained result (r.Domain / resolver.DomainMiss) — it does not
 // re-run the classification.
@@ -486,7 +481,7 @@ func resolveDecision(result resolver.QueryResult) (domain resolver.Domain, resol
 // logExecHandoff writes the process:exec handoff marker — the SINGLE source
 // shared by both bare-shell exec paths (AttachConnector.Connect and
 // PathOpener.Open), so this load-bearing forensic tripwire reads byte-identically
-// on both (spec § Defensive invariants — exec-handoff markers).
+// on both.
 //
 // It takes the FULL argv and defensively strips argv[0] (the "tmux" program name)
 // so args renders the tmux subcommand chain only. The len guard is a no-op for
@@ -680,38 +675,38 @@ type tuiConfig struct {
 	dirReader       session.PaneCurrentPathReader
 	dirRunner       resolver.CommandRunner
 	initialMode     prefs.SessionListMode
-	// theme is the LOADED theme setting the model renders from (§8.4) — one
-	// palette under a constant, both under an adaptive pair. It replaces the
-	// light/dark appearance this struct used to carry: a theme IS the mode, so
-	// there is no mode left to pin (§13.3). Its zero value is neither state,
+	// theme is the LOADED theme setting the model renders from — one palette
+	// under a constant, both under an adaptive pair. It replaces the light/dark
+	// appearance this struct used to carry: a theme IS the mode, so there is no
+	// mode left to pin. Its zero value is neither state,
 	// which leaves a model on tui.New's dark built-in seed — the shape every
 	// test config that does not care about theming carries.
 	theme theme.Nomination
-	// themeKeys / themeEnumerator are §8.4's panel constructor slots. The keys are
+	// themeKeys / themeEnumerator are the panel's constructor slots. The keys are
 	// prefs.json's three theme keys as read (control-stripped, post-translation) —
 	// the SNAPSHOT the panel lists and marks from and never re-reads; the
-	// enumerator is §13.3's seam the `t` keypress reads the themes directory
-	// through, and through which the panel re-resolves the setting against that
-	// read (§5.8) for §9.5's badges. Their zero values are what a test config that
+	// enumerator is the seam the `t` keypress reads the themes directory through,
+	// and through which the panel re-resolves the setting against that read for its
+	// badges. Their zero values are what a test config that
 	// does not care about theming carries: no keys is the shipped adaptive pair,
 	// and a nil enumerator makes `t` a silent no-op.
 	themeKeys       theme.RawKeys
 	themeEnumerator tui.ThemeEnumerator
 	modePersister   tui.ModePersister
-	// themePersister is §8.9's theme-commit seam — the cmd-owned persister, never
+	// themePersister is the theme-commit seam — the cmd-owned persister, never
 	// the store itself (whose savers deliberately do not satisfy the interface, so
 	// the single `theme: commit failed` emission site cannot be bypassed). Wired
 	// only when the prefs store loaded; nil leaves the panel's commit unwired,
 	// which is what a fixture / capturetool model carries.
 	themePersister tui.ThemePersister
-	// detector + resolve are the §6 async host-terminal detection seams. Built
+	// detector + resolve are the async host-terminal detection seams. Built
 	// once at TUI construction (detector over the shared *tmux.Client; resolve from
 	// the config-aware buildResolver, terminals.json loaded once) and threaded into
 	// tui.Deps. This is the SINGLE injection site — the picker burst reuses the
 	// model's cached resolution and never re-injects.
 	detector tui.TerminalDetector
 	resolve  spawn.AdapterResolver
-	// §6-3 N≥2 picker-burst seams. Built once here (defaults from the shared
+	// N≥2 picker-burst seams. Built once here (defaults from the shared
 	// productionSpawnSeams bundle, cmd/spawn_seams.go: client.HasSession / a shared
 	// server-option ack channel / os.Executable / os.Getenv — the same bundle the
 	// multi-target open burst wires from) and threaded into tui.Deps. The burst REUSES
@@ -720,7 +715,7 @@ type tuiConfig struct {
 	ackChannel    spawn.AckChannelFull
 	spawnExe      spawn.ExecutableResolver
 	spawnGetenv   func(string) string
-	// spawnLogger is the §6-10 spawn-component logger the picker burst's completion
+	// spawnLogger is the spawn-component logger the picker burst's completion
 	// chokepoint emits its batch summary + per-window detail through (log.For("spawn")
 	// in production; the parallel to cmd/spawn_seams.go's package-level spawnLogger).
 	spawnLogger    *slog.Logger
@@ -728,18 +723,18 @@ type tuiConfig struct {
 	insideTmux     bool
 	currentSession string
 	serverStarted  bool
-	// progressReceiver is the §10.2 concurrent cold-boot route's channel-receive
+	// progressReceiver is the concurrent cold-boot route's channel-receive
 	// tea.Cmd. Set only on the cold + TUI path (where bootstrap was deferred to a
 	// goroutine); nil on every synchronous path, leaving the model's today
 	// behaviour intact.
 	progressReceiver tea.Cmd
-	// noColor is the NO_COLOR carve-out decision (§2.5), read ONCE here in the cmd
+	// noColor is the NO_COLOR carve-out decision, read ONCE here in the cmd
 	// layer (os.Getenv) so internal/tui stays env-free. It is the single inheritable
 	// colourless flag passed into tui.Deps.NoColor.
 	noColor bool
 }
 
-// noColorEnabled reports whether the NO_COLOR carve-out (§2.5) is active, per the
+// noColorEnabled reports whether the NO_COLOR carve-out is active, per the
 // no-color.org convention: the NO_COLOR env var must be PRESENT and NON-EMPTY. A
 // set-but-empty NO_COLOR ("") does NOT enable it (an empty value is treated as
 // unset by the convention). This is the SINGLE place NO_COLOR is read in the
@@ -751,19 +746,19 @@ func noColorEnabled() bool {
 }
 
 // newThemeLoader returns the loader every theme read on the TUI-construction
-// path goes through, carrying the package's `theme` component logger (§12.3).
+// path goes through, carrying the package's `theme` component logger.
 //
 // Constructed per call rather than held package-level, because a Loader owns the
 // event logger's per-process dedup state: one loader per TUI construction is one
-// dedup scope per launch, which is what §5.5 requires of the construction-time
-// read and the panel's later enumeration in the same process.
+// dedup scope per launch, which is what stops the construction-time read and the
+// panel's later enumeration reporting the same directory condition twice.
 func newThemeLoader() theme.Loader {
 	return theme.NewLoader(theme.NewEventLogger(themeLogger))
 }
 
 // buildThemeLoader returns the loader TUI construction resolves the persisted
-// theme setting through: openDeps.ThemeLoader when injected (staging §7.6's
-// broken binary), otherwise the production one. It is the buildAckWriter shape,
+// theme setting through: openDeps.ThemeLoader when injected (staging the
+// broken-binary state), otherwise the production one. It is the buildAckWriter shape,
 // for the same reason — the seam is a testing concern, so the production path
 // stays a plain constructor call.
 func buildThemeLoader() theme.Loader {
@@ -774,26 +769,26 @@ func buildThemeLoader() theme.Loader {
 }
 
 // themeResolution resolves the theme setting into everything TUI construction
-// takes from it (§8.4): prefs' three raw keys → §8.2's two-state setting → one
-// loaded palette under a constant, two under an adaptive pair, with §8.5's
-// mode-matched default standing in for any slot that will not load.
+// takes from it: prefs' three raw keys → the two-state setting → one loaded
+// palette under a constant, two under an adaptive pair, with the mode-matched
+// default standing in for any slot that will not load.
 //
 // IT RETURNS THREE THINGS FROM ONE EVALUATION, and that is the point rather than
 // a convenience. The NOMINATION says what will be painted. The per-slot RECORD
 // (on the Resolution) says what each slot asked for and what happened to it,
-// which is what §9.5's `●` marks — a Nomination holds palettes and cannot express
-// the slug a fallback replaced. The control-stripped RAW KEYS are what the panel
-// lists a slug that never loaded from, and what §14A's confirm renders. A surface
+// which is what the panel's `●` marks — a Nomination holds palettes and cannot
+// express the slug a fallback replaced. The control-stripped RAW KEYS are what the
+// panel lists a slug that never loaded from, and what the confirm renders. A surface
 // deriving any of them separately is how the picker and its badges would come to
 // disagree about which theme is live.
 //
 // It takes the keys AS READ rather than the store, because "as read" means the
-// POST-TRANSLATION in-memory value, not the on-disk bytes (§8.4): loadPrefsStore
-// applies §10.2's appearance translation, and resolving from a second read here
-// would render the shipped pair for a migrated user on the very launch their pin
-// was translated. It is the ONE construction-time theme read, so prefs.json is
-// read once per process (§10.5) — and the keys it hands back are the snapshot the
-// panel keeps for its whole life, never re-read on open (§8.4).
+// POST-TRANSLATION in-memory value, not the on-disk bytes: loadPrefsStore applies
+// the appearance translation, and resolving from a second read here would render
+// the shipped pair for a migrated user on the very launch their pin was
+// translated. It is the ONE construction-time theme read, so prefs.json is read
+// once per process — and the keys it hands back are the snapshot the panel keeps
+// for its whole life, never re-read on open.
 //
 // ZERO KEYS ARE THE SHIPPED ADAPTIVE PAIR, which is what an unconfigured install
 // renders anyway — so they are also what openTUI degrades to when the prefs path
@@ -802,16 +797,17 @@ func buildThemeLoader() theme.Loader {
 // THE TWO FAILURE SHAPES ARE DIFFERENT AND ARE HANDLED DIFFERENTLY. A themes
 // directory that will not RESOLVE degrades to the empty string, which the resolver
 // reads as "there is no directory to look in" — built-ins still resolve, a drop-in
-// slug takes §8.5's fallback, and the picker opens. ResolveNomination's error is
-// §7.6's fatal (the FALLBACK itself did not resolve), which is returned so the
-// caller constructs nothing.
+// slug takes the mode-matched fallback, and the picker opens.
+// ResolveNomination's error is the broken-builtin fatal (the FALLBACK itself did
+// not resolve), which is returned so the caller constructs nothing.
 func themeResolution(keys prefs.ThemeKeys, loader theme.Loader) (theme.Resolution, theme.RawKeys, error) {
 	setting, raw := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
 
 	// A themes-directory path that cannot be resolved AT ALL degrades to the empty
 	// directory rather than blocking the launch. themesDirPath already answers with
 	// "" on failure, so the discarded error is the degradation: the embedded set is
-	// reachable with no path at all (§8.4's ordering), so a built-in nomination is
+	// reachable with no path at all (the embedded set is consulted first), so a
+	// built-in nomination is
 	// unaffected and a drop-in one falls back and reports.
 	themesDir, _ := themesDirPath()
 
@@ -868,7 +864,7 @@ func buildTUIModel(cfg tuiConfig, initialFilter string, command []string) tui.Mo
 
 // processTUIResult handles the result of a TUI run.
 //
-// §10.5 fatal cold-boot: if the model carries a fatal (a fatal bootstrap step
+// Fatal cold-boot: if the model carries a fatal (a fatal bootstrap step
 // aborted the boot on the concurrent cold/TUI route, and q/Esc quit the error
 // frame), return that fatal — the underlying *bootstrap.FatalError — BEFORE any
 // connect. Execute writes its single UserMessage line and main.classify maps it
@@ -895,7 +891,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	gitResolver := &resolverAdapter{}
 	gen := session.NewNanoIDGenerator()
 
-	// §10.2 concurrent full-bootstrap route: PersistentPreRunE deferred the
+	// Concurrent full-bootstrap route: PersistentPreRunE deferred the
 	// orchestrator on the (latch-not-satisfied) TUI path. Build the progress
 	// pipe, launch the orchestrator in a goroutine, and stream live per-step
 	// progress to the loading page over the channel. The model renders the
@@ -948,7 +944,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 
 	// Load the prefs store once at TUI construction; the same *prefs.Store
 	// instance serves the initial-mode read here and per-toggle writes via the
-	// tui.ModePersister seam. The load also computes §10.5's appearance
+	// tui.ModePersister seam. The load also computes the one-shot appearance
 	// translation in memory — this is the only place it runs, because it is the
 	// only place a TUI is constructed and the only place its result is used. A
 	// prefs path-resolution failure must NOT block opening the TUI: swallow it
@@ -970,18 +966,18 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		initialMode, _ = prefsStore.Load()
 	}
 	// Resolve the theme setting persisted in prefs.json — the keys AS READ from
-	// the load above, which is §8.4's post-translation in-memory value, so a
+	// the load above, which is the post-translation in-memory value, so a
 	// migrated user renders their pin on the launch that translates it — into the
-	// nomination the model renders from. A CONSTANT paints from frame one with
-	// no detection and no first-paint wait; a PAIR holds both palettes and the §2.6
-	// gate selects a member before anything is painted.
+	// nomination the model renders from. A CONSTANT paints from frame one with no
+	// detection and no first-paint wait; a PAIR holds both palettes and the
+	// light/dark gate selects a member before anything is painted.
 	//
 	// The loader is built ONCE and shared with the panel's enumerator below,
 	// because a Loader owns the `theme` component's per-process dedup state: the
 	// construction-time by-name read and the panel's enumeration hit the same
-	// conditions (§5.5), so one loader per launch is one dedup scope per launch.
+	// directory conditions, so one loader per launch is one dedup scope per launch.
 	//
-	// The error is §7.6's fatal — the theme a slot fell back to is not in the
+	// The error is the broken-builtin fatal — the theme a slot fell back to is not in the
 	// embedded set, so there is nothing honest left to paint. It is returned
 	// UNTOUCHED and NO TUI IS CONSTRUCTED: Execute hands it to main's single
 	// os.Exit owner, which prints the one pinned line and exits non-zero.
@@ -1006,14 +1002,14 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	connector := buildSessionConnector(client)
 
 	// The pre-select pipeline WARNs on select-window / select-pane failures
-	// (spec § Pre-select + attach sequence > step 2/3) under the preview
-	// component. The handler is configured once by main -> log.Init; there is
+	// under the preview component. The handler is configured once by
+	// main -> log.Init; there is
 	// no per-process log open here.
 	previewAttacher := tui.NewPreviewAttachPipeline(client, previewLogger)
 
 	// Build the shared production spawn seams ONCE from the resolved client. This
 	// is the same bundle the multi-target open burst (buildOpenBurstDeps) reads, so
-	// the picker's §6/§6-3 detection + burst seams cannot silently diverge from the
+	// the picker's detection + burst seams cannot silently diverge from the
 	// open burst's.
 	spawnSeams := buildProductionSpawnSeams(client)
 
@@ -1036,20 +1032,20 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		dirRunner:   &resolver.RealCommandRunner{},
 		initialMode: initialMode,
 		theme:       resolution.Nomination,
-		// §8.4's panel constructor slots. The keys ride along because the nomination
+		// The panel's constructor slots. The keys ride along because the nomination
 		// alone cannot answer for them: a slug that never loaded is not in it, and
 		// under a fallback the `●` belongs on the slug the user SET rather than on the
 		// palette that rendered. The construction-time per-slot record deliberately
 		// does NOT — the panel re-resolves it against its own enumeration on every
-		// open (§5.8), through the enumerator's Resolve, so an injected copy would be
-		// a second and staler answer to which slug carries the `●`. The enumerator
-		// shares this resolution's loader (one dedup scope per launch, §5.5) and reads
-		// nothing until `t` is pressed (§5.7).
+		// open, through the enumerator's Resolve, so an injected copy would be a
+		// second and staler answer to which slug carries the `●`. The enumerator
+		// shares this resolution's loader (one dedup scope per launch) and reads
+		// nothing until `t` is pressed.
 		themeKeys:       themeKeys,
 		themeEnumerator: newThemeEnumerator(themeLoader),
 		cwd:             cwd,
 		serverStarted:   serverStarted,
-		// §6 async host-terminal detection seams, from the shared builder: the
+		// The async host-terminal detection seams, from the shared builder: the
 		// detector over the shared *tmux.Client, and the config-aware resolver's
 		// Resolve (buildResolver loads terminals.json once, degrading to an empty
 		// native-only config on a configFilePath error). Detection runs off the
@@ -1057,7 +1053,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		// by the later picker burst.
 		detector: spawnSeams.Detector,
 		resolve:  spawnSeams.Resolve,
-		// §6-3 N≥2 picker-burst seams — the same shared productionSpawnSeams bundle
+		// The N≥2 picker-burst seams — the same shared productionSpawnSeams bundle
 		// the multi-target open burst defaults from: the pre-flight has-session probe
 		// folds a probe fault to gone (conservative), the shared server-option ack channel
 		// confirms/cleans spawned windows, and the exe/PATH seams compose each
@@ -1066,15 +1062,15 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		ackChannel:    spawnSeams.Ack,
 		spawnExe:      spawnSeams.Exe,
 		spawnGetenv:   spawnSeams.Getenv,
-		// §6-10: the picker burst's spawn-component logger — the TUI parallel to
+		// The picker burst's spawn-component logger — the TUI parallel to
 		// cmd/spawn_seams.go's package-level spawnLogger = log.For("spawn").
 		spawnLogger: spawnSeams.Logger,
-		// NO_COLOR carve-out (§2.5): read the env ONCE here (cmd layer) so
+		// NO_COLOR carve-out: read the env ONCE here (cmd layer) so
 		// internal/tui stays env-free. The single colourless flag flows through
 		// tui.Deps.NoColor and is inherited by every canvas-dependent surface.
 		noColor: noColorEnabled(),
 	}
-	// §10.2 concurrent cold-boot route: wire the channel-receive tea.Cmd so the
+	// Concurrent cold-boot route: wire the channel-receive tea.Cmd so the
 	// loading-page model streams live per-step progress and the channel owns the
 	// terminal BootstrapCompleteMsg (Init does NOT synthesize it on this route).
 	if pipe != nil {
@@ -1085,7 +1081,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	// check — and the theme persister, which WRAPS that store, would be a
 	// live-looking seam whose every write panics on the nil store inside it. Only
 	// wire them when the store actually loaded; both ride the one store instance
-	// read once per process (§8.9).
+	// read once per process.
 	if prefsStore != nil {
 		cfg.modePersister = prefsStore
 		cfg.themePersister = newThemePersister(prefsStore)
@@ -1106,7 +1102,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	// stderr (with alt-screen toggle) only after the loading page has been
 	// dismissed — direct writes during loading would corrupt the rendered UI.
 	stageBootstrapWarningsOnModel(&m)
-	// Bootstrap ordering differs by route (§10.2):
+	// Bootstrap ordering differs by route:
 	//   - Synchronous (warm/CLI): PersistentPreRunE already ran the orchestrator,
 	//     so the model's Init emits BootstrapCompleteMsg from its first event-loop
 	//     tick (carrying staged warnings), paired with the 1.2s LoadingMinElapsedMsg
@@ -1131,8 +1127,8 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		return fmt.Errorf("unexpected model type: %T", finalModel)
 	}
 
-	// Restore the terminal's original background on exit (§ background restore-
-	// on-exit), BEFORE any session attach/exec handoff. The owned canvas paint
+	// Restore the terminal's original background on exit, BEFORE any session
+	// attach/exec handoff. The owned canvas paint
 	// sets the terminal background via OSC 11 so it extends into the gutter;
 	// terminals that ignore the OSC 111 reset (mosh/Blink) keep the canvas
 	// colour after Portal quits, so SET the captured original back. It MUST run
@@ -1177,7 +1173,7 @@ func init() {
 	openCmd.Flags().String("ack", "", "internal: <batch>:<token> — write the @portal-spawn-<batch>-<token> ack marker before the attach/mint handoff")
 	_ = openCmd.Flags().MarkHidden("ack")
 
-	// Tab completion (spec § Tab Completion): the bare positional and the
+	// Tab completion: the bare positional and the
 	// -s/--session pin complete session names via the shared completer; -a/--alias
 	// completes the finite Portal-owned alias-key namespace via completeAliasKeys.
 	// -p/--path and -z/--zoxide register NO completer, so cobra emits

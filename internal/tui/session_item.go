@@ -20,19 +20,19 @@ var (
 )
 
 const (
-	// selectorBar is the §3.3 thick block selection glyph (U+258C LEFT HALF
+	// selectorBar is the thick block selection glyph (U+258C LEFT HALF
 	// BLOCK), the single, consistent left-bar selection signal. It renders in
 	// accent.violet at the far-left of the selected row; the leftBarColumnWidth
 	// column it occupies replaces the former "> " / "  " cursor prefix so the name
 	// keeps the same left edge whether or not the row is selected.
 	selectorBar = "▌"
-	// multiSelectMarker is the §5 multi-select selection glyph (U+25CF BLACK
+	// multiSelectMarker is the multi-select selection glyph (U+25CF BLACK
 	// CIRCLE — the SAME bullet the attached badge uses). It renders in
 	// accent.violet at the far-left of a MARKED row, occupying the same fixed
 	// leftBarColumnWidth column the ▌ selector would and taking PRECEDENCE over it
 	// (a selected+marked cursor row shows ●, not ▌).
 	multiSelectMarker = "●"
-	// leftBarColumnWidth is the fixed 2-cell left-bar column (§3.3 "full 2-cell
+	// leftBarColumnWidth is the fixed 2-cell left-bar column (the "full 2-cell
 	// column"): the selector glyph at col 0 plus one trailing cell, so the name
 	// always starts two cells in. Unselected rows render two blank cells here,
 	// preserving the column alignment.
@@ -41,7 +41,7 @@ const (
 	// first fixed trailing slot (the window count), so the name never abuts the
 	// count text.
 	nameGap = 2
-	// countSlotWidth is the FIXED width of the window-count trailing slot (§4.1).
+	// countSlotWidth is the FIXED width of the window-count trailing slot.
 	// The count text ("N window" / "N windows") is left-aligned within it; the
 	// fixed width is what keeps the counts — and the attached bullets to their
 	// right — vertically column-aligned regardless of name length. 11 fits up to
@@ -57,12 +57,12 @@ const (
 	rowRightMargin = leftBarColumnWidth
 )
 
-// attachedMarker is the §4.1 attached badge text. Its width fixes the attached
+// attachedMarker is the attached badge text. Its width fixes the attached
 // trailing slot so an unattached row renders an empty slot of the SAME width,
 // keeping the bullets column-aligned down the list.
 const attachedMarker = "● attached"
 
-// goneBadge is the §6.7 pre-flight abort badge text, rendered in state.red in place
+// goneBadge is the pre-flight abort badge text, rendered in state.red in place
 // of the attached badge on a GONE-flagged row (the session vanished between marking
 // and Enter). It is exactly attachedSlotWidth + rowRightMargin cells wide, so it
 // fills the SAME fixed trailing region (attached slot + right margin) with no
@@ -75,17 +75,17 @@ const goneBadge = "session gone"
 var attachedSlotWidth = lipgloss.Width(attachedMarker)
 
 // groupSeparator is the heading glyph between the group label and its count,
-// rendered as "Heading ··· N" (U+00B7 MIDDLE DOT ×3) per the spec examples
-// (Portal ··· 2, Untagged ··· 3).
+// rendered as "Heading ··· N" (U+00B7 MIDDLE DOT ×3) — Portal ··· 2,
+// Untagged ··· 3.
 const groupSeparator = "···"
 
 const (
 	// groupHeaderIndent indents a group header's text to col 2 — the title-box
-	// left edge / the flat-name column (§5.1) — so the heading reads as a section
+	// left edge / the flat-name column — so the heading reads as a section
 	// label above its rows rather than sitting flush against the left edge.
 	groupHeaderIndent = "  "
 	// groupRowIndent nests a grouped session row ONE indent level further than
-	// flat (§5.1): rendered BEFORE the 2-cell left-bar column, it shifts the whole
+	// flat: rendered BEFORE the 2-cell left-bar column, it shifts the whole
 	// row right so the cursor/selector ▌ lands at col 2 (aligned with the header
 	// text) and the name at col 4 — the rows read as indented children of the
 	// heading. Flat rows (empty GroupKey) skip it and render flush (name at col 2).
@@ -111,7 +111,7 @@ func windowLabel(count int) string {
 //
 // Two SessionItems that share the same Session but differ in GroupKey are
 // independently selectable views of one session — not distinct attach targets.
-// Selection and attach key on Session.Name (task 2-6), so every view of a
+// Selection and attach key on Session.Name, so every view of a
 // session resolves to the same underlying target.
 type SessionItem struct {
 	Session tmux.Session
@@ -167,12 +167,12 @@ type HeaderItem struct {
 func (HeaderItem) FilterValue() string { return "" }
 
 // headingText is the group label run: the heading word, plus a trailing space so
-// the dots-count run abuts it with a single gap. Rendered in text.detail (§5.1).
+// the dots-count run abuts it with a single gap. Rendered in text.detail.
 func (h HeaderItem) headingText() string {
 	return h.Heading + " "
 }
 
-// countText is the dots-count run: "··· N" (the §5.1 `··· N` count). Rendered in
+// countText is the dots-count run: the `··· N` count. Rendered in
 // text.dim (dimmer than the heading) as a SEPARATE run, so the count reads as a
 // quieter tally beside the heading rather than one uniform faint separator.
 func (h HeaderItem) countText() string {
@@ -181,7 +181,7 @@ func (h HeaderItem) countText() string {
 
 // SessionDelegate implements list.ItemDelegate for rendering session items.
 //
-// Theme is the ACTIVE PALETTE (§3.4): every run the delegate emits — cursor,
+// Theme is the ACTIVE PALETTE: every run the delegate emits — cursor,
 // name, the structural spacers, the window count, the attached marker, and the
 // dimmed group heading — is painted with a role-token FOREGROUND from this theme
 // over a Background(canvas) from the same theme. So a content row both reads
@@ -190,22 +190,22 @@ func (h HeaderItem) countText() string {
 // The OUTER fill in View() then pads each line-end and fills the empty rows.
 //
 // The delegate is REBUILT from the model on every restyle (sessionDelegate), so
-// it never caches a stale palette — the completeness property §11.2 rests on. A
+// it never caches a stale palette, which is what makes a live theme swap complete. A
 // zero-value Theme renders through lipgloss.Color("")'s no-colour sentinel, which
 // is a silently colourless row rather than a compile error, so a hand-built
 // delegate that renders must carry one.
 type SessionDelegate struct {
 	Theme theme.Theme
-	// Colourless is the NO_COLOR carve-out (§2.5): when set, the delegate paints NO
+	// Colourless is the NO_COLOR carve-out: when set, the delegate paints NO
 	// canvas background and NO foreground hue — every run renders on the terminal's
 	// native fg/bg. The row TEXT and column structure are unchanged, so state stays
-	// glyph-distinct (§2.2: ● attached, ▌ selector). Foreground hue would be
+	// glyph-distinct (● attached, ▌ selector). Foreground hue would be
 	// stripped by the writer layer anyway; suppressing the canvas background here is
 	// the work (lipgloss would otherwise still emit it). It is set from the model's
 	// single colourless flag (applyCanvasMode), so the delegate inherits the one
 	// carve-out decision rather than re-deriving NO_COLOR.
 	Colourless bool
-	// MultiSelect gates the §5 selection ● marker: only while it is set does a
+	// MultiSelect gates the multi-select ● marker: only while it is set does a
 	// marked row render the violet ● in the left-bar column. It is set from the
 	// model's multiSelectMode (applyCanvasMode), so the marker appears exactly
 	// while the Sessions page is in multi-select mode.
@@ -216,7 +216,7 @@ type SessionDelegate struct {
 	// model's selectedSessions map (re-pointed on every toggle), nil-tolerant: a
 	// nil set marks nothing (isSelected).
 	Selected map[string]struct{}
-	// GoneFlagged is the §6.7 pre-flight abort set, keyed on Session.Name — the
+	// GoneFlagged is the pre-flight abort set, keyed on Session.Name — the
 	// sessions that vanished between marking and Enter (spawn.PreflightMissing). A
 	// flagged row renders the red ⚠ in the left-bar column (in place of the ●/▌) and
 	// the red `session gone` badge (in place of the attached badge), taking
@@ -234,7 +234,7 @@ func isSelected(set map[string]struct{}, name string) bool {
 }
 
 // canvasBg is the structural-spacer style: the Background(canvas) for the
-// delegate's mode normally, or a bare style under the NO_COLOR carve-out (§2.5)
+// delegate's mode normally, or a bare style under the NO_COLOR carve-out
 // so the spacers render on the terminal's native bg with no canvas paint. It
 // delegates to the shared header.go source (headerCanvasBg) rather than
 // re-implementing the rule, so the leaf canvas-paint carve-out lives in exactly
@@ -249,10 +249,10 @@ func (d SessionDelegate) canvasBg() lipgloss.Style {
 // sitting on the owned canvas. base carries the non-colour attributes (Bold for
 // the name); a zero base is fine for runs that only need the colour pair.
 //
-// Under the NO_COLOR carve-out (§2.5) it returns base unchanged — no foreground
+// Under the NO_COLOR carve-out it returns base unchanged — no foreground
 // hue and no canvas background — so the run renders on the terminal's native
 // fg/bg, keeping base's non-colour attributes (Bold/dim) which carry state
-// glyph-distinctly (§2.2) without colour.
+// glyph-distinctly without colour.
 //
 // It delegates the leaf colour pair to the shared header.go source (headerStyle)
 // and composites the caller-supplied base via Inherit, so the colour pair carries
@@ -284,22 +284,22 @@ func (d SessionDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 // Render renders one list row. A HeaderItem renders as a dimmed
 // "Heading ··· N" separator (no cursor, never selectable — the cursor-skip in
 // model.go guarantees the selection never rests on a header). A SessionItem
-// renders the §4.1 flat-row anatomy: a 2-cell left-bar column (a violet ▌ on the
+// renders the flat-row anatomy: a 2-cell left-bar column (a violet ▌ on the
 // selected row, two blank cells otherwise), the name as a flexing left column,
 // then fixed-width right-pinned trailing slots for the window count and the
-// attached marker. Every run is painted with its §2.9 role-token foreground and
-// the owned canvas background for the delegate's Mode (the leaf layer of §1); on
+// attached marker. Every run is painted with its role-token foreground and the
+// owned canvas background for the delegate's Mode (the leaf canvas layer); on
 // the selected row the structural cells carry the bg.selection tint instead.
 func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	bg := d.canvasBg()
 	var row string
 	switch it := item.(type) {
 	case HeaderItem:
-		// Group heading (§5.1): TWO separately-styled runs over the owned canvas —
-		// the heading word in text.detail (the §2.9 group-heading role) and the
+		// Group heading: TWO separately-styled runs over the owned canvas —
+		// the heading word in text.detail (the group-heading role) and the
 		// "··· N" count in text.dim (dimmer), so the count reads as a quieter tally
 		// rather than one uniform faint separator. No Faint(true) and no literal
-		// hex at the call site — both colours flow from §2.9 tokens. The same style
+		// hex at the call site — both colours flow from role tokens. The same style
 		// renders a catch-all heading (Unknown / Untagged): they are HeaderItems too.
 		heading := d.tokenStyle(lipgloss.Style{}, d.Theme.TextMuted).Render(it.headingText())
 		count := d.tokenStyle(lipgloss.Style{}, d.Theme.TextSubtle).Render(it.countText())
@@ -323,7 +323,7 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 // Project delegates both route through it): the bg.selection tint on the
 // selected row, otherwise the owned canvas (or a bare style under the NO_COLOR
 // carve-out, so the cells render on the terminal's native bg). Homed here as a
-// free function so the §2.9 selection-vs-canvas colour-role decision lives in
+// free function so the selection-vs-canvas colour-role decision lives in
 // exactly one place — a future change to the selection background role is a
 // single edit shared by both delegates.
 //
@@ -345,7 +345,7 @@ func rowBgStyle(th theme.Theme, selected, colourless bool) lipgloss.Style {
 // row's background (bg.selection on the selected row, canvas otherwise). Under
 // the NO_COLOR carve-out it returns base unchanged (no hue, no background), so
 // base's non-colour attributes (Bold/Faint) still carry state glyph-distinctly
-// (§2.2). Homed here as a free function so the colour-role composition lives in
+// without colour. Homed here as a free function so the colour-role composition lives in
 // one place for both the Session and Project delegates.
 func rowTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, selected, colourless bool) lipgloss.Style {
 	if colourless {
@@ -358,7 +358,7 @@ func rowTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, selected
 	return styled.Background(th.Canvas.Color())
 }
 
-// renderLeftBarColumn renders the SHARED §3.3 left-bar selector column (both
+// renderLeftBarColumn renders the SHARED left-bar selector column (both
 // renderSessionRow and renderRowLine route through it): the violet ▌ + a
 // trailing cell on the selected row, leftBarColumnWidth blank cells otherwise —
 // a fixed 2-cell column keeping the row text at the same left edge whether or
@@ -383,17 +383,17 @@ func renderLeftBarColumn(bg, selectorStyle lipgloss.Style, selected bool) string
 // multi-select marker (renderMarkedLeftBarColumn), and the ⚠ gone flag
 // (renderGoneLeftBarColumn) all render identically. Folding them here keeps the
 // 2-cell width — which fixes the name's left edge regardless of which glyph
-// occupies col 0 (§3.3 / §3.5 / §4.1) — in exactly one place; the callers own
+// occupies col 0 — in exactly one place; the callers own
 // only the glyph, its role-token style, and the precedence between them.
 func renderLeftBarGlyphColumn(glyph string, glyphStyle, bg lipgloss.Style) string {
 	return glyphStyle.Render(glyph) +
 		bg.Render(padTo("", leftBarColumnWidth-lipgloss.Width(glyph)))
 }
 
-// renderMarkedLeftBarColumn renders the §5 multi-select left-bar column for a
+// renderMarkedLeftBarColumn renders the multi-select left-bar column for a
 // MARKED row: the violet ● at col 0 + a trailing cell, in the SAME fixed 2-cell
 // leftBarColumnWidth geometry as the ▌ selector, so the name keeps its left edge
-// and no downstream column shifts (§3.5 / §4.1). It takes PRECEDENCE over
+// and no downstream column shifts. It takes PRECEDENCE over
 // renderLeftBarColumn's ▌ selector — a selected+marked cursor row shows the ●,
 // not the bar. markerStyle is the caller's rowToken(lipgloss.Style{},
 // AccentViolet, selected) result, so the ● carries the bg.selection tint on a
@@ -403,11 +403,11 @@ func renderMarkedLeftBarColumn(bg, markerStyle lipgloss.Style) string {
 	return renderLeftBarGlyphColumn(multiSelectMarker, markerStyle, bg)
 }
 
-// renderGoneLeftBarColumn renders the §6.7 pre-flight abort left-bar column for a
+// renderGoneLeftBarColumn renders the pre-flight abort left-bar column for a
 // GONE-flagged row: the red ⚠ (the shared flashWarningGlyph) at col 0 + a trailing
 // cell, in the SAME fixed 2-cell leftBarColumnWidth geometry as the ▌ selector and
 // the ● marker, so the name keeps its left edge and no downstream column shifts
-// (§3.5 / §4.1). It takes PRECEDENCE over BOTH the ● marker and the ▌ selector — a
+// unchanged. It takes PRECEDENCE over BOTH the ● marker and the ▌ selector — a
 // gone row shows the ⚠, never a ●/▌. markerStyle is the caller's rowToken(
 // lipgloss.Style{}, StateRed, selected) result, so the ⚠ carries the bg.selection
 // tint on the cursor/banded row and the canvas otherwise (and drops hue under
@@ -431,23 +431,23 @@ func (d SessionDelegate) rowToken(base lipgloss.Style, fg theme.Token, selected 
 	return rowTokenStyle(base, fg, d.Theme, selected, d.Colourless)
 }
 
-// renderSessionRow renders the §4.1 flat-row anatomy on the owned canvas:
+// renderSessionRow renders the flat-row anatomy on the owned canvas:
 //
 //	[grouped indent?][2-cell bar][name flex …][gap][count slot][attached slot]
 //
 // The trailing slots (count, attached) are FIXED-WIDTH and right-pinned; the
 // name flexes to fill the remainder of the row's width so the counts and the
 // attached bullets stay vertically column-aligned regardless of name length. An
-// over-long name truncates with an ellipsis to the flex width (§2.7) so it can
+// over-long name truncates with an ellipsis to the flex width so it can
 // never push the trailing slots off-row. Height stays exactly one line — the
-// §3.5 / §4.1 one-delegate-line pagination invariant.
+// one-delegate-line pagination invariant.
 func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionItem) string {
 	selected := index == m.Index()
-	// §7.1 input-active clarity: while the filter input is being edited (Filtering)
+	// Input-active clarity: while the filter input is being edited (Filtering)
 	// NO list row is selected — the cursor lives in the filter input, not on a row,
 	// so the violet ▌ bar and the bg.selection band are suppressed for every row.
 	// The engine still tracks an internal cursor index (it disables CursorUp/Down
-	// while typing), but the RENDER must show no selected row, so the §7.2 "never
+	// while typing), but the RENDER must show no selected row, so the "never
 	// both an input cursor AND a selected row" invariant holds. The committed
 	// (FilterApplied / list-active) and unfiltered states render the selected row
 	// as normal.
@@ -458,7 +458,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 
 	// Grouped rows (GroupKey set in By Project / By Tag — including the Unknown /
 	// Untagged catch-alls, which orderedSessionItems stamps with GroupKey = the
-	// catch-all heading) nest one indent level FURTHER than flat (§5.1): the indent
+	// catch-all heading) nest one indent level FURTHER than flat: the indent
 	// sits BEFORE the left-bar column, so the cursor/selector ▌ lands at col 2 and
 	// the name at col 4. Flat rows (empty GroupKey) render flush — the bar at col 0,
 	// the name at col 2. The indent is folded into the width budget below, so it
@@ -469,7 +469,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	}
 	indentCell := bg.Render(indent)
 
-	// Left-bar column (§3.3 / §5): a MARKED multi-select row shows the violet ● at
+	// Left-bar column: a MARKED multi-select row shows the violet ● at
 	// col 0 (taking precedence over the ▌ selector, so a selected+marked cursor row
 	// shows ●); otherwise the violet ▌ + a trailing cell on the selected row, two
 	// blank cells on an unselected row — the fixed 2-cell column keeps the name at
@@ -477,7 +477,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	// literal true) so it carries the bg.selection tint on a marked cursor row and
 	// the canvas on an unselected marked row (dropping hue under NO_COLOR). Shared
 	// with the Project delegate via renderLeftBarColumn for the unmarked case.
-	// A §6.7 GONE-flagged row (pre-flight abort — the session vanished between marking
+	// A GONE-flagged row (pre-flight abort — the session vanished between marking
 	// and Enter) draws the red ⚠ in the left-bar column, taking PRECEDENCE over both
 	// the ● marker and the ▌ selector.
 	goneRow := isSelected(d.GoneFlagged, it.Session.Name)
@@ -492,12 +492,12 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 		bar = renderLeftBarColumn(bg, d.rowToken(lipgloss.Style{}, d.Theme.AccentPrimary, true), selected)
 	}
 
-	// Name — text.primary (selected: text.on-selection), bold (§4.1).
+	// Name — text.primary (selected: text.on-selection), bold.
 	nameTok := d.Theme.TextPrimary
 	if selected {
 		nameTok = d.Theme.TextOnSelection
 	}
-	// Window count — text.detail (selected: text.strong) (§4.1).
+	// Window count — text.detail (selected: text.strong).
 	countTok := d.Theme.TextMuted
 	if selected {
 		countTok = d.Theme.TextSecondary
@@ -518,7 +518,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 		name = d.rowToken(nameBase, nameTok, selected).Render(it.Session.Name)
 		namePad = ""
 	} else {
-		// Truncate to the flex width with an ellipsis (§2.7), then pad the remainder
+		// Truncate to the flex width with an ellipsis, then pad the remainder
 		// so the gap and the fixed slots are right-pinned and column-aligned.
 		nameWidth := max(total-used, 1)
 		visibleName := ansi.Truncate(it.Session.Name, nameWidth, "…")
@@ -528,12 +528,12 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 
 	gap := bg.Render(padTo("", nameGap))
 
-	// Window count slot — left-aligned text padded to the fixed slot width (§4.1).
+	// Window count slot — left-aligned text padded to the fixed slot width.
 	count := d.rowToken(lipgloss.Style{}, countTok, selected).Render(countText) +
 		bg.Render(padTo("", countSlotWidth-lipgloss.Width(countText)))
 
 	// Trailing region — the fixed (attachedSlotWidth + rowRightMargin) cells right of
-	// the count. On a §6.7 GONE-flagged row the red `session gone` badge REPLACES both
+	// the count. On a GONE-flagged row the red `session gone` badge REPLACES both
 	// the attached slot AND the right margin: "session gone" is exactly that width, so
 	// it fills the region with no padding, keeping the row width byte-unchanged and its
 	// left edge aligned with the attached ● column. Otherwise the attached badge slot
@@ -547,20 +547,20 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 		// state.green when attached (the single state.green token clears the floor on
 		// both the canvas and the bg.selection tint, so the selected row keeps the same
 		// green — no per-context override), an EMPTY slot of the SAME width when not, so
-		// the bullets and the counts stay column-aligned regardless of name length (§4.1).
+		// the bullets and the counts stay column-aligned regardless of name length.
 		attached := bg.Render(padTo("", attachedSlotWidth))
 		if it.Session.Attached {
 			attached = d.rowToken(lipgloss.Style{}, d.Theme.StatePositive, selected).Render(attachedMarker) +
 				bg.Render(padTo("", attachedSlotWidth-lipgloss.Width(attachedMarker)))
 		}
-		// The right margin insets the trailing columns from the content edge (§4.1) so
+		// The right margin insets the trailing columns from the content edge so
 		// the attached bullet does not sit flush against the edge (matching the design).
 		rightMargin := bg.Render(padTo("", rowRightMargin))
 		trailing = attached + rightMargin
 	}
 	row := indentCell + bar + name + namePad + gap + count + trailing
 
-	// Safety clamp (§2.7 / §3.5): the trailing slots are a FIXED 25 cells (bar +
+	// Safety clamp: the trailing slots are a FIXED 25 cells (bar +
 	// gap + count + attached + indent); at pathological narrow widths the flex name
 	// floors to 1 cell and the assembled row would be ~26 cells regardless of total,
 	// overflowing the list width and bleeding past the content gutter (corrupting the

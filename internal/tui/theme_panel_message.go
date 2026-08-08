@@ -9,47 +9,46 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// §9.1's MESSAGE SLOT: the single row (or two) directly above the panel's vertical
-// keymap footer, and the two contenders that can occupy it.
+// THE PANEL'S MESSAGE SLOT: the single row (or two) directly above the panel's
+// vertical keymap footer, and the two contenders that can occupy it.
 //
 // IT IS A SINGLE-SLOT ARBITER WITH EXACTLY TWO CONTENDERS, AND THEIR EXCLUSION IS
-// ASSERTED RATHER THAN RANKED. The contenders are §9.2's slot-from-constant
-// confirm and §9.13's failed-commit line, and §9.1 is explicit that they "can never
-// be live at once because a confirm resolves before any write happens": the confirm
+// ASSERTED RATHER THAN RANKED. The contenders are the slot-from-constant confirm
+// and the failed-commit line, and they can never be live at once: the confirm
 // gates the write, so by the time a write can fail the confirm has already
 // resolved. There is therefore NO precedence rule to invent here — the state is
 // unreachable by construction, and the value below is shaped so that installing one
 // contender structurally clears the other.
 //
-// THE MESSAGE CARRIES NO FREE TEXT. Each contender renders its own pinned §14A
-// copy from the constants below, so no call site can paraphrase it and the copy
+// THE MESSAGE CARRIES NO FREE TEXT. Each contender renders its own pinned copy
+// from the constants below, so no call site can paraphrase it and the copy
 // stays single-sourced — the same discipline spawn.UnsupportedNoopMessage applies
 // to the burst's user-facing strings. The only datum a contender carries is the
 // confirm's slug, and that is an identity rather than a sentence.
 //
-// THE SLOT IS NOT RESERVED WHEN EMPTY (§9.1): it appears and the list shrinks, the
+// THE SLOT IS NOT RESERVED WHEN EMPTY: it appears and the list shrinks, the
 // same way the main screen's notice band recomputes list height. Its height is
 // MEASURED off the rendered block (themePanelMessageHeight), so a message that
 // wraps shrinks the list by two rows rather than one.
 
 const (
-	// themePanelConfirmFormat is §14A's slot-from-constant confirm, VERBATIM —
+	// themePanelConfirmFormat is the slot-from-constant confirm, VERBATIM —
 	// `clear constant <slug>?  y / n`, with TWO spaces before the `y` exactly as
 	// pinned.
 	//
 	// It is one format string rather than a prefix/suffix pair so the copy reads as
-	// §14A writes it, and so the frame's own width can be derived from it
+	// it is pinned, and so the frame's own width can be derived from it
 	// (themePanelConfirmFixedWidth) rather than restated as a literal.
 	themePanelConfirmFormat = "clear constant %s?  y / n"
 
-	// themePanelCommitFailedMessage is §14A's failed-commit line, VERBATIM. It is
-	// GLYPH-BACKED per §9.13 and Portal's convention — the `⚠` is part of the
+	// themePanelCommitFailedMessage is the failed-commit line, VERBATIM. It is
+	// GLYPH-BACKED by Portal's convention — the `⚠` is part of the
 	// string, so the report survives the NO_COLOR carve-out where the
 	// accent.attention hue does not.
 	themePanelCommitFailedMessage = flashWarningGlyph + " couldn't save theme"
 )
 
-// themePanelMessageKind names which of §9.1's two contenders holds the slot.
+// themePanelMessageKind names which of the two contenders holds the slot.
 // themeMessageNone is the zero value and the empty slot, which is what makes an
 // unset panel's slot cost nothing without a second flag to keep in step.
 type themePanelMessageKind int
@@ -57,10 +56,10 @@ type themePanelMessageKind int
 const (
 	// themeMessageNone is the empty slot: no contender, no row.
 	themeMessageNone themePanelMessageKind = iota
-	// themeMessageConfirm is §9.2's slot-from-constant confirm, naming the constant
+	// themeMessageConfirm is the slot-from-constant confirm, naming the constant
 	// that will be cleared.
 	themeMessageConfirm
-	// themeMessageCommitFailed is §9.13's failed-commit line.
+	// themeMessageCommitFailed is the failed-commit line.
 	themeMessageCommitFailed
 )
 
@@ -80,11 +79,11 @@ type themePanelMessage struct {
 	Slug string
 }
 
-// raiseThemePanelConfirm raises §9.2's slot-from-constant confirm, naming the
+// raiseThemePanelConfirm raises the slot-from-constant confirm, naming the
 // constant it will clear.
 //
 // IT READS THE RAW KEYS, NOT THE NOMINATION. m.themeKeys.Theme is what is
-// PERSISTED, and under §8.5's fallback that is not what is on screen: the persisted
+// PERSISTED, and under a fallback that is not what is on screen: the persisted
 // slug may be the very one that failed to load, with a built-in fallback rendering
 // in its place. The confirm has to name what is being CLEARED, so it must name the
 // persisted string even when nothing loaded from it — naming the resolution would
@@ -96,24 +95,25 @@ func (m *Model) raiseThemePanelConfirm() {
 	m.setThemePanelMessage(themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeKeys.Theme})
 }
 
-// raiseThemePanelCommitFailed raises §9.13's failed-commit line, clearing whatever
+// raiseThemePanelCommitFailed raises the failed-commit line, clearing whatever
 // the slot held.
 func (m *Model) raiseThemePanelCommitFailed() {
 	m.setThemePanelMessage(themePanelMessage{Kind: themeMessageCommitFailed})
 }
 
 // clearThemePanelMessage empties the slot, which costs the panel no row at all
-// (§9.1's unreserved-when-empty rule).
+// (the slot is unreserved when empty).
 func (m *Model) clearThemePanelMessage() {
 	m.setThemePanelMessage(themePanelMessage{})
 }
 
-// clearThemePanelCommitFailed empties the slot ONLY when it holds §9.13's line —
+// clearThemePanelCommitFailed empties the slot ONLY when it holds the
+// failed-commit line —
 // the raise's counterpart, and the whole of that message's lifetime.
 //
 // THE KIND CHECK IS THE POINT rather than an optimisation, because this runs on
 // paths where the OTHER contender can be live: the panel's key dispatch clears this
-// message ahead of EVERY key, and the answers to §9.2's confirm are keys. Clearing
+// message ahead of EVERY key, and the answers to the confirm are keys. Clearing
 // the slot unconditionally would take the question off screen at the moment the user
 // answers it.
 func (m *Model) clearThemePanelCommitFailed() {
@@ -128,7 +128,7 @@ func (m *Model) clearThemePanelCommitFailed() {
 //
 // THE RE-SIZE IS NOT COSMETIC. The slot changes the panel's vertical budget in BOTH
 // directions at once (themePanelListSize): the message costs its measured rows,
-// while §9.2's nested confirm scope hands two footer rows back. renderThemePanel
+// while the nested confirm scope hands two footer rows back. renderThemePanel
 // sizes its per-frame copy from the message it is handed, so a model left on the
 // pre-message budget keeps a `bubbles/list` PerPage the drawn frame does not have —
 // and `Ctrl+↑`/`Ctrl+↓` then move a different distance than the screen scrolls, with
@@ -137,7 +137,7 @@ func (m *Model) clearThemePanelCommitFailed() {
 // band raise and clear.
 //
 // IT IS HERE RATHER THAN AT THE CALL SITES for the same reason: the confirm swallows
-// the arrows (§9.2), so the stale page is harmless while IT is live — but §9.13's
+// the arrows, so the stale page is harmless while IT is live — but the
 // failed-commit line persists with the arrows LIVE, so the fix has to be inherited
 // by whoever raises it rather than remembered at each raise.
 //
@@ -146,7 +146,7 @@ func (m *Model) clearThemePanelCommitFailed() {
 // re-point it carries is idempotent (a message is not a theme swap).
 //
 // IT ASSUMES THE PANEL IS OPEN, which every writer above is: the confirm's raise and
-// clear are panel-scoped, and §9.13's line — the one message specified to OUTLIVE a
+// clear are panel-scoped, and the failed-commit line — the one message that OUTLIVES a
 // keypress — is raised from a commit or from armThemePanel's capture seed and
 // cleared by the panel's own key dispatch, all of which fire only while
 // themePanel.open. A call with the panel CLOSED would
@@ -158,13 +158,13 @@ func (m *Model) setThemePanelMessage(message themePanelMessage) {
 }
 
 // themePanelFooterScope is the keymap scope the panel's footer renders for the
-// slot's current state: §9.2's NESTED CONFIRM SCOPE while the confirm is live, the
+// slot's current state: the NESTED CONFIRM SCOPE while the confirm is live, the
 // standing panel scope otherwise.
 //
 // THE CONFIRM CANNOT ADVERTISE THE STANDING FOOTER. It is key-exclusive within the
 // panel and resolves on `y`/`n`/`Esc` alone, so `⏎ set theme` / `d set as dark` /
 // `l set as light` / `esc close` would list four keys of which NONE would act —
-// and §14.3 is firm that advertising a key that will not act is the dead end a
+// and advertising a key that will not act is the dead end a
 // proactive block exists to prevent.
 //
 // IT SUBSTITUTES A SCOPE, IT DOES NOT FORK A RENDERER. Both scopes go through
@@ -178,9 +178,9 @@ func themePanelFooterScope(message themePanelMessage) []keymapEntry {
 	return themePanelKeymap()
 }
 
-// themePanelMessageWrapRows is the slot's height when it WRAPS — §9.1's "at the
-// minimum panel width the slot may wrap to two rows", read as the slot's maximum
-// rather than as an observation about one string.
+// themePanelMessageWrapRows is the slot's height when it WRAPS. At the minimum
+// panel width the slot may wrap to two rows, and two is its maximum rather than an
+// observation about one string.
 //
 // The cap is what keeps the vertical budget provably bounded. themePanelBlock can
 // only CUT an over-long assembly, and it cuts from the BOTTOM — off the footer,
@@ -188,16 +188,16 @@ func themePanelFooterScope(message themePanelMessage) []keymapEntry {
 // the key that closes a panel the user can no longer read the way out of.
 const themePanelMessageWrapRows = 2
 
-// renderThemePanelMessage renders §9.1's message slot: the row (or two) directly
+// renderThemePanelMessage renders the message slot: the row (or two) directly
 // above the vertical keymap footer, or "" when the slot is empty.
 //
 // IT IS NOT RESERVED WHEN EMPTY — it appears and the list shrinks, the same way the
 // main screen's notice band recomputes list height.
 //
-// THE TWO DIMENSIONS DEGRADE DIFFERENTLY, ON PURPOSE (§9.1). At the minimum panel
+// THE TWO DIMENSIONS DEGRADE DIFFERENTLY, ON PURPOSE. At the minimum panel
 // WIDTH the slot may wrap to two rows — it is not a list delegate, so wrapping costs
 // pagination nothing. At the minimum HEIGHT it is TRUNCATED to one line instead,
-// because §9.8's floor counts exactly one message row: a two-row message there would
+// because the height floor counts exactly one message row: a two-row message there would
 // leave zero list rows or overflow the frame, and truncating degrades the message
 // the user is being asked to answer rather than the row they are answering ABOUT.
 // wrap carries that decision in from the caller (themePanelMessageWraps), so the
@@ -216,10 +216,10 @@ func renderThemePanelMessage(message themePanelMessage, inner int, wrap bool, th
 }
 
 // themePanelMessageContent is the ARBITER: the live contender's pinned copy and the
-// §9.1 role token it renders in, decided in ONE place so a contender cannot get one
+// role token it renders in, decided in ONE place so a contender cannot get one
 // without the other.
 //
-// NEITHER CONTENDER CARRIES A BAND (§9.1's table). The confirm is `text.secondary`
+// NEITHER CONTENDER CARRIES A BAND. The confirm is `text.secondary`
 // on the panel's own canvas; the failed-commit line puts BOTH the `⚠` and the text
 // in `accent.attention` — one run, exactly as the pinned directory row does — and
 // deliberately takes NO `bg.attention` band: that is a full-width main-screen flash
@@ -237,17 +237,17 @@ func themePanelMessageContent(message themePanelMessage, inner int, th theme.The
 	return "", theme.Token{}
 }
 
-// themePanelConfirmText composes §14A's confirm around the persisted constant, with
-// the slug truncated by §9.5's rule when it does not fit.
+// themePanelConfirmText composes the confirm around the persisted constant, with
+// the slug truncated by the row-composition rule when it does not fit.
 //
-// §9.5's RULE IS THE ROW-COMPOSITION ONE, applied to the slot: the pinned frame is
+// THAT RULE IS THE ROW-COMPOSITION ONE, applied to the slot: the pinned frame is
 // charged first and the one flexing element takes what is left, floored at three
 // visible characters plus the ellipsis (themeRowLabelFloor). Truncating the SLUG
 // rather than letting the slot truncate the whole line is what keeps `?  y / n` in
 // the copy — the tail the user needs to answer the question — however long the
 // persisted string is.
 //
-// THE FLOOR CAN EXCEED THE WIDTH, and that is §9.5's shape rather than a defect:
+// THE FLOOR CAN EXCEED THE WIDTH, and that is the rule's shape rather than a defect:
 // below the floor the label simply stops shrinking, and the slot's own
 // per-dimension rule (wrap above the height floor, truncate at it) then governs the
 // composed line.
@@ -255,14 +255,14 @@ func themePanelConfirmText(slug string, inner int) string {
 	return fmt.Sprintf(themePanelConfirmFormat, ansi.Truncate(slug, themePanelConfirmSlugBudget(inner), themeRowEllipsis))
 }
 
-// themePanelConfirmSlugBudget is the cells §9.5's rule leaves the slug: the inner
+// themePanelConfirmSlugBudget is the cells the composition rule leaves the slug: the inner
 // width less the pinned frame's own cost, floored at three visible characters plus
 // the ellipsis.
 func themePanelConfirmSlugBudget(inner int) int {
 	return max(inner-themePanelConfirmFixedWidth(), themeRowLabelFloor)
 }
 
-// themePanelConfirmFixedWidth is the pinned frame's cost — §14A's format rendered
+// themePanelConfirmFixedWidth is the pinned frame's cost — the format rendered
 // with an EMPTY slug — so the charge is derived from the copy itself and a reworded
 // confirm cannot leave a stale literal behind.
 func themePanelConfirmFixedWidth() int {
@@ -296,11 +296,11 @@ func themePanelMessageHeight(message themePanelMessage, inner int, wrap bool) in
 }
 
 // themePanelMessageWraps reports whether the slot may wrap at the height the panel
-// is being rendered at — §9.1's per-dimension rule resolved in ONE place, so the
+// is being rendered at — the per-dimension rule resolved in ONE place, so the
 // budget themePanelListSize reserves and the block renderThemePanel assembles can
 // never disagree about how many rows the message costs.
 //
-// At or below §9.8's floor the slot truncates; above it, it wraps. `at or below`
+// At or below the height floor the slot truncates; above it, it wraps. `at or below`
 // rather than `at`, because renderThemePanel is a pure function of the height it is
 // handed and a sub-floor height is a shape a fixture can hand it.
 //

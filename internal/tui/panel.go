@@ -31,13 +31,13 @@ const (
 )
 
 // renderJoinedPanel is the shared single-tone, hand-drawn, border-joined panel —
-// the chrome the help modal (§8.5), the kill modal (§8.3), AND the §9.1 full-screen
+// the chrome the help modal, the kill modal AND the full-screen
 // preview overlay all compose through. It draws a rounded box (╭─╮ / │…│ / ╰─╯)
 // whose EVERY glyph — corners, sides, and the compartment dividers — renders in the
-// caller-supplied borderToken (single-tone: the 2-tone footer leg of §8.1 was
-// dropped in task 3-4), with the dividers joined to the side borders via real ├/┤
+// caller-supplied borderToken (single-tone — there is no second footer tone),
+// with the dividers joined to the side borders via real ├/┤
 // junctions. The modals pass the theme's border token (grey); the preview
-// passes its accent.mode token (the "peek mode" hue, §9.1).
+// passes its accent.mode token (the "peek mode" hue).
 //
 // Input is a list of compartments, each a slice of already-styled content rows (at
 // their natural width). The helper:
@@ -89,7 +89,7 @@ func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th them
 // from the active theme, or a bare style (native fg) under the NO_COLOR carve-out — so the
 // frame glyphs survive colourless but carry no hue. NO background is set (the frame
 // glyphs sit on whatever the placed canvas supplies). The modals pass
-// the border token; the §9.1 preview passes accent.mode.
+// the border token; the preview passes accent.mode.
 func panelFrameStyle(borderToken theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()

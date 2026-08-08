@@ -7,11 +7,11 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §8.2 / §13.1 two-mode edit-project modal — the MV render over the 3-8
+// The two-mode edit-project modal — the MV render over the 3-8
 // state machine. A reskin (the editMode/editFocus/edit-buffer state machine in
 // model.go is untouched); this file owns only the FINAL MV rendering.
 //
-// VISUAL GRAMMAR (the corrigendum-revised §13.1 — supersedes the older fill/✕
+// VISUAL GRAMMAR (the revised design — it supersedes the older fill/✕
 // wording). NOTHING FILLS: every editable element (the NAME input AND the chips)
 // is a glyph-drawn bordered box whose STATE is carried by the BORDER COLOUR, never
 // a background fill — grey (border.separator) idle/unfocused → accent.violet
@@ -26,17 +26,17 @@ import (
 // compartments (header / body / footer) with joined ├───┤ dividers in
 // border.separator. Under the NO_COLOR carve-out every hue drops to the native fg;
 // state survives via the border PRESENCE + the live cursor + the `◉ EDIT MODE`
-// text + bold/dim (§2.2 — state never colour-only).
+// text + bold/dim — state is never colour-only.
 
 const (
 	// editHeaderPrefix opens the header — `Edit Project ` in text.primary, with the
 	// project name trailing in text.detail.
 	editHeaderPrefix = "Edit Project "
 	// editModeIndicator is the accent.orange `◉ EDIT MODE` header badge, shown ONLY
-	// while editing in place (glyph + colour + text, §2.2).
+	// while editing in place (glyph + colour + text).
 	editModeIndicator = "◉ EDIT MODE"
 
-	// Field labels (§13.1): the focused field's label is accent.violet, the others
+	// Field labels: the focused field's label is accent.violet, the others
 	// text.detail.
 	editLabelName    = "NAME"
 	editLabelAliases = "ALIASES"
@@ -62,9 +62,9 @@ const (
 	editFieldGap = ""
 )
 
-// inputBoxState is the border-colour state of an editable bordered box (§13.1): the
+// inputBoxState is the border-colour state of an editable bordered box: the
 // SAME three-state model for the NAME input AND every chip. Grey unfocused/idle →
-// violet focused → orange editing (+ cursor). Task 3-10 routes the rename input
+// violet focused → orange editing (+ cursor). The rename input routes
 // through renderInputBox in the always-editing variant.
 type inputBoxState int
 
@@ -74,7 +74,7 @@ const (
 	inputBoxEditing                      // accent.orange border + live cursor — editing in place
 )
 
-// inputBoxBorderToken maps a box state to its border role token (§13.1): grey →
+// inputBoxBorderToken maps a box state to its border role token: grey →
 // violet → orange. The shared mapping the NAME input and chips both use.
 func inputBoxBorderToken(state inputBoxState, th theme.Theme) theme.Token {
 	switch state {
@@ -87,7 +87,7 @@ func inputBoxBorderToken(state inputBoxState, th theme.Theme) theme.Token {
 	}
 }
 
-// renderInputBox draws the reusable bordered box (§13.1 — the 3-10 dependency):
+// renderInputBox draws the reusable bordered box the rename modal shares:
 // content wrapped in a thin glyph border whose colour is the state's role token,
 // over a TRANSPARENT interior (NO fill, ever). rounded selects ROUNDED corners (the
 // NAME input) vs SQUARE corners (chips). innerWidth fixes the box's inner content
@@ -120,7 +120,7 @@ func renderInputBox(content string, state inputBoxState, rounded bool, innerWidt
 }
 
 // editChipContent renders one chip's interior — its value in text.primary, with a
-// live block cursor appended/inserted when editing (§13.1). The chip's value is
+// live block cursor appended/inserted when editing. The chip's value is
 // never green; the cursor is the editing-state signal that survives NO_COLOR.
 //
 // A navigate-mode chip (normal or focused) is sized to its CONTENT — no reserved
@@ -181,7 +181,7 @@ func renderEditableValue(value string, cursor int, th theme.Theme, colourless bo
 	return b.String()
 }
 
-// renderEditProjectContent composes the §8.2 / §13.1 MV edit-project modal: three
+// renderEditProjectContent composes the MV edit-project modal: three
 // compartments drawn by the shared single-tone joined panel —
 //
 //	header:  Edit Project <name>        [◉ EDIT MODE]   (prefix text.primary, name text.detail, badge accent.orange while editing)
@@ -271,7 +271,7 @@ func (m Model) editModalHeaderRow(th theme.Theme, colourless bool) string {
 // When showBadge is false the badge's slot is rendered as a same-width blank, so the
 // header (and therefore the whole panel) is byte-for-byte the SAME width whether the
 // badge shows or not. Shared by the edit modal (badge gated on edit mode) and the
-// rename modal (always editing → badge always shown). The right-align is the §13.1
+// rename modal (always editing → badge always shown). The right-align is the
 // fixed-content-width row + flexible-spacer technique.
 func renderHeaderWithBadge(left string, contentWidth int, showBadge bool, th theme.Theme, colourless bool) string {
 	leftWidth := lipgloss.Width(left)
@@ -309,7 +309,7 @@ func (m Model) editModalBodyRows(th theme.Theme, colourless bool) []string {
 	return rows
 }
 
-// editFieldLabelRow renders a field label (§13.1): the focused field's label in
+// editFieldLabelRow renders a field label: the focused field's label in
 // accent.violet, the others in text.detail.
 func (m Model) editFieldLabelRow(label string, field editField, th theme.Theme, colourless bool) string {
 	token := th.TextMuted
@@ -319,7 +319,7 @@ func (m Model) editFieldLabelRow(label string, field editField, th theme.Theme, 
 	return headerStyle(token, th, colourless).Render(label)
 }
 
-// editNameInputRows renders the NAME input as a ROUNDED bordered box (§13.1): grey
+// editNameInputRows renders the NAME input as a ROUNDED bordered box: grey
 // border when unfocused, accent.violet when focused (navigate), accent.orange + a
 // live cursor when editing. The value is the persisted name in navigate mode, the
 // live editBuffer while editing.
@@ -337,7 +337,7 @@ func (m Model) editNameInputRows(th theme.Theme, colourless bool) []string {
 	return renderInputBox(content, boxStateFor(focused, editing), true, editNameInnerWidth, th, colourless)
 }
 
-// boxStateFor resolves a bordered box's state (§13.1) from its focus/edit flags —
+// boxStateFor resolves a bordered box's state from its focus/edit flags —
 // shared by the NAME input and every chip: editing wins (orange + cursor), then
 // focused (violet), else idle/normal (grey).
 func boxStateFor(focused, editing bool) inputBoxState {
@@ -437,7 +437,7 @@ func joinChipRowBands(segments [][]string, th theme.Theme, colourless bool) []st
 }
 
 // editModalFooterRow renders the contextual footer for the current mode/focus
-// (§13.1): key glyphs in accent.blue, labels in text.detail. The ⏎ glyph is U+23CE
+// with key glyphs in accent.blue and labels in text.detail. The ⏎ glyph is U+23CE
 // (NOT the legacy ↵); ⇥ tab, ←→ arrows, esc.
 //
 // The editing-in-place footer is the one exception to the left-packed ` · ` layout:
@@ -506,7 +506,7 @@ func joinFooterGroups(groups []footerHintGroup, th theme.Theme, colourless bool)
 }
 
 // editFooterGroups resolves the contextual footer hint groups for the current
-// mode/focus (§13.1):
+// mode/focus:
 //
 //   - Name focused (navigate):  ⏎/e edit · ⇥ next field · esc close
 //   - Chip focused (navigate):  ⏎/e edit · x remove · ←→ move · ⇥ next field · esc close
