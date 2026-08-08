@@ -14,7 +14,7 @@ Render the manage selection snapshot:
 node .claude/skills/workflow-start/scripts/gateway.cjs manage
 ```
 
-The output is one snapshot in three demarcated sections:
+The output is one snapshot in four demarcated sections:
 
 - **DATA** — reasoning surface: the `UNITS` table — one line per work unit, `n  work_type  work_unit`, numbering matching the overview. Reason from it; never display or restate it.
 - **TITLE** — the view's chrome heading. Emit verbatim as markdown, directly above the display.
@@ -47,7 +47,6 @@ The response carries demarcated sections:
 
 - **DATA** — reasoning surface: lifecycle flags (`implementation_completed`, `has_plan`, `absorb_available`, …), `available_epics`, `planning_topics`, and the `ACTIONS` key table. Reason from it; never display or restate it.
 - **MENU** — the action menu, offering exactly the actions this work unit's state allows. Emit verbatim as markdown (not a code block) at this section's gate below.
-- **Labelled sections** (`MENU: absorb target`, `MENU: plan topics`) — deferred: each is emitted only at the gate its marker names (inside **[absorb-into-epic.md](absorb-into-epic.md)** / **[view-plan.md](view-plan.md)**), never here.
 
 > *Output the next fenced block as markdown (not a code block):*
 
@@ -69,15 +68,23 @@ Run the complete transaction — one command sets `status: completed`, stamps `c
 node .claude/skills/workflow-engine/scripts/engine.cjs workunit complete {selected.name} -m "workflow({selected.name}): mark as completed"
 ```
 
-Emit the response's `DISPLAY: confirmation` section verbatim per its marker.
+Fetch and emit the receipt's `DISPLAY: confirmation` section:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render workunit-receipt {selected.name} --verb complete
+```
 
 → Return to caller.
 
 #### If user chose `p/pivot`
 
-Load **[pivot-to-epic.md](../../workflow-shared/references/pivot-to-epic.md)** with work_unit = `{selected.name}`, continuation_menu = `true` (pass `--continuation-menu` on the pivot command).
+→ Load **[pivot-to-epic.md](../../workflow-shared/references/pivot-to-epic.md)** with work_unit = `{selected.name}`.
 
-Emit the pivot response's `MENU: pivot continuation` section verbatim per its marker.
+On return, fetch and emit the `MENU: pivot continuation` section:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render pivot-continuation {selected.name}
+```
 
 **STOP.** Wait for user response.
 
@@ -111,7 +118,11 @@ Run the cancel transaction — one command sets `status: cancelled`, removes the
 node .claude/skills/workflow-engine/scripts/engine.cjs workunit cancel {selected.name}
 ```
 
-Emit the response's `DISPLAY: kb warning` section when present, then its `DISPLAY: confirmation` section — each verbatim per its marker.
+Fetch and emit the receipt — the `DISPLAY: kb warning` advisory (when carried) then the `DISPLAY: confirmation` section — adding `--warn` when the response's `warnings` is non-empty:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render workunit-receipt {selected.name} --verb cancel [--warn]
+```
 
 → Return to caller.
 

@@ -13,6 +13,14 @@ const path = require('path');
 const { loadManifest } = require('./reads.cjs');
 const { titlecase } = require('./conventions.cjs');
 const { section, menu, cmdOption, promptOption, callout, subDetail, treeList, numberedTreeList } = require('./projections/surfaces.cjs');
+const { blockedTasksMenu, taskGateSection, fixGateSection, fixThresholdDisplay, cycleLimitDisplay, cycleGateMenu } = require('./projections/tasks.cjs');
+const { workunitReceipt, topicReceipt, absorbReceipt, promoteReceipt, pivotContinuationMenu, sessionReceipt } = require('./projections/transactions.cjs');
+const { absorbTargetMenu, planTopicsMenu } = require('./projections/start.cjs');
+const { revisitablePhases, revisitPhasesSection } = require('./projections/workunit.cjs');
+const { WORK_UNIT_TYPES, typeConfig: workUnitTypeConfig, completedPhases } = require('./workunit-detail.cjs');
+const { computeNextPhase } = require('./derivations.cjs');
+const { manageDetail } = require('./workunit-manage.cjs');
+const { gateOf, FIX_THRESHOLD, SESSION_CYCLE_LIMIT } = require('./tasks.cjs');
 
 /**
  * Parse a 3-segment dotpath `work_unit.phase.topic`, validating the work unit
@@ -1172,6 +1180,229 @@ function entryGate(cwd, { dotpath, own }) {
   throw new Error(`render entry-gate: no prerequisite rules for phase "${phase}" (planning|implementation|review|specification)`);
 }
 
+// ---------------------------------------------------------------------------
+// Task-loop gates — fetched by the implementation loop at the exact stage
+// that displays them, so the section always sits in the tool result directly
+// above its emission. State-backed: the in-flight task and gate modes come
+// from the implementation item; gate-mode branching renders inside the
+// surface. `blocked-tasks` and `cycle-gate` are static menus and take no
+// address.
+// ---------------------------------------------------------------------------
+
+/**
+ * The implementation item at a `<wu>.implementation.<topic>` address, plus
+ * its in-flight task id. Loud when the address names another phase or no
+ * task is in flight — these surfaces serve the task loop, which always has
+ * a current task at its gates.
+ * @param {string} cwd @param {string} dotpath @param {string} surface
+ * @returns {{item: Record<string, any>, taskId: string}}
+ */
+function implItemAt(cwd, dotpath, surface) {
+  const { phase, topic, manifest } = resolveAddress(cwd, dotpath, surface);
+  if (phase !== 'implementation') {
+    throw new Error(`render ${surface}: address must be <work_unit>.implementation.<topic>, got phase "${phase}"`);
+  }
+  const item = itemOf(manifest, 'implementation', topic);
+  if (!item) throw new Error(`render ${surface}: no implementation item "${topic}"`);
+  const taskId = item.current_task;
+  if (typeof taskId !== 'string' || taskId === '') {
+    throw new Error(`render ${surface}: no current task on "${topic}" — run \`task start\` first`);
+  }
+  return { item, taskId };
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function taskGate(cwd, args) {
+  const { item, taskId } = implItemAt(cwd, args.dotpath, 'task-gate');
+  return taskGateSection(taskId, gateOf(item, 'task_gate_mode'));
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function fixGate(cwd, args) {
+  const { item, taskId } = implItemAt(cwd, args.dotpath, 'fix-gate');
+  const attempts = typeof item.fix_attempts === 'number' ? item.fix_attempts : 0;
+  return fixGateSection(taskId, gateOf(item, 'fix_gate_mode'), attempts >= FIX_THRESHOLD);
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function fixThreshold(cwd, args) {
+  const { item, taskId } = implItemAt(cwd, args.dotpath, 'fix-threshold');
+  const attempts = typeof item.fix_attempts === 'number' ? item.fix_attempts : 0;
+  if (attempts < FIX_THRESHOLD) {
+    throw new Error(`render fix-threshold: fix_attempts is ${attempts}, below the threshold of ${FIX_THRESHOLD}`);
+  }
+  return fixThresholdDisplay(attempts, taskId);
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function cycleLimit(cwd, args) {
+  const { phase, topic, manifest } = resolveAddress(cwd, args.dotpath, 'cycle-limit');
+  if (phase !== 'implementation') {
+    throw new Error(`render cycle-limit: address must be <work_unit>.implementation.<topic>, got phase "${phase}"`);
+  }
+  const item = itemOf(manifest, 'implementation', topic);
+  if (!item) throw new Error(`render cycle-limit: no implementation item "${topic}"`);
+  const session = typeof item.analysis_cycle_session === 'number' ? item.analysis_cycle_session : 0;
+  if (session <= SESSION_CYCLE_LIMIT) {
+    throw new Error(`render cycle-limit: analysis_cycle_session is ${session}, within the session limit of ${SESSION_CYCLE_LIMIT}`);
+  }
+  return cycleLimitDisplay(session, SESSION_CYCLE_LIMIT);
+}
+
+/** @returns {string} */
+function blockedTasks() {
+  return blockedTasksMenu();
+}
+
+/** @returns {string} */
+function cycleGate() {
+  return cycleGateMenu();
+}
+
+// ---------------------------------------------------------------------------
+// Transaction receipts — fetched by the calling flow right after its
+// lifecycle verb, so the verb's stdout stays one JSON line. Each surface
+// validates that the state it renders from matches the verb it receipts:
+// a receipt fetched out of place refuses loudly. `--warn` prepends the
+// knowledge advisory — the caller sets it when the transaction's JSON
+// carried `warnings`.
+// ---------------------------------------------------------------------------
+
+const WORKUNIT_RECEIPT_STATUS = { complete: 'completed', cancel: 'cancelled', reactivate: 'in-progress' };
+
+/** @param {string} cwd @param {{dotpath: string, verb?: string, pipeline?: string, 'skipped-review'?: string, warn?: string}} args @returns {string} */
+function workunitReceiptSurface(cwd, args) {
+  const { manifest, workUnit } = resolveWorkUnit(cwd, args.dotpath, 'workunit-receipt');
+  const verb = args.verb;
+  if (verb !== 'complete' && verb !== 'cancel' && verb !== 'reactivate' && verb !== 'pivot') {
+    throw new Error(`render workunit-receipt: --verb must be complete, cancel, reactivate, or pivot, got "${verb}"`);
+  }
+  if (verb === 'pivot') {
+    if (manifest.work_type !== 'epic') {
+      throw new Error(`render workunit-receipt: "${workUnit}" is not an epic — nothing to receipt for a pivot`);
+    }
+  } else if (manifest.status !== WORKUNIT_RECEIPT_STATUS[verb]) {
+    throw new Error(`render workunit-receipt: "${workUnit}" is "${manifest.status}", not "${WORKUNIT_RECEIPT_STATUS[verb]}" — the ${verb} has not run`);
+  }
+  return workunitReceipt(verb, workUnit, manifest.work_type, {
+    pipeline: args.pipeline === '1',
+    skippedReview: args['skipped-review'] === '1',
+    warn: args.warn === '1',
+  });
+}
+
+/** @param {string} cwd @param {{dotpath: string, verb?: string, warn?: string}} args @returns {string} */
+function topicReceiptSurface(cwd, args) {
+  const { phase, topic, manifest } = resolveAddress(cwd, args.dotpath, 'topic-receipt');
+  const verb = args.verb;
+  if (verb !== 'complete' && verb !== 'cancel' && verb !== 'reactivate') {
+    throw new Error(`render topic-receipt: --verb must be complete, cancel, or reactivate, got "${verb}"`);
+  }
+  const item = itemOf(manifest, phase, topic);
+  if (!item) throw new Error(`render topic-receipt: no ${phase} item "${topic}"`);
+  if (verb === 'complete' && item.status !== 'completed') {
+    throw new Error(`render topic-receipt: "${topic}" is "${item.status}", not "completed" — the complete has not run`);
+  }
+  if (verb === 'cancel' && item.status !== 'cancelled') {
+    throw new Error(`render topic-receipt: "${topic}" is "${item.status}", not "cancelled" — the cancel has not run`);
+  }
+  if (verb === 'reactivate' && item.status === 'cancelled') {
+    throw new Error(`render topic-receipt: "${topic}" is still "cancelled" — the reactivate has not run`);
+  }
+  return topicReceipt(verb, topic, phase, item.status, { warn: args.warn === '1' });
+}
+
+/** @param {string} cwd @param {{dotpath: string, topic?: string, moved?: string, warn?: string}} args @returns {string} */
+function absorbReceiptSurface(cwd, args) {
+  const { manifest, workUnit } = resolveWorkUnit(cwd, args.dotpath, 'absorb-receipt');
+  if (manifest.work_type !== 'epic') {
+    throw new Error(`render absorb-receipt: "${workUnit}" is not an epic`);
+  }
+  const topic = args.topic;
+  if (!topic) throw new Error('render absorb-receipt: --topic is required');
+  if (!itemOf(manifest, 'discussion', topic)) {
+    throw new Error(`render absorb-receipt: no discussion item "${topic}" on "${workUnit}" — the absorb has not run`);
+  }
+  const moved = (args.moved || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const unknown = moved.filter((m) => !['research', 'seeds', 'imports'].includes(m));
+  if (unknown.length > 0) {
+    throw new Error(`render absorb-receipt: --moved entries must be research, seeds, or imports, got "${unknown.join(', ')}"`);
+  }
+  return absorbReceipt(workUnit, topic, moved, { warn: args.warn === '1' });
+}
+
+/** @param {string} cwd @param {{dotpath: string, to?: string, warn?: string}} args @returns {string} */
+function promoteReceiptSurface(cwd, args) {
+  const { workUnit, phase, topic, manifest } = resolveAddress(cwd, args.dotpath, 'promote-receipt');
+  if (phase !== 'specification') {
+    throw new Error(`render promote-receipt: address must be <work_unit>.specification.<topic>, got phase "${phase}"`);
+  }
+  if (!args.to) throw new Error('render promote-receipt: --to is required');
+  const item = itemOf(manifest, 'specification', topic);
+  if (!item || item.status !== 'promoted') {
+    throw new Error(`render promote-receipt: "${topic}" is not "promoted" — the promotion has not run`);
+  }
+  return promoteReceipt(workUnit, topic, args.to, { warn: args.warn === '1' });
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function pivotContinuation(cwd, args) {
+  const { manifest, workUnit } = resolveWorkUnit(cwd, args.dotpath, 'pivot-continuation');
+  if (manifest.work_type !== 'epic') {
+    throw new Error(`render pivot-continuation: "${workUnit}" is not an epic — the pivot has not run`);
+  }
+  return pivotContinuationMenu(workUnit);
+}
+
+/** @param {string} cwd @param {{dotpath: string, warn?: string}} args @returns {string} */
+function sessionReceiptSurface(cwd, args) {
+  resolveWorkUnit(cwd, args.dotpath, 'session-receipt');
+  return sessionReceipt({ warn: args.warn === '1' });
+}
+
+// ---------------------------------------------------------------------------
+// Manage-flow gates — scoped selections the manage sub-flows fetch at their
+// own gate, computed fresh from the same detail the manage snapshot reads.
+// ---------------------------------------------------------------------------
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function absorbTarget(cwd, args) {
+  const { workUnit } = resolveWorkUnit(cwd, args.dotpath, 'absorb-target');
+  const md = manageDetail(cwd, workUnit);
+  if (!md) throw new Error(`render absorb-target: work unit "${workUnit}" not found`);
+  if (!md.absorb_available) {
+    throw new Error(`render absorb-target: "${workUnit}" is not absorbable — the guard (discussion, no spec-or-beyond, an in-progress epic) does not hold`);
+  }
+  return absorbTargetMenu(md);
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function revisitPhasesSurface(cwd, args) {
+  const { manifest, workUnit } = resolveWorkUnit(cwd, args.dotpath, 'revisit-phases');
+  const type = manifest.work_type;
+  if (!WORK_UNIT_TYPES[type]) {
+    throw new Error(`render revisit-phases: "${workUnit}" is ${type ? `a ${type}` : 'untyped'} — the revisit menu serves the linear work types`);
+  }
+  const cfg = workUnitTypeConfig(type);
+  const { next_phase } = computeNextPhase(manifest);
+  const phases = revisitablePhases(type, { next_phase, completed_phases: completedPhases(cfg, manifest) });
+  if (phases.length === 0) {
+    throw new Error(`render revisit-phases: "${workUnit}" has no completed earlier phase to revisit`);
+  }
+  return revisitPhasesSection(phases);
+}
+
+/** @param {string} cwd @param {{dotpath: string}} args @returns {string} */
+function planTopics(cwd, args) {
+  const { workUnit } = resolveWorkUnit(cwd, args.dotpath, 'plan-topics');
+  const md = manageDetail(cwd, workUnit);
+  if (!md) throw new Error(`render plan-topics: work unit "${workUnit}" not found`);
+  if (!(md.work_type === 'epic' && md.has_plan && md.planning_topics.length > 1)) {
+    throw new Error(`render plan-topics: "${workUnit}" has no multi-topic plan to choose from`);
+  }
+  return planTopicsMenu(md);
+}
+
 /** The catalogue: surface name → handler. @type {Record<string, (cwd: string, args: {dotpath: string} & Record<string, string|undefined>) => string>} */
 const SURFACES = {
   'resume-gate': resumeGate,
@@ -1194,6 +1425,21 @@ const SURFACES = {
   'early-completion-gate': earlyCompletionGate,
   'revisit-gate': revisitGate,
   'epic-all-done-gate': epicAllDoneGate,
+  'task-gate': taskGate,
+  'fix-gate': fixGate,
+  'fix-threshold': fixThreshold,
+  'blocked-tasks': blockedTasks,
+  'cycle-limit': cycleLimit,
+  'cycle-gate': cycleGate,
+  'workunit-receipt': workunitReceiptSurface,
+  'topic-receipt': topicReceiptSurface,
+  'absorb-receipt': absorbReceiptSurface,
+  'promote-receipt': promoteReceiptSurface,
+  'pivot-continuation': pivotContinuation,
+  'session-receipt': sessionReceiptSurface,
+  'absorb-target': absorbTarget,
+  'plan-topics': planTopics,
+  'revisit-phases': revisitPhasesSurface,
 };
 
 /**

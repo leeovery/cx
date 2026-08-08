@@ -21,7 +21,7 @@ The decision phase, entered from discovery — or from research when it ran. Deb
 
 - **Topic** (required) - What technical area to discuss/document
 - **Work type** (required) - `epic`, `feature`, or `cross-cutting`. Determines session behaviour — off-topic concerns reroute between an epic's topics but log or pivot on single-topic work
-- **Context** (optional) - Prior research, constraints, existing decisions
+- **Context** (optional) - Interview answers or live conversation context; prior research, the discovery brief, and the carrier are read at initialisation
 - **Seed concerns** (optional) - Initial subtopics or architectural questions to explore
 
 ---
@@ -157,18 +157,6 @@ Load **[final-review.md](references/final-review.md)** and follow its instructio
 ---
 
 ## Step 7: Document Review
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-**`□ Document Review`**
-```
-
-> *Output the next fenced block as markdown (not a code block):*
-
-```
-> Reconciling the session conversation against the discussion file to catch substance that was discussed but never captured.
-```
 
 Load **[document-review.md](references/document-review.md)** and follow its instructions as written.
 

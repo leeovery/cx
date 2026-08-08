@@ -18,12 +18,6 @@ The caller provides these via context before loading:
 
 ## A. Identify Themes
 
-> *Output the next fenced block as a code block:*
-
-```
-Analyzing research documents...
-```
-
 **CRITICAL**: This analysis is the foundation for every downstream phase. The themes extracted here drive topic definition, which drives discussion, which drives specification, planning, and implementation. Anything missed here is invisible to the rest of the pipeline.
 
 Read `.workflows/{work_unit}/research/{name}.md` for each completed item from the precondition set. Skip files missing on disk. Items with `triaged`, `in-progress`, `superseded`, or `cancelled` status are not in the input set.
@@ -125,7 +119,7 @@ source: research-analysis:{parent}
 parent: {parent}
 ```
 
-`routing` is the value decided per-candidate in **B** (`discussion` or `research`). `source` carries the `parent` so provenance renders as `from {parent}`. `description` is a paragraph or two extracted from the analysis output for this topic — richer context than the one-line summary, loaded by entry skills as opening context when the user later picks the topic up. Do not write to the discovery map and do not append to any tracker here — the approval gate writes approved candidates and tracks them.
+`routing` is the value decided per-candidate in **B** (`discussion` or `research`). `source` carries the `parent` so provenance renders as `from {parent}`. `description` is a paragraph or two extracted from the analysis output for this topic — richer context than the one-line summary, read as opening context at the next phase's initialisation when the user later picks the topic up. Do not write to the discovery map and do not append to any tracker here — the approval gate writes approved candidates and tracks them.
 
 ---
 

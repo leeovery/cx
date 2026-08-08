@@ -25,8 +25,6 @@ const { VALID_ROUTINGS } = require('./kernel/manifest-schema.cjs');
 const { sequenceMap, addItem, addItemsBatch, editItem, removeItem, renameItem, rerouteItem, handleItem, unhandleItem } = require('./domain/discovery-map.cjs');
 const { startTopic, triageTopic, queueStatus, absorbConcern, completeTopic, reopenTopic, supersedeTopic, cancelTopic, reactivateTopic } = require('./domain/transitions.cjs');
 const { initTasks, startTask, fixAttempt, completeTask, analysisCycle } = require('./domain/tasks.cjs');
-const taskSections = require('./domain/projections/tasks.cjs');
-const txSections = require('./domain/projections/transactions.cjs');
 const { archiveItems, restoreItems, deleteItems } = require('./domain/inbox.cjs');
 const { stampAnalysisCache } = require('./domain/cache.cjs');
 const agentState = require('./domain/agent-state.cjs');
@@ -118,10 +116,10 @@ Commands:
   manifest resolve <work-unit>.<phase>[.<topic>]
   workunit create <work-unit> <work-type> --description <text> --session-log-file <path>|--no-session-log
                   [--import <path> …] [--seed <path> …]
-  workunit complete <work-unit> -m <message> [--pipeline [--skipped-review]]
+  workunit complete <work-unit> -m <message>
   workunit cancel <work-unit>
   workunit reactivate <work-unit>
-  workunit pivot <work-unit> [--continuation-menu]
+  workunit pivot <work-unit>
   workunit absorb <feature> --into <epic> --topic <name>
   workunit promote <work-unit> <topic> --to <cc-work-unit> --description <text>
   discussion-map add <work-unit> <topic> <subtopic> [--parent <subtopic>]
@@ -192,6 +190,21 @@ Commands:
   render early-completion-gate <wu>
   render revisit-gate      <wu> --prev <phase> --next <phase>
   render epic-all-done-gate <wu>
+  render task-gate         <wu.implementation.topic>
+  render fix-gate          <wu.implementation.topic>
+  render fix-threshold     <wu.implementation.topic>
+  render blocked-tasks
+  render cycle-limit       <wu.implementation.topic>
+  render cycle-gate
+  render workunit-receipt  <wu> --verb complete|cancel|reactivate|pivot [--pipeline [--skipped-review]] [--warn]
+  render topic-receipt     <wu.phase.topic> --verb complete|cancel|reactivate [--warn]
+  render absorb-receipt    <epic> --topic <name> [--moved research,seeds,imports] [--warn]
+  render promote-receipt   <wu.specification.topic> --to <cc-work-unit> [--warn]
+  render pivot-continuation <wu>
+  render session-receipt   <wu> [--warn]
+  render absorb-target     <feature>
+  render plan-topics       <wu>
+  render revisit-phases    <wu>
   render signpost <label> [--style step|substep] [--width N]     (dev aid)
   render box <title> [--width N]                                 (dev aid)
   render wrap <text> [--width N] [--prefix STR]                  (dev aid)
@@ -268,52 +281,37 @@ function runWorkunit(argv) {
     } else if (command === 'complete') {
       /** @type {string|null} */ let workUnit = null;
       /** @type {string|null} */ let message = null;
-      const completeFlags = new Set();
       for (let i = 0; i < rest.length; i++) {
         const a = rest[i];
         if (a === '-m' || a === '--message') message = rest[++i];
-        else if (a === '--pipeline' || a === '--skipped-review') completeFlags.add(a.slice(2));
         else if (workUnit === null) workUnit = a;
         else throw new Error(`unexpected argument "${a}"`);
       }
       if (!workUnit || !message) {
-        throw new Error('Usage: engine workunit complete <work-unit> -m <message> [--pipeline [--skipped-review]]');
+        throw new Error('Usage: engine workunit complete <work-unit> -m <message>');
       }
-      const res = completeWorkUnit(process.cwd(), workUnit, { message });
-      respond(res);
-      respondSections(txSections.workunitLifecycleSections('complete', res, {
-        pipeline: completeFlags.has('pipeline'),
-        skippedReview: completeFlags.has('skipped-review'),
-      }));
+      respond(completeWorkUnit(process.cwd(), workUnit, { message }));
     } else if (command === 'cancel' || command === 'reactivate' || command === 'pivot') {
       const [workUnit, ...extra] = rest;
-      if (!workUnit || (extra.length > 0 && !(command === 'pivot' && extra.every((a) => a === '--continuation-menu')))) {
-        throw new Error(`Usage: engine workunit ${command} <work-unit>${command === 'pivot' ? ' [--continuation-menu]' : ''}`);
+      if (!workUnit || extra.length > 0) {
+        throw new Error(`Usage: engine workunit ${command} <work-unit>`);
       }
       const fn = command === 'cancel' ? cancelWorkUnit : command === 'reactivate' ? reactivateWorkUnit : pivotWorkUnit;
-      const res = fn(process.cwd(), workUnit);
-      respond(res);
-      respondSections(command === 'pivot'
-        ? txSections.pivotSections(res, { continuationMenu: extra.includes('--continuation-menu') })
-        : txSections.workunitLifecycleSections(command, res));
+      respond(fn(process.cwd(), workUnit));
     } else if (command === 'absorb') {
       const { opts, positional } = parseArgs(rest);
       const [feature] = positional;
       if (!feature || positional.length !== 1 || !opts.into || !opts.topic) {
         throw new Error('Usage: engine workunit absorb <feature> --into <epic> --topic <name>');
       }
-      const res = absorbWorkUnit(process.cwd(), feature, { into: opts.into, topic: opts.topic });
-      respond(res);
-      respondSections(txSections.absorbSections(res));
+      respond(absorbWorkUnit(process.cwd(), feature, { into: opts.into, topic: opts.topic }));
     } else if (command === 'promote') {
       const { opts, positional } = parseArgs(rest);
       const [workUnit, topic] = positional;
       if (!workUnit || !topic || positional.length !== 2 || !opts.to || !opts.description) {
         throw new Error('Usage: engine workunit promote <work-unit> <topic> --to <cc-work-unit> --description <text>');
       }
-      const res = promoteWorkUnit(process.cwd(), workUnit, topic, { to: opts.to, description: opts.description });
-      respond(res);
-      respondSections(txSections.promoteSections(res));
+      respond(promoteWorkUnit(process.cwd(), workUnit, topic, { to: opts.to, description: opts.description }));
     } else {
       throw new Error('Usage: engine workunit <create|complete|cancel|reactivate|pivot|absorb|promote> …');
     }
@@ -502,9 +500,7 @@ function runDiscoverySession(argv) {
       if (!workUnit || !message) {
         throw new Error('Usage: engine discovery-session close <work-unit> -m <message>');
       }
-      const res = closeDiscoverySession(process.cwd(), workUnit, { message });
-      respond(res);
-      respondSections(txSections.discoverySessionCloseSections(res));
+      respond(closeDiscoverySession(process.cwd(), workUnit, { message }));
     } else {
       throw new Error('Usage: engine discovery-session <open|close> …');
     }
@@ -634,11 +630,7 @@ function runTopic(argv) {
     if (!workUnit || !phase || !topic) {
       throw new Error(`Usage: engine topic ${command} <work-unit> <phase> <topic>`);
     }
-    const res = fn(process.cwd(), workUnit, phase, topic);
-    respond(res);
-    if (command === 'complete' || command === 'cancel' || command === 'reactivate') {
-      respondSections(txSections.topicLifecycleSections(command, res));
-    }
+    respond(fn(process.cwd(), workUnit, phase, topic));
   } catch (err) {
     failJson(err);
   }
@@ -648,9 +640,9 @@ function runTopic(argv) {
 // task — implementation-task bookkeeping: format-blind, manifest-side only.
 // The engine never touches a task backend; the session does the plan surgery,
 // these commands record it. No git commit — the per-task commit is the
-// session's. After the JSON line, each verb appends its state-derived gate
-// sections (domain/projections/tasks.cjs) — the task loop emits them verbatim
-// at the gate each marker names.
+// session's. Each verb answers with its one-line JSON only; the loop's gate
+// sections are fetched by their own `render` calls (task-gate, fix-gate,
+// blocked-tasks, cycle-gate) at the stage that displays them.
 // ---------------------------------------------------------------------------
 
 /** @param {string[]} argv */
@@ -664,26 +656,19 @@ function runTask(argv) {
       if (!workUnit || !topic) throw new Error(`Usage: engine task ${command} <work-unit> <topic>`);
       if (command === 'init') {
         respond(initTasks(cwd, workUnit, topic));
-        respondSections(taskSections.initSections());
       } else {
-        const result = analysisCycle(cwd, workUnit, topic);
-        respond(result);
-        respondSections(taskSections.analysisCycleSections(result));
+        respond(analysisCycle(cwd, workUnit, topic));
       }
     } else if (command === 'start') {
       if (!workUnit || !topic || !internalId) {
         throw new Error('Usage: engine task start <work-unit> <topic> <internal-id>');
       }
-      const result = startTask(cwd, workUnit, topic, internalId);
-      respond(result);
-      respondSections(taskSections.startSections(result));
+      respond(startTask(cwd, workUnit, topic, internalId));
     } else if (command === 'fix-attempt') {
       if (!workUnit || !topic || !internalId || !opts['findings-file']) {
         throw new Error('Usage: engine task fix-attempt <work-unit> <topic> <internal-id> --findings-file <path>');
       }
-      const result = fixAttempt(cwd, workUnit, topic, internalId, opts['findings-file']);
-      respond(result);
-      respondSections(taskSections.fixAttemptSections(result, internalId));
+      respond(fixAttempt(cwd, workUnit, topic, internalId, opts['findings-file']));
     } else if (command === 'complete') {
       if (!workUnit || !topic) {
         throw new Error('Usage: engine task complete <work-unit> <topic> (<internal-id> | --external <id>) [--skipped] [--next-task <id|~>] [--phase <N>] [--phase-complete]');
@@ -704,7 +689,6 @@ function runTask(argv) {
         phaseComplete: flags.has('phase-complete'),
       });
       respond(result);
-      respondSections(taskSections.completeSections());
     } else {
       throw new Error('Usage: engine task <init|start|fix-attempt|complete|analysis-cycle> …');
     }
@@ -1005,7 +989,7 @@ function runCommit(argv) {
 /** @param {string[]} argv */
 function runRender(argv) {
   const [command, ...rest] = argv;
-  const { opts, flags, positional } = parseArgs(rest, ['approve', 'skipped-review', 'own', 'paths']);
+  const { opts, flags, positional } = parseArgs(rest, ['approve', 'skipped-review', 'own', 'paths', 'warn', 'pipeline']);
   const width = opts.width !== undefined ? parseInt(opts.width, 10) : WIDTH;
 
   if (Object.hasOwn(SURFACES, command)) {
@@ -1016,6 +1000,8 @@ function runRender(argv) {
       if (flags.has('skipped-review')) args['skipped-review'] = '1';
       if (flags.has('own')) args.own = '1';
       if (flags.has('paths')) args.paths = '1';
+      if (flags.has('warn')) args.warn = '1';
+      if (flags.has('pipeline')) args.pipeline = '1';
       respondSections(renderSurface(process.cwd(), command, args));
     } catch (err) {
       failJson(err);

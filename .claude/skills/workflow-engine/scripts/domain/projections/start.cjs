@@ -7,7 +7,7 @@
 // and archived lists, the working set, the manage flow, and the completed &
 // cancelled view. Sub-view projections return `{data, display, menu}` bodies
 // (the adapter wraps them in section markers); flows with later gates also
-// return labelled deferred `sections`, emitted only where their marker says.
+// return labelled `sections` emitted at the same call (the mixed-type blocker).
 //
 // Deterministic: same detail, same string. The overview is a flat list (one
 // numbered item + one └─ sub-row each, numbering continuous across the type
@@ -335,7 +335,8 @@ function archivedView(items) {
  * arrive via the caller's payload, keyed by inbox path — a row renders
  * without a body when its summary is missing), the set menu (`w/work` renders
  * only for a type-uniform set), a `DISPLAY: blocker` section on a mixed-type
- * set, plus the deferred add/drop gates.
+ * set. The add/drop gate sections are served by workingSetAddGate /
+ * workingSetDropGate, fetched by the gateway verbs at each gate.
  * @param {WorkingSetDetail} ws
  * @param {Record<string, string>} [summaries]
  * @returns {{data: string, title: string, display: string, menu: string, sections: string}}
@@ -387,30 +388,53 @@ function workingSetView(ws, summaries = {}) {
       '⚑ Work is unavailable while the set mixes types — drop to a single type to enable it.',
     ));
   }
-  if (ws.addable.length > 0) {
-    sections.push(labelled(
-      'DISPLAY: add candidates',
-      'emit verbatim as a code block only at the add-items gate — never at the call',
-      ws.addable.map((item) => `  ${item.n}. ${item.title} [${item.type}] — ${item.date}`).join('\n'),
-    ));
-    sections.push(labelled(
-      'MENU: add gate',
-      'emit verbatim as markdown only at the add-items gate',
-      dotMenu(['Add which? (enter number(s), comma-separated, or **`b/back`**)']),
-    ));
-  }
-  sections.push(labelled(
-    'DISPLAY: drop candidates',
-    'emit verbatim as a code block only at the drop-items gate — never at the call',
-    ws.items.map((item) => `  ${item.n}. ${item.title} [${item.type}]`).join('\n'),
-  ));
-  sections.push(labelled(
-    'MENU: drop gate',
-    'emit verbatim as markdown only at the drop-items gate',
-    dotMenu(['Drop which? (enter number(s), comma-separated, or **`b/back`**)']),
-  ));
 
   return { data, title, display, menu, sections: sections.join('\n') };
+}
+
+/**
+ * The add-items gate over the working set's addable rows, served by the
+ * gateway's `working-set-add-gate` verb at the gate that displays it.
+ * @param {WorkingSetDetail} ws
+ * @returns {string}
+ */
+function workingSetAddGate(ws) {
+  if (ws.addable.length === 0) {
+    throw new Error('working-set-add-gate: nothing addable — the whole inbox is already in the set');
+  }
+  return [
+    labelled(
+      'DISPLAY: add candidates',
+      'emit verbatim as a code block',
+      ws.addable.map((item) => `  ${item.n}. ${item.title} [${item.type}] — ${item.date}`).join('\n'),
+    ),
+    labelled(
+      'MENU: add gate',
+      "emit verbatim as markdown, then STOP for the user's response",
+      dotMenu(['Add which? (enter number(s), comma-separated, or **`b/back`**)']),
+    ),
+  ].join('\n');
+}
+
+/**
+ * The drop-items gate over the working set, served by the gateway's
+ * `working-set-drop-gate` verb at the gate that displays it.
+ * @param {WorkingSetDetail} ws
+ * @returns {string}
+ */
+function workingSetDropGate(ws) {
+  return [
+    labelled(
+      'DISPLAY: drop candidates',
+      'emit verbatim as a code block',
+      ws.items.map((item) => `  ${item.n}. ${item.title} [${item.type}]`).join('\n'),
+    ),
+    labelled(
+      'MENU: drop gate',
+      "emit verbatim as markdown, then STOP for the user's response",
+      dotMenu(['Drop which? (enter number(s), comma-separated, or **`b/back`**)']),
+    ),
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -463,10 +487,10 @@ function manageListView(detail) {
 
 /**
  * One work unit's manage snapshot: the action menu offering exactly the
- * actions its state allows, plus the deferred absorb-target and view-plan
- * topic gates when those actions are live.
+ * actions its state allows. The absorb-target and view-plan topic gates are
+ * served by their own render surfaces, fetched at each gate.
  * @param {ManageDetail} md
- * @returns {{data: string, menu: string, sections: string}}
+ * @returns {{data: string, menu: string}}
  */
 function manageUnitView(md) {
   /** @type {[string, string][]} */
@@ -516,33 +540,45 @@ function manageUnitView(md) {
     ...options,
   ]);
 
-  const sections = [];
-  if (md.absorb_available) {
-    sections.push(labelled(
-      'MENU: absorb target',
-      'emit verbatim as markdown only at the absorb target gate — never at the call',
-      dotMenu([
-        'Select a target epic:',
-        '',
-        ...md.available_epics.map((name, i) => cmdOption(String(i + 1), null, titlecase(name))),
-        '',
-        cmdOption('b', 'back', 'Return'),
-      ]),
-    ));
-  }
-  if (md.work_type === 'epic' && md.has_plan && md.planning_topics.length > 1) {
-    sections.push(labelled(
-      'MENU: plan topics',
-      'emit verbatim as markdown only at the view-plan topic gate — never at the call',
-      dotMenu([
-        'Which plan would you like to view?',
-        '',
-        ...md.planning_topics.map((t, i) => cmdOption(String(i + 1), null, `${titlecase(t.name)} — *${t.status}*`)),
-      ]),
-    ));
-  }
+  return { data, menu };
+}
 
-  return { data, menu, sections: sections.join('\n') };
+/**
+ * The absorb-target selection menu, served by `render absorb-target` at the
+ * gate that displays it. Numbering follows `available_epics` order.
+ * @param {ManageDetail} md
+ * @returns {string}
+ */
+function absorbTargetMenu(md) {
+  return labelled(
+    'MENU: absorb target',
+    "emit verbatim as markdown, then STOP for the user's response",
+    dotMenu([
+      'Select a target epic:',
+      '',
+      ...md.available_epics.map((name, i) => cmdOption(String(i + 1), null, titlecase(name))),
+      '',
+      cmdOption('b', 'back', 'Return'),
+    ]),
+  );
+}
+
+/**
+ * The view-plan topic selection menu, served by `render plan-topics` at the
+ * gate that displays it. Numbering follows `planning_topics` order.
+ * @param {ManageDetail} md
+ * @returns {string}
+ */
+function planTopicsMenu(md) {
+  return labelled(
+    'MENU: plan topics',
+    "emit verbatim as markdown, then STOP for the user's response",
+    dotMenu([
+      'Which plan would you like to view?',
+      '',
+      ...md.planning_topics.map((t, i) => cmdOption(String(i + 1), null, `${titlecase(t.name)} — *${t.status}*`)),
+    ]),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -647,7 +683,11 @@ module.exports = {
   inboxPickupView,
   archivedView,
   workingSetView,
+  workingSetAddGate,
+  workingSetDropGate,
   manageListView,
   manageUnitView,
+  absorbTargetMenu,
+  planTopicsMenu,
   completedView,
 };

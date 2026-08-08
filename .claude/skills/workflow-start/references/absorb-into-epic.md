@@ -14,7 +14,11 @@ Merge a feature's discussion into an existing epic as a new topic, then remove t
 > This will move the feature's discussion, research, seed, and imports into the selected epic as a new topic and delete the feature work unit. Git history serves as provenance.
 ```
 
-Emit the `MENU: absorb target` section from the caller's `manage {selected.name}` snapshot verbatim as markdown (not a code block). Its numbering follows the snapshot's `available_epics` order.
+Fetch and emit the `MENU: absorb target` section (its numbering follows the DATA `available_epics` order):
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render absorb-target {selected.name}
+```
 
 **STOP.** Wait for user response.
 
@@ -222,7 +226,11 @@ The command succeeded.
 
 ## H. Post-Absorption
 
-Emit the response's `DISPLAY: kb warning` section when present, then its `DISPLAY: confirmation` section — each verbatim per its marker.
+Fetch and emit the receipt — the `DISPLAY: kb warning` advisory (when carried) then the `DISPLAY: confirmation` summary. `--moved` lists whichever of `research`, `seeds`, `imports` the absorb response reported non-empty (comma-separated; omit the flag when none moved), and `--warn` rides when the response's `warnings` is non-empty:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render absorb-receipt {target_epic} --topic {topic} [--moved {moved}] [--warn]
+```
 
 > *Output the next fenced block as markdown (not a code block):*
 

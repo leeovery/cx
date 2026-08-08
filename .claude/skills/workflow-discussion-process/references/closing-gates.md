@@ -6,6 +6,26 @@
 
 The passage from conversation to conclusion runs two gates: the **review gate** — is a final review owed, and does the user want it — then the **conclude gate**. Nothing here proceeds silently: whatever the classification, the user hears what comes next and answers.
 
+The triage queue precedes both gates — a queued concern is work the conclusion cannot pass, and a review dispatched over it would read a document the walk is about to move. Check it first:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs topic queue {work_unit} discussion {topic}
+```
+
+**If `count` is non-zero:**
+
+Render the blocker and emit both its sections verbatim per their markers — the red blocker line, then its guidance:
+
+```bash
+node .claude/skills/workflow-engine/scripts/engine.cjs render triage-block {work_unit}.discussion.{topic}
+```
+
+→ Return to caller for **B. Session Loop**.
+
+**If `count` is `0`:**
+
+→ Proceed to **A. Classify**.
+
 ## A. Classify
 
 Read the agent store:
@@ -19,7 +39,7 @@ Classify what the final-review step still owes — first match wins:
 1. Any `review`, `synthesis`, or `perspective` row is `pending` or `acknowledged` → **findings-owed**: "background findings are still to be walked through"
 2. Any `review` row is `in-flight` → **review-running**: "a dispatched review is still running"
 3. No `review` row exists → **never-reviewed**: "no review has run yet"
-4. Otherwise the highest-numbered `review` row is `incorporated` — classify by movement. Run `git log --since='{created}' --format='%h %s' -- .workflows/{work_unit}/discussion/{topic}.md` (`{created}` = the row's `created` timestamp; git does the time comparison), then drop commits whose subject carries a `review-` or `synthesis-` drain marker (e.g. `(review-003 F2)`) or a `(deferral)` marker — engagement writes and the conclusion's own deferral write are not new work. Classify the residue:
+4. Otherwise the highest-numbered `review` row is `incorporated` — classify by movement, anchored on the last **real** review: the highest-numbered `review` row whose report exists on disk (`.workflows/.cache/{work_unit}/discussion/{topic}/{id}.md`, non-empty). An `incorporated` row with no report is a killed dispatch closed as bookkeeping, never a review — anchoring on it would hide every commit between the real review and the kill. If no review row has a report, no review has ever completed → **never-reviewed**. Otherwise run `git log --since='{created}' --format='%h %s' -- .workflows/{work_unit}/discussion/{topic}.md` (`{created}` = the anchor row's `created` timestamp; git does the time comparison), then drop commits whose subject carries a `review-` or `synthesis-` drain marker (e.g. `(review-003 F2)`) or a `(deferral)` marker — engagement writes and the conclusion's own deferral write are not new work. Classify the residue:
    1. No commits remain → **satisfied**: the final review is up to date — no judgment
    2. A remaining commit is meaningful — a decision documented, a subtopic explored; not typo fixes, not bookkeeping (document-review reconciliation, summary maintenance) → **re-review**: the discussion has moved since the last review
    3. Otherwise → **satisfied** — doubt resolves here; declining forfeits nothing, a later attempt reclassifies
@@ -46,18 +66,18 @@ No review to offer — the conclude gate is next.
 
 ## B. Review Gate — Optional
 
-A review has already run and drained; declining a fresh one forfeits nothing owed.
+A review has already run and drained; declining another forfeits nothing owed.
 
 > *Output the next fenced block as markdown (not a code block):*
 
 ```
 · · · · · · · · · · · ·
-The discussion has moved since the last review. A fresh gap review can catch what the movement opened — or skip it and move on.
+The discussion has moved since the last final review. Another pass can catch what that movement opened — or conclude on the review you've already had.
 
-**`◆ Run a fresh review?`**
+**`◆ Run another final review?`**
 
-**`y/yes`**      → Run the fresh review
-**`s/skip`**     → Skip it and go to the conclude gate
+**`y/yes`**      → Run another final review
+**`s/skip`**     → Conclude on the last review — the movement stays unreviewed
 **Keep going** → Tell me what else to explore
 ```
 
@@ -69,7 +89,7 @@ The discussion has moved since the last review. A fresh gap review can catch wha
 
 **If `skip`:**
 
-The fresh review is declined for this conclusion attempt — Step 6 honours the decline, and a later attempt classifies afresh and offers again.
+Another final review is declined for this conclusion attempt — Step 6 honours the decline, and a later attempt classifies afresh and offers again.
 
 → Proceed to **D. Conclude Gate**.
 

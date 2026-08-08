@@ -10,6 +10,8 @@ This step invokes the `workflow-implementation-task-reviewer` agent (`../../../a
 
 ## Invoke the Agent
 
+Every review dispatches a **fresh** `workflow-implementation-task-reviewer` agent — including the re-review after a fix round. Never continue a previous reviewer: the review is independent verification, and a continued reviewer checks the fix against its own prior findings instead of reading the result fresh. The numbered payload is the reviewer's complete input — prior review findings and fix history stay out; they would anchor the fresh read.
+
 Invoke `workflow-implementation-task-reviewer` with:
 
 1. **Specification path**: same path given to the executor
@@ -17,6 +19,7 @@ Invoke `workflow-implementation-task-reviewer` with:
 3. **Project skill paths**: from `project_skills` in the manifest (`node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit}.implementation.{topic} project_skills`)
 4. **Work type**: from the manifest (`node .claude/skills/workflow-engine/scripts/engine.cjs manifest get {work_unit} work_type`) — `quick-fix` switches the reviewer to completeness-based criteria and verification-workflow checks
 5. **code-quality.md path**: `.claude/skills/workflow-implementation-process/references/code-quality.md` — the standards the executor worked to, including the comment discipline
+6. **Executor's report**: the structured result the executor returned for this attempt — the claims under review, to be verified against the code, never trusted
 
 ---
 
