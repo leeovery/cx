@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // resolveLoader returns the production-shaped loader — every built-in slug
@@ -63,14 +64,14 @@ func escapeTargetDir(t *testing.T) string {
 	t.Helper()
 
 	root := t.TempDir()
-	writeTheme(t, root, "evil.theme", themeLines())
+	themetest.Write(t, root, "evil.theme", themetest.Lines())
 
 	dir := filepath.Join(root, "themes")
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", dir, err)
 	}
 	for _, base := range []string{"Nord.theme", "-nord.theme", "nord lee.theme", ".theme"} {
-		writeTheme(t, dir, base, themeLines())
+		themetest.Write(t, dir, base, themetest.Lines())
 	}
 	return dir
 }
@@ -210,7 +211,7 @@ func TestResolveByName_BuiltinNeverReadsDirectory(t *testing.T) {
 		dir := t.TempDir()
 
 		for _, slug := range requireBuiltins(t) {
-			writeTheme(t, dir, slug+".theme", withoutKey(themeLines(), "bg.subtle"))
+			themetest.Write(t, dir, slug+".theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 
 			result, rejection := loader.ResolveByName(slug, dir)
 
@@ -244,7 +245,7 @@ func TestResolveByName_BuiltinNeverReadsDirectory(t *testing.T) {
 func TestResolveByName_DropInResolves(t *testing.T) {
 	loader, sink := resolveLoader(t)
 	dir := t.TempDir()
-	path := writeTheme(t, dir, "nord-lee.theme", themeLines())
+	path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	want, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read back %s: %v", path, err)
@@ -405,7 +406,7 @@ func TestResolveByName_AbsentOrEmptyDirectoryIsNotFound(t *testing.T) {
 	t.Run("an empty directory string composes no path", func(t *testing.T) {
 		loader, sink := resolveLoader(t)
 		cwd := t.TempDir()
-		writeTheme(t, cwd, "nord-lee.theme", themeLines())
+		themetest.Write(t, cwd, "nord-lee.theme", themetest.Lines())
 		t.Chdir(cwd)
 
 		result, rejection := loader.ResolveByName("nord-lee", "")
@@ -586,16 +587,16 @@ func TestResolveByName_ContentReasonsPassThrough(t *testing.T) {
 		lines      []string
 		wantReason theme.Reason
 	}{
-		{name: "a duplicate key", lines: append(themeLines(), "text.primary = #010203"), wantReason: theme.ReasonBadSyntax},
-		{name: "a bad hex", lines: withValue(themeLines(), "canvas", "blue"), wantReason: theme.ReasonBadColour},
-		{name: "a missing token", lines: withoutKey(themeLines(), "bg.subtle"), wantReason: theme.ReasonMissingTokens},
+		{name: "a duplicate key", lines: append(themetest.Lines(), "text.primary = #010203"), wantReason: theme.ReasonBadSyntax},
+		{name: "a bad hex", lines: themetest.WithValue(themetest.Lines(), "canvas", "blue"), wantReason: theme.ReasonBadColour},
+		{name: "a missing token", lines: themetest.WithoutKey(themetest.Lines(), "bg.subtle"), wantReason: theme.ReasonMissingTokens},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			loader, sink := resolveLoader(t)
 			dir := t.TempDir()
-			path := writeTheme(t, dir, "nord-lee.theme", tc.lines)
+			path := themetest.Write(t, dir, "nord-lee.theme", tc.lines)
 			_, want := loader.LoadFile(path)
 			if want == nil {
 				t.Fatalf("LoadFile(%s) accepted the fixture, want %q", path, tc.wantReason)
@@ -634,7 +635,7 @@ func TestResolveByName_UnreachableReasonsAreUnreachable(t *testing.T) {
 
 		for _, slug := range requireBuiltins(t) {
 			t.Run(slug, func(t *testing.T) {
-				path := writeTheme(t, dir, slug+".theme", themeLines())
+				path := themetest.Write(t, dir, slug+".theme", themetest.Lines())
 				if _, rejection := loader.LoadFile(path); rejection == nil || rejection.Reason != theme.ReasonReservedName {
 					t.Fatalf("LoadFile(%s) = %v, want %q — the collision this fixture stages is not real", path, rejection, theme.ReasonReservedName)
 				}
@@ -742,7 +743,7 @@ func searchOnlyDir(t *testing.T) string {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", dir, err)
 	}
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 
 	if err := os.Chmod(dir, 0o111); err != nil {
 		t.Fatalf("chmod %s: %v", dir, err)

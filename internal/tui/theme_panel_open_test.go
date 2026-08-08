@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -197,17 +197,20 @@ func countThemeEvents(sink *logtest.Sink, msg string) int {
 }
 
 // writeThemeFileForTest writes a COMPLETE theme file whose every token carries
-// value. The token names come from TokenNames() so the fixture cannot drift from
-// the vocabulary.
+// value.
+//
+// One colour across the whole palette is deliberate: comparing a single token
+// then identifies which file was parsed, and an unparseable value makes EVERY
+// token bad, so a rejection's detail does not turn on which token the loader
+// reaches first.
 func writeThemeFileForTest(t *testing.T, dir, base, value string) {
 	t.Helper()
-	var b strings.Builder
+
+	lines := themetest.Lines()
 	for _, name := range theme.TokenNames() {
-		fmt.Fprintf(&b, "%s = %s\n", name, value)
+		lines = themetest.WithValue(lines, name, value)
 	}
-	if err := os.WriteFile(filepath.Join(dir, base), []byte(b.String()), 0o644); err != nil {
-		t.Fatalf("write %s: %v", filepath.Join(dir, base), err)
-	}
+	themetest.Write(t, dir, base, lines)
 }
 
 // themePanelRowFor returns the panel item whose row is labelled label.

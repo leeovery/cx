@@ -329,7 +329,11 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		// so cmd/doctor and portal theme export need not import a TUI
 		// subpackage); unrelated to scrollback-preview, allow-listed per this
 		// audit's own guidance.
-		"theme":         {},
+		"theme": {},
+		// themetest: test-only helper authoring .theme fixture files for the
+		// theming-system feature; unrelated to scrollback-preview, allow-listed
+		// per this audit's own guidance.
+		"themetest":     {},
 		"tmux":          {},
 		"tmuxerr":       {},
 		"tmuxout":       {},

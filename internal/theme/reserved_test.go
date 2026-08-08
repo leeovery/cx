@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // brokenCanvasValue is the typo'd hex §5.4 tells its story with — a value that
@@ -26,7 +27,7 @@ const brokenCanvasValue = "blue"
 // NewLoader populates the seam, so it can say nothing about whether the safety
 // property actually EXISTS in a Portal that has been built.
 func TestLoadFile_ReservedSlugRejected(t *testing.T) {
-	path := writeTheme(t, t.TempDir(), tokyoNightSlug+".theme", themeLines())
+	path := themetest.Write(t, t.TempDir(), tokyoNightSlug+".theme", themetest.Lines())
 
 	got, rejection := productionLoader().LoadFile(path)
 
@@ -99,7 +100,7 @@ func TestLoadFile_MixedCaseFilenameIsBadNameNotReserved(t *testing.T) {
 	for _, slug := range requireBuiltinSlugs(t) {
 		for _, variant := range caseVariants(t, slug) {
 			t.Run(variant.base, func(t *testing.T) {
-				path := writeTheme(t, t.TempDir(), variant.base, themeLines())
+				path := themetest.Write(t, t.TempDir(), variant.base, themetest.Lines())
 
 				got, rejection := loader.LoadFile(path)
 
@@ -133,7 +134,7 @@ func TestReservedSet_CoversEveryBuiltinSlug(t *testing.T) {
 
 	for _, slug := range requireBuiltinSlugs(t) {
 		t.Run(slug, func(t *testing.T) {
-			path := writeTheme(t, t.TempDir(), slug+".theme", themeLines())
+			path := themetest.Write(t, t.TempDir(), slug+".theme", themetest.Lines())
 
 			got, rejection := loader.LoadFile(path)
 
@@ -162,7 +163,7 @@ func TestNoShadowing_BrokenDropInCannotReplaceBuiltin(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	shadowPath := writeTheme(t, dir, tokyoNightSlug+".theme", withValue(themeLines(), "canvas", brokenCanvasValue))
+	shadowPath := themetest.Write(t, dir, tokyoNightSlug+".theme", themetest.WithValue(themetest.Lines(), "canvas", brokenCanvasValue))
 	shadowBytes, err := os.ReadFile(shadowPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", shadowPath, err)

@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // themeComponent is the log component §12.3 adds to the closed vocabulary. The
@@ -166,9 +167,9 @@ func TestEventLogger_DiscardSilencesEverything(t *testing.T) {
 	// The doctor/export/capturetool construction itself, driven over a directory
 	// holding one broken file of every shape those callers actually meet.
 	dir := t.TempDir()
-	writeTheme(t, dir, "bad-colour.theme", withValue(themeLines(), "canvas", "blue"))
-	writeTheme(t, dir, "missing.theme", withoutKey(themeLines(), "bg.subtle"))
-	writeTheme(t, dir, "Nord.THEME", themeLines())
+	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	themetest.Write(t, dir, "Nord.THEME", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 	for range 2 {
 		entries, rejection := loader.Enumerate(dir)
@@ -219,9 +220,9 @@ func TestEventLogger_NilLoggerIsSafe(t *testing.T) {
 // and nothing at all for the valid file beside them.
 func TestEventLogger_DedupsRejectedOnSlugAndReason(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "bad-colour.theme", withValue(themeLines(), "canvas", "blue"))
-	writeTheme(t, dir, "missing.theme", withoutKey(themeLines(), "bg.subtle"))
-	writeTheme(t, dir, "valid.theme", themeLines())
+	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
@@ -266,7 +267,7 @@ func TestEventLogger_DedupsRejectedOnSlugAndReason(t *testing.T) {
 // absent rather than empty: an empty one would read as a theme called nothing.
 func TestEventLogger_DedupsOnPathWhenNoSlug(t *testing.T) {
 	dir := t.TempDir()
-	path := writeTheme(t, dir, "Nord.THEME", themeLines())
+	path := themetest.Write(t, dir, "Nord.THEME", themetest.Lines())
 
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
@@ -586,7 +587,7 @@ func TestEvents_LoadedNamesTheFallbackSlug(t *testing.T) {
 // merely change what one of them says.
 func TestEvents_FallbackAppliedNamesTheFailedSlug(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "broken-light.theme", withoutKey(themeLines(), "bg.subtle"))
+	themetest.Write(t, dir, "broken-light.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
 	setting := theme.Setting{Light: "broken-light", Dark: theme.DefaultDarkSlug}
@@ -672,7 +673,7 @@ func TestEvents_FallbackDifferentReasonEmitsTwice(t *testing.T) {
 	if _, err := loader.ResolveNomination(setting, dir); err != nil {
 		t.Fatalf("ResolveNomination(%+v) = %v, want the fallback applied", setting, err)
 	}
-	writeTheme(t, dir, "nord-lee.theme", withoutKey(themeLines(), "bg.subtle"))
+	themetest.Write(t, dir, "nord-lee.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	if _, err := loader.ResolveNomination(setting, dir); err != nil {
 		t.Fatalf("ResolveNomination(%+v) after the file appeared = %v, want the fallback applied", setting, err)
 	}
@@ -783,7 +784,7 @@ func TestEvents_LevelsAreLoadedInfoFallbackWarn(t *testing.T) {
 // exactly what this package passed rather than what a caller's binding added.
 func TestEvents_AttrKeysAreInTheClosedSet(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "broken-light.theme", withoutKey(themeLines(), "bg.subtle"))
+	themetest.Write(t, dir, "broken-light.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
 

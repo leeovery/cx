@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestEnumerate_AbsentDirectoryIsSilent pins the first row of §5.5's
@@ -104,7 +105,7 @@ func TestEnumerate_UnreadableDirectory(t *testing.T) {
 // directory `unreadable`.
 func TestEnumerate_FollowsSymlinkedRoot(t *testing.T) {
 	real := t.TempDir()
-	writeTheme(t, real, "nord-lee.theme", themeLines())
+	themetest.Write(t, real, "nord-lee.theme", themetest.Lines())
 	link := filepath.Join(t.TempDir(), "themes")
 	linkAt(t, real, link)
 
@@ -128,12 +129,12 @@ func TestEnumerate_FollowsSymlinkedRoot(t *testing.T) {
 // either — the user never asked for a theme there.
 func TestEnumerate_TopLevelOnly(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "top.theme", themeLines())
+	themetest.Write(t, dir, "top.theme", themetest.Lines())
 	sub := filepath.Join(dir, "sub")
 	if err := os.Mkdir(sub, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", sub, err)
 	}
-	writeTheme(t, sub, "inner.theme", themeLines())
+	themetest.Write(t, sub, "inner.theme", themetest.Lines())
 
 	entries, rejection := theme.Loader{}.Enumerate(dir)
 
@@ -152,7 +153,7 @@ func TestEnumerate_TopLevelOnly(t *testing.T) {
 // The target is deliberately named something else entirely, so a slug taken from
 // the resolved path would be visibly wrong rather than accidentally right.
 func TestEnumerate_FollowsSymlinkedFiles(t *testing.T) {
-	target := writeTheme(t, t.TempDir(), "original-name.theme", themeLines())
+	target := themetest.Write(t, t.TempDir(), "original-name.theme", themetest.Lines())
 	dir := t.TempDir()
 	linkAt(t, target, filepath.Join(dir, "link.theme"))
 
@@ -228,7 +229,7 @@ func TestEnumerate_SkipsDirectoryValuedEntriesSilently(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			writeTheme(t, dir, "nord-lee.theme", themeLines())
+			themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 			tt.stage(t, filepath.Join(dir, tt.base))
 
 			entries, rejection := theme.Loader{}.Enumerate(dir)
@@ -258,7 +259,7 @@ func TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName(t *testing.T) {
 	for _, base := range []string{"Nord.THEME", "nord.Theme"} {
 		t.Run(base, func(t *testing.T) {
 			dir := t.TempDir()
-			writeTheme(t, dir, base, themeLines())
+			themetest.Write(t, dir, base, themetest.Lines())
 
 			entries, rejection := theme.Loader{}.Enumerate(dir)
 
@@ -293,7 +294,7 @@ func TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName(t *testing.T) {
 // rule depends on never happening.
 func TestEnumerate_IllegalStemIsBadNameWithNoSlug(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "Nord.theme", themeLines())
+	themetest.Write(t, dir, "Nord.theme", themetest.Lines())
 
 	entries, rejection := theme.Loader{}.Enumerate(dir)
 
@@ -329,7 +330,7 @@ func TestEnumerate_IllegalStemIsBadNameWithNoSlug(t *testing.T) {
 // self-evident from the panel.
 func TestEnumerate_AppliesTheInjectedReservedSlugs(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord.theme", themeLines())
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 
 	loader := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}}}
 	entries, rejection := loader.Enumerate(dir)
@@ -359,7 +360,7 @@ func TestEnumerate_IgnoresNonThemeFiles(t *testing.T) {
 	writeFile(t, dir, "notes.txt", "not a theme\n")
 	writeFile(t, dir, "README", "nor this\n")
 	writeFile(t, dir, "theme", "nor this either\n")
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 
 	entries, rejection := theme.Loader{}.Enumerate(dir)
 
@@ -390,11 +391,11 @@ func TestEnumerate_IgnoresNonThemeFiles(t *testing.T) {
 // pass unnoticed.
 func TestEnumerate_ValidAndInvalidFilesBothProduceEntries(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "valid.theme", themeLines())
-	writeTheme(t, dir, "missing.theme", withoutKey(themeLines(), "bg.subtle"))
-	writeTheme(t, dir, "bad-colour.theme", withValue(themeLines(), "canvas", "blue"))
-	writeTheme(t, dir, "Zed.THEME", themeLines())
-	writeTheme(t, dir, "apple.theme", themeLines())
+	themetest.Write(t, dir, "valid.theme", themetest.Lines())
+	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.Write(t, dir, "Zed.THEME", themetest.Lines())
+	themetest.Write(t, dir, "apple.theme", themetest.Lines())
 
 	entries, rejection := theme.Loader{}.Enumerate(dir)
 
@@ -508,8 +509,8 @@ func filenamesOf(entries []theme.Entry) []string {
 }
 
 // writeFile writes contents as a file named base inside dir and returns its
-// path. Unlike writeTheme it takes raw bytes, so it can stage the things that
-// are NOT theme files.
+// path. Unlike themetest.Write it takes raw bytes, so it can stage the things
+// that are NOT theme files.
 func writeFile(t *testing.T, dir, base, contents string) string {
 	t.Helper()
 
@@ -547,7 +548,7 @@ func unreadableDir(t *testing.T) string {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", dir, err)
 	}
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 
 	if err := os.Chmod(dir, 0o000); err != nil {
 		t.Fatalf("chmod %s: %v", dir, err)

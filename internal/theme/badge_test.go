@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestBadges_ConstantIsBareDot pins §9.5's constant form: ONE slot, one entry,
@@ -422,7 +423,7 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 
 	t.Run("only one row of a collided pair can render the dot", func(t *testing.T) {
 		dir := t.TempDir()
-		writeTheme(t, dir, "nord.theme", themeLines())
+		themetest.Write(t, dir, "nord.theme", themetest.Lines())
 		loader := nominationLoader()
 		setting, _ := theme.ResolveSetting("nord", "", "")
 

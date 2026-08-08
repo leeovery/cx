@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/capture"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestResolveProgramContrastValidation verifies the capture tool resolves the
@@ -46,7 +47,7 @@ func TestResolveProgramContrastValidation(t *testing.T) {
 		// The swatch is the surface a light theme's pinned tints are signed off
 		// on (§7.5, §13.5), so a drop-in author must be able to point it at their
 		// own file — the whole reason --theme takes a path (§13.3).
-		path := writeThemeFile(t, t.TempDir(), "mytheme.theme", withTokenValue(themeFileLines(), "canvas", "#1a2b3c"))
+		path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", "#1a2b3c"))
 
 		m, err := resolveProgram(capture.ContrastValidationFixture, path, io.Discard)
 		if err != nil {

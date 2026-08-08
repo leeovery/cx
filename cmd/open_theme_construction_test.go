@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"image/color"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -17,6 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
 )
@@ -643,29 +643,13 @@ func seedUnlistableThemesDir(t *testing.T, canvases map[string]string) {
 	}
 }
 
-// writeThemeFile writes one valid drop-in whose canvas is the given hex.
-//
-// The body is a BUILT-IN's own source with its canvas line swapped, so a fixture
-// cannot drift out of validity as the token vocabulary evolves, and the canvas is
-// the only thing that tells two fixtures apart.
+// writeThemeFile writes one valid drop-in named by slug whose canvas is the
+// given hex — the only token that tells two of these fixtures apart, and so the
+// one an assertion names to say WHICH file was parsed.
 func writeThemeFile(t *testing.T, dir, slug, canvas string) {
 	t.Helper()
 
-	lines := strings.Split(string(validThemeSource(t)), "\n")
-	swapped := 0
-	for i, line := range lines {
-		key, _, found := strings.Cut(line, "=")
-		if found && strings.TrimSpace(key) == "canvas" {
-			lines[i] = "canvas = " + canvas
-			swapped++
-		}
-	}
-	if swapped != 1 {
-		t.Fatalf("swapped %d canvas lines in the built-in source, want exactly 1", swapped)
-	}
-	if err := os.WriteFile(filepath.Join(dir, slug+".theme"), []byte(strings.Join(lines, "\n")), 0o644); err != nil {
-		t.Fatalf("write %s.theme: %v", slug, err)
-	}
+	themetest.Write(t, dir, slug+".theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
 }
 
 // unresolvableThemesDir removes every input themesDirPath resolves from, so it

@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestRowOrder_ReservedNameSortsBySlugLabelsByFilename pins the row §9.5 built
@@ -23,7 +24,7 @@ import (
 // explanation is useful.
 func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord.theme", themeLines())
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	_, union := loader.Open(dir, theme.RawKeys{})
@@ -55,8 +56,8 @@ func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 // because nothing happened to sort between them.
 func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord.theme", themeLines())
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	_, union := loader.Open(dir, theme.RawKeys{})
@@ -96,7 +97,7 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 // tie with still has to land in the right place among the built-ins.
 func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "Bad_Name.theme", themeLines())
+	themetest.Write(t, dir, "Bad_Name.theme", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	_, union := loader.Open(dir, theme.RawKeys{})
@@ -188,7 +189,7 @@ func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			for _, file := range tt.files {
-				writeTheme(t, dir, file, themeLines())
+				themetest.Write(t, dir, file, themetest.Lines())
 			}
 
 			enumeration, union := loader.Open(dir, tt.keys)
@@ -224,10 +225,10 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord.theme", themeLines())
-	writeTheme(t, dir, "Bad_Name.theme", themeLines())
-	writeTheme(t, dir, "zz-late.theme", themeLines())
-	writeTheme(t, dir, "aa-early.theme", withValue(themeLines(), "canvas", "blue"))
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
+	themetest.Write(t, dir, "Bad_Name.theme", themetest.Lines())
+	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
+	themetest.Write(t, dir, "aa-early.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 	keys := theme.RawKeys{Light: "ghost", Dark: "../evil"}
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
@@ -327,8 +328,8 @@ func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 // that reshuffles itself the moment the user presses `Enter`.
 func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "zz-late.theme", themeLines())
-	writeTheme(t, dir, "aa-early.theme", themeLines())
+	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
+	themetest.Write(t, dir, "aa-early.theme", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	enumeration, opened := loader.Open(dir, theme.RawKeys{Theme: "zzz-ghost"})

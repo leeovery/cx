@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // nominationLoader returns the production-shaped loader every resolution fixture
@@ -180,8 +181,8 @@ func TestResolveNomination_FallbackIsModeMatched(t *testing.T) {
 func TestResolveNomination_StructuredOutcome(t *testing.T) {
 	loader := nominationLoader()
 	dir := t.TempDir()
-	writeTheme(t, dir, "broken-light.theme", withoutKey(themeLines(), "bg.subtle"))
-	survivor := writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "broken-light.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	survivor := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	setting := theme.Setting{Light: "broken-light", Dark: "nord-lee"}
 
 	got, err := loader.ResolveNomination(setting, dir)
@@ -229,7 +230,7 @@ func TestResolveNomination_StructuredOutcome(t *testing.T) {
 func TestResolveNomination_NominationShapeMatchesSetting(t *testing.T) {
 	t.Run("a constant yields one slot and a constant nomination", func(t *testing.T) {
 		dir := t.TempDir()
-		path := writeTheme(t, dir, "nord-lee.theme", themeLines())
+		path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 		setting := theme.Setting{IsConstant: true, Constant: "nord-lee"}
 
 		got, err := nominationLoader().ResolveNomination(setting, dir)
@@ -254,7 +255,7 @@ func TestResolveNomination_NominationShapeMatchesSetting(t *testing.T) {
 
 	t.Run("a pair yields two slots in light-then-dark order", func(t *testing.T) {
 		dir := t.TempDir()
-		light := writeTheme(t, dir, "nord-lee.theme", themeLines())
+		light := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 		setting := theme.Setting{Light: "nord-lee", Dark: "nord"}
 
 		got, err := nominationLoader().ResolveNomination(setting, dir)
@@ -321,7 +322,7 @@ func withoutBuiltin(omit string) func(string) ([]byte, bool) {
 // invalid, rather than absent — the other half of §7.6's broken-binary state, and
 // the one that proves the outcome does not vary by cause.
 func corruptBuiltin(corrupt string) func(string) ([]byte, bool) {
-	broken := []byte(strings.Join(withoutKey(themeLines(), "canvas"), "\n") + "\n")
+	broken := []byte(strings.Join(themetest.WithoutKey(themetest.Lines(), "canvas"), "\n") + "\n")
 	return func(slug string) ([]byte, bool) {
 		if slug == corrupt {
 			return broken, true
@@ -528,7 +529,7 @@ func fallbackCauses() []fallbackCause {
 		return func(t *testing.T) string {
 			t.Helper()
 			dir := t.TempDir()
-			writeTheme(t, dir, base, lines)
+			themetest.Write(t, dir, base, lines)
 			return dir
 		}
 	}
@@ -543,37 +544,37 @@ func fallbackCauses() []fallbackCause {
 		{
 			name:       "a renamed file",
 			slug:       "nord-lee",
-			stage:      dirWith("nord-lee-renamed.theme", themeLines()),
+			stage:      dirWith("nord-lee-renamed.theme", themetest.Lines()),
 			wantReason: theme.ReasonNotFound,
 		},
 		{
 			name:       "a typo in prefs.json",
 			slug:       "nrod-lee",
-			stage:      dirWith("nord-lee.theme", themeLines()),
+			stage:      dirWith("nord-lee.theme", themetest.Lines()),
 			wantReason: theme.ReasonNotFound,
 		},
 		{
 			name:       "an illegal persisted slug",
 			slug:       "../evil",
-			stage:      dirWith("nord-lee.theme", themeLines()),
+			stage:      dirWith("nord-lee.theme", themetest.Lines()),
 			wantReason: theme.ReasonBadName,
 		},
 		{
 			name:       "a missing token",
 			slug:       "nord-lee",
-			stage:      dirWith("nord-lee.theme", withoutKey(themeLines(), "bg.subtle")),
+			stage:      dirWith("nord-lee.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle")),
 			wantReason: theme.ReasonMissingTokens,
 		},
 		{
 			name:       "a bad colour",
 			slug:       "nord-lee",
-			stage:      dirWith("nord-lee.theme", withValue(themeLines(), "canvas", "blue")),
+			stage:      dirWith("nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue")),
 			wantReason: theme.ReasonBadColour,
 		},
 		{
 			name:       "a duplicate key",
 			slug:       "nord-lee",
-			stage:      dirWith("nord-lee.theme", append(themeLines(), "text.primary = #010203")),
+			stage:      dirWith("nord-lee.theme", append(themetest.Lines(), "text.primary = #010203")),
 			wantReason: theme.ReasonBadSyntax,
 		},
 		{
@@ -693,7 +694,7 @@ func TestResolveNomination_BothSlotsCanFallBack(t *testing.T) {
 
 	t.Run("both slots broken for different reasons", func(t *testing.T) {
 		dir := t.TempDir()
-		writeTheme(t, dir, "broken-light.theme", withValue(themeLines(), "canvas", "blue"))
+		themetest.Write(t, dir, "broken-light.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 		setting := theme.Setting{Light: "broken-light", Dark: "gone-dark"}
 
 		got, err := nominationLoader().ResolveNomination(setting, dir)
@@ -745,7 +746,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			path := writeTheme(t, dir, "nord-lee.theme", themeLines())
+			path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 			survivorTheme := dropInTheme(t, path)
 			if survivorTheme == builtinTheme(t, tt.wantFallback) {
 				t.Fatal("the drop-in parses to the shipped default's palette — an untouched slot and a fallen-back one would be indistinguishable")
@@ -985,7 +986,7 @@ func enumerationOf(t *testing.T, loader theme.Loader, dir string) theme.Enumerat
 func TestResolveNominationFrom_ReadsNothing(t *testing.T) {
 	t.Run("it resolves a drop-in whose directory is gone", func(t *testing.T) {
 		dir := t.TempDir()
-		path := writeTheme(t, dir, "sunset.theme", themeLines())
+		path := themetest.Write(t, dir, "sunset.theme", themetest.Lines())
 		want := dropInTheme(t, path)
 		loader := nominationLoader()
 		enumeration := enumerationOf(t, loader, dir)
@@ -1035,7 +1036,7 @@ func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.
 
 	t.Run("a valid entry resolves to its own palette", func(t *testing.T) {
 		dir := t.TempDir()
-		path := writeTheme(t, dir, "sunset.theme", themeLines())
+		path := themetest.Write(t, dir, "sunset.theme", themetest.Lines())
 		want := dropInTheme(t, path)
 		setting := theme.Setting{IsConstant: true, Constant: "sunset"}
 
@@ -1058,7 +1059,7 @@ func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.
 			name: "an invalid entry falls back carrying its own reason",
 			enumeration: func(t *testing.T) theme.Enumeration {
 				dir := t.TempDir()
-				writeTheme(t, dir, "sunset.theme", withValue(themeLines(), "canvas", "not-a-colour"))
+				themetest.Write(t, dir, "sunset.theme", themetest.WithValue(themetest.Lines(), "canvas", "not-a-colour"))
 				return enumerationOf(t, loader, dir)
 			},
 			want: theme.ReasonBadColour,
@@ -1119,7 +1120,7 @@ func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.
 func TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst(t *testing.T) {
 	loader := nominationLoader()
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord.theme", themeLines())
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	setting := theme.Setting{IsConstant: true, Constant: "nord"}
 
 	got, err := loader.ResolveNominationFrom(enumerationOf(t, loader, dir), setting)

@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestUnion_AbsentDirectoryIsBuiltinsOnly pins the common install against §9.4's
@@ -80,8 +81,8 @@ func TestUnion_AbsentDirectoryIsBuiltinsOnly(t *testing.T) {
 // between the built-in rows and the file rows at all.
 func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord.theme", themeLines())
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	_, union := loader.Open(dir, theme.RawKeys{})
@@ -124,7 +125,7 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 // carry a distinction in unnoticed.
 func TestUnion_BuiltinRowsCarryNoMarker(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	_, union := loader.Open(dir, theme.RawKeys{})
@@ -222,9 +223,9 @@ func TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow(t *testing.T) {
 // install.
 func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "bad-colour.theme", withValue(themeLines(), "canvas", "blue"))
-	writeTheme(t, dir, "missing.theme", withoutKey(themeLines(), "bg.subtle"))
-	writeTheme(t, dir, "valid.theme", themeLines())
+	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
 
@@ -272,7 +273,7 @@ func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 	dir := t.TempDir()
-	writeTheme(t, dir, "bad-colour.theme", withValue(themeLines(), "canvas", "blue"))
+	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	for open := range 5 {
@@ -299,7 +300,7 @@ func TestUnion_ZeroValueLoaderIsASilentSeam(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 
 	_, union := theme.Loader{}.Open(dir, theme.RawKeys{Theme: "ghost"})
 
@@ -378,7 +379,7 @@ func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
 // sending the user to look for a missing file rather than at the broken one.
 func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord-lee.theme", withValue(themeLines(), "canvas", "blue"))
+	themetest.Write(t, dir, "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 
 	_, union := loader.Open(dir, theme.RawKeys{Theme: "nord-lee"})
@@ -587,9 +588,9 @@ func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
 // the panel lists and what the log claims fails here.
 func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "bad-colour.theme", withValue(themeLines(), "canvas", "blue"))
-	writeTheme(t, dir, "missing.theme", withoutKey(themeLines(), "bg.subtle"))
-	writeTheme(t, dir, "valid.theme", themeLines())
+	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
 
@@ -638,7 +639,7 @@ func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 // keystroke.
 func TestUnion_ReassembleReadsNothing(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "nord-lee.theme", themeLines())
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))
 

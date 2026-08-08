@@ -1,7 +1,6 @@
 package theme_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestLoadFile_ValidThemeReturnsSlugAndTheme pins the accepting path end to end:
@@ -17,7 +17,7 @@ import (
 // values arrive in §4.3's canonical upper case even though the file wrote them
 // lower.
 func TestLoadFile_ValidThemeReturnsSlugAndTheme(t *testing.T) {
-	path := writeTheme(t, t.TempDir(), "nord-lee.theme", themeLines())
+	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.Lines())
 
 	got, rejection := theme.Loader{}.LoadFile(path)
 
@@ -58,16 +58,16 @@ func TestLoadFile_LadderShortCircuits(t *testing.T) {
 			name: "reserved name beats bad colour",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
 				loader := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}}}
-				return loader, writeTheme(t, dir, "nord.theme", withValue(themeLines(), "canvas", "blue"))
+				return loader, themetest.Write(t, dir, "nord.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 			},
 			wantReason: theme.ReasonReservedName,
 		},
 		{
 			name: "bad syntax beats bad colour",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				lines := withValue(themeLines(), "canvas", "blue")
-				lines = withValue(lines, "text.primary", `"#C0CAF5"`)
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", lines)
+				lines := themetest.WithValue(themetest.Lines(), "canvas", "blue")
+				lines = themetest.WithValue(lines, "text.primary", `"#C0CAF5"`)
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", lines)
 			},
 			wantReason: theme.ReasonBadSyntax,
 			wantDetail: "line 1: quoted value",
@@ -76,8 +76,8 @@ func TestLoadFile_LadderShortCircuits(t *testing.T) {
 			name: "bad syntax beats missing tokens",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
 				// 19 tokens less bg.subtle is 18 lines, so the duplicate lands on line 19.
-				lines := append(withoutKey(themeLines(), "bg.subtle"), "text.primary = #010203")
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", lines)
+				lines := append(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "text.primary = #010203")
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", lines)
 			},
 			wantReason: theme.ReasonBadSyntax,
 			wantDetail: "line 19: duplicate key text.primary",
@@ -85,8 +85,8 @@ func TestLoadFile_LadderShortCircuits(t *testing.T) {
 		{
 			name: "bad colour beats missing tokens",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				lines := withValue(withoutKey(themeLines(), "bg.subtle"), "canvas", "blue")
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", lines)
+				lines := themetest.WithValue(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "canvas", "blue")
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", lines)
 			},
 			wantReason: theme.ReasonBadColour,
 			wantDetail: "canvas = blue",
@@ -159,7 +159,7 @@ func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 		{
 			name: "perfectly valid contents",
 			make: func(t *testing.T, dir string) string {
-				return writeTheme(t, dir, "nord.theme", themeLines())
+				return themetest.Write(t, dir, "nord.theme", themetest.Lines())
 			},
 		},
 		{
@@ -187,7 +187,7 @@ func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 	}
 
 	t.Run("an unreserved neighbour still loads", func(t *testing.T) {
-		path := writeTheme(t, t.TempDir(), "nord-lee.theme", themeLines())
+		path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.Lines())
 
 		got, rejection := loader.LoadFile(path)
 
@@ -227,15 +227,15 @@ func TestLoadFile_EmptyInjectedReservedSetNeverRejects(t *testing.T) {
 		base  string
 		lines []string
 	}{
-		{name: "a built-in slug", base: "tokyo-night.theme", lines: themeLines()},
-		{name: "a slug the growing set will reserve", base: "nord.theme", lines: themeLines()},
-		{name: "a built-in slug on an invalid file", base: "tokyo-night.theme", lines: withoutKey(themeLines(), "canvas")},
+		{name: "a built-in slug", base: "tokyo-night.theme", lines: themetest.Lines()},
+		{name: "a slug the growing set will reserve", base: "nord.theme", lines: themetest.Lines()},
+		{name: "a built-in slug on an invalid file", base: "tokyo-night.theme", lines: themetest.WithoutKey(themetest.Lines(), "canvas")},
 	}
 
 	for _, tl := range loaders {
 		for _, tf := range files {
 			t.Run(tl.name+"/"+tf.name, func(t *testing.T) {
-				path := writeTheme(t, t.TempDir(), tf.base, tf.lines)
+				path := themetest.Write(t, t.TempDir(), tf.base, tf.lines)
 
 				_, rejection := tl.loader.LoadFile(path)
 
@@ -330,7 +330,7 @@ func TestLoadFile_NotFoundIsOutsideTheLadder(t *testing.T) {
 // detail happens to look right".
 func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 	// 19 tokens less bg.subtle is 18 lines, so an appended duplicate lands on line 19.
-	badColourAndMissing := withValue(withoutKey(themeLines(), "bg.subtle"), "canvas", "blue")
+	badColourAndMissing := themetest.WithValue(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "canvas", "blue")
 
 	tests := []struct {
 		name          string
@@ -355,7 +355,7 @@ func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 		},
 		{
 			name:          "the colour repaired, a missing token left",
-			lines:         withValue(badColourAndMissing, "canvas", "#0b0c14"),
+			lines:         themetest.WithValue(badColourAndMissing, "canvas", "#0b0c14"),
 			wantReason:    theme.ReasonMissingTokens,
 			wantDetail:    "missing bg.subtle",
 			wantNoMention: []string{"line ", "canvas", "blue"},
@@ -364,7 +364,7 @@ func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := writeTheme(t, t.TempDir(), "nord-lee.theme", tt.lines)
+			path := themetest.Write(t, t.TempDir(), "nord-lee.theme", tt.lines)
 
 			got, rejection := theme.Loader{}.LoadFile(path)
 
@@ -427,7 +427,7 @@ func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := writeTheme(t, t.TempDir(), tt.base, themeLines())
+			path := themetest.Write(t, t.TempDir(), tt.base, themetest.Lines())
 
 			if _, rejection := tt.loader.LoadFile(path); rejection == nil || rejection.Reason != tt.wantFileRejected {
 				t.Fatalf("LoadFile(%q) = %v, want %q — the fixture does not exercise a filename rung", path, rejection, tt.wantFileRejected)
@@ -471,24 +471,24 @@ func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 			wantReason: theme.ReasonBadSyntax,
 			setup: func(t *testing.T, dir string) (string, string) {
 				// 19 token lines, so the appended duplicate lands on line 20.
-				lines := append(themeLines(), "text.primary = #010203")
-				return writeTheme(t, dir, "nord-lee.theme", lines), "line 20: duplicate key text.primary"
+				lines := append(themetest.Lines(), "text.primary = #010203")
+				return themetest.Write(t, dir, "nord-lee.theme", lines), "line 20: duplicate key text.primary"
 			},
 		},
 		{
 			name:       "a bad colour",
 			wantReason: theme.ReasonBadColour,
 			setup: func(t *testing.T, dir string) (string, string) {
-				lines := withValue(themeLines(), "canvas", "blue")
-				return writeTheme(t, dir, "nord-lee.theme", lines), "canvas = blue"
+				lines := themetest.WithValue(themetest.Lines(), "canvas", "blue")
+				return themetest.Write(t, dir, "nord-lee.theme", lines), "canvas = blue"
 			},
 		},
 		{
 			name:       "a missing token",
 			wantReason: theme.ReasonMissingTokens,
 			setup: func(t *testing.T, dir string) (string, string) {
-				lines := withoutKey(themeLines(), "bg.subtle")
-				return writeTheme(t, dir, "nord-lee.theme", lines), "missing bg.subtle"
+				lines := themetest.WithoutKey(themetest.Lines(), "bg.subtle")
+				return themetest.Write(t, dir, "nord-lee.theme", lines), "missing bg.subtle"
 			},
 		},
 		{
@@ -532,14 +532,14 @@ func rejectionCorpus() []loadCase {
 		{
 			name: "a valid file",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", themeLines())
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 			},
 		},
 		{
 			name:       "a bad name",
 			wantReason: theme.ReasonBadName,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, writeTheme(t, dir, "Nord.theme", themeLines())
+				return theme.Loader{}, themetest.Write(t, dir, "Nord.theme", themetest.Lines())
 			},
 		},
 		{
@@ -547,7 +547,7 @@ func rejectionCorpus() []loadCase {
 			wantReason: theme.ReasonReservedName,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
 				loader := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}}}
-				return loader, writeTheme(t, dir, "nord.theme", themeLines())
+				return loader, themetest.Write(t, dir, "nord.theme", themetest.Lines())
 			},
 		},
 		{
@@ -575,96 +575,47 @@ func rejectionCorpus() []loadCase {
 			name:       "a duplicate key",
 			wantReason: theme.ReasonBadSyntax,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				lines := append(themeLines(), "text.primary = #010203")
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", lines)
+				lines := append(themetest.Lines(), "text.primary = #010203")
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", lines)
 			},
 		},
 		{
 			name:       "a bad colour",
 			wantReason: theme.ReasonBadColour,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", withValue(themeLines(), "canvas", "blue"))
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 			},
 		},
 		{
 			name:       "a missing token",
 			wantReason: theme.ReasonMissingTokens,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", withoutKey(themeLines(), "bg.subtle"))
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 			},
 		},
 		{
 			name:       "an empty file",
 			wantReason: theme.ReasonMissingTokens,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, writeTheme(t, dir, "nord-lee.theme", nil)
+				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", nil)
 			},
 		},
 	}
 }
 
-// themeLines renders a complete, valid theme file: one `key = value` line per
-// §2.4 token, in table order, each carrying a distinct value.
-//
-// The names come from TokenNames() rather than a restatement — theme_test.go
-// holds the one deliberate restatement of the vocabulary — and the values are
-// LOWER case, so a theme parsed from these lines proves canonicalisation rather
-// than merely echoing the file.
-func themeLines() []string {
-	names := theme.TokenNames()
-	lines := make([]string, 0, len(names))
-	for i, name := range names {
-		lines = append(lines, name+" = "+lowerHexForRow(i+1))
-	}
-	return lines
-}
-
-// lowerHexForRow renders a distinct well-formed value for the given §2.4 row,
-// carrying lower-case letters so upper-casing has something to bite on.
-func lowerHexForRow(row int) string {
-	return fmt.Sprintf("#abcd%02x", row)
-}
-
-// wantThemeTokens renders the tokens themeLines() must parse into: the same
+// wantThemeTokens renders the tokens themetest.Lines() must parse into: the same
 // values in §4.3's canonical upper case, in §2.4 order.
+//
+// The expectation is read back off the fixture's own lines rather than rebuilt
+// from a second copy of its value generator, so the two cannot drift apart.
 func wantThemeTokens() []theme.Token {
-	names := theme.TokenNames()
-	tokens := make([]theme.Token, 0, len(names))
-	for i, name := range names {
-		tokens = append(tokens, theme.Token{Name: name, Value: strings.ToUpper(lowerHexForRow(i + 1))})
+	lines := themetest.Lines()
+	tokens := make([]theme.Token, 0, len(lines))
+	for _, line := range lines {
+		name, value, _ := strings.Cut(line, " = ")
+		tokens = append(tokens, theme.Token{Name: name, Value: strings.ToUpper(value)})
 	}
 	return tokens
-}
-
-// withValue returns the lines with the named key's value replaced, in the same
-// file order.
-func withValue(lines []string, key, value string) []string {
-	replaced := slices.Clone(lines)
-	for i, line := range replaced {
-		if strings.HasPrefix(line, key+" = ") {
-			replaced[i] = key + " = " + value
-		}
-	}
-	return replaced
-}
-
-// withoutKey returns the lines with the named key's line removed — a file that
-// never declared it.
-func withoutKey(lines []string, key string) []string {
-	return slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
-		return strings.HasPrefix(line, key+" = ")
-	})
-}
-
-// writeTheme writes lines as a file named base inside dir and returns its path.
-func writeTheme(t *testing.T, dir, base string, lines []string) string {
-	t.Helper()
-
-	path := filepath.Join(dir, base)
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-	return path
 }
 
 // writeUnreadableTheme writes a perfectly valid theme file and then removes
@@ -681,12 +632,12 @@ func writeUnreadableTheme(t *testing.T, dir, base string) string {
 		t.Skip("running as root: mode bits do not deny, so an unreadable file cannot be staged")
 	}
 
-	path := writeTheme(t, dir, base, themeLines())
+	path := themetest.Write(t, dir, base, themetest.Lines())
 	if err := os.Chmod(path, 0o000); err != nil {
 		t.Fatalf("chmod %s: %v", path, err)
 	}
 	t.Cleanup(func() {
-		if err := os.Chmod(path, 0o644); err != nil {
+		if err := os.Chmod(path, 0o600); err != nil {
 			t.Errorf("restore mode on %s: %v", path, err)
 		}
 	})

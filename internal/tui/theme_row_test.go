@@ -3,8 +3,6 @@ package tui
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // The §9.5 row-composition gate. These tests pin the theme panel's one-line row
@@ -399,20 +398,6 @@ func TestThemeRow_FilenameLabelledRows(t *testing.T) {
 	}
 }
 
-// writeThemeFile writes a valid `.theme` file carrying th's 19 values, so a test
-// can stage a real drop-in through the production loader without a fixture of
-// hardcoded hex (which the colour-literal rule keeps out of this package anyway).
-func writeThemeFile(t *testing.T, dir, filename string, th theme.Theme) {
-	t.Helper()
-	var b strings.Builder
-	for _, tok := range th.All() {
-		fmt.Fprintf(&b, "%s = %s\n", tok.Name, tok.Value)
-	}
-	if err := os.WriteFile(filepath.Join(dir, filename), []byte(b.String()), 0o600); err != nil {
-		t.Fatalf("write %s: %v", filename, err)
-	}
-}
-
 // themeRowItemsFor builds the panel's items from a union and a badge table the
 // way the panel does: every badge looked up through theme.Row.BadgeKey, NEVER
 // through Slug — the lookup that keeps a `reserved name` row from painting a
@@ -438,7 +423,7 @@ func themeRowItemsFor(union theme.Union, badges map[string]theme.Badge) []list.I
 func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 	th := testDarkTheme(t)
 	dir := t.TempDir()
-	writeThemeFile(t, dir, "nord.theme", th)
+	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 
 	_, union := theme.NewLoader(nil).Open(dir, theme.RawKeys{Theme: "nord"})
 	badges := theme.Badges([]theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord"}})

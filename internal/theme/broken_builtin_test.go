@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestBrokenBuiltinError_CopyIsPinned pins §14A's fatal startup sentence
@@ -236,7 +237,7 @@ func TestFallback_NominationFailureIsNotFatal(t *testing.T) {
 // <target>` constructs no TUI and reaches no theme call site at all.
 func TestResolution_NoStartupEagerValidation(t *testing.T) {
 	dir := t.TempDir()
-	writeTheme(t, dir, "mine.theme", themeLines())
+	themetest.Write(t, dir, "mine.theme", themetest.Lines())
 
 	tests := []struct {
 		name    string

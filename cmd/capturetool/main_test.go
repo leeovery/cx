@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -216,21 +217,21 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 			name:       "a duplicate key",
 			wantReason: theme.ReasonBadSyntax,
 			setup: func(t *testing.T, dir string) string {
-				return writeThemeFile(t, dir, "broken.theme", append(themeFileLines(), "text.primary = #010203"))
+				return themetest.Write(t, dir, "broken.theme", append(themetest.Lines(), "text.primary = #010203"))
 			},
 		},
 		{
 			name:       "a bad hex",
 			wantReason: theme.ReasonBadColour,
 			setup: func(t *testing.T, dir string) string {
-				return writeThemeFile(t, dir, "broken.theme", withTokenValue(themeFileLines(), "canvas", "blue"))
+				return themetest.Write(t, dir, "broken.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 			},
 		},
 		{
 			name:       "a missing token",
 			wantReason: theme.ReasonMissingTokens,
 			setup: func(t *testing.T, dir string) string {
-				return writeThemeFile(t, dir, "broken.theme", withoutTokenLine(themeFileLines(), "bg.subtle"))
+				return themetest.Write(t, dir, "broken.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 			},
 		},
 		{
@@ -276,7 +277,7 @@ func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
 		arg  string
 	}{
 		{name: "an unknown slug", arg: "not-a-theme"},
-		{name: "a broken file", arg: writeThemeFile(t, dir, "broken.theme", withTokenValue(themeFileLines(), "canvas", "blue"))},
+		{name: "a broken file", arg: themetest.Write(t, dir, "broken.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))},
 		{name: "an absent file", arg: filepath.Join(dir, "absent.theme")},
 	}
 
@@ -327,7 +328,7 @@ func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := writeThemeFile(t, t.TempDir(), tt.base, themeFileLines())
+			path := themetest.Write(t, t.TempDir(), tt.base, themetest.Lines())
 			var warnings bytes.Buffer
 
 			got, err := resolveTheme(newThemeLoader(), path, &warnings)
@@ -362,7 +363,7 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 		t.Fatalf("nord is not a built-in (%v) — the fixture cannot collide", theme.BuiltinSlugs())
 	}
 
-	path := writeThemeFile(t, t.TempDir(), base, themeFileLines())
+	path := themetest.Write(t, t.TempDir(), base, themetest.Lines())
 	var warnings bytes.Buffer
 
 	got, err := resolveTheme(newThemeLoader(), path, &warnings)
@@ -525,7 +526,7 @@ func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
 // slip at either call site is silent: the tool exits 0 having captured a frame of
 // some other theme, at a gate whose entire job is judging colours the tests cannot.
 func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
-	path := writeThemeFile(t, t.TempDir(), "mytheme.theme", withTokenValue(themeFileLines(), "canvas", "#1a2b3c"))
+	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", "#1a2b3c"))
 
 	pinned, err := resolveTheme(newThemeLoader(), path, io.Discard)
 	if err != nil {
@@ -564,8 +565,8 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 	log.SetTestHandler(t, sink)
 
 	dir := t.TempDir()
-	reserved := writeThemeFile(t, dir, "nord.theme", themeFileLines())
-	broken := writeThemeFile(t, dir, "broken.theme", withTokenValue(themeFileLines(), "canvas", "blue"))
+	reserved := themetest.Write(t, dir, "nord.theme", themetest.Lines())
+	broken := themetest.Write(t, dir, "broken.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 
 	if _, err := resolveProgram(capture.ContrastValidationFixture, defaultThemeSlug, io.Discard); err != nil {
 		t.Fatalf("resolveProgram(contrast-validation, %s): %v", defaultThemeSlug, err)
@@ -611,56 +612,10 @@ func builtinForTest(t *testing.T, slug string) theme.Theme {
 func pathThemeForTest(t *testing.T, canvas string) theme.Theme {
 	t.Helper()
 
-	path := writeThemeFile(t, t.TempDir(), "mytheme.theme", withTokenValue(themeFileLines(), "canvas", canvas))
+	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
 	pinned, err := resolveTheme(newThemeLoader(), path, io.Discard)
 	if err != nil {
 		t.Fatalf("resolveTheme(%q): %v", path, err)
 	}
 	return pinned
-}
-
-// themeFileLines renders a complete, valid theme file: one `key = value` line per
-// §2.4 token, in table order, each carrying a distinct value.
-//
-// The names come from TokenNames() rather than a restatement, so a vocabulary
-// change moves these fixtures with it.
-func themeFileLines() []string {
-	names := theme.TokenNames()
-	lines := make([]string, 0, len(names))
-	for i, name := range names {
-		lines = append(lines, fmt.Sprintf("%s = #abcd%02x", name, i+1))
-	}
-	return lines
-}
-
-// withTokenValue returns the lines with the named key's value replaced, in the
-// same file order.
-func withTokenValue(lines []string, key, value string) []string {
-	replaced := slices.Clone(lines)
-	for i, line := range replaced {
-		if strings.HasPrefix(line, key+" = ") {
-			replaced[i] = key + " = " + value
-		}
-	}
-	return replaced
-}
-
-// withoutTokenLine returns the lines with the named key's line removed — a file
-// that never declared it.
-func withoutTokenLine(lines []string, key string) []string {
-	return slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
-		return strings.HasPrefix(line, key+" = ")
-	})
-}
-
-// writeThemeFile writes lines as a file named base inside dir and returns its
-// path.
-func writeThemeFile(t *testing.T, dir, base string, lines []string) string {
-	t.Helper()
-
-	path := filepath.Join(dir, base)
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-		t.Fatalf("write %s: %v", path, err)
-	}
-	return path
 }
