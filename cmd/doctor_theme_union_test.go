@@ -19,6 +19,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // unionAdvisoriesFor runs doctor's WHOLE theme-advisory surface — both producers
@@ -80,7 +82,7 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 			// so its absence below is the dedup dropping it rather than a producer
 			// that found nothing to drop.
 			const fileLine = "⚠ theme nord-lee: bad colour — canvas = blue"
-			requireAdvisoryLines(t, scanThemesDirectory(discardThemeLoader(), dir), fileLine)
+			requireAdvisoryLines(t, scanThemesDirectory(theme.NewSilentLoader(), dir), fileLine)
 
 			got := requireOneAdvisory(t, unionAdvisoriesFor(t, tc.prefs, dir))
 			if got.line != tc.want {

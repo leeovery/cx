@@ -85,29 +85,66 @@ func registeredStringFlags(t *testing.T) map[string]string {
 	return flags
 }
 
-// TestResolveTheme_DefaultsToTokyoNight pins the built-in --theme resolves to
-// when the flag is omitted.
+// TestResolveTheme_DefaultsToTheShippedDarkBuiltin pins the built-in --theme
+// resolves to when the flag is omitted, and pins WHERE that value comes from.
 //
-// It is the shipped dark default (§13.3), and every capture taken without the
-// flag depends on it — a moved default silently re-points every such capture at
-// a palette nobody asked for.
-func TestResolveTheme_DefaultsToTokyoNight(t *testing.T) {
-	if defaultThemeSlug != "tokyo-night" {
-		t.Fatalf("defaultThemeSlug = %q, want tokyo-night (the shipped dark default)", defaultThemeSlug)
+// It is the shipped dark default (§13.3) and every capture taken without the flag
+// depends on it, so the constant is DERIVED from theme.DefaultDarkSlug rather
+// than restating its value: moving the shipped default has to move every
+// unflagged capture with it, not leave them rendering a palette the product no
+// longer defaults to with nothing failing. The source guard is what makes the
+// derivation checkable — a literal spelling out today's default would satisfy the
+// equality below forever.
+func TestResolveTheme_DefaultsToTheShippedDarkBuiltin(t *testing.T) {
+	if defaultThemeSlug != theme.DefaultDarkSlug {
+		t.Fatalf("defaultThemeSlug = %q, want the shipped dark default %q", defaultThemeSlug, theme.DefaultDarkSlug)
+	}
+	if got, want := declaredConstSource(t, "defaultThemeSlug"), "theme.DefaultDarkSlug"; got != want {
+		t.Errorf("defaultThemeSlug is declared as %s, want %s — the capture default follows the shipped dark default rather than restating it", got, want)
 	}
 
-	got, err := resolveTheme(newThemeLoader(), defaultThemeSlug, io.Discard)
+	got, err := resolveTheme(theme.NewSilentLoader(), defaultThemeSlug, io.Discard)
 	if err != nil {
 		t.Fatalf("resolveTheme(%s): %v", defaultThemeSlug, err)
 	}
 
-	want, rejection, found := newThemeLoader().LoadBuiltin("tokyo-night")
+	want, rejection, found := theme.NewSilentLoader().LoadBuiltin(theme.DefaultDarkSlug)
 	if !found || rejection != nil {
-		t.Fatalf("LoadBuiltin(tokyo-night) found=%v rejection=%v", found, rejection)
+		t.Fatalf("LoadBuiltin(%s) found=%v rejection=%v", theme.DefaultDarkSlug, found, rejection)
 	}
 	if got != want.Theme {
-		t.Errorf("resolveTheme(%s) did not return the embedded tokyo-night palette", defaultThemeSlug)
+		t.Errorf("resolveTheme(%s) did not return the embedded %s palette", defaultThemeSlug, theme.DefaultDarkSlug)
 	}
+}
+
+// declaredConstSource returns the source expression the named package-level
+// constant is declared from, so a test can assert a value is DERIVED rather than
+// restated — which its runtime value alone can never show.
+func declaredConstSource(t *testing.T, name string) string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "main.go", nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
+	}
+
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok || len(value.Names) != 1 || len(value.Values) != 1 || value.Names[0].Name != name {
+				continue
+			}
+			return types.ExprString(value.Values[0])
+		}
+	}
+
+	t.Fatalf("main.go declares no const %s", name)
+	return ""
 }
 
 // TestThemeArg_SlugVersusPath pins §13.3's discrimination rule: the argument is a
@@ -146,7 +183,7 @@ func TestThemeArg_SlugVersusPath(t *testing.T) {
 // Rendering the wrong theme at a visual gate is precisely the failure this tool
 // exists to prevent (§13.3), so an unknown slug must render nothing at all.
 func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
-	got, err := resolveTheme(newThemeLoader(), "not-a-theme", io.Discard)
+	got, err := resolveTheme(theme.NewSilentLoader(), "not-a-theme", io.Discard)
 	if err == nil {
 		t.Fatal("resolveTheme(not-a-theme) returned nil error, want an error")
 	}
@@ -241,7 +278,7 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t, t.TempDir())
 
-			got, err := resolveTheme(newThemeLoader(), path, io.Discard)
+			got, err := resolveTheme(theme.NewSilentLoader(), path, io.Discard)
 
 			if err == nil {
 				t.Fatalf("resolveTheme(%q) returned nil error, want the hard error %q", path, tt.wantReason)
@@ -279,7 +316,7 @@ func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
 
 	for _, ta := range args {
 		t.Run(ta.name, func(t *testing.T) {
-			got, err := resolveTheme(newThemeLoader(), ta.arg, io.Discard)
+			got, err := resolveTheme(theme.NewSilentLoader(), ta.arg, io.Discard)
 			if err == nil {
 				t.Fatalf("resolveTheme(%q) returned nil error", ta.arg)
 			}
@@ -325,7 +362,7 @@ func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
 			path := themetest.Write(t, t.TempDir(), tt.base, themetest.Lines())
 			var warnings bytes.Buffer
 
-			got, err := resolveTheme(newThemeLoader(), path, &warnings)
+			got, err := resolveTheme(theme.NewSilentLoader(), path, &warnings)
 
 			if err != nil {
 				t.Fatalf("resolveTheme(%q) = %v, want the theme rendered despite its name", path, err)
@@ -360,7 +397,7 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), base, themetest.Lines())
 	var warnings bytes.Buffer
 
-	got, err := resolveTheme(newThemeLoader(), path, &warnings)
+	got, err := resolveTheme(theme.NewSilentLoader(), path, &warnings)
 
 	if err != nil {
 		t.Fatalf("resolveTheme(%q) = %v, want the theme rendered despite its name", path, err)
@@ -370,7 +407,7 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	}
 	// The rendered palette is the FILE's, not the built-in's — the candidate slug
 	// produced a warning and nothing else.
-	builtin, _, _ := newThemeLoader().LoadBuiltin("nord")
+	builtin, _, _ := theme.NewSilentLoader().LoadBuiltin("nord")
 	if got == builtin.Theme {
 		t.Error("resolveTheme rendered the built-in nord palette, want the file's own — the candidate slug is not identity")
 	}
@@ -393,7 +430,7 @@ func TestResolveTheme_SlugFormNeverWarns(t *testing.T) {
 		t.Run(slug, func(t *testing.T) {
 			var warnings bytes.Buffer
 
-			if _, err := resolveTheme(newThemeLoader(), slug, &warnings); err != nil {
+			if _, err := resolveTheme(theme.NewSilentLoader(), slug, &warnings); err != nil {
 				t.Fatalf("resolveTheme(%s): %v", slug, err)
 			}
 
@@ -522,7 +559,7 @@ func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
 func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", "#1a2b3c"))
 
-	pinned, err := resolveTheme(newThemeLoader(), path, io.Discard)
+	pinned, err := resolveTheme(theme.NewSilentLoader(), path, io.Discard)
 	if err != nil {
 		t.Fatalf("resolveTheme(%q): %v", path, err)
 	}
@@ -590,7 +627,7 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 func builtinForTest(t *testing.T, slug string) theme.Theme {
 	t.Helper()
 
-	result, rejection, found := newThemeLoader().LoadBuiltin(slug)
+	result, rejection, found := theme.NewSilentLoader().LoadBuiltin(slug)
 	if !found || rejection != nil {
 		t.Fatalf("LoadBuiltin(%s) found=%v rejection=%v", slug, found, rejection)
 	}
@@ -607,7 +644,7 @@ func pathThemeForTest(t *testing.T, canvas string) theme.Theme {
 	t.Helper()
 
 	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
-	pinned, err := resolveTheme(newThemeLoader(), path, io.Discard)
+	pinned, err := resolveTheme(theme.NewSilentLoader(), path, io.Discard)
 	if err != nil {
 		t.Fatalf("resolveTheme(%q): %v", path, err)
 	}

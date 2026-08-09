@@ -20,9 +20,10 @@ import (
 //
 // The component name is NOT bound in this package. `cmd` binds it and injects
 // the logger — log.For("theme") on the paths where a theme is USED (TUI
-// construction, the panel, the theme persister), log.Discard() on `portal
-// doctor`, `portal theme export` and capturetool — which is why the loader emits
-// but never decides. Extending either list is a deliberate change to the closed
+// construction, the panel, the theme persister) — while a diagnose-shaped caller
+// (`portal doctor`, `portal theme export`, capturetool) takes NewSilentLoader,
+// whose seam carries log.Discard(). Either way the loader emits but never
+// decides. Extending either list is a deliberate change to the closed
 // vocabulary, not a call-site choice.
 //
 // Five of the component's seven events are implemented here. Three are WARN and

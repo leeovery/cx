@@ -83,7 +83,7 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{})
 
@@ -126,7 +126,7 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 func TestUnion_BuiltinRowsCarryNoMarker(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{})
 
@@ -174,7 +174,7 @@ func TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+			loader := theme.NewSilentLoader()
 			loader.BuiltinSource = tt.source
 
 			_, union := theme.Assembler{Loader: loader}.Open(t.TempDir(), theme.RawKeys{})
@@ -261,8 +261,8 @@ func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 }
 
 // TestUnion_DiscardSilencesEnumerated pins the diagnose-shaped callers' contract
-// on the new event: a Loader constructed with log.Discard() produces ZERO records
-// for any sequence of opens (§12.3).
+// on the new event: a silenced Loader produces ZERO records for any sequence of
+// opens (§12.3).
 //
 // The process handler captures everything for the test's duration, so a record
 // reaching the sink would mean the discard logger had been bypassed rather than
@@ -274,7 +274,7 @@ func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
 	log.SetTestHandler(t, sink)
 	dir := t.TempDir()
 	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	for open := range 5 {
 		_, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
@@ -351,7 +351,7 @@ func TestUnion_IsAnOrdinaryValue(t *testing.T) {
 // `tokyo-night`. The persisted slug contributes nothing because the built-in's
 // row already IS its row.
 func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: theme.DefaultDarkSlug})
 
@@ -380,7 +380,7 @@ func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
 func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{Theme: "nord-lee"})
 
@@ -408,7 +408,7 @@ func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 // Portal falls back silently and never overwrites the persisted name, so without
 // this row the only signal the user gets is "my colours changed".
 func TestUnion_UnresolvablePersistedSlugIsNotFound(t *testing.T) {
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: "ghost"})
 
@@ -439,7 +439,7 @@ func TestUnion_UnresolvablePersistedSlugIsNotFound(t *testing.T) {
 // be sitting right there in a directory nothing can list.
 func TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable(t *testing.T) {
 	dir := unreadableDir(t)
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	enumeration, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
 
@@ -466,7 +466,7 @@ func TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable(t *testing.T
 // `../something` ever becoming a path component (§8.6).
 func TestUnion_CharsetRejectedPersistedStringIsBadName(t *testing.T) {
 	const illegal = "../evil"
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: illegal})
 
@@ -495,7 +495,7 @@ func TestUnion_CharsetRejectedPersistedStringIsBadName(t *testing.T) {
 // for two slugs Portal is not reading and put the user to work fixing something
 // with no effect.
 func TestUnion_ConstantContributesOnlyTheConstant(t *testing.T) {
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: "ghost", Light: "phantom", Dark: "spectre"})
 
@@ -533,7 +533,7 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 		{name: "both slots name the same illegal string", keys: theme.RawKeys{Light: "../evil", Dark: "../evil"}, want: []string{"../evil"}},
 	}
 
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, union := assembler.Open(t.TempDir(), tt.keys)
@@ -563,7 +563,7 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 // `●` entirely.
 func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
 	dir := unreadableDir(t)
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
 

@@ -412,7 +412,7 @@ func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
 	// loader re-reads below, so it is not restated here.
 	_ = requireDeniedRead(t, denied)
 
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	loader := theme.NewSilentLoader()
 	byLine := map[string]string{}
 	for _, a := range themeAdvisoriesFor(t, dir) {
 		byLine[a.slug] = a.line

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -93,7 +92,7 @@ const themeSlotBoth = "both"
 // consequence: nothing between the two passes can change its answer, because
 // runDoctorFix deliberately touches no theme state.
 //
-// The loader is handed log.Discard(), ALWAYS, on every doctor path: the `theme`
+// The loader is the SILENT one, ALWAYS, on every doctor path: the `theme`
 // component records where a theme is USED, never where one is DIAGNOSED. Doctor
 // is the user looking — its whole output is already the
 // diagnostic they are reading — and it is the run most likely to hit a full
@@ -105,14 +104,14 @@ const themeSlotBoth = "both"
 // The two producers share ONE loader, built here and passed down. That is what
 // gives the whole diagnosis a single owned dedup set (theme.EventLogger holds it
 // per instance) rather than two that could each report the same condition — and
-// because it is Discard-backed the sharing is free, since neither emits anything
+// because it is silenced the sharing is free, since neither emits anything
 // whatever the dedup says.
 //
 // Their two results are ASSEMBLED rather than concatenated — see
 // assembleThemeAdvisories — so the block the renderer receives is already the
 // deduplicated union, in a pinned order, and <M> is the length of that final set.
 func collectThemeAdvisories(deps *DoctorDeps) []advisory {
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	loader := theme.NewSilentLoader()
 
 	return assembleThemeAdvisories(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader))
 }

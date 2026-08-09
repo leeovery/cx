@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/lucasb-eyer/go-colorful"
 )
@@ -384,7 +383,7 @@ func embeddedThemes(t *testing.T) map[string]theme.Theme {
 		t.Fatal("the embedded set is empty — every floor assertion in this file would pass vacuously")
 	}
 
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	loader := theme.NewSilentLoader()
 	themes := make(map[string]theme.Theme, len(slugs))
 	for _, slug := range slugs {
 		result, rejection, found := loader.LoadBuiltin(slug)

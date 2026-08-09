@@ -5,7 +5,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
@@ -68,7 +67,7 @@ func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *test
 // rather than after them.
 func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
 	var enumerator tui.ThemeEnumerator = theme.DirEnumerator{
-		Loader: theme.NewLoader(theme.NewEventLogger(log.Discard())),
+		Loader: theme.NewSilentLoader(),
 		Dir:    filepath.Join(t.TempDir(), "themes"),
 	}
 

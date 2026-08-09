@@ -195,7 +195,9 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // RowSource they deal in plus the EventLogger.Enumerated they report through, and
 // single-sourcing the light/dark vocabulary added Slot.AttrName — the one
 // definition of those two words, which the persister and doctor read across the
-// package boundary rather than restating.
+// package boundary rather than restating, and single-sourcing the silenced
+// loader added NewSilentLoader beside NewLoader — the diagnose-shaped
+// callers assembled that seam themselves until it had one definition here.
 // Nothing on the removed list ever returns to it.
 //
 // Badge.Text is a DEPARTURE rather than an addition: the badge derivation stays
@@ -291,6 +293,7 @@ var wantExports = []string{
 	"MemberPalette",
 	"NewEventLogger",
 	"NewLoader",
+	"NewSilentLoader",
 	"Nomination",
 	"Nomination.Constant",
 	"Nomination.IsConstant",

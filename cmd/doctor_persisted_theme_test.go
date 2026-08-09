@@ -41,13 +41,6 @@ func prefsJSONWith(t *testing.T, keys map[string]string) string {
 	return string(data)
 }
 
-// discardThemeLoader builds the loader `portal doctor` runs its whole theme
-// diagnosis through: log.Discard()-backed, so the resolver's own `theme:
-// directory unusable` record goes nowhere (§12.3).
-func discardThemeLoader() theme.Loader {
-	return theme.NewLoader(theme.NewEventLogger(log.Discard()))
-}
-
 // persistedThemeDeps seeds prefs.json with content — an empty string leaves the
 // file absent — and returns doctor's deps carrying a store built by the
 // PRODUCTION non-migrating read, so every test below drives the same load path
@@ -68,7 +61,7 @@ func persistedThemeDeps(t *testing.T, content, themesDir string) *DoctorDeps {
 func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []advisory {
 	t.Helper()
 
-	return persistedThemeAdvisories(persistedThemeDeps(t, content, themesDir), discardThemeLoader())
+	return persistedThemeAdvisories(persistedThemeDeps(t, content, themesDir), theme.NewSilentLoader())
 }
 
 // requireNoAdvisories fails unless the producer stayed silent, naming what it
@@ -263,7 +256,7 @@ func TestPersistedThemeAdvisory_VirginInstallIsSilent(t *testing.T) {
 		// slots would print a line naming a value THE USER NEVER CHOSE, for a
 		// state that is task 5-6's fatal rather than an advisory.
 		dir := t.TempDir()
-		loader := discardThemeLoader()
+		loader := theme.NewSilentLoader()
 		loader.BuiltinSource = func(string) ([]byte, bool) { return nil, false }
 
 		// Vacuity guard: under this loader the shipped default really would fail
@@ -452,7 +445,7 @@ func TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports(t *testing.T) {
 	requireDropInSlug(t, "nord-lee")
 
 	deps := persistedThemeDeps(t, `{"theme":"nord-lee"}`, "")
-	loader := discardThemeLoader()
+	loader := theme.NewSilentLoader()
 
 	got := requireOneAdvisory(t, persistedThemeAdvisories(deps, loader))
 	if want := "⚠ theme nord-lee does not resolve: not found"; got.line != want {
@@ -587,11 +580,11 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 		// theme key and the assertion would be arguing about the wrong run.
 		_ = requireDeniedRead(t, path)
 
-		requireNoAdvisories(t, persistedThemeAdvisories(deps, discardThemeLoader()))
+		requireNoAdvisories(t, persistedThemeAdvisories(deps, theme.NewSilentLoader()))
 	})
 
 	t.Run("a nil store", func(t *testing.T) {
-		requireNoAdvisories(t, persistedThemeAdvisories(&DoctorDeps{ThemesDir: t.TempDir()}, discardThemeLoader()))
+		requireNoAdvisories(t, persistedThemeAdvisories(&DoctorDeps{ThemesDir: t.TempDir()}, theme.NewSilentLoader()))
 	})
 
 	t.Run("a corrupt file never aborts the diagnosis", func(t *testing.T) {
@@ -764,7 +757,7 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 		requireDropInSlug(t, "gruv")
 
 		dir := t.TempDir()
-		loader := discardThemeLoader()
+		loader := theme.NewSilentLoader()
 		// §7.6's should-never-happen binary, staged through the one seam that can:
 		// no built-in resolves at all, so every fallback fails.
 		loader.BuiltinSource = func(string) ([]byte, bool) { return nil, false }

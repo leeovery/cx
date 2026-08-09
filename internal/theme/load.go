@@ -3,6 +3,8 @@ package theme
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/leeovery/portal/internal/log"
 )
 
 // Loader turns one theme file into a Theme, running the fixed rejection ladder
@@ -74,12 +76,33 @@ type Loader struct {
 // opened, and the fallback stays the embedded one.
 //
 // The event logger, by contrast, is a dependency the CALLER owns rather than one
-// this package can derive: passing log.Discard() is how `portal doctor`,
-// `portal theme export` and capturetool stay silent, and passing a fresh one is
-// how a caller controls dedup. The reserved-slug set stays an ordinary field so
-// the reserved-name rung can still be driven with a synthetic set, or with none.
+// this package can derive: a silenced one is how `portal doctor`, `portal theme
+// export` and capturetool stay quiet (NewSilentLoader packages that shape), and
+// passing a fresh one is how a caller controls dedup. The reserved-slug set stays
+// an ordinary field so the reserved-name rung can still be driven with a
+// synthetic set, or with none.
 func NewLoader(events *EventLogger) Loader {
 	return Loader{ReservedSlugs: builtinSlugSet(), events: events}
+}
+
+// NewSilentLoader returns a Loader that judges exactly as NewLoader's does and
+// writes nothing at all.
+//
+// It is the shape a DIAGNOSE-shaped caller takes — `portal doctor`, `portal
+// theme export`, the offline capture harness. It is a constructor rather than a
+// shape each of them assembles for itself, because the `theme` component records
+// where a theme is USED, never where one is DIAGNOSED: a hand-assembled seam is
+// one edit away from a diagnosis writing WARNs about the state it just printed.
+//
+// It reserves every built-in slug exactly as NewLoader does, because silence is
+// about EMISSION and nothing else: a diagnosis that let a user's file shadow a
+// built-in would report a verdict the launch it is diagnosing would never reach.
+//
+// The silencing is log.Discard() — internal/log's own silent logger — rather
+// than anything built here, since no *slog.Logger is constructed outside that
+// package.
+func NewSilentLoader() Loader {
+	return NewLoader(NewEventLogger(log.Discard()))
 }
 
 // Result is one loaded theme: the slug its FILENAME yielded, the palette its

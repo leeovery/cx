@@ -170,7 +170,7 @@ func TestEventLogger_DiscardSilencesEverything(t *testing.T) {
 	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "Nord.THEME", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	loader := theme.NewSilentLoader()
 	for range 2 {
 		entries, rejection := loader.Enumerate(dir)
 		if rejection != nil {

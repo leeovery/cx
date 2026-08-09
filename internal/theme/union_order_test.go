@@ -5,7 +5,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -25,7 +24,7 @@ import (
 func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{})
 
@@ -58,7 +57,7 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{})
 
@@ -98,7 +97,7 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "Bad_Name.theme", themetest.Lines())
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{})
 
@@ -130,7 +129,7 @@ func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 // drawn), so the key is the ordinary one-line text the row also displays.
 func TestRowOrder_CharsetRejectedSortsByItself(t *testing.T) {
 	const illegal = "../evil"
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: illegal})
 
@@ -184,7 +183,7 @@ func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 		},
 	}
 
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -230,7 +229,7 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
 	themetest.Write(t, dir, "aa-early.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 	keys := theme.RawKeys{Light: "ghost", Dark: "../evil"}
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	enumeration, union := assembler.Open(dir, keys)
 
@@ -291,7 +290,7 @@ func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 		{name: "a filename that would sort to the tail", filename: "zzz.theme"},
 	}
 
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 	wantAt := builtinIndex(t, "nord") + 1
 
 	for _, tt := range tests {
@@ -330,7 +329,7 @@ func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
 	themetest.Write(t, dir, "aa-early.theme", themetest.Lines())
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	enumeration, opened := assembler.Open(dir, theme.RawKeys{Theme: "zzz-ghost"})
 
@@ -369,7 +368,7 @@ func TestRowOrder_NoVariantConcept(t *testing.T) {
 		{name: "neither row carries a palette at all", early: theme.Theme{}, late: theme.Theme{}},
 	}
 
-	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
+	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 	want := append(append([]string{"aa-early"}, theme.BuiltinSlugs()...), "zz-late")
 
 	for _, tt := range tests {

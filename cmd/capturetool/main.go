@@ -37,14 +37,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/capture"
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
 
 // defaultThemeSlug is the built-in --theme resolves to when the flag is omitted:
-// the shipped dark default. Every capture taken without the flag depends on it.
-const defaultThemeSlug = "tokyo-night"
+// the shipped dark default. Every capture taken without the flag depends on it,
+// so it is READ OFF the shipped default rather than restating its value — moving
+// that default moves every unflagged capture with it.
+const defaultThemeSlug = theme.DefaultDarkSlug
 
 // themeFileExtension is the extension that marks a --theme argument as a FILE
 // even when it carries no directory at all (`nord.theme` in the working
@@ -61,7 +62,7 @@ const themeFileExtension = ".theme"
 // mode, so there is nothing left for it to pin.
 func main() {
 	fixture := flag.String("fixture", "", "named fixture to render (e.g. sessions-flat)")
-	themeArg := flag.String("theme", defaultThemeSlug, "theme to render: a built-in slug (e.g. tokyo-night) or a path to a .theme file")
+	themeArg := flag.String("theme", defaultThemeSlug, "theme to render: a built-in slug (e.g. "+defaultThemeSlug+") or a path to a .theme file")
 	flag.Parse()
 
 	if err := run(*fixture, *themeArg); err != nil {
@@ -121,8 +122,12 @@ func run(fixture, themeArg string) error {
 //
 // It is resolved FIRST, and a failure returns a nil model: an unusable theme means
 // nothing renders at all, on either branch — there is no fallback palette.
+//
+// The loader is the SILENT one. capturetool neither uses nor diagnoses a theme —
+// it is an offline renderer whose output is a frame — so it emits no `theme`
+// events at all.
 func resolveProgram(fixture, themeArg string, warnings io.Writer) (tea.Model, error) {
-	pinned, err := resolveTheme(newThemeLoader(), themeArg, warnings)
+	pinned, err := resolveTheme(theme.NewSilentLoader(), themeArg, warnings)
 	if err != nil {
 		return nil, err
 	}
@@ -148,16 +153,6 @@ func resolveProgram(fixture, themeArg string, warnings io.Writer) (tea.Model, er
 // caller named, with nothing injected to fake.
 type themeLoader interface {
 	LoadBuiltin(slug string) (theme.Result, *theme.Rejection, bool)
-}
-
-// newThemeLoader builds the loader --theme resolves through, handed
-// log.Discard.
-//
-// capturetool neither USES nor DIAGNOSES a theme — it is an offline renderer
-// whose output is a frame — so it emits no `theme` events at all, and Discard
-// leaves the loader's per-process dedup state owned rather than dangling.
-func newThemeLoader() theme.Loader {
-	return theme.NewLoader(theme.NewEventLogger(log.Discard()))
 }
 
 // resolveTheme resolves the --theme argument to the palette every branch renders,

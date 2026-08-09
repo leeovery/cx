@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/spf13/cobra"
 )
@@ -105,7 +104,7 @@ func exportRefusal(slug string, rejection *theme.Rejection) error {
 // drop-in, and it is what makes the bytes printed the bytes validated, with no
 // second read in which the two could differ.
 //
-// The loader is handed log.Discard() so export emits no `theme` events at all —
+// The loader is the SILENT one, so export emits no `theme` events at all —
 // including the resolver's own `directory unusable` line. The component records
 // where a theme is USED, never where one is DIAGNOSED, and export's whole output
 // is already the diagnostic the user is reading.
@@ -114,7 +113,7 @@ func exportRefusal(slug string, rejection *theme.Rejection) error {
 // composes its frames over a closed vocabulary rather than over whatever an
 // arbitrary error happened to say.
 func resolveThemeSource(slug string) ([]byte, *theme.Rejection) {
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	loader := theme.NewSilentLoader()
 
 	dir, dirErr := themesDirPath()
 	result, rejection := loader.ResolveByName(slug, dir)

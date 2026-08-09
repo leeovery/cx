@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -70,7 +69,7 @@ const embeddedTestFile = "embedded_test.go"
 // is used anyway, rather than a bare Loader, because it is the shape Phase 5's
 // fallback will hold when it resolves these same slugs.
 func embeddedLoader() theme.Loader {
-	return theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	return theme.NewSilentLoader()
 }
 
 // TestEveryEmbeddedThemeIsValid is §7.6's FIRST half: every theme Portal ships

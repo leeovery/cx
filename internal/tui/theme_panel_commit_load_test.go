@@ -791,7 +791,7 @@ func TestCommitSlotLoad_DiscardSilencesLoaded(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 	dir := newConversionThemesDir(t)
-	m, _ := newLoadPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant}, theme.NewLoader(theme.NewEventLogger(log.Discard())))
+	m, _ := newLoadPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant}, theme.NewSilentLoader())
 	m = openConversionPanel(t, m)
 
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
