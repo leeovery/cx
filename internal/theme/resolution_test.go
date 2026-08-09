@@ -37,22 +37,6 @@ func nominationLoader() theme.Loader {
 	return theme.NewLoader(nil)
 }
 
-// builtinTheme returns the palette the named built-in parses to — the value a
-// mode-matched fallback must land on, taken from the embedded set rather than
-// restated, so a corrected built-in cannot leave the expectation behind.
-func builtinTheme(t *testing.T, slug string) theme.Theme {
-	t.Helper()
-
-	result, rejection, found := nominationLoader().LoadBuiltin(slug)
-	if !found {
-		t.Fatalf("LoadBuiltin(%q) reports not found — the fallback it names cannot resolve", slug)
-	}
-	if rejection != nil {
-		t.Fatalf("LoadBuiltin(%q) = %v, want the embedded palette", slug, rejection)
-	}
-	return result.Theme
-}
-
 // dropInTheme returns the palette the theme file at path parses to, loaded
 // through the ladder's own entry point.
 //
@@ -80,7 +64,7 @@ func requireDistinctDefaults(t *testing.T) {
 	if theme.DefaultLightSlug == theme.DefaultDarkSlug {
 		t.Fatalf("DefaultLightSlug and DefaultDarkSlug are both %q — a swapped fallback map would be undetectable", theme.DefaultLightSlug)
 	}
-	if builtinTheme(t, theme.DefaultLightSlug) == builtinTheme(t, theme.DefaultDarkSlug) {
+	if themetest.Builtin(t, theme.DefaultLightSlug) == themetest.Builtin(t, theme.DefaultDarkSlug) {
 		t.Fatal("the two shipped defaults parse to the same palette — a swapped fallback map would be undetectable")
 	}
 }
@@ -188,7 +172,7 @@ func TestResolveNomination_FallbackIsModeMatched(t *testing.T) {
 				Resolved:  tt.wantFallback,
 				FellBack:  true,
 				Reason:    theme.ReasonNotFound,
-				Theme:     builtinTheme(t, tt.wantFallback),
+				Theme:     themetest.Builtin(t, tt.wantFallback),
 			}
 			if got.Slots[tt.index] != want {
 				t.Errorf("slot resolution = %+v, want %+v", got.Slots[tt.index], want)
@@ -229,7 +213,7 @@ func TestResolveNomination_StructuredOutcome(t *testing.T) {
 			Resolved:  theme.DefaultLightSlug,
 			FellBack:  true,
 			Reason:    theme.ReasonMissingTokens,
-			Theme:     builtinTheme(t, theme.DefaultLightSlug),
+			Theme:     themetest.Builtin(t, theme.DefaultLightSlug),
 		},
 		{
 			Slot:      theme.SlotDark,
@@ -310,7 +294,7 @@ func TestResolveNomination_NominationShapeMatchesSetting(t *testing.T) {
 		if want := dropInTheme(t, light); got.Nomination.Select(theme.MemberLight) != want {
 			t.Errorf("Select(MemberLight) = %+v, want the light slot's palette %+v", got.Nomination.Select(theme.MemberLight), want)
 		}
-		if want := builtinTheme(t, "nord"); got.Nomination.Select(theme.MemberDark) != want {
+		if want := themetest.Builtin(t, "nord"); got.Nomination.Select(theme.MemberDark) != want {
 			t.Errorf("Select(MemberDark) = %+v, want the dark slot's palette %+v", got.Nomination.Select(theme.MemberDark), want)
 		}
 	})
@@ -670,7 +654,7 @@ func TestResolveNomination_EveryCauseFallsBack(t *testing.T) {
 				Resolved:  theme.DefaultDarkSlug,
 				FellBack:  true,
 				Reason:    tc.wantReason,
-				Theme:     builtinTheme(t, theme.DefaultDarkSlug),
+				Theme:     themetest.Builtin(t, theme.DefaultDarkSlug),
 			}}
 			if !slices.Equal(got.Slots, want) {
 				t.Errorf("Slots = %+v, want %+v", got.Slots, want)
@@ -713,13 +697,13 @@ func TestResolveNomination_BothSlotsCanFallBack(t *testing.T) {
 			t.Fatalf("ResolveNomination(%+v) = %v, want two fallbacks", setting, err)
 		}
 		want := []theme.SlotResolution{
-			{Slot: theme.SlotLight, Requested: "gone-light", Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonNotFound, Theme: builtinTheme(t, theme.DefaultLightSlug)},
-			{Slot: theme.SlotDark, Requested: "gone-dark", Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonNotFound, Theme: builtinTheme(t, theme.DefaultDarkSlug)},
+			{Slot: theme.SlotLight, Requested: "gone-light", Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonNotFound, Theme: themetest.Builtin(t, theme.DefaultLightSlug)},
+			{Slot: theme.SlotDark, Requested: "gone-dark", Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonNotFound, Theme: themetest.Builtin(t, theme.DefaultDarkSlug)},
 		}
 		if !slices.Equal(got.Slots, want) {
 			t.Fatalf("Slots = %+v, want %+v", got.Slots, want)
 		}
-		if got.Nomination.Select(theme.MemberLight) != builtinTheme(t, theme.DefaultLightSlug) || got.Nomination.Select(theme.MemberDark) != builtinTheme(t, theme.DefaultDarkSlug) {
+		if got.Nomination.Select(theme.MemberLight) != themetest.Builtin(t, theme.DefaultLightSlug) || got.Nomination.Select(theme.MemberDark) != themetest.Builtin(t, theme.DefaultDarkSlug) {
 			t.Error("the nomination does not carry the two shipped defaults — a doubly-fallen-back pair is exactly the shipped pair")
 		}
 	})
@@ -783,7 +767,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 			dir := t.TempDir()
 			path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 			survivorTheme := dropInTheme(t, path)
-			if survivorTheme == builtinTheme(t, tt.wantFallback) {
+			if survivorTheme == themetest.Builtin(t, tt.wantFallback) {
 				t.Fatal("the drop-in parses to the shipped default's palette — an untouched slot and a fallen-back one would be indistinguishable")
 			}
 
@@ -845,8 +829,8 @@ func TestResolveNomination_UnsetSlotIsNotAFallback(t *testing.T) {
 				t.Fatalf("ResolveNomination(the shipped pair) = %v", err)
 			}
 			want := []theme.SlotResolution{
-				{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug, Theme: builtinTheme(t, theme.DefaultLightSlug)},
-				{Slot: theme.SlotDark, Requested: theme.DefaultDarkSlug, Resolved: theme.DefaultDarkSlug, Theme: builtinTheme(t, theme.DefaultDarkSlug)},
+				{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug, Theme: themetest.Builtin(t, theme.DefaultLightSlug)},
+				{Slot: theme.SlotDark, Requested: theme.DefaultDarkSlug, Resolved: theme.DefaultDarkSlug, Theme: themetest.Builtin(t, theme.DefaultDarkSlug)},
 			}
 			if !slices.Equal(got.Slots, want) {
 				t.Errorf("Slots = %+v, want %+v — a virgin install produces zero fallbacks", got.Slots, want)
@@ -1135,7 +1119,7 @@ func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.
 			if slot.Resolved != theme.DefaultDarkSlug {
 				t.Errorf("Resolved = %q, want the constant's mode-matched default %q", slot.Resolved, theme.DefaultDarkSlug)
 			}
-			if slot.Theme != builtinTheme(t, theme.DefaultDarkSlug) {
+			if slot.Theme != themetest.Builtin(t, theme.DefaultDarkSlug) {
 				t.Error("the slot carries a palette other than the fallback's")
 			}
 		})
@@ -1167,7 +1151,7 @@ func TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst(t *testing.T) {
 	if slot.FellBack {
 		t.Fatalf("slot = %+v, want the embedded built-in resolved — the shadowing file must never be consulted", slot)
 	}
-	if want := builtinTheme(t, "nord"); slot.Theme != want {
+	if want := themetest.Builtin(t, "nord"); slot.Theme != want {
 		t.Errorf("slot resolved to canvas %s, want the embedded nord's %s", slot.Theme.Canvas.Value, want.Canvas.Value)
 	}
 }

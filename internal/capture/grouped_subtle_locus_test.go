@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -125,7 +126,7 @@ func styledRunOpening(t *testing.T, fg, bg theme.Token, text string) string {
 // carries `··· N` group counts painted in nord's text.subtle over nord's own
 // canvas — the locus the §7.4 visual gate is taken on.
 func TestGroupedRender_CarriesTextSubtleCountLocus(t *testing.T) {
-	nord := builtinPalette(t, "nord")
+	nord := themetest.Builtin(t, "nord")
 
 	// Precondition: text.subtle must be distinguishable from every other role on
 	// the frame, or "this run is text.subtle" would be undecidable from its

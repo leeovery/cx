@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // This file is the behavioural half of §11.4's named verification, driven
@@ -59,7 +60,7 @@ const (
 // leaving these cases comparing a value nothing names.
 func testNordTheme(t *testing.T) theme.Theme {
 	t.Helper()
-	th := testBuiltinTheme(t, nordSlug)
+	th := themetest.Builtin(t, nordSlug)
 	if got := th.Canvas.Value; got != nordCanvas {
 		t.Fatalf("nord built-in canvas = %q, want %q", got, nordCanvas)
 	}

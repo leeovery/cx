@@ -180,20 +180,6 @@ func assertConstant(t *testing.T, n theme.Nomination, want theme.Theme) {
 	}
 }
 
-// builtinThemeForTest loads one embedded built-in, failing on anything but a
-// clean parse (§7.6 makes a rejection here a build-time impossibility).
-func builtinThemeForTest(t *testing.T, slug string) theme.Theme {
-	t.Helper()
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
-	if !found {
-		t.Fatalf("built-in %q not found in the embedded set", slug)
-	}
-	if rejection != nil {
-		t.Fatalf("built-in %q was rejected: %s", slug, rejection.Reason)
-	}
-	return loaded.Theme
-}
-
 // canvasOf names a theme by its canvas for a failure message — a whole Theme
 // through %+v is 19 {name value} pairs of noise.
 func canvasOf(th theme.Theme) string {

@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -427,7 +428,7 @@ func TestThemePanelCommit_DarkKeyOverAConstantRoundTripsThePairToPrefs(t *testin
 		t.Fatalf("the relaunch resolved a constant; want the pair `d` converted it into")
 	}
 	assertCanvasValue(t, nomination.Select(theme.MemberDark), roundTripChosenCanvas)
-	assertCanvasValue(t, nomination.Select(theme.MemberLight), builtinThemeForTest(t, theme.DefaultLightSlug).Canvas.Value)
+	assertCanvasValue(t, nomination.Select(theme.MemberLight), themetest.Builtin(t, theme.DefaultLightSlug).Canvas.Value)
 }
 
 // TestThemePanelCommit_ConsecutiveCommitsStayBoundToPrefs: a SECOND commit in the
@@ -451,7 +452,7 @@ func TestThemePanelCommit_ConsecutiveCommitsStayBoundToPrefs(t *testing.T) {
 
 	m := startRoundTripPicker(t, themeRoundTripConfig(t))
 	m = openRoundTripPanel(t, m)
-	assertPaintedCanvas(t, m, builtinThemeForTest(t, nordSlug).Canvas.Color())
+	assertPaintedCanvas(t, m, themetest.Builtin(t, nordSlug).Canvas.Color())
 	m = arrowToPreviewedCanvas(t, m, roundTripChosenCanvas)
 
 	m = update(t, m, themePanelConstantKey)
@@ -485,7 +486,7 @@ func TestThemePanelCommit_DarkKeyRoundTripsOneSlotToPrefs(t *testing.T) {
 	m = openRoundTripPanel(t, m)
 	// A dark terminal renders the pair's DARK member, so the panel opens on the
 	// built-in the dark slot names rather than on either drop-in.
-	assertPaintedCanvas(t, m, builtinThemeForTest(t, nordSlug).Canvas.Color())
+	assertPaintedCanvas(t, m, themetest.Builtin(t, nordSlug).Canvas.Color())
 	m = arrowToPreviewedCanvas(t, m, roundTripChosenCanvas)
 
 	update(t, m, themePanelDarkSlotKey)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestNoColorEnabled pins the no-color.org convention the cmd layer reads: the
@@ -68,7 +69,7 @@ func TestBuildTUIModel_NoColorSuppressesCanvas(t *testing.T) {
 		// adaptive pair would hold the blank frame until OSC 11 resolves, which
 		// never fires in a non-program test) — then the coloured path paints its
 		// canvas immediately.
-		cfg.theme = theme.ConstantNomination(builtinThemeForTest(t, theme.DefaultDarkSlug))
+		cfg.theme = theme.ConstantNomination(themetest.Builtin(t, theme.DefaultDarkSlug))
 
 		m := buildTUIModel(cfg, "", nil)
 

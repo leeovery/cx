@@ -1,4 +1,5 @@
-// Package themetest authors `.theme` fixture files for Portal's theme tests.
+// Package themetest supports Portal's theme tests: it authors `.theme` fixture
+// files and loads the embedded built-ins by slug.
 //
 // It is the single definition of the fixture format every consumer stages files
 // in — the loader's `key = value` shape, the canonical token order, and the one

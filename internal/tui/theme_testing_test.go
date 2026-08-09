@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // testDarkTheme and testLightTheme load the two embedded built-ins the model's
@@ -21,28 +22,12 @@ import (
 // the suite cannot grow the very shape the guard exists to prevent.
 func testDarkTheme(t *testing.T) theme.Theme {
 	t.Helper()
-	return testBuiltinTheme(t, theme.DefaultDarkSlug)
+	return themetest.DefaultDark(t)
 }
 
 func testLightTheme(t *testing.T) theme.Theme {
 	t.Helper()
-	return testBuiltinTheme(t, theme.DefaultLightSlug)
-}
-
-// testBuiltinTheme loads one embedded built-in by slug through the production
-// loader, failing the test on anything but a clean parse. A rejection here is a
-// broken embedded file, which §7.6's build-time guarantee makes impossible — so it
-// is a Fatal, not a fallback.
-func testBuiltinTheme(t *testing.T, slug string) theme.Theme {
-	t.Helper()
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
-	if !found {
-		t.Fatalf("built-in %q not found in the embedded set", slug)
-	}
-	if rejection != nil {
-		t.Fatalf("built-in %q was rejected: %s", slug, rejection.Reason)
-	}
-	return loaded.Theme
+	return themetest.DefaultLight(t)
 }
 
 // themeLabel names th for a failure message — "dark", "light", or the theme's

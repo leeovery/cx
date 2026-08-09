@@ -206,7 +206,7 @@ func TestFallback_NominationFailureIsNotFatal(t *testing.T) {
 	if slot.Resolved != theme.DefaultDarkSlug {
 		t.Errorf("Resolved = %q, want %q", slot.Resolved, theme.DefaultDarkSlug)
 	}
-	if want := builtinTheme(t, theme.DefaultDarkSlug); slot.Theme != want {
+	if want := themetest.Builtin(t, theme.DefaultDarkSlug); slot.Theme != want {
 		t.Error("the slot's palette is not the dark default's — a fallback paints the fallback's theme")
 	}
 	if got.Nomination.Constant() != slot.Theme {

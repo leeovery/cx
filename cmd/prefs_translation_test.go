@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // migratingLoadForTest runs the production migrating prefs load against
@@ -102,7 +103,7 @@ func TestLoadPrefsStore_TranslatedPinRendersAsAConstantThisLaunch(t *testing.T) 
 		t.Run("appearance "+tc.appearance, func(t *testing.T) {
 			setPrefsFile(t, `{"appearance":"`+tc.appearance+`"}`)
 
-			assertConstant(t, themeNominationForTest(t), builtinThemeForTest(t, tc.want))
+			assertConstant(t, themeNominationForTest(t), themetest.Builtin(t, tc.want))
 		})
 	}
 }
@@ -202,7 +203,7 @@ func TestLoadPrefsStore_HandEditedSlotWinsOnTheTranslatingLaunch(t *testing.T) {
 
 	nomination := themeNominationForTest(t)
 
-	assertPair(t, nomination, builtinThemeForTest(t, theme.DefaultLightSlug), builtinThemeForTest(t, nordSlug))
+	assertPair(t, nomination, themetest.Builtin(t, theme.DefaultLightSlug), themetest.Builtin(t, nordSlug))
 }
 
 // TestLoadPrefsStore_ComputesWithoutWriting: it writes nothing.
@@ -266,8 +267,8 @@ func TestLoadPrefsStore_TolerantOnDegenerateFiles(t *testing.T) {
 			assertLoad(t, load, prefsLoad{TranslationPending: true})
 
 			assertPair(t, themeNominationForTest(t),
-				builtinThemeForTest(t, theme.DefaultLightSlug),
-				builtinThemeForTest(t, theme.DefaultDarkSlug))
+				themetest.Builtin(t, theme.DefaultLightSlug),
+				themetest.Builtin(t, theme.DefaultDarkSlug))
 		})
 	}
 }
@@ -459,7 +460,7 @@ func TestTranslateAppearance_UsesSharedConstants(t *testing.T) {
 			}
 			// A slug that names no built-in would pin the user to §8.5's
 			// fallback rather than to the theme their pin meant.
-			builtinThemeForTest(t, tc.want)
+			themetest.Builtin(t, tc.want)
 		})
 	}
 }

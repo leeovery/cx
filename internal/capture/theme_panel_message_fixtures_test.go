@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -198,7 +199,7 @@ func footerBlock(t *testing.T, lines []panelLine, want []string) (start int, row
 // Rendered under `tokyo-night-day`, the row the fixture seeds its cursor onto —
 // deliberately NOT the persisted constant `nord` the confirm names.
 func TestPanelFixture_ConfirmFrame(t *testing.T) {
-	palette := builtinPalette(t, theme.DefaultLightSlug)
+	palette := themetest.Builtin(t, theme.DefaultLightSlug)
 	lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", palette, messagePanelTermWidth, harnessHeight))
 	start := panelLineIndex(t, lines, "clear constant")
 	footerStart, footerRows := footerBlock(t, lines, confirmFooterRows)
@@ -259,7 +260,7 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 // BOTTOM, where the footer is: `esc close` first, the one key that closes a panel
 // the user can no longer read the way out of.
 func TestPanelFixture_ConfirmWrapsAtMinWidth(t *testing.T) {
-	palette := builtinPalette(t, theme.DefaultLightSlug)
+	palette := themetest.Builtin(t, theme.DefaultLightSlug)
 	lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", palette, messagePanelTermWidth, harnessHeight))
 	start := panelLineIndex(t, lines, "clear constant")
 	footerStart, _ := footerBlock(t, lines, confirmFooterRows)
@@ -327,7 +328,7 @@ func distinctForegrounds(raw string) []string {
 // Rendered under `nord`, the adaptive pair's dark slot — the row §9.2's open
 // anchors the cursor to under capturetool's gate-free dark fallback (§8.8).
 func TestPanelFixture_CommitFailedFrame(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 	lines := panelLinesOf(t, panelFixtureFrame(t, "theme-panel-commit-failed", palette))
 	start := panelLineIndex(t, lines, "couldn't save theme")
 	footerStart, footerRows := footerBlock(t, lines, standingFooterRows)
@@ -373,7 +374,7 @@ func TestPanelFixture_CommitFailedFrame(t *testing.T) {
 // against restated labels, so the claim is "the failure changed nothing about the
 // badges" rather than "the badges are on the rows this test guessed".
 func TestPanelFixture_CommitFailedBadgeUnmoved(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 	failed := panelRows(t, panelFixtureFrame(t, "theme-panel-commit-failed", palette))
 	prior := panelRows(t, panelFixtureFrame(t, "theme-panel-adaptive-pair", palette))
 
@@ -407,7 +408,7 @@ func TestPanelFixture_CommitFailedBadgeUnmoved(t *testing.T) {
 // would only be of some short terminal, and the arithmetic it is captured for would
 // be a coincidence of the size someone picked.
 func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 	frame := panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight)
 	lines := panelLinesOf(t, frame)
 
@@ -471,7 +472,7 @@ func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 // file's own wrap assertion captures it doing so — and must collapse to one
 // truncated line at the floor.
 func TestPanelFixture_MinHeightMessageTruncates(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 
 	t.Run("the seeded failure is one line", func(t *testing.T) {
 		lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight))
@@ -483,7 +484,7 @@ func TestPanelFixture_MinHeightMessageTruncates(t *testing.T) {
 	})
 
 	t.Run("the copy that wraps above the floor is truncated at it", func(t *testing.T) {
-		lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", builtinPalette(t, theme.DefaultLightSlug), messagePanelTermWidth, messagePanelFloorTermHeight))
+		lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", themetest.Builtin(t, theme.DefaultLightSlug), messagePanelTermWidth, messagePanelFloorTermHeight))
 		start := panelLineIndex(t, lines, "clear constant")
 		footerStart, _ := footerBlock(t, lines, confirmFooterRows)
 		if got := footerStart - start; got != 1 {
@@ -560,11 +561,11 @@ func TestPanelFixture_MessageSeedsAreStateOnly(t *testing.T) {
 	})
 
 	t.Run("the frames render it all the same", func(t *testing.T) {
-		confirm := panelFixtureFrame(t, "theme-panel-confirm", builtinPalette(t, theme.DefaultLightSlug))
+		confirm := panelFixtureFrame(t, "theme-panel-confirm", themetest.Builtin(t, theme.DefaultLightSlug))
 		if !strings.Contains(ansi.Strip(confirm), themePanelConfirmCopy) {
 			t.Errorf("the confirm frame does not carry %q, so the absence above says nothing about where the copy comes from", themePanelConfirmCopy)
 		}
-		failed := panelFixtureFrame(t, "theme-panel-commit-failed", builtinPalette(t, "nord"))
+		failed := panelFixtureFrame(t, "theme-panel-commit-failed", themetest.Builtin(t, "nord"))
 		if !strings.Contains(ansi.Strip(failed), themePanelCommitFailedCopy) {
 			t.Errorf("the failed-commit frame does not carry %q, so the absence above says nothing about where the copy comes from", themePanelCommitFailedCopy)
 		}
@@ -670,7 +671,7 @@ func TestPanelFixture_MessageFramesNoConfigAccess(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FixtureByName(%s): %v", name, err)
 			}
-			palette := builtinPalette(t, theme.DefaultDarkSlug)
+			palette := themetest.Builtin(t, theme.DefaultDarkSlug)
 			if deps := fx.Deps(palette); deps.ThemePersister != nil {
 				t.Errorf("the fixture wires a ThemePersister (%#v); the seeded failure must write nowhere", deps.ThemePersister)
 			}

@@ -36,7 +36,7 @@ func TestResolveProgramContrastValidation(t *testing.T) {
 		// The expectation is sourced from the loader rather than hardcoded, so a
 		// deliberate re-tint of tokyo-night's canvas moves the assertion with it
 		// (mirroring TestResolveTheme_DefaultsToTokyoNight).
-		want := builtinForTest(t, "tokyo-night")
+		want := themetest.Builtin(t, "tokyo-night")
 		title := fmt.Sprintf("CONTRAST VALIDATION — canvas %s", want.Canvas.Value)
 		if content := m.View().Content; !strings.Contains(content, title) {
 			t.Errorf("the swatch does not render tokyo-night's palette: no %q in its view\n--- view ---\n%s", title, content)

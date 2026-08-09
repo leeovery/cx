@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -216,7 +217,7 @@ func panelOuterWidth(t *testing.T, frame string, termW int) int {
 // badge competing for the same right edge, and a label long enough to be
 // truncated.
 func TestPanelFixture_InvalidRowFrame(t *testing.T) {
-	palette := builtinPalette(t, "tokyo-night")
+	palette := themetest.Builtin(t, "tokyo-night")
 	frame := panelFixtureFrame(t, "theme-panel-invalid-row", palette)
 	rows := panelRows(t, frame)
 
@@ -288,7 +289,7 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 // renders no reasons at all, and "`bad syntax` renders" says nothing about
 // competition. The two reasons sit on rows that differ ONLY in carrying a badge.
 func TestPanelFixture_InvalidPersistedRowDropsTheReason(t *testing.T) {
-	visible := ansi.Strip(panelFixtureFrame(t, "theme-panel-invalid-row", builtinPalette(t, "tokyo-night")))
+	visible := ansi.Strip(panelFixtureFrame(t, "theme-panel-invalid-row", themetest.Builtin(t, "tokyo-night")))
 
 	if !strings.Contains(visible, "bad syntax") {
 		t.Errorf("the UNBADGED invalid row renders no reason at all, so a missing reason on the badged row demonstrates nothing about the priority:\n%s", visible)
@@ -309,7 +310,7 @@ func TestPanelFixture_InvalidPersistedRowDropsTheReason(t *testing.T) {
 // indistinguishable from one of a warning implemented as a list delegate — both
 // show the row — so the claim is only observable once the user has paged past it.
 func TestPanelFixture_DirUnreadableIsChromeOnPageTwo(t *testing.T) {
-	frame := panelFrameAt(t, "theme-panel-dir-unreadable", builtinPalette(t, "tokyo-night"), harnessWidth, dirUnreadablePanelTermHeight)
+	frame := panelFrameAt(t, "theme-panel-dir-unreadable", themetest.Builtin(t, "tokyo-night"), harnessWidth, dirUnreadablePanelTermHeight)
 	visible := ansi.Strip(frame)
 
 	// The non-vacuity leg, and it comes first: a frame still on page 1 would carry
@@ -346,7 +347,7 @@ func TestPanelFixture_DirUnreadableIsChromeOnPageTwo(t *testing.T) {
 // about the warning's chrome-ness and the claim about the surviving `●` one
 // observation rather than two.
 func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
-	frame := panelFrameAt(t, "theme-panel-dir-unreadable", builtinPalette(t, "tokyo-night"), harnessWidth, dirUnreadablePanelTermHeight)
+	frame := panelFrameAt(t, "theme-panel-dir-unreadable", themetest.Builtin(t, "tokyo-night"), harnessWidth, dirUnreadablePanelTermHeight)
 	rows := panelRows(t, frame)
 
 	t.Run("a built-in row renders beneath it", func(t *testing.T) {
@@ -377,7 +378,7 @@ func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 // renders a panel (which takes the minimum), and the narrow frame must sit
 // STRICTLY between them.
 func TestPanelFixture_NarrowIsBetweenMinAndPreferred(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 
 	preferred := panelOuterWidth(t, panelFixtureFrame(t, "theme-panel-narrow", palette), harnessWidth)
 	minimum := panelOuterWidth(t, panelFrameAt(t, "theme-panel-narrow", palette, minimumPanelTermWidth, harnessHeight), minimumPanelTermWidth)
@@ -425,7 +426,7 @@ func TestPanelFixture_NarrowIsBetweenMinAndPreferred(t *testing.T) {
 // NO dots at the same size, or "the dots render" would be a statement about the
 // panel rather than about overflow.
 func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 	frame := panelFixtureFrame(t, "theme-panel-paginated", palette)
 
 	t.Run("a four-row panel draws no dots at the same size", func(t *testing.T) {
@@ -478,7 +479,7 @@ func panelCarriesDots(frame string) bool {
 // against the SAME page rendered without the panel, so the claim is "the overlay
 // cut it" rather than "some footer text is missing".
 func TestPanelFixture_OverProjects(t *testing.T) {
-	palette := builtinPalette(t, "nord")
+	palette := themetest.Builtin(t, "nord")
 
 	fx, err := capture.FixtureByName("theme-panel-projects")
 	if err != nil {
@@ -607,7 +608,7 @@ func TestPanelFixture_RemainingFramesNoConfigAccess(t *testing.T) {
 			t.Setenv("PORTAL_THEMES_DIR", themes)
 			t.Setenv("PORTAL_PREFS_FILE", filepath.Join(dir, "prefs.json"))
 
-			frame := ansi.Strip(panelFixtureFrame(t, name, builtinPalette(t, theme.DefaultDarkSlug)))
+			frame := ansi.Strip(panelFixtureFrame(t, name, themetest.Builtin(t, theme.DefaultDarkSlug)))
 			if strings.Contains(frame, "decoy-drop-in") {
 				t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
 			}

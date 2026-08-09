@@ -86,7 +86,7 @@ func assertPaintedCanvas(t *testing.T, m tui.Model, want color.Color) {
 // nomination has no member for an answer to select.
 func TestConstruction_PersistedConstantSkipsTheGate(t *testing.T) {
 	setPrefsFile(t, `{"theme":"`+nordSlug+`"}`)
-	nord := builtinThemeForTest(t, nordSlug)
+	nord := themetest.Builtin(t, nordSlug)
 
 	nomination := themeNominationForTest(t)
 	assertConstant(t, nomination, nord)
@@ -108,8 +108,8 @@ func TestConstruction_PersistedConstantSkipsTheGate(t *testing.T) {
 // resolved to a real palette rather than to nothing.
 func TestConstruction_PersistedPairSelectsByGate(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
-	nord := builtinThemeForTest(t, nordSlug)
-	day := builtinThemeForTest(t, theme.DefaultLightSlug)
+	nord := themetest.Builtin(t, nordSlug)
+	day := themetest.Builtin(t, theme.DefaultLightSlug)
 
 	nomination := themeNominationForTest(t)
 	assertPair(t, nomination, day, nord)
@@ -155,7 +155,7 @@ func TestConstruction_PersistedPairSelectsByGate(t *testing.T) {
 // accent a second after the user began reading the picker.
 func TestConstruction_LateReplyNeverReThemes(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
-	nord := builtinThemeForTest(t, nordSlug)
+	nord := themetest.Builtin(t, nordSlug)
 
 	resolved := resolveByTimeout(t, modelForNomination(themeNominationForTest(t)))
 	assertPaintedCanvas(t, resolved, nord.Canvas.Color())
@@ -179,7 +179,7 @@ func TestConstruction_LateReplyNeverReThemes(t *testing.T) {
 // a broken slot value cannot fail the launch.
 func TestConstruction_ConstantWinsOverStaleSlots(t *testing.T) {
 	setPrefsFile(t, `{"theme":"`+nordSlug+`","theme_light":"../evil","theme_dark":"no-such-theme"}`)
-	nord := builtinThemeForTest(t, nordSlug)
+	nord := themetest.Builtin(t, nordSlug)
 	sink := installMigrateCapture(t)
 
 	nomination := themeNominationForTest(t)
@@ -205,7 +205,7 @@ func TestConstruction_UnloadableNominationFallsBackWithoutWriting(t *testing.T) 
 
 	nomination := themeNominationForTest(t)
 
-	assertConstant(t, nomination, builtinThemeForTest(t, theme.DefaultDarkSlug))
+	assertConstant(t, nomination, themetest.Builtin(t, theme.DefaultDarkSlug))
 	assertThemeEvents(t, sink,
 		"WARN fallback applied slug=no-such-theme reason=not found",
 		"INFO loaded slug="+theme.DefaultDarkSlug,
@@ -287,7 +287,7 @@ func TestConstruction_ReadBudget(t *testing.T) {
 
 		nomination := themeNominationForTest(t)
 
-		assertConstant(t, nomination, builtinThemeForTest(t, nordSlug))
+		assertConstant(t, nomination, themetest.Builtin(t, nordSlug))
 		assertThemeEvents(t, sink, "INFO loaded slug="+nordSlug)
 	})
 
@@ -321,8 +321,8 @@ func TestConstruction_ReadBudget(t *testing.T) {
 // themes directory may stop the picker opening. Each degrades to the shipped
 // pair, which is what an unconfigured install renders anyway.
 func TestConstruction_PathFailuresDegradeNotBlock(t *testing.T) {
-	shippedLight := builtinThemeForTest(t, theme.DefaultLightSlug)
-	shippedDark := builtinThemeForTest(t, theme.DefaultDarkSlug)
+	shippedLight := themetest.Builtin(t, theme.DefaultLightSlug)
+	shippedDark := themetest.Builtin(t, theme.DefaultDarkSlug)
 
 	t.Run("a prefs store that could not be built opens on the shipped pair", func(t *testing.T) {
 		// Zero keys are openTUI's own degradation: a prefs path-resolution failure
@@ -377,7 +377,7 @@ func TestConstruction_NoColorLoadsBothSelectsDark(t *testing.T) {
 
 	nomination := themeNominationForTest(t)
 
-	assertPair(t, nomination, builtinThemeForTest(t, theme.DefaultLightSlug), builtinThemeForTest(t, nordSlug))
+	assertPair(t, nomination, themetest.Builtin(t, theme.DefaultLightSlug), themetest.Builtin(t, nordSlug))
 	assertThemeEvents(t, sink,
 		"INFO loaded slug="+theme.DefaultLightSlug+" slot=light",
 		"INFO loaded slug="+nordSlug+" slot=dark",
@@ -408,8 +408,8 @@ func TestConstruction_NoColorLoadsBothSelectsDark(t *testing.T) {
 func TestConstruction_StartupCanvasHexFromSelectedMember(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
 	nomination := themeNominationForTest(t)
-	nord := builtinThemeForTest(t, nordSlug)
-	day := builtinThemeForTest(t, theme.DefaultLightSlug)
+	nord := themetest.Builtin(t, nordSlug)
+	day := themetest.Builtin(t, theme.DefaultLightSlug)
 
 	for _, tc := range []struct {
 		name     string

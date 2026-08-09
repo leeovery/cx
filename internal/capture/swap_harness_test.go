@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -142,7 +143,7 @@ func capturedStates() []capturedStateWant {
 // pins by default.
 func darkBuiltinTheme(t *testing.T) theme.Theme {
 	t.Helper()
-	return builtinPalette(t, theme.DefaultDarkSlug)
+	return themetest.DefaultDark(t)
 }
 
 // TestModelAt_ReachesCapturedState pins the harness driver: every registered
@@ -199,7 +200,7 @@ func TestModelAt_ReachesCapturedState(t *testing.T) {
 // a second palette whose canvas provably differs from the dark one's.
 func lightBuiltinTheme(t *testing.T) theme.Theme {
 	t.Helper()
-	return builtinPalette(t, theme.DefaultLightSlug)
+	return themetest.DefaultLight(t)
 }
 
 // bgSeq is a token's rendered BACKGROUND SGR core (`48;2;R;G;B`). Styled output

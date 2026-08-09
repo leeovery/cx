@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // §9.2's opening state: the cursor lands on the theme that is ACTUALLY
@@ -327,7 +328,7 @@ func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 // standing above the target, so an index-anchored cursor cannot land on the target
 // in both.
 func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
-	target := theme.Row{Slug: "nord", Source: theme.SourceBuiltin, Theme: testBuiltinTheme(t, "nord")}
+	target := theme.Row{Slug: "nord", Source: theme.SourceBuiltin, Theme: themetest.Builtin(t, "nord")}
 	above := theme.Row{Slug: "aurora", Source: theme.SourceFile, Filename: "aurora.theme", Theme: testDarkTheme(t)}
 	resolution := theme.Resolution{
 		Nomination: theme.ConstantNomination(target.Theme),
@@ -375,7 +376,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 	t.Run("it clamps to the first selectable row", func(t *testing.T) {
 		rows := []theme.Row{
 			{Slug: "broken", Filename: "broken.theme", Source: theme.SourceFile, Rejection: &theme.Rejection{Reason: theme.ReasonBadColour}},
-			{Slug: "nord", Source: theme.SourceBuiltin, Theme: testBuiltinTheme(t, "nord")},
+			{Slug: "nord", Source: theme.SourceBuiltin, Theme: themetest.Builtin(t, "nord")},
 		}
 		enumerator := &fakeThemeEnumerator{union: theme.Union{Rows: rows, Count: len(rows), Rejected: 1}, resolution: ghost}
 		m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
@@ -421,7 +422,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 // repaint the screen in its palette and move the cursor onto its row, and every
 // one of those is asserted against.
 func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
-	nord := testBuiltinTheme(t, "nord")
+	nord := themetest.Builtin(t, "nord")
 	rows := []theme.Row{{Slug: "nord", Source: theme.SourceBuiltin, Theme: nord}}
 	enumerator := &fakeThemeEnumerator{
 		union: theme.Union{Rows: rows, Count: len(rows)},

@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/capture"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -40,7 +41,7 @@ func TestCapturetool_NoThemePersister(t *testing.T) {
 				t.Fatalf("FixtureByName(%s): %v", name, err)
 			}
 
-			deps := fx.Deps(builtinForTest(t, defaultThemeSlug))
+			deps := fx.Deps(themetest.Builtin(t, defaultThemeSlug))
 			if deps.ThemePersister != nil {
 				t.Errorf("fixture %s wires a ThemePersister (%#v); a commit during a capture must write nowhere", name, deps.ThemePersister)
 			}
@@ -67,7 +68,7 @@ func TestCapturetool_WritesNoPrefsFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	t.Setenv("PORTAL_PREFS_FILE", filepath.Join(dir, "prefs.json"))
 
-	m, err := resolveModel("sessions-flat", builtinForTest(t, defaultThemeSlug))
+	m, err := resolveModel("sessions-flat", themetest.Builtin(t, defaultThemeSlug))
 	if err != nil {
 		t.Fatalf("resolveModel(sessions-flat): %v", err)
 	}

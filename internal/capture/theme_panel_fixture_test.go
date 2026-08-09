@@ -14,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -144,12 +145,12 @@ func rowSortKeys(rows []theme.Row) []string {
 //     balances, and the panel's bubbles/list instance reads as covered while being
 //     covered by nothing.
 func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
-	injected := builtinTheme(t, theme.DefaultDarkSlug)
+	injected := themetest.Builtin(t, theme.DefaultDarkSlug)
 	// The declared slots carry a DIFFERENT palette, so an implementation passing
 	// them through untouched fails rather than agreeing by coincidence.
 	declared := []theme.SlotResolution{
-		{Slot: theme.SlotLight, Requested: "tokyo-night-day", Resolved: "tokyo-night-day", Theme: builtinTheme(t, theme.DefaultLightSlug)},
-		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord", Theme: builtinTheme(t, "nord")},
+		{Slot: theme.SlotLight, Requested: "tokyo-night-day", Resolved: "tokyo-night-day", Theme: themetest.Builtin(t, theme.DefaultLightSlug)},
+		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord", Theme: themetest.Builtin(t, "nord")},
 	}
 	fake := newFakeThemeEnumerator(injected, theme.Enumeration{}, theme.Union{}, declared)
 
@@ -185,8 +186,8 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 	// repaints the frame, which is what makes "reports the injected palette"
 	// load-bearing rather than an assertion about an inert value.
 	t.Run("a fake reporting another palette repaints the frame", func(t *testing.T) {
-		pinned := builtinTheme(t, "nord")
-		other := builtinTheme(t, theme.DefaultLightSlug)
+		pinned := themetest.Builtin(t, "nord")
+		other := themetest.Builtin(t, theme.DefaultLightSlug)
 
 		frame := driveToPanel(t, panelDepsReporting(t, "theme-panel-adaptive-pair", pinned, other))
 		if !strings.Contains(frame, backgroundSGR(t, other.Canvas)) {
@@ -200,7 +201,7 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 	// stops carrying colour — which is why the requirement is stated in the fake's
 	// own doc comment rather than left to be inferred.
 	t.Run("a fake reporting a zero palette renders colourless", func(t *testing.T) {
-		pinned := builtinTheme(t, "nord")
+		pinned := themetest.Builtin(t, "nord")
 
 		frame := driveToPanel(t, panelDepsReporting(t, "theme-panel-adaptive-pair", pinned, theme.Theme{}))
 		if strings.Contains(frame, backgroundSGR(t, pinned.Canvas)) {
@@ -230,7 +231,7 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 // it is held to the same standard.
 func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 	t.Run("arrowing to the next row keeps the frame on the injected palette", func(t *testing.T) {
-		pinned := builtinTheme(t, "nord")
+		pinned := themetest.Builtin(t, "nord")
 
 		fx, err := FixtureByName("theme-panel-adaptive-pair")
 		if err != nil {
@@ -271,7 +272,7 @@ func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 	// — and §13.3's mandated invalid-row and `⚠ dir unreadable` fixtures are built
 	// from precisely that row.
 	t.Run("a rejected row keeps its rejection and takes no palette", func(t *testing.T) {
-		injected := builtinTheme(t, "nord")
+		injected := themetest.Builtin(t, "nord")
 		rejection := &theme.Rejection{Reason: theme.ReasonBadSyntax, Detail: "line 4: quoted value"}
 		declared := theme.Union{Rows: []theme.Row{
 			{Slug: "valid-drop-in", Filename: "valid-drop-in.theme", Source: theme.SourceFile},
@@ -327,7 +328,7 @@ const truecolorBackground = "48;2;"
 // entire subject: §9.14 makes those two badges the reference for a vocabulary
 // with no prior art anywhere.
 func TestFakeThemeEnumerator_ResolveIsTheOnlyBadgeSource(t *testing.T) {
-	pinned := builtinTheme(t, "nord")
+	pinned := themetest.Builtin(t, "nord")
 
 	fx, err := FixtureByName("theme-panel-adaptive-pair")
 	if err != nil {
@@ -464,7 +465,7 @@ func TestFakeThemeEnumerator_NoIO(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FixtureByName: %v", err)
 		}
-		palette := builtinTheme(t, "nord")
+		palette := themetest.Builtin(t, "nord")
 		seam := fx.Deps(palette).ThemeEnumerator
 
 		enumeration, union := seam.Open(fx.themeKeys)
@@ -646,7 +647,7 @@ func TestPanelFixture_NoConfigAccess(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FixtureByName(%s): %v", name, err)
 			}
-			frame := driveToPanel(t, fx.Deps(builtinTheme(t, theme.DefaultDarkSlug)))
+			frame := driveToPanel(t, fx.Deps(themetest.Builtin(t, theme.DefaultDarkSlug)))
 
 			if strings.Contains(ansi.Strip(frame), "decoy-drop-in") {
 				t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
@@ -718,20 +719,6 @@ func frameOf(t *testing.T, model tea.Model) string {
 		t.Fatalf("the drive returned a %T, not a tui.Model", model)
 	}
 	return painted.View().Content
-}
-
-// builtinTheme loads one shipped built-in. §7.6's build-time guarantee makes a
-// rejection here impossible, so it is a Fatal rather than a fallback.
-func builtinTheme(t *testing.T, slug string) theme.Theme {
-	t.Helper()
-	result, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
-	if !found {
-		t.Fatalf("built-in %q not found in the embedded set", slug)
-	}
-	if rejection != nil {
-		t.Fatalf("built-in %q was rejected: %s", slug, rejection.Reason)
-	}
-	return result.Theme
 }
 
 // backgroundSGR is a token's rendered BACKGROUND SGR parameter run. Styled

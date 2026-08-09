@@ -445,7 +445,7 @@ func TestResolveTheme_SlugFormNeverWarns(t *testing.T) {
 // production tui.Model via the shared tui.Build constructor — without opening a
 // tmux server or touching config (the fixture is fully in-memory).
 func TestResolveModel(t *testing.T) {
-	pinned := builtinForTest(t, defaultThemeSlug)
+	pinned := themetest.Builtin(t, defaultThemeSlug)
 
 	t.Run("known fixture builds a sessions-page model", func(t *testing.T) {
 		m, err := resolveModel("sessions-flat", pinned)
@@ -620,18 +620,6 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 	if got := sink.Records(); len(got) != 1 {
 		t.Fatalf("the positive control emitted %d records, want 1 — the sink is not wired to the theme component", len(got))
 	}
-}
-
-// builtinForTest resolves one embedded built-in's palette, failing the test if it
-// will not load.
-func builtinForTest(t *testing.T, slug string) theme.Theme {
-	t.Helper()
-
-	result, rejection, found := theme.NewSilentLoader().LoadBuiltin(slug)
-	if !found || rejection != nil {
-		t.Fatalf("LoadBuiltin(%s) found=%v rejection=%v", slug, found, rejection)
-	}
-	return result.Theme
 }
 
 // pathThemeForTest stages a valid theme file carrying the given canvas value and

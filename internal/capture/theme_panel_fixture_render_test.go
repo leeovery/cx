@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // The FRAME-level half of §13.3's panel fixtures: what the two setting-state
@@ -105,7 +106,7 @@ func panelFixtureFrame(t *testing.T, fixture string, palette theme.Theme) string
 func TestPanelFixture_AdaptivePairBadges(t *testing.T) {
 	// The coherent pairing the fixture's doc comment states: `--theme` names the
 	// theme under the cursor, which at open is the dark slot's.
-	rows := panelRows(t, panelFixtureFrame(t, "theme-panel-adaptive-pair", builtinPalette(t, "nord")))
+	rows := panelRows(t, panelFixtureFrame(t, "theme-panel-adaptive-pair", themetest.Builtin(t, "nord")))
 
 	t.Run("the light slot's row carries ● light", func(t *testing.T) {
 		if got, want := rows["tokyo-night-day"].badge, "● light"; got != want {
@@ -150,7 +151,7 @@ func TestPanelFixture_AdaptivePairBadges(t *testing.T) {
 func TestPanelFixture_ConstantWhilePreviewing(t *testing.T) {
 	// The coherent pairing the fixture's doc comment states: `--theme` names the
 	// PREVIEWED theme, deliberately not the marked constant.
-	rows := panelRows(t, panelFixtureFrame(t, "theme-panel-constant-previewing", builtinPalette(t, theme.DefaultLightSlug)))
+	rows := panelRows(t, panelFixtureFrame(t, "theme-panel-constant-previewing", themetest.Builtin(t, theme.DefaultLightSlug)))
 
 	t.Run("the constant's row carries a bare ●", func(t *testing.T) {
 		if got, want := rows["nord"].badge, "●"; got != want {
@@ -189,8 +190,8 @@ func TestPanelFixture_ConstantWhilePreviewing(t *testing.T) {
 // tell the two apart, because the seeded row and the flag would name the same
 // palette.
 func TestPanelFixture_CursorSeedDoesNotApplyATheme(t *testing.T) {
-	pinned := builtinPalette(t, "nord")
-	seeded := builtinPalette(t, theme.DefaultLightSlug)
+	pinned := themetest.Builtin(t, "nord")
+	seeded := themetest.Builtin(t, theme.DefaultLightSlug)
 
 	frame := panelFixtureFrame(t, "theme-panel-constant-previewing", pinned)
 
@@ -217,7 +218,7 @@ func TestPanelFixture_CursorSeedDoesNotApplyATheme(t *testing.T) {
 // somewhere inside it: a single render under a single flag agrees with a
 // hard-coded palette exactly as often as it agrees with a threaded one.
 func TestPanelFixture_PaletteFollowsTheThemeFlag(t *testing.T) {
-	first, second := builtinPalette(t, "nord"), builtinPalette(t, theme.DefaultLightSlug)
+	first, second := themetest.Builtin(t, "nord"), themetest.Builtin(t, theme.DefaultLightSlug)
 	if first.Canvas.Value == second.Canvas.Value {
 		t.Fatalf("the two palettes share a canvas (%s); the diff below would be unobservable", first.Canvas.Value)
 	}
@@ -363,18 +364,4 @@ func TestPanelFixture_PanelIsCompositedUnderTheGuard(t *testing.T) {
 			}
 		})
 	}
-}
-
-// builtinPalette loads one shipped built-in. §7.6's build-time guarantee makes a
-// rejection impossible, so it is a Fatal rather than a fallback.
-func builtinPalette(t *testing.T, slug string) theme.Theme {
-	t.Helper()
-	result, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
-	if !found {
-		t.Fatalf("built-in %q not found in the embedded set", slug)
-	}
-	if rejection != nil {
-		t.Fatalf("built-in %q was rejected: %s", slug, rejection.Reason)
-	}
-	return result.Theme
 }

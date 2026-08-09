@@ -13,22 +13,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tmux"
 	"github.com/leeovery/portal/internal/tui"
 )
-
-// darkBuiltinTheme loads the shipped dark built-in — the palette a model
-// constructed without an explicit appearance renders with, and therefore the one
-// this package's SGR probes must be built from.
-func darkBuiltinTheme(t *testing.T) theme.Theme {
-	t.Helper()
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(theme.DefaultDarkSlug)
-	if !found || rejection != nil {
-		t.Fatalf("dark built-in %q did not load (found=%v)", theme.DefaultDarkSlug, found)
-	}
-	return loaded.Theme
-}
 
 // editFieldFocused reports whether the edit-modal field label renders with the
 // §13.1 focused colour (accent.violet) in the given view — the MV focus signal that
@@ -37,7 +25,7 @@ func darkBuiltinTheme(t *testing.T) theme.Theme {
 // it. label is the uppercase field label (NAME / ALIASES / TAGS).
 func editFieldFocused(t *testing.T, view, label string) bool {
 	t.Helper()
-	probe := lipgloss.NewStyle().Foreground(darkBuiltinTheme(t).AccentPrimary.Color()).Render("x")
+	probe := lipgloss.NewStyle().Foreground(themetest.DefaultDark(t).AccentPrimary.Color()).Render("x")
 	start := strings.IndexByte(probe, '[')
 	end := strings.IndexByte(probe, 'm')
 	if start < 0 || end <= start {

@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // §8.4's ONE THEME LOAD OUTSIDE CONSTRUCTION: the newly-live opposite slot on a
@@ -283,8 +284,8 @@ func TestCommitSlotLoad_LoadsTheOppositeSlot(t *testing.T) {
 			m, _ = convertToSlot(t, m, "nord", tc.press)
 
 			requireLoadedLine(t, sink, tc.slug, tc.slot)
-			assigned := testBuiltinTheme(t, "nord")
-			loaded := testBuiltinTheme(t, tc.slug)
+			assigned := themetest.Builtin(t, "nord")
+			loaded := themetest.Builtin(t, tc.slug)
 			if tc.slot == "dark" {
 				requireNominationPair(t, m, assigned, loaded)
 			} else {
@@ -321,7 +322,7 @@ func TestCommitSlotLoad_UntouchedSlotIsTheShippedDefault(t *testing.T) {
 
 	requireLoadedLine(t, sink, theme.DefaultLightSlug, "light")
 	requireNoFallbackLine(t, sink)
-	requireNominationPair(t, m, testLightTheme(t), testBuiltinTheme(t, "nord"))
+	requireNominationPair(t, m, testLightTheme(t), themetest.Builtin(t, "nord"))
 }
 
 // TestCommitSlotLoad_StaleSlotFromEnumeration: it resolves a stale slot from the
@@ -364,7 +365,7 @@ func TestCommitSlotLoad_StaleSlotFromEnumeration(t *testing.T) {
 
 		requireLoadedLine(t, sink, "nord", "light")
 		requireNoFallbackLine(t, sink)
-		requireNominationPair(t, m, testBuiltinTheme(t, "nord"), testDarkTheme(t))
+		requireNominationPair(t, m, themetest.Builtin(t, "nord"), testDarkTheme(t))
 	})
 }
 
@@ -409,7 +410,7 @@ func TestCommitSlotLoad_UnresolvableTakesTheModeMatchedFallback(t *testing.T) {
 			m, _ = convertToSlot(t, m, "nord", tc.press)
 
 			requireLoadedLine(t, sink, tc.slug, tc.slotAttr)
-			requireSlotCanvas(t, m, tc.slot, testBuiltinTheme(t, tc.slug).Canvas.Value)
+			requireSlotCanvas(t, m, tc.slot, themetest.Builtin(t, tc.slug).Canvas.Value)
 		})
 	}
 }
@@ -454,7 +455,7 @@ func TestCommitSlotLoad_NoDirectoryRead(t *testing.T) {
 
 		requireLoadedLine(t, sink, theme.DefaultLightSlug, "light")
 		requireNoFallbackLine(t, sink)
-		requireNominationPair(t, m, testLightTheme(t), testBuiltinTheme(t, "nord"))
+		requireNominationPair(t, m, testLightTheme(t), themetest.Builtin(t, "nord"))
 	})
 }
 
@@ -496,7 +497,7 @@ func TestCommitSlotLoad_EmitsLoadedOncePerConversion(t *testing.T) {
 	m, _ = pressCommitKey(t, m)
 	requireConstantKeys(t, m, "nord")
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
-	requireNominationPair(t, m, testLightTheme(t), testBuiltinTheme(t, "nord"))
+	requireNominationPair(t, m, testLightTheme(t), themetest.Builtin(t, "nord"))
 
 	loaded := themeEventRecords(sink, "loaded")
 	if len(loaded) != 2 {
@@ -848,7 +849,7 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 
 			// Task 8-10's close selects the in-force member from that answer.
 			closed := closeThemePanelForTest(t, m)
-			want := testBuiltinTheme(t, tc.inForce)
+			want := themetest.Builtin(t, tc.inForce)
 			if closed.themeState.active != want {
 				t.Errorf("the close landed on %s, want %s — the in-force member is the one the answer names (§9.2)", themeLabel(closed.themeState.active), themeLabel(want))
 			}
