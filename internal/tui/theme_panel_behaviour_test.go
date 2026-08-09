@@ -168,15 +168,7 @@ func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, c
 		ThemeKeys:       keys,
 		ThemePersister:  persister,
 	})
-	m.termWidth, m.termHeight = geometryTerm(contentW, contentH)
-	m.applySessions(closePanelSessions())
-	m.applySessionListSize(m.contentWidth(), m.contentHeight())
-
-	m = pressThemeKey(t, m)
-	if !m.themePanel.open {
-		t.Fatal("fixture: the panel did not open")
-	}
-	return m, persister
+	return openPanelForTest(t, m, contentW, contentH), persister
 }
 
 // behaviourNomination is the CONSTRUCTION-TIME nomination for these keys: the
@@ -187,6 +179,10 @@ func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, c
 // The setting's own shape still reaches the panel through the seam's Resolve, which
 // is where a pair's two badges come from, so pinning the palette here costs nothing
 // the assertions need.
+//
+// It does not share newDirBackedPanelModel's resolution step: this resolves against
+// a DECLARED enumeration rather than a loader over a directory, and it narrows the
+// result to the slot in force.
 func behaviourNomination(t *testing.T, e *behaviourEnumerator, keys theme.RawKeys) theme.Nomination {
 	t.Helper()
 

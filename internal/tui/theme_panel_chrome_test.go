@@ -41,34 +41,17 @@ func chromeSessionNames() []string {
 
 // newChromePanelModel builds a renderable Sessions page at the chrome content
 // region and opens the panel through the production `t` keypress.
-//
-// The dimensions are assigned directly rather than through a tea.WindowSizeMsg, so
-// the very first composed frame is the one asserted.
 func newChromePanelModel(t *testing.T) Model {
 	t.Helper()
 	rows := arrowValidRows(6)
 	m := Build(newArrowPanelDeps(t, rows, rows[0].Slug))
-	m.termWidth, m.termHeight = geometryTerm(chromeContentW, chromeContentH)
 
 	sessions := make([]tmux.Session, 0, len(chromeSessionNames()))
 	for _, name := range chromeSessionNames() {
 		sessions = append(sessions, tmux.Session{Name: name, Windows: 1})
 	}
-	m.applySessions(sessions)
-	m.applySessionListSize(m.contentWidth(), m.contentHeight())
-	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
+	m = openPanelForTestWithSessions(t, m, chromeContentW, chromeContentH, sessions)
 
-	if got := m.contentWidth(); got != chromeContentW {
-		t.Fatalf("fixture: the content region is %d columns wide, want %d", got, chromeContentW)
-	}
-	if got := m.contentHeight(); got != chromeContentH {
-		t.Fatalf("fixture: the content region is %d rows tall, want %d", got, chromeContentH)
-	}
-
-	m = pressThemeKey(t, m)
-	if !m.themePanel.open {
-		t.Fatal("fixture: the panel did not open")
-	}
 	if got := m.themePanel.width; got != themePanelPreferredWidth {
 		t.Fatalf("fixture: the panel opened at %d cells, want the preferred %d", got, themePanelPreferredWidth)
 	}

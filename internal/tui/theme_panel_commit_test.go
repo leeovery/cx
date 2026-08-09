@@ -67,20 +67,13 @@ func openCommitPanel(t *testing.T, deps Deps, p page, cursorSlug string) Model {
 	t.Helper()
 
 	m := Build(deps)
-	m.termWidth, m.termHeight = arrowTermW, arrowTermH
-	m.applySessions(closePanelSessions())
 	projects := commitPanelProjects()
 	m.setProjects(projects)
 	m.projectList.SetItems(ProjectsToListItems(projects))
 	m.projectList.Select(0)
-	m.applySessionListSize(m.contentWidth(), m.contentHeight())
-	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
 	m.activePage = p
 
-	m = pressThemeKey(t, m)
-	if !m.themePanel.open {
-		t.Fatal("fixture: the panel did not open")
-	}
+	m = openPanelForTest(t, m, arrowTermW-2*Hinset, arrowTermH-2*Vinset)
 	requireCursorOn(t, m, cursorSlug)
 	return m
 }

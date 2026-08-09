@@ -170,20 +170,11 @@ func newArrowPanelModel(t *testing.T, rows []theme.Row, cursorSlug string) Model
 //
 // The height is set BEFORE the `t` keypress, so the panel's list is sized by
 // PRODUCTION (applyThemePanelListStyles) at exactly the height the fixture renders
-// at. Nothing here sizes the list.
+// at. Nothing here sizes the PANEL's list.
 func newArrowPanelModelAt(t *testing.T, rows []theme.Row, cursorSlug string, termH int) Model {
 	t.Helper()
 	m := Build(newArrowPanelDeps(t, rows, cursorSlug))
-	m.termWidth, m.termHeight = arrowTermW, termH
-	m.applySessions([]tmux.Session{
-		{Name: "alpha", Windows: 3, Attached: true},
-		{Name: "bravo", Windows: 1},
-		{Name: "charlie", Windows: 2},
-	})
-	m = pressThemeKey(t, m)
-	if !m.themePanel.open {
-		t.Fatal("fixture: the panel did not open")
-	}
+	m = openPanelForTest(t, m, arrowTermW-2*Hinset, termH-2*Vinset)
 	requireCursorOn(t, m, cursorSlug)
 	return m
 }

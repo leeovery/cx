@@ -39,36 +39,18 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// newClosePanelModel builds a Sessions-page model over a REAL themes directory,
-// its construction-time nomination resolved by name exactly as cmd/open.go
-// resolves one, and hands back the panel's own enumerator plus the sink its
-// loader emits through.
+// newClosePanelModel is the dir-backed panel model over a SINK-BACKED panel
+// loader, handing back the panel's own enumerator plus that sink.
 //
-// The TWO LOADERS ARE DELIBERATELY SEPARATE. Construction resolves through a
-// silent one and the panel through the sink-backed one, so the sink holds the
-// PANEL's emissions alone — §12.3's cadence on this path is a statement about
-// what an open and an `Esc` emit, and a shared logger would make every count a
-// delta against construction's own lines instead of an absolute.
-//
-// The light/dark answer is PINNED rather than detected (WithCanvasMode), for
-// themeCursorModel's reason: §8.8's gate resolves exactly once and the close must
-// read THAT answer rather than ask again.
+// The sink holds the PANEL's emissions alone — §12.3's cadence on this path is a
+// statement about what an open and an `Esc` emit, and a sink construction also
+// resolved through would make every count a delta against construction's own lines
+// instead of an absolute.
 func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeEnumerator, *logtest.Sink) {
 	t.Helper()
 
-	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
-	resolution, err := theme.NewLoader(nil).ResolveNomination(setting, dir)
-	if err != nil {
-		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
-	}
 	loader, sink := themeOpenTestLoader(t)
-	enumerator := countingEnumeratorOver(loader, dir)
-	m := New(fakeLister{},
-		WithThemeEnumerator(enumerator),
-		WithThemeKeys(keys),
-		WithThemeNomination(resolution.Nomination),
-		WithCanvasMode(appearanceDarkCanvas),
-	)
+	m, enumerator := newDirBackedPanelModelOver(t, dir, keys, appearanceDarkCanvas, loader)
 	return m, enumerator, sink
 }
 

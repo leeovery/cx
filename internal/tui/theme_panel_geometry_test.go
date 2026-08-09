@@ -9,7 +9,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
-	"github.com/leeovery/portal/internal/tmux"
 )
 
 // §9.8's geometry: the panel takes its preferred width on a normal terminal,
@@ -373,34 +372,10 @@ func geometryRows() []theme.Row {
 
 // newGeometryPanelModel builds a renderable Sessions model at the given CONTENT
 // region and opens the panel through the production `t` keypress.
-//
-// The dimensions are assigned directly rather than through a tea.WindowSizeMsg,
-// which is what makes the open-time assertions honest: a fixture that resized on
-// its way in could not tell the ladder running at open from the ladder running on
-// the resize.
 func newGeometryPanelModel(t *testing.T, contentW, contentH int) Model {
 	t.Helper()
-	rows := geometryRows()
-	m := Build(newArrowPanelDeps(t, rows, geometryLabel))
-	m.termWidth, m.termHeight = geometryTerm(contentW, contentH)
-	m.applySessions([]tmux.Session{
-		{Name: "alpha", Windows: 3, Attached: true},
-		{Name: "bravo", Windows: 1},
-		{Name: "charlie", Windows: 2},
-	})
-	m.applySessionListSize(m.contentWidth(), m.contentHeight())
-	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
-	if got := m.contentWidth(); got != contentW {
-		t.Fatalf("fixture: the content region is %d columns wide, want %d", got, contentW)
-	}
-	if got := m.contentHeight(); got != contentH {
-		t.Fatalf("fixture: the content region is %d rows tall, want %d", got, contentH)
-	}
-	m = pressThemeKey(t, m)
-	if !m.themePanel.open {
-		t.Fatal("fixture: the panel did not open")
-	}
-	return m
+	m := Build(newArrowPanelDeps(t, geometryRows(), geometryLabel))
+	return openPanelForTest(t, m, contentW, contentH)
 }
 
 // resizeForTest drives a tea.WindowSizeMsg for the given CONTENT region through the

@@ -27,29 +27,12 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// themeCursorModel builds a Sessions-page model wired to a REAL loader over dir,
-// with its construction-time nomination resolved exactly as cmd/open.go resolves
-// one — the by-name read of the same keys against the same directory.
-//
-// The light/dark answer is PINNED rather than detected (WithCanvasMode), because
-// §8.8's gate resolves exactly once and the panel must read THAT answer rather
-// than ask again. Pinning it is what lets one fixture drive the in-force slot in
-// both terminals without touching the async race.
+// themeCursorModel is the dir-backed panel model for the cursor fixtures, which
+// need nothing off the enumerator itself.
 func themeCursorModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) Model {
 	t.Helper()
-
-	loader := theme.NewLoader(nil)
-	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
-	resolution, err := loader.ResolveNomination(setting, dir)
-	if err != nil {
-		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
-	}
-	return New(fakeLister{},
-		WithThemeEnumerator(countingEnumeratorOver(loader, dir)),
-		WithThemeKeys(keys),
-		WithThemeNomination(resolution.Nomination),
-		WithCanvasMode(mode),
-	)
+	m, _ := newDirBackedPanelModel(t, dir, keys, mode)
+	return m
 }
 
 // themePanelCursorRow returns the union row the panel's cursor is on, failing

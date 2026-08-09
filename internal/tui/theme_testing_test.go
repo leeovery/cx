@@ -7,7 +7,87 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
+	"github.com/leeovery/portal/internal/tmux"
 )
+
+// openPanelForTest sizes m to the given CONTENT region, seeds the standard session
+// set behind it, sizes both pages' lists and opens the panel through the production
+// `t` keypress.
+//
+// The dimensions are assigned directly rather than driven through a
+// tea.WindowSizeMsg, which is what makes the open-time assertions honest: a fixture
+// that resized on its way in could not tell the ladder running at open from the
+// ladder running on the resize.
+//
+// The content region is asserted before the keypress: a fixture that opened at some
+// other region would still pass most of its assertions, and the ones it failed would
+// read as production faults.
+func openPanelForTest(t *testing.T, m Model, contentW, contentH int) Model {
+	t.Helper()
+	return openPanelForTestWithSessions(t, m, contentW, contentH, closePanelSessions())
+}
+
+// openPanelForTestWithSessions is openPanelForTest over a chosen session set, for
+// the fixtures whose assertions name the page's own rows.
+func openPanelForTestWithSessions(t *testing.T, m Model, contentW, contentH int, sessions []tmux.Session) Model {
+	t.Helper()
+
+	m.termWidth, m.termHeight = geometryTerm(contentW, contentH)
+	m.applySessions(sessions)
+	m.applySessionListSize(m.contentWidth(), m.contentHeight())
+	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
+
+	if got := m.contentWidth(); got != contentW {
+		t.Fatalf("fixture: the content region is %d columns wide, want %d", got, contentW)
+	}
+	if got := m.contentHeight(); got != contentH {
+		t.Fatalf("fixture: the content region is %d rows tall, want %d", got, contentH)
+	}
+
+	m = pressThemeKey(t, m)
+	if !m.themePanel.open {
+		t.Fatal("fixture: the panel did not open")
+	}
+	return m
+}
+
+// newDirBackedPanelModel builds a Sessions-page model wired to a REAL loader over
+// dir, with its construction-time nomination resolved exactly as cmd/open.go
+// resolves one — the by-name read of the same keys against the same directory — and
+// hands back the panel's own enumerator.
+//
+// The light/dark answer is PINNED rather than detected (WithCanvasMode), because
+// §8.8's gate resolves exactly once and the panel must read THAT answer rather than
+// ask again. Pinning it is what lets one fixture drive the in-force slot in both
+// terminals without touching the async race.
+func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) (Model, *countingThemeEnumerator) {
+	t.Helper()
+	return newDirBackedPanelModelOver(t, dir, keys, mode, theme.NewLoader(nil))
+}
+
+// newDirBackedPanelModelOver is newDirBackedPanelModel with the PANEL's loader
+// chosen by the caller, for the fixtures that read the panel's own log emissions.
+//
+// Construction always resolves through a loader of its own, so a caller passing a
+// sink-backed one gets a sink holding the PANEL's emissions alone rather than a
+// delta against construction's.
+func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance, panelLoader theme.Loader) (Model, *countingThemeEnumerator) {
+	t.Helper()
+
+	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	resolution, err := theme.NewLoader(nil).ResolveNomination(setting, dir)
+	if err != nil {
+		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
+	}
+	enumerator := countingEnumeratorOver(panelLoader, dir)
+	m := New(fakeLister{},
+		WithThemeEnumerator(enumerator),
+		WithThemeKeys(keys),
+		WithThemeNomination(resolution.Nomination),
+		WithCanvasMode(mode),
+	)
+	return m, enumerator
+}
 
 // sgrParams renders a one-cell probe through style and returns the SGR parameter
 // run it opens with — everything between the CSI `[` and the terminating `m`.
