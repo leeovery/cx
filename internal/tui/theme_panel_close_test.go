@@ -474,7 +474,7 @@ func TestPanelClose_EventCadence(t *testing.T) {
 // with the panel already gone, where `Esc` DOES clear — so the assertion is about
 // the panel consuming the key rather than about a filter that was never clearable.
 func TestPanelClose_DoesNotClearTheFilter(t *testing.T) {
-	m := themeOpenTestPopulatedModel(t, &recordingThemeEnumerator{union: themeOpenTestUnion()})
+	m := themeOpenTestPopulatedModel(t, newOpenEnumerator(themeOpenTestUnion()))
 
 	m = pressPanelKey(t, m, tea.KeyPressMsg{Code: '/', Text: "/"})
 	m = pressPanelKey(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})

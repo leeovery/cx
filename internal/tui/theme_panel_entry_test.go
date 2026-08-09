@@ -60,10 +60,11 @@ func entryRows() []theme.Row { return arrowValidRows(4) }
 // recorded OPEN COUNT is what discriminates the two refusal shapes: a proactive
 // block reads nothing, while the post-read re-evaluation has already enumerated by
 // the time it refuses.
-func newEntryEnumerator(dirUnusable bool) *recordingThemeEnumerator {
+func newEntryEnumerator(dirUnusable bool) *fakeThemeEnumerator {
 	rows := entryRows()
-	return &recordingThemeEnumerator{
-		union: theme.Union{Rows: rows, Count: len(rows), DirUnusable: dirUnusable},
+	return &fakeThemeEnumerator{
+		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
+		union:       theme.Union{Rows: rows, Count: len(rows), DirUnusable: dirUnusable},
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(rows[0].Theme),
 			Slots: []theme.SlotResolution{{
@@ -97,10 +98,10 @@ type entryModelOpts struct {
 // The dimensions are assigned directly rather than through a tea.WindowSizeMsg, so
 // the entry gate is asked about the region the fixture declares and nothing has
 // resized on the way in.
-func newEntryModel(t *testing.T, e ThemeEnumerator, o entryModelOpts) (Model, *recordingThemeEnumerator) {
+func newEntryModel(t *testing.T, e ThemeEnumerator, o entryModelOpts) (Model, *fakeThemeEnumerator) {
 	t.Helper()
 
-	rec, _ := e.(*recordingThemeEnumerator)
+	rec, _ := e.(*fakeThemeEnumerator)
 	rows := entryRows()
 	deps := Deps{
 		Lister:          fakeLister{},
@@ -141,7 +142,7 @@ func newEntryModel(t *testing.T, e ThemeEnumerator, o entryModelOpts) (Model, *r
 }
 
 // newUnblockedEntryModel is the fixture at the standard unblocked content region.
-func newUnblockedEntryModel(t *testing.T, p page) (Model, *recordingThemeEnumerator) {
+func newUnblockedEntryModel(t *testing.T, p page) (Model, *fakeThemeEnumerator) {
 	t.Helper()
 	return newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
 		page:     p,
@@ -199,7 +200,7 @@ func pressThemeKeyCmd(t *testing.T, m Model) (Model, tea.Cmd) {
 
 // requireSilentRefusal asserts `t` did nothing at all: no panel, no directory read,
 // and — the half that distinguishes this from a block — NO FLASH.
-func requireSilentRefusal(t *testing.T, m Model, rec *recordingThemeEnumerator, where string) {
+func requireSilentRefusal(t *testing.T, m Model, rec *fakeThemeEnumerator, where string) {
 	t.Helper()
 	if m.themePanel.open {
 		t.Errorf("t opened the panel on %s, where it is not bound", where)

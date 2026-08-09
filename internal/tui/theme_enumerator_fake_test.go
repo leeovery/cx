@@ -42,6 +42,14 @@ type fakeThemeEnumerator struct {
 	// returns it with a ZERO SlotResolution, so a degrade has nothing to render.
 	err error
 
+	// opens counts the Open calls, which is what pins the open cadence — the read is
+	// per open, and a refusal that decides before reading has run none at all.
+	opens int
+
+	// keys records the RawKeys every Open was handed, which is what pins the panel
+	// reading prefs from the construction-time snapshot rather than from disk.
+	keys []theme.RawKeys
+
 	// reassembles counts the Reassemble calls, which is what makes "only a
 	// SUCCESSFUL commit recomputes" observable: a reassembly that ran replaces the
 	// panel's rows outright, so unchanged rows plus a zero count is the recompute
@@ -66,7 +74,10 @@ type slotLoad struct {
 	slug string
 }
 
-func (e *fakeThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
+// Open records the ask and answers with the declared parse and union.
+func (e *fakeThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
+	e.opens++
+	e.keys = append(e.keys, keys)
 	return e.enumeration, e.union
 }
 

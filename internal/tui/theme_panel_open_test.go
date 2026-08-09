@@ -29,45 +29,26 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// fixtureThemesDir is the directory the recording seam answers with. It is a
+// fixtureThemesDir is the directory the fixture seam answers with. It is a
 // SHARED constant rather than a literal in the fake, so an assertion on the
 // retained enumeration is pinned to what the seam actually handed back.
 const fixtureThemesDir = "/fixture/themes"
 
-// recordingThemeEnumerator is the fixture seam shape: it answers with a
-// hand-built union, touching no filesystem, and RECORDS what it was asked. The
-// call count is what pins the open cadence, and the recorded keys are what pin
-// the construction-time load rule's construction-time prefs snapshot.
+// newOpenEnumerator is the fixture seam an open case reads through: the shared
+// declared-value fake, answering with a hand-built union and the fixture themes
+// directory. The recorded open count is what pins the open cadence, and the
+// recorded keys are what pin the construction-time prefs snapshot.
 //
-// Its Resolve answers with the declared resolution — which is what the panel
-// derives its badges, its applied theme and its cursor from, the injected slot
-// record having been retired with it. The zero value names no slot, which the
-// open's degrade policy reads as "leave all three exactly as they were": the
-// fixtures below that declare none are asserting the open CADENCE, not its
-// resolution.
-type recordingThemeEnumerator struct {
-	union      theme.Union
-	resolution theme.Resolution
-	opens      int
-	keys       []theme.RawKeys
-}
-
-func (e *recordingThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
-	e.opens++
-	e.keys = append(e.keys, keys)
-	return theme.Enumeration{DirPath: fixtureThemesDir}, e.union
-}
-
-func (e *recordingThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
-	return e.union
-}
-
-func (e *recordingThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
-	return e.resolution, nil
-}
-
-func (e *recordingThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
+// Its Resolve answers with whatever resolution the case declares — which is what
+// the panel derives its badges, its applied theme and its cursor from. The zero
+// value names no slot, which the open's degrade policy reads as "leave all three
+// exactly as they were": the cases below that declare none are asserting the open
+// CADENCE, not its resolution.
+func newOpenEnumerator(union theme.Union) *fakeThemeEnumerator {
+	return &fakeThemeEnumerator{
+		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
+		union:       union,
+	}
 }
 
 // countingThemeEnumerator is the PRODUCTION adapter itself — theme.DirEnumerator
@@ -230,7 +211,7 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			union := themeOpenTestUnion()
-			enumerator := &recordingThemeEnumerator{union: union}
+			enumerator := newOpenEnumerator(union)
 			m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"})
 			m.activePage = tc.page
 
@@ -269,7 +250,7 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 // page's SettingFilter guard rather than above it.
 func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	t.Run("sessions", func(t *testing.T) {
-		enumerator := &recordingThemeEnumerator{union: themeOpenTestUnion()}
+		enumerator := newOpenEnumerator(themeOpenTestUnion())
 		m := themeOpenTestPopulatedModel(t, enumerator)
 
 		m = pressPanelKey(t, m, tea.KeyPressMsg{Code: '/', Text: "/"})
@@ -290,7 +271,7 @@ func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	})
 
 	t.Run("projects", func(t *testing.T) {
-		enumerator := &recordingThemeEnumerator{union: themeOpenTestUnion()}
+		enumerator := newOpenEnumerator(themeOpenTestUnion())
 		m := themeOpenTestPopulatedModel(t, enumerator)
 		m.activePage = PageProjects
 
@@ -478,7 +459,7 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 
 	construction := theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
-	enumerator := &recordingThemeEnumerator{union: themeOpenTestUnion()}
+	enumerator := newOpenEnumerator(themeOpenTestUnion())
 	m := themeOpenTestModel(t, enumerator, construction)
 
 	m = pressThemeKey(t, m)
@@ -516,19 +497,17 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 // sequence runs, so `Resolve` is the only badge source there has ever been a badge
 // to come from, and a `Deps` field alongside it would be a second and staler one.
 func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
-	enumerator := &recordingThemeEnumerator{
-		union: themeOpenTestUnion(),
-		resolution: theme.Resolution{
-			Nomination: theme.ConstantNomination(testDarkTheme(t)),
-			Slots: []theme.SlotResolution{{
-				Slot:      theme.SlotConstant,
-				Requested: "nord",
-				Resolved:  theme.DefaultDarkSlug,
-				FellBack:  true,
-				Reason:    theme.ReasonNotFound,
-				Theme:     testDarkTheme(t),
-			}},
-		},
+	enumerator := newOpenEnumerator(themeOpenTestUnion())
+	enumerator.resolution = theme.Resolution{
+		Nomination: theme.ConstantNomination(testDarkTheme(t)),
+		Slots: []theme.SlotResolution{{
+			Slot:      theme.SlotConstant,
+			Requested: "nord",
+			Resolved:  theme.DefaultDarkSlug,
+			FellBack:  true,
+			Reason:    theme.ReasonNotFound,
+			Theme:     testDarkTheme(t),
+		}},
 	}
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{Theme: "nord"})
 
@@ -580,7 +559,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 		{name: "light", th: testLightTheme(t)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{})
+			m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
 			m.themeState.active = tc.th
 
 			m = pressThemeKey(t, m)
@@ -606,7 +585,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	}
 
 	t.Run("colourless", func(t *testing.T) {
-		m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{})
+		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
 		m.colourless = true
 
 		// The NO_COLOR panel block's entry gate BLOCKS `t` under NO_COLOR, so the colourless panel
@@ -666,7 +645,7 @@ func themePanelDotRow(t *testing.T, block string) string {
 func TestThemePanelOpen_SwallowsPageKeys(t *testing.T) {
 	newModel := func(t *testing.T) Model {
 		t.Helper()
-		return themeOpenTestPopulatedModel(t, &recordingThemeEnumerator{union: themeOpenTestUnion()})
+		return themeOpenTestPopulatedModel(t, newOpenEnumerator(themeOpenTestUnion()))
 	}
 
 	for _, tc := range []struct {
