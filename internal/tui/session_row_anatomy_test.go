@@ -51,12 +51,7 @@ func visibleColOf(line, sub string) int {
 // lipgloss so the test pins the SAME bytes production paints.
 func selectionBgParams(t *testing.T, th theme.Theme) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Background(th.BgSelection.Color()).Render(" ")
-	inner := strings.TrimSuffix(strings.TrimPrefix(probe[:strings.IndexByte(probe, ' ')], "\x1b["), "m")
-	if inner == "" {
-		t.Fatalf("could not derive bg.selection params from %q", probe)
-	}
-	return inner
+	return sgrParams(t, lipgloss.NewStyle().Background(th.BgSelection.Color()))
 }
 
 // flatItems builds a flat (no group metadata) item slice from name/window/attached

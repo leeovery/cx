@@ -72,7 +72,7 @@ func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 		t.Errorf("warning flash missing text.on-warning message foreground %q:\n%s", msgSeq, line)
 	}
 	// bg.warning tint behind the band.
-	if tintSeq := bgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(line, tintSeq) {
+	if tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(line, tintSeq) {
 		t.Errorf("warning flash missing bg.warning tint background %q:\n%s", tintSeq, line)
 	}
 }
@@ -316,7 +316,7 @@ func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 	if !strings.Contains(ansi.Strip(band), flashWarningGlyph) {
 		t.Errorf("seeded band missing the ⚠ glyph: %q", ansi.Strip(band))
 	}
-	if tintSeq := bgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(band, tintSeq) {
+	if tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(band, tintSeq) {
 		t.Errorf("seeded band missing the bg.warning tint %q:\n%s", tintSeq, band)
 	}
 }

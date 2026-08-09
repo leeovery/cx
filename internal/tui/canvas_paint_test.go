@@ -14,13 +14,7 @@ import (
 // rendered frame is searched for it.
 func canvasSeq(t *testing.T, th theme.Theme) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Background(th.Canvas.Color()).Render(" ")
-	// Strip the trailing reset + the space so we keep just the opening SGR.
-	idx := strings.IndexByte(probe, ' ')
-	if idx <= 0 {
-		t.Fatalf("could not derive canvas SGR from %q", probe)
-	}
-	return probe[:idx]
+	return "\x1b[" + sgrParams(t, lipgloss.NewStyle().Background(th.Canvas.Color())) + "m"
 }
 
 // TestCanvasMode_DefaultsToDark pins the injectable-mode seam default. With no

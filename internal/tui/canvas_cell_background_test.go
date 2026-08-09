@@ -108,7 +108,7 @@ func scanCellBackgrounds(line string) []bgState {
 			break
 		}
 		if ansi.HasCsiPrefix(seq) && len(seq) > 0 && seq[len(seq)-1] == 'm' {
-			st = applySGR(st, sgrParams(string(seq)))
+			st = applySGR(st, splitSGRParams(string(seq)))
 		} else if width > 0 {
 			// A printable rune (or wide cluster). Record its cells.
 			for range width {
@@ -121,8 +121,8 @@ func scanCellBackgrounds(line string) []bgState {
 	return cells
 }
 
-// sgrParams extracts the ";"-separated parameter list from a CSI ...m sequence.
-func sgrParams(seq string) []string {
+// splitSGRParams extracts the ";"-separated parameter list from a CSI ...m sequence.
+func splitSGRParams(seq string) []string {
 	inner := strings.TrimSuffix(strings.TrimPrefix(seq, "\x1b["), "m")
 	if inner == "" {
 		return nil

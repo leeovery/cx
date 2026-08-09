@@ -11,39 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// tokenFgSeq returns the bare `38;2;r;g;b` foreground SGR parameter substring for
-// a role token in the given mode. The header composes the foreground with a
-// background (and sometimes bold) into ONE SGR sequence, so the standalone
-// `\x1b[...m` wrapper never appears verbatim — the colour role is asserted by the
-// `38;2;...` core, which is present regardless of the other params merged in.
-func tokenFgSeq(t *testing.T, tok theme.Token) string {
-	t.Helper()
-	probe := lipgloss.NewStyle().Foreground(tok.Color()).Render("x")
-	// probe is like "\x1b[38;2;192;202;245mx\x1b[m"; slice out the params between
-	// the CSI "[" and the final "m".
-	start := strings.IndexByte(probe, '[')
-	end := strings.IndexByte(probe, 'm')
-	if start < 0 || end <= start {
-		t.Fatalf("could not derive foreground SGR core from %q", probe)
-	}
-	return probe[start+1 : end]
-}
-
-// tokenBgSeq returns the bare `48;2;r;g;b` background SGR parameter substring for
-// a role token in the given mode — the background analogue of tokenFgSeq, used to
-// assert a tint IS or is NOT painted (e.g. the §11.3 info band must NOT carry the
-// bg.warning flash tint).
-func tokenBgSeq(t *testing.T, tok theme.Token) string {
-	t.Helper()
-	probe := lipgloss.NewStyle().Background(tok.Color()).Render("x")
-	start := strings.IndexByte(probe, '[')
-	end := strings.IndexByte(probe, 'm')
-	if start < 0 || end <= start {
-		t.Fatalf("could not derive background SGR core from %q", probe)
-	}
-	return probe[start+1 : end]
-}
-
 // TestHeaderBlock_RendersWordmarkCaretSubtitleRule asserts the §3.1 header block
 // renders the PORTAL wordmark (letter-spaced text.primary), an immediately-right
 // violet block caret, a right-aligned "session manager" subtitle (text.detail),

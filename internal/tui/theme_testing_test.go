@@ -1,11 +1,47 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
+
+// sgrParams renders a one-cell probe through style and returns the SGR parameter
+// run it opens with — everything between the CSI `[` and the terminating `m`.
+//
+// The bare run is the shape most frame assertions want: a style carrying a
+// foreground, a background and attributes emits them as ONE sequence, so the
+// wrapper a single-property style renders is not what lands in composed output —
+// the `38;2;...` / `48;2;...` core is. A call site that needs the whole `ESC[…m`
+// (a background-only fill does emit it standalone) rebuilds it around this run.
+func sgrParams(t *testing.T, style lipgloss.Style) string {
+	t.Helper()
+	probe := style.Render("x")
+	start := strings.IndexByte(probe, '[')
+	end := strings.IndexByte(probe, 'm')
+	if start < 0 || end <= start {
+		t.Fatalf("could not derive an SGR parameter run from %q", probe)
+	}
+	return probe[start+1 : end]
+}
+
+// tokenFgSeq returns the bare `38;2;r;g;b` foreground SGR parameter run a role
+// token renders as.
+func tokenFgSeq(t *testing.T, tok theme.Token) string {
+	t.Helper()
+	return sgrParams(t, lipgloss.NewStyle().Foreground(tok.Color()))
+}
+
+// tokenBgSeq returns the bare `48;2;r;g;b` background SGR parameter run a role
+// token renders as — the background analogue of tokenFgSeq, used to assert a tint
+// IS or is NOT painted.
+func tokenBgSeq(t *testing.T, tok theme.Token) string {
+	t.Helper()
+	return sgrParams(t, lipgloss.NewStyle().Background(tok.Color()))
+}
 
 // testDarkTheme and testLightTheme load the two embedded built-ins the model's
 // transitional theme source selects between — the same two `internal/theme`

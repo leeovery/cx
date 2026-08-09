@@ -54,8 +54,7 @@ func assertActiveTheme(t *testing.T, m Model, wantCanvas string) {
 	if got := m.themeState.active.Canvas.Value; got != wantCanvas {
 		t.Errorf("activeTheme.Canvas.Value = %q, want %q", got, wantCanvas)
 	}
-	probe := lipgloss.NewStyle().Background(lipgloss.Color(wantCanvas)).Render(" ")
-	seq := probe[:strings.IndexByte(probe, ' ')]
+	seq := "\x1b[" + sgrParams(t, lipgloss.NewStyle().Background(lipgloss.Color(wantCanvas))) + "m"
 	if view := m.View().Content; !strings.Contains(view, seq) {
 		t.Errorf("rendered frame does not paint the %s canvas (SGR %q)", wantCanvas, seq)
 	}
@@ -78,7 +77,7 @@ func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 	}
 
 	// The retired border.footer shade must not survive anywhere in the frame.
-	retired := sgrForegroundCore(t, "#20232E")
+	retired := sgrParams(t, lipgloss.NewStyle().Foreground(lipgloss.Color("#20232E")))
 	frame := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, dark, false)
 	if strings.Contains(frame, retired) {
 		t.Errorf("the retired border.footer shade #20232E (SGR %q) still renders in the footer", retired)
@@ -86,17 +85,4 @@ func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 	if strings.Contains(rule, retired) {
 		t.Errorf("the retired border.footer shade #20232E (SGR %q) still renders in the footer rule", retired)
 	}
-}
-
-// sgrForegroundCore renders a probe in the given raw hex and returns the bare SGR
-// parameter core, so a test can assert a specific colour is ABSENT from a frame.
-func sgrForegroundCore(t *testing.T, hex string) string {
-	t.Helper()
-	probe := lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render("x")
-	start := strings.IndexByte(probe, '[')
-	end := strings.IndexByte(probe, 'm')
-	if start < 0 || end <= start {
-		t.Fatalf("could not derive foreground SGR core from %q", probe)
-	}
-	return probe[start+1 : end]
 }

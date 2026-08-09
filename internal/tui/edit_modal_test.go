@@ -668,12 +668,12 @@ func TestEditModal_NoGreenEver(t *testing.T) {
 // only NON-canvas backgrounds are a violation.
 func assertNoFill(t *testing.T, content string, th theme.Theme, label string) {
 	t.Helper()
-	canvasBg := bgSeq(t, th.Canvas)
+	canvasBg := tokenBgSeq(t, th.Canvas)
 	for _, forbidden := range []theme.Token{
 		th.AccentPrimary, th.AccentAttention, th.Border,
 		th.BgSelection, th.StatePositive,
 	} {
-		seq := bgSeq(t, forbidden)
+		seq := tokenBgSeq(t, forbidden)
 		if seq == canvasBg {
 			continue
 		}
@@ -681,18 +681,6 @@ func assertNoFill(t *testing.T, content string, th theme.Theme, label string) {
 			t.Errorf("[%v/%s] modal must not fill (found %s background SGR %q)", themeLabel(th), label, forbidden.Name, seq)
 		}
 	}
-}
-
-// bgSeq returns the bare `48;2;r;g;b` background SGR parameter substring for a token.
-func bgSeq(t *testing.T, tok theme.Token) string {
-	t.Helper()
-	probe := lipgloss.NewStyle().Background(tok.Color()).Render("x")
-	start := strings.IndexByte(probe, '[')
-	end := strings.IndexByte(probe, 'm')
-	if start < 0 || end <= start {
-		t.Fatalf("could not derive background SGR core from %q", probe)
-	}
-	return probe[start+1 : end]
 }
 
 // assertNoCross fails if any inline ✕ (U+2715) is rendered — chips drop the inline

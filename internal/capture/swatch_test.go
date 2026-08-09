@@ -55,8 +55,8 @@ func swatchTestPalette(canvas, hi string) theme.Theme {
 // the only route to seeing a theme's visual change (§13.1), so a silently-wrong
 // one is expensive.
 //
-// This mirrors the internal/tui probe convention (header_test.go's tokenFgSeq),
-// which likewise builds its reference render straight from lipgloss.
+// This mirrors the internal/tui probe convention, which likewise builds its
+// reference render straight from lipgloss.
 func wantStyle(fg, bg theme.Token) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(fg.Color()).Background(bg.Color())
 }
