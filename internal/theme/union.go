@@ -10,9 +10,9 @@ import (
 // RowSource says where one union row came from: the embedded set, the themes
 // directory, or prefs.json naming something neither of those answers to.
 //
-// It exists for ORDERING and for nothing else: a built-in row is otherwise
-// deliberately indistinguishable from a valid drop-in, so nothing here may reach
-// a row's rendered content.
+// It exists for ordering only: a built-in row is otherwise deliberately
+// indistinguishable from a valid drop-in, so nothing here may reach a row's
+// rendered content.
 //
 // SourceBuiltin is the zero value, which is the always-present source rather than
 // an "unset" sentinel — every union has built-in rows, and a Row always came from
@@ -26,7 +26,7 @@ const (
 	// valid or not.
 	SourceFile
 	// SourcePersisted is a row for a slug named in prefs.json that resolves to
-	// NEITHER — the row that gives the `●` marker something to sit on when the
+	// neither — the row that gives the `●` marker something to sit on when the
 	// theme it marks has gone.
 	SourcePersisted
 )
@@ -37,25 +37,23 @@ const (
 // The identity fields are three because a row has three different things it might
 // be labelled and sorted by, and exactly one of them applies per row:
 //
-//   - Slug — every row that HAS an identity. Absent only where the name yields
+//   - Slug — every row that has an identity. Absent only where the name yields
 //     none: a `bad name` file and a charset-rejected persisted string.
 //   - Filename — set iff SourceFile, because a `bad name` row and a
 //     `reserved name` row are labelled by filename (the first has no slug; the
 //     second's slug is identical to the built-in's it collides with).
 //   - Persisted — the raw persisted value, set iff the row is a SourcePersisted
 //     one that yielded no slug. It is the only thing such a row can be labelled
-//     or sorted by, and it arrives already control-stripped, the removal having
-//     been applied at the point the value was read.
+//     or sorted by, and it arrives already control-stripped.
 //
-// Theme is populated IFF Rejection is nil, exactly as the loader's Result is: a
-// rejected row never comes back half-populated. Holding the palette on the row is
-// what makes the panel's preview an O(1) restyle from values already in hand
-// rather than a file read per keystroke.
+// Theme is populated iff Rejection is nil, as the loader's Result is: a rejected
+// row never comes back half-populated. Holding the palette on the row is what
+// makes the panel's preview an O(1) restyle from values already in hand rather
+// than a file read per keystroke.
 //
-// Rejection is the ONE reason the row is not usable, carried unchanged from
+// Rejection is the one reason the row is not usable, carried unchanged from
 // whoever produced it — the ladder for a file, this assembly for a persisted
-// value that answers to nothing. Nothing here re-derives, re-orders or re-words
-// it.
+// value that answers to nothing.
 type Row struct {
 	Slug      string
 	Filename  string
@@ -74,44 +72,39 @@ func (r Row) Selectable() bool {
 // SortKey is the row's ordering value: the slug wherever one exists, else the
 // filename, else the persisted string itself.
 //
-// It is FULLY DETERMINED — every row shape yields exactly one non-empty key —
-// and that is what makes the order total (see sortRows). The three arms are the
-// identity fields in the one order that leaves no row unplaceable:
+// Every row shape yields exactly one non-empty key, which is what makes the order
+// total (see sortRows). The three arms are the identity fields in the one order
+// that leaves no row unplaceable:
 //
-//   - The SLUG, for every row that has one. Including a `reserved name` row,
-//     whose slug is valid and identical to the built-in's it collides with:
-//     sorting on it is what stands the row explaining the collision immediately
-//     beside the thing it collides with — even though that row is LABELLED by its
+//   - The slug, for every row that has one — including a `reserved name` row,
+//     whose slug is valid and identical to the built-in's it collides with, so
+//     sorting on it stands the row explaining the collision immediately beside
+//     the thing it collides with even though that row is labelled by its
 //     filename. A `not found` persisted row sorts by its slug too.
-//   - The FILENAME, for the one row shape that has no slug: a `bad name` file,
-//     since names are rejected rather than normalised and so mint none for it.
-//   - The PERSISTED STRING, for a charset-rejected persisted value, which has
-//     neither a slug nor a file. There is EXACTLY ONE thing to sort such a row
-//     by, and using it is what keeps the ordering total rather than leaving a
-//     member the comparator cannot place. The value arrives already
-//     control-stripped, the removal having been applied at the point it was read;
-//     display truncation is a render concern and never reaches this key.
+//   - The filename, for the one row shape that has no slug: a `bad name` file,
+//     since names are rejected rather than normalised.
+//   - The persisted string, for a charset-rejected persisted value, which has
+//     neither a slug nor a file and so has nothing else the comparator could
+//     place it by. Display truncation is a render concern and never reaches this
+//     key.
 //
-// IT IS NOT DERIVED FROM Label, AND Label IS NOT DERIVED FROM IT — see Label.
+// It is not derived from Label, and Label is not derived from it — see Label.
 func (r Row) SortKey() string {
 	return cmp.Or(r.Slug, r.Filename, r.Persisted)
 }
 
-// Label is the row's DISPLAY value, and it is deliberately a SEPARATE VALUE from
-// SortKey rather than a second reading of it.
+// Label is the row's display value, deliberately a separate value from SortKey
+// rather than a second reading of it: the row delegate consumes Label and the
+// ordering consumes SortKey, and neither may be re-derived from the other at
+// render time. The two are meant to disagree on exactly these rows:
 //
-// NEITHER MAY BE RE-DERIVED FROM THE OTHER AT RENDER TIME: the row delegate
-// consumes Label and nothing else, the ordering consumes SortKey and nothing
-// else. The two are meant to disagree on exactly these rows:
-//
-//   - A `reserved name` row is labelled by its FILENAME while sorting by its
+//   - A `reserved name` row is labelled by its filename while sorting by its
 //     slug — `nord.theme` beside `nord` tells the user which one is theirs,
 //     where two rows reading `nord` would not.
-//   - A `bad name` file is labelled by its filename because it HAS no slug.
-//   - A charset-rejected persisted value is labelled by the raw string, which is
-//     the only thing it has: no slug was derived and no file was ever sought.
-//   - Every other row — valid, or rejected for anything its NAME did not cause —
-//     is labelled by its slug.
+//   - A `bad name` file is labelled by its filename because it has no slug.
+//   - A charset-rejected persisted value is labelled by the raw string, the only
+//     thing it has: no slug was derived and no file was ever sought.
+//   - Every other row is labelled by its slug.
 func (r Row) Label() string {
 	if r.labelledByFilename() {
 		return r.Filename
@@ -122,11 +115,10 @@ func (r Row) Label() string {
 // labelledByFilename reports whether this row is labelled by its filename rather
 // than by the slug it would otherwise be listed under.
 //
-// Two reasons and no others, and both of them a FILE's: `bad name`, which yields
-// no slug at all, and `reserved name`, whose slug is the built-in's. The
-// filename check is what keeps the charset-rejected PERSISTED row out of this
-// arm — it is `bad name` by reason too, but has no file behind it and so is
-// labelled by the raw value instead.
+// Two reasons, both a file's: `bad name`, which yields no slug at all, and
+// `reserved name`, whose slug is the built-in's. The filename check keeps the
+// charset-rejected persisted row out of this arm — it is `bad name` by reason
+// too, but has no file behind it and is labelled by the raw value instead.
 func (r Row) labelledByFilename() bool {
 	if r.Rejection == nil || r.Filename == "" {
 		return false
@@ -134,14 +126,14 @@ func (r Row) labelledByFilename() bool {
 	return r.Rejection.Reason == ReasonBadName || r.Rejection.Reason == ReasonReservedName
 }
 
-// Enumeration is one directory read, RETAINED: what the themes directory held
+// Enumeration is one directory read, retained: what the themes directory held
 // and what the directory itself was.
 //
 // It is kept apart from the Union it produces because the two have different
 // lifetimes: the parse results are held for the panel's lifetime so arrowing
 // previews from values already in hand, while the union is re-derived from them
 // whenever the persisted state changes — the post-commit recompute and the `Esc`
-// re-resolution both re-run the derivation against the SAME enumeration, with no
+// re-resolution both re-run the derivation against the same enumeration, with no
 // fresh read.
 type Enumeration struct {
 	// Entries is every candidate the directory held, classified — valid or not.
@@ -151,7 +143,7 @@ type Enumeration struct {
 	// DirUnusable is the directory verdict: true for an unreadable directory or a
 	// regular file where a directory belongs, false for an absent one.
 	//
-	// It is a BOOL rather than the rejection itself because its consumers need
+	// It is a bool rather than the rejection itself because its consumers need
 	// only the condition: the pinned `⚠ dir unreadable` chrome row has no room for
 	// a detail, and a persisted slug made unreachable by the directory carries the
 	// bare reason `unreadable`. The OS error verbatim belongs to doctor, which
@@ -168,23 +160,22 @@ type Enumeration struct {
 // directory, and every persisted slug resolving to neither — deduped one slug,
 // one row, each row already carrying its single rejection reason.
 //
-// It is an ORDINARY VALUE with exported fields and no method that reads the
+// It is an ordinary value with exported fields and no method that reads the
 // filesystem, so a fixture can fake one wholesale with no loader and no
-// directory — which is the only way internal/capture, under its no-real-config
-// import guard, can render an invalid-theme row at all.
+// directory — the only way internal/capture, under its no-real-config import
+// guard, can render an invalid-theme row at all.
 type Union struct {
 	// Rows is the union in display order — alphabetical by sort key,
 	// case-insensitively, with the built-in ahead of the one row guaranteed to
 	// tie with it (see sortRows).
 	//
-	// The order is applied by the ASSEMBLER rather than by the panel, so every
-	// consumer receives it ordered and none can forget to sort. Enumeration
-	// order — built-ins, then os.ReadDir's, then the persisted leftovers — is
-	// neither alphabetical nor stable across filesystems, so it is not something
-	// a consumer could safely be handed.
+	// The order is applied by the assembler rather than by the panel, so every
+	// consumer receives it ordered and none can forget to sort. Enumeration order
+	// — built-ins, then os.ReadDir's, then the persisted leftovers — is neither
+	// alphabetical nor stable across filesystems.
 	Rows []Row
 
-	// DirUnusable drives the pinned `⚠ dir unreadable` chrome row. It is a FLAG
+	// DirUnusable drives the pinned `⚠ dir unreadable` chrome row. It is a flag
 	// rather than a member of Rows because that row is viewport chrome, not a
 	// list row: a list row participates in pagination and would vanish the moment
 	// the user paged down.
@@ -198,15 +189,14 @@ type Union struct {
 	Rejected int
 }
 
-// Assembler builds the panel's ROW MODEL — the Rows, their order and the counts
+// Assembler builds the panel's row model — the Rows, their order and the counts
 // over them — from what a Loader parses.
 //
-// It is a type of its own rather than more surface on the Loader because it
-// LOADS NOTHING ITSELF. Everything here is assembly: which rows exist, which
-// reason each carries, and what order they are listed in. The Loader beneath it
-// answers the only question assembly cannot — what one file or one built-in
-// parses to — so the two jobs stay separable and a consumer that merely reads a
-// theme never holds the row model's entry points.
+// It is a type of its own rather than more surface on the Loader because it loads
+// nothing itself: everything here is assembly — which rows exist, which reason
+// each carries, and what order they are listed in. The Loader beneath it answers
+// the only question assembly cannot, so a consumer that merely reads a theme
+// never holds the row model's entry points.
 //
 // It is constructed from a Loader rather than from a Loader's parts so the
 // assembly shares that loader's `theme` dedup scope: the enumeration beneath Open
@@ -214,29 +204,27 @@ type Union struct {
 // launch is what stops a broken file being reported twice.
 type Assembler struct {
 	// Loader is what parses the built-ins and the directory's candidates. The
-	// zero value is a valid silent one, exactly as it is anywhere else: it
-	// reserves nothing and emits nothing.
+	// zero value is a valid silent one: it reserves nothing and emits nothing.
 	Loader Loader
 }
 
-// Open is the panel's entry point: ONE directory read, producing the retained
+// Open is the panel's entry point: one directory read, producing the retained
 // enumeration and the finished union together.
 //
-// The read happens here and NOWHERE ELSE on this path, which is how "re-read on
-// every open, retain for the panel's lifetime" works mechanically — the panel
-// calls this when it opens and Reassemble for everything after.
+// It is where "re-read on every open, retain for the panel's lifetime" is
+// realised — the panel calls this when it opens and Reassemble for everything
+// after, so no later step reads the directory.
 //
 // The two Enumerate returns are separate directory states: an unusable directory
 // sets the flag and contributes no entries, while an absent one is silent and
-// simply contributed none. Neither is an error, because neither stops the panel
-// opening — the built-ins are always there to list.
+// contributes none. Neither is an error, because neither stops the panel opening
+// — the built-ins are always there to list.
 //
-// It emits `theme: enumerated` exactly ONCE per call, from the one place both its
-// attrs are computable: the count is rows produced and the rejected count is the
-// unselectable subset, and neither is knowable before the merge. It fires on an
-// absent directory and on an unusable one alike — the panel opened either way,
-// which is what the event records — and it does NOT dedup, unlike the WARNs
-// Enumerate emits beneath it.
+// It emits `theme: enumerated` once per call, from the one place both its attrs
+// are computable: the count is rows produced and the rejected count is the
+// unselectable subset, neither knowable before the merge. It fires on an absent
+// directory and on an unusable one alike — the panel opened either way — and it
+// does not dedup, unlike the WARNs Enumerate emits beneath it.
 func (a Assembler) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
 	entries, rejection := a.Loader.Enumerate(themesDir)
 	enumeration := Enumeration{Entries: entries, DirUnusable: rejection != nil, DirPath: themesDir}
@@ -247,34 +235,32 @@ func (a Assembler) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
 	return enumeration, union
 }
 
-// Reassemble re-derives the union from a RETAINED enumeration and the current
+// Reassemble re-derives the union from a retained enumeration and the current
 // persisted keys.
 //
-// It performs NO I/O of any kind and emits NOTHING: it is a pure function of its
-// two arguments, and that is a requirement rather than a property it happens to
-// have. The post-commit recompute and the `Esc` re-resolution both re-run it with
-// changed prefs state, and re-reading the directory there would both cost a
+// It must perform no I/O and emit nothing: it is a pure function of its two
+// arguments. The post-commit recompute and the `Esc` re-resolution both re-run it
+// with changed prefs state, and re-reading the directory there would cost a
 // syscall per keypress and let the list change under a user who only pressed
 // `Enter`.
 //
-// The order below is fixed, and each step is why the one before it cannot dedup
-// it away:
+// The order below is fixed:
 //
 //  1. One row per built-in. Always valid — build-time validation of the embedded
-//     set is what makes that true — and carrying no marker of any kind, since a
-//     built-in row is deliberately indistinguishable from a valid drop-in.
+//     set makes that true — and carrying no marker of any kind, since a built-in
+//     row is deliberately indistinguishable from a valid drop-in.
 //  2. One row per enumerated file, carrying the entry's palette or its single
-//     rejection unchanged. A `reserved name` file stands ALONGSIDE the built-in
+//     rejection unchanged. A `reserved name` file stands alongside the built-in
 //     it collides with — the one legitimate two-rows-for-one-slug case, because
 //     that collision is the reason's entire content. Every other file slug is
-//     unique by construction, since enumeration mints no duplicate slug.
+//     unique by construction.
 //  3. The persisted keys in force, each contributing a row only where nothing
 //     above already answers to it — see persistedRows.
-//  4. The display order, applied HERE rather than by the panel, so both the Open
-//     path and every recompute hand back an ordered union and no consumer can
-//     forget to sort — see sortRows. It runs last because it is a pure
-//     rearrangement: the three steps above decide MEMBERSHIP, and each one's
-//     dedup reads the rows already assembled by slug rather than by position.
+//  4. The display order, applied here rather than by the panel, so both the Open
+//     path and every recompute hand back an ordered union — see sortRows. It runs
+//     last because it is a pure rearrangement: the three steps above decide
+//     membership, and each one's dedup reads the rows already assembled by slug
+//     rather than by position.
 func (a Assembler) Reassemble(e Enumeration, keys RawKeys) Union {
 	rows := a.builtinRows()
 	rows = append(rows, fileRows(e.Entries)...)
@@ -292,11 +278,11 @@ func (a Assembler) Reassemble(e Enumeration, keys RawKeys) Union {
 // memory, and a cache is a second source of truth for a palette the panel is
 // about to paint.
 //
-// A slug the injected byte source does not answer to yields NO ROW rather than an
+// A slug the injected byte source does not answer to yields no row rather than an
 // empty or rejected one — that source exists solely to stage the broken-binary
-// state (see Loader.BuiltinSource), where "this built-in is not in this binary" is
-// exactly what the union should say. A built-in that IS present and does not
-// parse carries its rejection like any other row.
+// state (see Loader.BuiltinSource), where "this built-in is not in this binary"
+// is what the union should say. A built-in that is present and does not parse
+// carries its rejection like any other row.
 func (a Assembler) builtinRows() []Row {
 	slugs := BuiltinSlugs()
 
@@ -313,9 +299,9 @@ func (a Assembler) builtinRows() []Row {
 
 // fileRows is step 2: one row per enumerated candidate, valid or not.
 //
-// EVERY candidate gets a row. That is the whole promise of the drop-in route — a
-// broken file is present and named, so the user sees "there's my theme, it's
-// registered, but it's invalid" rather than being completely in the dark.
+// Every candidate gets a row. That is the promise of the drop-in route: a broken
+// file is present and named, so the user sees "there's my theme, it's registered,
+// but it's invalid" rather than nothing at all.
 //
 // Nothing is re-derived here: the slug, the filename, the palette and the single
 // rejection all ride across from the entry exactly as the ladder produced them.
@@ -336,21 +322,20 @@ func fileRows(entries []Entry) []Row {
 // persistedRows is step 3: the rows prefs.json contributes that nothing already
 // listed answers to.
 //
-// THE RULE IS "RESOLVES", NOT "HAS A FILE". A persisted value matching a
-// listed row's slug contributes NOTHING, because that row already IS its row —
-// whether it is a built-in's, a valid drop-in's or a broken drop-in's. Keying on
-// file existence instead would mint a second `⚠ not found` row for every
-// persisted built-in slug, which is the state the panel's most common action
-// produces (`Enter` on `tokyo-night`).
+// The rule is "resolves", not "has a file". A persisted value matching a listed
+// row's slug contributes nothing, because that row already is its row — a
+// built-in's, a valid drop-in's or a broken drop-in's alike. Keying on file
+// existence instead would mint a second `⚠ not found` row for every persisted
+// built-in slug, the state the panel's most common action produces (`Enter` on
+// `tokyo-night`).
 //
 // The listed slugs are all valid by construction — a built-in's, or one
 // SlugFromFilename derived — so a persisted value that is not a legal slug cannot
 // match one by accident.
 //
-// Only what is IN FORCE is considered, and only what the user actually SET: the
-// selection is InForceKeys' — the tiebreak, the unset slots and the collapse of
-// two slots naming one value — and only the VALUE of each key is read here,
-// because which slot a value sits in makes no difference to the row it earns.
+// Only what is in force is considered, and only what the user actually set: the
+// selection is InForceKeys'. Only the value of each key is read here, because
+// which slot a value sits in makes no difference to the row it earns.
 func persistedRows(listed []Row, e Enumeration, keys RawKeys) []Row {
 	var rows []Row
 	for _, key := range InForceKeys(keys) {
@@ -371,20 +356,17 @@ func listedUnder(listed []Row, value string) bool {
 // persistedRow builds the row for one in-force persisted value that nothing
 // answers to, carrying the reason for the state it is actually in.
 //
-// A CHARSET FAILURE IS `bad name`, NEVER `not found`. Each reason has exactly one
-// condition, and telling a user their file is missing when they typed an illegal
-// name sends them looking in the wrong place. It is decided FIRST, before
-// anything is treated as a slug, which is the same ordering ResolveByName applies
-// for the stronger reason that a value like `../something` would otherwise be
-// used verbatim as a path component. Such a row is labelled by the raw value
-// because it has nothing else — the value yields no slug, and no file was ever
-// sought.
+// A charset failure is `bad name` and never `not found`: telling a user their
+// file is missing when they typed an illegal name sends them looking in the wrong
+// place. It is decided first, before anything is treated as a slug — the same
+// ordering ResolveByName applies for the stronger reason that a value like
+// `../something` would otherwise be used verbatim as a path component. Such a row
+// is labelled by the raw value, which is all it has.
 //
-// Otherwise the reason is the DIRECTORY's state: `unreadable` where the themes
-// directory could not be listed, `not found` where it could. The theme may
-// be sitting right there in a directory nothing can read, so `not found` — check
-// the filename — would send the user past the actual problem, which is
-// permissions.
+// Otherwise the reason is the directory's state: `unreadable` where the themes
+// directory could not be listed, `not found` where it could. The theme may be
+// sitting right there in a directory nothing can read, so `not found` would send
+// the user past the actual problem.
 func persistedRow(value string, e Enumeration) Row {
 	if !ValidSlug(value) {
 		return Row{Persisted: value, Source: SourcePersisted, Rejection: badName(BadNameSlug)}
@@ -408,42 +390,36 @@ func unresolvedRejection(e Enumeration) *Rejection {
 
 // sortRows puts the union in display order, in place.
 //
-// ALPHABETICAL BY SORT KEY AND NOTHING ELSE. No palette is read here and no
-// light/dark concept enters: a Row's Theme is not an input to this comparison at
-// all. The `⚠ dir unreadable` condition is likewise outside the ordering
-// entirely — it is Union.DirUnusable rather than a row, so there is nothing here
-// to sort.
+// Alphabetical by sort key and nothing else. No palette is read here and no
+// light/dark concept enters: a Row's Theme is not an input to this comparison.
+// The `⚠ dir unreadable` condition is likewise outside the ordering — it is
+// Union.DirUnusable rather than a row.
 //
-// The sort is STABLE, so any pair the three legs below still tie on — a
-// charset-rejected persisted string reading byte-for-byte like a file's name,
-// say — holds its assembly order rather than being permuted by run. That, plus
-// legs that decide every other pair, is what makes the panel's rendering
-// reproducible and the collided-row adjacency below concrete rather than
-// incidental.
+// The sort is stable, so any pair the three legs below still tie on — a
+// charset-rejected persisted string reading byte-for-byte like a file's name, say
+// — holds its assembly order rather than being permuted by run, which is what
+// makes the panel's rendering reproducible.
 func sortRows(rows []Row) {
 	sort.SliceStable(rows, func(i, j int) bool { return rowBefore(rows[i], rows[j]) })
 }
 
 // rowBefore is the three-leg comparison, in the fixed order the legs are tried:
 //
-//  1. CASE-INSENSITIVE on the sort key. Slugs are lowercase by construction but
+//  1. Case-insensitive on the sort key. Slugs are lowercase by construction but
 //     filenames are not, and a byte-wise-only comparison files `Zed.theme` ahead
 //     of every valid theme, every uppercase byte sorting below every lowercase
 //     one.
-//  2. BYTE-WISE on the sort key, where the first leg ties. Case-insensitive
-//     alone is not an order: two keys differing only in case would tie, and
-//     which came out first would depend on how the union was built rather than
-//     on a rule.
-//  3. THE BUILT-IN FIRST, where both above tie. This tie is GUARANTEED BY
-//     CONSTRUCTION and the byte-wise leg cannot settle it — a `reserved name`
-//     row and the built-in it collides with have an IDENTICAL sort key, because
-//     that identity is the definition of the reason. The built-in wins
-//     because that is the useful order: the valid, selectable thing the user can
-//     act on, immediately followed by the row explaining why their file is not
-//     it. Stating it as a RULE rather than leaning on the built-ins happening
-//     to be assembled first is what makes the comparison total for any input:
-//     a later change to the assembly order cannot silently lead the panel with
-//     the row explaining why a theme is unusable instead of with the theme.
+//  2. Byte-wise on the sort key, where the first leg ties. Case-insensitive alone
+//     is not an order: two keys differing only in case would tie, and which came
+//     out first would depend on how the union was built rather than on a rule.
+//  3. The built-in first, where both above tie. That tie is guaranteed by
+//     construction and the byte-wise leg cannot settle it: a `reserved name` row
+//     and the built-in it collides with have an identical sort key, because that
+//     identity is the definition of the reason. The built-in wins because it is
+//     the valid, selectable thing the user can act on, immediately followed by
+//     the row explaining why their file is not it. Stating it as a rule rather
+//     than leaning on assembly order is what keeps a later change to that order
+//     from leading the panel with the row explaining why a theme is unusable.
 func rowBefore(a, b Row) bool {
 	aKey, bKey := a.SortKey(), b.SortKey()
 	if aFolded, bFolded := strings.ToLower(aKey), strings.ToLower(bKey); aFolded != bFolded {
@@ -458,7 +434,7 @@ func rowBefore(a, b Row) bool {
 // countRejected counts the unselectable rows — the value `theme: enumerated`
 // reports as `rejected`.
 //
-// It is DERIVED from the rows rather than tallied as they are appended, so the
+// It is derived from the rows rather than tallied as they are appended, so the
 // count cannot drift from the set it describes.
 func countRejected(rows []Row) int {
 	rejected := 0

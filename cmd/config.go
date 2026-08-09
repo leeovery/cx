@@ -145,18 +145,17 @@ func projectsFilePath() (string, error) {
 }
 
 // loadPrefsStoreNoMigrate creates a prefs store from the configured file path
-// and does NOTHING else: it resolves the path and constructs the store, reading
+// and does nothing else: it resolves the path and constructs the store, reading
 // no bytes and computing no translation.
 //
-// It is the read `portal doctor` uses. Doctor must read prefs.json to
-// report an unresolvable theme, but its contract is that it HEALS NOTHING on
-// the read-only path — and a one-shot config mutation as a side effect of
-// running a diagnosis is exactly what would break that claim.
+// It is the read `portal doctor` uses. Doctor must read prefs.json to report an
+// unresolvable theme, but it heals nothing on the read-only path, and a one-shot
+// config mutation as a side effect of running a diagnosis would break that.
 //
-// IT MUST NEVER GAIN BEHAVIOUR. Anything added here lands on doctor's read-only
-// path by construction, invisibly: the migrating loader below is the one that
-// may grow, and it is the strict superset of this one precisely so the
-// inert variant cannot drift into doing work.
+// It must never gain behaviour: anything added here lands on doctor's read-only
+// path invisibly. The migrating loader below is the one that may grow, and it is
+// a strict superset of this one so the inert variant cannot drift into doing
+// work.
 func loadPrefsStoreNoMigrate() (*prefs.Store, error) {
 	path, err := prefsFilePath()
 	if err != nil {
@@ -168,10 +167,10 @@ func loadPrefsStoreNoMigrate() (*prefs.Store, error) {
 // prefsLoad is what the migrating prefs load produces. Keys is the theme setting
 // "as read": the POST-translation in-memory value, not the on-disk bytes.
 type prefsLoad struct {
-	// Store is the ONE store instance for the process — it serves the initial
-	// grouping-mode read, the theme keys here, and the theme persister.
+	// Store is the process's store instance — it serves the initial grouping-mode
+	// read, the theme keys here, and the theme persister.
 	Store *prefs.Store
-	// Keys are the theme keys THIS LAUNCH renders and the panel reads, with the
+	// Keys are the theme keys this launch renders and the panel reads, with the
 	// appearance translation already applied in memory where its no-op condition
 	// allowed it.
 	Keys prefs.ThemeKeys
@@ -186,24 +185,23 @@ type prefsLoad struct {
 }
 
 // loadPrefsStore creates the process's prefs store and computes the one-shot
-// appearance translation — the COMPUTE half only. It writes nothing: the persist
+// appearance translation — the compute half only. It writes nothing: the persist
 // and its `theme: appearance migrated` event belong to the caller.
 //
-// Separating computing from persisting is what makes the fix safe: the
-// translated theme is used in memory immediately, so a launch renders the
-// correct theme even when the write is deferred, fails, or never happens. A
-// failed write leaves the condition true and the next launch retries.
+// Separating computing from persisting is what makes it safe: the translated
+// theme is used in memory immediately, so a launch renders the correct theme even
+// when the write is deferred, fails, or never happens, and a failed write leaves
+// the condition true for the next launch to retry.
 //
-// Ownership sits here rather than in prefs because three constraints meet at
-// this call site: prefs is a deliberate leaf that must not import internal/log,
-// the translation happens at prefs load, and the `theme` component records it.
-// prefs stays dumb.
+// Ownership sits here rather than in prefs because three constraints meet at this
+// call site: prefs is a deliberate leaf that must not import internal/log, the
+// translation happens at prefs load, and the `theme` component records it.
 //
-// EVERY DEGENERATE READ IS TOLERATED AND DISCARDED, exactly as the initial-mode
-// read discards its own: a missing, empty, corrupt or unreadable prefs.json
-// yields empty keys and a zero migration state, which is the shipped adaptive
-// pair — what an unconfigured install renders anyway. Only the path resolution
-// can fail the load, and openTUI degrades from that rather than blocking.
+// Every degenerate read is tolerated and discarded, as the initial-mode read
+// discards its own: a missing, empty, corrupt or unreadable prefs.json yields
+// empty keys and a zero migration state, which is the shipped adaptive pair.
+// Only the path resolution can fail the load, and openTUI degrades from that
+// rather than blocking.
 func loadPrefsStore() (prefsLoad, error) {
 	store, err := loadPrefsStoreNoMigrate()
 	if err != nil {
@@ -215,9 +213,9 @@ func loadPrefsStore() (prefsLoad, error) {
 
 	load := prefsLoad{Store: store, Keys: keys}
 
-	// The trigger is the MARKER, never the absence of theme keys:
-	// absence-gating is re-armable, so a user who hand-edits their keys away to
-	// return to the shipped pair would be silently re-pinned on the next launch.
+	// The trigger is the marker, never the absence of theme keys: absence-gating
+	// is re-armable, so a user who hand-edits their keys away to return to the
+	// shipped pair would be silently re-pinned on the next launch.
 	if state.Migrated {
 		return load, nil
 	}
@@ -225,29 +223,27 @@ func loadPrefsStore() (prefsLoad, error) {
 	load.TranslationPending = true
 	load.TranslatedSlug = translateAppearance(state.Appearance)
 
-	// The no-op condition, applied to the IN-MEMORY half against the load-time
+	// The no-op condition, applied to the in-memory half against the load-time
 	// snapshot — the only moment early enough to affect what is painted. A theme
 	// key the user has already set is what renders; scoping the condition to the
-	// write alone would flip them to the translated theme for exactly one launch,
-	// which is the very surprise the translation exists to prevent.
+	// write alone would flip them to the translated theme for exactly one launch.
 	if load.TranslatedSlug != "" && keys.Theme == "" && keys.Light == "" && keys.Dark == "" {
-		// A pinned appearance becomes a pinned CONSTANT, so detection stays off
+		// A pinned appearance becomes a pinned constant, so detection stays off
 		// for them just as it was.
 		load.Keys = prefs.ThemeKeys{Theme: load.TranslatedSlug}
 	}
 
-	// TranslatedSlug is deliberately NOT zeroed by the check above. The condition
-	// is checked TWICE against two reads: here for the in-memory half, and again
+	// TranslatedSlug is deliberately not zeroed by the check above. The condition
+	// is checked twice against two reads: here for the in-memory half, and again
 	// at the write's read-modify-write re-read, where it also absorbs a commit
-	// another instance made in between. Collapsing them into one would lose the
-	// second read's job.
+	// another instance made in between. Collapsing them would lose the second
+	// read's job.
 
-	// The PERSIST half, dispatched off the launch path. It is the last thing
-	// the load does, nothing here waits on it, no error is propagated, and the
-	// returned prefsLoad is identical whether the write lands, fails or never
-	// finishes — which is what "best-effort and non-blocking" buys: Portal
-	// renders the correct theme THIS launch regardless, so a write failure can
-	// never flip the user to the wrong theme.
+	// The persist half, dispatched off the launch path. Nothing here waits on it,
+	// no error is propagated, and the returned prefsLoad is identical whether the
+	// write lands, fails or never finishes — Portal renders the correct theme this
+	// launch regardless, so a write failure can never flip the user to the wrong
+	// theme.
 	//
 	// The slug may be "" (nothing translated); SaveTranslation turns that into a
 	// marker-only write, which is what stops the condition being re-evaluated on
@@ -269,52 +265,46 @@ func loadPrefsStore() (prefsLoad, error) {
 	return load, nil
 }
 
-// persistTranslation performs the best-effort, NON-BLOCKING persist of the
+// persistTranslation performs the best-effort, non-blocking persist of the
 // one-shot appearance translation: it dispatches the write off the launch path
 // so nothing the user waits for — first paint least of all — waits on it.
 //
-// A package-level var so tests substitute a synchronous implementation and
-// restore it with t.Cleanup (cmd's established *Deps idiom) rather than sleeping
-// on a goroutine. The body is runTranslationPersist rather than an inline
-// literal for exactly that reason: a synchronous substitute then runs the REAL
-// save-decide-emit body instead of a re-implementation of it, so the one-shot
-// cadence of `theme: appearance migrated` is actually under test. This wrapper
-// adds the goroutine and nothing else.
+// A package-level var so a synchronous implementation can be substituted, cmd's
+// established *Deps idiom, rather than sleeping on a goroutine. The body is
+// runTranslationPersist rather than an inline literal so a substitute still runs
+// the real save-decide-emit body; this wrapper adds the goroutine and nothing
+// else.
 var persistTranslation = func(store *prefs.Store, slug string) {
 	go runTranslationPersist(store, slug)
 }
 
 // runTranslationPersist writes the translation and emits
-// `theme: appearance migrated` — INFO, and ONLY when a theme key was actually
+// `theme: appearance migrated` — INFO, and only when a theme key was actually
 // persisted.
 //
-// That predicate is the whole point of the event. Emitting it on COMPUTE would
-// let it fire on several consecutive launches (the write is best-effort and
-// retries), so "one-shot" would be false; emitting it on a MARKER-ONLY write
-// would announce a migration that translated nothing — `appearance` was `auto`,
-// or the user already had a theme key set.
+// That predicate is the point of the event. Emitting it on compute would let it
+// fire on several consecutive launches, since the write is best-effort and
+// retries; emitting it on a marker-only write would announce a migration that
+// translated nothing.
 //
-// prefs reports that predicate as a first-class result rather than as an
-// inference from the error, so this is a plain read of `persisted`.
+// prefs reports the predicate as a first-class result rather than as an inference
+// from the error, so this is a plain read of `persisted`.
 //
-// NOTHING IS EMITTED ON FAILURE — no `theme: commit failed`, no WARN, no
+// Nothing is emitted on failure — no `theme: commit failed`, no WARN, no
 // user-facing surface. The absence of `theme: appearance migrated` after a
-// translation IS the failure signal, which is what keeps the commit-failed event
-// single-sited on the panel's theme persister. An error and a not-persisted run
-// are therefore the same silent return.
+// translation is the failure signal, which keeps the commit-failed event
+// single-sited on the panel's theme persister; an error and a not-persisted run
+// are the same silent return.
 //
-// The translation is also deliberately SILENT TO THE USER AT RUNTIME — no flash,
-// no notice band, no banner. It runs at prefs load, before any surface exists to
-// render a notice into; there is nothing to explain, because the translation
-// preserves intent exactly (a pinned appearance becomes a pinned theme and
-// detection stays off, just as it was); and the single-slot notice band must not
-// gain a permanent extra contender for a rarer event. The CHANGELOG is the
-// compensating channel.
+// The translation is also silent to the user at runtime — no flash, no notice
+// band, no banner. It runs at prefs load, before any surface exists to render a
+// notice into, and there is nothing to explain: the translation preserves intent
+// exactly, a pinned appearance becoming a pinned theme with detection still off.
+// The changelog is the compensating channel.
 //
 // Attrs: `slug` alone, from the component's closed key set — the constant
-// actually persisted, which is what makes the line greppable per theme. NO
-// `slot`: the translation always writes a constant, so a slot attr would have no
-// value to carry.
+// actually persisted, which makes the line greppable per theme. No `slot`: the
+// translation always writes a constant.
 func runTranslationPersist(store *prefs.Store, slug string) {
 	persisted, err := store.SaveTranslation(slug)
 	if err != nil || !persisted {
@@ -331,14 +321,13 @@ func runTranslationPersist(store *prefs.Store, slug string) {
 //	light -> the shipped light default
 //	auto / absent / anything else -> "" (nothing to translate)
 //
-// THE MATCH IS EXACT, deliberately. The translation's job is to reproduce THE
-// OLD BINARY'S reading of the value, and the deleted appearance decode matched
-// the three tokens exactly — so anything that binary treated as `auto` (`Dark`,
-// `" dark"`, a hand-edit's trailing newline) must translate to nothing. Trimming
-// or lowercasing here would change the meaning of a value rather than preserve
-// it, which is the one thing the translation may not do.
+// The match is exact. The translation's job is to reproduce the old binary's
+// reading of the value, and the deleted appearance decode matched the three
+// tokens exactly — so anything that binary treated as `auto` (`Dark`, `" dark"`,
+// a hand-edit's trailing newline) must translate to nothing. Trimming or
+// lowercasing here would change the meaning of a value rather than preserve it.
 //
-// A present-but-unrecognised value translating to nothing does NOT leave the
+// A present-but-unrecognised value translating to nothing does not leave the
 // translation pending forever: "nothing translated" refers to the theme keys, and
 // the marker is recorded either way.
 //
@@ -367,13 +356,12 @@ func prefsFilePath() (string, error) {
 // An empty PORTAL_THEMES_DIR is treated as unset and falls through, matching
 // configFilePath's per-file env vars.
 //
-// It is deliberately NOT a configFilePath member, for two mechanical reasons.
-// It resolves a *directory* where configFilePath resolves *files* — which is
-// what the _DIR suffix on the env var marks, against the _FILE of
-// PORTAL_TERMINALS_FILE and its siblings. And there is no one-shot migration
-// from the old macOS Application Support path to run: the directory is new, so
-// nothing exists there to move. It therefore takes no configFileComponents
-// entry and emits no migrate breadcrumb.
+// It is deliberately not a configFilePath member, for two mechanical reasons. It
+// resolves a *directory* where configFilePath resolves *files* — what the _DIR
+// suffix on the env var marks, against the _FILE of PORTAL_TERMINALS_FILE and its
+// siblings. And there is no one-shot migration from the old macOS Application
+// Support path to run: the directory is new, so nothing exists there to move. It
+// therefore takes no configFileComponents entry and emits no migrate breadcrumb.
 //
 // It returns a path and nothing more — it never creates, seeds or stats the
 // directory. An absent themes directory is the common, silent case (which is

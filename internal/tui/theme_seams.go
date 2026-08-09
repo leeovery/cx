@@ -2,56 +2,30 @@ package tui
 
 import "github.com/leeovery/portal/internal/theme"
 
-// ThemeEnumerator is the seam through which the theme panel gets its rows — the
-// TmuxEnumerator / ScrollbackReader idiom the preview page already uses, applied
-// to the theme union.
+// ThemeEnumerator is the seam through which the theme panel gets its rows.
 //
-// It returns the FINISHED UNION, never a directory listing. Open takes
-// the raw persisted theme keys and hands back the complete row set — every
-// built-in, every `.theme` file, and every persisted slug resolving to neither —
-// already deduped one slug, one row, and already carrying each row's single
-// reason. internal/theme owns that assembly, which keeps three decisions
-// consistent: `theme: enumerated`'s count and rejected count are computable where
-// they are emitted, THIS PACKAGE NEVER BECOMES ANOTHER EMITTER of the
-// `theme` component (the emitters are the loader, the translation and
-// persister), and the panel does no merging of its own.
+// Open takes the raw persisted theme keys and returns the finished union, never
+// a directory listing: every built-in, every `.theme` file, and every persisted
+// slug resolving to neither, deduped one slug per row and each carrying its
+// single reason. internal/theme owns that assembly, so this package never
+// becomes another emitter of the `theme` log component.
 //
-// The themes DIRECTORY is deliberately absent from the signature, exactly as the
-// state directory is absent from ScrollbackReader's: the production adapter
-// closes over the resolved path (cmd/config.go owns that chain), so the panel
-// holds no path policy and a fixture needs none. A fixture fakes a Union
-// wholesale — it is an ordinary value — which is the only way internal/capture
-// renders an invalid-theme row at all, its no-real-config import guard forbidding
-// it a real themes directory.
+// The themes directory is absent from the signature, as the state directory is
+// from ScrollbackReader's: the production adapter closes over the resolved path,
+// so the panel holds no path policy and a fixture — which fakes a Union
+// wholesale — needs none.
 //
-// Reassemble is the re-derivation entry point, and it is a SEPARATE METHOD rather
-// than a second Open because it must not re-read the directory: the post-commit
-// recompute and the `Esc` re-resolution both re-derive from the
-// enumeration Open retained, with changed persisted keys and no fresh I/O.
+// Reassemble re-derives the union from the enumeration Open retained, with
+// changed persisted keys and no fresh I/O; Resolve re-resolves the persisted
+// setting against that same enumeration, so the panel opens on the theme the
+// enumeration says is live and a mid-session edit takes effect on open; and
+// ResolveSlot resolves the slot a constant → adaptive conversion just made live,
+// emitting the commit-time `theme: loaded` that Resolve does not.
 //
-// Resolve is the RE-RESOLUTION of the persisted setting against that same
-// retained enumeration, and it is what makes "the panel's parse supersedes
-// the construction-time parse" real: the panel opens on the theme the enumeration
-// says is live rather than on the one construction happened to load, so a
-// mid-session edit — including one that INVALIDATES the active theme — takes
-// effect on open. It resolves against the retained parse and NEVER the
-// filesystem, because a read here would produce a third parse of the same slug
-// that can disagree with the row the user is looking at. Its error is the
-// broken-builtin fatal and the panel DEGRADES on it rather than escalating; see
-// Model.applyInForceTheme, which states that policy once for all three panel
-// call sites.
-//
-// ResolveSlot is the COMMIT-TIME entry point — the one theme load outside
-// construction — and it is a FOURTH METHOD rather than a parameter on Resolve
-// because the two answer different questions at different cadences: Resolve
-// re-resolves a setting construction already reported and emits no
-// `theme: loaded`, while this resolves the ONE slot a constant → adaptive
-// conversion just made live and emits the `theme: loaded` line for exactly that
-// moment. It shares its rule body with Resolve inside internal/theme (the same
-// charset check, the same embedded-set-first ordering, the same per-slot
-// fallback, read off the SAME retained parse), so the badge path and the load path
-// cannot disagree about a slug — and it reads no directory, for the reason Resolve
-// does not.
+// None of the three reads the filesystem. A read would produce a further parse of
+// the same slug, free to disagree with the row the user is looking at. Resolve's
+// error is the broken-builtin fatal, which the panel degrades on rather than
+// escalating (see Model.applyInForceTheme).
 type ThemeEnumerator interface {
 	Open(keys theme.RawKeys) (theme.Enumeration, theme.Union)
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union

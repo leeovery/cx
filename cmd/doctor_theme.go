@@ -8,44 +8,39 @@ import (
 )
 
 // The pinned copy this file produces, one constant per frame. They are whole
-// lines INCLUDING the leading "⚠ ": the copy table pins each line together with
-// its glyph, and the advisory renderer only indents what a producer hands it (see
-// the advisory type in cmd/doctor.go), so a producer owns the whole string.
+// lines including the leading "⚠ ": the advisory renderer only indents what a
+// producer hands it (see the advisory type in cmd/doctor.go), so a producer owns
+// the whole string.
 //
-// The file frame is GENERIC across every reason that has a slug in hand —
+// The file frame is generic across every reason that has a slug in hand —
 // `missing tokens`, `bad colour`, `bad syntax`, `unreadable` — because the loader
-// already guarantees exactly one reason per file and already fixes the detail's
-// shape per reason. Doctor therefore re-derives nothing: it frames the reason and
-// the detail the loader produced.
+// already guarantees exactly one reason per file and fixes the detail's shape per
+// reason. Doctor frames the reason and the detail the loader produced and
+// re-derives nothing.
 //
-// The three FILENAME frames below are the deliberate exception, and the
-// difference is not decoration: the two filename reasons are decided from the
-// name before the file is opened, so the frame is labelled `⚠ theme file
-// <filename>:` rather than `⚠ theme <slug>:`. That differing frame is what
-// carries the INPUT CLASS — a file versus a slug — which is why the loader keeps
-// one reason class for the panel row (which has no width to discriminate) while
-// doctor, which has the width, names which cause.
+// The three filename frames below are the exception: the two filename reasons are
+// decided from the name before the file is opened, so the frame is labelled
+// `⚠ theme file <filename>:` rather than `⚠ theme <slug>:`. That differing frame
+// carries the input class — a file versus a slug — which the panel row has no
+// width to discriminate.
 //
-// The two `bad name` causes take DISTINCT messages off the loader's BadNameCause
-// because their fixes are different: with a wrong-cased extension the slug
-// portion is ALREADY LEGAL, so a single message telling the user to fix their
-// slug would send them to correct the one thing that is fine.
+// The two `bad name` causes take distinct messages off the loader's BadNameCause
+// because their fixes differ: with a wrong-cased extension the slug portion is
+// already legal, so a single message telling the user to fix their slug would
+// send them to correct the one thing that is fine.
 //
 // `reserved name` is labelled by filename too, despite being the one filename
-// reason that HAS a valid slug, because that slug is identical to the built-in's:
+// reason that has a valid slug, because that slug is identical to the built-in's:
 // labelling by slug would print the same name twice with no way to tell which row
-// is the user's file. Its line also deliberately does not follow the generic
-// `<reason> — <detail>` frame — it names the conflict AND the fix, which is what
-// makes the rename workaround self-documenting rather than merely short.
+// is the user's file. Its line also does not follow the generic
+// `<reason> — <detail>` frame — it names the conflict and the fix, which makes
+// the rename workaround self-documenting.
 //
-// The persisted frame is ONE format with an OPTIONAL slot insert rather than two
-// whole lines, because the two renderings differ in exactly that insert. Two
-// consts would state "does not resolve" twice — the drift the single-sourcing
-// convention exists to prevent, and invisible at review since the two would sit
-// three lines apart. It carries NO ` — <detail>` tail, unlike the file frame
-// above: the reason is the whole answer for a slug that names nothing, and the
-// one reason with a detail to give (`unreadable`) is about the DIRECTORY, which
-// already has its own line.
+// The persisted frame is one format with an optional slot insert rather than two
+// whole lines, since the two renderings differ in exactly that insert. It carries
+// no ` — <detail>` tail, unlike the file frame above: the reason is the whole
+// answer for a slug that names nothing, and the one reason with a detail to give
+// (`unreadable`) is about the directory, which already has its own line.
 const (
 	themeFileAdvisoryFormat   = "⚠ theme %s: %s — %s"
 	themesDirUnreadableFormat = "⚠ themes directory unreadable: %s"
@@ -60,7 +55,7 @@ const (
 
 // The two slot labels doctor renders, read off theme.Slot's own name mapping
 // rather than restated: the parenthetical a user reads here and the `slot` attr
-// the log carries are ONE vocabulary, and a literal pair would be free to drift
+// the log carries are one vocabulary, and a literal pair would be free to drift
 // from it silently.
 var (
 	themeSlotLight, _ = theme.SlotLight.AttrName()
@@ -68,86 +63,78 @@ var (
 )
 
 // themeSlotBoth is not a third slot — the setting has exactly two — it is the
-// label for ONE slug occupying both of them, a state two keypresses in the theme
-// panel reach and therefore an ordinary one to report. Having no slot to be named
-// by, it is declared here beside the pair it joins rather than derived.
+// label for one slug occupying both of them, an ordinary state two keypresses in
+// the theme panel reach. Having no slot to be named by, it is declared here
+// beside the pair it joins rather than derived.
 const themeSlotBoth = "both"
 
-// collectThemeAdvisories is doctor's whole theme-advisory surface: the single
-// entry point the report's advisory block is built from, run once per diagnosis
-// pass, over the TWO producers behind it — the themes-directory scan (what is IN
-// a directory) and the persisted-theme read (what the user PICKED).
+// collectThemeAdvisories is doctor's whole theme-advisory surface: the entry
+// point the report's advisory block is built from, run once per diagnosis pass,
+// over the two producers behind it — the themes-directory scan (what is in a
+// directory) and the persisted-theme read (what the user picked).
 //
 // "Once per diagnosis pass" is literal, and `portal doctor --fix` is where it
-// bites: that path runs TWO passes and therefore calls this TWICE, freshly, once
-// beside each render. The alternative — collecting once and handing the same
-// slice to both renders — would pair a stale advisory block with freshly-read
-// check lines, so one report would be describing two different moments.
+// bites: that path runs two passes and calls this freshly beside each render.
+// Collecting once and handing the same slice to both renders would pair a stale
+// advisory block with freshly-read check lines, so one report would describe two
+// different moments.
 //
-// It is strictly READ-ONLY — no write, no repair, no directory creation — which
-// is what lets it run unchanged on the `--fix` path, where there is no repair to
-// perform and suppressing it would make `--fix` a LESS informative diagnosis
-// than a plain run. Being read-only is also what makes the second call free of
-// consequence: nothing between the two passes can change its answer, because
-// runDoctorFix deliberately touches no theme state.
+// It is strictly read-only — no write, no repair, no directory creation — which
+// lets it run unchanged on the `--fix` path, where there is no repair to perform
+// and suppressing it would make `--fix` a less informative diagnosis than a plain
+// run. Being read-only is also what makes the second call free of consequence:
+// runDoctorFix touches no theme state, so nothing between the passes can change
+// its answer.
 //
-// The loader is the SILENT one, ALWAYS, on every doctor path: the `theme`
-// component records where a theme is USED, never where one is DIAGNOSED. Doctor
-// is the user looking — its whole output is already the
-// diagnostic they are reading — and it is the run most likely to hit a full
-// reject set, so emitting here would put the largest possible WARN volume on the
-// surface that needs it least. It also keeps doctor's read-only claim literal: a
-// diagnosis command writing WARNs about the state it just printed is the same
-// shape of side effect as repairing one.
+// The loader is the silent one on every doctor path: the `theme` component
+// records where a theme is used, never where one is diagnosed. Doctor's whole
+// output is already the diagnostic the user is reading, and it is the run most
+// likely to hit a full reject set, so emitting here would put the largest
+// possible WARN volume on the surface that needs it least — and would make a
+// read-only diagnosis write about the state it just printed.
 //
-// The two producers share ONE loader, built here and passed down. That is what
-// gives the whole diagnosis a single owned dedup set (theme.EventLogger holds it
-// per instance) rather than two that could each report the same condition — and
-// because it is silenced the sharing is free, since neither emits anything
-// whatever the dedup says.
+// The two producers share one loader, built here and passed down, so the whole
+// diagnosis has a single owned dedup set rather than two that could each report
+// the same condition.
 //
-// Their two results are ASSEMBLED rather than concatenated — see
+// Their two results are assembled rather than concatenated — see
 // assembleThemeAdvisories — so the block the renderer receives is already the
-// deduplicated union, in a pinned order, and <M> is the length of that final set.
+// deduplicated union, in a pinned order.
 func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 	loader := theme.NewSilentLoader()
 
 	return assembleThemeAdvisories(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader))
 }
 
-// assembleThemeAdvisories unions doctor's two theme producers into the ONE block
+// assembleThemeAdvisories unions doctor's two theme producers into the one block
 // the report renders, in three pinned regions — the directory line, the file
 // lines, then the persisted lines.
 //
-// The region ORDER is what makes the report testable: a block whose sequence
-// depends on which producer appended first would shift between runs and read as
-// noise. Directory → files → persisted reads outermost-to-innermost — the
-// container, then its contents, then the setting that points into it — and the
-// directory line, when present, is the condition that EXPLAINS the absence of
+// The region order is what makes the report reproducible: a block whose sequence
+// depended on which producer appended first would shift between runs and read as
+// noise. Directory → files → persisted reads outermost-to-innermost, and the
+// directory line, when present, is the condition that explains the absence of
 // every file line beneath it. The first two regions arrive in one slice because
 // scanThemesDirectory yields one or the other and never both (an unusable
-// directory enumerates nothing), and both regions are internally ordered by their
-// producers: the enumeration's own os.ReadDir filename order, and the fixed
-// prefs key order. Nothing is sorted here and NO MAP IS ITERATED anywhere in the
+// directory enumerates nothing), and both are internally ordered by their
+// producers: the enumeration's own os.ReadDir filename order, and the fixed prefs
+// key order. Nothing is sorted here and no map is iterated anywhere in the
 // assembly, so two runs over an unchanged directory and prefs.json render
 // byte-identically.
 //
-// THE DROP is the one-slug-one-line rule, mirroring the panel's "one slug is one
+// The drop is the one-slug-one-line rule, mirroring the panel's "one slug is one
 // row, always" so the two surfaces cannot disagree about how many problems exist.
-// When a persisted slug IS the invalid file — the most likely failure of all —
-// the persisted line wins: it carries strictly more, the reason AND which slot is
-// affected, so the file line would add nothing but a second entry in <M>. <M>
-// therefore counts PROBLEMS rather than DETECTIONS.
+// When a persisted slug is the invalid file — the most likely failure of all —
+// the persisted line wins: it carries strictly more, the reason and which slot is
+// affected, so the advisory count reports problems rather than detections.
 //
-// Two structural non-collisions are pinned rather than incidental, and neither
-// needs a special case here:
+// Two structural non-collisions need no special case here:
 //
-//   - a `bad name` file has NO SLUG (the name yields no usable identity, which
+//   - a `bad name` file has no slug (the name yields no usable identity, which
 //     themeFileAdvisory states rather than copies), so the non-empty-slug guard
-//     means it can never match a persisted slug and both lines legitimately stand.
-//     The directory line carries no slug either, by the same guard — it is
-//     directory-level and is never deduplicated against a slug.
-//   - a persisted slug naming a `reserved name` file resolves to the BUILT-IN at
+//     means it can never match a persisted slug and both lines legitimately
+//     stand. The directory line carries no slug either, by the same guard.
+//   - a persisted slug naming a `reserved name` file resolves to the built-in at
 //     ResolveByName's step 2, so the persisted producer emits no line for it at
 //     all — the file keeps its own line, and that collision is the entire content
 //     of the reason.
@@ -167,16 +154,14 @@ func assembleThemeAdvisories(scanned, persisted []advisory) []advisory {
 // persistedSlugs collects the slugs the persisted lines carry — the set a file
 // line is dropped against.
 //
-// Membership is decided by the advisory's OWN fromPrefs field rather than by
-// which slice it arrived in, which is what makes that field load-bearing instead
-// of decorative: it and slug are declared as the union's dedup identity (see the
-// advisory type in cmd/doctor.go), and a rank read off the argument position
-// would leave the declared identity unread and free to drift.
+// Membership is decided by the advisory's own fromPrefs field rather than by
+// which slice it arrived in: fromPrefs and slug are the union's declared dedup
+// identity (see the advisory type in cmd/doctor.go), and a rank read off the
+// argument position would leave that identity unread and free to drift.
 //
-// A slice rather than a map, deliberately: the set is at most two entries (one
-// constant or two slots), and a slice cannot be iterated in a random
-// order the way a map can — which is what keeps the assembly's determinism a
-// property of its data structures rather than of how it happens to be walked.
+// A slice rather than a map: the set is at most two entries, and a slice cannot
+// be iterated in a random order the way a map can, which keeps the assembly's
+// determinism a property of its data structures.
 func persistedSlugs(persisted []advisory) []string {
 	slugs := make([]string, 0, len(persisted))
 	for _, a := range persisted {
@@ -187,28 +172,27 @@ func persistedSlugs(persisted []advisory) []string {
 	return slugs
 }
 
-// persistedThemeAdvisories is doctor's SECOND theme-advisory producer: the one
-// reporting that a theme the user CHOSE no longer resolves — a deleted file, a
+// persistedThemeAdvisories is doctor's second theme-advisory producer: the one
+// reporting that a theme the user chose no longer resolves — a deleted file, a
 // renamed file, a typo in prefs.json. Portal falls back silently by design and
 // never overwrites the persisted name, so without this line the only signal a
 // user gets is "my colours changed".
 //
 // The prefs read is deps.PrefsStore, which resolveDoctorDeps builds through the
-// NON-MIGRATING loadPrefsStoreNoMigrate. A nil store — the
-// unresolvable-config-path degradation — produces no lines rather than an error:
-// the advisory class has no not-evaluable form, and a path that could not be
-// computed must never abort a diagnosis.
+// non-migrating loadPrefsStoreNoMigrate. A nil store — the unresolvable-config-path
+// degradation — produces no lines rather than an error: the advisory class has no
+// not-evaluable form, and a path that could not be computed must never abort a
+// diagnosis.
 //
-// The read is TOLERANT and its error is discarded on purpose. Every degenerate
+// The read is tolerant and its error is discarded on purpose. Every degenerate
 // prefs.json — absent, empty, corrupt, unreadable, missing every key — yields
-// zero keys, which yields zero nominations and therefore zero lines. The one
-// thing a diagnosis must not do is fail to diagnose because one of the files it
-// reads is the broken one.
+// zero keys and therefore zero lines. A diagnosis must not fail to diagnose
+// because one of the files it reads is the broken one.
 //
-// Resolution goes through ResolveByName, NEVER ResolveNomination: the latter
-// substitutes the mode-matched fallbacks, which would HIDE the very failure being
-// reported, and can raise the broken-built-in fatal, which would abort the
-// diagnosis over a state this line exists to describe.
+// Resolution goes through ResolveByName and never ResolveNomination: the latter
+// substitutes the mode-matched fallbacks, hiding the very failure being reported,
+// and can raise the broken-built-in fatal, aborting the diagnosis over a state
+// this line exists to describe.
 func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []advisory {
 	if deps.PrefsStore == nil {
 		return nil
@@ -227,7 +211,7 @@ func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []advisory 
 }
 
 // persistedThemeNomination is one persisted slug doctor checks, carrying the slot
-// label it renders under — EMPTY under a constant, where the parenthetical is
+// label it renders under — empty under a constant, where the parenthetical is
 // omitted entirely rather than filled with a placeholder.
 type persistedThemeNomination struct {
 	slug string
@@ -238,13 +222,11 @@ type persistedThemeNomination struct {
 // checks: theme.InForceKeys decides WHICH keys those are, and this puts a label
 // on each one.
 //
-// LABELLING IS ALL DOCTOR DOES HERE. The `theme`-wins tiebreak, the rule that
+// Labelling is all doctor does here. The `theme`-wins tiebreak, the rule that
 // only a slot with a non-empty raw value is in force, and the collapse of two
-// slots naming one value all belong to the SELECTOR, and none of them is
-// restated or re-derived here.
-//
-// The label is doctor's own, because the parenthetical is: it is one rendering of
-// where a value sits, not a decision about which values are read.
+// slots naming one value all belong to the selector, and none is restated or
+// re-derived here. The label itself is doctor's own, being a rendering of where a
+// value sits rather than a decision about which values are read.
 func persistedThemeNominations(keys theme.RawKeys) []persistedThemeNomination {
 	inForce := theme.InForceKeys(keys)
 
@@ -258,7 +240,7 @@ func persistedThemeNominations(keys theme.RawKeys) []persistedThemeNomination {
 // persistedThemeSlotLabel is the label one in-force key renders under: `both`
 // where a single value occupies the whole pair, else the slot's own name.
 //
-// A CONSTANT YIELDS THE EMPTY LABEL, which persistedThemeSlotSuffix renders as no
+// A constant yields the empty label, which persistedThemeSlotSuffix renders as no
 // parenthetical at all rather than as a placeholder — the constant state has no
 // halves for a label to name.
 func persistedThemeSlotLabel(key theme.InForceKey) string {
@@ -280,24 +262,22 @@ func persistedThemeSlotLabel(key theme.InForceKey) string {
 // reporting whether it earns one at all. A nil rejection produces no line — this
 // producer reports problems, not inventory.
 //
-// EVERY discrimination is ResolveByName's own and none is re-derived here, which
-// is what keeps doctor's vocabulary identical to the panel's and to the log's: a
-// charset failure is `bad name` and is decided BEFORE any path is composed — so
-// a hand-edited `../evil` never becomes a path component — an absent directory or
+// Every discrimination is ResolveByName's own and none is re-derived here, which
+// keeps doctor's vocabulary identical to the panel's and to the log's: a charset
+// failure is `bad name` and is decided before any path is composed — so a
+// hand-edited `../evil` never becomes a path component — an absent directory or
 // an absent file is `not found`, and an unusable directory is `unreadable`
-// because permissions is the actual problem. An EMPTY themesDir — the
+// because permissions is the actual problem. An empty themesDir — the
 // unresolved-path degradation — still resolves the embedded set and answers
 // `not found` for a drop-in slug, composing no path, which is why this producer
 // runs where the directory scan skips.
 //
-// The slug renders CONTROL-STRIPPED BUT UNTRUNCATED. Stripping already happened
-// at the point the value was read — it is a property of the value, not of the
-// surface — and truncation stays panel-local because doctor has the full width
-// and wants the whole value.
+// The slug renders control-stripped but untruncated: stripping is a property of
+// the value rather than of the surface, and truncation stays panel-local because
+// doctor has the full width and wants the whole value.
 //
 // slug and fromPrefs ride alongside the line for the one-slug-one-line union,
-// where a persisted line OUTRANKS the same slug's file-validity line: it carries
-// strictly more — the reason AND which slot is affected.
+// where a persisted line outranks the same slug's file-validity line.
 func persistedThemeAdvisory(loader theme.Loader, nomination persistedThemeNomination, themesDir string) (advisory, bool) {
 	_, rejection := loader.ResolveByName(nomination.slug, themesDir)
 	if rejection == nil {
@@ -312,9 +292,8 @@ func persistedThemeAdvisory(loader theme.Loader, nomination persistedThemeNomina
 }
 
 // persistedThemeSlotSuffix renders the slot parenthetical, or nothing at all
-// under a constant. The empty label is the constant's, and it yields an empty
-// string rather than "()" — the parenthetical is omitted ENTIRELY, because the
-// constant state has no halves for one to name.
+// under a constant. The empty label yields an empty string rather than "()":
+// the constant state has no halves for a parenthetical to name.
 func persistedThemeSlotSuffix(slot string) string {
 	if slot == "" {
 		return ""
@@ -326,23 +305,22 @@ func persistedThemeSlotSuffix(slot string) string {
 // renders one advisory per finding: the directory's own verdict where it has one,
 // else one line per rejected file.
 //
-// An UNRESOLVED path — themesDirPath() failed, so resolveDoctorDeps left the
-// field empty — skips the scan ENTIRELY and yields nothing. The advisory class
+// An unresolved path — themesDirPath() failed, so resolveDoctorDeps left the
+// field empty — skips the scan entirely and yields nothing. The advisory class
 // has no not-evaluable form, so degrading to zero lines is the only shape
-// available, and a path that could not be resolved must never abort the
-// diagnosis. The skip is scoped HERE rather than at collectThemeAdvisories, so
-// producers that need no path at all still run.
+// available. The skip is scoped here rather than at collectThemeAdvisories, so
+// producers that need no path still run.
 //
 // The two Enumerate returns separate the three directory states, and each gets a
 // different answer:
 //
-//   - an UNUSABLE directory (unreadable, or a regular file where a directory
-//     belongs) → its one pinned line. Enumerate returns no entries in that
-//     state, so it is the only theme-file line the scan can produce.
-//   - an ABSENT directory → nothing at all: no line, no error, no log. Zero
+//   - an unusable directory (unreadable, or a regular file where a directory
+//     belongs) → its one pinned line. Enumerate returns no entries in that state,
+//     so it is the only theme-file line the scan can produce.
+//   - an absent directory → nothing at all: no line, no error, no log. Zero
 //     drop-ins is not an error and Portal never creates or seeds the directory.
-//   - a usable directory → one line per rejected entry, in the enumeration's
-//     own deterministic filename order.
+//   - a usable directory → one line per rejected entry, in the enumeration's own
+//     deterministic filename order.
 func scanThemesDirectory(loader theme.Loader, dir string) []advisory {
 	if dir == "" {
 		return nil
@@ -366,28 +344,26 @@ func scanThemesDirectory(loader theme.Loader, dir string) []advisory {
 // the entry earns one at all.
 //
 // A valid entry (nil Rejection) produces no line — the scan reports problems,
-// not inventory. A rejected one produces EXACTLY ONE line, for the one reason the
+// not inventory. A rejected one produces exactly one line, for the one reason the
 // ladder settled on: doctor enumerates within the reason and never across, so a
 // file is never reported as both `bad colour` and `missing tokens`.
 //
-// The switch is exhaustive over the reasons rather than a bare "has a slug"
-// test, so the one this producer does NOT own is visibly skipped rather than
-// silently swept into the generic frame: `not found` applies to a persisted slug
-// with no file, where nothing was enumerated.
+// The switch is exhaustive over the reasons rather than a bare "has a slug" test,
+// so the one this producer does not own is visibly skipped rather than silently
+// swept into the generic frame: `not found` applies to a persisted slug with no
+// file, where nothing was enumerated.
 //
-// The two FILENAME reasons take the frames declared above, and their identity
-// fields differ from the generic arm's in the one way the union depends on. A
-// `bad name` row carries NO slug — the zero value, stated here rather than copied
+// The two filename reasons take the frames declared above, and their identity
+// fields differ from the generic arm's in the way the union depends on. A
+// `bad name` row carries no slug — the zero value, stated here rather than copied
 // from the entry, because "a bad-name file can never collide with a persisted
-// slug" is a consequence of the REASON (such a name yields no usable identity)
-// and must not rest on an upstream field happening to be empty. A `reserved name`
-// row carries its slug: it has a valid one, and that is precisely what collided.
+// slug" is a consequence of the reason and must not rest on an upstream field
+// happening to be empty. A `reserved name` row carries its slug: it has a valid
+// one, and that is precisely what collided.
 //
 // slug and fromPrefs are populated alongside the line because they are the
-// identity the one-slug-one-line union dedups on — an unresolvable persisted
-// slug outranks the same slug's file-validity line. A producer setting `line`
-// alone would silently defeat that dedup and make <M> count detections rather
-// than problems.
+// identity the one-slug-one-line union dedups on. A producer setting `line` alone
+// would silently defeat that dedup.
 func themeFileAdvisory(entry theme.Entry) (advisory, bool) {
 	if entry.Rejection == nil {
 		return advisory{}, false
@@ -420,18 +396,17 @@ func themeFileAdvisory(entry theme.Entry) (advisory, bool) {
 }
 
 // badNameAdvisoryLine picks between the two `bad name` lines on the loader's
-// cause, both labelled by the FILENAME AS ENUMERATED — never the full path, which
+// cause, both labelled by the filename as enumerated — never the full path, which
 // the pinned copy excludes and which would spend the width these frames exist to
 // use on a directory the user already named.
 //
-// The extension cause is the one discriminated explicitly, and the slug cause is
-// what everything else renders as. That asymmetry is deliberate rather than a
-// coin toss: the extension message asserts something SPECIFIC — that the stem is
-// already fine and only the extension is not — so it is claimed only where the
-// loader says exactly that, while the slug message is the general statement about
-// a name that is not usable as an identity. The third cause value (BadNameNone) is
-// unreachable here, both causes being set by the one constructor that builds this
-// reason.
+// The extension cause is discriminated explicitly and the slug cause is what
+// everything else renders as, because the extension message asserts something
+// specific — that the stem is already fine and only the extension is not — so it
+// is claimed only where the loader says exactly that, while the slug message is
+// the general statement about a name that is not usable as an identity.
+// BadNameNone is unreachable here, both causes being set by the one constructor
+// that builds this reason.
 func badNameAdvisoryLine(entry theme.Entry) string {
 	if entry.Rejection.BadNameCause == theme.BadNameExtension {
 		return fmt.Sprintf(badNameExtensionAdvisoryFormat, entry.Filename)

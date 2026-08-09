@@ -19,11 +19,11 @@ const themeCommitFailedEvent = "commit failed"
 // import internal/log, the write needs prefs path resolution, and the `theme`
 // component records the failure.
 //
-// It is therefore THE emission site for `theme: commit failed`, which otherwise
+// It is therefore the emission site for `theme: commit failed`, which otherwise
 // has none: prefs cannot log it, and the model logging it would either double the
 // event or make internal/tui another package emitting the component.
 //
-// It logs AND RETURNS. The panel's outstanding-failure state renders
+// It logs and returns. The panel's outstanding-failure state renders
 // `⚠ couldn't save theme` from the returned value and holds the failure
 // outstanding, so a persister that only logged would recreate the silent
 // "applied but not persisted" state the picker idiom exists to close.
@@ -43,9 +43,8 @@ type themePersister struct {
 var _ tui.ThemePersister = themePersister{}
 
 // newThemePersister binds the process's prefs store to the package's `theme`
-// component logger. The logger is NOT a parameter: CLAUDE.md's rule is bind once
-// per package, and themeLogger is that binding — a second log.For("theme")
-// anywhere in cmd is what TestThemeComponent_BoundOnceInCmd exists to catch.
+// component logger. The logger is not a parameter: the rule is bind once per
+// package, and themeLogger is cmd's single log.For("theme") binding.
 func newThemePersister(store *prefs.Store) themePersister {
 	return themePersister{store: store, logger: themeLogger}
 }
@@ -73,14 +72,12 @@ func (p themePersister) CommitThemeSlot(slug string, slot prefs.ThemeSlot) error
 }
 
 // reportCommit emits `theme: commit failed` for a failed write and hands err back
-// verbatim. A successful commit emits NOTHING: the persister's one event is a
+// verbatim. A successful commit emits nothing: the persister's one event is a
 // failure, and the commit-time `theme: loaded` belongs to the loader.
 //
-// `reason` is appended HERE rather than at either call site, so the attr order —
-// `slug`, `slot`, `reason` — is one decision in one place rather than two
-// sites that happen to agree today. The logger is nil-tolerated for the reason
-// every other emitter in the project tolerates one: a zero-valued persister must
-// be silent rather than a panic.
+// `reason` is appended here rather than at the call sites, so the attr order —
+// `slug`, `slot`, `reason` — is one decision in one place. The logger is
+// nil-tolerated so a zero-valued persister is silent rather than a panic.
 func (p themePersister) reportCommit(err error, identity ...any) error {
 	if err == nil {
 		return nil
@@ -93,12 +90,12 @@ func (p themePersister) reportCommit(err error, identity ...any) error {
 // themeSlotAttr renders a prefs slot as the `slot` attr value, and reports
 // whether the slot has one at all.
 //
-// The words are not this layer's to choose: they come off theme.Slot's own name
-// mapping, which is where the constant's absent attr is decided and where every
-// other surface naming a slot reads them too. Persistence and resolution keep
-// SEPARATE slot types — prefs is a deliberate no-logging leaf that must not
-// import internal/theme — but they share one vocabulary, so the conversion
-// happens here, at the boundary the two types already meet on.
+// The words come off theme.Slot's own name mapping, where the constant's absent
+// attr is decided and where every other surface naming a slot reads them.
+// Persistence and resolution keep separate slot types — prefs is a deliberate
+// no-logging leaf that must not import internal/theme — but they share one
+// vocabulary, so the conversion happens here, at the boundary the two types
+// already meet on.
 func themeSlotAttr(slot prefs.ThemeSlot) (string, bool) {
 	return themeSlotFor(slot).AttrName()
 }

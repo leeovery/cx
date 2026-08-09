@@ -24,54 +24,44 @@ const (
 	// the ellipsis. ansi.Truncate counts the tail INSIDE the width it is given, so
 	// four cells is exactly "three visible characters plus the ellipsis".
 	//
-	// It is a FLOOR rather than a degradation step: below it the panel is already
-	// at the panel's refuse threshold, so no further rule is needed — the label
-	// simply stops shrinking, and the row it belongs to is one the panel refuses
-	// to open at all.
+	// Below it the label simply stops shrinking; the panel refuses to open at all
+	// at those widths, so no further degradation rule is needed.
 	themeRowLabelFloor = 4
 )
 
 // themeRowItem is one row of the union as the panel's list holds it: the row
 // itself plus the `●` badge it carries.
 //
-// The badge is a FIELD rather than something derived here because the derivation
+// The badge is a field rather than something derived here because the derivation
 // is a fact about the whole setting, not about one row (theme.Badges): whoever
 // assembles these items looks each row's badge up through theme.Row.BadgeKey and
-// NEVER through Slug, which is what keeps a `reserved name` row from painting a
+// never through Slug, which is what keeps a `reserved name` row from painting a
 // second `●` on the slug it collides with.
-//
-// FilterValue is declared FOR THE list.Item INTERFACE ONLY. Panel search /
-// filtering is deferred by decision, so the panel's list is constructed
-// with SetFilteringEnabled(false) and this value is never consulted — the label is
-// returned so that a future filter, if the decision is ever revisited, matches
-// what the user can actually read on the row.
 type themeRowItem struct {
 	Row   theme.Row
 	Badge theme.Badge
 }
 
-// FilterValue returns the row's display label. See the type comment: the panel
-// disables filtering, so nothing consumes it today.
+// FilterValue returns the row's display label, satisfying list.Item. The panel's
+// list is constructed with filtering disabled; the label is returned so a filter
+// would match what the user can read on the row.
 func (i themeRowItem) FilterValue() string { return i.Row.Label() }
 
 // themeRowDelegate renders one panel row on exactly one line.
 //
-// Theme is the PREVIEWED palette, and it is re-derived per frame rather than
-// cached: the panel's list is the worst case of the cached-style class,
-// because its styles are assigned once at open while its theme changes on EVERY
-// arrow keypress. The delegate therefore holds no derived style — every run is
-// painted from this field at render time, and the panel re-points the whole
-// delegate through one construction site on each restyle and each resize.
+// Theme is the previewed palette, re-derived per frame rather than cached: the
+// delegate's styles are assigned once at open while its theme changes on every
+// arrow keypress, so it holds no derived style and the panel re-points the whole
+// delegate on each restyle and each resize.
 //
-// Colourless is the NO_COLOR carve-out, honoured exactly as SessionDelegate
-// honours it: no canvas background and no foreground hue, with the row's glyphs
-// (`⚠`, `●`, `▌`) carrying its state instead. The panel is blocked under
-// NO_COLOR outright, so this is the defence rather than the daily path.
+// Colourless is the NO_COLOR carve-out, honoured as SessionDelegate honours it:
+// no canvas background and no foreground hue, with the row's glyphs (`⚠`, `●`,
+// `▌`) carrying its state instead. The panel is blocked under NO_COLOR outright,
+// so this is the defence rather than the daily path.
 //
-// Width is the panel's INNER content width — a field, not a read off the list's
-// own width, because the panel sizes its list from the same arithmetic and the
-// row's composition budget must follow a resize even when no arrow keypress
-// follows it.
+// Width is the panel's inner content width — a field, not a read off the list's
+// own width, because the row's composition budget must follow a resize even when
+// no arrow keypress follows it.
 type themeRowDelegate struct {
 	Theme      theme.Theme
 	Colourless bool
@@ -136,18 +126,17 @@ func (d themeRowDelegate) renderRow(it themeRowItem, selected bool) string {
 // compose applies the fixed element priority against d.Width, returning the
 // cells the label may occupy and the trailing segments to its right.
 //
-// The priority is fixed BECAUSE the elements compete for ~27–34 columns, and
-// without a fixed order they collide non-deterministically as the panel narrows:
+// The order is fixed because the elements compete for ~27–34 columns and would
+// otherwise collide non-deterministically as the panel narrows:
 //
 //  1. The 2-cell cursor column, which every row pays for so they share a left
 //     edge (charged here, rendered by cursorColumn).
-//  2. The `⚠`, ALWAYS on an invalid row. It is the invalidity signal, so it is
-//     reserved before anything that could crowd it out.
-//  3. The `●` badge, right-aligned. The union exists so the marker always has a home,
-//     so the badge OUTRANKS the reason: the two compete for the same right edge,
-//     and a badged row simply has no reason slot to fill.
-//  4. The terse reason, which rides WITH the `⚠` as one pinned `⚠ <reason>`
-//     phrase and is charged last — see themeRowReason.
+//  2. The `⚠`, always on an invalid row — the invalidity signal, reserved before
+//     anything that could crowd it out.
+//  3. The `●` badge, right-aligned. It outranks the reason, which competes for
+//     the same right edge, so a badged row has no reason slot to fill.
+//  4. The terse reason, which rides with the `⚠` as one `⚠ <reason>` phrase and
+//     is charged last — see themeRowReason.
 //  5. The label, truncated to what is left and floored at themeRowLabelFloor.
 func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []themeRowSegment) {
 	remaining := d.Width - leftBarColumnWidth
@@ -173,10 +162,9 @@ func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []
 	return max(remaining, themeRowLabelFloor), trailing
 }
 
-// themePanelBadgeText is the badge as the row paints it: the panel's pinned copy
-// for the badge theme.Badges derived, and the empty string for a row carrying
-// none — so an unbadged row renders nothing rather than needing a presence check
-// at the call site.
+// themePanelBadgeText is the badge as the row paints it, or the empty string for
+// a row carrying none — so an unbadged row renders nothing rather than needing a
+// presence check at the call site.
 func themePanelBadgeText(badge theme.Badge) string {
 	switch badge {
 	case theme.BadgeConstant:
@@ -193,21 +181,17 @@ func themePanelBadgeText(badge theme.Badge) string {
 }
 
 // themeRowReason is the terse reason an invalid row renders beside its `⚠`, and
-// the cells it costs — or "" where the priority drops it. free is what is left after the
-// cursor column, the badge and the `⚠` have been charged.
+// the cells it costs — or "" where the priority drops it. free is what is left
+// after the cursor column, the badge and the `⚠` have been charged.
 //
-// THE REASON IS THE FIRST ELEMENT DROPPED, in two ways.
-// It is dropped OUTRIGHT when the row carries a badge, because the two compete
-// for the same right edge and the badge outranks it — the union exists so the marker
-// always has a home. And it is dropped against the label's NATURAL width, because
-// the label outranks it too (priority 4 over 5), so a slug long enough to
-// fill the row takes the columns rather than being truncated to make room for a
-// reason. `⚠` still says the row is invalid and doctor says why, which is exactly
-// the split the loader's reason/detail pair already draws.
+// The reason is the first element dropped, in two ways: outright when the row
+// carries a badge (the badge outranks it for the same right edge), and against
+// the label's natural width, so a slug long enough to fill the row keeps the
+// columns rather than being truncated to make room. `⚠` still says the row is
+// invalid and doctor says why.
 //
-// The value is the Reason constant's own string, rendered VERBATIM and never
-// re-worded; the caller joins it to the glyph as ONE accent.attention run so the
-// phrase reads exactly as it is pinned.
+// The value is the Reason constant's own string, rendered verbatim; the caller
+// joins it to the glyph as one accent.attention run.
 func themeRowReason(it themeRowItem, free int, badge string) (string, int) {
 	if badge != "" {
 		return "", 0
@@ -221,14 +205,13 @@ func themeRowReason(it themeRowItem, free int, badge string) (string, int) {
 	return reason, cost
 }
 
-// cursorColumn is the row's first element: the shipped selection treatment's 2-cell
-// left-bar column — the accent.primary `▌` plus a trailing cell on the cursor row,
-// two background-painted cells otherwise — so every row shares one left edge
-// whether or not it is the cursor row.
+// cursorColumn is the row's first element: the 2-cell left-bar column — the
+// accent.primary `▌` plus a trailing cell on the cursor row, two
+// background-painted cells otherwise — so every row shares one left edge.
 //
-// It routes through the SHARED renderLeftBarColumn the Sessions and Projects
-// delegates use, which is what makes the panel "read as the same kind of list as
-// Sessions" structurally rather than by imitation.
+// It routes through the shared renderLeftBarColumn the Sessions and Projects
+// delegates use, so the panel matches those lists structurally rather than by
+// imitation.
 func (d themeRowDelegate) cursorColumn(bg lipgloss.Style, selected bool) string {
 	return renderLeftBarColumn(bg, d.rowToken(d.Theme.AccentPrimary, true), selected)
 }
@@ -236,11 +219,9 @@ func (d themeRowDelegate) cursorColumn(bg lipgloss.Style, selected bool) string 
 // labelToken is the label role: text.on-selection on the cursor row,
 // text.subtle on an invalid one, text.primary otherwise.
 //
-// AN INVALID LABEL IS text.subtle AND NEVER text.faint. text.faint is
-// decorative-only and must never reach the UI floor — but this label
-// is the filename or slug the user must read to know which of their files is
-// broken, which is the whole justification for listing invalid files.
-// text.subtle is the de-emphasised-but-readable step, which is exactly the role.
+// An invalid label is text.subtle and never text.faint: the label is the
+// filename or slug the user must read to know which of their files is broken, so
+// it must stay readable, and text.faint is decorative-only.
 //
 // The cursor row wins over the dimming because the tint has its own paired
 // foreground: the arrow skip keeps the cursor off invalid rows in production,

@@ -5,86 +5,74 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The vertical keymap footer of the theme slide-over: one row per Core
-// keymap entry, `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`
-// (the pinned copy, carried by the descriptor's Action strings).
+// The vertical keymap footer of the theme slide-over: one row per Core keymap
+// entry, `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`.
 //
-// It is VERTICAL rather than a fifth flavour of Portal's horizontal footer row
+// It is vertical rather than a fifth flavour of Portal's horizontal footer row
 // because a horizontal keymap does not fit a ~34-column panel — that one line of
-// copy is ~50 cells — and because the vertical form already exists in this
-// codebase as the help modal's key-column body, which is the idiom it follows
+// copy is ~50 cells. It follows the help modal's key-column body idiom
 // (helpModalRow's fixed key column, one row per binding).
 //
-// Its rows are DESCRIPTOR-DRIVEN: the panel introduces four commit/close
-// keys, and authoring them as a bespoke second binding list inside this file is
-// the exact drift class keymap_dispatch_guard_test exists to guard and the one
-// this codebase has already paid for once. The Core filter is the whole of the
-// rule — arrows and paging ride the same descriptor as non-core entries so the
-// scope stays complete for the descriptor↔dispatch parity check (see
+// Its rows are descriptor-driven so the panel's commit/close keys cannot drift
+// from dispatch. The Core filter is the whole of the rule — arrows and paging
+// ride the same descriptor as non-core entries so the scope stays complete (see
 // themePanelKeymap).
 //
 // Every cell is canvas-painted (leaf .Background(canvas)), including the key
 // column's pad and the pad out to the panel's inner width, so no terminal-bg
-// island opens inside the panel body. Under the NO_COLOR carve-out the
-// canvas and every hue drop and the rows render on the terminal's native fg/bg —
-// The panel is blocked under NO_COLOR outright, so that is the defence rather
-// than the daily path.
+// island opens inside the panel body. Under the NO_COLOR carve-out the canvas
+// and every hue drop; the panel is blocked under NO_COLOR outright, so that is
+// the defence rather than the daily path.
 
 // themePanelFooterKeyColumnWidth is the fixed width of the left key-glyph column,
 // so the labels share a left edge regardless of glyph length. It is sized for the
 // panel: the widest glyph in the panel scope is `esc`, and the help body's far
 // wider column would eat nearly half a 27-column panel.
 //
-// It is a FIXED constant rather than the widest glyph in the entries it is handed,
-// deliberately: the confirm footer substitutes `y`/`n` into the SAME screen
-// position, and a per-slice column would step its labels two cells left as the
-// confirm raises and back again as it resolves.
+// It is fixed rather than derived from the widest glyph in the entries it is
+// handed: the confirm footer substitutes `y`/`n` into the same screen position,
+// and a per-slice column would step its labels two cells left as the confirm
+// raises and back again as it resolves.
 //
 // The gap between the column and the label is the horizontal footer's own
-// footerKeyLabelGap rather than a second one-space constant — the panel puts the two
-// footers on one convention, so they read the same gap from one place.
+// footerKeyLabelGap, so both footers read the same gap from one place.
 const themePanelFooterKeyColumnWidth = 3
 
 // renderThemePanelFooter renders the vertical keymap footer for the given
 // entries: the Core entries only, one row per entry, each padded to width cells.
 //
-// IT TAKES ITS ENTRIES AS A PARAMETER AND NEVER CALLS themePanelKeymap. The
-// nested confirm scope (themePanelConfirmKeymap) TEMPORARILY REPLACES this footer
-// — `y confirm` / `n cancel` while the slot-from-constant confirm is live,
-// switching back when it resolves — and the live scope is chosen by
-// themePanelFooterScope, which the panel's layout and its render path both read.
-// A second renderer for the confirm would be the same drift this footer's
-// descriptor discipline exists to prevent, one layer down.
+// It takes its entries as a parameter and never calls themePanelKeymap, because
+// the nested confirm scope (themePanelConfirmKeymap) temporarily replaces this
+// footer — `y confirm` / `n cancel` while the slot-from-constant confirm is live
+// — and the live scope is chosen by themePanelFooterScope, which the panel's
+// layout and its render path both read.
 //
-// width is the panel's INNER content width; rows are padded out to it so the
+// width is the panel's inner content width; rows are padded out to it so the
 // canvas covers every cell. A row wider than width is returned unpadded rather
 // than truncated or wrapped: the widest row (`d set as dark`) is 15 cells against
-// a minimum inner width comfortably above it, and below the render floor the panel
-// refuses to open at all (themePanelFloor) — so there is no width at which a footer row
-// has to degrade.
+// a minimum inner width comfortably above it, and below the render floor the
+// panel refuses to open at all (themePanelFloor).
 func renderThemePanelFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinVertical(lipgloss.Left, themePanelFooterRows(entries, width, th, colourless)...)
 }
 
 // themePanelFooterHeight is the rendered height of the vertical footer for the
-// given entries — the row budget the panel layout subtracts and the
-// height floor adds, both reading this ONE source rather than a literal four.
+// given entries — the row budget the panel layout subtracts and the height floor
+// adds.
 //
-// It is MEASURED off the rendered block, exactly as sessionFooterHeight is, so the
-// reserved rows are by construction the rows that render and the two can never
-// drift. The measurement needs neither a width nor a theme: the block is one row
-// per Core entry and never wraps (see renderThemePanelFooter), so the row count is
-// a function of the entries alone — which is what lets the panel's layout ask for
-// the height before it has resolved either.
+// It is measured off the rendered block, as sessionFooterHeight is, so the
+// reserved rows are by construction the rows that render. The measurement needs
+// neither a width nor a theme: the block is one row per Core entry and never
+// wraps, so the row count is a function of the entries alone — which lets the
+// panel's layout ask for the height before it has resolved either.
 func themePanelFooterHeight(entries []keymapEntry) int {
 	return lipgloss.Height(renderThemePanelFooter(entries, 0, theme.Theme{}, true))
 }
 
 // themePanelFooterRows renders one row per Core entry, in descriptor order.
-// Non-core entries are dropped — the same core/non-core distinction the main
-// footer applies: arrows
-// and paging are a given in a list and are present in the descriptor for the
-// dispatch guard, not for the user's eye.
+// Non-core entries are dropped — the same distinction the main footer applies:
+// arrows and paging are a given in a list and ride the descriptor for dispatch
+// parity, not for the user's eye.
 func themePanelFooterRows(entries []keymapEntry, width int, th theme.Theme, colourless bool) []string {
 	rows := make([]string, 0, len(entries))
 	for _, e := range entries {
@@ -97,14 +85,13 @@ func themePanelFooterRows(entries []keymapEntry, width int, th theme.Theme, colo
 }
 
 // themePanelFooterRow renders one entry as `<glyph> <label>`: the key glyph in
-// accent.key within the fixed key column, one canvas gap, then the Action label in
-// text.muted — the SAME token split the horizontal footer uses, in the shared
+// accent.key within the fixed key column, one canvas gap, then the Action label
+// in text.muted — the same token split the horizontal footer uses, in the shared
 // fixed-width key-column layout.
 //
 // The glyph resolves through helpKeyGlyph, so a HelpKey override reads exactly as
-// it does in the help body and the panel scope needs no glyph rule of its own.
-// The label is the TERSE Action (the pinned copy), never HelpAction — a ~30
-// column panel has no room for "Assign to the dark slot".
+// it does in the help body. The label is the terse Action, never HelpAction — a
+// ~30 column panel has no room for "Assign to the dark slot".
 func themePanelFooterRow(e keymapEntry, width int, th theme.Theme, colourless bool) string {
 	row := keyColumnRow(
 		helpKeyGlyph(e), e.Action,
