@@ -34,29 +34,28 @@ import (
 // internal/tui keeps its own copy unexported.
 const panelLeftBorder = "│"
 
-// panelFixtureNames is EVERY §13.3 panel fixture, named once so a per-fixture
-// assertion below cannot cover some and forget the others.
+// panelFixtureNames is EVERY §13.3 panel fixture, DERIVED FROM THE REGISTRY so a
+// fixture added to the catalogue is covered by the assertions below without being
+// enrolled a second time by hand.
 //
 // It is the whole set rather than the two setting-state frames the four-input
-// check was first written against. Each of the other five is covered indirectly by
-// a frame assertion that would fail if one of its inputs were missing, so this is
-// not a live gap — but a reader reasonably assumes the structural check spans the
-// catalogue, and a fixture added to the catalogue without its four inputs is
-// precisely the failure that check exists to name.
+// check was first written against: a reader reasonably assumes the structural
+// check spans the catalogue, and a fixture added to the catalogue without its four
+// inputs is precisely the failure that check exists to name.
 func panelFixtureNames() []string {
-	return []string{
-		"theme-panel-adaptive-pair",
-		"theme-panel-constant-previewing",
-		"theme-panel-invalid-row",
-		"theme-panel-dir-unreadable",
-		"theme-panel-narrow",
-		"theme-panel-paginated",
-		"theme-panel-projects",
-		"theme-panel-confirm",
-		"theme-panel-commit-failed",
-		"theme-panel-min-height-message",
+	var names []string
+	for _, name := range FixtureNames() {
+		if strings.HasPrefix(name, panelFixturePrefix) {
+			names = append(names, name)
+		}
 	}
+	return names
 }
+
+// panelFixturePrefix is what every §13.3 panel fixture's registered name begins
+// with, and the whole of what distinguishes one from the picker fixtures beside
+// it in the registry.
+const panelFixturePrefix = "theme-panel-"
 
 // TestPanelFixture_FourInputs: it declares all four panel inputs.
 //
@@ -617,63 +616,6 @@ func mentionsLoader(expr ast.Expr, pkg string) bool {
 		return !found
 	})
 	return found
-}
-
-// TestPanelFixture_NoConfigAccess: it reaches no config.
-//
-// Fixture data is not config discovery (§13.3), which is the same reasoning that
-// admits `--theme <path>` — so §7.1's import guard is untouched and this is the
-// runtime half of the same claim: a panel fixture renders its whole frame with
-// the themes directory and prefs.json pointed somewhere observable, reads
-// neither, and creates nothing.
-func TestPanelFixture_NoConfigAccess(t *testing.T) {
-	for _, name := range panelFixtureNames() {
-		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			// A decoy drop-in in the themes directory the production adapter would
-			// resolve. A fixture that reached the real directory would list it.
-			themes := filepath.Join(dir, "portal", "themes")
-			if err := os.MkdirAll(themes, 0o755); err != nil {
-				t.Fatalf("stage the decoy themes directory: %v", err)
-			}
-			if err := os.WriteFile(filepath.Join(themes, "decoy-drop-in.theme"), decoyThemeFile(t), 0o644); err != nil {
-				t.Fatalf("stage the decoy theme: %v", err)
-			}
-			t.Setenv("XDG_CONFIG_HOME", dir)
-			t.Setenv("PORTAL_THEMES_DIR", themes)
-			t.Setenv("PORTAL_PREFS_FILE", filepath.Join(dir, "prefs.json"))
-
-			fx, err := FixtureByName(name)
-			if err != nil {
-				t.Fatalf("FixtureByName(%s): %v", name, err)
-			}
-			frame := driveToPanel(t, fx.Deps(themetest.Builtin(t, theme.DefaultDarkSlug)))
-
-			if strings.Contains(ansi.Strip(frame), "decoy-drop-in") {
-				t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
-			}
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				t.Fatalf("read the isolated config dir: %v", err)
-			}
-			// Only the staged `portal/` tree may be there — nothing was written.
-			if len(entries) != 1 || entries[0].Name() != "portal" {
-				t.Errorf("the config dir holds %v, want only the staged portal/ tree — the fixture wrote config", entries)
-			}
-		})
-	}
-}
-
-// decoyThemeFile is a minimal VALID theme file body, so a fixture that reached
-// the real themes directory would list the decoy as a selectable row rather than
-// as a rejection (which a reader could mistake for correct behaviour).
-func decoyThemeFile(t *testing.T) []byte {
-	t.Helper()
-	var b strings.Builder
-	for _, name := range theme.TokenNames() {
-		b.WriteString(name + " = #123456\n")
-	}
-	return []byte(b.String())
 }
 
 // panelModel builds the fixture's model, sizes it, ingests its data and plays the

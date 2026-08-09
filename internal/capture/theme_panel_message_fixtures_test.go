@@ -2,7 +2,6 @@ package capture_test
 
 import (
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
@@ -636,56 +635,23 @@ func TestPanelFixture_MessageFramesUnderTheGuard(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_MessageFramesNoConfigAccess: it reaches no config and writes
-// nothing.
+// TestPanelFixture_MessageFramesWireNoThemePersister: their seeded states write
+// nowhere.
 //
-// Fixture data is not config discovery (§13.3), so §7.1's import guard is
-// untouched — and this is the runtime half of that claim for the three message
-// frames: each renders its whole panel with the themes directory and prefs.json
-// pointed somewhere observable, reads neither, and creates nothing.
-//
-// THE WRITE HALF MATTERS DISPROPORTIONATELY HERE. One of these frames is seeded
+// THE WRITE HALF MATTERS DISPROPORTIONATELY ON THESE THREE. One of them is seeded
 // into a FAILED-COMMIT state, which in production is reached by a write — so a
 // reader is entitled to ask what the seed wrote. The answer is nothing at all: the
-// theme-commit seam is unwired on every fixture, which the persister assertion
-// states outright and the empty config dir corroborates.
-//
-// The decoy is a VALID theme file, so a fixture that reached the real directory
-// would list it as a selectable row rather than as a rejection.
-func TestPanelFixture_MessageFramesNoConfigAccess(t *testing.T) {
+// theme-commit seam is unwired, which is what this states outright and what the
+// untouched config directory in the sibling no-config-access assertion corroborates.
+func TestPanelFixture_MessageFramesWireNoThemePersister(t *testing.T) {
 	for _, name := range messagePanelFixtureNames() {
 		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			themes := filepath.Join(dir, "portal", "themes")
-			if err := os.MkdirAll(themes, 0o755); err != nil {
-				t.Fatalf("stage the decoy themes directory: %v", err)
-			}
-			if err := os.WriteFile(filepath.Join(themes, "decoy-drop-in.theme"), validThemeFileBody(), 0o644); err != nil {
-				t.Fatalf("stage the decoy theme: %v", err)
-			}
-			t.Setenv("XDG_CONFIG_HOME", dir)
-			t.Setenv("PORTAL_THEMES_DIR", themes)
-			t.Setenv("PORTAL_PREFS_FILE", filepath.Join(dir, "prefs.json"))
-
 			fx, err := capture.FixtureByName(name)
 			if err != nil {
 				t.Fatalf("FixtureByName(%s): %v", name, err)
 			}
-			palette := themetest.Builtin(t, theme.DefaultDarkSlug)
-			if deps := fx.Deps(palette); deps.ThemePersister != nil {
+			if deps := fx.Deps(themetest.Builtin(t, theme.DefaultDarkSlug)); deps.ThemePersister != nil {
 				t.Errorf("the fixture wires a ThemePersister (%#v); the seeded failure must write nowhere", deps.ThemePersister)
-			}
-
-			frame := ansi.Strip(fx.ModelAt(palette, harnessWidth, harnessHeight).View().Content)
-			if strings.Contains(frame, "decoy-drop-in") {
-				t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
-			}
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				t.Fatalf("read the isolated config dir: %v", err)
-			}
-			if len(entries) != 1 || entries[0].Name() != "portal" {
-				t.Errorf("the config dir holds %v, want only the staged portal/ tree — the fixture wrote config", entries)
 			}
 		})
 	}

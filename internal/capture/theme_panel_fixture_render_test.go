@@ -1,6 +1,8 @@
 package capture_test
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -91,6 +93,88 @@ func panelRows(t *testing.T, frame string) map[string]panelRow {
 func panelFixtureFrame(t *testing.T, fixture string, palette theme.Theme) string {
 	t.Helper()
 	return panelFrameAt(t, fixture, palette, harnessWidth, harnessHeight)
+}
+
+// registeredPanelFixtureNames is every `theme-panel-*` fixture the registry
+// holds, which is the set an assertion about the panel fixtures as a class ranges
+// over: a frame added to the catalogue is covered without being enrolled again by
+// hand. What that set must EQUAL is stated separately, by
+// TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet against
+// allPanelFixtureNames().
+func registeredPanelFixtureNames() []string {
+	var names []string
+	for _, name := range capture.FixtureNames() {
+		if strings.HasPrefix(name, "theme-panel-") {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// stageDecoyConfig points config discovery at a fresh directory holding one
+// observable decoy drop-in, and returns that directory.
+//
+// The decoy is a VALID theme file, so a fixture that reached the real themes
+// directory would list it as a SELECTABLE ROW rather than as a rejection — which
+// a reader could mistake for correct behaviour on precisely the frames that are
+// about rejections.
+func stageDecoyConfig(t *testing.T) (configDir string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	themes := filepath.Join(dir, "portal", "themes")
+	if err := os.MkdirAll(themes, 0o755); err != nil {
+		t.Fatalf("stage the decoy themes directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(themes, decoySlug+".theme"), themetest.Body(), 0o644); err != nil {
+		t.Fatalf("stage the decoy theme: %v", err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PORTAL_THEMES_DIR", themes)
+	t.Setenv("PORTAL_PREFS_FILE", filepath.Join(dir, "prefs.json"))
+	return dir
+}
+
+// decoySlug is the drop-in stageDecoyConfig plants — a slug no fixture declares,
+// so its appearance on a frame can only mean the real directory was read.
+const decoySlug = "decoy-drop-in"
+
+// requireConfigUntouched asserts the two halves of the no-config claim over a
+// rendered frame: the decoy is listed nowhere, and the staged tree is still the
+// only thing in the config directory.
+func requireConfigUntouched(t *testing.T, configDir, frame string) {
+	t.Helper()
+
+	if strings.Contains(ansi.Strip(frame), decoySlug) {
+		t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
+	}
+	entries, err := os.ReadDir(configDir)
+	if err != nil {
+		t.Fatalf("read the isolated config dir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "portal" {
+		t.Errorf("the config dir holds %v, want only the staged portal/ tree — the fixture wrote config", entries)
+	}
+}
+
+// TestPanelFixture_NoConfigAccess: every panel fixture reaches no config.
+//
+// Fixture data is not config discovery (§13.3), which is the same reasoning that
+// admits `--theme <path>` — so §7.1's import guard is untouched and this is the
+// runtime half of the same claim: a panel fixture renders its whole frame with
+// the themes directory and prefs.json pointed somewhere observable, reads
+// neither, and creates nothing.
+//
+// It ranges over the WHOLE panel set rather than over one task's frames, so a
+// fixture added to the registry is covered by the claim without a second test
+// being written to carry it.
+func TestPanelFixture_NoConfigAccess(t *testing.T) {
+	for _, name := range registeredPanelFixtureNames() {
+		t.Run(name, func(t *testing.T) {
+			configDir := stageDecoyConfig(t)
+			requireConfigUntouched(t, configDir, panelFixtureFrame(t, name, themetest.Builtin(t, theme.DefaultDarkSlug)))
+		})
+	}
 }
 
 // TestPanelFixture_AdaptivePairBadges: it renders the adaptive-pair badges.

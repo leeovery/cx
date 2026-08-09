@@ -144,6 +144,24 @@ func TestWrite_WritesTheNamedFileAtTheOneFixtureMode(t *testing.T) {
 	}
 }
 
+// TestBody_IsTheBytesWriteStages pins the one thing a consumer staging its own
+// file needs: Body() is byte-for-byte what Write would have put on disk.
+//
+// A consumer that writes the bytes itself — a decoy drop-in in a directory it
+// then asserts about — otherwise hand-rolls the join, and a change to the file
+// shape moves the writer while leaving that copy behind.
+func TestBody_IsTheBytesWriteStages(t *testing.T) {
+	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.Lines())
+	staged, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read the written fixture: %v", err)
+	}
+
+	if got := string(themetest.Body()); got != string(staged) {
+		t.Errorf("Body() =\n%q\nwant what Write stages:\n%q", got, staged)
+	}
+}
+
 // requireReason fails unless the rejection carries exactly want.
 func requireReason(t *testing.T, rejection *theme.Rejection, want theme.Reason) {
 	t.Helper()

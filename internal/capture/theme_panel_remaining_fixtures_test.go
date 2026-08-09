@@ -1,8 +1,6 @@
 package capture_test
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -581,58 +579,6 @@ func TestPanelFixture_AllRegistered(t *testing.T) {
 	}
 }
 
-// TestPanelFixture_RemainingFramesNoConfigAccess: it reaches no config.
-//
-// Fixture data is not config discovery (§13.3) — the same reasoning that admits
-// `--theme <path>` — so §7.1's import guard is untouched, and this is the runtime
-// half of that claim for the five new frames: each renders its whole panel with the
-// themes directory and prefs.json pointed somewhere observable, reads neither, and
-// creates nothing.
-//
-// The decoy is a VALID theme file, so a fixture that reached the real directory
-// would list it as a selectable row rather than as a rejection — which a reader
-// could mistake for correct behaviour on precisely the frames that are ABOUT
-// rejections.
-func TestPanelFixture_RemainingFramesNoConfigAccess(t *testing.T) {
-	for _, name := range remainingPanelFixtureNames() {
-		t.Run(name, func(t *testing.T) {
-			dir := t.TempDir()
-			themes := filepath.Join(dir, "portal", "themes")
-			if err := os.MkdirAll(themes, 0o755); err != nil {
-				t.Fatalf("stage the decoy themes directory: %v", err)
-			}
-			if err := os.WriteFile(filepath.Join(themes, "decoy-drop-in.theme"), validThemeFileBody(), 0o644); err != nil {
-				t.Fatalf("stage the decoy theme: %v", err)
-			}
-			t.Setenv("XDG_CONFIG_HOME", dir)
-			t.Setenv("PORTAL_THEMES_DIR", themes)
-			t.Setenv("PORTAL_PREFS_FILE", filepath.Join(dir, "prefs.json"))
-
-			frame := ansi.Strip(panelFixtureFrame(t, name, themetest.Builtin(t, theme.DefaultDarkSlug)))
-			if strings.Contains(frame, "decoy-drop-in") {
-				t.Error("the panel lists the decoy drop-in; the fixture reached the real themes directory")
-			}
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				t.Fatalf("read the isolated config dir: %v", err)
-			}
-			if len(entries) != 1 || entries[0].Name() != "portal" {
-				t.Errorf("the config dir holds %v, want only the staged portal/ tree — the fixture wrote config", entries)
-			}
-		})
-	}
-}
-
-// validThemeFileBody is a minimal VALID theme file body — every token of the
-// closed vocabulary set to one legal colour.
-func validThemeFileBody() []byte {
-	var b strings.Builder
-	for _, name := range theme.TokenNames() {
-		b.WriteString(name + " = #123456\n")
-	}
-	return []byte(b.String())
-}
-
 // TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet: it registers exactly the
 // specified panel fixtures.
 //
@@ -645,13 +591,7 @@ func validThemeFileBody() []byte {
 // what lets it name a surplus. The cost is that a task adding a specified frame
 // extends the set as it lands, which is the point rather than an inconvenience.
 func TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet(t *testing.T) {
-	var panels []string
-	for _, name := range capture.FixtureNames() {
-		if strings.HasPrefix(name, "theme-panel-") {
-			panels = append(panels, name)
-		}
-	}
-
+	panels := registeredPanelFixtureNames()
 	want := allPanelFixtureNames()
 	slices.Sort(panels)
 	slices.Sort(want)

@@ -8,7 +8,9 @@
 //
 // The helpers compose: Lines() is a complete, valid file, and WithValue /
 // WithoutKey derive the broken variants from it (a bad colour, a missing token),
-// each returning a fresh slice so one base can seed several fixtures.
+// each returning a fresh slice so one base can seed several fixtures. Write
+// stages a set of lines as a file; Body() is the same bytes for a consumer that
+// stages the file itself.
 //
 // Test-only: production code MUST NOT import this package (mirroring the
 // precedent for logtest / spawntest / transienttest). Enforcement is contributor
@@ -47,6 +49,17 @@ func Lines() []string {
 	return lines
 }
 
+// Body renders Lines() as one complete file body — the same bytes Write puts on
+// disk, for a consumer that stages the file itself.
+func Body() []byte {
+	return body(Lines())
+}
+
+// body renders lines as a file: newline-separated, newline-terminated.
+func body(lines []string) []byte {
+	return []byte(strings.Join(lines, "\n") + "\n")
+}
+
 // WithValue returns the lines with the named key's value replaced, in the same
 // file order. The input is left untouched.
 func WithValue(lines []string, key, value string) []string {
@@ -72,7 +85,7 @@ func Write(t *testing.T, dir, base string, lines []string) string {
 	t.Helper()
 
 	path := filepath.Join(dir, base)
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), fixtureMode); err != nil {
+	if err := os.WriteFile(path, body(lines), fixtureMode); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 	return path
