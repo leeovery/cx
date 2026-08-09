@@ -443,7 +443,7 @@ func TestThemeExport_EmitsNoThemeEvents(t *testing.T) {
 		{
 			name: "an invalid drop-in",
 			slug: "nord-lee",
-			seed: func(t *testing.T) { seedThemesDir(t, "nord-lee", missingTokenSource(t)) },
+			seed: func(t *testing.T) { seedThemesDir(t, "nord-lee", sourceMissingTokens(t, "text.primary")) },
 		},
 		{name: "an unknown slug", slug: "no-such-theme"},
 		{name: "a slug failing the charset check", slug: "Nord"},
@@ -618,36 +618,79 @@ func themeSourceFromLines(lines []string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-// duplicateKeySource is a `bad syntax` drop-in: the built-in's lines with its
-// first key repeated at the end, which §6.2's rung 4 refuses at the SECOND
-// occurrence.
-func duplicateKeySource(t *testing.T) []byte {
+// themeLineIndex returns the index of the `key = …` line declaring key, failing
+// when the built-in the fixtures derive from no longer declares it.
+func themeLineIndex(t *testing.T, lines []string, key string) int {
 	t.Helper()
 
-	lines := themeKeyLines(t)
-	return themeSourceFromLines(append(slices.Clone(lines), lines[0]))
+	for i, line := range lines {
+		declared, _, found := strings.Cut(line, "=")
+		if found && strings.TrimSpace(declared) == key {
+			return i
+		}
+	}
+	t.Fatalf("the built-in declares no %q line, so a fixture derived from it would prove nothing:\n  %s", key, strings.Join(lines, "\n  "))
+	return -1
 }
 
-// badColourSource is a `bad colour` drop-in: one key's value replaced by a word
-// that still lexes as a well-formed `key = value` pair, so the file clears rung
-// 4 intact and fails on the value at rung 5.
-func badColourSource(t *testing.T) []byte {
+// themeOverride replaces one key's value in a fixture source, leaving the key
+// and its FILE POSITION alone — which is what makes a `bad colour` fixture's
+// offender order predictable, since offenders are enumerated in file order.
+type themeOverride struct{ key, value string }
+
+// sourceMissingTokens is a `missing tokens` drop-in with the named keys' lines
+// removed. Everything it still declares is well-formed, so it clears rungs 4
+// and 5 and fails at the presence check.
+func sourceMissingTokens(t *testing.T, keys ...string) []byte {
 	t.Helper()
 
 	lines := slices.Clone(themeKeyLines(t))
-	key, _, _ := strings.Cut(lines[0], "=")
-	lines[0] = strings.TrimSpace(key) + " = blue"
+	for _, key := range keys {
+		at := themeLineIndex(t, lines, key)
+		lines = slices.Delete(lines, at, at+1)
+	}
 	return themeSourceFromLines(lines)
 }
 
-// missingTokenSource is a `missing tokens` drop-in: the built-in's lines with
-// one dropped, so the file parses and every value it DOES declare is
-// well-formed — which is what carries it past rungs 4 and 5 to the presence
-// check.
-func missingTokenSource(t *testing.T) []byte {
+// sourceBadColours is a `bad colour` drop-in with the named keys' values
+// replaced by ones that still lex as a well-formed `key = value` pair, so the
+// file reaches rung 5 intact and fails on its values.
+func sourceBadColours(t *testing.T, overrides ...themeOverride) []byte {
 	t.Helper()
 
-	return themeSourceFromLines(themeKeyLines(t)[1:])
+	lines := slices.Clone(themeKeyLines(t))
+	for _, o := range overrides {
+		lines[themeLineIndex(t, lines, o.key)] = o.key + " = " + o.value
+	}
+	return themeSourceFromLines(lines)
+}
+
+// sourceDuplicateKeyAt is a `bad syntax` drop-in in which the line declaring key
+// is repeated on the given 1-based line, which §6.2's rung 4 refuses at that
+// SECOND occurrence — the one the user has to delete.
+//
+// Both halves of a caller's expectation are verified against the ASSEMBLED
+// source: that key really is declared first above the duplicate, and that the
+// duplicate really lands on that line. So the `line N: duplicate key <key>`
+// detail a test pins is a fact about the fixture rather than a coincidence of
+// the built-in it was derived from.
+func sourceDuplicateKeyAt(t *testing.T, line int, key string) []byte {
+	t.Helper()
+
+	lines := slices.Clone(themeKeyLines(t))
+	first := themeLineIndex(t, lines, key)
+	if line < first+2 || line > len(lines)+1 {
+		t.Fatalf("line %d cannot carry a duplicate of %q, first declared on line %d of %d", line, key, first+1, len(lines))
+	}
+
+	assembled := slices.Insert(lines, line-1, lines[first])
+	if got := themeLineIndex(t, assembled, key); got != first {
+		t.Fatalf("assembled fixture declares %q first on line %d, want line %d", key, got+1, first+1)
+	}
+	if assembled[line-1] != lines[first] {
+		t.Fatalf("assembled fixture carries %q on line %d, want the duplicate %q", assembled[line-1], line, lines[first])
+	}
+	return themeSourceFromLines(assembled)
 }
 
 // unreadableThemeFile seeds a valid drop-in and then makes THE FILE unreadable,
@@ -779,7 +822,7 @@ func themeExportFailures() []themeExportFailure {
 		{
 			name: "an invalid drop-in",
 			slug: "mine",
-			seed: func(t *testing.T) { seedThemesDir(t, "mine", missingTokenSource(t)) },
+			seed: func(t *testing.T) { seedThemesDir(t, "mine", sourceMissingTokens(t, "text.primary")) },
 		},
 		{
 			name: "a slug failing the charset check",
@@ -827,9 +870,21 @@ func TestThemeExport_InvalidDropInFrame(t *testing.T) {
 		source func(*testing.T) []byte
 		want   string
 	}{
-		{name: "a duplicate key", source: duplicateKeySource, want: "theme mine is not valid: bad syntax"},
-		{name: "a bad hex", source: badColourSource, want: "theme mine is not valid: bad colour"},
-		{name: "a missing token", source: missingTokenSource, want: "theme mine is not valid: missing tokens"},
+		{
+			name:   "a duplicate key",
+			source: func(t *testing.T) []byte { return sourceDuplicateKeyAt(t, 12, "text.primary") },
+			want:   "theme mine is not valid: bad syntax",
+		},
+		{
+			name:   "a bad hex",
+			source: func(t *testing.T) []byte { return sourceBadColours(t, themeOverride{"canvas", "blue"}) },
+			want:   "theme mine is not valid: bad colour",
+		},
+		{
+			name:   "a missing token",
+			source: func(t *testing.T) []byte { return sourceMissingTokens(t, "text.primary") },
+			want:   "theme mine is not valid: missing tokens",
+		},
 	}
 
 	for _, tc := range cases {
@@ -1126,7 +1181,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 		})
 
 		t.Run("an invalid drop-in", func(t *testing.T) {
-			seedThemesDir(t, "mine", missingTokenSource(t))
+			seedThemesDir(t, "mine", sourceMissingTokens(t, "text.primary"))
 
 			requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine is not valid: missing tokens")
 		})

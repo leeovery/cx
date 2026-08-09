@@ -26,11 +26,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// themeOverride replaces one key's value in a fixture source, leaving the key
-// and its FILE POSITION alone — which is what makes a `bad colour` fixture's
-// offender order predictable, since offenders are enumerated in file order.
-type themeOverride struct{ key, value string }
-
 // themesDirWith writes each named file into a fresh temp directory and returns
 // it. Names are FILENAMES rather than slugs, so a fixture can carry a
 // non-`.theme` file the enumeration must ignore entirely.
@@ -75,76 +70,6 @@ func requireOneAdvisory(t *testing.T, advisories []advisory) advisory {
 		t.Fatalf("scan produced %d advisories, want exactly 1:\n  %s", len(advisories), strings.Join(advisoryLines(advisories), "\n  "))
 	}
 	return advisories[0]
-}
-
-// themeLineIndex returns the index of the `key = …` line declaring key, failing
-// when the built-in the fixtures derive from no longer declares it.
-func themeLineIndex(t *testing.T, lines []string, key string) int {
-	t.Helper()
-
-	for i, line := range lines {
-		declared, _, found := strings.Cut(line, "=")
-		if found && strings.TrimSpace(declared) == key {
-			return i
-		}
-	}
-	t.Fatalf("the built-in declares no %q line, so a fixture derived from it would prove nothing:\n  %s", key, strings.Join(lines, "\n  "))
-	return -1
-}
-
-// sourceMissingTokens is a `missing tokens` drop-in with the named keys' lines
-// removed. Everything it still declares is well-formed, so it clears rungs 4
-// and 5 and fails at the presence check.
-func sourceMissingTokens(t *testing.T, keys ...string) []byte {
-	t.Helper()
-
-	lines := slices.Clone(themeKeyLines(t))
-	for _, key := range keys {
-		at := themeLineIndex(t, lines, key)
-		lines = slices.Delete(lines, at, at+1)
-	}
-	return themeSourceFromLines(lines)
-}
-
-// sourceBadColours is a `bad colour` drop-in with the named keys' values
-// replaced by ones that still lex as a well-formed `key = value` pair, so the
-// file reaches rung 5 intact and fails on its values.
-func sourceBadColours(t *testing.T, overrides ...themeOverride) []byte {
-	t.Helper()
-
-	lines := slices.Clone(themeKeyLines(t))
-	for _, o := range overrides {
-		lines[themeLineIndex(t, lines, o.key)] = o.key + " = " + o.value
-	}
-	return themeSourceFromLines(lines)
-}
-
-// sourceDuplicateKeyAt is a `bad syntax` drop-in in which the line declaring key
-// is repeated on the given 1-based line, which §6.2's rung 4 refuses at that
-// SECOND occurrence — the one the user has to delete.
-//
-// Both halves of a caller's expectation are verified against the ASSEMBLED
-// source: that key really is declared first above the duplicate, and that the
-// duplicate really lands on that line. So the `line N: duplicate key <key>`
-// detail a test pins is a fact about the fixture rather than a coincidence of
-// the built-in it was derived from.
-func sourceDuplicateKeyAt(t *testing.T, line int, key string) []byte {
-	t.Helper()
-
-	lines := slices.Clone(themeKeyLines(t))
-	first := themeLineIndex(t, lines, key)
-	if line < first+2 || line > len(lines)+1 {
-		t.Fatalf("line %d cannot carry a duplicate of %q, first declared on line %d of %d", line, key, first+1, len(lines))
-	}
-
-	assembled := slices.Insert(lines, line-1, lines[first])
-	if got := themeLineIndex(t, assembled, key); got != first {
-		t.Fatalf("assembled fixture declares %q first on line %d, want line %d", key, got+1, first+1)
-	}
-	if assembled[line-1] != lines[first] {
-		t.Fatalf("assembled fixture carries %q on line %d, want the duplicate %q", assembled[line-1], line, lines[first])
-	}
-	return themeSourceFromLines(assembled)
 }
 
 // skipUnlessModeBitsDeny skips when the suite runs as root, where a mode-0000
