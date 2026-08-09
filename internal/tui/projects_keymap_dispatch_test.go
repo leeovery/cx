@@ -45,7 +45,7 @@ func projectsDispatchModel(t *testing.T) Model {
 		{Path: "/p/one", Name: "one"},
 	}
 	m := Model{
-		activeTheme:    testDarkTheme(t),
+		themeState:     themeState{active: testDarkTheme(t)},
 		projects:       projects,
 		projectList:    newProjectList(),
 		activePage:     PageProjects,
@@ -78,7 +78,7 @@ func projectsNavModel(t *testing.T) Model {
 		{Path: "/p/four", Name: "four"},
 	}
 	m := Model{
-		activeTheme: testDarkTheme(t),
+		themeState:  themeState{active: testDarkTheme(t)},
 		projects:    projects,
 		projectList: newProjectList(),
 		activePage:  PageProjects,

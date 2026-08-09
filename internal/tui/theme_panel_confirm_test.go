@@ -126,8 +126,8 @@ func newSlotConfirmModelAt(t *testing.T, termH int) (Model, *fakeThemePersister)
 	m.sessionKiller = keymapParityKiller{}
 
 	m = arrowToThemeRow(t, m, slotConfirmTarget())
-	if m.themeKeys.Theme == slotConfirmTarget() {
-		t.Fatalf("fixture: the constant and the cursor both name %q, so nothing distinguishes them", m.themeKeys.Theme)
+	if m.themeState.keys.Theme == slotConfirmTarget() {
+		t.Fatalf("fixture: the constant and the cursor both name %q, so nothing distinguishes them", m.themeState.keys.Theme)
 	}
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
 		t.Fatalf("fixture: the panel opened with the message %+v, want an empty slot", got)
@@ -176,7 +176,7 @@ func pressConfirmKey(t *testing.T, m Model, press tea.KeyPressMsg) (Model, tea.C
 func requireConfirmLive(t *testing.T, m Model, pending themeSlotConfirm) {
 	t.Helper()
 
-	want := themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeKeys.Theme}
+	want := themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeState.keys.Theme}
 	if got := m.themePanel.message; got != want {
 		t.Errorf("the message slot holds %+v, want %+v — the confirm names the CONSTANT being cleared (§9.2)", got, want)
 	}
@@ -292,7 +292,7 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, persister := newSlotConfirmModel(t)
-			previewed := m.activeTheme
+			previewed := m.themeState.active
 			index := m.themePanel.list.Index()
 
 			m, cmd := pressSlotKey(t, m, tc.press)
@@ -309,8 +309,8 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 			if got := m.themePanel.list.Index(); got != index {
 				t.Errorf("raising the confirm moved the cursor to row %d, want it left on %d", got, index)
 			}
-			if m.activeTheme != previewed {
-				t.Errorf("raising the confirm rendered canvas %s, want the previewed %s left alone", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+			if m.themeState.active != previewed {
+				t.Errorf("raising the confirm rendered canvas %s, want the previewed %s left alone", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 			}
 			if cmd != nil {
 				t.Errorf("%q scheduled %T; the question is asked on this keypress", tc.name, cmd)
@@ -450,7 +450,7 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, persister := newSlotConfirmModel(t)
-			keys := m.themeKeys
+			keys := m.themeState.keys
 			m = raiseSlotConfirmForTest(t, m, slotDarkPress, prefs.SlotDark)
 
 			m, cmd := pressConfirmKey(t, m, tc.press)
@@ -458,8 +458,8 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 			if len(persister.slugs) != 0 {
 				t.Errorf("%q wrote %v; a cancel writes nothing (§9.2)", tc.name, persister.slugs)
 			}
-			if m.themeKeys != keys {
-				t.Errorf("%q left keys %+v, want the untouched %+v", tc.name, m.themeKeys, keys)
+			if m.themeState.keys != keys {
+				t.Errorf("%q left keys %+v, want the untouched %+v", tc.name, m.themeState.keys, keys)
 			}
 			requireConfirmResolved(t, m)
 			requireStandingFooter(t, m)
@@ -488,7 +488,7 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	requireCursorOn(t, m, "aurora")
 
 	m = arrowToThemeRow(t, m, "nord")
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	if previewed == themePanelRowFor(t, m, "aurora").Row.Theme {
 		t.Fatal("fixture: the previewed row paints the persisted theme, so a close would be invisible")
 	}
@@ -506,8 +506,8 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	if len(m.themePanel.union.Rows) == 0 || m.themePanel.badges == nil || len(m.themePanel.list.Items()) == 0 || m.themePanel.width == 0 {
 		t.Errorf("the cancel discarded panel state %+v, want everything the close would have dropped left in place", m.themePanel)
 	}
-	if m.activeTheme != previewed {
-		t.Errorf("the cancel rendered canvas %s, want the previewed %s — the close is what discards a preview (§9.2)", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+	if m.themeState.active != previewed {
+		t.Errorf("the cancel rendered canvas %s, want the previewed %s — the close is what discards a preview (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if len(persister.slugs) != 0 {
 		t.Errorf("the cancel wrote %v, want nothing", persister.slugs)
@@ -526,8 +526,8 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	if got := m.themePanel.enumeration; len(got.Entries) != 0 {
 		t.Errorf("control: the close retained %d enumeration entries, want the zero value", len(got.Entries))
 	}
-	if m.activeTheme == previewed {
-		t.Errorf("control: the close kept the previewed canvas %s, so the cancel's preview assertion says nothing", m.activeTheme.Canvas.Value)
+	if m.themeState.active == previewed {
+		t.Errorf("control: the close kept the previewed canvas %s, so the cancel's preview assertion says nothing", m.themeState.active.Canvas.Value)
 	}
 }
 
@@ -548,8 +548,8 @@ func TestSlotConfirm_CtrlCQuits(t *testing.T) {
 	if len(persister.slugs) != 0 {
 		t.Errorf("`Ctrl-C` wrote %v; it is not a confirm", persister.slugs)
 	}
-	if quit.themeKeys != m.themeKeys {
-		t.Errorf("`Ctrl-C` left keys %+v, want the untouched %+v", quit.themeKeys, m.themeKeys)
+	if quit.themeState.keys != m.themeState.keys {
+		t.Errorf("`Ctrl-C` left keys %+v, want the untouched %+v", quit.themeState.keys, m.themeState.keys)
 	}
 }
 
@@ -613,7 +613,7 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			name:  "enter",
 			press: commitEnter,
 			control: openControl(func(before, after Model) bool {
-				return after.themeKeys.Theme != before.themeKeys.Theme
+				return after.themeState.keys.Theme != before.themeState.keys.Theme
 			}),
 			controlS: "commit the cursor's slug as the constant",
 		},
@@ -637,7 +637,7 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			name:  "ctrl+y",
 			press: confirmYesCtrl,
 			control: answerControl(confirmYes, func(before, after Model) bool {
-				return after.themeKeys != before.themeKeys
+				return after.themeState.keys != before.themeState.keys
 			}),
 			controlS: "resolve the confirm as a `y` when the letter carries no ctrl",
 		},
@@ -645,7 +645,7 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			name:  "alt+n",
 			press: confirmNoAlt,
 			control: answerControl(confirmNo, func(before, after Model) bool {
-				return !after.themePanel.confirming() && after.themeKeys == before.themeKeys
+				return !after.themePanel.confirming() && after.themeState.keys == before.themeState.keys
 			}),
 			controlS: "resolve the confirm as an `n` when the letter carries no alt",
 		},
@@ -719,14 +719,14 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			if len(persister.slugs) != 0 {
 				t.Errorf("%v wrote %v while the confirm was live; only `y` writes (§9.2)", tc.press, persister.slugs)
 			}
-			if got.themeKeys != live.themeKeys {
-				t.Errorf("%v left keys %+v, want the untouched %+v", tc.press, got.themeKeys, live.themeKeys)
+			if got.themeState.keys != live.themeState.keys {
+				t.Errorf("%v left keys %+v, want the untouched %+v", tc.press, got.themeState.keys, live.themeState.keys)
 			}
 			if index, want := got.themePanel.list.Index(), live.themePanel.list.Index(); index != want {
 				t.Errorf("%v moved the cursor to row %d, want it left on %d — an arrow mid-question would re-theme the screen behind the answer (§9.2)", tc.press, index, want)
 			}
-			if got.activeTheme != live.activeTheme {
-				t.Errorf("%v rendered canvas %s, want the previewed %s left alone", tc.press, got.activeTheme.Canvas.Value, live.activeTheme.Canvas.Value)
+			if got.themeState.active != live.themeState.active {
+				t.Errorf("%v rendered canvas %s, want the previewed %s left alone", tc.press, got.themeState.active.Canvas.Value, live.themeState.active.Canvas.Value)
 			}
 			if got.activePage != live.activePage || got.modal != modalNone || got.MultiSelectActive() || got.sessionList.SettingFilter() {
 				t.Errorf("%v reached the page beneath the panel (page %d, modal %d, multi-select %v, filtering %v)",
@@ -754,9 +754,9 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 // rather than a keypress that never rendered anything.
 func TestSlotConfirm_CancelIsInert(t *testing.T) {
 	m, persister := newSlotConfirmModel(t)
-	keys := m.themeKeys
+	keys := m.themeState.keys
 	index := m.themePanel.list.Index()
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	badges := maps.Clone(m.themePanel.badges)
 	labels := themePanelRowLabels(m)
 	frame := m.View().Content
@@ -771,14 +771,14 @@ func TestSlotConfirm_CancelIsInert(t *testing.T) {
 	if len(persister.slugs) != 0 {
 		t.Errorf("the cancel wrote %v, want nothing", persister.slugs)
 	}
-	if m.themeKeys != keys {
-		t.Errorf("the cancel left keys %+v, want the untouched %+v", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("the cancel left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
 	if got := m.themePanel.list.Index(); got != index {
 		t.Errorf("the cancel left the cursor on row %d, want %d", got, index)
 	}
-	if m.activeTheme != previewed {
-		t.Errorf("the cancel rendered canvas %s, want the previewed %s", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+	if m.themeState.active != previewed {
+		t.Errorf("the cancel rendered canvas %s, want the previewed %s", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if got := m.themePanel.badges; !maps.Equal(got, badges) {
 		t.Errorf("the cancel left badges %v, want the untouched %v", got, badges)
@@ -855,20 +855,20 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
-	keys := m.themeKeys
+	keys := m.themeState.keys
 	badges := maps.Clone(m.themePanel.badges)
 	labels := themePanelRowLabels(m)
 
 	m = arrowToThemeRow(t, m, "nord")
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	persister.err = errThemeCommitFailed
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
 	m, cmd := pressConfirmKey(t, m, confirmYes)
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
-	if m.themeKeys != keys {
-		t.Errorf("a failed commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("a failed commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeState.keys, keys)
 	}
 	if got := m.themePanel.badges; !maps.Equal(got, badges) {
 		t.Errorf("a failed commit left badges %v, want the untouched %v — a failed commit does not move the `●` (§9.13)", got, badges)
@@ -879,8 +879,8 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	}
 	requireConfirmGone(t, m)
 	requireStandingFooter(t, m)
-	if m.activeTheme != previewed {
-		t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+	if m.themeState.active != previewed {
+		t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if cmd != nil {
 		t.Errorf("a failed commit scheduled %T, want nothing", cmd)
@@ -890,7 +890,7 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	// down, the standing footer is back, and the failed-commit line is what the slot
 	// now holds.
 	requireCommitFailedMessage(t, m)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("a failed confirmed commit left no outstanding failure; the state runs until a commit SUCCEEDS (§9.13)")
 	}
 
@@ -940,8 +940,8 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 		persisted, target := rows[0].Slug, rows[2].Slug
 
 		m := openCommitPanel(t, newArrowPanelDeps(t, rows, persisted), PageSessions, persisted)
-		if m.themePersister != nil {
-			t.Fatalf("fixture: the model holds persister %#v, want none", m.themePersister)
+		if m.themeState.persister != nil {
+			t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)
 		}
 		m = arrowToThemeRow(t, m, target)
 		before := m.View().Content
@@ -975,13 +975,13 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 			ThemeEnumerator: countingEnumeratorOver(loader, dir),
 			ThemeKeys:       keys,
 		})
-		if m.themePersister != nil {
-			t.Fatalf("fixture: the model holds persister %#v, want none", m.themePersister)
+		if m.themeState.persister != nil {
+			t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)
 		}
 		m.termWidth, m.termHeight = arrowTermW, arrowTermH
 		m.applySessions(closePanelSessions())
 		m = openConversionPanel(t, m)
-		nomination := m.nomination
+		nomination := m.themeState.nomination
 
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
@@ -991,8 +991,8 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 		if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
 			t.Errorf("`y` over a nil persister emitted %d `theme: fallback applied` line(s), want none — the un-mirrored keys' slots are both empty, which is the shape a load run here would resolve\n%s", len(got), sink.Body())
 		}
-		if m.nomination != nomination || !m.nomination.IsConstant() {
-			t.Errorf("`y` over a nil persister left the nomination %+v, want the untouched constant", m.nomination)
+		if m.themeState.nomination != nomination || !m.themeState.nomination.IsConstant() {
+			t.Errorf("`y` over a nil persister left the nomination %+v, want the untouched constant", m.themeState.nomination)
 		}
 		requireConstantKeys(t, m, conversionConstant)
 	})
@@ -1017,7 +1017,7 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 	if got := m.themePanel.message; got.Kind != themeMessageConfirm {
 		t.Fatalf("fixture: `d` left the message %+v, want the confirm live over a constant", got)
 	}
-	keys := m.themeKeys
+	keys := m.themeState.keys
 
 	contentW, contentH := geometryBelowHeightFloor()
 	m = resizeForTest(t, m, contentW, contentH)
@@ -1032,8 +1032,8 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 	if len(persister.slugs) != 0 {
 		t.Errorf("the forced close wrote %v; nothing has been written at that point (§9.8)", persister.slugs)
 	}
-	if m.themeKeys != keys {
-		t.Errorf("the forced close left keys %+v, want the untouched %+v", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("the forced close left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
 }
 

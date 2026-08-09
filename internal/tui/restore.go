@@ -64,7 +64,7 @@ func RestoreTerminalBackground(w io.Writer, m Model) {
 	if original == "" {
 		return
 	}
-	if sameHexColour(original, m.startupCanvasHex) {
+	if sameHexColour(original, m.themeState.startupCanvasHex) {
 		return
 	}
 	_, _ = io.WriteString(w, ansi.SetBackgroundColor(original))

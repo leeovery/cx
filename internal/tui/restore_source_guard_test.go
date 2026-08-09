@@ -30,21 +30,31 @@ const (
 // for the retired import path).
 var retiredCanvasHexHelper = "canvasHex" + "For"
 
-// restoreComparisonReads is the closed set of model fields the restore helper may
-// read. It is small and closed on purpose: the ONLY comparison input is the
-// retained startup canvas hex, and everything else is either the captured
-// original or the NO_COLOR carve-out.
+// restoreComparisonReads is the closed set of selector paths the restore helper
+// may read off its Model, relative to the parameter it binds. It is small and
+// closed on purpose: the ONLY comparison input is the retained startup canvas
+// hex, and everything else is either the captured original or the NO_COLOR
+// carve-out.
 //
-// Anything else — activeTheme, nomination, canvasMode — would re-derive the
-// comparison from a theme at exit, which is the exact regression §11.4 exists to
-// prevent: a theme committed mid-session, or a quit with an uncommitted preview
-// active, makes the active theme diverge from the canvas the startup window
-// actually painted.
+// Anything else — the active theme, the nomination, the canvas mode — would
+// re-derive the comparison from a theme at exit, which is the exact regression
+// §11.4 exists to prevent: a theme committed mid-session, or a quit with an
+// uncommitted preview active, makes the active theme diverge from the canvas the
+// startup window actually painted.
+//
+// The paths are WHOLE PATHS rather than leaf field names, which is what keeps the
+// guard honest now that the theme state is one grouped struct: permitting the
+// prefix `themeState` alone would admit every theme field it holds, which is the
+// entire set this guard exists to keep out.
 var restoreComparisonReads = []string{
-	"OriginalBackground", // the captured original background
-	"colourless",         // the §2.5 NO_COLOR carve-out
-	"startupCanvasHex",   // the retained startup canvas hex — the §11.4 anchor
+	"OriginalBackground",          // the captured original background
+	"colourless",                  // the §2.5 NO_COLOR carve-out
+	"themeState.startupCanvasHex", // the retained startup canvas hex — the §11.4 anchor
 }
+
+// restoreAnchorRead is the read the comparison MUST make, without which the
+// closed set above would pass vacuously.
+const restoreAnchorRead = "themeState.startupCanvasHex"
 
 // restoreLaunchSites are the two program-launch sites that call the shared helper
 // after p.Run() returns. Both must pass the program's output writer, so they
@@ -88,29 +98,33 @@ func TestRestorePath_ReadsNoTheme(t *testing.T) {
 			if !ok {
 				return true
 			}
-			ident, ok := sel.X.(*ast.Ident)
-			if !ok {
+			path, dotted := selectorPath(sel)
+			if !dotted {
 				return true
 			}
-			switch ident.Name {
+			root, rest, _ := strings.Cut(path, ".")
+			switch root {
 			case "theme":
-				t.Errorf("%s reads theme.%s; the comparison must never be re-derived from a theme at exit (§11.4)",
-					restoreHelperName, sel.Sel.Name)
+				t.Errorf("%s reads %s; the comparison must never be re-derived from a theme at exit (§11.4)",
+					restoreHelperName, path)
 			case model:
-				if !slices.Contains(restoreComparisonReads, sel.Sel.Name) {
-					t.Errorf("%s reads %s.%s; the only permitted reads are %s",
-						restoreHelperName, model, sel.Sel.Name, strings.Join(restoreComparisonReads, ", "))
+				if !slices.Contains(restoreComparisonReads, rest) {
+					t.Errorf("%s reads %s; the only permitted reads are %s.{%s}",
+						restoreHelperName, path, model, strings.Join(restoreComparisonReads, ", "))
 				}
-				if sel.Sel.Name == "startupCanvasHex" {
+				if rest == restoreAnchorRead {
 					anchored = true
 				}
 			}
-			return true
+			// The WHOLE path has been judged, so the walk stops rather than
+			// re-judging its own prefix: descending would report the permitted
+			// nested read as its bare `themeState` prefix.
+			return false
 		})
 
 		if !anchored {
-			t.Errorf("%s never reads %s.startupCanvasHex; the guard above would pass vacuously for a helper that compares against nothing at all",
-				restoreHelperName, model)
+			t.Errorf("%s never reads %s.%s; the guard above would pass vacuously for a helper that compares against nothing at all",
+				restoreHelperName, model, restoreAnchorRead)
 		}
 	})
 
@@ -241,6 +255,24 @@ func callsRestoreHelper(call *ast.CallExpr) bool {
 		return fn.Sel.Name == restoreHelperName
 	}
 	return false
+}
+
+// selectorPath renders a selector expression as its dotted identifier path,
+// reporting false for anything that is not a pure chain of identifiers (a field
+// read off a call result, an index expression) — which names no path to check.
+func selectorPath(sel *ast.SelectorExpr) (string, bool) {
+	switch x := sel.X.(type) {
+	case *ast.Ident:
+		return x.Name + "." + sel.Sel.Name, true
+	case *ast.SelectorExpr:
+		prefix, ok := selectorPath(x)
+		if !ok {
+			return "", false
+		}
+		return prefix + "." + sel.Sel.Name, true
+	default:
+		return "", false
+	}
 }
 
 // exprText renders the identifier or qualified identifier an expression names, for

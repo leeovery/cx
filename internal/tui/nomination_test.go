@@ -64,7 +64,7 @@ func TestDeps_HasNoAppearanceField(t *testing.T) {
 func TestNew_SeedsTheDarkBuiltinWhenNoNominationIsGiven(t *testing.T) {
 	m := New(fakeLister{})
 
-	if got, want := m.activeTheme, testDarkTheme(t); got != want {
+	if got, want := m.themeState.active, testDarkTheme(t); got != want {
 		t.Errorf("activeTheme = %s, want the dark built-in %s", themeLabel(got), themeLabel(want))
 	}
 	assertActiveTheme(t, m, testDarkTheme(t).Canvas.Value)
@@ -149,7 +149,7 @@ func TestGate_LateReplyCapturesBackgroundButNeverReThemes(t *testing.T) {
 	if got := after.OriginalBackground(); got != "#e1e2e7" {
 		t.Errorf("OriginalBackground() = %q after a late reply, want %q (the reply is still consumed)", got, "#e1e2e7")
 	}
-	if !after.bgReplyArrived {
+	if !after.themeState.bgReplyArrived {
 		t.Errorf("bgReplyArrived = false after a late reply, want true (the arrival is retained for later classification)")
 	}
 	assertActiveTheme(t, after, testDarkTheme(t).Canvas.Value)
@@ -196,11 +196,11 @@ func TestGate_ConstantRetainsReplyWithoutClassifying(t *testing.T) {
 	if got := after.OriginalBackground(); got != "#e1e2e7" {
 		t.Errorf("OriginalBackground() = %q, want %q (the reply is retained for restore-on-exit)", got, "#e1e2e7")
 	}
-	if !after.bgReplyArrived {
+	if !after.themeState.bgReplyArrived {
 		t.Errorf("bgReplyArrived = false, want true (a reply did arrive, whatever it said)")
 	}
-	if after.canvasMode != appearanceDarkCanvas {
-		t.Errorf("canvasMode = %v, want the standing dark fallback — a constant derives no light/dark answer from the reply", after.canvasMode)
+	if after.themeState.canvasMode != appearanceDarkCanvas {
+		t.Errorf("canvasMode = %v, want the standing dark fallback — a constant derives no light/dark answer from the reply", after.themeState.canvasMode)
 	}
 	assertActiveTheme(t, after, dark.Canvas.Value)
 }
@@ -216,10 +216,10 @@ func TestNoColor_LoadsBothAndSelectsDark(t *testing.T) {
 	if !m.modeResolved() {
 		t.Errorf("colourless model is unresolved; want the gate skipped (no canvas to select)")
 	}
-	if got, want := m.activeTheme, testDarkTheme(t); got != want {
+	if got, want := m.themeState.active, testDarkTheme(t); got != want {
 		t.Errorf("activeTheme = %s, want the dark member %s (the standing no-answer fallback)", themeLabel(got), themeLabel(want))
 	}
-	if got, want := m.nomination.Select(theme.MemberLight), testLightTheme(t); got != want {
+	if got, want := m.themeState.nomination.Select(theme.MemberLight), testLightTheme(t); got != want {
 		t.Errorf("the light member is no longer held (Select(MemberLight) = %s, want %s); NO_COLOR must not skip loading either nomination", themeLabel(got), themeLabel(want))
 	}
 }

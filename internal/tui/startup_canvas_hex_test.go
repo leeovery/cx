@@ -30,17 +30,17 @@ func TestStartupCanvasHex_CapturedAtGateResolution(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := detectModel(t, testBuiltinPair(t))
-			if got := m.startupCanvasHex; got != "" {
+			if got := m.themeState.startupCanvasHex; got != "" {
 				t.Fatalf("startupCanvasHex = %q while the gate is still open, want empty (nothing is painted yet, so there is nothing to restore)", got)
 			}
 
 			updated, _ := m.Update(tc.msg)
 			after := updated.(Model)
 
-			if got := after.startupCanvasHex; got != tc.want {
+			if got := after.themeState.startupCanvasHex; got != tc.want {
 				t.Errorf("startupCanvasHex = %q, want %q (the canvas of the member the gate selected)", got, tc.want)
 			}
-			if got, want := after.startupCanvasHex, after.activeTheme.Canvas.Value; got != want {
+			if got, want := after.themeState.startupCanvasHex, after.themeState.active.Canvas.Value; got != want {
 				t.Errorf("startupCanvasHex = %q but the selected member's canvas is %q; the retained hex must come from the SELECTED theme, not from the nomination", got, want)
 			}
 		})
@@ -67,7 +67,7 @@ func TestStartupCanvasHex_ConstantCapturedAtConstruction(t *testing.T) {
 			if !m.modeResolved() {
 				t.Fatalf("a constant nomination left the first-paint gate open; the hex is captured when the gate resolves")
 			}
-			if got := m.startupCanvasHex; got != tc.want {
+			if got := m.themeState.startupCanvasHex; got != tc.want {
 				t.Errorf("startupCanvasHex = %q at construction, want %q", got, tc.want)
 			}
 		})

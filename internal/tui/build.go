@@ -26,6 +26,10 @@ import (
 // The exceptions are Lister (the one required seam, mirroring New's required
 // first argument) and InitialMode (Flat is a valid explicit value that always
 // applies).
+//
+// Everything below is PRODUCTION WIRING except Capture: the harness's first-frame
+// seeds live there so the two halves are separable at a glance rather than
+// interleaved.
 type Deps struct {
 	// Required seam — the session source (mirrors New's first argument).
 	Lister SessionLister
@@ -116,82 +120,11 @@ type Deps struct {
 	// faked seam's Resolve return instead.
 	ThemeKeys theme.RawKeys
 
-	InitialFilter string
-	// InitialFlash seeds the inline WARNING flash on the first frame (the
-	// orange ▌ bar + ⚠ + message on the bg.warning tint). It exists for the offline
-	// capture harness: the flash is otherwise transient (set only by the
-	// preview-bail path), so the fixture seeds the band directly to screenshot it.
-	// Empty (the production default) leaves no flash. Only the warning variant is
-	// seedable — the success variant is not separately captured.
-	InitialFlash string
-	// InitialMultiSelect seeds multi-select mode on the first frame with the
-	// named sessions pre-marked (keyed on Session.Name). It exists for the offline
-	// capture harness: multi-select is otherwise entered by the `m` key, so the
-	// fixture seeds the mode directly to screenshot it. Empty (the production
-	// default) leaves the model in normal mode.
-	InitialMultiSelect []string
-	// InitialCursor seeds the capture-only cursor anchor: the name of the session
-	// row the cursor lands on once the list loads. It exists so the multi-select
-	// capture can put the cursor on a marked (banded) row. Empty is a no-op;
-	// production never sets it (the live picker keeps the default index-0 cursor).
-	InitialCursor string
-	// InitialThemeCursor seeds the capture-only panel cursor anchor: the row IDENTITY
-	// the theme panel's cursor lands on once the panel has opened. It exists for
-	// the offline capture harness, which renders one-shot frames: the open puts the
-	// cursor on the theme actually rendering at open, so the mandated
-	// constant-while-previewing frame — a cursor on a row OTHER than the marked one
-	// — is otherwise reachable only by arrowing. It is PLACEMENT ONLY and applies
-	// no theme, so the rendered palette stays the one the nomination carries. Empty
-	// is a no-op; production never sets it.
-	InitialThemeCursor string
-	// InitialThemeConfirm seeds the slot-from-constant confirm once the theme
-	// panel has opened, exactly as an `l` over a persisted constant would raise it.
-	// It exists for the offline capture harness, which renders one-shot frames: the
-	// confirm is otherwise reached only by a keypress, and it is the only surface on
-	// which the footer substitution (`y confirm` / `n cancel` in place of the
-	// standing four keys, none of which would act) can be seen.
-	//
-	// It is a BOOL because it declares STATE and never text: the copy is composed
-	// from the message slot's own pinned format, so no fixture can ship a
-	// paraphrase. False is a no-op; production never sets it.
-	InitialThemeConfirm bool
-	// InitialThemeCommitFailed seeds the failed-commit report once the theme
-	// panel has opened: the message slot's pinned line plus the outstanding-failure
-	// state, exactly as a write that did not land leaves them. It exists for the
-	// offline capture harness, which renders one-shot frames and wires NO theme
-	// persister at all — so a capture could not reach the state by committing even
-	// if it pressed the key.
-	//
-	// Like its confirm sibling it is a BOOL because it declares STATE and never
-	// text. False is a no-op; production never sets it.
-	InitialThemeCommitFailed bool
-	// InitialDetection seeds the host-terminal detection cache on the first frame
-	// with the given identity already resolved (via spawn.ResolveAdapter, so a
-	// non-NULL Apple Terminal resolves unsupported and the proactive banner
-	// renders). It exists for the offline capture harness: detection is otherwise an
-	// async lifecycle dispatched on reaching PageSessions, so the fixture seeds the
-	// resolved cache directly to screenshot the banner. Nil (the production default)
-	// leaves detection unwired.
-	InitialDetection *spawn.Identity
-	// InitialGoneFlagged seeds the pre-flight abort state on the first frame: the
-	// gone-row set (the delegate draws the red ⚠ + `session gone` badge for it) plus
-	// the red section-header abort banner text, composed identically to
-	// handlePreflightAbort. It exists for the offline capture harness: the abort is
-	// otherwise reached only when an N≥2 Enter finds a marked session gone, so the
-	// fixture seeds it directly (over an in-multi-select model) to screenshot the
-	// frame. Empty (the production default) leaves no abort banner.
-	InitialGoneFlagged []string
-	// InitialBurstOpening seeds the in-burst Opening band on the first frame as
-	// (done, total): a non-zero pair marks the burst pending and seeds the `Opening
-	// done/total…` counters. It exists for the offline capture harness: the burst is
-	// otherwise driven by dispatchBurst + its progress goroutine, so the fixture seeds
-	// the band directly to screenshot it. The zero value ([0,0]) is a no-op (not
-	// pending), the production default.
-	InitialBurstOpening [2]int
-	Command             []string
-	ServerStarted       bool
-	InsideTmux          bool
-	CurrentSession      string
+	InitialFilter  string
+	Command        []string
+	ServerStarted  bool
+	InsideTmux     bool
+	CurrentSession string
 	// ProgressReceiver is the concurrent cold-boot route's channel-receive
 	// tea.Cmd. cmd/open.go sets it only on the cold + TUI path (bootstrap deferred
 	// to a goroutine); nil on every synchronous path. When set, Build wires
@@ -206,6 +139,72 @@ type Deps struct {
 	// paints no canvas at all and skips light/dark detection + the first-paint wait
 	// — there is no canvas to select.
 	NoColor bool
+
+	// Capture holds the first-frame seeds the offline harness declares and
+	// PRODUCTION NEVER SETS. Its zero value is the whole production shape, so the
+	// nesting is what tells a reader which half of this struct wires a real Portal
+	// and which half authors a fixture.
+	Capture CaptureSeeds
+}
+
+// CaptureSeeds is the offline capture harness's first-frame state, declared
+// rather than driven.
+//
+// A fixture is a ONE-SHOT RENDER: it loads, it paints, it is screenshotted. Every
+// state below is otherwise reached by a keypress the harness never makes or by an
+// async lifecycle it never runs, so a designed surface with no seed here has no
+// frame at all. Each is a no-op at its zero value, which is why a production
+// Deps leaves the whole struct alone.
+//
+// THEY DECLARE STATE AND NEVER TEXT wherever copy is involved: the two theme
+// message seeds are BOOLs whose lines are composed by the message slot from its
+// own pinned constants, so no fixture can put a paraphrase on a captured frame.
+type CaptureSeeds struct {
+	// Flash seeds the inline WARNING flash on the first frame (the orange ▌ bar +
+	// ⚠ + message on the bg.warning tint). The flash is otherwise transient (set
+	// only by the preview-bail path). Only the warning variant is seedable — the
+	// success variant is not separately captured.
+	Flash string
+	// MultiSelect seeds multi-select mode on the first frame with the named
+	// sessions pre-marked (keyed on Session.Name); the mode is otherwise entered by
+	// the `m` key.
+	MultiSelect []string
+	// Cursor seeds the session-row cursor anchor: the name of the row the cursor
+	// lands on once the list loads, so the multi-select capture can put it on a
+	// marked (banded) row. The live picker keeps the default index-0 cursor.
+	Cursor string
+	// ThemeCursor seeds the theme panel's cursor anchor: the row IDENTITY the
+	// cursor lands on once the panel has opened. The open puts the cursor on the
+	// theme actually rendering, so the mandated constant-while-previewing frame — a
+	// cursor on a row OTHER than the marked one — is otherwise reachable only by
+	// arrowing. It is PLACEMENT ONLY and applies no theme, so the rendered palette
+	// stays the one the nomination carries.
+	ThemeCursor string
+	// ThemeConfirm raises the slot-from-constant confirm once the theme panel has
+	// opened, exactly as an `l` over a persisted constant would. It is the only
+	// surface on which the footer substitution (`y confirm` / `n cancel` in place
+	// of the standing four keys, none of which would act) can be seen.
+	ThemeConfirm bool
+	// ThemeCommitFailed raises the failed-commit report once the theme panel has
+	// opened: the message slot's pinned line plus the outstanding-failure state,
+	// exactly as a write that did not land leaves them. A capture wires NO theme
+	// persister at all, so the state is unreachable by committing however many keys
+	// a fixture pressed.
+	ThemeCommitFailed bool
+	// Detection seeds the host-terminal detection cache with the given identity
+	// already resolved (via spawn.ResolveAdapter, so a non-NULL Apple Terminal
+	// resolves unsupported and the proactive banner renders). Detection is
+	// otherwise an async lifecycle dispatched on reaching PageSessions.
+	Detection *spawn.Identity
+	// GoneFlagged seeds the pre-flight abort state: the gone-row set (the delegate
+	// draws the red ⚠ + `session gone` badge for it) plus the red section-header
+	// abort banner text, composed identically to handlePreflightAbort. The abort is
+	// otherwise reached only when an N≥2 Enter finds a marked session gone.
+	GoneFlagged []string
+	// BurstOpening seeds the in-burst Opening band as (done, total): a non-zero
+	// pair marks the burst pending and seeds the `Opening done/total…` counters.
+	// The burst is otherwise driven by dispatchBurst + its progress goroutine.
+	BurstOpening [2]int
 }
 
 // Build constructs a Model from the shared Deps seam set. It is the single
@@ -275,11 +274,9 @@ func Build(deps Deps) Model {
 	// The raw persisted keys are always injected — the zero value is meaningful
 	// (no keys IS the shipped adaptive pair), so there is nothing to guard.
 	opts = append(opts, WithThemeKeys(deps.ThemeKeys))
-	// The panel seam is injected through its own nil-tolerant option rather than
-	// behind an `if deps.ThemeEnumerator != nil` gate like its persister
-	// neighbours: the gate cannot see a TYPED nil, and the option can (see
-	// WithThemeEnumerator). One guard, in the one place that catches both shapes.
-	opts = append(opts, WithThemeEnumerator(deps.ThemeEnumerator))
+	if deps.ThemeEnumerator != nil {
+		opts = append(opts, WithThemeEnumerator(deps.ThemeEnumerator))
+	}
 	// Async host-terminal detection seams. Always injected via nil-tolerant
 	// options — a nil Detector/Resolve leaves detection unwired, mirroring the
 	// capture harness (which passes neither).
@@ -300,23 +297,23 @@ func Build(deps Deps) Model {
 	// Seed the inline warning flash for the capture harness (no-op when empty,
 	// the production default). Applied as an Option so it is set before the
 	// armAppearanceDetection / first WindowSizeMsg resync reserves the band row.
-	opts = append(opts, WithInitialFlash(deps.InitialFlash))
+	opts = append(opts, WithInitialFlash(deps.Capture.Flash))
 
 	// Seed multi-select mode + the cursor anchor for the capture harness (both
 	// no-ops when empty, the production default). Applied as Options in the same
 	// window as WithInitialFlash — before armAppearanceDetection — so the marked-set
 	// delegate is armed on the first frame; the cursor anchor is applied later, once
 	// items ingest (evaluateDefaultPage), since it must survive the initial SetItems.
-	opts = append(opts, WithInitialMultiSelect(deps.InitialMultiSelect))
-	opts = append(opts, WithInitialCursor(deps.InitialCursor))
+	opts = append(opts, WithInitialMultiSelect(deps.Capture.MultiSelect))
+	opts = append(opts, WithInitialCursor(deps.Capture.Cursor))
 	// The PANEL seeds are applied here alongside their session-list sibling,
 	// but they land much later: the panel does not exist until `t` is pressed, so
 	// armThemePanel consumes all of them. The cursor anchor places the cursor; the
 	// two message seeds raise the message slot in one or other of its states. Unset on
 	// every production model.
-	opts = append(opts, WithInitialThemeCursor(deps.InitialThemeCursor))
-	opts = append(opts, WithInitialThemeConfirm(deps.InitialThemeConfirm))
-	opts = append(opts, WithInitialThemeCommitFailed(deps.InitialThemeCommitFailed))
+	opts = append(opts, WithInitialThemeCursor(deps.Capture.ThemeCursor))
+	opts = append(opts, WithInitialThemeConfirm(deps.Capture.ThemeConfirm))
+	opts = append(opts, WithInitialThemeCommitFailed(deps.Capture.ThemeCommitFailed))
 
 	// Seed the picker-burst capture-only frames (all no-ops when unset, the
 	// production default). WithInitialGoneFlagged is applied AFTER WithInitial
@@ -324,9 +321,9 @@ func Build(deps Deps) Model {
 	// keep their ●, the gone row shows the red flag). WithInitialDetection seeds the
 	// resolved detection cache for the proactive unsupported banner; WithInitialBurst
 	// Opening seeds the in-burst Opening band. Production never sets any of these.
-	opts = append(opts, WithInitialDetection(deps.InitialDetection))
-	opts = append(opts, WithInitialGoneFlagged(deps.InitialGoneFlagged))
-	opts = append(opts, WithInitialBurstOpening(deps.InitialBurstOpening[0], deps.InitialBurstOpening[1]))
+	opts = append(opts, WithInitialDetection(deps.Capture.Detection))
+	opts = append(opts, WithInitialGoneFlagged(deps.Capture.GoneFlagged))
+	opts = append(opts, WithInitialBurstOpening(deps.Capture.BurstOpening[0], deps.Capture.BurstOpening[1]))
 
 	m := New(deps.Lister, opts...)
 	if len(deps.Command) > 0 {

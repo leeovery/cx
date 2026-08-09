@@ -476,8 +476,8 @@ func TestSessionsInlineFlashFixture(t *testing.T) {
 	// styling, ⚠ glyph, bg.warning tint) lives in internal/tui; here we pin that the
 	// fixture wires the message through to Build.
 	const msg = "folio-Jiz4el closed externally — list updated"
-	if got := fx.Deps(darkBuiltinTheme(t)).InitialFlash; got != msg {
-		t.Errorf("Deps().InitialFlash = %q, want %q (seeded warning flash)", got, msg)
+	if got := fx.Deps(darkBuiltinTheme(t)).Capture.Flash; got != msg {
+		t.Errorf("Deps().Capture.Flash = %q, want %q (seeded warning flash)", got, msg)
 	}
 
 	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
@@ -771,16 +771,16 @@ func TestSessionsMultiSelectActiveFixture(t *testing.T) {
 	// The seed seam wires the three marked names + the cursor anchor through Deps.
 	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
-	if len(deps.InitialMultiSelect) != len(wantMarked) {
-		t.Fatalf("Deps().InitialMultiSelect = %v, want %v", deps.InitialMultiSelect, wantMarked)
+	if len(deps.Capture.MultiSelect) != len(wantMarked) {
+		t.Fatalf("Deps().Capture.MultiSelect = %v, want %v", deps.Capture.MultiSelect, wantMarked)
 	}
 	for i, w := range wantMarked {
-		if deps.InitialMultiSelect[i] != w {
-			t.Errorf("Deps().InitialMultiSelect[%d] = %q, want %q", i, deps.InitialMultiSelect[i], w)
+		if deps.Capture.MultiSelect[i] != w {
+			t.Errorf("Deps().Capture.MultiSelect[%d] = %q, want %q", i, deps.Capture.MultiSelect[i], w)
 		}
 	}
-	if got, want := deps.InitialCursor, "fab-flowx-explore"; got != want {
-		t.Errorf("Deps().InitialCursor = %q, want %q (cursor on a marked, banded row)", got, want)
+	if got, want := deps.Capture.Cursor, "fab-flowx-explore"; got != want {
+		t.Errorf("Deps().Capture.Cursor = %q, want %q (cursor on a marked, banded row)", got, want)
 	}
 
 	// It builds the production Sessions model in Flat multi-select mode with the
@@ -886,18 +886,18 @@ func TestSessionsUnsupportedTerminalFixture(t *testing.T) {
 	assertFlatFixtureSet(t, fx)
 
 	deps := fx.Deps(darkBuiltinTheme(t))
-	if deps.InitialDetection == nil {
-		t.Fatal("Deps().InitialDetection = nil, want a seeded Apple Terminal identity")
+	if deps.Capture.Detection == nil {
+		t.Fatal("Deps().Capture.Detection = nil, want a seeded Apple Terminal identity")
 	}
-	if got, want := deps.InitialDetection.Name, "Apple Terminal"; got != want {
-		t.Errorf("Deps().InitialDetection.Name = %q, want %q", got, want)
+	if got, want := deps.Capture.Detection.Name, "Apple Terminal"; got != want {
+		t.Errorf("Deps().Capture.Detection.Name = %q, want %q", got, want)
 	}
-	if got, want := deps.InitialDetection.BundleID, "com.apple.Terminal"; got != want {
-		t.Errorf("Deps().InitialDetection.BundleID = %q, want %q", got, want)
+	if got, want := deps.Capture.Detection.BundleID, "com.apple.Terminal"; got != want {
+		t.Errorf("Deps().Capture.Detection.BundleID = %q, want %q", got, want)
 	}
 	// It must NOT be in multi-select mode — the banner is proactive over the normal list.
-	if len(deps.InitialMultiSelect) != 0 {
-		t.Errorf("Deps().InitialMultiSelect = %v, want empty (NORMAL mode)", deps.InitialMultiSelect)
+	if len(deps.Capture.MultiSelect) != 0 {
+		t.Errorf("Deps().Capture.MultiSelect = %v, want empty (NORMAL mode)", deps.Capture.MultiSelect)
 	}
 
 	m := tui.Build(deps)
@@ -936,16 +936,16 @@ func TestSessionsUnsupportedNullFixture(t *testing.T) {
 	assertFlatFixtureSet(t, fx)
 
 	deps := fx.Deps(darkBuiltinTheme(t))
-	if deps.InitialDetection == nil {
-		t.Fatal("Deps().InitialDetection = nil, want a seeded empty (NULL) identity")
+	if deps.Capture.Detection == nil {
+		t.Fatal("Deps().Capture.Detection = nil, want a seeded empty (NULL) identity")
 	}
-	if got := deps.InitialDetection.BundleID; got != "" {
-		t.Errorf("Deps().InitialDetection.BundleID = %q, want \"\" (NULL identity)", got)
+	if got := deps.Capture.Detection.BundleID; got != "" {
+		t.Errorf("Deps().Capture.Detection.BundleID = %q, want \"\" (NULL identity)", got)
 	}
 	// It must NOT be in multi-select mode — the NULL case is the normal list with
 	// no banner.
-	if len(deps.InitialMultiSelect) != 0 {
-		t.Errorf("Deps().InitialMultiSelect = %v, want empty (NORMAL mode)", deps.InitialMultiSelect)
+	if len(deps.Capture.MultiSelect) != 0 {
+		t.Errorf("Deps().Capture.MultiSelect = %v, want empty (NORMAL mode)", deps.Capture.MultiSelect)
 	}
 
 	m := tui.Build(deps)
@@ -991,20 +991,20 @@ func TestSessionsMultiSelectPreflightAbortFixture(t *testing.T) {
 
 	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
-	if len(deps.InitialMultiSelect) != len(wantMarked) {
-		t.Fatalf("Deps().InitialMultiSelect = %v, want %v", deps.InitialMultiSelect, wantMarked)
+	if len(deps.Capture.MultiSelect) != len(wantMarked) {
+		t.Fatalf("Deps().Capture.MultiSelect = %v, want %v", deps.Capture.MultiSelect, wantMarked)
 	}
 	for i, w := range wantMarked {
-		if deps.InitialMultiSelect[i] != w {
-			t.Errorf("Deps().InitialMultiSelect[%d] = %q, want %q", i, deps.InitialMultiSelect[i], w)
+		if deps.Capture.MultiSelect[i] != w {
+			t.Errorf("Deps().Capture.MultiSelect[%d] = %q, want %q", i, deps.Capture.MultiSelect[i], w)
 		}
 	}
-	if got, want := deps.InitialCursor, "fab-flowx-explore"; got != want {
-		t.Errorf("Deps().InitialCursor = %q, want %q (cursor on the gone row)", got, want)
+	if got, want := deps.Capture.Cursor, "fab-flowx-explore"; got != want {
+		t.Errorf("Deps().Capture.Cursor = %q, want %q (cursor on the gone row)", got, want)
 	}
 	wantGone := []string{"fab-flowx-explore"}
-	if len(deps.InitialGoneFlagged) != len(wantGone) || deps.InitialGoneFlagged[0] != wantGone[0] {
-		t.Errorf("Deps().InitialGoneFlagged = %v, want %v", deps.InitialGoneFlagged, wantGone)
+	if len(deps.Capture.GoneFlagged) != len(wantGone) || deps.Capture.GoneFlagged[0] != wantGone[0] {
+		t.Errorf("Deps().Capture.GoneFlagged = %v, want %v", deps.Capture.GoneFlagged, wantGone)
 	}
 
 	m := tui.Build(deps)
@@ -1038,11 +1038,11 @@ func TestSessionsBurstOpeningFixture(t *testing.T) {
 
 	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
-	if len(deps.InitialMultiSelect) != len(wantMarked) {
-		t.Fatalf("Deps().InitialMultiSelect = %v, want %v", deps.InitialMultiSelect, wantMarked)
+	if len(deps.Capture.MultiSelect) != len(wantMarked) {
+		t.Fatalf("Deps().Capture.MultiSelect = %v, want %v", deps.Capture.MultiSelect, wantMarked)
 	}
-	if got, want := deps.InitialBurstOpening, [2]int{2, 3}; got != want {
-		t.Errorf("Deps().InitialBurstOpening = %v, want %v (Opening 2/3…)", got, want)
+	if got, want := deps.Capture.BurstOpening, [2]int{2, 3}; got != want {
+		t.Errorf("Deps().Capture.BurstOpening = %v, want %v (Opening 2/3…)", got, want)
 	}
 
 	m := tui.Build(deps)

@@ -115,7 +115,7 @@ func TestModel_SetSuccessFlash_InheritsTheWholeSetFlashSequence(t *testing.T) {
 	if got, want := success.flashGen, warning.flashGen; got != want {
 		t.Errorf("flashGen after setSuccessFlash = %d, want setFlash's %d", got, want)
 	}
-	if got, want := success.flashOrigin, warning.flashOrigin; got != want {
+	if got, want := success.themeState.flashOrigin, warning.themeState.flashOrigin; got != want {
 		t.Errorf("flash origin after setSuccessFlash = %v, want setFlash's %v", got, want)
 	}
 	if warning.flashKind != flashWarning || success.flashKind != flashSuccess {

@@ -266,8 +266,8 @@ func TestBuild_InitialFlashSeedsWarningFlash(t *testing.T) {
 	lister := reskinStubLister{sessions: []tmux.Session{{Name: "dev", Windows: 2}}}
 	const msg = "folio-Jiz4el closed externally — list updated"
 	m := Build(Deps{
-		Lister:       lister,
-		InitialFlash: msg,
+		Lister:  lister,
+		Capture: CaptureSeeds{Flash: msg},
 	})
 	if m.flashText != msg {
 		t.Errorf("Build InitialFlash flashText = %q, want %q", m.flashText, msg)
@@ -294,8 +294,8 @@ func TestBuild_InitialFlash_RendersWarningBand(t *testing.T) {
 		{Name: "agentic-workflows-codify", Windows: 1},
 	}
 	m := Build(Deps{
-		Lister:       reskinStubLister{sessions: sessions},
-		InitialFlash: msg,
+		Lister:  reskinStubLister{sessions: sessions},
+		Capture: CaptureSeeds{Flash: msg},
 	})
 	// Drive the live program's first messages: size, then the session ingestion.
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})

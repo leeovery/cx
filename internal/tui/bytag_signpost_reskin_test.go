@@ -63,26 +63,26 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 		t.Errorf("signpost band missing the message %q: %q", byTagSignpostText, flat)
 	}
 	// Bar colour = accent.violet (§2.9).
-	violetSeq := tokenFgSeq(t, m.activeTheme.AccentPrimary)
+	violetSeq := tokenFgSeq(t, m.themeState.active.AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
 		t.Errorf("signpost band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
 	}
 	// Message colour = text.on-selection (§2.9): the bright white co-tuned for the
 	// bg.selection tint the info band sits on (the same token the selected
 	// session-row name uses on that surface).
-	onSelectionSeq := tokenFgSeq(t, m.activeTheme.TextOnSelection)
+	onSelectionSeq := tokenFgSeq(t, m.themeState.active.TextOnSelection)
 	if !strings.Contains(band, onSelectionSeq) {
 		t.Errorf("signpost band missing the text.on-selection message foreground sequence %q:\n%s", onSelectionSeq, band)
 	}
 	// Tint = bg.selection (§2.9): the info band sits on the SAME subtle tint as the
 	// §11.4 command-pending banner — it must NOT regress to a flat/Canvas band.
-	selectionBgSeq := tokenBgSeq(t, m.activeTheme.BgSelection)
+	selectionBgSeq := tokenBgSeq(t, m.themeState.active.BgSelection)
 	if !strings.Contains(band, selectionBgSeq) {
 		t.Errorf("signpost band missing the bg.selection info-band tint %q (must not be flat):\n%s", selectionBgSeq, band)
 	}
 	// NOT the bg.warning flash tint (§11.3 info band is NOT a flash): the bg.warning
 	// background colour sequence must be ABSENT.
-	warnBgSeq := tokenBgSeq(t, m.activeTheme.BgAttention)
+	warnBgSeq := tokenBgSeq(t, m.themeState.active.BgAttention)
 	if strings.Contains(band, warnBgSeq) {
 		t.Errorf("signpost band carries the bg.warning flash tint %q (info band is not a flash):\n%s", warnBgSeq, band)
 	}

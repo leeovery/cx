@@ -96,31 +96,6 @@ func countingEnumeratorOver(loader theme.Loader, dir string) *countingThemeEnume
 	return &countingThemeEnumerator{DirEnumerator: theme.DirEnumerator{Loader: loader, Dir: dir}}
 }
 
-// nilProneThemeEnumerator is a POINTER-receiver seam whose methods dereference the
-// receiver, so a typed-nil boxed into the interface panics the moment it is
-// called. It exists to prove the guard rejects a typed nil rather than merely a
-// nil interface.
-type nilProneThemeEnumerator struct {
-	union theme.Union
-}
-
-func (e *nilProneThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
-	return theme.Enumeration{}, e.union
-}
-
-func (e *nilProneThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
-	return e.union
-}
-
-func (e *nilProneThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
-	return theme.Resolution{}, nil
-}
-
-func (e *nilProneThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	_ = e.union
-	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
-}
-
 // themeOpenTestUnion is a two-row union: one built-in and one unresolvable
 // persisted slug, which is the shape every badge and reason assertion below needs.
 func themeOpenTestUnion() theme.Union {
@@ -523,8 +498,8 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 			t.Errorf("open %d handed the seam %+v, want the construction-time snapshot %+v", i+1, got, construction)
 		}
 	}
-	if m.themeKeys != construction {
-		t.Errorf("model keys = %+v, want the construction-time snapshot %+v", m.themeKeys, construction)
+	if m.themeState.keys != construction {
+		t.Errorf("model keys = %+v, want the construction-time snapshot %+v", m.themeState.keys, construction)
 	}
 }
 
@@ -569,28 +544,15 @@ func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
 
 // TestThemePanelOpen_NilSeamIsASilentNoOp: it tolerates a nil enumerator.
 //
-// The modePersister nil-guard precedent: a fixture or capturetool model that
-// wires no seam makes `t` a silent no-op rather than a panic. A TYPED nil boxed
-// into the interface is non-nil to `== nil` and must not be mistaken for a live
-// seam either — that is the shape cmd's `if prefsStore != nil` wiring guard exists
-// for one layer up.
+// The mode-persister nil-guard precedent: a fixture or capturetool model that
+// wires no seam makes `t` a silent no-op rather than a panic.
 func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		enumerator ThemeEnumerator
-	}{
-		{name: "nil interface", enumerator: nil},
-		{name: "typed nil", enumerator: (*nilProneThemeEnumerator)(nil)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := themeOpenTestModel(t, tc.enumerator, theme.RawKeys{Theme: "nord"})
+	m := themeOpenTestModel(t, nil, theme.RawKeys{Theme: "nord"})
 
-			m = pressThemeKey(t, m)
+	m = pressThemeKey(t, m)
 
-			if m.themePanel.open {
-				t.Error("t opened the panel with no live enumerator wired")
-			}
-		})
+	if m.themePanel.open {
+		t.Error("t opened the panel with no enumerator wired")
 	}
 }
 
@@ -619,7 +581,7 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := themeOpenTestModel(t, &recordingThemeEnumerator{union: union}, theme.RawKeys{})
-			m.activeTheme = tc.th
+			m.themeState.active = tc.th
 
 			m = pressThemeKey(t, m)
 

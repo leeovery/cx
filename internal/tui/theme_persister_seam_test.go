@@ -71,8 +71,8 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 	t.Run("a nil dep leaves the seam unwired", func(t *testing.T) {
 		m := Build(Deps{Lister: fakeLister{}})
 
-		if m.themePersister != nil {
-			t.Errorf("themePersister = %#v, want nil — a nil Deps.ThemePersister must apply no option", m.themePersister)
+		if m.themeState.persister != nil {
+			t.Errorf("themePersister = %#v, want nil — a nil Deps.ThemePersister must apply no option", m.themeState.persister)
 		}
 	})
 
@@ -100,11 +100,11 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 
 		m := Build(Deps{Lister: fakeLister{}, ThemePersister: persister})
 
-		if m.themePersister != persister {
-			t.Fatalf("themePersister = %#v, want the injected recorder", m.themePersister)
+		if m.themeState.persister != persister {
+			t.Fatalf("themePersister = %#v, want the injected recorder", m.themeState.persister)
 		}
 		// Exercised BY DIRECT CALL — nothing presses a key until Phase 9.
-		if err := m.themePersister.CommitThemeSlot("nord", prefs.SlotDark); err != nil {
+		if err := m.themeState.persister.CommitThemeSlot("nord", prefs.SlotDark); err != nil {
 			t.Fatalf("CommitThemeSlot: %v", err)
 		}
 		if len(persister.slugs) != 1 || persister.slugs[0] != "nord" {

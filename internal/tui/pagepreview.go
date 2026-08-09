@@ -318,7 +318,7 @@ type previewModel struct {
 	width      int
 	height     int
 	// th is the ACTIVE PALETTE the peek-mode chrome is painted from. The
-	// parent model assigns m.activeTheme onto it after construction so the
+	// parent model assigns m.themeState.active onto it after construction so the
 	// accent.mode frame + top bar are drawn from the same theme as every other
 	// surface. A zero value renders through lipgloss.Color("")'s no-colour
 	// sentinel, which is why the assignment is not optional.
@@ -375,7 +375,7 @@ func NewPreviewModel(session string, enumerator TmuxEnumerator, reader Scrollbac
 		viewport: viewport.New(viewport.WithWidth(innerW), viewport.WithHeight(innerH)),
 		width:    width,
 		height:   height,
-		// Seed the DARK built-in, mirroring New's seed of Model.activeTheme and
+		// Seed the DARK built-in, mirroring New's seed of themeState.active and
 		// for the same reason: a zero Theme renders through
 		// lipgloss.Color("")'s no-colour sentinel — silently colourless, with no
 		// compile error. The parent assigns its active theme immediately after

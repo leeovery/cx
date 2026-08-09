@@ -115,9 +115,9 @@ func TestBuild(t *testing.T) {
 	t.Run("initial detection seeds the resolved unsupported cache", func(t *testing.T) {
 		id := spawn.Identity{Name: "Apple Terminal", BundleID: "com.apple.Terminal"}
 		m := tui.Build(tui.Deps{
-			Lister:           &mockSessionLister{},
-			InitialMode:      prefs.ModeFlat,
-			InitialDetection: &id,
+			Lister:      &mockSessionLister{},
+			InitialMode: prefs.ModeFlat,
+			Capture:     tui.CaptureSeeds{Detection: &id},
 		})
 
 		if !m.DetectResolved() {
@@ -135,9 +135,11 @@ func TestBuild(t *testing.T) {
 				{Name: "fab-flowx-explore", Windows: 2},
 				{Name: "designlab-web-r8suyU", Windows: 3},
 			}},
-			InitialMode:        prefs.ModeFlat,
-			InitialMultiSelect: []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"},
-			InitialGoneFlagged: []string{"fab-flowx-explore"},
+			InitialMode: prefs.ModeFlat,
+			Capture: tui.CaptureSeeds{
+				MultiSelect: []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"},
+				GoneFlagged: []string{"fab-flowx-explore"},
+			},
 		})
 
 		if !m.MultiSelectActive() {
@@ -166,9 +168,9 @@ func TestBuild(t *testing.T) {
 
 	t.Run("initial burst opening seeds the pending Opening band", func(t *testing.T) {
 		m := tui.Build(tui.Deps{
-			Lister:              &mockSessionLister{},
-			InitialMode:         prefs.ModeFlat,
-			InitialBurstOpening: [2]int{2, 3},
+			Lister:      &mockSessionLister{},
+			InitialMode: prefs.ModeFlat,
+			Capture:     tui.CaptureSeeds{BurstOpening: [2]int{2, 3}},
 		})
 
 		if !m.BurstPending() {

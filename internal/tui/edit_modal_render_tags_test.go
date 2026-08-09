@@ -16,7 +16,7 @@ import (
 func renderTagsModel(t *testing.T, focus editField, tags []string, tagCursor int) Model {
 	t.Helper()
 	return Model{
-		activeTheme:   testDarkTheme(t),
+		themeState:    themeState{active: testDarkTheme(t)},
 		modal:         modalEditProject,
 		editMode:      editModeNavigate,
 		editProject:   project.Project{Name: "Portal"},
@@ -68,7 +68,7 @@ func TestRenderEditProjectContent_FocusedTagBorderViolet(t *testing.T) {
 	// TestEditModal_ChipFocusedVioletNoCross.
 	m := renderTagsModel(t, editFieldTags, []string{"work", "personal"}, 1)
 	content := m.renderEditProjectContent()
-	violet := tokenFgSeq(t, m.activeTheme.AccentPrimary)
+	violet := tokenFgSeq(t, m.themeState.active.AccentPrimary)
 	if !strings.Contains(content, violet) {
 		t.Errorf("focused tag chip should carry the accent.violet border\n%s", ansi.Strip(content))
 	}
@@ -126,7 +126,7 @@ func TestRenderEditProjectContent_TagsHeadingFocusScoped(t *testing.T) {
 	// Name focused: NAME label is accent.violet, TAGS label is text.detail.
 	m := renderTagsModel(t, editFieldName, []string{"work"}, 0)
 	content := m.renderEditProjectContent()
-	violet := tokenFgSeq(t, m.activeTheme.AccentPrimary)
+	violet := tokenFgSeq(t, m.themeState.active.AccentPrimary)
 
 	nameSeg := labelSegment(t, content, "NAME")
 	if !strings.Contains(nameSeg, violet) {

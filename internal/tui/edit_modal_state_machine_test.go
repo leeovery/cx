@@ -112,7 +112,7 @@ func (e *smAliasEditor) DeleteAndSave(name, via string) (bool, error) {
 func smModel(t *testing.T, ed *smProjectEditor, al *smAliasEditor, aliases, tags []string) Model {
 	t.Helper()
 	return Model{
-		activeTheme:   testDarkTheme(t),
+		themeState:    themeState{active: testDarkTheme(t)},
 		modal:         modalEditProject,
 		editMode:      editModeNavigate,
 		editFocus:     editFieldName,

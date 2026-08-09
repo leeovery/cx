@@ -572,7 +572,7 @@ func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
 // built-in, edit it, see it, without relaunching Portal.
 //
 // The KEYS it is handed are the construction-time snapshot and are deliberately
-// NOT re-read — see Model.themeKeys for the asymmetry and its reason.
+// NOT re-read — see themeState.keys for the asymmetry and its reason.
 //
 // A nil seam is a silent no-op (the modePersister nil-guard precedent), so a
 // fixture or capturetool model that wires none simply has no panel.
@@ -600,11 +600,11 @@ func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
 // independent of the flag and the gate already cleared it), and selecting through the
 // shared themePanelEntryFlash is what keeps the two evaluations' copy identical.
 func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
-	if m.themeEnumerator == nil {
+	if m.themeState.enumerator == nil {
 		return m, nil
 	}
 
-	enumeration, union := m.themeEnumerator.Open(m.themeKeys)
+	enumeration, union := m.themeState.enumerator.Open(m.themeState.keys)
 	if dim, fits := themePanelFloor(m.contentWidth(), m.contentHeight(), union.DirUnusable); !fits {
 		return m.blockThemePanel(themePanelEntryFlash(dim))
 	}
@@ -649,7 +649,7 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 //
 // THE CURSOR SEED RUNS AFTER THE RESOLUTION'S ANCHOR AND BEFORE THE MESSAGE SEED,
 // AND IT MOVES THE CURSOR AND NOTHING ELSE (the capture-only panel cursor seed, wired
-// only by the offline harness — see Model.initialThemeCursor). It re-anchors BY
+// only by the offline harness — see themeState.initialCursor). It re-anchors BY
 // ROW IDENTITY, through the same
 // anchor the resolution's answer went through, so a fixture cannot seed a cursor
 // onto a row the union does not hold. It applies NO theme: the palette stays the
@@ -668,7 +668,7 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 	m.themePanel.open = true
 	m.applyThemePanelListStyles()
 	m.anchorThemePanelCursor(cursor)
-	m.anchorThemePanelCursor(m.initialThemeCursor)
+	m.anchorThemePanelCursor(m.themeState.initialCursor)
 	m.seedThemePanelMessage()
 }
 
@@ -699,11 +699,11 @@ func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) 
 // is written until `y` — which a capture never presses.
 func (m *Model) seedThemePanelMessage() {
 	switch {
-	case m.initialThemeConfirm:
+	case m.themeState.initialConfirm:
 		if slug, ok := committableThemeSlug(m.themePanel.list); ok {
 			m.raiseSlotConfirm(slug, prefs.SlotLight)
 		}
-	case m.initialThemeCommitFailed:
+	case m.themeState.initialCommitFailed:
 		m.reportCommitFailure()
 	}
 }
@@ -749,16 +749,16 @@ func (m *Model) seedThemePanelMessage() {
 // swap, so that is explicitness rather than necessity — and it is what makes the
 // common close, where nothing changed, cost no restyle at all.
 func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.SlotResolution, bool) {
-	resolution, err := m.themeEnumerator.Resolve(e, m.themeSetting())
+	resolution, err := m.themeState.enumerator.Resolve(e, m.themeSetting())
 	if err != nil {
 		return theme.Resolution{}, theme.SlotResolution{}, false
 	}
-	inForce, ok := inForceSlot(resolution, m.canvasMode)
+	inForce, ok := inForceSlot(resolution, m.themeState.canvasMode)
 	if !ok {
 		return theme.Resolution{}, theme.SlotResolution{}, false
 	}
 
-	if inForce.Theme != m.activeTheme {
+	if inForce.Theme != m.themeState.active {
 		m.ApplyTheme(inForce.Theme)
 	}
 	return resolution, inForce, true
@@ -801,7 +801,7 @@ func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
 // about which slug is live. Re-running it on already-stripped keys is safe:
 // stripping is idempotent and the resolution is pure and total.
 func (m Model) themeSetting() theme.Setting {
-	setting, _ := theme.ResolveSetting(m.themeKeys.Theme, m.themeKeys.Light, m.themeKeys.Dark)
+	setting, _ := theme.ResolveSetting(m.themeState.keys.Theme, m.themeState.keys.Light, m.themeState.keys.Dark)
 	return setting
 }
 
@@ -816,10 +816,10 @@ func (m Model) themeSetting() theme.Setting {
 // On a gate that was never armed the value starts as the standing dark no-answer
 // fallback, which is the right answer for the same reason it is the right canvas —
 // UNTIL the mid-session constant → adaptive conversion, which records
-// Model.retainedCanvasAnswer into Model.canvasMode while the pinned gate keeps that
-// fallback for good. From that commit on the mode read here is DELIBERATELY NOT
+// Model.retainedCanvasAnswer into themeState.canvasMode while the pinned gate keeps
+// that fallback for good. From that commit on the mode read here is DELIBERATELY NOT
 // gate.appearance, and substituting one for the other closes a converted light
-// terminal onto the DARK slot. See Model.canvasMode and loadNewlyLiveSlot.
+// terminal onto the DARK slot. See themeState.canvasMode and loadNewlyLiveSlot.
 //
 // The answer reaches the slot vocabulary through the gate's own conversion
 // rather than a light/dark rule restated here, so the slot this matches on and
@@ -881,7 +881,7 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 // THE MATCH IS FILTERED ON Selectable, AND THAT IS NOT REDUNDANT WITH THE ORDER.
 // The cursor must always be on a selectable row, and this function has a second
 // caller the resolver does not control: the capture seed
-// (Model.initialThemeCursor) re-anchors by identity from a string a FIXTURE
+// (themeState.initialCursor) re-anchors by identity from a string a FIXTURE
 // declares, and fixtures are built from an invalid drop-in and an unreadable themes
 // directory — whose rows are exactly the unselectable ones. A cursor parked there
 // would sit somewhere the arrows, which skip unselectable rows, cannot return to.
@@ -979,11 +979,11 @@ func (m *Model) closeThemePanel() tea.Cmd {
 // rendered. The tick is the ORDINARY main-screen flash auto-clear, unlike the
 // panel's own message slot, whose line deliberately takes no lifecycle at all.
 func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		return nil
 	}
 	m.setThemeFlash(themeNotSavedFlash)
-	m.themeCommitFailed = false
+	m.themeState.commitFailed = false
 	return flashTickCmd(m.flashGen)
 }
 
@@ -1028,8 +1028,8 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 //
 // THE FLAG IS READ BEFORE THE CLOSE, AND THE ORDER IS LOAD-BEARING. The close's own
 // report step DISCHARGES the outstanding state as part of raising the flash, so a
-// post-close `if !m.themeCommitFailed` always sees false and would overwrite the
-// report the close has just placed in the single-slot band — the naive shape, wrong
+// post-close `if !m.themeState.commitFailed` always sees false and would overwrite
+// the report the close has just placed in the single-slot band — the naive shape, wrong
 // in a way no reading of the rule catches.
 //
 // A LIVE SLOT-FROM-CONSTANT CONFIRM IS SILENTLY CANCELLED by this close, and it is
@@ -1045,8 +1045,8 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 // failed-commit report.
 //
 // THE SEAM IS LIVE ON THIS PATH. closeThemePanel re-resolves through
-// m.themeEnumerator with no nil guard, and this new caller is safe for the same
-// reason `Esc` is: it fires only while themePanel.open, and `open` is set in exactly
+// m.themeState.enumerator with no nil guard, and this new caller is safe for the
+// same reason `Esc` is: it fires only while themePanel.open, and `open` is set in exactly
 // one place (armThemePanel), reachable only through openThemePanel's nil guard.
 //
 // THE GEOMETRY FLASH IS RAISED WITHOUT AN AUTO-CLEAR TICK — it clears on the next
@@ -1063,7 +1063,7 @@ func (m *Model) resizeThemePanel() tea.Cmd {
 	if dim, ok := themePanelFloor(m.contentWidth(), m.contentHeight(), m.themePanel.union.DirUnusable); !ok {
 		// Order matters: the read precedes the close, which discharges the flag as it
 		// reports. Reading it afterwards always yields false.
-		willReport := m.themeCommitFailed
+		willReport := m.themeState.commitFailed
 		cmd := m.closeThemePanel()
 		if !willReport {
 			m.setThemeFlash(themePanelForcedCloseFlash(dim))
@@ -1180,7 +1180,7 @@ func (m *Model) applyThemePanelCanvasMode() {
 	if !m.themePanel.open {
 		return
 	}
-	applyListCanvasMode(&m.themePanel.list, m.themeRowDelegate(), m.activeTheme, m.colourless)
+	applyListCanvasMode(&m.themePanel.list, m.themeRowDelegate(), m.themeState.active, m.colourless)
 }
 
 // updateThemePanel is the panel's key-exclusive input routing: the panel OWNS the
@@ -1233,7 +1233,7 @@ func (m *Model) applyThemePanelCanvasMode() {
 // the line is unaffected, because the raise happens inside the dispatch below.
 //
 // IT CLEARS THE MESSAGE AND NOT THE STATE. The outstanding failure
-// (Model.themeCommitFailed) runs until a commit SUCCEEDS, which is what stops the
+// (themeState.commitFailed) runs until a commit SUCCEEDS, which is what stops the
 // very next `Esc` — a close re-resolves persisted state — from reinstating the
 // silent revert the report exists to close.
 //
@@ -1394,7 +1394,7 @@ func (m *Model) skipUnselectableThemeRow(msg tea.KeyPressMsg) {
 // — from painting a zero Theme, which renders silently colourless.
 func (m *Model) previewSelectedThemeRow() {
 	row, ok := selectedThemeRow(m.themePanel.list)
-	if !ok || !row.Selectable() || row.Theme == m.activeTheme {
+	if !ok || !row.Selectable() || row.Theme == m.themeState.active {
 		return
 	}
 	m.ApplyTheme(row.Theme)
@@ -1412,9 +1412,10 @@ func selectedThemeRow(l list.Model) (theme.Row, bool) {
 }
 
 // themeRowDelegate is THE SINGLE CONSTRUCTION POINT for the panel's row delegate,
-// assembling its three inputs from the model: the PREVIEWED theme (m.activeTheme,
-// not the persisted one — arrowing re-themes the panel behind the cursor), the
-// NO_COLOR carve-out flag, and the panel's current INNER content width.
+// assembling its three inputs from the model: the PREVIEWED theme
+// (m.themeState.active, not the persisted one — arrowing re-themes the panel behind
+// the cursor), the NO_COLOR carve-out flag, and the panel's current INNER content
+// width.
 //
 // There must be exactly one place those three are assembled, and a source guard
 // keeps it that way. Two construction sites can disagree about width or
@@ -1424,7 +1425,7 @@ func selectedThemeRow(l list.Model) (theme.Row, bool) {
 // own.
 func (m Model) themeRowDelegate() themeRowDelegate {
 	return themeRowDelegate{
-		Theme:      m.activeTheme,
+		Theme:      m.themeState.active,
 		Colourless: m.colourless,
 		Width:      themePanelInnerWidth(m.themePanel.width),
 	}

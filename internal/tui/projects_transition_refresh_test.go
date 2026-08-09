@@ -17,7 +17,7 @@ import (
 func newProjectsTransitionModel(t *testing.T, lister SessionLister, projects []project.Project, mode prefs.SessionListMode) Model {
 	t.Helper()
 	m := Model{
-		activeTheme:     testDarkTheme(t),
+		themeState:      themeState{active: testDarkTheme(t)},
 		projects:        projects,
 		projectIndex:    project.NewIndex(projects),
 		projectList:     newProjectList(),

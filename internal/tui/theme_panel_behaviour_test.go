@@ -697,7 +697,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	requireRenderedCursorOn(t, m, "sunset")
 	requireRenderedBadge(t, m, "sunset", theme.BadgeConstant)
 	requireRenderedBadgeCount(t, m, 1)
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	before := m.themePanel.list.Index()
 
 	// `d` over a constant asks first (§9.2), and `y` performs the write.
@@ -724,8 +724,8 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	if got, want := m.themePanel.list.Index(), before+1; got != want {
 		t.Errorf("the cursor sits at index %d, want %d — the row inserted above it pushed the previewed row down", got, want)
 	}
-	if m.activeTheme != previewed {
-		t.Errorf("the commit rendered %s, want the previewed %s — a commit is a WRITE, not a navigation (§9.2)", themeLabel(m.activeTheme), themeLabel(previewed))
+	if m.themeState.active != previewed {
+		t.Errorf("the commit rendered %s, want the previewed %s — a commit is a WRITE, not a navigation (§9.2)", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 
 	// The other direction: `Enter` clears both slots, so the row that existed only
@@ -800,9 +800,9 @@ func TestThemePanelBehaviour_Confirm(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				m := behaviourConfirmModel(t)
 				pending, index := m.themePanel.pending, m.themePanel.list.Index()
-				persister, ok := m.themePersister.(*fakeThemePersister)
+				persister, ok := m.themeState.persister.(*fakeThemePersister)
 				if !ok {
-					t.Fatalf("the fixture wired a %T persister, want the recording fake", m.themePersister)
+					t.Fatalf("the fixture wired a %T persister, want the recording fake", m.themeState.persister)
 				}
 
 				got, cmd := pressConfirmKey(t, m, probe.press)
@@ -879,7 +879,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		if got := themePanelMessageRow(m); got != messageTestFailedCopy {
 			t.Fatalf("the failed commit drew %q in the message slot, want §14A's %q", got, messageTestFailedCopy)
 		}
-		if !m.themeCommitFailed {
+		if !m.themeState.commitFailed {
 			t.Fatal("the failed commit left nothing outstanding")
 		}
 
@@ -893,7 +893,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		if m.themePanel.list.Index() == index {
 			t.Error("the keypress that cleared the message was swallowed; it clears AND acts (§9.13)")
 		}
-		if !m.themeCommitFailed {
+		if !m.themeState.commitFailed {
 			t.Fatal("arrowing away discharged the state; only a SUCCESSFUL commit does (§9.13)")
 		}
 
@@ -901,7 +901,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		// the user is not told a theme was not saved when it was.
 		persister.err = nil
 		m, _ = pressSlotKey(t, m, slotLightPress)
-		if m.themeCommitFailed {
+		if m.themeState.commitFailed {
 			t.Error("the successful commit left the failure outstanding")
 		}
 
@@ -922,7 +922,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 			t.Errorf("the close raised %q, want §14A's %q", got, specThemeNotSavedFlash)
 		}
 		requireFlashBandVisible(t, m, specThemeNotSavedFlash)
-		if m.themeCommitFailed {
+		if m.themeState.commitFailed {
 			t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state (§9.13)")
 		}
 
@@ -953,7 +953,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		if got := m.flashText; got != specThemeNotSavedFlash {
 			t.Errorf("the forced close raised %q, want §9.13's report to win the single band slot over %q", got, specNarrowClosedFlash)
 		}
-		if m.themeCommitFailed {
+		if m.themeState.commitFailed {
 			t.Error("the forced close left the failure outstanding; the report was made, so the state is discharged")
 		}
 

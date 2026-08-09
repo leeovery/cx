@@ -437,7 +437,7 @@ func requireRenderedPanelWidth(t *testing.T, m Model, want int) {
 	}
 
 	contentW, contentH := m.contentWidth(), m.contentHeight()
-	panelLines := strings.Split(ansi.Strip(renderThemePanel(m.themePanel, contentH, m.activeTheme, m.colourless)), "\n")
+	panelLines := strings.Split(ansi.Strip(renderThemePanel(m.themePanel, contentH, m.themeState.active, m.colourless)), "\n")
 	if len(panelLines) != contentH {
 		t.Fatalf("the panel rendered %d rows, want the content height %d", len(panelLines), contentH)
 	}
@@ -613,7 +613,7 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 			t.Fatalf("fixture: the drawn page is %d rows at both %d and %d content rows, so the assertion below proves nothing", drawn, shortH, geometryContentH)
 		}
 		requirePanelListMatchesTheRenderCopy(t, m)
-		if got := lipgloss.Height(renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless)); got != geometryContentH {
+		if got := lipgloss.Height(renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless)); got != geometryContentH {
 			t.Errorf("the panel rendered %d rows, want the content height %d", got, geometryContentH)
 		}
 	})
@@ -623,7 +623,7 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 // with every SGR stripped — the row the user reads, border cell included.
 func themePanelBodyRow(t *testing.T, m Model, offset int) string {
 	t.Helper()
-	lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless))
+	lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless))
 	at := themePanelHeaderRows() + themePanelDirRowHeight(m.themePanel.union.DirUnusable) + offset
 	if at >= len(lines) {
 		t.Fatalf("the panel rendered %d rows, so body row %d does not exist", len(lines), offset)
@@ -672,7 +672,7 @@ func TestPanelGeometry_ResizeRepointsTheDelegate(t *testing.T) {
 	if !strings.HasSuffix(after, themePanelBadgeText(theme.BadgeConstant)) {
 		t.Errorf("the cursor row = %q, want it to end in the %q badge — the badge outranks the label and stays inside the inner edge", after, themePanelBadgeText(theme.BadgeConstant))
 	}
-	for i, line := range themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless)) {
+	for i, line := range themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless)) {
 		if got := lipgloss.Width(line); got != m.themePanel.width {
 			t.Errorf("panel row %d is %d cells, want the panel's %d: %q", i, got, m.themePanel.width, line)
 		}
@@ -714,7 +714,7 @@ func TestPanelGeometry_ResizeDoesNotReflowTheBase(t *testing.T) {
 	}
 
 	contentW := m.contentWidth()
-	footer := strings.Split(ansi.Strip(renderSessionsFooter(m.sessionsHelpKeymap(), contentW, m.activeTheme, m.colourless)), "\n")
+	footer := strings.Split(ansi.Strip(renderSessionsFooter(m.sessionsHelpKeymap(), contentW, m.themeState.active, m.colourless)), "\n")
 	unreduced := []rune(footer[len(footer)-1])
 	cut := contentW - m.themePanel.width
 	if unreduced[cut-1] == ' ' || unreduced[cut] == ' ' {
@@ -829,7 +829,7 @@ func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 	previewed := func() Model {
 		m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
 		m = pressPanelKey(t, m, arrowDown)
-		if m.activeTheme == rows[0].Theme {
+		if m.themeState.active == rows[0].Theme {
 			t.Fatal("fixture: the arrow previewed nothing, so the two closes have nothing to discard")
 		}
 		return m
@@ -841,11 +841,11 @@ func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 	if forced.themePanel.open {
 		t.Fatal("the forced close left the panel open")
 	}
-	if forced.activeTheme != rows[0].Theme {
-		t.Errorf("the forced close rendered canvas %s, want the resolved persisted %s", forced.activeTheme.Canvas.Value, rows[0].Theme.Canvas.Value)
+	if forced.themeState.active != rows[0].Theme {
+		t.Errorf("the forced close rendered canvas %s, want the resolved persisted %s", forced.themeState.active.Canvas.Value, rows[0].Theme.Canvas.Value)
 	}
-	if forced.activeTheme != viaEsc.activeTheme {
-		t.Errorf("the forced close rendered canvas %s and `Esc` rendered %s", forced.activeTheme.Canvas.Value, viaEsc.activeTheme.Canvas.Value)
+	if forced.themeState.active != viaEsc.themeState.active {
+		t.Errorf("the forced close rendered canvas %s and `Esc` rendered %s", forced.themeState.active.Canvas.Value, viaEsc.themeState.active.Canvas.Value)
 	}
 	if got := len(forced.themePanel.union.Rows); got != 0 {
 		t.Errorf("the forced close retained %d union row(s), want the enumeration discarded", got)

@@ -364,10 +364,10 @@ func TestFooterRevision_BudgetMatchesFilteredRender(t *testing.T) {
 			page:  "sessions",
 			model: footerRevisionSessionsModel,
 			filtered: func(m Model) string {
-				return renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
+				return renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 			},
 			unfiltered: func(m Model) string {
-				return renderSessionsFooter(sessionsKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
+				return renderSessionsFooter(sessionsKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 			},
 			composed: Model.renderSessionsFooterForFilterState,
 			budget:   func(m Model) int { return m.sessionFooterHeight(m.contentWidth()) },
@@ -376,10 +376,10 @@ func TestFooterRevision_BudgetMatchesFilteredRender(t *testing.T) {
 			page:  "projects",
 			model: footerRevisionProjectsModel,
 			filtered: func(m Model) string {
-				return renderProjectsFooter(m.projectsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
+				return renderProjectsFooter(m.projectsHelpKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 			},
 			unfiltered: func(m Model) string {
-				return renderProjectsFooter(projectsKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
+				return renderProjectsFooter(projectsKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 			},
 			composed: Model.renderProjectsFooterForFilterState,
 			budget:   func(m Model) int { return m.projectFooterHeight(m.contentWidth()) },

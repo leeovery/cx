@@ -819,7 +819,7 @@ func TestThemePanel_ViewCompositesWhenOpen(t *testing.T) {
 	closed := m.View().Content
 
 	m.themePanel = newThemePanelFixture(themePanelFixtureOpts{
-		th:    m.activeTheme,
+		th:    m.themeState.active,
 		width: themePanelPreferredWidth,
 		rows:  themePanelTestRows(9),
 	})
@@ -833,7 +833,7 @@ func TestThemePanel_ViewCompositesWhenOpen(t *testing.T) {
 	}
 
 	contentW, contentH := m.contentWidth(), m.contentHeight()
-	panel := renderThemePanel(m.themePanel, contentH, m.activeTheme, m.colourless)
+	panel := renderThemePanel(m.themePanel, contentH, m.themeState.active, m.colourless)
 	panelLines := strings.Split(ansi.Strip(panel), "\n")
 	_, _, topPad, _ := gutterPadding(termW, termH, contentW, contentH)
 	left := (termW-contentW)/2 + contentW - themePanelPreferredWidth
@@ -884,7 +884,7 @@ func TestThemePanel_ViewCompositesWhenOpen(t *testing.T) {
 // specified to re-invoke this method, not to build its own).
 func TestThemePanel_DelegateHasASingleConstructionPoint(t *testing.T) {
 	th := testLightTheme(t)
-	m := Model{activeTheme: th, colourless: true}
+	m := Model{themeState: themeState{active: th}, colourless: true}
 	m.themePanel.width = themePanelMinWidth
 
 	// Compared field by field: a whole Theme through %+v is 19 {name value} pairs of

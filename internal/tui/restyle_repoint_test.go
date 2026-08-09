@@ -357,8 +357,8 @@ func newRestylePanelProbeModel(t *testing.T, before theme.Theme) Model {
 	if got := m.themePanel.list.Paginator.TotalPages; got < 2 {
 		t.Fatalf("probe setup: want a multi-page panel list, got TotalPages=%d", got)
 	}
-	if m.activeTheme != before {
-		t.Fatalf("probe setup: the open painted canvas %s, want the pre-swap %s", m.activeTheme.Canvas.Value, before.Canvas.Value)
+	if m.themeState.active != before {
+		t.Fatalf("probe setup: the open painted canvas %s, want the pre-swap %s", m.themeState.active.Canvas.Value, before.Canvas.Value)
 	}
 	_ = m.View()
 
@@ -390,7 +390,7 @@ func restyledSurfaces(t *testing.T, m *Model) []restyledSurface {
 	return []restyledSurface{
 		{"sessions", sessions},
 		{"projects", projects},
-		{"theme panel", renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless)},
+		{"theme panel", renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless)},
 	}
 }
 

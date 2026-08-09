@@ -490,9 +490,9 @@ func (m Model) renderActiveProjectNoticeBand() string {
 		return ""
 	}
 	if role == bandCommand {
-		return renderCommandBand(m.command, m.contentWidth(), m.activeTheme, m.colourless)
+		return renderCommandBand(m.command, m.contentWidth(), m.themeState.active, m.colourless)
 	}
-	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
+	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.themeState.active), m.contentWidth(), m.themeState.active, m.colourless)
 }
 
 // flashBandRole maps an inline-flash kind to the shared notice-band role
@@ -522,7 +522,7 @@ func (m Model) flashClaim() (role noticeBandRole, message string, ok bool) {
 // wording would move a signal out of the tier on a copy edit, and would let any
 // unrelated message that happened to mention a theme fall into it.
 func (m Model) themeFlashClaim() (role noticeBandRole, message string, ok bool) {
-	if m.flashOrigin != flashOriginTheme {
+	if m.themeState.flashOrigin != flashOriginTheme {
 		return bandWarning, "", false
 	}
 	return m.flashClaim()
@@ -551,7 +551,7 @@ func (m Model) renderActiveNoticeBand() string {
 	if !ok {
 		return ""
 	}
-	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
+	return renderNoticeBand(role, message, noticeBandOnBandText(role, m.themeState.active), m.contentWidth(), m.themeState.active, m.colourless)
 }
 
 // renderSessionBandSlot renders the FULL Sessions notice slot for the model's
@@ -574,6 +574,6 @@ func (m Model) renderSessionBandSlot() string {
 	if band == "" {
 		return ""
 	}
-	blank := blankCanvasRow(m.contentWidth(), m.activeTheme, m.colourless)
+	blank := blankCanvasRow(m.contentWidth(), m.themeState.active, m.colourless)
 	return lipgloss.JoinVertical(lipgloss.Left, band, blank)
 }

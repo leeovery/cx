@@ -51,7 +51,7 @@ func TestBuiltinCanvasValuesPinned(t *testing.T) {
 // holding the right Theme but rendering from somewhere else would otherwise pass.
 func assertActiveTheme(t *testing.T, m Model, wantCanvas string) {
 	t.Helper()
-	if got := m.activeTheme.Canvas.Value; got != wantCanvas {
+	if got := m.themeState.active.Canvas.Value; got != wantCanvas {
 		t.Errorf("activeTheme.Canvas.Value = %q, want %q", got, wantCanvas)
 	}
 	probe := lipgloss.NewStyle().Background(lipgloss.Color(wantCanvas)).Render(" ")

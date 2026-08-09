@@ -124,8 +124,8 @@ func commitSlotForTest(t *testing.T, m Model, slug string, slot prefs.ThemeSlot)
 	if err := (&m).commitSlot(slug, slot); err != nil {
 		t.Fatalf("commitSlot(%s, %v): %v", slug, slot, err)
 	}
-	if m.themeKeys.Theme != "" {
-		t.Fatalf("the slot commit left the constant %q set; §8.2 clears it in the SAME write", m.themeKeys.Theme)
+	if m.themeState.keys.Theme != "" {
+		t.Fatalf("the slot commit left the constant %q set; §8.2 clears it in the SAME write", m.themeState.keys.Theme)
 	}
 	return m
 }
@@ -187,7 +187,7 @@ func TestPanelRecompute_ReSortsThroughTheComparator(t *testing.T) {
 // so a badge assertion can be made against what the user actually sees rather than
 // against the item field alone.
 func renderRecomputePanel(m Model) string {
-	return renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless)
+	return renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless)
 }
 
 // requireBadgeText fails unless the rendered panel carries exactly the given badge
@@ -343,7 +343,7 @@ func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	requireCursorOn(t, m, "aurora")
 
 	m = arrowToThemeRow(t, m, "sunset")
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	if got := previewed.Canvas.Value; got != "#202020" {
 		t.Fatalf("fixture: arrowing to `sunset` rendered canvas %s, want #202020 — the preview is what the commit must leave alone", got)
 	}
@@ -355,8 +355,8 @@ func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	// The control: the recompute genuinely ran, so the assertions below are about a
 	// keypress that changed the panel rather than one that changed nothing.
 	requireRowLabels(t, m, "aurora", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
-	if m.activeTheme != previewed {
-		t.Errorf("the recompute rendered canvas %s, want the previewed %s left alone — the re-resolution is for the badges, never for selecting a new active member (§9.2)", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+	if m.themeState.active != previewed {
+		t.Errorf("the recompute rendered canvas %s, want the previewed %s left alone — the re-resolution is for the badges, never for selecting a new active member (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if got := frameColours(m.View().Content); !slices.Equal(got, colours) {
 		t.Errorf("the recompute changed the frame's colours\nbefore: %v\nafter:  %v", colours, got)
@@ -380,7 +380,7 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 	m, _, _ := newRecomputePanelModel(t, dir, keys)
 
 	requireCursorOn(t, m, "sunset")
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	before := m.themePanel.list.Index()
 	if before != 1 {
 		t.Fatalf("fixture: the cursor opened at index %d, want 1 — the inserted row must land above it", before)
@@ -393,8 +393,8 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 	if got := m.themePanel.list.Index(); got != before+1 {
 		t.Errorf("the cursor sits at index %d, want %d — the inserted row pushed `sunset` down and the anchor followed the IDENTITY", got, before+1)
 	}
-	if m.activeTheme != previewed {
-		t.Errorf("the recompute rendered canvas %s, want the previewed %s — the cursor's row is always what is painted behind the panel (§9.2)", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+	if m.themeState.active != previewed {
+		t.Errorf("the recompute rendered canvas %s, want the previewed %s — the cursor's row is always what is painted behind the panel (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 }
 
@@ -645,13 +645,13 @@ func TestPanelRecompute_ItemsReplacedNotRebuilt(t *testing.T) {
 		t.Error("the panel list's keymap binds nothing after the recompute; the list was replaced by a fresh model")
 	}
 
-	dots := themePanelDotRow(t, renderThemePanel(m.themePanel, dotsHeight, m.activeTheme, m.colourless))
+	dots := themePanelDotRow(t, renderThemePanel(m.themePanel, dotsHeight, m.themeState.active, m.colourless))
 	for _, tc := range []struct {
 		what  string
 		token theme.Token
 	}{
-		{what: "active dot", token: m.activeTheme.AccentPrimary},
-		{what: "inactive dot", token: m.activeTheme.TextFaint},
+		{what: "active dot", token: m.themeState.active.AccentPrimary},
+		{what: "inactive dot", token: m.themeState.active.TextFaint},
 	} {
 		if want := tokenFgSeq(t, tc.token); !strings.Contains(dots, want) {
 			t.Errorf("the rendered %s does not carry the previewed theme's SGR %q — a rebuilt list prints `bubbles/list`'s own greys: %q", tc.what, want, escSeq(dots))

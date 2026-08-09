@@ -505,11 +505,11 @@ func joinMessageLines(lines []panelLine) string {
 	return strings.Join(parts, " ")
 }
 
-// messageSeedFields are the two Deps fields the message frames declare their state
-// through. They are named here so the structural check below fails on a RENAME as
-// loudly as on a retyping — a seed that quietly became something else is exactly
-// what would let a fixture start carrying copy.
-var messageSeedFields = []string{"InitialThemeConfirm", "InitialThemeCommitFailed"}
+// messageSeedFields are the two capture-seed fields the message frames declare
+// their state through. They are named here so the structural check below fails on
+// a RENAME as loudly as on a retyping — a seed that quietly became something else
+// is exactly what would let a fixture start carrying copy.
+var messageSeedFields = []string{"ThemeConfirm", "ThemeCommitFailed"}
 
 // pinnedMessageCopy is §14A's message-slot copy in both states, as the strings a
 // fixture must NOT contain.
@@ -532,15 +532,15 @@ var pinnedMessageCopy = []string{"clear constant", "couldn't save theme"}
 // nothing if the seam could carry one tomorrow.
 func TestPanelFixture_MessageSeedsAreStateOnly(t *testing.T) {
 	t.Run("the seams carry a boolean and nothing else", func(t *testing.T) {
-		deps := reflect.TypeFor[tui.Deps]()
+		seeds := reflect.TypeFor[tui.CaptureSeeds]()
 		for _, name := range messageSeedFields {
-			field, ok := deps.FieldByName(name)
+			field, ok := seeds.FieldByName(name)
 			if !ok {
-				t.Errorf("tui.Deps has no %s field; the message frames declare their state through it", name)
+				t.Errorf("tui.CaptureSeeds has no %s field; the message frames declare their state through it", name)
 				continue
 			}
 			if field.Type.Kind() != reflect.Bool {
-				t.Errorf("tui.Deps.%s is a %s; a seed that can carry text can carry a paraphrase of §14A's copy", name, field.Type.Kind())
+				t.Errorf("tui.CaptureSeeds.%s is a %s; a seed that can carry text can carry a paraphrase of §14A's copy", name, field.Type.Kind())
 			}
 		}
 	})

@@ -196,7 +196,7 @@ func renderEditableValue(value string, cursor int, th theme.Theme, colourless bo
 // The render reads the live editBuffer/editCursor for the one live element so an
 // in-progress edit shows; everything else comes from the persisted edit state.
 func (m Model) renderEditProjectContent() string {
-	th, colourless := m.activeTheme, m.colourless
+	th, colourless := m.themeState.active, m.colourless
 
 	header := []string{m.editModalHeaderRow(th, colourless)}
 	body := m.editModalBodyRows(th, colourless)

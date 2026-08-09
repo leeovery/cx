@@ -159,7 +159,7 @@ func TestCommitFailure_MessageCopy(t *testing.T) {
 // the glyphs are what the user is told.
 func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 	m, persister := newFailedCommitModel(t)
-	keys := m.themeKeys
+	keys := m.themeState.keys
 	badges := maps.Clone(m.themePanel.badges)
 	labels := themePanelRowLabels(m)
 	rendered := badgeRows(m)
@@ -173,8 +173,8 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 	requireBadge(t, m, "aurora", theme.BadgeDark)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeLight)
 	requireBadge(t, m, commitFailureTarget, theme.BadgeNone)
-	if m.themeKeys != keys {
-		t.Errorf("a failed commit left keys %+v, want the untouched %+v — the badges derive from them", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("a failed commit left keys %+v, want the untouched %+v — the badges derive from them", m.themeState.keys, keys)
 	}
 	if got := m.themePanel.badges; !maps.Equal(got, badges) {
 		t.Errorf("a failed commit left badges %v, want the untouched %v", got, badges)
@@ -209,7 +209,7 @@ func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 	rows := arrowValidRows(4)
 	m, persister := newCommitPairPanelModel(t, rows)
 	m = arrowToThemeRow(t, m, rows[2].Slug)
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	if previewed != rows[2].Theme {
 		t.Fatalf("fixture: the frame renders %s, want the arrowed-to row's palette", themeLabel(previewed))
 	}
@@ -220,8 +220,8 @@ func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: rows[2].Slug, slot: prefs.SlotDark})
 	requireCommitFailedMessage(t, m)
-	if m.activeTheme != previewed {
-		t.Errorf("a failed commit rendered %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", themeLabel(m.activeTheme), themeLabel(previewed))
+	if m.themeState.active != previewed {
+		t.Errorf("a failed commit rendered %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 
 	frame := m.View().Content
@@ -277,7 +277,7 @@ func TestCommitFailure_MessageClearsOnNextKeyAndFallsThrough(t *testing.T) {
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	requireCommitFailedMessage(t, m)
 	index := m.themePanel.list.Index()
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	body := m.themePanel.list.Height()
 
 	m = pressPanelKey(t, m, arrowDown)
@@ -291,7 +291,7 @@ func TestCommitFailure_MessageClearsOnNextKeyAndFallsThrough(t *testing.T) {
 	if got := m.themePanel.list.Index(); got == index {
 		t.Errorf("the arrow left the cursor on row %d; the keystroke continues to its normal handler — one key, one intent", got)
 	}
-	if m.activeTheme == previewed {
+	if m.themeState.active == previewed {
 		t.Errorf("the arrow left %s painting the frame; it moved the cursor, so it previews the new row (§9.2)", themeLabel(previewed))
 	}
 	if got := m.themePanel.list.Height(); got != body+1 {
@@ -322,7 +322,7 @@ func TestCommitFailure_MessageSurvivesWindowSize(t *testing.T) {
 		t.Fatal("the resize force-closed the panel; the fixture must stay above §9.8's floor for this to assert anything")
 	}
 	requireCommitFailedMessage(t, m)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("the resize discharged the outstanding failure; only a successful commit does (§9.13)")
 	}
 	if cmd != nil {
@@ -366,7 +366,7 @@ func TestCommitFailure_MessageHasNoTickLifecycle(t *testing.T) {
 	if tickCmd != nil {
 		t.Errorf("the tick scheduled %T, want nothing", tickCmd)
 	}
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("the tick discharged the outstanding failure; only a successful commit does (§9.13)")
 	}
 }
@@ -427,7 +427,7 @@ func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 		// two contenders, one slot — and the cancel writes nothing at all.
 		m, _ = pressSlotKey(t, m, slotDarkPress)
 		requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
-		if !m.themeCommitFailed {
+		if !m.themeState.commitFailed {
 			t.Error("raising the confirm discharged the outstanding failure")
 		}
 
@@ -447,7 +447,7 @@ func requireOutstandingWithNoMessage(t *testing.T, m Model) {
 	if got := m.themePanel.message; got.Kind == themeMessageCommitFailed {
 		t.Errorf("the message slot still holds %+v; it persists only until the next keypress (§9.13)", got)
 	}
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("the failure is no longer outstanding; dismissing the MESSAGE must leave the STATE, or the very next `Esc` reinstates the silent revert (§9.13)")
 	}
 }
@@ -468,7 +468,7 @@ func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	requireCommitFailedMessage(t, m)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Fatal("the failed commit left nothing outstanding, so the discharge below proves nothing")
 	}
 	gen := m.flashGen
@@ -483,7 +483,7 @@ func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
 		t.Errorf("the successful commit left the message %+v, want the slot empty (§9.13)", got)
 	}
-	if m.themeCommitFailed {
+	if m.themeState.commitFailed {
 		t.Error("the successful commit left the failure outstanding; a `d` that fails followed by an `l` that succeeds reports nothing (§9.13)")
 	}
 	if m.flashText != "" || m.flashGen != gen {
@@ -519,7 +519,7 @@ func TestCommitFailure_RetryIsJustPressingAgain(t *testing.T) {
 
 	requireSlotCommits(t, persister, failed, failed)
 	requireCommitFailedMessage(t, m)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("the retry discharged the outstanding failure; it failed again")
 	}
 
@@ -530,7 +530,7 @@ func TestCommitFailure_RetryIsJustPressingAgain(t *testing.T) {
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
 		t.Errorf("the successful retry left the message %+v, want the slot empty", got)
 	}
-	if m.themeCommitFailed {
+	if m.themeState.commitFailed {
 		t.Error("the successful retry left the failure outstanding (§9.13)")
 	}
 	requirePairKeys(t, m, theme.DefaultLightSlug, commitFailureTarget)
@@ -555,7 +555,7 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	badges := maps.Clone(m.themePanel.badges)
 
 	m = arrowToThemeRow(t, m, "nord")
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	persister.err = errThemeCommitFailed
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
@@ -564,7 +564,7 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
 	requireCommitFailedMessage(t, m)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("a failed confirmed commit left nothing outstanding (§9.13)")
 	}
 	requireConfirmGone(t, m)
@@ -580,8 +580,8 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	if got := themePanelRowLabels(m); !slices.Equal(got, labels) {
 		t.Errorf("a failed confirmed commit left rows %v, want the untouched %v — only a SUCCESSFUL commit recomputes (§9.2)", got, labels)
 	}
-	if m.activeTheme != previewed {
-		t.Errorf("a failed confirmed commit rendered %s, want the previewed %s left alone", themeLabel(m.activeTheme), themeLabel(previewed))
+	if m.themeState.active != previewed {
+		t.Errorf("a failed confirmed commit rendered %s, want the previewed %s left alone", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 	if cmd != nil {
 		t.Errorf("a failed confirmed commit scheduled %T, want nothing", cmd)
@@ -615,7 +615,7 @@ func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 
 	requireOnlySlotContender(t, m, "clear constant aurora?  y / n")
 	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("raising the confirm discharged the outstanding failure; only a successful commit does (§9.13)")
 	}
 }
@@ -684,8 +684,8 @@ func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
 func TestCommitFailure_NilPersisterRaisesNothing(t *testing.T) {
 	rows := arrowValidRows(4)
 	m := openCommitPanel(t, commitPairPanelDeps(t, rows), PageSessions, rows[1].Slug)
-	if m.themePersister != nil {
-		t.Fatalf("fixture: the model holds persister %#v, want none", m.themePersister)
+	if m.themeState.persister != nil {
+		t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)
 	}
 	m = arrowToThemeRow(t, m, rows[2].Slug)
 	before := m.View().Content
@@ -704,7 +704,7 @@ func TestCommitFailure_NilPersisterRaisesNothing(t *testing.T) {
 			if got := pressed.themePanel.message; got.Kind != themeMessageNone {
 				t.Errorf("a nil persister raised the message %+v; it is the absence of a WRITER, not a failed write", got)
 			}
-			if pressed.themeCommitFailed {
+			if pressed.themeState.commitFailed {
 				t.Error("a nil persister left a commit failure outstanding; nothing was written and nothing failed")
 			}
 			if got := pressed.View().Content; got != before {

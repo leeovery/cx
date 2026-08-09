@@ -413,7 +413,7 @@ func TestNoTagsSignpostPathUnchanged(t *testing.T) {
 	sessions := []tmux.Session{{Name: "portal-1", Dir: dir}}
 
 	m := Model{
-		activeTheme:     testDarkTheme(t),
+		themeState:      themeState{active: testDarkTheme(t)},
 		sessions:        sessions,
 		projects:        projects,
 		projectIndex:    project.NewIndex(projects),

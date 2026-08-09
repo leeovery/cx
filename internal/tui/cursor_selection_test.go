@@ -18,7 +18,7 @@ func newCursorTestModel(t *testing.T, items []list.Item) Model {
 	m := Model{
 		sessionList: newSessionList(nil),
 		activePage:  PageSessions,
-		activeTheme: testDarkTheme(t),
+		themeState:  themeState{active: testDarkTheme(t)},
 	}
 	m.applySessionListSize(80, 24)
 	m.sessionList.SetItems(items)

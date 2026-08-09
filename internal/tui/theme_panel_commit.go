@@ -35,8 +35,8 @@ import (
 // commitSelectedConstant is `Enter`: it commits the row under the CURSOR as the
 // constant theme.
 //
-// THE TARGET COMES FROM THE PANEL'S SELECTED ROW, never from m.themeKeys. Those
-// two differ exactly where it matters — the user has arrowed away, or a fallback
+// THE TARGET COMES FROM THE PANEL'S SELECTED ROW, never from m.themeState.keys.
+// Those two differ exactly where it matters — the user has arrowed away, or a fallback
 // put the cursor somewhere other than the persisted slug — and committing
 // the persisted one would write back the theme the user was trying to replace.
 //
@@ -120,15 +120,15 @@ func committableThemeSlug(l list.Model) (string, bool) {
 // failed write must not recompute, and a nil persister wrote nothing for a
 // recompute to render.
 func (m *Model) commitConstant(slug string) error {
-	if m.themePersister == nil {
+	if m.themeState.persister == nil {
 		return nil
 	}
-	err := m.themePersister.CommitTheme(slug)
+	err := m.themeState.persister.CommitTheme(slug)
 	m.applyCommitResult(err)
 	if err != nil {
 		return err
 	}
-	m.themeKeys = theme.RawKeys{Theme: slug}
+	m.themeState.keys = theme.RawKeys{Theme: slug}
 	m.recomputeThemePanel()
 	return nil
 }
@@ -149,9 +149,9 @@ func (m *Model) commitConstant(slug string) error {
 // applied in memory while the `●` cannot move — nothing it derives from changed.
 //
 // THE TWO LIFETIMES ARE DIFFERENT AND BOTH ARE DELIBERATE. The MESSAGE persists only
-// until the next keypress (updateThemePanel clears it), while the STATE runs until a
-// subsequent commit succeeds — see Model.themeCommitFailed for why splitting them is
-// what makes the report survive an arrow.
+// until the next keypress (updateThemePanel clears it), while the STATE runs until
+// a subsequent commit succeeds — see themeState.commitFailed for why splitting them
+// is what makes the report survive an arrow.
 //
 // IT DOES NOT LOG. The persister is the single emission site for
 // `theme: commit failed`; logging here would double the event and add another
@@ -162,7 +162,7 @@ func (m *Model) applyCommitResult(err error) {
 		return
 	}
 	m.clearThemePanelCommitFailed()
-	m.themeCommitFailed = false
+	m.themeState.commitFailed = false
 }
 
 // reportCommitFailure raises the report WHOLE: the message slot's line and the
@@ -182,7 +182,7 @@ func (m *Model) applyCommitResult(err error) {
 // is a designed surface that has to be capturable.
 func (m *Model) reportCommitFailure() {
 	m.raiseThemePanelCommitFailed()
-	m.themeCommitFailed = true
+	m.themeState.commitFailed = true
 }
 
 // handleSlotCommitKey is `d` and `l` as the KEYS dispatch them, with the ONE
@@ -280,15 +280,15 @@ func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
 // already-empty constant is deliberately NOT special-cased, in the write or in
 // the mirror.
 func (m *Model) commitSlot(slug string, slot prefs.ThemeSlot) error {
-	if m.themePersister == nil {
+	if m.themeState.persister == nil {
 		return nil
 	}
-	err := m.themePersister.CommitThemeSlot(slug, slot)
+	err := m.themeState.persister.CommitThemeSlot(slug, slot)
 	m.applyCommitResult(err)
 	if err != nil {
 		return err
 	}
-	m.themeKeys = mirrorThemeSlot(m.themeKeys, slug, slot)
+	m.themeState.keys = mirrorThemeSlot(m.themeState.keys, slug, slot)
 	m.recomputeThemePanel()
 	return nil
 }
@@ -378,7 +378,7 @@ func mirrorThemeSlot(keys theme.RawKeys, slug string, slot prefs.ThemeSlot) them
 func (m *Model) recomputeThemePanel() {
 	previewed := previewedThemeIdentity(m.themePanel.list)
 
-	m.themePanel.union = m.themeEnumerator.Reassemble(m.themePanel.enumeration, m.themeKeys)
+	m.themePanel.union = m.themeState.enumerator.Reassemble(m.themePanel.enumeration, m.themeState.keys)
 	m.refreshThemePanelBadges()
 
 	// The list INSTANCE is kept and its items replaced: a rebuild is the expensive
@@ -424,7 +424,7 @@ func previewedThemeIdentity(l list.Model) string {
 // still run on that path: they read the mutated keys and the retained enumeration,
 // not the resolution, so the rows still re-derive, re-sort and re-anchor.
 func (m *Model) refreshThemePanelBadges() {
-	resolution, err := m.themeEnumerator.Resolve(m.themePanel.enumeration, m.themeSetting())
+	resolution, err := m.themeState.enumerator.Resolve(m.themePanel.enumeration, m.themeSetting())
 	if err != nil {
 		return
 	}

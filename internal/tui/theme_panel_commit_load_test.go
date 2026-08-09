@@ -75,7 +75,7 @@ func newConversionPanelModel(t *testing.T, dir string, keys theme.RawKeys) (Mode
 
 	loader, sink := themeOpenTestLoader(t)
 	m, persister := newLoadPanelModel(t, dir, keys, loader)
-	if !m.nomination.IsConstant() {
+	if !m.themeState.nomination.IsConstant() {
 		t.Fatalf("fixture: keys %+v resolved to an adaptive nomination; a conversion starts from a CONSTANT", keys)
 	}
 	return m, persister, sink
@@ -90,7 +90,7 @@ func newAdaptivePanelModel(t *testing.T, dir string, keys theme.RawKeys, reply t
 
 	loader, sink := themeOpenTestLoader(t)
 	m, persister := newLoadPanelModel(t, dir, keys, loader)
-	if m.nomination.IsConstant() {
+	if m.themeState.nomination.IsConstant() {
 		t.Fatalf("fixture: keys %+v resolved to a constant nomination; this fixture is the adaptive shape", keys)
 	}
 	m = deliverBackgroundReply(t, m, reply)
@@ -213,13 +213,13 @@ func requireLoadedLine(t *testing.T, sink *logtest.Sink, slug, slot string) {
 func requireNominationPair(t *testing.T, m Model, light, dark theme.Theme) {
 	t.Helper()
 
-	if m.nomination.IsConstant() {
+	if m.themeState.nomination.IsConstant() {
 		t.Fatalf("the nomination is still a CONSTANT after a conversion; §8.4's load joins the pair")
 	}
-	if got := m.nomination.Select(theme.MemberLight); got != light {
+	if got := m.themeState.nomination.Select(theme.MemberLight); got != light {
 		t.Errorf("the nomination's light member is %s, want %s", themeLabel(got), themeLabel(light))
 	}
-	if got := m.nomination.Select(theme.MemberDark); got != dark {
+	if got := m.themeState.nomination.Select(theme.MemberDark); got != dark {
 		t.Errorf("the nomination's dark member is %s, want %s", themeLabel(got), themeLabel(dark))
 	}
 }
@@ -249,7 +249,7 @@ func requireNoFallbackLine(t *testing.T, sink *logtest.Sink) {
 func requireSlotCanvas(t *testing.T, m Model, slot theme.Slot, want string) {
 	t.Helper()
 
-	got := m.nomination.Select(memberForSlot(slot))
+	got := m.themeState.nomination.Select(memberForSlot(slot))
 	if got.Canvas.Value != want {
 		t.Errorf("the nomination's %v member has canvas %q, want %q", slot, got.Canvas.Value, want)
 	}
@@ -596,7 +596,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 			if !m.themePanel.open {
 				t.Fatal("fixture: the panel did not open")
 			}
-			nomination, mode := m.nomination, m.canvasMode
+			nomination, mode := m.themeState.nomination, m.themeState.canvasMode
 
 			m, _ = tc.run(t, m)
 
@@ -606,11 +606,11 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 			if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
 				t.Errorf("a non-converting commit emitted %d `theme: loaded` line(s), want none (§8.4)\n%s", len(got), sink.Body())
 			}
-			if m.nomination != nomination {
+			if m.themeState.nomination != nomination {
 				t.Error("a non-converting commit moved the nomination; both members were already in hand")
 			}
-			if m.canvasMode != mode {
-				t.Errorf("a non-converting commit moved the light/dark answer to %v, want the classified %v — an adaptive launch already has one (§9.3)", m.canvasMode, mode)
+			if m.themeState.canvasMode != mode {
+				t.Errorf("a non-converting commit moved the light/dark answer to %v, want the classified %v — an adaptive launch already has one (§9.3)", m.themeState.canvasMode, mode)
 			}
 		})
 	}
@@ -619,7 +619,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 		dir := newConversionThemesDir(t)
 		m, persister, sink := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 		m = openConversionPanel(t, m)
-		nomination, mode := m.nomination, m.canvasMode
+		nomination, mode := m.themeState.nomination, m.themeState.canvasMode
 
 		m = arrowToThemeRow(t, m, "nord")
 		m, _ = pressCommitKey(t, m)
@@ -629,11 +629,11 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 		if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
 			t.Errorf("`Enter` emitted %d `theme: loaded` line(s), want none (§8.4)\n%s", len(got), sink.Body())
 		}
-		if m.nomination != nomination {
+		if m.themeState.nomination != nomination {
 			t.Error("`Enter` moved the nomination; it commits the palette already previewing")
 		}
-		if m.canvasMode != mode {
-			t.Errorf("`Enter` moved the light/dark answer to %v, want the untouched %v", m.canvasMode, mode)
+		if m.themeState.canvasMode != mode {
+			t.Errorf("`Enter` moved the light/dark answer to %v, want the untouched %v", m.themeState.canvasMode, mode)
 		}
 	})
 }
@@ -653,7 +653,7 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	m, persister, sink := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 	m = openConversionPanel(t, m)
-	nomination, mode, keys := m.nomination, m.canvasMode, m.themeKeys
+	nomination, mode, keys := m.themeState.nomination, m.themeState.canvasMode, m.themeState.keys
 	persister.err = errThemeCommitFailed
 
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
@@ -665,17 +665,17 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 	if got := themeEventRecords(sink, "fallback applied"); len(got) != 0 {
 		t.Errorf("a failed write emitted %d `theme: fallback applied` line(s), want none\n%s", len(got), sink.Body())
 	}
-	if m.nomination != nomination {
+	if m.themeState.nomination != nomination {
 		t.Error("a failed write moved the nomination; §9.13 leaves the constant standing in memory")
 	}
-	if !m.nomination.IsConstant() {
+	if !m.themeState.nomination.IsConstant() {
 		t.Error("a failed write left an adaptive nomination; the constant is still what is persisted (§9.13)")
 	}
-	if m.canvasMode != mode {
-		t.Errorf("a failed write moved the light/dark answer to %v, want the untouched %v", m.canvasMode, mode)
+	if m.themeState.canvasMode != mode {
+		t.Errorf("a failed write moved the light/dark answer to %v, want the untouched %v", m.themeState.canvasMode, mode)
 	}
-	if m.themeKeys != keys {
-		t.Errorf("a failed write left keys %+v, want the untouched %+v", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("a failed write left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
 
 	// The control: the same fixture with the write LANDING does load and does emit,
@@ -684,7 +684,7 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 	landed = openConversionPanel(t, landed)
 	landed, _ = convertToSlot(t, landed, "nord", slotDarkPress)
 	requireLoadedLine(t, landedSink, theme.DefaultLightSlug, "light")
-	if landed.nomination.IsConstant() {
+	if landed.themeState.nomination.IsConstant() {
 		t.Fatal("positive control: a landed write left the nomination a constant")
 	}
 }
@@ -705,13 +705,13 @@ func TestCommitSlotLoad_ActiveThemeUnchanged(t *testing.T) {
 	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 	m = openConversionPanel(t, m)
 	m = arrowToThemeRow(t, m, "nord")
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
-	if m.activeTheme != previewed {
-		t.Errorf("the conversion rendered %s, want the previewed %s — a commit is a WRITE, not a navigation (§9.2)", themeLabel(m.activeTheme), themeLabel(previewed))
+	if m.themeState.active != previewed {
+		t.Errorf("the conversion rendered %s, want the previewed %s — a commit is a WRITE, not a navigation (§9.2)", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 	requireNominationPair(t, m, testLightTheme(t), previewed)
 
@@ -782,7 +782,7 @@ func TestCommitSlotLoad_DiscardSilencesLoaded(t *testing.T) {
 		m = openConversionPanel(t, m)
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 		requireLoadedLine(t, sink, theme.DefaultLightSlug, "light")
-		if m.nomination.IsConstant() {
+		if m.themeState.nomination.IsConstant() {
 			t.Fatal("control: the conversion did not complete the pair")
 		}
 	}
@@ -796,7 +796,7 @@ func TestCommitSlotLoad_DiscardSilencesLoaded(t *testing.T) {
 
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-	if m.nomination.IsConstant() {
+	if m.themeState.nomination.IsConstant() {
 		t.Fatal("the discard-backed conversion did not complete the pair, so the silence is vacuous")
 	}
 	if lines := sink.Lines(); len(lines) != 0 {
@@ -835,22 +835,22 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 			dir := newConversionThemesDir(t)
 			m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 			m = deliverBackgroundReply(t, m, tc.reply)
-			if m.canvasMode != appearanceDarkCanvas {
-				t.Fatalf("fixture: the constant launch starts on %v, want the standing dark fallback so the answer is the conversion's", m.canvasMode)
+			if m.themeState.canvasMode != appearanceDarkCanvas {
+				t.Fatalf("fixture: the constant launch starts on %v, want the standing dark fallback so the answer is the conversion's", m.themeState.canvasMode)
 			}
 			m = openConversionPanel(t, m)
 
 			m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-			if m.canvasMode != tc.want {
-				t.Errorf("the conversion left the light/dark answer %v, want %v — it classifies the reply already in hand (§9.3)", m.canvasMode, tc.want)
+			if m.themeState.canvasMode != tc.want {
+				t.Errorf("the conversion left the light/dark answer %v, want %v — it classifies the reply already in hand (§9.3)", m.themeState.canvasMode, tc.want)
 			}
 
 			// Task 8-10's close selects the in-force member from that answer.
 			closed := closeThemePanelForTest(t, m)
 			want := testBuiltinTheme(t, tc.inForce)
-			if closed.activeTheme != want {
-				t.Errorf("the close landed on %s, want %s — the in-force member is the one the answer names (§9.2)", themeLabel(closed.activeTheme), themeLabel(want))
+			if closed.themeState.active != want {
+				t.Errorf("the close landed on %s, want %s — the in-force member is the one the answer names (§9.2)", themeLabel(closed.themeState.active), themeLabel(want))
 			}
 		})
 	}
@@ -868,27 +868,27 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 		dir := newConversionThemesDir(t)
 		m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 		m = openConversionPanel(t, m)
-		if m.bgReplyArrived {
+		if m.themeState.bgReplyArrived {
 			t.Fatal("fixture: a reply arrived before the open, so the late-arrival order is not being driven")
 		}
 
 		m = deliverBackgroundReply(t, m, lightBg)
 
-		if !m.bgReplyArrived {
+		if !m.themeState.bgReplyArrived {
 			t.Fatal("the reply was not retained with the panel open; the arm must sit ahead of every panel route")
 		}
-		if m.canvasMode != appearanceDarkCanvas {
-			t.Fatalf("fixture: the reply moved the answer to %v before any conversion, want the constant's standing dark fallback", m.canvasMode)
+		if m.themeState.canvasMode != appearanceDarkCanvas {
+			t.Fatalf("fixture: the reply moved the answer to %v before any conversion, want the constant's standing dark fallback", m.themeState.canvasMode)
 		}
 
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-		if m.canvasMode != appearanceLightCanvas {
-			t.Errorf("the conversion left the light/dark answer %v, want light — a reply retained with the panel open classifies exactly as an early one (§9.3)", m.canvasMode)
+		if m.themeState.canvasMode != appearanceLightCanvas {
+			t.Errorf("the conversion left the light/dark answer %v, want light — a reply retained with the panel open classifies exactly as an early one (§9.3)", m.themeState.canvasMode)
 		}
 		closed := closeThemePanelForTest(t, m)
-		if want := testLightTheme(t); closed.activeTheme != want {
-			t.Errorf("the close landed on %s, want %s", themeLabel(closed.activeTheme), themeLabel(want))
+		if want := testLightTheme(t); closed.themeState.active != want {
+			t.Errorf("the close landed on %s, want %s", themeLabel(closed.themeState.active), themeLabel(want))
 		}
 	})
 }
@@ -909,23 +909,23 @@ func TestCommitSlotLoad_ConversionIssuesNoQuery(t *testing.T) {
 	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 	m = deliverBackgroundReply(t, m, lightBg)
 	m = openConversionPanel(t, m)
-	gate, original, arrived := m.gate, m.originalBg, m.bgReplyArrived
+	gate, original, arrived := m.themeState.gate, m.originalBg, m.themeState.bgReplyArrived
 
 	m, cmd := convertToSlot(t, m, "nord", slotDarkPress)
 
 	if cmd != nil {
 		t.Errorf("the conversion scheduled %T; §9.3 needs no new query and arms no new gate", cmd)
 	}
-	if m.gate != gate {
-		t.Errorf("the conversion moved the gate to %+v, want the untouched %+v — §8.8's gate resolves exactly once", m.gate, gate)
+	if m.themeState.gate != gate {
+		t.Errorf("the conversion moved the gate to %+v, want the untouched %+v — §8.8's gate resolves exactly once", m.themeState.gate, gate)
 	}
-	if m.originalBg != original || m.bgReplyArrived != arrived {
-		t.Errorf("the conversion moved the retained reply to (%q, %v), want the untouched (%q, %v)", m.originalBg, m.bgReplyArrived, original, arrived)
+	if m.originalBg != original || m.themeState.bgReplyArrived != arrived {
+		t.Errorf("the conversion moved the retained reply to (%q, %v), want the untouched (%q, %v)", m.originalBg, m.themeState.bgReplyArrived, original, arrived)
 	}
-	if m.canvasMode != appearanceLightCanvas {
-		t.Fatalf("the conversion answered %v, want light", m.canvasMode)
+	if m.themeState.canvasMode != appearanceLightCanvas {
+		t.Fatalf("the conversion answered %v, want light", m.themeState.canvasMode)
 	}
-	if m.gate.appearance == m.canvasMode {
+	if m.themeState.gate.appearance == m.themeState.canvasMode {
 		t.Error("the gate's appearance now equals the answer, so this fixture cannot tell a classified reply from the gate's standing dark fallback")
 	}
 }
@@ -942,27 +942,27 @@ func TestCommitSlotLoad_ConversionIssuesNoQuery(t *testing.T) {
 func TestCommitSlotLoad_ConversionWithNoReplyIsDark(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
-	if m.bgReplyArrived {
+	if m.themeState.bgReplyArrived {
 		t.Fatal("fixture: a reply has already arrived, so the no-reply case is not being driven")
 	}
 	m = openConversionPanel(t, m)
 
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-	if m.canvasMode != appearanceDarkCanvas {
-		t.Errorf("a conversion with no reply answered %v, want dark (§8.8's no-answer fallback)", m.canvasMode)
+	if m.themeState.canvasMode != appearanceDarkCanvas {
+		t.Errorf("a conversion with no reply answered %v, want dark (§8.8's no-answer fallback)", m.themeState.canvasMode)
 	}
-	active, nomination := m.activeTheme, m.nomination
+	active, nomination := m.themeState.active, m.themeState.nomination
 
 	late := deliverBackgroundReply(t, m, lightBg)
 
-	if late.canvasMode != appearanceDarkCanvas {
-		t.Errorf("a late reply moved the answer to %v; §8.8 resolves exactly once", late.canvasMode)
+	if late.themeState.canvasMode != appearanceDarkCanvas {
+		t.Errorf("a late reply moved the answer to %v; §8.8 resolves exactly once", late.themeState.canvasMode)
 	}
-	if late.activeTheme != active {
-		t.Errorf("a late reply re-themed to %s, want the untouched %s", themeLabel(late.activeTheme), themeLabel(active))
+	if late.themeState.active != active {
+		t.Errorf("a late reply re-themed to %s, want the untouched %s", themeLabel(late.themeState.active), themeLabel(active))
 	}
-	if late.nomination != nomination {
+	if late.themeState.nomination != nomination {
 		t.Error("a late reply moved the nomination")
 	}
 }
@@ -995,7 +995,7 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 			if tc.deliver {
 				m = deliverBackgroundReply(t, m, tc.reply)
 			}
-			anchor := m.startupCanvasHex
+			anchor := m.themeState.startupCanvasHex
 			if anchor != conversionConstantValue {
 				t.Fatalf("fixture: the startup canvas hex is %q, want the constant's %q", anchor, conversionConstantValue)
 			}
@@ -1003,13 +1003,13 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 
 			m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-			if m.startupCanvasHex != anchor {
-				t.Errorf("the conversion moved the startup canvas hex to %q, want the byte-identical %q — §11.4's anchor is frozen at gate resolution", m.startupCanvasHex, anchor)
+			if m.themeState.startupCanvasHex != anchor {
+				t.Errorf("the conversion moved the startup canvas hex to %q, want the byte-identical %q — §11.4's anchor is frozen at gate resolution", m.themeState.startupCanvasHex, anchor)
 			}
-			if m.startupCanvasHex == m.activeTheme.Canvas.Value {
+			if m.themeState.startupCanvasHex == m.themeState.active.Canvas.Value {
 				t.Error("the anchor now equals the PREVIEWED canvas, so this fixture cannot detect a re-capture from the active theme")
 			}
-			if m.startupCanvasHex == testLightTheme(t).Canvas.Value {
+			if m.themeState.startupCanvasHex == testLightTheme(t).Canvas.Value {
 				t.Error("the anchor now equals the newly-LOADED slot's canvas, so this fixture cannot detect a re-capture from the load")
 			}
 		})
@@ -1053,12 +1053,12 @@ func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 	deps := newArrowPanelDeps(t, rows, persisted)
 	deps.ThemePersister = persister
 	m := openCommitPanel(t, deps, PageSessions, persisted)
-	seam, ok := m.themeEnumerator.(*fakeThemeEnumerator)
+	seam, ok := m.themeState.enumerator.(*fakeThemeEnumerator)
 	if !ok {
-		t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeEnumerator)
+		t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeState.enumerator)
 	}
 	m = arrowToThemeRow(t, m, target)
-	nomination, mode, active := m.nomination, m.canvasMode, m.activeTheme
+	nomination, mode, active := m.themeState.nomination, m.themeState.canvasMode, m.themeState.active
 	seam.err = errThemeResolveFatal
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
@@ -1067,14 +1067,14 @@ func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 	if len(seam.slotLoads) != 1 {
 		t.Fatalf("the conversion asked for %d slot load(s), want 1 — the degrade must be the seam's answer rather than a load that never ran", len(seam.slotLoads))
 	}
-	if m.nomination != nomination {
-		t.Errorf("the fatal left the nomination %+v, want the untouched %+v — a degrade moves nothing", m.nomination, nomination)
+	if m.themeState.nomination != nomination {
+		t.Errorf("the fatal left the nomination %+v, want the untouched %+v — a degrade moves nothing", m.themeState.nomination, nomination)
 	}
-	if m.canvasMode != mode {
-		t.Errorf("the fatal moved the light/dark answer to %v, want the untouched %v", m.canvasMode, mode)
+	if m.themeState.canvasMode != mode {
+		t.Errorf("the fatal moved the light/dark answer to %v, want the untouched %v", m.themeState.canvasMode, mode)
 	}
-	if m.activeTheme != active {
-		t.Errorf("the fatal rendered %s, want the untouched %s", themeLabel(m.activeTheme), themeLabel(active))
+	if m.themeState.active != active {
+		t.Errorf("the fatal rendered %s, want the untouched %s", themeLabel(m.themeState.active), themeLabel(active))
 	}
 	if cmd != nil {
 		t.Errorf("the fatal scheduled %T; the panel degrades rather than quitting Portal mid-session", cmd)

@@ -95,8 +95,8 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 			if deps.ThemeKeys != fx.themeKeys {
 				t.Errorf("Deps().ThemeKeys = %+v, want the declared %+v", deps.ThemeKeys, fx.themeKeys)
 			}
-			if deps.InitialThemeCursor != fx.initialThemeCursor {
-				t.Errorf("Deps().InitialThemeCursor = %q, want the declared %q", deps.InitialThemeCursor, fx.initialThemeCursor)
+			if deps.Capture.ThemeCursor != fx.initialThemeCursor {
+				t.Errorf("Deps().Capture.ThemeCursor = %q, want the declared %q", deps.Capture.ThemeCursor, fx.initialThemeCursor)
 			}
 			if deps.ThemeEnumerator == nil {
 				t.Fatal("Deps() wires no ThemeEnumerator, so `t` is a silent no-op and the fixture renders no panel at all")

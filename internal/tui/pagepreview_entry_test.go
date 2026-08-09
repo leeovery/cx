@@ -25,7 +25,7 @@ func modelWithSeams(t *testing.T, sessions []tmux.Session, enum TmuxEnumerator, 
 	pl := newProjectList()
 	pl.SetSize(80, 24)
 	return Model{
-		activeTheme: testDarkTheme(t),
+		themeState:  themeState{active: testDarkTheme(t)},
 		sessions:    sessions,
 		sessionList: l,
 		projectList: pl,

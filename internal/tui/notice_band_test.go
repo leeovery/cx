@@ -51,7 +51,7 @@ func flattenNoticeBand(band string) string {
 // each of which must appear on its own line in the composed view.
 func viewHasNoticeMessage(t *testing.T, m Model, role noticeBandRole, message string) bool {
 	t.Helper()
-	band := renderNoticeBand(role, message, noticeBandOnBandText(role, m.activeTheme), m.contentWidth(), m.activeTheme, m.colourless)
+	band := renderNoticeBand(role, message, noticeBandOnBandText(role, m.themeState.active), m.contentWidth(), m.themeState.active, m.colourless)
 	view := ansi.Strip(m.View().Content)
 	for line := range strings.SplitSeq(ansi.Strip(band), "\n") {
 		frag := strings.TrimRight(strings.TrimLeft(strings.TrimPrefix(line, noticeBarGlyph), " "), " ")

@@ -208,7 +208,7 @@ func TestApplySectionHeader_UnsupportedShowsBanner(t *testing.T) {
 		t.Errorf("unsupported section-header row must NOT show the standard %q header:\n%s", "Sessions", first)
 	}
 	// The label cluster is painted amber (accent.orange).
-	if seq := tokenFgSeq(t, m.activeTheme.AccentAttention); !strings.Contains(bannerFirstLine(m), seq) {
+	if seq := tokenFgSeq(t, m.themeState.active.AccentAttention); !strings.Contains(bannerFirstLine(m), seq) {
 		t.Errorf("unsupported banner missing the accent.orange fg sequence %q:\n%s", seq, bannerFirstLine(m))
 	}
 }

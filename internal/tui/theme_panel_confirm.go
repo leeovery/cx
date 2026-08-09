@@ -73,8 +73,8 @@ func (p themePanel) confirming() bool {
 // the previewed theme exactly as it found them.
 //
 // The message's own datum is the PERSISTED constant, read by the writer from
-// m.themeKeys (see Model.raiseThemePanelConfirm for why the raw key rather than the
-// resolution): the confirm names what is being CLEARED, while the pending value
+// m.themeState.keys (see Model.raiseThemePanelConfirm for why the raw key rather
+// than the resolution): the confirm names what is being CLEARED, while the pending value
 // below names what is being SET. Under a fallback those two rows are not even
 // the same theme.
 func (m *Model) raiseSlotConfirm(slug string, slot prefs.ThemeSlot) {
@@ -164,7 +164,7 @@ func (m *Model) confirmSlotAssignment() {
 	if err := m.commitSlot(pending.slug, pending.slot); err != nil {
 		return
 	}
-	if m.themePersister == nil {
+	if m.themeState.persister == nil {
 		return
 	}
 	m.loadNewlyLiveSlot(pending.slot)
@@ -226,15 +226,15 @@ func (m *Model) confirmSlotAssignment() {
 func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
 	newlyLive := oppositeThemeMember(assigned)
 	slot := newlyLive.Slot()
-	resolved, err := m.themeEnumerator.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot))
+	resolved, err := m.themeState.enumerator.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot))
 	if err != nil {
 		return
 	}
 
-	m.canvasMode = m.retainedCanvasAnswer()
-	m.nomination = theme.AdaptivePair(
+	m.themeState.canvasMode = m.retainedCanvasAnswer()
+	m.themeState.nomination = theme.AdaptivePair(
 		newlyLive.Palette(resolved.Theme),
-		newlyLive.Opposite().Palette(m.activeTheme),
+		newlyLive.Opposite().Palette(m.themeState.active),
 	)
 }
 
@@ -297,7 +297,7 @@ func (m Model) persistedSlotSlug(slot theme.Slot) string {
 // arrival rather than on a non-empty originalBg, and why dark is the answer either
 // way: IsDark reports a nil colour as dark.
 func (m Model) retainedCanvasAnswer() canvasAppearance {
-	if m.bgReplyArrived && !m.bgReplyDark {
+	if m.themeState.bgReplyArrived && !m.themeState.bgReplyDark {
 		return appearanceLightCanvas
 	}
 	return appearanceDarkCanvas

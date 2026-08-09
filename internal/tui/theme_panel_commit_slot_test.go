@@ -92,9 +92,9 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 func requireNoSlotLoad(t *testing.T, m Model) {
 	t.Helper()
 
-	seam, ok := m.themeEnumerator.(*fakeThemeEnumerator)
+	seam, ok := m.themeState.enumerator.(*fakeThemeEnumerator)
 	if !ok {
-		t.Fatalf("fixture: the seam is %T, want the recording fake — this is a statement about what the seam was ASKED", m.themeEnumerator)
+		t.Fatalf("fixture: the seam is %T, want the recording fake — this is a statement about what the seam was ASKED", m.themeState.enumerator)
 	}
 	if len(seam.slotLoads) != 0 {
 		t.Errorf("a non-converting commit asked the seam for slot load(s) %v, want none — §8.4 puts the load on the constant → adaptive transition and nowhere else", seam.slotLoads)
@@ -105,7 +105,7 @@ func requireNoSlotLoad(t *testing.T, m Model) {
 // these two slots, with the constant cleared.
 func requirePairKeys(t *testing.T, m Model, light, dark string) {
 	t.Helper()
-	if got := m.themeKeys; got != (theme.RawKeys{Light: light, Dark: dark}) {
+	if got := m.themeState.keys; got != (theme.RawKeys{Light: light, Dark: dark}) {
 		t.Errorf("themeKeys = %+v, want {Light:%s Dark:%s} — a slot commit clears the constant and leaves the OTHER slot alone (§8.2)", got, light, dark)
 	}
 }
@@ -361,8 +361,8 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 		if len(persister.slugs) != 1 {
 			t.Errorf("the keypress made %d seam call(s) (%v), want the single atomic slot write", len(persister.slugs), persister.slugs)
 		}
-		if m.themeKeys.Theme != "" {
-			t.Errorf("themeKeys.Theme = %q after a slot commit, want it cleared (§8.2)", m.themeKeys.Theme)
+		if m.themeState.keys.Theme != "" {
+			t.Errorf("themeKeys.Theme = %q after a slot commit, want it cleared (§8.2)", m.themeState.keys.Theme)
 		}
 	})
 
@@ -425,7 +425,7 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			persisted, target := rows[0].Slug, rows[2].Slug
 			m, persister := newCommitPanelModel(t, rows, persisted)
 			m = arrowToThemeRow(t, m, target)
-			previewed := m.activeTheme
+			previewed := m.themeState.active
 
 			m, cmd := pressSlotKey(t, m, tc.press)
 
@@ -439,8 +439,8 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			if got := m.themePanel.message; got.Kind != themeMessageConfirm {
 				t.Errorf("%q left the message %+v; over a constant the keypress ASKS (§9.2)", tc.name, got)
 			}
-			if m.activeTheme != previewed {
-				t.Errorf("%q rendered canvas %s, want the previewed %s left alone", tc.name, m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+			if m.themeState.active != previewed {
+				t.Errorf("%q rendered canvas %s, want the previewed %s left alone", tc.name, m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 			}
 			if cmd != nil {
 				t.Errorf("%q over a constant scheduled %T, want nothing", tc.name, cmd)
@@ -451,8 +451,8 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			pair, pairPersister := newCommitPairPanelModel(t, rows)
 			pair, _ = pressSlotKey(t, arrowToThemeRow(t, pair, target), tc.press)
 			requireSlotCommits(t, pairPersister, slotCommit{slug: target, slot: tc.slot})
-			if pair.themeKeys.Theme != "" {
-				t.Errorf("positive control: the adaptive commit left the constant %q set", pair.themeKeys.Theme)
+			if pair.themeState.keys.Theme != "" {
+				t.Errorf("positive control: the adaptive commit left the constant %q set", pair.themeState.keys.Theme)
 			}
 		})
 	}
@@ -485,14 +485,14 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		m, persister := newModel(t)
 
 		m = arrowToThemeRow(t, m, theme.DefaultLightSlug)
-		previewed := m.activeTheme
+		previewed := m.themeState.active
 		before := m.View().Content
 
 		m, cmd := pressSlotKey(t, m, slotLightPress)
 
 		requireSlotCommits(t, persister, slotCommit{slug: theme.DefaultLightSlug, slot: prefs.SlotLight})
-		if m.activeTheme != previewed {
-			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+		if m.themeState.active != previewed {
+			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := m.View().Content; got != before {
 			t.Errorf("the commit changed the composed frame\nbefore: %q\nafter:  %q", escSeq(before), escSeq(got))
@@ -512,7 +512,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		m, persister := newModel(t)
 
 		m = arrowToThemeRow(t, m, "sunset")
-		previewed := m.activeTheme
+		previewed := m.themeState.active
 		if got := previewed.Canvas.Value; got != "#202020" {
 			t.Fatalf("fixture: arrowing to `sunset` rendered canvas %s, want #202020", got)
 		}
@@ -523,8 +523,8 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		requireSlotCommits(t, persister, slotCommit{slug: "sunset", slot: prefs.SlotLight})
 		requireBadge(t, m, "sunset", theme.BadgeLight)
 		requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeNone)
-		if m.activeTheme != previewed {
-			t.Errorf("the commit rendered canvas %s, want the previewed %s — the resolved-active theme is still the DARK slot (§9.2)", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+		if m.themeState.active != previewed {
+			t.Errorf("the commit rendered canvas %s, want the previewed %s — the resolved-active theme is still the DARK slot (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := frameColours(m.View().Content); !slices.Equal(got, colours) {
 			t.Errorf("the commit changed the frame's colours\nbefore: %v\nafter:  %v", colours, got)
@@ -544,7 +544,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		if m.themePanel.open {
 			t.Fatal("Esc left the panel open")
 		}
-		if got := m.activeTheme.Canvas.Value; got != "#101010" {
+		if got := m.themeState.active.Canvas.Value; got != "#101010" {
 			t.Errorf("the close rendered canvas %s, want the DARK slot's aurora #101010 — a light-slot commit does not change what is in force in a dark terminal (§9.2)", got)
 		}
 	})
@@ -569,7 +569,7 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	once := m.View().Content
-	onceKeys := m.themeKeys
+	onceKeys := m.themeState.keys
 	onceBadges := maps.Clone(m.themePanel.badges)
 
 	m, cmd := pressSlotKey(t, m, slotDarkPress)
@@ -577,8 +577,8 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	repeat := slotCommit{slug: "aurora", slot: prefs.SlotDark}
 	requireSlotCommits(t, persister, repeat, repeat)
 	requirePairKeys(t, m, theme.DefaultLightSlug, "aurora")
-	if m.themeKeys != onceKeys {
-		t.Errorf("the second commit left keys %+v, want the first's %+v", m.themeKeys, onceKeys)
+	if m.themeState.keys != onceKeys {
+		t.Errorf("the second commit left keys %+v, want the first's %+v", m.themeState.keys, onceKeys)
 	}
 	if got := m.themePanel.badges; !maps.Equal(got, onceBadges) {
 		t.Errorf("the second commit left badges %v, want the first's %v", got, onceBadges)
@@ -703,16 +703,16 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		// non-identity rule above: the fixture opens on the slug the dark slot
 		// already holds.
 		m = arrowToThemeRow(t, m, opened[2].Slug)
-		keys := m.themeKeys
+		keys := m.themeState.keys
 		badges := maps.Clone(m.themePanel.badges)
-		previewed := m.activeTheme
+		previewed := m.themeState.active
 		persister.err = errThemeCommitFailed
 
 		m, cmd := pressSlotKey(t, m, slotDarkPress)
 
 		requireSlotCommits(t, persister, slotCommit{slug: opened[2].Slug, slot: prefs.SlotDark})
-		if m.themeKeys != keys {
-			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v", m.themeKeys, keys)
+		if m.themeState.keys != keys {
+			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 		}
 		requireRowLabels(t, m, arrowSlug(0), arrowSlug(1), arrowSlug(2), arrowSlug(3))
 		if got := m.themePanel.badges; !maps.Equal(got, badges) {
@@ -724,8 +724,8 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		if !m.themePanel.open {
 			t.Error("a failed slot commit closed the panel; `Esc` is the only way out (§9.2)")
 		}
-		if m.activeTheme != previewed {
-			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+		if m.themeState.active != previewed {
+			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := m.themePanel.message; got.Kind != themeMessageCommitFailed {
 			t.Errorf("a failed slot commit left the message %+v, want §9.13's failed-commit line reported in the slot", got)
@@ -756,8 +756,8 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		}
 
 		requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
-		if m.themeKeys != keys {
-			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeKeys, keys)
+		if m.themeState.keys != keys {
+			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeState.keys, keys)
 		}
 		if got := m.themePanel.badges; !maps.Equal(got, badges) {
 			t.Errorf("the failed commit left badges %v, want the untouched %v — the constant is still set, so the panel still marks it (§9.13)", got, badges)
@@ -792,17 +792,17 @@ func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 	target := rows[2].Slug
 
 	m := openCommitPanel(t, commitPairPanelDeps(t, rows), PageSessions, rows[1].Slug)
-	if m.themePersister != nil {
-		t.Fatalf("fixture: the model holds persister %#v, want none", m.themePersister)
+	if m.themeState.persister != nil {
+		t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)
 	}
 	m = arrowToThemeRow(t, m, target)
-	keys := m.themeKeys
+	keys := m.themeState.keys
 	before := m.View().Content
 
 	m, cmd := pressSlotKey(t, m, slotDarkPress)
 
-	if m.themeKeys != keys {
-		t.Errorf("`d` over a nil persister left keys %+v, want the untouched %+v", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("`d` over a nil persister left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
 	if !m.themePanel.open {
 		t.Error("`d` closed the panel over a nil persister")
@@ -845,7 +845,7 @@ func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	requireSlotCommits(t, persister, slotCommit{slug: "aurora", slot: prefs.SlotDark})
 	requirePairKeys(t, m, theme.DefaultLightSlug, "aurora")
-	footer := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.activeTheme, m.colourless)
+	footer := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.themeState.active, m.colourless)
 
 	m, cmd := pressCommitKey(t, m)
 
@@ -864,7 +864,7 @@ func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	if !m.themePanel.open {
 		t.Error("`Enter` closed the panel")
 	}
-	after := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.activeTheme, m.colourless)
+	after := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.themeState.active, m.colourless)
 	if after != footer {
 		t.Errorf("`Enter` swapped the panel footer\nbefore: %q\nafter:  %q", escSeq(footer), escSeq(after))
 	}

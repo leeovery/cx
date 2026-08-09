@@ -82,7 +82,7 @@ func testNordTheme(t *testing.T) theme.Theme {
 func startupModel(t *testing.T, startup theme.Theme) Model {
 	t.Helper()
 	m := newSwapFrameModel(t, startup, false)
-	if got := m.startupCanvasHex; got != startup.Canvas.Value {
+	if got := m.themeState.startupCanvasHex; got != startup.Canvas.Value {
 		t.Fatalf("startupCanvasHex = %q at construction, want the startup canvas %q — these cases rest on the hex being captured by the gate, not set by the test", got, startup.Canvas.Value)
 	}
 	return m
@@ -120,7 +120,7 @@ func assertNothingWritten(t *testing.T, m Model, why string) {
 	RestoreTerminalBackground(&b, m)
 	if got := b.String(); got != "" {
 		t.Errorf("captured original %q (startup canvas %s, active canvas %s): wrote %q, want nothing — %s",
-			m.OriginalBackground(), m.startupCanvasHex, m.activeTheme.Canvas.Value, escSeq(got), why)
+			m.OriginalBackground(), m.themeState.startupCanvasHex, m.themeState.active.Canvas.Value, escSeq(got), why)
 	}
 }
 
@@ -145,7 +145,7 @@ func assertSetBack(t *testing.T, m Model) {
 	want := ansi.SetBackgroundColor(m.OriginalBackground())
 	if got := b.String(); got != want {
 		t.Errorf("captured original %q (startup canvas %s, active canvas %s): wrote %q, want %q — the comparison is anchored to the STARTUP canvas, so anything else is a genuine original and must be set back",
-			m.OriginalBackground(), m.startupCanvasHex, m.activeTheme.Canvas.Value, escSeq(got), escSeq(want))
+			m.OriginalBackground(), m.themeState.startupCanvasHex, m.themeState.active.Canvas.Value, escSeq(got), escSeq(want))
 	}
 }
 
@@ -175,7 +175,7 @@ func TestRestoreBackground_CommittedThemeDivergence(t *testing.T) {
 	m := startupModel(t, startup)
 
 	m.ApplyTheme(committed)
-	if got := m.activeTheme.Canvas.Value; got != testLightThemeCanvas {
+	if got := m.themeState.active.Canvas.Value; got != testLightThemeCanvas {
 		t.Fatalf("active canvas = %q after the commit, want %q — without the divergence there is nothing to test, only restore_test.go's skip/emit pair repeated", got, testLightThemeCanvas)
 	}
 
@@ -188,7 +188,7 @@ func TestRestoreBackground_CommittedThemeDivergence(t *testing.T) {
 	})
 
 	t.Run("the startup hex did not move with the commit", func(t *testing.T) {
-		if got := m.startupCanvasHex; got != testDarkThemeCanvas {
+		if got := m.themeState.startupCanvasHex; got != testDarkThemeCanvas {
 			t.Errorf("startupCanvasHex = %q after committing %s, want %q — it is frozen at gate resolution (§11.4)",
 				got, themeLabel(committed), testDarkThemeCanvas)
 		}
@@ -220,12 +220,12 @@ func TestRestoreBackground_UncommittedPreviewDivergence(t *testing.T) {
 
 	for i, th := range []theme.Theme{testLightTheme(t), startup, previewed} {
 		m.ApplyTheme(th)
-		if got := m.startupCanvasHex; got != testDarkThemeCanvas {
+		if got := m.themeState.startupCanvasHex; got != testDarkThemeCanvas {
 			t.Fatalf("startupCanvasHex = %q after preview %d of 3 (%s), want %q — a preview commits nothing and moves nothing",
 				got, i+1, themeLabel(th), testDarkThemeCanvas)
 		}
 	}
-	if got := m.activeTheme.Canvas.Value; got != nordCanvas {
+	if got := m.themeState.active.Canvas.Value; got != nordCanvas {
 		t.Fatalf("active canvas = %q after the preview run, want %q — the run must END on the previewed theme, or there is no divergence to test", got, nordCanvas)
 	}
 
@@ -272,11 +272,11 @@ func TestRestoreBackground_ActiveCanvasEqualsOriginalStillSetsBack(t *testing.T)
 
 	m.ApplyTheme(landedOn)
 
-	if got, want := m.activeTheme.Canvas.Value, m.OriginalBackground(); !strings.EqualFold(got, want) {
+	if got, want := m.themeState.active.Canvas.Value, m.OriginalBackground(); !strings.EqualFold(got, want) {
 		t.Fatalf("active canvas %q and captured original %q differ; this case only exists while they coincide", got, want)
 	}
-	if strings.EqualFold(m.startupCanvasHex, m.OriginalBackground()) {
-		t.Fatalf("startup canvas %q equals the captured original; then the guard should SKIP and the case is inverted", m.startupCanvasHex)
+	if strings.EqualFold(m.themeState.startupCanvasHex, m.OriginalBackground()) {
+		t.Fatalf("startup canvas %q equals the captured original; then the guard should SKIP and the case is inverted", m.themeState.startupCanvasHex)
 	}
 	assertSetBack(t, m)
 }
@@ -300,7 +300,7 @@ func TestRestoreBackground_StartupHexSurvivesSwaps(t *testing.T) {
 	for i, th := range []theme.Theme{light, nord, startup, nord, light} {
 		m.ApplyTheme(th)
 
-		if got := m.startupCanvasHex; got != testDarkThemeCanvas {
+		if got := m.themeState.startupCanvasHex; got != testDarkThemeCanvas {
 			t.Fatalf("startupCanvasHex = %q after swap %d (%s), want %q unchanged", got, i+1, themeLabel(th), testDarkThemeCanvas)
 		}
 		assertSkipped(t, withCapturedOriginal(m, echo))
@@ -377,7 +377,7 @@ func TestRestoreBackground_EmptyCaptureAfterSwapWritesNothing(t *testing.T) {
 	}
 
 	m.ApplyTheme(testNordTheme(t))
-	if got := m.activeTheme.Canvas.Value; got != nordCanvas {
+	if got := m.themeState.active.Canvas.Value; got != nordCanvas {
 		t.Fatalf("active canvas = %q after the preview, want %q — without the swap this is the un-swapped case repeated", got, nordCanvas)
 	}
 

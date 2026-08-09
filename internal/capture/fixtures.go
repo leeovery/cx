@@ -71,7 +71,7 @@ type Fixture struct {
 	// actually rendering, so without this a constant-while-previewing frame is
 	// unreachable — its whole point is a cursor on a row OTHER than the marked one,
 	// otherwise reachable only by arrowing, and a fixture is a one-shot render. It is
-	// PLACEMENT ONLY and applies no theme (see tui.Deps.InitialThemeCursor).
+	// PLACEMENT ONLY and applies no theme (see tui.CaptureSeeds.ThemeCursor).
 	initialThemeCursor string
 	// initialThemeConfirm seeds the slot-from-constant confirm on the opened panel,
 	// exactly as an `l` over a persisted constant raises it. It is the only route to
@@ -183,39 +183,41 @@ type Fixture struct {
 // no-op the model's nil guard gives it.
 func (f *Fixture) Deps(th theme.Theme) tui.Deps {
 	return tui.Deps{
-		Theme:               theme.ConstantNomination(th),
-		ThemeKeys:           f.themeKeys,
-		ThemeEnumerator:     f.themeEnumerator(th),
-		InitialThemeCursor:  f.initialThemeCursor,
-		InitialThemeConfirm: f.initialThemeConfirm,
-		// The panel's message slot is a single-slot arbiter, so a fixture declares AT
-		// MOST one of these two — the seeds are alternatives and the model treats
-		// them as such.
-		InitialThemeCommitFailed: f.initialThemeCommitFailed,
-		Lister:                   f.Lister,
-		Killer:                   fakeKiller{},
-		Renamer:                  fakeRenamer{},
-		Creator:                  fakeCreator{},
-		ProjectStore:             f.projectStore,
-		ProjectEditor:            f.projectEditor,
-		AliasEditor:              f.aliasEditor,
-		Enumerator:               fakeEnumerator{groups: f.enumeratorGroups},
-		Reader:                   fakeScrollbackReader{content: f.scrollback},
+		Theme:           theme.ConstantNomination(th),
+		ThemeKeys:       f.themeKeys,
+		ThemeEnumerator: f.themeEnumerator(th),
+		Lister:          f.Lister,
+		Killer:          fakeKiller{},
+		Renamer:         fakeRenamer{},
+		Creator:         fakeCreator{},
+		ProjectStore:    f.projectStore,
+		ProjectEditor:   f.projectEditor,
+		AliasEditor:     f.aliasEditor,
+		Enumerator:      fakeEnumerator{groups: f.enumeratorGroups},
+		Reader:          fakeScrollbackReader{content: f.scrollback},
 		// DirReader/DirRunner are deliberately left nil: the fixture sessions are
 		// pre-stamped (Session.Dir set), so the lazy pane-read fallback never
 		// fires — and the harness has no tmux server to read panes from anyway.
 		// ModePersister is nil so an `s`-toggle during a capture writes nowhere.
-		InitialMode:         f.initialMode,
-		InitialMultiSelect:  f.initialMultiSelect,
-		InitialCursor:       f.initialCursor,
-		InitialDetection:    f.initialDetection,
-		InitialGoneFlagged:  f.initialGoneFlagged,
-		InitialBurstOpening: f.initialBurstOpening,
-		InitialFlash:        f.initialFlash,
-		Command:             f.command,
-		CWD:                 "/home/user",
-		ServerStarted:       f.serverStarted,
-		NoColor:             f.noColor,
+		InitialMode:   f.initialMode,
+		Command:       f.command,
+		CWD:           "/home/user",
+		ServerStarted: f.serverStarted,
+		NoColor:       f.noColor,
+		Capture: tui.CaptureSeeds{
+			ThemeCursor:  f.initialThemeCursor,
+			ThemeConfirm: f.initialThemeConfirm,
+			// The panel's message slot is a single-slot arbiter, so a fixture declares AT
+			// MOST one of these two — the seeds are alternatives and the model treats
+			// them as such.
+			ThemeCommitFailed: f.initialThemeCommitFailed,
+			MultiSelect:       f.initialMultiSelect,
+			Cursor:            f.initialCursor,
+			Detection:         f.initialDetection,
+			GoneFlagged:       f.initialGoneFlagged,
+			BurstOpening:      f.initialBurstOpening,
+			Flash:             f.initialFlash,
+		},
 		// Wire the loading-screen progress receiver only when the fixture seeds
 		// events — it streams the seeded mid-restore sequence then blocks so the
 		// loading page never dismisses (no terminal BootstrapCompleteMsg). The
@@ -529,7 +531,7 @@ func sessionsPagedFixture() *Fixture {
 // the title separator, above the `Sessions 4` section header.
 //
 // The flash is otherwise transient (production sets it only on the preview-bail
-// path), so it is seeded via Deps.InitialFlash — the only way to render it in the
+// path), so it is seeded via CaptureSeeds.Flash — the only way to render it in the
 // inert harness. The session set matches the reference exactly: fab-flowx-explore
 // (attached, 3 windows), agentic-workflows-codify (1), flowx-7UKPZH (2),
 // aviva-proxy-qNyfEO (1). Every session carries a stamped Dir for honesty even
@@ -562,10 +564,10 @@ func sessionsInlineFlashFixture() *Fixture {
 // the ▌ selector).
 //
 // Multi-select is otherwise user-driven (the `m` key), so it is seeded via the
-// InitialMultiSelect + InitialCursor seed seam — the only way to render the mode in
-// the inert harness (the same pattern as InitialFlash for the transient flash). It
-// reuses sessionsFlatFixture's session set verbatim; only the seed-seam fields and
-// the fixture name differ. Like the other fixtures it NEVER opens a tmux server or
+// CaptureSeeds MultiSelect + Cursor seed seam — the only way to render the mode in
+// the inert harness (the same pattern as CaptureSeeds.Flash for the transient
+// flash). It reuses sessionsFlatFixture's session set verbatim; only the seed-seam
+// fields and the fixture name differ. Like the other fixtures it NEVER opens a tmux server or
 // touches ~/.config/portal.
 func sessionsMultiSelectActiveFixture() *Fixture {
 	fx := sessionsFlatFixture()
@@ -589,9 +591,9 @@ func sessionsMultiSelectActiveFixture() *Fixture {
 // banner (+ blue `see docs`) REPLACES the standard `Sessions ··· N` section header —
 // mirroring the delivered frame testdata/vhs/reference/sessions-unsupported-terminal-mv.png.
 //
-// Detection is otherwise an async lifecycle dispatched on reaching PageSessions, so it
-// is seeded via the InitialDetection seed seam — the only way to render the resolved
-// banner in the inert harness. It reuses sessionsFlatFixture's session set verbatim;
+// Detection is otherwise an async lifecycle dispatched on reaching PageSessions,
+// so it is seeded via the CaptureSeeds.Detection seed seam — the only way to render
+// the resolved banner in the inert harness. It reuses sessionsFlatFixture's session set verbatim;
 // only the seed-seam field and the fixture name differ. Like the other fixtures it
 // NEVER opens a tmux server or touches ~/.config/portal.
 func sessionsUnsupportedTerminalFixture() *Fixture {
@@ -611,10 +613,10 @@ func sessionsUnsupportedTerminalFixture() *Fixture {
 // regression anchor that the resolved-unsupported NULL seed path does not intrude a
 // banner.
 //
-// Detection is otherwise an async lifecycle dispatched on reaching PageSessions, so it
-// is seeded via the same InitialDetection seed seam the named unsupported-terminal
-// fixture uses — the only way to render the resolved detection in the inert harness. It
-// reuses sessionsFlatFixture's session set verbatim; only the seed-seam field and the
+// Detection is otherwise an async lifecycle dispatched on reaching PageSessions,
+// so it is seeded via the same CaptureSeeds.Detection seed seam the named
+// unsupported-terminal fixture uses — the only way to render the resolved detection
+// in the inert harness. It reuses sessionsFlatFixture's session set verbatim; only the seed-seam field and the
 // fixture name differ. Like the other fixtures it NEVER opens a tmux server or touches
 // ~/.config/portal.
 func sessionsUnsupportedNullFixture() *Fixture {
@@ -636,7 +638,7 @@ func sessionsUnsupportedNullFixture() *Fixture {
 // testdata/vhs/reference/sessions-multi-select-preflight-abort-mv.png.
 //
 // The abort is otherwise reached only when an N≥2 Enter finds a marked session gone,
-// so it is seeded via the InitialMultiSelect + InitialCursor + InitialGoneFlagged seed
+// so it is seeded via the CaptureSeeds MultiSelect + Cursor + GoneFlagged seed
 // seams — the only way to render the frame in the inert harness. It reuses
 // sessionsFlatFixture's session set verbatim; only the seed-seam fields and the fixture
 // name differ. Like the other fixtures it NEVER opens a tmux server or touches
@@ -663,8 +665,8 @@ func sessionsMultiSelectPreflightAbortFixture() *Fixture {
 // its own reference.
 //
 // The burst is otherwise driven by dispatchBurst + its progress goroutine, so it is
-// seeded via the InitialMultiSelect + InitialBurstOpening seed seams — the only way to
-// render the band in the inert harness (no goroutine, pipe, or cancel is wired). It
+// seeded via the CaptureSeeds MultiSelect + BurstOpening seed seams — the only way
+// to render the band in the inert harness (no goroutine, pipe, or cancel is wired). It
 // reuses sessionsFlatFixture's session set verbatim; only the seed-seam fields and the
 // fixture name differ. Like the other fixtures it NEVER opens a tmux server or touches
 // ~/.config/portal.

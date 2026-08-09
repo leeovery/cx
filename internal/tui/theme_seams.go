@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"reflect"
-
-	"github.com/leeovery/portal/internal/theme"
-)
+import "github.com/leeovery/portal/internal/theme"
 
 // ThemeEnumerator is the seam through which the theme panel gets its rows — the
 // TmuxEnumerator / ScrollbackReader idiom the preview page already uses, applied
@@ -61,29 +57,4 @@ type ThemeEnumerator interface {
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union
 	Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error)
 	ResolveSlot(e theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error)
-}
-
-// liveThemeEnumerator reports whether e is a seam that can actually be CALLED, as
-// against either shape of "nothing was wired".
-//
-// The nil INTERFACE is the ordinary unwired state and needs no explanation. The
-// TYPED nil is the one worth the reflection: a `(*adapter)(nil)` boxed into this
-// interface satisfies `!= nil`, so a plain nil check would store it and the model
-// would hold a seam that looks live and panics on its first call — which, for a
-// key bound on both pages, means the panic lands on an ordinary keypress rather
-// than at the wiring site that caused it.
-//
-// The nil-able kinds are enumerated rather than blanket-calling IsNil, which
-// panics on the kinds that cannot be nil (a struct value seam being the normal
-// production and fixture shape). See WithThemeEnumerator, the single caller.
-func liveThemeEnumerator(e ThemeEnumerator) bool {
-	if e == nil {
-		return false
-	}
-	switch v := reflect.ValueOf(e); v.Kind() {
-	case reflect.Pointer, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
-		return !v.IsNil()
-	default:
-		return true
-	}
 }

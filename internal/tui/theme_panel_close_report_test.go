@@ -49,7 +49,7 @@ func newCloseReportModel(t *testing.T) (Model, *fakeThemePersister) {
 	m, persister := newFailedCommitModel(t)
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	requireCommitFailedMessage(t, m)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Fatal("fixture: the failed commit left nothing outstanding, so a close reports nothing")
 	}
 	return m, persister
@@ -65,13 +65,13 @@ func requireReportRaised(t *testing.T, m Model) {
 	if got := m.flashText; got != specThemeNotSavedFlash {
 		t.Errorf("the close raised %q, want §14A's %q", got, specThemeNotSavedFlash)
 	}
-	if m.flashOrigin != flashOriginTheme {
-		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line (§14A)", m.flashOrigin)
+	if m.themeState.flashOrigin != flashOriginTheme {
+		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line (§14A)", m.themeState.flashOrigin)
 	}
 	if m.flashKind != flashWarning {
 		t.Errorf("the report carries kind %v, want the ordinary warning flash", m.flashKind)
 	}
-	if m.themeCommitFailed {
+	if m.themeState.commitFailed {
 		t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state (§9.13)")
 	}
 }
@@ -227,7 +227,7 @@ func TestCloseReport_ForcedCloseGeometryFlashSurvives(t *testing.T) {
 	for _, tc := range closeReportFloorCrossings {
 		t.Run(tc.name, func(t *testing.T) {
 			m, _ := newCommitFailureFixture(t)
-			if m.themeCommitFailed {
+			if m.themeState.commitFailed {
 				t.Fatal("fixture: the model already carries an outstanding failure")
 			}
 			contentW, contentH := tc.region()
@@ -238,7 +238,7 @@ func TestCloseReport_ForcedCloseGeometryFlashSurvives(t *testing.T) {
 			if tick, ok := flashTickFrom(cmd); ok {
 				t.Errorf("the geometry flash scheduled the auto-clear tick %+v; it clears on the next actionable key instead (§9.8)", tick)
 			}
-			if m.themeCommitFailed {
+			if m.themeState.commitFailed {
 				t.Error("the forced close left a failure outstanding where none was")
 			}
 		})
@@ -288,7 +288,7 @@ func TestCloseReport_DischargedOnRaise(t *testing.T) {
 	m, cmd := closePanelForTest(t, m)
 
 	requireCloseIsSilent(t, m, cmd, gen)
-	if m.themeCommitFailed {
+	if m.themeState.commitFailed {
 		t.Error("the second close left a failure outstanding; the first close discharged it")
 	}
 }
@@ -300,7 +300,7 @@ func TestCloseReport_DischargedOnRaise(t *testing.T) {
 // nothing would be a lie the user cannot check.
 func TestCloseReport_SilentWhenNothingOutstanding(t *testing.T) {
 	m, _ := newCommitFailureFixture(t)
-	if m.themeCommitFailed {
+	if m.themeState.commitFailed {
 		t.Fatal("fixture: the model already carries an outstanding failure")
 	}
 	gen := m.flashGen
@@ -322,7 +322,7 @@ func TestCloseReport_SuccessfulRetryIsSilent(t *testing.T) {
 	persister.err = nil
 
 	m, _ = pressSlotKey(t, m, slotLightPress)
-	if m.themeCommitFailed {
+	if m.themeState.commitFailed {
 		t.Fatal("the successful commit left the failure outstanding, so the silence below is not this task's")
 	}
 	gen := m.flashGen
@@ -372,7 +372,7 @@ func TestCloseReport_CtrlCIsAnUndeliveredReport(t *testing.T) {
 	if stderr != "" {
 		t.Errorf("Ctrl-C wrote %q to stderr; the log is the record, and stderr is the channel Portal reserves for bootstrap failures", stderr)
 	}
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Error("Ctrl-C discharged the outstanding failure; no report was made, so there is nothing to discharge against")
 	}
 }
@@ -419,9 +419,9 @@ func captureStderrForTest(t *testing.T, fn func()) string {
 // and nothing further reaches the persister.
 func TestCloseReport_RevertStands(t *testing.T) {
 	m, persister := newCloseReportModel(t)
-	previewed := m.activeTheme
+	previewed := m.themeState.active
 	persisted := themePanelRowFor(t, m, "aurora").Row.Theme
-	keys := m.themeKeys
+	keys := m.themeState.keys
 	if previewed == persisted {
 		t.Fatal("fixture: the previewed theme is the persisted one, so a revert is invisible")
 	}
@@ -429,11 +429,11 @@ func TestCloseReport_RevertStands(t *testing.T) {
 	m, _ = closePanelForTest(t, m)
 
 	requireReportRaised(t, m)
-	if m.activeTheme != persisted {
-		t.Errorf("the close rendered %s, want the resolved persisted %s — the write did not land, so `Esc` resolving to persisted state is right (§9.13)", themeLabel(m.activeTheme), themeLabel(persisted))
+	if m.themeState.active != persisted {
+		t.Errorf("the close rendered %s, want the resolved persisted %s — the write did not land, so `Esc` resolving to persisted state is right (§9.13)", themeLabel(m.themeState.active), themeLabel(persisted))
 	}
-	if m.themeKeys != keys {
-		t.Errorf("the close left keys %+v, want the untouched %+v", m.themeKeys, keys)
+	if m.themeState.keys != keys {
+		t.Errorf("the close left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
 	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark})
 }
@@ -454,7 +454,7 @@ func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
 	m = arrowToThemeRow(t, m, rows[2].Slug)
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Fatal("fixture: the commit did not fail, so the close reports nothing")
 	}
 
@@ -505,7 +505,7 @@ func TestCloseReport_OutranksFilterLine(t *testing.T) {
 		t.Fatal("`t` did not open the panel over the applied filter")
 	}
 	m, _ = pressSlotKey(t, m, slotDarkPress)
-	if !m.themeCommitFailed {
+	if !m.themeState.commitFailed {
 		t.Fatal("fixture: the commit did not fail, so the close reports nothing")
 	}
 
@@ -556,8 +556,8 @@ func TestCloseReport_SingleClosePath(t *testing.T) {
 
 		requireReportRaised(t, forced)
 		requireReportRaised(t, viaEsc)
-		if forced.activeTheme != viaEsc.activeTheme {
-			t.Errorf("the forced close rendered %s and `Esc` rendered %s; the forced close takes the `Esc` path exactly", themeLabel(forced.activeTheme), themeLabel(viaEsc.activeTheme))
+		if forced.themeState.active != viaEsc.themeState.active {
+			t.Errorf("the forced close rendered %s and `Esc` rendered %s; the forced close takes the `Esc` path exactly", themeLabel(forced.themeState.active), themeLabel(viaEsc.themeState.active))
 		}
 		for name, m := range map[string]Model{"the forced close": forced, "Esc": viaEsc} {
 			if got := m.themePanel; got.open || got.width != 0 || len(got.union.Rows) != 0 || len(got.enumeration.Entries) != 0 || got.badges != nil {

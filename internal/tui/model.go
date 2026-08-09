@@ -253,107 +253,6 @@ type Model struct {
 	projectIndex    project.Index
 	sessionListMode prefs.SessionListMode
 	modePersister   ModePersister
-	// themePersister is the theme-commit seam, HELD and nothing more: the model
-	// neither logs nor retries, and the panel owns the keypresses, the
-	// outstanding-failure state and its message. Nil is the ordinary
-	// unwired state (a fixture / capturetool model), so every call site must
-	// nil-guard exactly as the mode persister's does.
-	themePersister ThemePersister
-	// themeCommitFailed is the OUTSTANDING-FAILURE STATE: a theme write failed
-	// and the user has not been told about it on a surface they are left looking at.
-	//
-	// IT IS A STATE, NOT A MESSAGE, and the two have different lifetimes on purpose.
-	// The panel's message slot reports the failure until the NEXT KEYPRESS; this runs
-	// from the failed write until a SUBSEQUENT COMMIT SUCCEEDS, and nothing else
-	// clears it. Arrowing away therefore dismisses the message while leaving this
-	// set, which is what stops the very next `Esc` — a close re-resolves PERSISTED
-	// state, silently dropping the theme the user chose — from reinstating the
-	// silent revert this state exists to close.
-	//
-	// IT LIVES ON THE MODEL RATHER THAN ON themePanel because it must OUTLIVE the
-	// panel: closing discards that struct whole, and the close is exactly when the
-	// report is due.
-	//
-	// A NIL PERSISTER NEVER SETS IT. That is the absence of a writer rather than a
-	// failed write (see commitConstant), so no model can enter the reported-failure
-	// state by COMMITTING without one — a capture included. A capture fixture
-	// declares it directly instead, because the report is a designed surface and a
-	// frame of it has to be capturable.
-	themeCommitFailed bool
-	// themeKeys are prefs.json's three theme keys AS READ — control-stripped
-	// and post-translation, the value the panel LISTS a persisted-but-unresolvable
-	// slug from and MARKS its `●` by.
-	//
-	// It is a CONSTRUCTION-TIME SNAPSHOT and is never refreshed. That asymmetry
-	// with the fresh per-open directory read is deliberate, because the two files
-	// are: the themes directory is what the drop-in loop edits by hand between
-	// panel opens, whereas prefs.json is what Portal itself writes — so re-reading
-	// it would let another instance's commit silently change what this panel shows
-	// and marks, a cross-instance sync Portal deliberately declines. A
-	// user who hand-edits prefs mid-session sees it next launch, consistent with
-	// every other prefs consumer.
-	themeKeys theme.RawKeys
-	// themeEnumerator is the panel's theme seam. It is consulted ONLY on the `t`
-	// keypress — never at construction, discovery is lazy — and a nil seam makes
-	// `t` a silent no-op, following the modePersister nil-guard precedent.
-	themeEnumerator ThemeEnumerator
-	// nomination is the LOADED theme setting injected at construction
-	// (WithThemeNomination) — one Theme under a constant, both under an adaptive
-	// pair. It is the model's whole theme INPUT: it replaces the appearance pref
-	// that used to be injected here, because a theme IS the mode and there is no
-	// mode left to pin.
-	//
-	// Its zero value is neither state, and that is the honest "nothing was
-	// injected" sentinel: a model constructed without Build keeps New's
-	// dark-built-in seed rather than selecting a zero Theme out of an empty
-	// nomination.
-	nomination theme.Nomination
-	// canvasMode is the light/dark answer in force. appearanceDarkCanvas is the
-	// zero value (the standing no-answer fallback), so an unconfigured model paints
-	// the dark canvas. Until a conversion it is the painted mirror of
-	// gate.appearance: every gate resolution (OSC 11 reply, timeout) syncs it via
-	// syncResolvedMode, and it is what selects the active member out of an
-	// ADAPTIVE nomination.
-	//
-	// Under a constant (or no) nomination it starts as that standing fallback and
-	// nothing more — no question was asked, so it must not be read as a fact about
-	// the terminal — UNTIL the mid-session constant → adaptive conversion, the
-	// THIRD writer. loadNewlyLiveSlot records Model.retainedCanvasAnswer straight
-	// into this field: the terminal's own verdict where a reply arrived, the dark
-	// no-answer fallback where none did. So from that keypress on it is the
-	// answer IN FORCE rather than a value nothing ever asked for, while
-	// gate.appearance stays pinned on the constant's fallback and never moves again
-	// (a pinned gate's resolve always returns false, so nothing re-syncs).
-	//
-	// THAT DIVERGENCE IS DELIBERATE AND PERMANENT — LEAVE IT ALONE. The obvious
-	// "fix the drift" edit is to route the conversion through syncResolvedMode
-	// instead; DO NOT. syncResolvedMode is where the startup canvas hex is
-	// captured, and re-capturing it mid-session is precisely how Portal comes to
-	// set a colour the user never chose back into their terminal on exit. See
-	// loadNewlyLiveSlot.
-	canvasMode canvasAppearance
-	// activeTheme is the palette EVERY renderer paints from. The model holds it
-	// and passes it where a light/dark mode used to be passed, so anything taking
-	// the theme as a parameter re-derives per frame — which is what makes a live
-	// theme swap complete. There is deliberately NO package-level mutable theme
-	// state to replace the retired built-in var: it
-	// would put order-dependent state on the render path in a suite that already
-	// forbids t.Parallel().
-	//
-	// New seeds it with the dark built-in before the options apply, so a model
-	// constructed without Build is still themed (an empty Theme would resolve
-	// through lipgloss.Color("")'s no-colour sentinel: a SILENT colourless render,
-	// not a compile error). Applying a nomination overwrites the seed.
-	activeTheme theme.Theme
-	// gate is the detect-or-timeout first-paint mechanism and the SINGLE
-	// source of truth for whether the real canvas may paint (modeResolved()
-	// reads it). Under an ADAPTIVE nomination Build opens its detect-or-timeout
-	// window via arm() and it resolves on whichever of the OSC 11
-	// BackgroundColorMsg or the appearanceTimeoutMsg fires first; a constant
-	// nomination, a nomination-less model and the NO_COLOR carve-out are already
-	// resolved and unarmable, so detection and the wait are skipped. canvasMode
-	// mirrors gate.appearance for the render path (see syncResolvedMode).
-	gate appearanceGate
 	// colourless is the SINGLE NO_COLOR carve-out flag. It is set once at
 	// construction from Deps.NoColor (the cmd layer reads os.Getenv("NO_COLOR");
 	// internal/tui stays env-free) and is the one flag EVERY canvas-dependent
@@ -383,57 +282,18 @@ type Model struct {
 	// (and cleared) in evaluateDefaultPage after items ingest, mirroring how
 	// initialFilter is applied there. Empty is a no-op — production never sets it
 	// (WithInitialCursor is wired only by the offline capture harness).
-	initialCursor string
-	// initialThemeCursor is the capture-only PANEL cursor anchor: the row IDENTITY
-	// the slide-over's cursor lands on once the panel has opened.
-	//
-	// It exists because a fixture is a ONE-SHOT RENDER and the open puts the cursor
-	// on the theme actually rendering. The constant-while-previewing frame needs the
-	// cursor on a row OTHER than the marked one, which is otherwise reachable only
-	// by arrowing — so without this seed that frame cannot be captured at all.
-	//
-	// IT IS PLACEMENT ONLY AND APPLIES NO THEME (armThemePanel anchors with it and
-	// nothing else). Applying the seeded row's palette would make
-	// `capturetool --theme <slug|path>` inert on precisely the frames a drop-in
-	// author most wants to check.
-	//
-	// Empty is a no-op — production never sets it (WithInitialThemeCursor is wired
-	// only by the offline capture harness).
-	initialThemeCursor string
-	// initialThemeConfirm is the capture-only seed for the slot-from-constant
-	// confirm: it raises the question against the persisted constant once the panel
-	// has opened, exactly as an `l` over that setting would.
-	//
-	// It exists for the same reason the cursor anchor does — a fixture is a ONE-SHOT
-	// RENDER — and it declares STATE rather than text: the copy is composed by the
-	// message slot from its own pinned constants, so a fixture can never ship a
-	// paraphrase of it.
-	//
-	// False is a no-op; production never sets it.
-	initialThemeConfirm bool
-	// initialThemeCommitFailed is the capture-only seed for the failed-commit
-	// report: it raises the message slot's line AND sets the outstanding-failure
-	// state once the panel has opened, exactly as a write that did not land does.
-	//
-	// It declares STATE rather than text for the same reason its sibling does, and
-	// both halves are seeded because the line and the state have different
-	// lifetimes — a frame
-	// showing the line while the state was unset would be a shape production cannot
-	// reach.
-	//
-	// False is a no-op; production never sets it.
-	initialThemeCommitFailed bool
-	insideTmux               bool
-	currentSession           string
-	modal                    modalState
-	pendingKillName          string
-	pendingKillWindows       int
-	renameInput              textinput.Model
-	renameTarget             string
-	pendingDeletePath        string
-	pendingDeleteName        string
-	command                  []string
-	commandPending           bool
+	initialCursor      string
+	insideTmux         bool
+	currentSession     string
+	modal              modalState
+	pendingKillName    string
+	pendingKillWindows int
+	renameInput        textinput.Model
+	renameTarget       string
+	pendingDeletePath  string
+	pendingDeleteName  string
+	command            []string
+	commandPending     bool
 
 	// Bootstrap loading state
 	serverStarted     bool
@@ -485,58 +345,14 @@ type Model struct {
 	// originalBg is the terminal's ACTUAL background colour as reported by the
 	// OSC 11 query (tea.RequestBackgroundColor) issued from Init, captured for
 	// RESTORE-ON-EXIT only. It is a hex string like "#1e1e2e" (empty if no
-	// response ever arrives). Distinct from canvasMode (Portal's CHOSEN canvas):
-	// this is what the terminal looked like before Portal painted, so the launch
-	// sites can SET it back on exit (OSC 11 set) — terminals that ignore the
-	// OSC 111 reset (mosh/Blink) still honour the set, so the canvas colour does
-	// not stick after Portal quits.
+	// response ever arrives). Distinct from the theme state's canvasMode (Portal's
+	// CHOSEN canvas): this is what the terminal looked like before Portal painted,
+	// so the launch sites can SET it back on exit (OSC 11 set) — terminals that
+	// ignore the OSC 111 reset (mosh/Blink) still honour the set, so the canvas
+	// colour does not stick after Portal quits.
 	//
 	// Capture is ASYNC and NON-GATING: the first paint never waits on this.
 	originalBg string
-
-	// startupCanvasHex is the canvas hex of the theme the GATE SELECTED, captured
-	// at the single moment the gate resolves — which is also the moment the first
-	// frame is composed, so it is defined for every frame that exists.
-	//
-	// It is what RestoreTerminalBackground's canvas-echo guard compares against,
-	// and holding it on the model is the whole point: the comparison must
-	// be against the canvas in force during the STARTUP window, never against
-	// whatever theme is active at exit. A mid-session commit, or a quit with an
-	// uncommitted preview, moves activeTheme; neither may move this.
-	//
-	// It is taken from activeTheme.Canvas.Value — the parsed, canonical value —
-	// rather than from a re-read of the nomination, because under an adaptive pair
-	// the two differ until the gate resolves.
-	//
-	// EMPTY while the gate is still open: the pre-resolution frame paints no canvas
-	// and sets no OSC 11 background, so a Portal that dies in that window painted
-	// nothing and has nothing to restore. sameHexColour reports false for an empty
-	// value, so the set-back is emitted to the terminal's own original — a harmless
-	// no-op write.
-	startupCanvasHex string
-
-	// bgReplyArrived records that an OSC 11 reply reached Update AT ALL, which is
-	// a different fact from originalBg being non-empty: a no-answer-shaped reply
-	// (nil Color) leaves the hex empty while still being an answer that arrived.
-	//
-	// bgReplyDark is what that reply SAID, classified by the reply's own IsDark at
-	// the moment it landed. The pair is what makes the answer readable later by a
-	// consumer that did not observe the arrival — the mid-session constant →
-	// adaptive conversion, which must distinguish "the terminal said light" from
-	// "nothing ever came back" (retainedCanvasAnswer is its one reader). Both are
-	// retained under EVERY setting shape because the query is issued under every
-	// shape: a constant asks no light/dark question, so nothing here is ever turned
-	// into an answer at construction.
-	//
-	// The classification is taken from tea.BackgroundColorMsg.IsDark rather than
-	// re-derived from the retained hex, so the conversion's answer is the SAME
-	// verdict the gate would have reached on the same reply (resolveFromDark reads
-	// the identical call). Re-deriving it would be a second luminance rule in a
-	// second package, free to drift from the one the gate uses — and it would have
-	// to special-case the empty hex a nil-colour reply leaves behind, which IsDark
-	// already answers (nil is dark).
-	bgReplyArrived bool
-	bgReplyDark    bool
 
 	// Preview page seams and live model. enumerator and reader are
 	// constructor-injected at TUI startup — declared
@@ -588,13 +404,6 @@ type Model struct {
 	// notice-band primitive paints the matching bar colour + glyph. It is reset to
 	// flashWarning by every setFlash and is irrelevant once flashText is empty.
 	flashKind flashKind
-	// flashOrigin is the precedence tier of the active inline flash: a
-	// theme-origin flash claims the notice slot even while the filter line is
-	// live, while every other flash keeps today's order. It is reset to
-	// flashOriginDefault by setFlash / setSuccessFlash and stamped only by
-	// setThemeFlash, so the tier can never be inherited by an unrelated message.
-	flashOrigin flashOrigin
-
 	// byTagSignpost is the persistent "No tags yet" signpost flag — By Tag with
 	// zero tags anywhere. It is set true by rebuildSessionList whenever
 	// ModeByTag is active AND no project carries any tag — the zero-tags-anywhere
@@ -744,6 +553,12 @@ type Model struct {
 	// key does), and while it is closed the composed frame is byte-identical to a
 	// model that has no panel at all.
 	themePanel themePanel
+
+	// themeState is the model-level theme machinery the panel above is a surface
+	// onto (theme_state.go): the loaded nomination, the seams, the light/dark
+	// resolution, the palette every renderer paints from, and the exit-time canvas
+	// anchor. It OUTLIVES the panel, which is why the two are separate structs.
+	themeState themeState
 }
 
 // Selected returns the name of the session chosen by the user, or empty if
@@ -1010,11 +825,11 @@ func WithModePersister(p ModePersister) Option {
 // WithThemePersister sets the theme-commit persister dependency.
 // Production wiring passes cmd's own persister — never *prefs.Store, which
 // deliberately cannot satisfy the seam — and the offline capture harness omits
-// the option entirely, leaving themePersister nil so a commit during a capture
+// the option entirely, leaving the seam nil so a commit during a capture
 // writes nowhere. It is the WithModePersister shape, line for line.
 func WithThemePersister(p ThemePersister) Option {
 	return func(m *Model) {
-		m.themePersister = p
+		m.themeState.persister = p
 	}
 }
 
@@ -1024,28 +839,18 @@ func WithThemePersister(p ThemePersister) Option {
 // applied and there is nothing to guard.
 func WithThemeKeys(keys theme.RawKeys) Option {
 	return func(m *Model) {
-		m.themeKeys = keys
+		m.themeState.keys = keys
 	}
 }
 
 // WithThemeEnumerator injects the panel's theme seam — the ScrollbackReader
 // idiom applied to the theme union, production wiring the real implementation and
-// fixtures faking it.
-//
-// IT IS THE ONE NIL GUARD, and it rejects BOTH nil shapes. A nil interface is the
-// ordinary unwired state (a fixture / capturetool model that supplies no seam),
-// and a TYPED nil boxed into the interface is the trap: `e != nil` is true for a
-// `(*adapter)(nil)`, so an assignment gated on that alone would hand the model a
-// live-LOOKING seam whose every call panics — the same shape cmd guards one layer
-// up by wiring its persisters only when the prefs store actually loaded. Only
-// reflection can tell the two apart, and it is paid once per construction rather
-// than per keypress.
+// fixtures faking it. It is the WithModePersister shape, line for line: the option
+// assigns, Build applies it only for a non-nil seam, and openThemePanel's nil
+// check is what makes an unwired `t` a silent no-op.
 func WithThemeEnumerator(e ThemeEnumerator) Option {
 	return func(m *Model) {
-		if !liveThemeEnumerator(e) {
-			return
-		}
-		m.themeEnumerator = e
+		m.themeState.enumerator = e
 	}
 }
 
@@ -1065,7 +870,7 @@ func WithThemeEnumerator(e ThemeEnumerator) Option {
 // byte-deterministic.
 func WithThemeNomination(n theme.Nomination) Option {
 	return func(m *Model) {
-		m.nomination = n
+		m.themeState.nomination = n
 	}
 }
 
@@ -1081,11 +886,11 @@ func WithThemeNomination(n theme.Nomination) Option {
 // it changes nothing at all (a constant ignores the answer by design).
 func WithCanvasMode(appearance canvasAppearance) Option {
 	return func(m *Model) {
-		m.canvasMode = appearance
+		m.themeState.canvasMode = appearance
 		// pinned=true (and pending=false, the zero value) so the gate is resolved
 		// and New's gate-init guard preserves this direct override instead of
 		// rebuilding an auto gate over it.
-		m.gate = appearanceGate{appearance: appearance, pinned: true}
+		m.themeState.gate = appearanceGate{appearance: appearance, pinned: true}
 	}
 }
 
@@ -1278,7 +1083,7 @@ func WithInitialCursor(name string) Option {
 // empty identity is a no-op; production never sets it.
 func WithInitialThemeCursor(slug string) Option {
 	return func(m *Model) {
-		m.initialThemeCursor = slug
+		m.themeState.initialCursor = slug
 	}
 }
 
@@ -1296,7 +1101,7 @@ func WithInitialThemeCursor(slug string) Option {
 // False is a no-op; production never sets it.
 func WithInitialThemeConfirm(on bool) Option {
 	return func(m *Model) {
-		m.initialThemeConfirm = on
+		m.themeState.initialConfirm = on
 	}
 }
 
@@ -1312,7 +1117,7 @@ func WithInitialThemeConfirm(on bool) Option {
 // False is a no-op; production never sets it.
 func WithInitialThemeCommitFailed(on bool) Option {
 	return func(m *Model) {
-		m.initialThemeCommitFailed = on
+		m.themeState.initialCommitFailed = on
 	}
 }
 
@@ -1512,7 +1317,7 @@ func New(lister SessionLister, opts ...Option) Model {
 		// silently colourless render with no compile error and no failing
 		// assertion — which is exactly the hazard this seed closes. An injected
 		// nomination overwrites it in syncResolvedMode below.
-		activeTheme: defaultDarkTheme(),
+		themeState: themeState{active: defaultDarkTheme()},
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1536,14 +1341,14 @@ func New(lister SessionLister, opts ...Option) Model {
 	// and detection + its first-paint wait are skipped. Checked first so the
 	// WithColourless option short-circuits the shape-driven construction below.
 	if m.colourless {
-		m.gate = newColourlessGate()
-	} else if !m.gate.pinned {
+		m.themeState.gate = newColourlessGate()
+	} else if !m.themeState.gate.pinned {
 		// WithCanvasMode is a test/capture-only DIRECT override of the ANSWER: when
 		// it was applied in the options loop it set its own resolved gate, and
 		// rebuilding from the nomination's shape would discard it. Guard against
 		// that — only build from the shape when WithCanvasMode did NOT pin an answer
 		// (the production path).
-		m.gate = newNominationGate(m.nomination)
+		m.themeState.gate = newNominationGate(m.themeState.nomination)
 	}
 	m.syncResolvedMode()
 	return m
@@ -1558,7 +1363,7 @@ func New(lister SessionLister, opts ...Option) Model {
 // The method re-syncs the painted fields so View observes the now-unresolved
 // state.
 func (m *Model) armAppearanceDetection() {
-	m.gate.arm()
+	m.themeState.gate.arm()
 	m.syncResolvedMode()
 }
 
@@ -1568,7 +1373,7 @@ func (m *Model) armAppearanceDetection() {
 // sync: a zero-value gate (a directly constructed test model) is resolved, an
 // armed adaptive gate is unresolved until OSC 11 or the timeout fires.
 func (m Model) modeResolved() bool {
-	return m.gate.resolved()
+	return m.themeState.gate.resolved()
 }
 
 // hasNomination reports whether a loaded theme setting was injected.
@@ -1578,7 +1383,7 @@ func (m Model) modeResolved() bool {
 // "nothing was injected" is decidable from the value alone rather than from a
 // second flag that could drift out of step with it.
 func (m Model) hasNomination() bool {
-	return m.nomination != (theme.Nomination{})
+	return m.themeState.nomination != (theme.Nomination{})
 }
 
 // syncResolvedMode mirrors the gate's resolved answer onto the model's painted
@@ -1596,9 +1401,9 @@ func (m Model) hasNomination() bool {
 // place the active member is selected: a constant (or absent) nomination selects at
 // construction, an adaptive pair when the gate resolves.
 func (m *Model) syncResolvedMode() {
-	m.canvasMode = m.gate.appearance
+	m.themeState.canvasMode = m.themeState.gate.appearance
 	if m.hasNomination() {
-		m.activeTheme = m.nomination.Select(m.canvasMode.member())
+		m.themeState.active = m.themeState.nomination.Select(m.themeState.canvasMode.member())
 	}
 	m.captureStartupCanvasHex()
 	m.applyCanvasMode()
@@ -1615,11 +1420,11 @@ func (m *Model) syncResolvedMode() {
 // background), so the hex is empty — including across an arm() that re-opens a
 // window a directly constructed model had already resolved.
 func (m *Model) captureStartupCanvasHex() {
-	if !m.gate.resolved() {
-		m.startupCanvasHex = ""
+	if !m.themeState.gate.resolved() {
+		m.themeState.startupCanvasHex = ""
 		return
 	}
-	m.startupCanvasHex = m.activeTheme.Canvas.Value
+	m.themeState.startupCanvasHex = m.themeState.active.Canvas.Value
 }
 
 // sessionDelegate constructs the SessionDelegate for the current model state: the
@@ -1629,7 +1434,7 @@ func (m *Model) captureStartupCanvasHex() {
 // refreshSessionDelegate cannot drift on which fields the delegate carries.
 func (m *Model) sessionDelegate() SessionDelegate {
 	return SessionDelegate{
-		Theme:       m.activeTheme,
+		Theme:       m.themeState.active,
 		Colourless:  m.colourless,
 		MultiSelect: m.multiSelectMode,
 		Selected:    m.selectedSessions,
@@ -1675,7 +1480,7 @@ func (m *Model) refreshSessionDelegate() {
 // idempotent per swap: the restyle is a pure re-point from the current palette,
 // so it carries no accumulating state.
 func (m *Model) ApplyTheme(th theme.Theme) {
-	m.activeTheme = th
+	m.themeState.active = th
 	m.applyCanvasMode()
 }
 
@@ -1716,8 +1521,8 @@ func (m *Model) ApplyTheme(th theme.Theme) {
 //   - internal/capture's contrast-validation swatch (swatch.go) takes its whole
 //     palette per invocation of the offline harness and renders one theme per run,
 //     so it has no swap to observe.
-//   - Model.startupCanvasHex is frozen at the moment the gate resolves BY DESIGN:
-//     the exit-time canvas restore must compare against the canvas in force
+//   - themeState.startupCanvasHex is frozen at the moment the gate resolves BY
+//     DESIGN: the exit-time canvas restore must compare against the canvas in force
 //     during the startup window, never the active one, so re-pointing it here
 //     would leave the wrong colour in the user's terminal on exit.
 //   - bubbles/list's StatusBar set (StatusBar, StatusEmpty, StatusBarActiveFilter,
@@ -1747,8 +1552,8 @@ func (m *Model) applyCanvasMode() {
 	// a colour-bearing value rather than re-deriving it per frame. Re-point it
 	// here, from the same active palette, so the preview's chrome can never be left
 	// painting the theme that happened to be live when it was opened.
-	m.preview.th = m.activeTheme
-	applyPageListCanvasMode(&m.sessionList, m.sessionDelegate(), m.activeTheme, m.colourless)
+	m.preview.th = m.themeState.active
+	applyPageListCanvasMode(&m.sessionList, m.sessionDelegate(), m.themeState.active, m.colourless)
 	m.applyProjectCanvasMode()
 	m.applyThemePanelCanvasMode()
 }
@@ -1882,8 +1687,8 @@ func sectionHeaderBlockRows() int {
 // section-header surgery in viewProjectList replaces line 0 and preserves the
 // blank gap row on line 1, the SAME contract applySectionHeader relies on.
 func (m *Model) applyProjectCanvasMode() {
-	delegate := ProjectDelegate{Theme: m.activeTheme, Colourless: m.colourless}
-	applyPageListCanvasMode(&m.projectList, delegate, m.activeTheme, m.colourless)
+	delegate := ProjectDelegate{Theme: m.themeState.active, Colourless: m.colourless}
+	applyPageListCanvasMode(&m.projectList, delegate, m.themeState.active, m.colourless)
 }
 
 // styleFilterInput restyles BOTH the Sessions and Projects bubbles/list
@@ -1927,7 +1732,7 @@ func (m *Model) styleListFilterInput(l *list.Model) {
 		l.FilterInput.SetStyles(styles)
 		return
 	}
-	orange := m.activeTheme.AccentAttention.Color()
+	orange := m.themeState.active.AccentAttention.Color()
 	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(orange)
 	styles.Focused.Text = lipgloss.NewStyle().Foreground(orange)
 	styles.Cursor.Color = orange
@@ -1949,7 +1754,7 @@ func NewModelWithSessions(sessions []tmux.Session) Model {
 		// zero Theme resolves through lipgloss.Color("")'s no-colour sentinel, so
 		// a model built here would render SILENTLY colourless rather than failing
 		// to compile.
-		activeTheme: defaultDarkTheme(),
+		themeState: themeState{active: defaultDarkTheme()},
 		// The zero-value gate is already resolved to the dark canvas (pending is
 		// false by default), so this directly constructed test model paints
 		// immediately — the detect-or-timeout first-paint window is opened only by
@@ -1982,7 +1787,7 @@ func (m *Model) applyListSize(l *list.Model, width, height, reserved int) {
 		centrePaginationRow(l, lipgloss.NewStyle())
 		return
 	}
-	centrePaginationRow(l, lipgloss.NewStyle().Background(m.activeTheme.Canvas.Color()))
+	centrePaginationRow(l, lipgloss.NewStyle().Background(m.themeState.active.Canvas.Color()))
 }
 
 // applySessionListSize is the per-page wrapper that owns the Sessions
@@ -2024,7 +1829,7 @@ func (m *Model) applySessionListSize(width, height int) {
 // filtered slice. With the header height already reserved, this keeps
 // the one-row-per-delegate pagination invariant exact.
 func (m Model) sessionFooterHeight(width int) int {
-	return lipgloss.Height(renderSessionsFooter(m.sessionsHelpKeymap(), width, m.activeTheme, m.colourless))
+	return lipgloss.Height(renderSessionsFooter(m.sessionsHelpKeymap(), width, m.themeState.active, m.colourless))
 }
 
 // sessionBandHeight returns the rendered height of the SINGLE arbitrated notice
@@ -2071,7 +1876,7 @@ func (m *Model) applyProjectListSize(width, height int) {
 // ENTRIES, width and mode the render uses (via m.projectsHelpKeymap) so the budget
 // and the viewProjectList render agree exactly, blocked state included.
 func (m Model) projectFooterHeight(width int) int {
-	return lipgloss.Height(renderProjectsFooter(m.projectsHelpKeymap(), width, m.activeTheme, m.colourless))
+	return lipgloss.Height(renderProjectsFooter(m.projectsHelpKeymap(), width, m.themeState.active, m.colourless))
 }
 
 // projectBandHeight returns the rendered height of the arbitrated notice SLOT
@@ -2504,7 +2309,7 @@ func (m *Model) setFlash(text string) {
 	// the previous flash stamped — is what keeps the theme flashes' precedence over
 	// the filter line SCOPED to them: an ordinary flash raised after a theme one
 	// must not inherit the tier.
-	m.flashOrigin = flashOriginDefault
+	m.themeState.flashOrigin = flashOriginDefault
 	m.resyncPageLayouts()
 }
 
@@ -2520,7 +2325,7 @@ func (m *Model) setFlash(text string) {
 // into it.
 func (m *Model) setThemeFlash(text string) {
 	m.setFlash(text)
-	m.flashOrigin = flashOriginTheme
+	m.themeState.flashOrigin = flashOriginTheme
 }
 
 // setSuccessFlash records an inline flash styled as the SUCCESS variant — a
@@ -2700,7 +2505,7 @@ func (m Model) Init() tea.Cmd {
 	// dark fallback. Batched alongside the OSC 11 query so the two race; whichever
 	// fires first resolves the answer (Update), the loser is ignored (no flip). A
 	// nil cmd is harmless inside tea.Batch.
-	detectTimeout := m.gate.timeoutCmd()
+	detectTimeout := m.themeState.gate.timeoutCmd()
 
 	if m.commandPending {
 		return tea.Batch(requestBg, detectTimeout, m.loadProjects())
@@ -2799,12 +2604,12 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		//    so a late OSC 11 reply is still consumed by step 1 yet never re-themes.
 		//    COLORFGBG is deliberately NOT consulted here — OSC 11 is authoritative;
 		//    the weak COLORFGBG hint must never override it.
-		m.bgReplyArrived = true
-		m.bgReplyDark = msg.IsDark()
+		m.themeState.bgReplyArrived = true
+		m.themeState.bgReplyDark = msg.IsDark()
 		if msg.Color != nil {
 			m.originalBg = msg.String()
 		}
-		if m.gate.resolveFromDark(msg.IsDark()) {
+		if m.themeState.gate.resolveFromDark(msg.IsDark()) {
 			m.syncResolvedMode()
 		}
 		return m, nil
@@ -2813,7 +2618,7 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		// resolved the gate, fall through to the dark fallback. resolveDark
 		// is a no-op once already resolved, so a timeout that lost the race (the
 		// reply arrived first) never re-resolves — no second resolution, no flip.
-		if m.gate.resolveDark() {
+		if m.themeState.gate.resolveDark() {
 			m.syncResolvedMode()
 		}
 		return m, nil
@@ -3991,7 +3796,7 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Propagate the resolved canvas mode + NO_COLOR carve-out so the
 			// cyan peek-mode chrome resolves the right token variant (and
 			// drops hue under NO_COLOR).
-			pmodel.th = m.activeTheme
+			pmodel.th = m.themeState.active
 			pmodel.colourless = m.colourless
 			m.preview = pmodel
 			m.activePage = pagePreview
@@ -4482,7 +4287,7 @@ func (m Model) View() tea.View {
 	// per-line backfill now paints every interior cell with an explicit canvas
 	// SGR, so mosh/Blink (which ignore OSC 11) no longer bleed the terminal theme
 	// through mid-line gaps. This stays as a belt-and-braces gutter fill only.
-	v.BackgroundColor = m.activeTheme.Canvas.Color()
+	v.BackgroundColor = m.themeState.active.Canvas.Color()
 	return v
 }
 
@@ -4632,8 +4437,8 @@ func (m Model) fillCanvas(view string) string {
 		content := m.overlayThemePanelOnContent(fillColourless(view, contentW, contentH), contentW, contentH)
 		return insetColourless(content, w, h, contentW, contentH)
 	}
-	canvas := lipgloss.NewStyle().Background(m.activeTheme.Canvas.Color())
-	canvasBg := canvasBgParams(m.activeTheme.Canvas.Color())
+	canvas := lipgloss.NewStyle().Background(m.themeState.active.Canvas.Color())
+	canvasBg := canvasBgParams(m.themeState.active.Canvas.Color())
 	parser := ansi.NewParser() // one instance reused across every line this frame
 
 	lines := strings.Split(view, "\n")
@@ -4674,7 +4479,7 @@ func (m Model) overlayThemePanelOnContent(content string, contentW, contentH int
 	if !m.themePanel.open {
 		return content
 	}
-	panel := renderThemePanel(m.themePanel, contentH, m.activeTheme, m.colourless)
+	panel := renderThemePanel(m.themePanel, contentH, m.themeState.active, m.colourless)
 	return overlayThemePanel(content, panel, contentW)
 }
 
@@ -5031,7 +4836,7 @@ func (m Model) viewLoading() string {
 		view,
 		m.contentWidth(),
 		m.contentHeight(),
-		m.activeTheme,
+		m.themeState.active,
 		m.colourless,
 	)
 }
@@ -5056,21 +4861,21 @@ func (m Model) viewProjectList() string {
 		// (the SAME frame the kill modal uses) — ▲ Delete project? / <name> + <path> +
 		// record-only consequence / y delete · esc cancel. The confirm/cancel LOGIC is
 		// unchanged (updateDeleteProjectModal); only the rendering is reskinned.
-		return renderDeleteModalOnClearedCanvas(m.pendingDeleteName, m.pendingDeletePath, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		return renderDeleteModalOnClearedCanvas(m.pendingDeleteName, m.pendingDeletePath, m.contentWidth(), m.contentHeight(), m.themeState.active, m.colourless)
 	case modalEditProject:
 		// The two-mode edit-project modal is its OWN hand-drawn
 		// single-tone joined panel (renderEditProjectContent), placed directly on the
 		// cleared canvas via renderEditModalOnClearedCanvas — the already-framed panel
 		// is placed without any lipgloss auto-border wrap that would add a redundant
 		// second border.
-		return renderEditModalOnClearedCanvas(m, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		return renderEditModalOnClearedCanvas(m, m.contentWidth(), m.contentHeight(), m.themeState.active, m.colourless)
 	case modalHelp:
 		// Per-page help: the Projects keymap descriptor, descriptor-driven, in the
 		// help modal's own zero-h-padding panel. The descriptor is filtered through
 		// m.projectsHelpKeymap(), the SAME slice this page's footer renders from, so a
 		// blocked `t` leaves both surfaces in lockstep — the static projectsKeymap()
 		// function is unchanged.
-		return renderHelpModalOnClearedCanvas(m.projectsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		return renderHelpModalOnClearedCanvas(m.projectsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.themeState.active, m.colourless)
 	}
 	listView := m.projectList.View()
 	// Replace the plain bubbles/list title line with the restyled
@@ -5137,7 +4942,7 @@ func (m Model) renderProjectBandSlot() string {
 	if band == "" {
 		return ""
 	}
-	blank := blankCanvasRow(m.contentWidth(), m.activeTheme, m.colourless)
+	blank := blankCanvasRow(m.contentWidth(), m.themeState.active, m.colourless)
 	return lipgloss.JoinVertical(lipgloss.Left, band, blank)
 }
 
@@ -5157,14 +4962,14 @@ func (m Model) applyProjectsSectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderFilterQueryHeader(
 			m.projectList.FilterValue(),
 			m.contentWidth(),
-			m.activeTheme,
+			m.themeState.active,
 			m.colourless,
 		))
 	}
 	return replaceHeaderLine(listView, renderProjectsSectionHeader(
 		m.visibleProjectRowCount(),
 		m.contentWidth(),
-		m.activeTheme,
+		m.themeState.active,
 		m.colourless,
 	))
 }
@@ -5185,18 +4990,18 @@ func (m Model) visibleProjectRowCount() int {
 func (m Model) renderProjectsFooterForFilterState() string {
 	switch m.projectList.FilterState() {
 	case list.Filtering:
-		return renderFilteringFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderFilteringFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	case list.FilterApplied:
 		// Projects-specific list-active footer: Enter on Projects is "new session",
 		// not "attach" — do not leak the Sessions filterAppliedFooter copy here.
-		return renderProjectsFilterAppliedFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderProjectsFilterAppliedFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	default:
 		// The command-pending Projects footer (`⏎ run here · n run in cwd ·
 		// esc cancel`) replaces the standard condensed footer while a command is
 		// pending — but only outside an active filter mode (the contextual filter
 		// footers above still own the filter states).
 		if m.commandPending {
-			return renderCommandPendingFooter(m.contentWidth(), m.activeTheme, m.colourless)
+			return renderCommandPendingFooter(m.contentWidth(), m.themeState.active, m.colourless)
 		}
 		// Empty-projects state: the standard footer is FULLY REPLACED by the
 		// projects-relevant keys (`n new in cwd · x sessions · / filter · ? help`),
@@ -5204,9 +5009,9 @@ func (m Model) renderProjectsFooterForFilterState() string {
 		// footer rule, so the swap is height-neutral against the reserved
 		// budget. Gated AFTER command-pending so the command-pending footer wins.
 		if m.projectListEmpty() {
-			return renderEmptyProjectsFooter(m.contentWidth(), m.activeTheme, m.colourless)
+			return renderEmptyProjectsFooter(m.contentWidth(), m.themeState.active, m.colourless)
 		}
-		return renderProjectsFooter(m.projectsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
+		return renderProjectsFooter(m.projectsHelpKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 	}
 }
 
@@ -5233,21 +5038,21 @@ func (m Model) viewSessionList() string {
 		// SAME frame the help modal uses) — ▲ Kill session? / <name> · N window(s) +
 		// consequence / y kill · esc cancel. The confirm/cancel LOGIC is unchanged
 		// (updateKillConfirmModal); only the rendering is reskinned.
-		return renderKillModalOnClearedCanvas(m.pendingKillName, m.pendingKillWindows, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		return renderKillModalOnClearedCanvas(m.pendingKillName, m.pendingKillWindows, m.contentWidth(), m.contentHeight(), m.themeState.active, m.colourless)
 	case modalRename:
 		// Rename modal: the hand-drawn single-tone joined panel (the SAME
 		// frame the help/kill modals use) — Rename session header / NEW NAME label +
 		// violet-outlined input box + was: <old name> / ⏎ rename · esc cancel footer.
 		// The rename flow LOGIC is unchanged (updateRenameModal / renameAndRefresh);
 		// only the rendering is reskinned.
-		return renderRenameModalOnClearedCanvas(m.renameInput, m.renameTarget, m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		return renderRenameModalOnClearedCanvas(m.renameInput, m.renameTarget, m.contentWidth(), m.contentHeight(), m.themeState.active, m.colourless)
 	case modalHelp:
 		// Per-page help: the Sessions keymap descriptor, descriptor-driven, in the
 		// help modal's own zero-h-padding panel. The descriptor is filtered through
 		// m.sessionsHelpKeymap(), which drops the `m` multi-select
 		// row when it is blocked (unsupported terminal, not already in the mode) —
 		// the static sessionsKeymap() constant is unchanged.
-		return renderHelpModalOnClearedCanvas(m.sessionsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.activeTheme, m.colourless)
+		return renderHelpModalOnClearedCanvas(m.sessionsHelpKeymap(), m.contentWidth(), m.contentHeight(), m.themeState.active, m.colourless)
 	}
 	listView := m.sessionList.View()
 	// Replace the plain bubbles/list title line with the restyled
@@ -5334,7 +5139,7 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	// are no results to browse). It takes precedence over the plain Filtering footer
 	// so the reduced entry set renders whenever the active query matches zero.
 	if m.sessionListNoMatches() {
-		return renderNoMatchesFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderNoMatchesFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	}
 	// Empty-sessions state: the standard footer is FULLY REPLACED by the keys
 	// relevant with no sessions (`n new in cwd · x projects · / filter · ? help`),
@@ -5343,7 +5148,7 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	// sessionFooterHeight budget. The empty state is Unfiltered, so this guard sits
 	// before the filter-state switch (which only handles Filtering/FilterApplied).
 	if m.sessionListEmpty() {
-		return renderEmptySessionsFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderEmptySessionsFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	}
 	// Multi-select mode owns the footer (takes over the standard footer) but yields
 	// to the focused filter footer: while the `/` input is focused (FilterState ==
@@ -5352,16 +5157,16 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	// FilterApplied-in-mode — the multi-select footer renders. So Filtering is checked
 	// FIRST, then the mode, then the plain FilterApplied/standard footers.
 	if m.sessionList.FilterState() == list.Filtering {
-		return renderFilteringFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderFilteringFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	}
 	if m.multiSelectMode {
-		return renderMultiSelectFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderMultiSelectFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	}
 	switch m.sessionList.FilterState() {
 	case list.FilterApplied:
-		return renderFilterAppliedFooter(m.contentWidth(), m.activeTheme, m.colourless)
+		return renderFilterAppliedFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	default:
-		return renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.activeTheme, m.colourless)
+		return renderSessionsFooter(m.sessionsHelpKeymap(), m.contentWidth(), m.themeState.active, m.colourless)
 	}
 }
 
@@ -5370,7 +5175,7 @@ func (m Model) renderSessionsFooterForFilterState() string {
 // single render entry point so the composed-view render and the height-budget
 // computation (headerHeight) resolve the header against the SAME width/mode.
 func (m Model) renderHeader() string {
-	return renderHeaderBlock(m.contentWidth(), m.activeTheme, m.colourless)
+	return renderHeaderBlock(m.contentWidth(), m.themeState.active, m.colourless)
 }
 
 // unsupportedBannerActive reports whether the proactive unsupported-terminal
@@ -5528,7 +5333,7 @@ func (m Model) applySectionHeader(listView string) string {
 			m.burstDone,
 			m.burstTotal,
 			m.contentWidth(),
-			m.activeTheme,
+			m.themeState.active,
 			m.colourless,
 		))
 	}
@@ -5548,7 +5353,7 @@ func (m Model) applySectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderPreflightAbortHeader(
 			m.abortBannerText,
 			m.contentWidth(),
-			m.activeTheme,
+			m.themeState.active,
 			m.colourless,
 		))
 	}
@@ -5561,7 +5366,7 @@ func (m Model) applySectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderMultiSelectHeader(
 			len(m.selectedSessions),
 			m.contentWidth(),
-			m.activeTheme,
+			m.themeState.active,
 			m.colourless,
 		))
 	}
@@ -5581,7 +5386,7 @@ func (m Model) applySectionHeader(listView string) string {
 			m.detectIdentity.Name,
 			m.detectIdentity.BundleID,
 			m.contentWidth(),
-			m.activeTheme,
+			m.themeState.active,
 			m.colourless,
 		))
 	}
@@ -5589,7 +5394,7 @@ func (m Model) applySectionHeader(listView string) string {
 		return replaceHeaderLine(listView, renderFilterQueryHeader(
 			m.sessionList.FilterValue(),
 			m.contentWidth(),
-			m.activeTheme,
+			m.themeState.active,
 			m.colourless,
 		))
 	}
@@ -5599,7 +5404,7 @@ func (m Model) applySectionHeader(listView string) string {
 		m.currentSession,
 		m.visibleSessionRowCount(),
 		m.contentWidth(),
-		m.activeTheme,
+		m.themeState.active,
 		m.colourless,
 	))
 }
@@ -5628,7 +5433,7 @@ func (m Model) visibleSessionRowCount() int {
 // render uses (via the shared headerWidthOrFallback fallback), so the budget and
 // the render agree exactly.
 func (m Model) headerHeight(width int) int {
-	return lipgloss.Height(renderHeaderBlock(width, m.activeTheme, m.colourless))
+	return lipgloss.Height(renderHeaderBlock(width, m.themeState.active, m.colourless))
 }
 
 // replaceListBodyWithNoMatches swaps the list BODY (every row below the
@@ -5642,7 +5447,7 @@ func (m Model) replaceListBodyWithNoMatches(listView string) string {
 	bodyHeight := max(
 		// minus the title/filter row
 		m.sessionList.Height()-1, 1)
-	body := renderNoMatchesBody(m.sessionList.FilterValue(), m.contentWidth(), bodyHeight, m.activeTheme, m.colourless)
+	body := renderNoMatchesBody(m.sessionList.FilterValue(), m.contentWidth(), bodyHeight, m.themeState.active, m.colourless)
 	idx := strings.IndexByte(listView, '\n')
 	if idx < 0 {
 		// Degenerate single-line listView (no body to replace): append the body.

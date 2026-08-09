@@ -16,7 +16,7 @@ import (
 func newProjectsLoadedRegroupModel(t *testing.T, mode prefs.SessionListMode, sessions []tmux.Session) Model {
 	t.Helper()
 	m := Model{
-		activeTheme:     testDarkTheme(t),
+		themeState:      themeState{active: testDarkTheme(t)},
 		sessions:        sessions,
 		sessionList:     newSessionList(nil),
 		projectList:     newProjectList(),

@@ -40,7 +40,7 @@ func TestRestoreTerminalBackground_CanvasEchoGuard(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var b strings.Builder
 
-			RestoreTerminalBackground(&b, Model{originalBg: tc.originalBg, startupCanvasHex: tc.startup})
+			RestoreTerminalBackground(&b, Model{originalBg: tc.originalBg, themeState: themeState{startupCanvasHex: tc.startup}})
 
 			if got := b.String(); got != "" {
 				t.Errorf("canvas-echo original %q (startup canvas %s) must be skipped, but wrote %q",
@@ -67,12 +67,12 @@ func TestRestoreTerminalBackground_CanvasEchoGuard(t *testing.T) {
 func TestRestoreTerminalBackground_AnchoredToStartupHex(t *testing.T) {
 	resolved, _ := detectModel(t, testBuiltinPair(t)).Update(darkBg)
 	startup := resolved.(Model)
-	if got := startup.startupCanvasHex; got != testDarkThemeCanvas {
+	if got := startup.themeState.startupCanvasHex; got != testDarkThemeCanvas {
 		t.Fatalf("startupCanvasHex = %q after a dark reply, want %q", got, testDarkThemeCanvas)
 	}
 
 	// The active theme moves; the retained hex must not move with it.
-	startup.activeTheme = testLightTheme(t)
+	startup.themeState.active = testLightTheme(t)
 
 	t.Run("an echo of the startup canvas is still skipped", func(t *testing.T) {
 		m := startup
@@ -110,7 +110,7 @@ func TestRestoreTerminalBackground_NonHexReplyStillSetsBack(t *testing.T) {
 	const rgbReply = "rgb:0b0b/0c0c/1414" // the dark canvas, in the shape sameHexColour cannot read
 
 	var b strings.Builder
-	RestoreTerminalBackground(&b, Model{originalBg: rgbReply, startupCanvasHex: testDarkThemeCanvas})
+	RestoreTerminalBackground(&b, Model{originalBg: rgbReply, themeState: themeState{startupCanvasHex: testDarkThemeCanvas}})
 
 	want := ansi.SetBackgroundColor(rgbReply)
 	if got := b.String(); got != want {
@@ -132,7 +132,7 @@ func TestRestoreTerminalBackground_NonHexReplyStillSetsBack(t *testing.T) {
 // guard cannot be what suppresses the write: only the colourless carve-out can.
 func TestNoColor_HexCapturedAndSetBackIsANoOp(t *testing.T) {
 	m := Build(Deps{Lister: fakeLister{}, Theme: testBuiltinPair(t), NoColor: true})
-	if got := m.startupCanvasHex; got != testDarkThemeCanvas {
+	if got := m.themeState.startupCanvasHex; got != testDarkThemeCanvas {
 		t.Errorf("startupCanvasHex = %q under NO_COLOR, want %q (captured as normal from the selected member)", got, testDarkThemeCanvas)
 	}
 

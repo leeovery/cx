@@ -99,7 +99,7 @@ func (m Model) projectListEmpty() bool {
 // replaceListBodyWithNoMatches.
 func (m Model) replaceListBodyWithEmptyState(listView string, listHeight int, glyph, message, hint string) string {
 	bodyHeight := max(listHeight-1, 1) // minus the title row
-	body := renderEmptyStateBody(glyph, message, hint, m.contentWidth(), bodyHeight, m.activeTheme, m.colourless)
+	body := renderEmptyStateBody(glyph, message, hint, m.contentWidth(), bodyHeight, m.themeState.active, m.colourless)
 	idx := strings.IndexByte(listView, '\n')
 	if idx < 0 {
 		// Degenerate single-line listView (no body to replace): append the body.

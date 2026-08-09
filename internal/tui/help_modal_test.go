@@ -261,7 +261,7 @@ func TestHelpModalContent(t *testing.T) {
 		// carries the dismiss hint instead).
 		m := helpModelSessions(t, appearanceDarkCanvas)
 		m.modal = modalHelp
-		body := helpModalBody(sessionsKeymap(), m.activeTheme, m.colourless)
+		body := helpModalBody(sessionsKeymap(), m.themeState.active, m.colourless)
 		if strings.Contains(body, "help") {
 			t.Errorf("help modal body must not list the ? help self-entry; got:\n%s", body)
 		}

@@ -82,7 +82,7 @@ type themePanelMessage struct {
 // raiseThemePanelConfirm raises the slot-from-constant confirm, naming the
 // constant it will clear.
 //
-// IT READS THE RAW KEYS, NOT THE NOMINATION. m.themeKeys.Theme is what is
+// IT READS THE RAW KEYS, NOT THE NOMINATION. m.themeState.keys.Theme is what is
 // PERSISTED, and under a fallback that is not what is on screen: the persisted
 // slug may be the very one that failed to load, with a built-in fallback rendering
 // in its place. The confirm has to name what is being CLEARED, so it must name the
@@ -92,7 +92,7 @@ type themePanelMessage struct {
 // Installing the whole value is what clears the other contender (see
 // themePanelMessage).
 func (m *Model) raiseThemePanelConfirm() {
-	m.setThemePanelMessage(themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeKeys.Theme})
+	m.setThemePanelMessage(themePanelMessage{Kind: themeMessageConfirm, Slug: m.themeState.keys.Theme})
 }
 
 // raiseThemePanelCommitFailed raises the failed-commit line, clearing whatever

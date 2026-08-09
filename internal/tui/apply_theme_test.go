@@ -332,13 +332,32 @@ func TestApplyTheme_PerformsNoFileRead(t *testing.T) {
 	})
 
 	t.Run("the model holds no theme loader", func(t *testing.T) {
-		loaderType := reflect.TypeFor[theme.Loader]()
-		for f := range reflect.TypeFor[Model]().Fields() {
-			if f.Type == loaderType {
-				t.Errorf("Model field %q is a theme.Loader — a swap takes a LOADED palette (§5.8); a loader on the model is the shape through which one would grow a file read", f.Name)
-			}
+		for _, path := range loaderFields(reflect.TypeFor[Model](), "Model") {
+			t.Errorf("%s is a theme.Loader — a swap takes a LOADED palette (§5.8); a loader on the model is the shape through which one would grow a file read", path)
 		}
 	})
+}
+
+// loaderFields returns the dotted paths of every theme.Loader-typed field reachable
+// from tp, descending through the model's OWN nested state structs (themeState,
+// themePanel and their kin).
+//
+// The descent is what keeps the guard honest: the model groups its theme machinery
+// into a nested struct, so a top-level-only walk would miss a loader parked exactly
+// where one would be reached for. Third-party field types are not descended into —
+// a bubbles/list is not somewhere this package can grow a file read.
+func loaderFields(tp reflect.Type, path string) []string {
+	var found []string
+	for f := range tp.Fields() {
+		at := path + "." + f.Name
+		switch {
+		case f.Type == reflect.TypeFor[theme.Loader]():
+			found = append(found, at)
+		case f.Type.Kind() == reflect.Struct && f.Type.PkgPath() == tp.PkgPath():
+			found = append(found, loaderFields(f.Type, at)...)
+		}
+	}
+	return found
 }
 
 // newSwapFrameModel builds a production-shaped, fully renderable model painted
@@ -394,22 +413,22 @@ func TestApplyTheme_DoesNotMoveStartupCanvasHex(t *testing.T) {
 	before, after := probeThemeBefore(), probeThemeAfter()
 	m := newSwapFrameModel(t, before, false)
 
-	startup := m.startupCanvasHex
+	startup := m.themeState.startupCanvasHex
 	if startup != before.Canvas.Value {
 		t.Fatalf("probe setup: startupCanvasHex = %q, want the pre-swap canvas %q", startup, before.Canvas.Value)
 	}
 
 	m.ApplyTheme(after)
-	if m.startupCanvasHex != startup {
-		t.Errorf("after one swap startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4), never re-derived from the active theme", m.startupCanvasHex, startup)
+	if m.themeState.startupCanvasHex != startup {
+		t.Errorf("after one swap startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4), never re-derived from the active theme", m.themeState.startupCanvasHex, startup)
 	}
 
 	for range 50 {
 		m.ApplyTheme(before)
 		m.ApplyTheme(after)
 	}
-	if m.startupCanvasHex != startup {
-		t.Errorf("after fifty swaps startupCanvasHex = %q, want %q unchanged", m.startupCanvasHex, startup)
+	if m.themeState.startupCanvasHex != startup {
+		t.Errorf("after fifty swaps startupCanvasHex = %q, want %q unchanged", m.themeState.startupCanvasHex, startup)
 	}
 }
 

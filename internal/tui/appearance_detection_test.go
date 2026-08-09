@@ -62,8 +62,8 @@ func assertPaintedCanvas(t *testing.T, m Model, appearance canvasAppearance) {
 	if !m.modeResolved() {
 		t.Fatalf("modeResolved = false, want true (the canvas must be resolved before the real paint)")
 	}
-	if m.canvasMode != appearance {
-		t.Errorf("canvasMode = %v, want %v", m.canvasMode, appearance)
+	if m.themeState.canvasMode != appearance {
+		t.Errorf("canvasMode = %v, want %v", m.themeState.canvasMode, appearance)
 	}
 	view := m.View().Content
 	if !strings.Contains(view, "Sessions") {
@@ -143,14 +143,14 @@ func TestNoPaintThenFlip(t *testing.T) {
 	// A late timeout (the loser of the race) must be ignored — the mode is
 	// already resolved, so it must not flip to anything.
 	after, _ := resolved.Update(appearanceTimeoutMsg{})
-	if after.(Model).canvasMode != appearanceDarkCanvas {
-		t.Errorf("a late timeout flipped canvasMode to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).canvasMode)
+	if after.(Model).themeState.canvasMode != appearanceDarkCanvas {
+		t.Errorf("a late timeout flipped canvasMode to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).themeState.canvasMode)
 	}
 
 	// And a late, conflicting BackgroundColorMsg (light) must not flip either.
 	after2, _ := after.(Model).Update(lightBg)
-	if after2.(Model).canvasMode != appearanceDarkCanvas {
-		t.Errorf("a late light BackgroundColorMsg flipped canvasMode to %v, want it pinned at the dark canvas (no flip)", after2.(Model).canvasMode)
+	if after2.(Model).themeState.canvasMode != appearanceDarkCanvas {
+		t.Errorf("a late light BackgroundColorMsg flipped canvasMode to %v, want it pinned at the dark canvas (no flip)", after2.(Model).themeState.canvasMode)
 	}
 }
 

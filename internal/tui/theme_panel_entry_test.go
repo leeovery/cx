@@ -228,7 +228,7 @@ func armPanelUnderNoColorForTest(t *testing.T, m Model) Model {
 	if !m.colourless {
 		t.Fatal("fixture: the model is not colourless, so `t` is not blocked and this bypass says nothing")
 	}
-	enumeration, union := m.themeEnumerator.Open(m.themeKeys)
+	enumeration, union := m.themeState.enumerator.Open(m.themeState.keys)
 	(&m).armThemePanel(enumeration, union)
 	if !m.themePanel.open {
 		t.Fatal("fixture: arming the panel directly left it closed")
@@ -430,7 +430,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 		if !m.themePanel.open {
 			t.Fatalf("t refused at the %d-row directory-inclusive floor, which §9.8 admits", height)
 		}
-		lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless))
+		lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless))
 		if len(lines) != height {
 			t.Fatalf("the panel rendered %d rows at the %d-row floor", len(lines), height)
 		}

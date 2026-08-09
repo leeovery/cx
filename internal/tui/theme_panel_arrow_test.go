@@ -384,8 +384,8 @@ func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 	before, after := rows[0].Theme, rows[1].Theme
 	m := newArrowPanelModel(t, rows, rows[0].Slug)
 
-	if m.activeTheme != before {
-		t.Fatalf("fixture: the open painted canvas %s, want the cursor row's %s", m.activeTheme.Canvas.Value, before.Canvas.Value)
+	if m.themeState.active != before {
+		t.Fatalf("fixture: the open painted canvas %s, want the cursor row's %s", m.themeState.active.Canvas.Value, before.Canvas.Value)
 	}
 	beforeParams, afterParams := canvasBgParams(before.Canvas.Color()), canvasBgParams(after.Canvas.Color())
 	if beforeParams == afterParams {
@@ -396,8 +396,8 @@ func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 	m = pressPanelKey(t, m, arrowDown)
 	afterCells := arrowFrameCells(t, m)
 
-	if m.activeTheme != after {
-		t.Fatalf("the arrow left the active theme at canvas %s, want the newly-selected row's %s", m.activeTheme.Canvas.Value, after.Canvas.Value)
+	if m.themeState.active != after {
+		t.Fatalf("the arrow left the active theme at canvas %s, want the newly-selected row's %s", m.themeState.active.Canvas.Value, after.Canvas.Value)
 	}
 
 	row := arrowTermH / 2
@@ -440,8 +440,8 @@ func TestPanelArrow_SkipsConsecutiveInvalidRows(t *testing.T) {
 	if row := themePanelCursorRow(t, m); !row.Selectable() {
 		t.Errorf("the cursor rests on the unselectable %q", row.Label())
 	}
-	if want := rows[4].Theme; m.activeTheme != want {
-		t.Errorf("the skip landed without previewing: canvas %s, want %s", m.activeTheme.Canvas.Value, want.Canvas.Value)
+	if want := rows[4].Theme; m.themeState.active != want {
+		t.Errorf("the skip landed without previewing: canvas %s, want %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
 }
 
@@ -477,8 +477,8 @@ func TestPanelArrow_SkipReversesAtTheBoundary(t *testing.T) {
 
 		requireArrowCursorAt(t, m, 2)
 		requireCursorOn(t, m, "ccc")
-		if want := rows[2].Theme; m.activeTheme != want {
-			t.Errorf("the reversal moved the preview to canvas %s, want the unchanged %s", m.activeTheme.Canvas.Value, want.Canvas.Value)
+		if want := rows[2].Theme; m.themeState.active != want {
+			t.Errorf("the reversal moved the preview to canvas %s, want the unchanged %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 		}
 	})
 
@@ -497,8 +497,8 @@ func TestPanelArrow_SkipReversesAtTheBoundary(t *testing.T) {
 
 		requireArrowCursorAt(t, m, 1)
 		requireCursorOn(t, m, "bbb")
-		if want := rows[1].Theme; m.activeTheme != want {
-			t.Errorf("the reversal moved the preview to canvas %s, want the unchanged %s", m.activeTheme.Canvas.Value, want.Canvas.Value)
+		if want := rows[1].Theme; m.themeState.active != want {
+			t.Errorf("the reversal moved the preview to canvas %s, want the unchanged %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 		}
 	})
 }
@@ -540,8 +540,8 @@ func TestPanelArrow_SkipComposesWithPaging(t *testing.T) {
 	if got := m.themePanel.list.Paginator.Page; got != 1 {
 		t.Errorf("the skip left the paginator on page %d, want the page Ctrl+↓ moved to (1)", got)
 	}
-	if want := rows[3].Theme; m.activeTheme != want {
-		t.Errorf("the paged landing did not preview: canvas %s, want %s", m.activeTheme.Canvas.Value, want.Canvas.Value)
+	if want := rows[3].Theme; m.themeState.active != want {
+		t.Errorf("the paged landing did not preview: canvas %s, want %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
 }
 
@@ -565,7 +565,7 @@ func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	)
 	m = pressThemeKey(t, m)
 	requireCursorOn(t, m, "aurora")
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("fixture: the open painted canvas %s, want the drop-in's #101010", got)
 	}
 
@@ -587,7 +587,7 @@ func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	if !landed {
 		t.Fatalf("the cursor never reached the `sunset` row in %d presses; rows: %v", maxPresses, themePanelRowLabels(m))
 	}
-	if got := m.activeTheme.Canvas.Value; got != "#202020" {
+	if got := m.themeState.active.Canvas.Value; got != "#202020" {
 		t.Errorf("after the directory was removed the preview painted canvas %s, want the retained parse's #202020", got)
 	}
 	if enumerator.opens != 1 {
@@ -657,7 +657,7 @@ func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 	if len(reader.reads) != 0 {
 		t.Errorf("twenty arrow presses performed %d lazy pane read(s) %v — a preview is the O(1) restyle (§11.1), never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
 	}
-	if got := m.View().Content; !strings.Contains(got, tokenBgSeq(t, m.activeTheme.Canvas)) {
+	if got := m.View().Content; !strings.Contains(got, tokenBgSeq(t, m.themeState.active.Canvas)) {
 		t.Errorf("the post-arrow frame does not carry the previewed canvas, so the zero above is a swap that never happened")
 	}
 	if len(reader.reads) != 0 {
@@ -682,25 +682,25 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 	rows := arrowValidRows(6)
 	m := newArrowPanelModel(t, rows, rows[0].Slug)
 
-	startup := m.startupCanvasHex
+	startup := m.themeState.startupCanvasHex
 	if startup != rows[0].Theme.Canvas.Value {
 		t.Fatalf("fixture: startupCanvasHex = %q, want the launch canvas %q", startup, rows[0].Theme.Canvas.Value)
 	}
 
 	m = pressPanelKey(t, m, arrowDown)
-	if m.activeTheme == rows[0].Theme {
+	if m.themeState.active == rows[0].Theme {
 		t.Fatal("fixture: one arrow did not change the active theme, so the assertion below is vacuous")
 	}
-	if m.startupCanvasHex != startup {
-		t.Errorf("after one arrow startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4)", m.startupCanvasHex, startup)
+	if m.themeState.startupCanvasHex != startup {
+		t.Errorf("after one arrow startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4)", m.themeState.startupCanvasHex, startup)
 	}
 
 	for range 25 {
 		m = pressPanelKey(t, m, arrowDown)
 		m = pressPanelKey(t, m, arrowUp)
 	}
-	if m.startupCanvasHex != startup {
-		t.Errorf("after fifty arrows startupCanvasHex = %q, want %q unchanged", m.startupCanvasHex, startup)
+	if m.themeState.startupCanvasHex != startup {
+		t.Errorf("after fifty arrows startupCanvasHex = %q, want %q unchanged", m.themeState.startupCanvasHex, startup)
 	}
 }
 
@@ -730,10 +730,10 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 		WithModePersister(persister)(&m)
 
 		m = pressThemeKey(t, m)
-		launch := m.activeTheme
+		launch := m.themeState.active
 		for range 8 {
 			m = pressPanelKey(t, m, arrowDown)
-			if m.activeTheme == launch {
+			if m.themeState.active == launch {
 				t.Fatal("fixture: `↓` previewed nothing, so a zero write count says nothing about the preview path")
 			}
 			m = pressPanelKey(t, m, arrowUp)
@@ -758,11 +758,11 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
 
 		m = pressThemeKey(t, m)
-		launch := m.activeTheme
+		launch := m.themeState.active
 		for range 8 {
 			m = pressPanelKey(t, m, arrowDown)
 		}
-		if m.activeTheme == launch {
+		if m.themeState.active == launch {
 			t.Fatal("fixture: arrowing previewed nothing, so an untouched directory says nothing about the preview path")
 		}
 
@@ -798,13 +798,13 @@ func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
 	m := newArrowPanelModel(t, rows, arrowSlug(0))
 
 	const height = 16
-	dotsBefore := themePanelDotRow(t, renderThemePanel(m.themePanel, height, m.activeTheme, m.colourless))
+	dotsBefore := themePanelDotRow(t, renderThemePanel(m.themePanel, height, m.themeState.active, m.colourless))
 
 	m = pressPanelKey(t, m, arrowDown)
-	if m.activeTheme != after {
-		t.Fatalf("fixture: the arrow left the active theme at canvas %s, want %s", m.activeTheme.Canvas.Value, after.Canvas.Value)
+	if m.themeState.active != after {
+		t.Fatalf("fixture: the arrow left the active theme at canvas %s, want %s", m.themeState.active.Canvas.Value, after.Canvas.Value)
 	}
-	panel := renderThemePanel(m.themePanel, height, m.activeTheme, m.colourless)
+	panel := renderThemePanel(m.themePanel, height, m.themeState.active, m.colourless)
 	dotsAfter := themePanelDotRow(t, panel)
 
 	if dotsAfter == dotsBefore {

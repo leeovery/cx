@@ -124,7 +124,7 @@ func TestPanelMessage_SingleSlotExclusion(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
 	m := newArrowPanelModel(t, arrowValidRows(4), arrowValidRows(4)[0].Slug)
-	m.themeKeys = theme.RawKeys{Theme: messageTestConfirmSlug}
+	m.themeState.keys = theme.RawKeys{Theme: messageTestConfirmSlug}
 
 	t.Run("a raised confirm is the only live contender", func(t *testing.T) {
 		(&m).raiseThemePanelConfirm()
@@ -360,8 +360,8 @@ func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 // TestPanelMessage_ConfirmReadsRawKeys: it names the persisted constant even when
 // it failed to load.
 //
-// The confirm names `m.themeKeys.Theme` — the PERSISTED constant — and never the
-// nomination the panel resolved. The two differ exactly where it matters: under
+// The confirm names `m.themeState.keys.Theme` — the PERSISTED constant — and never
+// the nomination the panel resolved. The two differ exactly where it matters: under
 // §8.5's fallback the persisted slug is the one being cleared and the resolved one
 // is a built-in the user never chose, so naming the resolution would ask the user
 // to confirm clearing a theme that was never set.
@@ -492,7 +492,7 @@ func TestPanelFooter_RevertsAfterConfirm(t *testing.T) {
 	const height = 18
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
 	m := newArrowPanelModel(t, arrowValidRows(6), arrowValidRows(6)[0].Slug)
-	m.themeKeys = theme.RawKeys{Theme: messageTestConfirmSlug}
+	m.themeState.keys = theme.RawKeys{Theme: messageTestConfirmSlug}
 	m.themePanel.width = themePanelPreferredWidth
 
 	standing := themePanelLines(renderThemePanelFooter(themePanelKeymap(), inner, th, false))

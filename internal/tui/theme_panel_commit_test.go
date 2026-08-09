@@ -176,7 +176,7 @@ func requireCommitted(t *testing.T, p *fakeThemePersister, want ...string) {
 // the given slug, with BOTH slots cleared.
 func requireConstantKeys(t *testing.T, m Model, slug string) {
 	t.Helper()
-	if got := m.themeKeys; got != (theme.RawKeys{Theme: slug}) {
+	if got := m.themeState.keys; got != (theme.RawKeys{Theme: slug}) {
 		t.Errorf("themeKeys = %+v, want {Theme:%s} — a constant clears both slots (§8.2)", got, slug)
 	}
 }
@@ -216,7 +216,7 @@ func TestPanelEnter_CommitsTheCursorSlug(t *testing.T) {
 	m, persister := newCommitPanelModel(t, rows, persisted)
 
 	m = arrowToThemeRow(t, m, target)
-	if got := m.themeKeys.Theme; got != persisted {
+	if got := m.themeState.keys.Theme; got != persisted {
 		t.Fatalf("fixture: the persisted constant is %q, want %q — the two must differ for this to assert anything", got, persisted)
 	}
 
@@ -266,7 +266,7 @@ func TestPanelEnter_DoesNotClose(t *testing.T) {
 func TestPanelEnter_MutatesRawKeysToAConstant(t *testing.T) {
 	rows := arrowValidRows(4)
 	m, persister := newCommitPairPanelModel(t, rows)
-	before := m.themeKeys
+	before := m.themeState.keys
 	if before.Light == "" || before.Dark == "" {
 		t.Fatalf("fixture: the persisted keys are %+v, want both slots set", before)
 	}
@@ -297,7 +297,7 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 		m, persister := newCommitPanelModel(t, rows, persisted)
 
 		m = arrowToThemeRow(t, m, target)
-		previewed := m.activeTheme
+		previewed := m.themeState.active
 		if previewed == rows[0].Theme {
 			t.Fatal("fixture: arrowing previewed nothing, so an unchanged frame says nothing about the commit")
 		}
@@ -306,8 +306,8 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 		m, _ = pressCommitKey(t, m)
 
 		requireCommitted(t, persister, target)
-		if m.activeTheme != previewed {
-			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone — a commit is a write, not a navigation (§9.2)", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+		if m.themeState.active != previewed {
+			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone — a commit is a write, not a navigation (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := m.View().Content; got != before {
 			t.Errorf("the commit changed the composed frame\nbefore: %q\nafter:  %q", escSeq(before), escSeq(got))
@@ -398,7 +398,7 @@ func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 	WithThemePersister(persister)(&m)
 
 	m = pressThemeKey(t, m)
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the open rendered canvas %s, want the persisted aurora's #101010", got)
 	}
 	m = arrowToThemeRow(t, m, "sunset")
@@ -411,7 +411,7 @@ func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 	if m.themePanel.open {
 		t.Fatal("Esc left the panel open")
 	}
-	if got := m.activeTheme.Canvas.Value; got != "#202020" {
+	if got := m.themeState.active.Canvas.Value; got != "#202020" {
 		t.Errorf("the close rendered canvas %s, want the newly committed sunset's #202020 — #101010 is what was persisted at OPEN, which a commit replaced", got)
 	}
 }
@@ -434,7 +434,7 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 		m, persister := newCommitPanelModel(t, rows, persisted)
 		persister.err = errThemeCommitFailed
 		m = arrowToThemeRow(t, m, target)
-		previewed := m.activeTheme
+		previewed := m.themeState.active
 
 		m, _ = pressCommitKey(t, m)
 
@@ -443,8 +443,8 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 		if !m.themePanel.open {
 			t.Error("a failed commit closed the panel; `Esc` is the only way out (§9.2)")
 		}
-		if m.activeTheme != previewed {
-			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.activeTheme.Canvas.Value, previewed.Canvas.Value)
+		if m.themeState.active != previewed {
+			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 	})
 
@@ -470,8 +470,8 @@ func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
 	persisted, target := rows[0].Slug, rows[2].Slug
 
 	m := openCommitPanel(t, newArrowPanelDeps(t, rows, persisted), PageSessions, persisted)
-	if m.themePersister != nil {
-		t.Fatalf("fixture: the model holds persister %#v, want none", m.themePersister)
+	if m.themeState.persister != nil {
+		t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)
 	}
 	m = arrowToThemeRow(t, m, target)
 	before := m.View().Content
@@ -513,13 +513,13 @@ func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
 
 	m, _ = pressCommitKey(t, m)
 	once := m.View().Content
-	onceKeys := m.themeKeys
+	onceKeys := m.themeState.keys
 
 	m, cmd := pressCommitKey(t, m)
 
 	requireCommitted(t, persister, target, target)
-	if m.themeKeys != onceKeys {
-		t.Errorf("the second commit left keys %+v, want the first's %+v", m.themeKeys, onceKeys)
+	if m.themeState.keys != onceKeys {
+		t.Errorf("the second commit left keys %+v, want the first's %+v", m.themeState.keys, onceKeys)
 	}
 	requireConstantKeys(t, m, target)
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
@@ -704,7 +704,7 @@ func TestPanelEnter_NoConfirmOverAPair(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rows := arrowValidRows(4)
 			m, persister := tc.build(t, rows)
-			footer := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.activeTheme, m.colourless)
+			footer := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.themeState.active, m.colourless)
 
 			m, cmd := pressCommitKey(t, m)
 
@@ -715,7 +715,7 @@ func TestPanelEnter_NoConfirmOverAPair(t *testing.T) {
 			if cmd != nil {
 				t.Errorf("`Enter` scheduled %T; the write lands on this keypress rather than awaiting an answer", cmd)
 			}
-			after := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.activeTheme, m.colourless)
+			after := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.themeState.active, m.colourless)
 			if after != footer {
 				t.Errorf("`Enter` swapped the panel footer\nbefore: %q\nafter:  %q", escSeq(footer), escSeq(after))
 			}

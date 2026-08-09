@@ -152,7 +152,7 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 	for range 3 {
 		m = pressPanelKey(t, m, arrowDown)
 	}
-	if m.activeTheme == rows[0].Theme {
+	if m.themeState.active == rows[0].Theme {
 		t.Fatal("fixture: three arrows previewed nothing, so the close below restores nothing")
 	}
 	if len(stub.settings) != 1 {
@@ -170,8 +170,8 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 	if len(stub.settings) != 2 {
 		t.Errorf("the close ran %d resolutions in total, want 2 — `Esc` RE-RESOLVES persisted state rather than restoring a snapshot (§9.2)", len(stub.settings))
 	}
-	if m.activeTheme != rows[0].Theme {
-		t.Errorf("the close left canvas %s, want the resolved persisted %s", m.activeTheme.Canvas.Value, rows[0].Theme.Canvas.Value)
+	if m.themeState.active != rows[0].Theme {
+		t.Errorf("the close left canvas %s, want the resolved persisted %s", m.themeState.active.Canvas.Value, rows[0].Theme.Canvas.Value)
 	}
 	if got := m.View().Content; got != before {
 		t.Errorf("the post-close frame is not the pre-open frame\nbefore: %q\nafter:  %q", escSeq(before), escSeq(got))
@@ -188,23 +188,23 @@ func TestPanelClose_ResolvesEditedValues(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
 	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
 	m = pressThemeKey(t, m)
-	if got := m.activeTheme.Canvas.Value; got != "#202020" {
+	if got := m.themeState.active.Canvas.Value; got != "#202020" {
 		t.Fatalf("precondition: the open rendered canvas %s, want the edited #202020 (§9.2)", got)
 	}
 	m = pressPanelKey(t, m, arrowDown)
-	if m.activeTheme.Canvas.Value == "#202020" {
+	if m.themeState.active.Canvas.Value == "#202020" {
 		t.Fatal("fixture: the arrow previewed nothing, so the close below restores nothing")
 	}
 
 	m = closeThemePanelForTest(t, m)
 
-	if got := m.activeTheme.Canvas.Value; got != "#202020" {
+	if got := m.themeState.active.Canvas.Value; got != "#202020" {
 		t.Errorf("the close rendered canvas %s, want the enumeration's edited #202020 — #101010 would be the palette held when the panel opened, which `Esc` must not restore", got)
 	}
 }
@@ -220,25 +220,25 @@ func TestPanelClose_ResolvesToFallback(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
 	m = pressThemeKey(t, m)
 	fallback := testDarkTheme(t)
-	if m.activeTheme != fallback {
-		t.Fatalf("precondition: the open rendered canvas %s, want the §8.5 fallback's %s", m.activeTheme.Canvas.Value, fallback.Canvas.Value)
+	if m.themeState.active != fallback {
+		t.Fatalf("precondition: the open rendered canvas %s, want the §8.5 fallback's %s", m.themeState.active.Canvas.Value, fallback.Canvas.Value)
 	}
 	m = pressPanelKey(t, m, arrowUp)
-	if m.activeTheme == fallback {
+	if m.themeState.active == fallback {
 		t.Fatal("fixture: the arrow previewed nothing, so the close below restores nothing")
 	}
 
 	m = closeThemePanelForTest(t, m)
 
-	if m.activeTheme != fallback {
-		t.Errorf("the close rendered canvas %s, want the §8.5 fallback's %s — the persisted `sunset` no longer resolves, and Portal shows what the config NOW says", m.activeTheme.Canvas.Value, fallback.Canvas.Value)
+	if m.themeState.active != fallback {
+		t.Errorf("the close rendered canvas %s, want the §8.5 fallback's %s — the persisted `sunset` no longer resolves, and Portal shows what the config NOW says", m.themeState.active.Canvas.Value, fallback.Canvas.Value)
 	}
 }
 
@@ -255,20 +255,20 @@ func TestPanelClose_ReadsNothing(t *testing.T) {
 	m, enumerator, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 
 	m = pressThemeKey(t, m)
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the open rendered canvas %s, want the drop-in's #101010", got)
 	}
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove the themes directory: %v", err)
 	}
 	m = pressPanelKey(t, m, arrowDown)
-	if m.activeTheme.Canvas.Value == "#101010" {
+	if m.themeState.active.Canvas.Value == "#101010" {
 		t.Fatal("fixture: the arrow previewed nothing, so the close below restores nothing")
 	}
 
 	m = closeThemePanelForTest(t, m)
 
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Errorf("with the themes directory gone the close rendered canvas %s, want the RETAINED parse's #101010 — the close resolves against the panel's enumeration, never the filesystem (§8.4)", got)
 	}
 	if enumerator.opens != 1 {
@@ -686,7 +686,7 @@ func TestPanelClose_ForcedCloseUsesTheSameFunction(t *testing.T) {
 				t.Fatal("fixture: the panel did not open")
 			}
 			m = pressPanelKey(t, m, arrowDown)
-			if m.activeTheme == rows[0].Theme {
+			if m.themeState.active == rows[0].Theme {
 				t.Fatal("fixture: the arrow previewed nothing, so the two closes have nothing to undo")
 			}
 			return m
@@ -699,8 +699,8 @@ func TestPanelClose_ForcedCloseUsesTheSameFunction(t *testing.T) {
 		if direct.themePanel.open {
 			t.Fatal("the direct call left the panel open")
 		}
-		if direct.activeTheme != viaEsc.activeTheme {
-			t.Errorf("the direct call rendered canvas %s and Esc rendered %s; §9.8's forced close takes the Esc path EXACTLY", direct.activeTheme.Canvas.Value, viaEsc.activeTheme.Canvas.Value)
+		if direct.themeState.active != viaEsc.themeState.active {
+			t.Errorf("the direct call rendered canvas %s and Esc rendered %s; §9.8's forced close takes the Esc path EXACTLY", direct.themeState.active.Canvas.Value, viaEsc.themeState.active.Canvas.Value)
 		}
 		if got, want := direct.View().Content, viaEsc.View().Content; got != want {
 			t.Errorf("the direct call's frame is not Esc's\ndirect: %q\nesc:    %q", escSeq(got), escSeq(want))

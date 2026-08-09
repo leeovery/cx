@@ -225,12 +225,12 @@ func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
-	before := m.activeTheme
+	before := m.themeState.active
 
 	m = pressThemeKey(t, m)
 
-	if m.activeTheme != before {
-		t.Errorf("opening re-painted the screen: activeTheme canvas = %s, want the unchanged %s", m.activeTheme.Canvas.Value, before.Canvas.Value)
+	if m.themeState.active != before {
+		t.Errorf("opening re-painted the screen: activeTheme canvas = %s, want the unchanged %s", m.themeState.active.Canvas.Value, before.Canvas.Value)
 	}
 	if got := m.themeRowDelegate().Theme; got != before {
 		t.Errorf("the panel's rows are drawn at canvas %s, want the rendered %s", got.Canvas.Value, before.Canvas.Value)
@@ -248,14 +248,14 @@ func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
 	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
 	m = pressThemeKey(t, m)
 
-	if got := m.activeTheme.Canvas.Value; got != "#202020" {
+	if got := m.themeState.active.Canvas.Value; got != "#202020" {
 		t.Errorf("after the edit the screen renders canvas %s, want the edited #202020 — with no arrowing required", got)
 	}
 	requireCursorOn(t, m, "sunset")
@@ -270,15 +270,15 @@ func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
-	if got := m.activeTheme.Canvas.Value; got != "#101010" {
+	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
 	m = pressThemeKey(t, m)
 
-	if want := testDarkTheme(t); m.activeTheme != want {
-		t.Errorf("the screen renders canvas %s, want the §8.5 fallback's %s — the flip happens on open", m.activeTheme.Canvas.Value, want.Canvas.Value)
+	if want := testDarkTheme(t); m.themeState.active != want {
+		t.Errorf("the screen renders canvas %s, want the §8.5 fallback's %s — the flip happens on open", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
 	requireCursorOn(t, m, theme.DefaultDarkSlug)
 	broken := themePanelRowFor(t, m, "sunset")
@@ -300,14 +300,14 @@ func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
-	if want := testDarkTheme(t); m.activeTheme != want {
-		t.Fatalf("precondition: the launch rendered canvas %s, want the fallback's %s", m.activeTheme.Canvas.Value, want.Canvas.Value)
+	if want := testDarkTheme(t); m.themeState.active != want {
+		t.Fatalf("precondition: the launch rendered canvas %s, want the fallback's %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
 
 	writeThemeFileForTest(t, dir, "sunset.theme", "#303030")
 	m = pressThemeKey(t, m)
 
-	if got := m.activeTheme.Canvas.Value; got != "#303030" {
+	if got := m.themeState.active.Canvas.Value; got != "#303030" {
 		t.Errorf("the screen renders canvas %s, want the repaired drop-in's #303030 — fixing the file takes effect on the next open, with no relaunch", got)
 	}
 	requireCursorOn(t, m, "sunset")
@@ -432,7 +432,7 @@ func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 		err: theme.BrokenBuiltinError(theme.DefaultDarkSlug),
 	}
 	m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
-	before := m.activeTheme
+	before := m.themeState.active
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
 	m = updated.(Model)
@@ -449,8 +449,8 @@ func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 	if len(m.themePanel.badges) != 0 {
 		t.Errorf("badges = %v, want none — a failed resolution leaves them exactly as they were", m.themePanel.badges)
 	}
-	if m.activeTheme != before {
-		t.Errorf("the active theme moved to canvas %s, want the unchanged %s", m.activeTheme.Canvas.Value, before.Canvas.Value)
+	if m.themeState.active != before {
+		t.Errorf("the active theme moved to canvas %s, want the unchanged %s", m.themeState.active.Canvas.Value, before.Canvas.Value)
 	}
 	if got := m.themePanel.list.Index(); got != 0 {
 		t.Errorf("the cursor moved to index %d, want it left where it was (0)", got)
@@ -505,8 +505,8 @@ func TestPanelOpen_CursorInvariant(t *testing.T) {
 			if !row.Selectable() {
 				t.Errorf("the cursor is on the unselectable %q (%v)", row.Label(), row.Rejection)
 			}
-			if row.Theme != m.activeTheme {
-				t.Errorf("the cursor's row %q carries canvas %s while the screen renders %s — the cursor's row IS what is painted behind the panel", row.Label(), row.Theme.Canvas.Value, m.activeTheme.Canvas.Value)
+			if row.Theme != m.themeState.active {
+				t.Errorf("the cursor's row %q carries canvas %s while the screen renders %s — the cursor's row IS what is painted behind the panel", row.Label(), row.Theme.Canvas.Value, m.themeState.active.Canvas.Value)
 			}
 		})
 	}
@@ -539,8 +539,8 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	if !m.modeResolved() {
 		t.Error("opening the panel reopened the first-paint gate")
 	}
-	if m.canvasMode != appearanceLightCanvas {
-		t.Errorf("canvasMode = %v after opening, want the gate's own answer %v", m.canvasMode, appearanceLightCanvas)
+	if m.themeState.canvasMode != appearanceLightCanvas {
+		t.Errorf("canvasMode = %v after opening, want the gate's own answer %v", m.themeState.canvasMode, appearanceLightCanvas)
 	}
 }
 
@@ -639,7 +639,7 @@ func TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow(t *testing.T) {
 	rows := []theme.Row{valid, broken}
 
 	deps := newArrowPanelDeps(t, rows, valid.Slug)
-	deps.InitialThemeCursor = broken.SortKey()
+	deps.Capture.ThemeCursor = broken.SortKey()
 	m := Build(deps)
 	m.termWidth, m.termHeight = geometryTerm(geometryWideW, geometryContentH)
 
