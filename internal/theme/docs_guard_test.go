@@ -176,6 +176,85 @@ func TestThemingDocGuard_ExampleMissingTokenFails(t *testing.T) {
 	requireProblemNaming(t, problems, dropped)
 }
 
+// TestThemingDocExampleThemeIsTheDarkBuiltin is the third live case: the doc's
+// copy-pasteable theme IS the dark built-in it says it is.
+//
+// Validity is not enough here. The doc states the identity in prose — a reader
+// is told these are the shipped values and may reasonably treat the block as the
+// palette to diff their own against — so an example that merely parses can go on
+// claiming to be the built-in while showing colours the binary no longer paints.
+// Re-deriving those values is an ordinary change, and this is what makes the doc
+// move with them.
+func TestThemingDocExampleThemeIsTheDarkBuiltin(t *testing.T) {
+	doc, err := readThemingDoc(themingDocPath)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	for _, problem := range auditDocExampleMatchesBuiltin(doc, requireDarkBuiltinSource(t)) {
+		t.Errorf("%s: %s", themingDocPath, problem)
+	}
+}
+
+// TestThemingDocGuard_ExampleHeaderCommentMayDiffer pins the one difference the
+// comparison forgives, and pins it from the built-in's own body so the tolerance
+// is exercised even if the two headers were ever made identical.
+//
+// The doc's header addresses someone about to copy the block; the file's
+// addresses whoever maintains the palette. They say different things on purpose.
+func TestThemingDocGuard_ExampleHeaderCommentMayDiffer(t *testing.T) {
+	builtin := requireDarkBuiltinSource(t)
+
+	problems := auditDocExampleMatchesBuiltin(exampleFromBody(bodyAfterHeaderComment(builtin)), builtin)
+
+	if len(problems) != 0 {
+		t.Errorf("auditDocExampleMatchesBuiltin() reported %v for the built-in's own body under a restated header, want no problems", problems)
+	}
+}
+
+// TestThemingDocGuard_ExampleValueDivergingFromBuiltinFails is the drift the
+// guard exists for: a palette value that moved in the .theme file and not in the
+// doc.
+func TestThemingDocGuard_ExampleValueDivergingFromBuiltinFails(t *testing.T) {
+	builtin := requireDarkBuiltinSource(t)
+	body, moved := rewriteFirstMatchingLine(t, bodyAfterHeaderComment(builtin), movedValue)
+
+	problems := auditDocExampleMatchesBuiltin(exampleFromBody(body), builtin)
+
+	requireProblemNaming(t, problems, moved)
+}
+
+// TestThemingDocGuard_ExampleSectionCommentDivergingFromBuiltinFails pins the
+// other half of the tolerance rule: the LEADING comment is forgiven, and no
+// other comment is.
+//
+// The section comments group the ramp and the surfaces, so they carry the same
+// "this is the file, verbatim" claim the values do — forgiving every comment
+// would let the doc quietly re-annotate a block it presents as a copy.
+func TestThemingDocGuard_ExampleSectionCommentDivergingFromBuiltinFails(t *testing.T) {
+	builtin := requireDarkBuiltinSource(t)
+	body, restated := rewriteFirstMatchingLine(t, bodyAfterHeaderComment(builtin), restatedComment)
+
+	problems := auditDocExampleMatchesBuiltin(exampleFromBody(body), builtin)
+
+	requireProblemNaming(t, problems, restated)
+}
+
+// TestThemingDocGuard_ExampleWithNoBodyFailsLoudly refuses the vacuous
+// comparison: two sources that are nothing but a header agree on every line they
+// have, and a guard that reports agreement there is a guard that has stopped
+// reading its subject.
+func TestThemingDocGuard_ExampleWithNoBodyFailsLoudly(t *testing.T) {
+	problems := auditDocExampleMatchesBuiltin([]byte(docWithExampleTheme(restatedHeader)), []byte(restatedHeader))
+
+	if len(problems) != 1 {
+		t.Fatalf("auditDocExampleMatchesBuiltin() reported %d problems for two header-only sources, want exactly the vacuous-comparison one: %v", len(problems), problems)
+	}
+	if !strings.Contains(problems[0], "no theme lines") {
+		t.Errorf("problem = %q, want it to say the comparison found no theme lines to compare", problems[0])
+	}
+}
+
 // readThemingDoc reads the theme documentation, framing a failed read as the
 // guard's own error so an absent doc reads as "the guard could not find what it
 // checks" rather than as a bare OS message.
@@ -357,6 +436,140 @@ func indexOfFence(lines []string, from int) int {
 		}
 	}
 	return -1
+}
+
+// auditDocExampleMatchesBuiltin compares the doc's fenced example against the
+// embedded source of the built-in it claims to reproduce, returning one problem
+// per diverging line and nothing when the two agree.
+//
+// Everything below each source's leading comment is compared verbatim and in
+// order — blank lines, section comments and key lines alike — so the only
+// difference the doc is allowed is the header it opens with. A looser rule would
+// have to decide which parts of a block presented as a copy may stop being one.
+//
+// Two bodies that are both empty short-circuit: they agree on every line they
+// have, which is the one way this comparison can report success without having
+// read a palette.
+func auditDocExampleMatchesBuiltin(doc, builtin []byte) []string {
+	example, found := extractDocExampleTheme(doc)
+	if !found {
+		return []string{fmt.Sprintf("no fenced block under the %q heading", exampleThemeHeading)}
+	}
+
+	documented := bodyAfterHeaderComment(example)
+	shipped := bodyAfterHeaderComment(builtin)
+	if len(documented) == 0 && len(shipped) == 0 {
+		return []string{"the example and the built-in hold no theme lines below their header comments: every comparison below would hold vacuously"}
+	}
+
+	var problems []string
+	for i := range max(len(documented), len(shipped)) {
+		switch {
+		case i >= len(documented):
+			problems = append(problems, fmt.Sprintf("the example stops short of the built-in, which continues %q", shipped[i]))
+		case i >= len(shipped):
+			problems = append(problems, fmt.Sprintf("the example runs past the built-in, carrying %q", documented[i]))
+		case documented[i] != shipped[i]:
+			problems = append(problems, fmt.Sprintf("the example reads %q where the built-in reads %q", documented[i], shipped[i]))
+		}
+	}
+	return problems
+}
+
+// bodyAfterHeaderComment returns src's lines from the first that is not part of
+// the leading comment block, with a trailing newline normalised away.
+//
+// The header is the run of `#` lines the file OPENS with, and nothing further: a
+// comment below the first key or blank line is body. The prefix is matched
+// against the raw line rather than a trimmed one, which is stricter than the
+// loader's own comment rule: the loader forgives whitespace before a `#`, so an
+// indented header line is a comment to it and body here.
+func bodyAfterHeaderComment(src []byte) []string {
+	text := strings.TrimSuffix(string(src), "\n")
+	if text == "" {
+		return nil
+	}
+
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "#") {
+			return lines[i:]
+		}
+	}
+	return nil
+}
+
+// requireDarkBuiltinSource returns the embedded source of the built-in the doc
+// reproduces, failing rather than skipping when it resolves to nothing.
+func requireDarkBuiltinSource(t *testing.T) []byte {
+	t.Helper()
+
+	source, found := BuiltinBytes(DefaultDarkSlug)
+	if !found {
+		t.Fatalf("the dark built-in %q resolves to no embedded source", DefaultDarkSlug)
+	}
+	return source
+}
+
+// restatedHeader stands in for the doc's own header comment, which says
+// something different from the file's by design.
+const restatedHeader = "# A header the file does not carry.\n"
+
+// exampleFromBody renders a minimal doc whose fenced example carries body under
+// a header of its own — the real doc's shape, with the body under test.
+func exampleFromBody(body []string) []byte {
+	return []byte(docWithExampleTheme(restatedHeader + strings.Join(body, "\n") + "\n"))
+}
+
+// rewriteFirstMatchingLine returns body with the first line rewrite accepts
+// replaced, alongside the replacement it wrote.
+//
+// The line is FOUND rather than named, so a negative case never pins itself to a
+// palette value: naming one would make the very drift this guard catches break
+// its own test first. A rewrite that changes nothing is a failure — a divergence
+// that is not a divergence would leave the case asserting against agreement.
+func rewriteFirstMatchingLine(t *testing.T, body []string, rewrite func(string) (string, bool)) ([]string, string) {
+	t.Helper()
+
+	for i, line := range body {
+		replacement, ok := rewrite(line)
+		if !ok {
+			continue
+		}
+		if replacement == line {
+			t.Fatalf("rewriting %q produced the same line — the divergence under test was never staged", line)
+		}
+
+		mutated := slices.Clone(body)
+		mutated[i] = replacement
+		return mutated, replacement
+	}
+
+	t.Fatalf("no line of %d matched the rewrite — the divergence under test was never staged", len(body))
+	return nil, ""
+}
+
+// movedValue rewrites a `key = value` line to stand for a palette value that
+// was re-derived in the .theme file, keeping the key so the divergence is the
+// colour and nothing else.
+func movedValue(line string) (string, bool) {
+	if strings.HasPrefix(line, "#") {
+		return "", false
+	}
+	key, _, ok := strings.Cut(line, " = ")
+	if !ok {
+		return "", false
+	}
+	return key + " = #010203", true
+}
+
+// restatedComment rewrites a comment line to stand for the doc re-annotating a
+// block it presents as a verbatim copy.
+func restatedComment(line string) (string, bool) {
+	if !strings.HasPrefix(line, "#") {
+		return "", false
+	}
+	return "# A remark the file does not make.", true
 }
 
 // requireProblemNaming fails unless exactly one reported problem names the
