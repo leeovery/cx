@@ -204,9 +204,9 @@ func behaviourNomination(t *testing.T, e *behaviourEnumerator, keys theme.RawKey
 
 // themeBadgeGlyph is §9.5's `●` marker as it is DRAWN — the one glyph every badge
 // shape opens with, so counting it counts markers whichever of the four a row
-// carries. It is written out here rather than read off theme.BadgeConstant.Text()
-// so the badge vocabulary is asserted against the spec's glyph rather than against
-// itself.
+// carries. It is written out here rather than read off the panel's own badge
+// copy so the badge vocabulary is asserted against the spec's glyph rather than
+// against itself.
 const themeBadgeGlyph = "●"
 
 // renderedPanelRow is one list row of the RENDERED panel, split into the three
@@ -331,8 +331,8 @@ func requireRenderedBadge(t *testing.T, m Model, label string, want theme.Badge)
 		}
 		return
 	}
-	if !strings.HasSuffix(row.trailer, want.Text()) {
-		t.Errorf("the %q row draws %q, want it to end with the right-aligned %q (§9.5)", label, row.trailer, want.Text())
+	if !strings.HasSuffix(row.trailer, themePanelBadgeText(want)) {
+		t.Errorf("the %q row draws %q, want it to end with the right-aligned %q (§9.5)", label, row.trailer, themePanelBadgeText(want))
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -90,27 +91,30 @@ func (p themePersister) reportCommit(err error, identity ...any) error {
 }
 
 // themeSlotAttr renders a prefs slot as the `slot` attr value, and reports
-// whether the slot has one at all — the single source of that string on this
-// side of the boundary.
+// whether the slot has one at all.
 //
-// The values are deliberately the same two words internal/theme's own slotAttr
-// renders for theme.Slot. They are separate types serving different layers
-// (persistence versus resolution), so they cannot share a function; what they
-// share is the user-visible vocabulary, and a test reads the loader's rendering
-// back off a real emission to pin that they cannot drift apart.
-//
-// Anything that is not one half of the pair carries NO attr — not an empty
-// string, and not the word "constant". The attr names which half of an ADAPTIVE
-// pair a line is about, and a constant setting has no halves: a value there would
-// assert a distinction the two-state setting does not have, and an empty one
-// would grep as a slot named nothing.
+// The words are not this layer's to choose: they come off theme.Slot's own name
+// mapping, which is where the constant's absent attr is decided and where every
+// other surface naming a slot reads them too. Persistence and resolution keep
+// SEPARATE slot types — prefs is a deliberate no-logging leaf that must not
+// import internal/theme — but they share one vocabulary, so the conversion
+// happens here, at the boundary the two types already meet on.
 func themeSlotAttr(slot prefs.ThemeSlot) (string, bool) {
+	return themeSlotFor(slot).AttrName()
+}
+
+// themeSlotFor reads a persisted slot as the resolution layer's.
+//
+// Anything that is not one half of the adaptive pair — including the zero value
+// the saver rejects — is the constant, which is the slot with no name and
+// therefore no attr.
+func themeSlotFor(slot prefs.ThemeSlot) theme.Slot {
 	switch slot {
 	case prefs.SlotLight:
-		return "light", true
+		return theme.SlotLight
 	case prefs.SlotDark:
-		return "dark", true
+		return theme.SlotDark
 	default:
-		return "", false
+		return theme.SlotConstant
 	}
 }

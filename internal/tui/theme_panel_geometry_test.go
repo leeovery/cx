@@ -607,8 +607,8 @@ func TestPanelGeometry_ResizeRepointsTheDelegate(t *testing.T) {
 	if strings.Contains(after, geometryLabel) {
 		t.Errorf("the cursor row still carries the full %d-cell label at a %d-cell panel: %q", lipgloss.Width(geometryLabel), m.themePanel.width, after)
 	}
-	if !strings.HasSuffix(after, theme.BadgeConstant.Text()) {
-		t.Errorf("the cursor row = %q, want it to end in the %q badge — the badge outranks the label and stays inside the inner edge", after, theme.BadgeConstant.Text())
+	if !strings.HasSuffix(after, themePanelBadgeText(theme.BadgeConstant)) {
+		t.Errorf("the cursor row = %q, want it to end in the %q badge — the badge outranks the label and stays inside the inner edge", after, themePanelBadgeText(theme.BadgeConstant))
 	}
 	for i, line := range themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.activeTheme, m.colourless)) {
 		if got := lipgloss.Width(line); got != m.themePanel.width {

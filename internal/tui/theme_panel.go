@@ -96,6 +96,21 @@ const (
 	// label supplies the context the copy drops.
 	themePanelDirUnreadable = flashWarningGlyph + " dir unreadable"
 
+	// The four badge texts, pinned VERBATIM because they are user-facing copy and
+	// because two of them are load-bearing beyond their wording. WHICH badge a row
+	// carries is a fact about the setting and is derived in internal/theme
+	// (theme.Badges); the words it is drawn with are the panel's, painted by the row
+	// delegate (themePanelBadgeText).
+	//
+	// `● both` is deliberately NO WIDER THAN `● light`, so the collapsed form cannot
+	// move the row-composition truncation budget the panel's ~27–34 columns are
+	// apportioned by. A wider collapsed badge would silently steal columns from the
+	// label on precisely the rows a user reaches in two keypresses.
+	themePanelBadgeConstant = "●"
+	themePanelBadgeLight    = "● light"
+	themePanelBadgeDark     = "● dark"
+	themePanelBadgeBoth     = "● both"
+
 	// themePanelMinBodyRows is the one list row the height floor guarantees. Below it the
 	// panel refuses to open at all (themePanelFloor), so the clamp is a floor rather
 	// than a degradation step.

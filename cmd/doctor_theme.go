@@ -59,15 +59,21 @@ const (
 	persistedThemeSlotFormat     = " (%s)"
 )
 
-// The three slot labels. `both` is not a third slot — the setting has exactly
-// two — it is the rendering of ONE slug occupying both of them, which the panel
-// makes reachable in two keypresses and which the one-slug-one-line rule requires
-// be one line rather than two.
-const (
-	themeSlotLight = "light"
-	themeSlotDark  = "dark"
-	themeSlotBoth  = "both"
+// The two slot labels doctor renders, read off theme.Slot's own name mapping
+// rather than restated: the parenthetical a user reads here and the `slot` attr
+// the log carries are ONE vocabulary, and a literal pair would be free to drift
+// from it silently.
+var (
+	themeSlotLight, _ = theme.SlotLight.AttrName()
+	themeSlotDark, _  = theme.SlotDark.AttrName()
 )
+
+// themeSlotBoth is not a third slot — the setting has exactly two — it is the
+// rendering of ONE slug occupying both of them, which the panel makes reachable
+// in two keypresses and which the one-slug-one-line rule requires be one line
+// rather than two. Having no slot to be named by, it is declared here beside the
+// pair it joins rather than derived.
+const themeSlotBoth = "both"
 
 // collectThemeAdvisories is doctor's whole theme-advisory surface: the single
 // entry point the report's advisory block is built from, run once per diagnosis

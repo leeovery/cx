@@ -20,6 +20,31 @@ const (
 	SlotDark
 )
 
+// AttrName is the slot's name in the light/dark vocabulary, and whether the slot
+// has one at all.
+//
+// It is THE definition of those two words, so every surface that names a slot
+// reads them from here rather than restating them: the `theme` component's `slot`
+// attr — emitted both from this package's events and, across the prefs slot type,
+// from the persister — and doctor's rendered `(light)` / `(dark)` parenthetical.
+// The words are greppable in two of those places and user-visible in the third,
+// so a second declaration is a drift the reader has no way to see.
+//
+// A CONSTANT CARRIES NO NAME — not an empty string, and not the word "constant".
+// The name says which half of an ADAPTIVE PAIR is meant, and a constant setting
+// has no halves: a value there would assert a distinction the two-state setting
+// does not have, and an empty one would grep as a slot named nothing.
+func (s Slot) AttrName() (string, bool) {
+	switch s {
+	case SlotLight:
+		return "light", true
+	case SlotDark:
+		return "dark", true
+	default:
+		return "", false
+	}
+}
+
 // SlotResolution is what happened to ONE slot: the slug that was asked for, the
 // slug that actually loaded, and — where those differ — why.
 //

@@ -259,20 +259,12 @@ func themeAttrs(slug string, slot Slot) []any {
 // slotAttr renders a slot as the `slot` attr value, and reports whether the slot
 // has one at all.
 //
-// A CONSTANT CARRIES NO `slot` ATTR — not an empty string, and not the word
-// "constant". The attr names which half of an ADAPTIVE PAIR a line is about, and
-// a constant setting has no halves: a value there would assert a distinction the
-// two-state setting does not have, and an empty one would grep as a slot named
-// nothing.
+// The vocabulary is the SLOT'S, not the log's: it is read off Slot.AttrName —
+// where the constant's absent name is decided, and where every other surface that
+// names a slot reads it too — so an emitted line and a rendered one cannot say
+// different words.
 func slotAttr(slot Slot) (string, bool) {
-	switch slot {
-	case SlotLight:
-		return "light", true
-	case SlotDark:
-		return "dark", true
-	default:
-		return "", false
-	}
+	return slot.AttrName()
 }
 
 // tokenAttr returns the value of the `token` attr for a rejection, and reports

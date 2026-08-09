@@ -152,7 +152,7 @@ func (d themeRowDelegate) renderRow(it themeRowItem, selected bool) string {
 func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []themeRowSegment) {
 	remaining := d.Width - leftBarColumnWidth
 
-	badge := it.Badge.Text()
+	badge := themePanelBadgeText(it.Badge)
 	if badge != "" {
 		remaining -= lipgloss.Width(badge) + themeRowGap
 	}
@@ -171,6 +171,25 @@ func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []
 	}
 
 	return max(remaining, themeRowLabelFloor), trailing
+}
+
+// themePanelBadgeText is the badge as the row paints it: the panel's pinned copy
+// for the badge theme.Badges derived, and the empty string for a row carrying
+// none — so an unbadged row renders nothing rather than needing a presence check
+// at the call site.
+func themePanelBadgeText(badge theme.Badge) string {
+	switch badge {
+	case theme.BadgeConstant:
+		return themePanelBadgeConstant
+	case theme.BadgeLight:
+		return themePanelBadgeLight
+	case theme.BadgeDark:
+		return themePanelBadgeDark
+	case theme.BadgeBoth:
+		return themePanelBadgeBoth
+	default:
+		return ""
+	}
 }
 
 // themeRowReason is the terse reason an invalid row renders beside its `⚠`, and

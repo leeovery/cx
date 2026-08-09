@@ -223,6 +223,53 @@ func TestThemeRow_ReasonLabelsAreTheSevenTerseStrings(t *testing.T) {
 	}
 }
 
+// TestThemePanelBadgeText_RendersTheFourBadges pins §9.5's badge vocabulary VERBATIM,
+// as the panel's own copy: the constant's bare `●`, a slot's `● light` /
+// `● dark`, and the collapsed `● both`.
+//
+// An unbadged row renders NOTHING rather than a placeholder, which is what lets
+// the composition rule ask for the text without first asking whether there is
+// one — and it is what a map lookup for a row with no badge yields for free.
+func TestThemePanelBadgeText_RendersTheFourBadges(t *testing.T) {
+	tests := []struct {
+		name  string
+		badge theme.Badge
+		want  string
+	}{
+		{name: "a constant", badge: theme.BadgeConstant, want: "●"},
+		{name: "the light slot", badge: theme.BadgeLight, want: "● light"},
+		{name: "the dark slot", badge: theme.BadgeDark, want: "● dark"},
+		{name: "one slug in both slots", badge: theme.BadgeBoth, want: "● both"},
+		{name: "no badge", badge: theme.BadgeNone, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := themePanelBadgeText(tt.badge); got != tt.want {
+				t.Errorf("themePanelBadgeText(%v) = %q, want %q", tt.badge, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestThemePanelBadgeText_BothIsNoWiderThanLight asserts §9.5's width relation
+// DIRECTLY rather than leaving it to prose: the collapsed badge is no wider than
+// the widest slot badge, so it cannot move the row-composition truncation budget
+// the panel's ~27–34 columns are apportioned by.
+//
+// The collapse is reachable in two keypresses, so a wider `● both` would steal
+// columns from the label on rows users routinely produce. Width is measured with
+// lipgloss rather than len, because these are multi-byte glyphs and the budget is
+// counted in terminal cells.
+func TestThemePanelBadgeText_BothIsNoWiderThanLight(t *testing.T) {
+	both := lipgloss.Width(themePanelBadgeText(theme.BadgeBoth))
+	for _, badge := range []theme.Badge{theme.BadgeLight, theme.BadgeDark} {
+		if got := lipgloss.Width(themePanelBadgeText(badge)); both > got {
+			t.Errorf("%q is %d cells wide, wider than %q at %d — the collapsed badge must not move the truncation budget", themePanelBadgeText(theme.BadgeBoth), both, themePanelBadgeText(badge), got)
+		}
+	}
+}
+
 // TestThemeRow_ReasonIsDroppedBeforeBadge pins §9.5's third priority: the `●`
 // badge OUTRANKS the terse reason, because §9.4 exists so the marker always has a
 // home. The badge and the reason compete for the same right edge, so a badged row
@@ -249,8 +296,8 @@ func TestThemeRow_ReasonIsDroppedBeforeBadge(t *testing.T) {
 	if !strings.Contains(badged, row.Label()) {
 		t.Errorf("badged invalid row dropped its label %q: %q", row.Label(), badged)
 	}
-	if !strings.HasSuffix(badged, theme.BadgeDark.Text()) {
-		t.Errorf("badge %q is not right-aligned to the row's edge: %q", theme.BadgeDark.Text(), badged)
+	if !strings.HasSuffix(badged, themePanelBadgeText(theme.BadgeDark)) {
+		t.Errorf("badge %q is not right-aligned to the row's edge: %q", themePanelBadgeText(theme.BadgeDark), badged)
 	}
 }
 
@@ -447,12 +494,12 @@ func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 
 	d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
 	builtin := visibleThemeRow(renderThemeRow(d, items, builtinAt, -1))
-	if !strings.Contains(builtin, theme.BadgeConstant.Text()) {
+	if !strings.Contains(builtin, themePanelBadgeText(theme.BadgeConstant)) {
 		t.Errorf("the built-in row lost its ● badge — the persisted slug resolved to it: %q", builtin)
 	}
 
 	file := visibleThemeRow(renderThemeRow(d, items, fileAt, -1))
-	if strings.Contains(file, theme.BadgeConstant.Text()) {
+	if strings.Contains(file, themePanelBadgeText(theme.BadgeConstant)) {
 		t.Errorf("the reserved-name row carries a ● badge; only the built-in it collides with may: %q", file)
 	}
 	if !strings.Contains(file, "nord.theme") {

@@ -85,6 +85,38 @@ func requireDistinctDefaults(t *testing.T) {
 	}
 }
 
+// TestSlot_AttrName pins the ONE light/dark word every surface that names a slot
+// reads: the `theme` component's `slot` attr, emitted from both the loader's
+// events and cmd's persister, and doctor's rendered `(light)` / `(dark)`
+// parenthetical.
+//
+// A CONSTANT HAS NO NAME — not an empty string, and not the word "constant". The
+// name says which half of an ADAPTIVE PAIR is meant, and a constant setting has
+// no halves: a value there would assert a distinction the two-state setting does
+// not have, and an empty one would grep as a slot named nothing.
+func TestSlot_AttrName(t *testing.T) {
+	tests := []struct {
+		name      string
+		slot      theme.Slot
+		want      string
+		wantNamed bool
+	}{
+		{name: "the light slot", slot: theme.SlotLight, want: "light", wantNamed: true},
+		{name: "the dark slot", slot: theme.SlotDark, want: "dark", wantNamed: true},
+		{name: "a constant", slot: theme.SlotConstant, want: "", wantNamed: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, named := tt.slot.AttrName()
+
+			if got != tt.want || named != tt.wantNamed {
+				t.Errorf("AttrName() = (%q, %v), want (%q, %v)", got, named, tt.want, tt.wantNamed)
+			}
+		})
+	}
+}
+
 // TestResolveNomination_FallbackIsModeMatched pins §8.5's table: an unloadable
 // `theme_light` falls to the LIGHT default, an unloadable `theme_dark` and an
 // unloadable constant `theme` to the DARK one.

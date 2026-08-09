@@ -190,10 +190,18 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // per-slot fallback added ResolveNomination with the Resolution, Slot and
 // SlotResolution it reports through, §12.3's per-theme records added
 // EventLogger.Loaded and EventLogger.FallbackApplied beside the two rejection
-// events, §7.6's runtime escalation added BrokenBuiltinError, and §9.4's union
+// events, §7.6's runtime escalation added BrokenBuiltinError, §9.4's union
 // added the Assembler's Open and Reassemble with the Enumeration, Union, Row and
-// RowSource they deal in plus the EventLogger.Enumerated they report through.
+// RowSource they deal in plus the EventLogger.Enumerated they report through, and
+// single-sourcing the light/dark vocabulary added Slot.AttrName — the one
+// definition of those two words, which the persister and doctor read across the
+// package boundary rather than restating.
 // Nothing on the removed list ever returns to it.
+//
+// Badge.Text is a DEPARTURE rather than an addition: the badge derivation stays
+// here, because which badge a slug carries is a fact about the setting, but the
+// words it is drawn with are the theme panel's copy and live with the panel's
+// other pinned strings.
 //
 // The three-way split of the loader's old surface is pinned here rather than
 // merely done: the row-model assembly is Assembler's, the panel seam's four
@@ -234,7 +242,6 @@ var wantExports = []string{
 	"BadNameNone",
 	"BadNameSlug",
 	"Badge",
-	"Badge.Text",
 	"BadgeBoth",
 	"BadgeConstant",
 	"BadgeDark",
@@ -298,6 +305,7 @@ var wantExports = []string{
 	"RowSource",
 	"Setting",
 	"Slot",
+	"Slot.AttrName",
 	"SlotConstant",
 	"SlotDark",
 	"SlotLight",

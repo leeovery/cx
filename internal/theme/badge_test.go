@@ -5,17 +5,17 @@ import (
 	"maps"
 	"testing"
 
-	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
 
 // TestBadges_ConstantIsBareDot pins §9.5's constant form: ONE slot, one entry,
-// and NO SLOT WORD.
+// and NO SLOT WORD — the badge the panel draws as a bare `●`.
 //
 // With no slots there is nothing to qualify, so a slot label would be redundant
 // with the marker itself. The entry is keyed on the constant's slug, which is
-// the row the panel paints it on.
+// the row the panel paints it on. The words each badge is drawn with are the
+// panel's copy and are pinned there.
 func TestBadges_ConstantIsBareDot(t *testing.T) {
 	slots := []theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord"}}
 
@@ -23,10 +23,7 @@ func TestBadges_ConstantIsBareDot(t *testing.T) {
 
 	want := map[string]theme.Badge{"nord": theme.BadgeConstant}
 	if !maps.Equal(badges, want) {
-		t.Fatalf("Badges(a constant) = %v, want %v", badgeTexts(badges), badgeTexts(want))
-	}
-	if got, want := badges["nord"].Text(), "●"; got != want {
-		t.Errorf("constant badge text = %q, want the bare %q — a constant has no slot to name", got, want)
+		t.Fatalf("Badges(a constant) = %v, want %v", badgeNames(badges), badgeNames(want))
 	}
 }
 
@@ -43,9 +40,9 @@ func TestBadges_PairBadgesLightAndDark(t *testing.T) {
 
 	badges := theme.Badges(slots)
 
-	want := map[string]string{"tokyo-night-day": "● light", "nord": "● dark"}
-	if got := badgeTexts(badges); !maps.Equal(got, want) {
-		t.Errorf("Badges(a pair) = %v, want %v", got, want)
+	want := map[string]theme.Badge{"tokyo-night-day": theme.BadgeLight, "nord": theme.BadgeDark}
+	if !maps.Equal(badges, want) {
+		t.Errorf("Badges(a pair) = %v, want %v", badgeNames(badges), badgeNames(want))
 	}
 }
 
@@ -66,10 +63,10 @@ func TestBadges_SameSlugInBothSlotsIsBoth(t *testing.T) {
 	badges := theme.Badges(slots)
 
 	if len(badges) != 1 {
-		t.Fatalf("Badges(both slots on one slug) = %v, want a single entry", badgeTexts(badges))
+		t.Fatalf("Badges(both slots on one slug) = %v, want a single entry", badgeNames(badges))
 	}
 	if got, want := badges["nord"], theme.BadgeBoth; got != want {
-		t.Errorf("badge on %q = %q, want %q", "nord", got.Text(), want.Text())
+		t.Errorf("badge on %q = %s, want %s", "nord", badgeName(got), badgeName(want))
 	}
 }
 
@@ -89,12 +86,12 @@ func TestBadges_FallbackDoesNotMoveTheBadge(t *testing.T) {
 
 	badges := theme.Badges(slots)
 
-	want := map[string]string{theme.DefaultLightSlug: "● light", "gone-dark": "● dark"}
-	if got := badgeTexts(badges); !maps.Equal(got, want) {
-		t.Errorf("Badges(a fallen-back dark slot) = %v, want %v", got, want)
+	want := map[string]theme.Badge{theme.DefaultLightSlug: theme.BadgeLight, "gone-dark": theme.BadgeDark}
+	if !maps.Equal(badges, want) {
+		t.Errorf("Badges(a fallen-back dark slot) = %v, want %v", badgeNames(badges), badgeNames(want))
 	}
 	if badge, ok := badges[theme.DefaultDarkSlug]; ok {
-		t.Errorf("the fallback %q carries %q, want no badge — the `●` means what is SET, and nobody set the fallback", theme.DefaultDarkSlug, badge.Text())
+		t.Errorf("the fallback %q carries %s, want no badge — the marker means what is SET, and nobody set the fallback", theme.DefaultDarkSlug, badgeName(badge))
 	}
 }
 
@@ -121,9 +118,9 @@ func TestBadges_UnsetSlotBadgesShippedDefault(t *testing.T) {
 	}
 	badges := theme.Badges(resolution.Slots)
 
-	want := map[string]string{theme.DefaultLightSlug: "● light", theme.DefaultDarkSlug: "● dark"}
-	if got := badgeTexts(badges); !maps.Equal(got, want) {
-		t.Errorf("Badges(a virgin install) = %v, want %v — both shipped defaults badge their own row", got, want)
+	want := map[string]theme.Badge{theme.DefaultLightSlug: theme.BadgeLight, theme.DefaultDarkSlug: theme.BadgeDark}
+	if !maps.Equal(badges, want) {
+		t.Errorf("Badges(a virgin install) = %v, want %v — both shipped defaults badge their own row", badgeNames(badges), badgeNames(want))
 	}
 }
 
@@ -147,8 +144,8 @@ func TestBadges_CharsetRejectedValueKeepsItsBadge(t *testing.T) {
 	}
 	badges := theme.Badges(resolution.Slots)
 
-	if got, want := badgeTexts(badges), map[string]string{illegal: "●"}; !maps.Equal(got, want) {
-		t.Fatalf("Badges = %v, want %v — the badge sits on the raw value", got, want)
+	if want := (map[string]theme.Badge{illegal: theme.BadgeConstant}); !maps.Equal(badges, want) {
+		t.Fatalf("Badges = %v, want %v — the badge sits on the raw value", badgeNames(badges), badgeNames(want))
 	}
 
 	row := onlyPersistedRow(t, union)
@@ -156,7 +153,7 @@ func TestBadges_CharsetRejectedValueKeepsItsBadge(t *testing.T) {
 		t.Fatalf("the charset-rejected row's BadgeKey() = %q, want %q", got, want)
 	}
 	if badges[row.BadgeKey()] != theme.BadgeConstant {
-		t.Errorf("the charset-rejected row carries %q, want %q — the row and its badge derive from one value by two paths and must meet", badges[row.BadgeKey()].Text(), theme.BadgeConstant.Text())
+		t.Errorf("the charset-rejected row carries %s, want %s — the row and its badge derive from one value by two paths and must meet", badgeName(badges[row.BadgeKey()]), badgeName(theme.BadgeConstant))
 	}
 }
 
@@ -170,14 +167,14 @@ func TestBadges_KeyedOnRequestedNotResolved(t *testing.T) {
 	tests := []struct {
 		name  string
 		slots []theme.SlotResolution
-		want  map[string]string
+		want  map[string]theme.Badge
 	}{
 		{
 			name: "a constant that fell back",
 			slots: []theme.SlotResolution{
 				{Slot: theme.SlotConstant, Requested: "gone", Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonNotFound},
 			},
-			want: map[string]string{"gone": "●"},
+			want: map[string]theme.Badge{"gone": theme.BadgeConstant},
 		},
 		{
 			name: "both slots fell back",
@@ -185,7 +182,7 @@ func TestBadges_KeyedOnRequestedNotResolved(t *testing.T) {
 				{Slot: theme.SlotLight, Requested: "gone-light", Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonNotFound},
 				{Slot: theme.SlotDark, Requested: "gone-dark", Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonBadColour},
 			},
-			want: map[string]string{"gone-light": "● light", "gone-dark": "● dark"},
+			want: map[string]theme.Badge{"gone-light": theme.BadgeLight, "gone-dark": theme.BadgeDark},
 		},
 		{
 			name: "both slots fell back from the same slug",
@@ -193,7 +190,7 @@ func TestBadges_KeyedOnRequestedNotResolved(t *testing.T) {
 				{Slot: theme.SlotLight, Requested: "gone", Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonNotFound},
 				{Slot: theme.SlotDark, Requested: "gone", Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonNotFound},
 			},
-			want: map[string]string{"gone": "● both"},
+			want: map[string]theme.Badge{"gone": theme.BadgeBoth},
 		},
 		{
 			name: "a charset-rejected slot beside a loadable one",
@@ -201,7 +198,7 @@ func TestBadges_KeyedOnRequestedNotResolved(t *testing.T) {
 				{Slot: theme.SlotLight, Requested: "../evil", Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonBadName},
 				{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord"},
 			},
-			want: map[string]string{"../evil": "● light", "nord": "● dark"},
+			want: map[string]theme.Badge{"../evil": theme.BadgeLight, "nord": theme.BadgeDark},
 		},
 	}
 
@@ -209,35 +206,18 @@ func TestBadges_KeyedOnRequestedNotResolved(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			badges := theme.Badges(tt.slots)
 
-			if got := badgeTexts(badges); !maps.Equal(got, tt.want) {
-				t.Errorf("Badges = %v, want %v", got, tt.want)
+			if !maps.Equal(badges, tt.want) {
+				t.Errorf("Badges = %v, want %v", badgeNames(badges), badgeNames(tt.want))
 			}
 			for _, slot := range tt.slots {
 				if slot.Resolved == slot.Requested {
 					continue
 				}
 				if badge, ok := badges[slot.Resolved]; ok {
-					t.Errorf("what %v resolved TO (%q) carries %q, want the badge on what it asked FOR (%q)", slot.Slot, slot.Resolved, badge.Text(), slot.Requested)
+					t.Errorf("what %v resolved TO (%q) carries %s, want the badge on what it asked FOR (%q)", slot.Slot, slot.Resolved, badgeName(badge), slot.Requested)
 				}
 			}
 		})
-	}
-}
-
-// TestBadges_BothIsNoWiderThanLight asserts §9.5's width relation DIRECTLY
-// rather than leaving it to prose: the collapsed badge is no wider than the
-// widest slot badge, so it cannot move the row-composition truncation budget.
-//
-// The collapse is reachable in two keypresses, so a wider `● both` would steal
-// columns from the label on rows users routinely produce. Width is measured with
-// lipgloss rather than len, because these are multi-byte glyphs and the budget is
-// counted in terminal cells.
-func TestBadges_BothIsNoWiderThanLight(t *testing.T) {
-	both := lipgloss.Width(theme.BadgeBoth.Text())
-	for _, badge := range []theme.Badge{theme.BadgeLight, theme.BadgeDark} {
-		if got := lipgloss.Width(badge.Text()); both > got {
-			t.Errorf("%q is %d cells wide, wider than %q at %d — the collapsed badge must not move the truncation budget", theme.BadgeBoth.Text(), both, badge.Text(), got)
-		}
 	}
 }
 
@@ -260,14 +240,14 @@ func TestBadges_PureAndTotal(t *testing.T) {
 		tests := []struct {
 			name  string
 			slots []theme.SlotResolution
-			want  map[string]string
+			want  map[string]theme.Badge
 		}{
-			{name: "a nil slice", slots: nil, want: map[string]string{}},
-			{name: "an empty slice", slots: []theme.SlotResolution{}, want: map[string]string{}},
+			{name: "a nil slice", slots: nil, want: map[string]theme.Badge{}},
+			{name: "an empty slice", slots: []theme.SlotResolution{}, want: map[string]theme.Badge{}},
 			{
 				name:  "a lone light slot",
 				slots: []theme.SlotResolution{{Slot: theme.SlotLight, Requested: "nord"}},
-				want:  map[string]string{"nord": "● light"},
+				want:  map[string]theme.Badge{"nord": theme.BadgeLight},
 			},
 			{
 				name: "a constant mixed with a slot",
@@ -275,7 +255,7 @@ func TestBadges_PureAndTotal(t *testing.T) {
 					{Slot: theme.SlotConstant, Requested: "nord"},
 					{Slot: theme.SlotDark, Requested: "tokyo-night"},
 				},
-				want: map[string]string{"tokyo-night": "● dark"},
+				want: map[string]theme.Badge{"tokyo-night": theme.BadgeDark},
 			},
 		}
 
@@ -286,8 +266,8 @@ func TestBadges_PureAndTotal(t *testing.T) {
 				if badges == nil {
 					t.Fatal("Badges = nil, want an empty map — a nil map is a second shape of nothing")
 				}
-				if got := badgeTexts(badges); !maps.Equal(got, tt.want) {
-					t.Errorf("Badges = %v, want %v — a slice mixing the two setting states is a programming error, never both forms at once", got, tt.want)
+				if !maps.Equal(badges, tt.want) {
+					t.Errorf("Badges = %v, want %v — a slice mixing the two setting states is a programming error, never both forms at once", badgeNames(badges), badgeNames(tt.want))
 				}
 			})
 		}
@@ -303,7 +283,7 @@ func TestBadges_PureAndTotal(t *testing.T) {
 		second := theme.Badges(slots)
 
 		if !maps.Equal(first, second) {
-			t.Errorf("Badges answered %v then %v for one input, want them identical", badgeTexts(first), badgeTexts(second))
+			t.Errorf("Badges answered %v then %v for one input, want them identical", badgeNames(first), badgeNames(second))
 		}
 	})
 
@@ -441,7 +421,7 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 			}
 		}
 		if len(badged) != 1 {
-			t.Fatalf("%d rows match the badge map %v, want exactly 1 — only one `●` may render: %v", len(badged), badgeTexts(badges), rowIdentities(union))
+			t.Fatalf("%d rows match the badge map %v, want exactly 1 — only one marker may render: %v", len(badged), badgeNames(badges), rowIdentities(union))
 		}
 		if badged[0].Source != theme.SourceBuiltin {
 			t.Errorf("the badged row is %+v, want the built-in — the persisted slug resolved to it, not to the rejected file", badged[0])
@@ -449,12 +429,30 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 	})
 }
 
-// badgeTexts renders a badge map as the strings a user would see, so a failure
-// message names the badges rather than the enum's integer values.
-func badgeTexts(badges map[string]theme.Badge) map[string]string {
-	texts := make(map[string]string, len(badges))
+// badgeNames renders a badge map by the enum's own constant names, so a failure
+// message says which badge rather than printing its integer value. It does NOT
+// render the badge's user-facing words: those are the panel's copy, asserted
+// where they are declared.
+func badgeNames(badges map[string]theme.Badge) map[string]string {
+	names := make(map[string]string, len(badges))
 	for key, badge := range badges {
-		texts[key] = badge.Text()
+		names[key] = badgeName(badge)
 	}
-	return texts
+	return names
+}
+
+// badgeName is one badge as its constant name.
+func badgeName(badge theme.Badge) string {
+	switch badge {
+	case theme.BadgeConstant:
+		return "BadgeConstant"
+	case theme.BadgeLight:
+		return "BadgeLight"
+	case theme.BadgeDark:
+		return "BadgeDark"
+	case theme.BadgeBoth:
+		return "BadgeBoth"
+	default:
+		return "BadgeNone"
+	}
 }

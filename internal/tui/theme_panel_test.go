@@ -417,7 +417,7 @@ func TestThemePanel_RowsRenderBeneathDirRow(t *testing.T) {
 	lines := themePanelLines(renderThemePanel(p, themePanelHeaderRows()+10, th, false))
 	below := strings.Join(lines[themePanelHeaderRows()+1:], "\n")
 
-	for _, want := range []string{builtin.Label(), persisted.Label(), theme.BadgeDark.Text()} {
+	for _, want := range []string{builtin.Label(), persisted.Label(), themePanelBadgeText(theme.BadgeDark)} {
 		if !strings.Contains(below, want) {
 			t.Errorf("nothing beneath the directory row carries %q:\n%s", want, below)
 		}

@@ -15,12 +15,12 @@ package theme
 // dots and the selector bar; `state.positive` is what `●` means on the Sessions
 // list — an ATTACHED session — so painting the badge with it would read as
 // liveness rather than as a setting. The token is applied by the row delegate;
-// the decision is recorded here, beside the vocabulary it applies to, so the two
-// cannot drift.
+// the decision is recorded here, with the enum it applies to, so the render site
+// does not re-decide it.
 //
-// The slot vocabulary has no established shape to borrow, so `● dark` /
-// `● light` / `● both` / bare `●` is pinned here rather than inferred at a render
-// site.
+// WHICH badge a row carries is a fact about the SETTING, and that fact is what
+// this enum holds. The words a badge is DRAWN with are the panel's copy and live
+// with the panel's other pinned strings.
 //
 // BadgeNone is the zero value and the "no badge on this row" answer, which is
 // what a map lookup for an unbadged row yields for free.
@@ -39,38 +39,6 @@ const (
 	// BadgeBoth is one row carrying BOTH slots, because both name the same slug.
 	BadgeBoth
 )
-
-// The four badge texts, pinned VERBATIM because they are user-facing copy and
-// because two of them are load-bearing beyond their wording.
-//
-// `● both` is deliberately NO WIDER THAN `● light`, so the collapsed form cannot
-// move the row-composition truncation budget the panel's ~27–34 columns are
-// apportioned by. A wider collapsed badge would silently steal columns from the
-// label on precisely the rows a user reaches in two keypresses.
-const (
-	badgeConstantText = "●"
-	badgeLightText    = "● light"
-	badgeDarkText     = "● dark"
-	badgeBothText     = "● both"
-)
-
-// Text is the badge as it is rendered — the empty string for BadgeNone, so an
-// unbadged row renders nothing rather than needing a presence check at the call
-// site.
-func (b Badge) Text() string {
-	switch b {
-	case BadgeConstant:
-		return badgeConstantText
-	case BadgeLight:
-		return badgeLightText
-	case BadgeDark:
-		return badgeDarkText
-	case BadgeBoth:
-		return badgeBothText
-	default:
-		return ""
-	}
-}
 
 // Badges is the panel's badge table: which slug carries a `●`, and in which of
 // its four shapes.
@@ -174,7 +142,7 @@ func isConstantSetting(slots []SlotResolution) bool {
 }
 
 // collapsed folds a second slot's badge onto a slug that already carries one,
-// producing `● both`.
+// producing BadgeBoth.
 //
 // The collapse IS the map's own dedup rather than a pass over it — two slots
 // naming the same slug meet on the same key, and the second occupant upgrades
