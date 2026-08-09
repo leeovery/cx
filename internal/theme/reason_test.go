@@ -11,12 +11,12 @@ import (
 // but it satisfies error so a caller that only wants to propagate one can.
 var _ error = (*theme.Rejection)(nil)
 
-// TestReason_LabelsAreTheTerseVocabulary pins §6.2's seven reject classes and
+// TestReason_LabelsAreTheTerseVocabulary pins the reason vocabulary's seven reject classes and
 // the exact string each carries. These values are user-facing copy, not internal
-// identifiers: the panel row renders the label verbatim behind §14A's "⚠ "
+// identifiers: the panel row renders the label verbatim behind the pinned copy's "⚠ "
 // prefix, so rewording a constant is a UI change and has to be a deliberate one.
 //
-// The constants are listed here in §6.2's short-circuit ladder order, with
+// The constants are listed here in the reason vocabulary's short-circuit ladder order, with
 // `not found` — which is outside the ladder — last.
 func TestReason_LabelsAreTheTerseVocabulary(t *testing.T) {
 	got := []theme.Reason{

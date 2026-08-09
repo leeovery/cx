@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Tests for §14A's notice-band precedence rule for the theme flashes: a
+// Tests for the pinned copy's notice-band precedence rule for the theme flashes: a
 // theme-origin flash claims the band's single slot even while the filter line is
 // live, and every other flash keeps today's order byte-for-byte.
 //
@@ -377,7 +377,7 @@ func themeCopyReference(expr ast.Expr, vocabulary map[string]bool) string {
 	return offender
 }
 
-// themeFlashSurface is the per-page vocabulary §14A's rule spans: the page's own
+// themeFlashSurface is the per-page vocabulary the pinned copy's rule spans: the page's own
 // band arbiter, its section-header claimant (where the filter line lives), and its
 // composed frame. Bundling them lets ONE assertion body run against Sessions and
 // Projects rather than two near-copies that could drift — which matters here,
@@ -394,8 +394,8 @@ type themeFlashSurface struct {
 	filterState  func(Model) list.FilterState
 }
 
-// sessionsFlashSurface / projectsFlashSurface are the two pages §9.6 binds `t` on,
-// each with a query its own fixture's rows match.
+// sessionsFlashSurface / projectsFlashSurface are the two pages the panel-open rule binds `t`
+// on, each with a query its own fixture's rows match.
 func sessionsFlashSurface() themeFlashSurface {
 	return themeFlashSurface{
 		name:         "sessions",
@@ -424,14 +424,14 @@ func projectsFlashSurface() themeFlashSurface {
 	}
 }
 
-// themeFlashSurfaces is both pages, for the assertions §14A makes about the pair.
+// themeFlashSurfaces is both pages, for the assertions the pinned copy makes about the pair.
 func themeFlashSurfaces() []themeFlashSurface {
 	return []themeFlashSurface{sessionsFlashSurface(), projectsFlashSurface()}
 }
 
 // themeFlashFilterStates are the two live filter states a filter line can sit in
 // while the panel is opened, used and closed: the focused input and the
-// applied-but-unfocused query. §14A names the second as the one that can be live
+// applied-but-unfocused query. The pinned copy names the second as the one that can be live
 // throughout, and the first is included because the rule must not depend on which.
 var themeFlashFilterStates = []struct {
 	name string
@@ -443,8 +443,8 @@ var themeFlashFilterStates = []struct {
 }
 
 // themeFlashModel builds the shared entry fixture on a page at the standard
-// unblocked content region, COLOURLESS so the production `t` raises §9.10's block —
-// the one theme signal reachable by keypress while a filter is applied, and the one
+// unblocked content region, COLOURLESS so the production `t` raises the NO_COLOR panel
+// block — the one theme signal reachable by keypress while a filter is applied, and the one
 // whose whole purpose (keeping the user out of a walkable dead end) is destroyed if
 // it cannot claim the slot.
 func themeFlashModel(t *testing.T, p page) Model {
@@ -555,8 +555,8 @@ func requireBandAboveTheFilterRow(t *testing.T, s themeFlashSurface, m Model, fl
 	}
 }
 
-// raiseBlockedThemeFlash drives §9.10's block through the production `t` on a
-// colourless fixture and returns the model carrying its flash.
+// raiseBlockedThemeFlash drives the NO_COLOR panel block through the production `t` on
+// a colourless fixture and returns the model carrying its flash.
 func raiseBlockedThemeFlash(t *testing.T, m Model) Model {
 	t.Helper()
 	m, cmd := pressThemeKeyCmd(t, m)
@@ -589,7 +589,7 @@ func filteredThemeFlashModel(t *testing.T, s themeFlashSurface, locked bool, wan
 // TestThemeFlash_OutranksAppliedFilterOnSessions: it renders with a filter applied
 // on Sessions.
 //
-// The state §14A names as the dangerous one: a filter can sit applied-but-unfocused
+// The state the pinned copy names as the dangerous one: a filter can sit applied-but-unfocused
 // on the Sessions list through a panel's whole open, use and close. The two
 // contenders occupy different physical rows today — the filter line is a
 // section-header claimant, the flash is the band beneath the title separator — so
@@ -614,8 +614,8 @@ func TestThemeFlash_OutranksAppliedFilterOnSessions(t *testing.T) {
 // focused on Sessions.
 //
 // The flash is raised through setThemeFlash rather than by a keypress because `t` is
-// a LITERAL FILTER CHARACTER while the input is focused (§9.7) — so this state is
-// reachable only for a signal raised by something other than the key, which §9.13's
+// a LITERAL FILTER CHARACTER while the input is focused — so this state is
+// reachable only for a signal raised by something other than the key, which the
 // failed-commit report and the forced close both are. The claim under test is the
 // band's, not the dispatch's: whatever raises a theme flash, the live input keeps its
 // own row and the band still renders.
@@ -636,8 +636,8 @@ func TestThemeFlash_OutranksLiveFilterOnSessions(t *testing.T) {
 // TestThemeFlash_OutranksAppliedFilterOnProjects: it renders with a filter applied on
 // Projects.
 //
-// Both filter states are driven, because §14A's rule is a statement about the pages
-// EQUALLY — `t` is bound on Projects (§9.6), all six signals are reachable there, and
+// Both filter states are driven, because the pinned copy's rule is a statement about the pages
+// EQUALLY — `t` is bound on Projects, all six signals are reachable there, and
 // the slot they land in is the page's own flash-only contender. A rule that held on
 // one page would leave the other with the silent failure it exists to close.
 func TestThemeFlash_OutranksAppliedFilterOnProjects(t *testing.T) {
@@ -755,8 +755,8 @@ func TestThemeFlash_SingleSlotHolds(t *testing.T) {
 		}
 	}
 
-	// §9.7 swallows `t` during a pending burst, so the `Opening n/N…` band and a
-	// theme flash are never both due — which is why burst progress needs no
+	// The entry-condition rule swallows `t` during a pending burst, so the `Opening n/N…` band
+	// and a theme flash are never both due — which is why burst progress needs no
 	// precedence answer of its own rather than a rule that would never fire.
 	t.Run("a pending burst swallows t, so the Opening band is never due with one", func(t *testing.T) {
 		s := sessionsFlashSurface()
@@ -784,8 +784,8 @@ func TestThemeFlash_SingleSlotHolds(t *testing.T) {
 // TestThemeFlash_ComposesWithMultiSelect: it still outranks the multi-select banner.
 //
 // The flash tier composes correctly with everything BELOW it, and the multi-select
-// banner is the case that matters: §9.7 lets the panel nest over the mode with `Esc`
-// resolving innermost-first, so a signal raised there must reach the user without
+// banner is the case that matters: the entry-condition rule lets the panel nest over the mode
+// with `Esc` resolving innermost-first, so a signal raised there must reach the user without
 // taking away the affordance telling them the marked set survives. The two occupy
 // different rows and deliberately CO-RENDER — the documented Sessions exception.
 func TestThemeFlash_ComposesWithMultiSelect(t *testing.T) {

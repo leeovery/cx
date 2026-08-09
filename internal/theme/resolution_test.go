@@ -18,11 +18,12 @@ import (
 )
 
 // nominationLoader returns the production-shaped loader every resolution fixture
-// runs through: EVERY BUILT-IN SLUG RESERVED, with the §12.3 event seam silent.
+// runs through: EVERY BUILT-IN SLUG RESERVED, with the `theme` log component event seam
+// silent.
 //
 // The reserved set is load-bearing rather than incidental here. The theme a slot
-// falls back to is a built-in, and §5.4 exists so that built-in can never be the
-// user's own broken file — a fixture staging `tokyo-night.theme` in the themes
+// falls back to is a built-in, and the reserved-slug rule exists so that built-in can never be
+// the user's own broken file — a fixture staging `tokyo-night.theme` in the themes
 // directory would resolve to it under a hand-built Loader and prove the opposite
 // of what the assertion claims.
 //
@@ -101,8 +102,8 @@ func TestSlot_AttrName(t *testing.T) {
 	}
 }
 
-// TestResolveNomination_FallbackIsModeMatched pins §8.5's table: an unloadable
-// `theme_light` falls to the LIGHT default, an unloadable `theme_dark` and an
+// TestResolveNomination_FallbackIsModeMatched pins the per-slot fallback rule's table: an
+// unloadable `theme_light` falls to the LIGHT default, an unloadable `theme_dark` and an
 // unloadable constant `theme` to the DARK one.
 //
 // Mode-matching is the whole decision. A single fixed fallback regardless of mode
@@ -110,9 +111,9 @@ func TestSlot_AttrName(t *testing.T) {
 // slot onto a dark palette — a bigger surprise than falling to the light default,
 // and the one outcome the fallback exists to avoid.
 //
-// The expectations are the SHARED CONSTANTS, never the literals they hold. §8.3's
-// "the adaptive pair degrades to a constant dark default" argument is true only
-// because an unresolvable slot lands on the theme the shipped default already
+// The expectations are the SHARED CONSTANTS, never the literals they hold. The shipped
+// adaptive default's "the adaptive pair degrades to a constant dark default" argument is true
+// only because an unresolvable slot lands on the theme the shipped default already
 // nominates, so a literal here would leave that argument silently untrue the day
 // either constant moves.
 func TestResolveNomination_FallbackIsModeMatched(t *testing.T) {
@@ -181,12 +182,12 @@ func TestResolveNomination_FallbackIsModeMatched(t *testing.T) {
 	}
 }
 
-// TestResolveNomination_StructuredOutcome pins the shape §8.5's fallback is
-// reported in: WHICH slot fell back, FROM which slug, FOR which reason, and what
+// TestResolveNomination_StructuredOutcome pins the shape a per-slot fallback
+// is reported in: WHICH slot fell back, FROM which slug, FOR which reason, and what
 // actually loaded — one record per slot, assembled from the Setting alone.
 //
-// Every surface over it reads this record rather than re-deriving it: §12.3's
-// events, Phase 7's doctor line, and Phase 8's rule that the `●` stays on the
+// Every surface over it reads this record rather than re-deriving it: the `theme` log
+// component's events, doctor's theme line, and the panel's rule that the `●` stays on the
 // PERSISTED slug while the fallback's own row carries no badge. That last one is
 // why Requested and Resolved are carried separately — under a fallback they
 // differ by design, and a resolver returning only a Theme makes the distinction
@@ -233,13 +234,13 @@ func TestResolveNomination_StructuredOutcome(t *testing.T) {
 }
 
 // TestResolveNomination_NominationShapeMatchesSetting pins that the assembled
-// Nomination is §8.2's two-state setting with the files read: one palette under a
-// constant, two under a pair, and NO ACTIVE MEMBER selected either way.
+// Nomination is the constant-or-pair rule's two-state setting with the files read: one palette
+// under a constant, two under a pair, and NO ACTIVE MEMBER selected either way.
 //
 // Nothing here selects a member. The light/dark gate does that when the OSC 11
-// reply or the timeout lands (task 5-7), which is before anything is painted —
+// reply or the timeout lands, which is before anything is painted —
 // so handing out a provisional member would invite a second resolution to
-// reconcile with §8.8's resolve-once rule.
+// reconcile with the appearance-gate rule's resolve-once rule.
 //
 // The shape holds whether or not a slot fell back, which is why each case runs
 // twice: a fallback substitutes a PALETTE, never a setting state.
@@ -319,7 +320,7 @@ func TestResolveNomination_NominationShapeMatchesSetting(t *testing.T) {
 }
 
 // withoutBuiltin returns a built-in byte source with one slug removed — the
-// binary §7.6's build-time guarantee says cannot ship: one whose embedded set
+// binary the build-time guarantee says cannot ship: one whose embedded set
 // cannot supply the theme a slot falls back to.
 //
 // The seam is the only way to reach that state at all, which is exactly why it
@@ -335,8 +336,8 @@ func withoutBuiltin(omit string) func(string) ([]byte, bool) {
 }
 
 // corruptBuiltin returns a built-in byte source whose named slug is PRESENT and
-// invalid, rather than absent — the other half of §7.6's broken-binary state, and
-// the one that proves the outcome does not vary by cause.
+// invalid, rather than absent — the other half of the build-time guarantee's broken-binary
+// state, and the one that proves the outcome does not vary by cause.
 func corruptBuiltin(corrupt string) func(string) ([]byte, bool) {
 	broken := []byte(strings.Join(themetest.WithoutKey(themetest.Lines(), "canvas"), "\n") + "\n")
 	return func(slug string) ([]byte, bool) {
@@ -352,8 +353,8 @@ func corruptBuiltin(corrupt string) func(string) ([]byte, bool) {
 //
 // It is the checkable form of "an error rather than a zero-valued Theme". A
 // Resolution handed back alongside an error would be a colourless picker painted
-// from a palette nobody chose — the limp-on §7.6 refuses in favour of failing
-// loudly.
+// from a palette nobody chose — the limp-on the build-time guarantee refuses in favour of
+// failing loudly.
 func requireZeroResolution(t *testing.T, got theme.Resolution) {
 	t.Helper()
 
@@ -369,8 +370,8 @@ func requireZeroResolution(t *testing.T, got theme.Resolution) {
 	}
 }
 
-// TestResolveNomination_UnresolvableFallbackErrors pins §7.6's one genuinely
-// fatal state: the theme a slot falls back to cannot itself be loaded from the
+// TestResolveNomination_UnresolvableFallbackErrors pins the build-time guarantee's one
+// genuinely fatal state: the theme a slot falls back to cannot itself be loaded from the
 // embedded set.
 //
 // There is NO SAFETY NET beneath this point by decision — a build-time guarantee
@@ -379,7 +380,7 @@ func requireZeroResolution(t *testing.T, got theme.Resolution) {
 // honest answers are an ordinary error or a picker painted from values nobody
 // chose, and this is the first.
 //
-// The message is NOT asserted here: task 5-6 owns §14A's pinned sentence and the
+// The message is NOT asserted here: the startup fatal owns the pinned sentence and the
 // single source it comes from. What is asserted is the shape — an error, no
 // second fallback, and nothing to render.
 func TestResolveNomination_UnresolvableFallbackErrors(t *testing.T) {
@@ -465,15 +466,15 @@ func resolutionSource(t *testing.T) parsedThemeSource {
 	return parsedThemeSource{}
 }
 
-// TestResolveNomination_FallbackUsesSharedConstants pins the coincidence §8.3's
-// argument rests on: THE FALLBACK VALUES ARE THE SHIPPED DEFAULT'S VALUES.
+// TestResolveNomination_FallbackUsesSharedConstants pins the coincidence the shipped adaptive
+// default's argument rests on: THE FALLBACK VALUES ARE THE SHIPPED DEFAULT'S VALUES.
 //
 // "The adaptive pair degrades to a constant dark default" is true only because an
 // unresolvable slot lands on the theme the shipped default already nominates —
 // before the fallback was pinned, that argument was resting on two different
 // notions of "default". So changing these values, or adopting the rejected
-// single-fixed-fallback alternative, silently invalidates §8.3: nothing stops
-// compiling and no floor moves, the reasoning simply stops holding.
+// single-fixed-fallback alternative, silently invalidates the shipped adaptive default:
+// nothing stops compiling and no floor moves, the reasoning simply stops holding.
 //
 // The behavioural half asserts the two mechanisms MEET — a pair whose slots are
 // both unloadable paints exactly what a virgin install paints. The source half
@@ -526,7 +527,7 @@ func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 }
 
 // fallbackCause is one story about why a nomination did not load: what the file
-// state is, what prefs.json names, and which §6.2 reason it lands on.
+// state is, what prefs.json names, and which terse reason it lands on.
 type fallbackCause struct {
 	name       string
 	slug       string
@@ -534,7 +535,8 @@ type fallbackCause struct {
 	wantReason theme.Reason
 }
 
-// fallbackCauses enumerates every cause §8.5's ONE NOT-LOADABLE PATH serves.
+// fallbackCauses enumerates every cause the per-slot fallback rule's ONE NOT-LOADABLE PATH
+// serves.
 //
 // Nine stories, six reasons: a deleted file, a renamed file and a typo in
 // prefs.json are the same `not found`, an unreadable file and an unreadable
@@ -613,13 +615,13 @@ func fallbackCauses() []fallbackCause {
 	}
 }
 
-// reachableFallbackReasons is every §6.2 reason a NOMINATION can fail with.
+// reachableFallbackReasons is every terse reason a NOMINATION can fail with.
 //
 // It is six of the seven. `reserved name` is missing because it is unreachable
 // from this path by construction: a slug colliding with a built-in resolves to
-// the BUILT-IN first (§8.4's ordering), so the user's file is never opened and
-// the rung never runs — which is §5.4's no-shadowing property stated as an
-// outcome, and the very thing that keeps a fallback safe.
+// the BUILT-IN first (the construction-time load rule's ordering), so the user's file is never
+// opened and the rung never runs — which is the reserved-slug rule's no-shadowing property
+// stated as an outcome, and the very thing that keeps a fallback safe.
 var reachableFallbackReasons = []theme.Reason{
 	theme.ReasonBadName,
 	theme.ReasonUnreadable,
@@ -629,14 +631,15 @@ var reachableFallbackReasons = []theme.Reason{
 	theme.ReasonNotFound,
 }
 
-// TestResolveNomination_EveryCauseFallsBack pins §8.5's "one not-loadable path
-// serves every cause": every story ends in the same fallback, the same kept
+// TestResolveNomination_EveryCauseFallsBack pins the per-slot fallback rule's "one
+// not-loadable path serves every cause": every story ends in the same fallback, the same kept
 // persisted name and the same shipped default, with ONLY the reason differing.
 //
 // The whole record is asserted per cause, not just the reason, because the claim
 // is that nothing else varies with the cause. A resolver that special-cased an
 // absent file — the obvious temptation, since `not found` is the only reason
-// outside §6.2's ladder — would pass a reason-only assertion and fail this one.
+// outside the reason vocabulary's ladder — would pass a reason-only assertion and fail this
+// one.
 func TestResolveNomination_EveryCauseFallsBack(t *testing.T) {
 	for _, tc := range fallbackCauses() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -683,8 +686,8 @@ func TestResolveNomination_EveryCauseFallsBack(t *testing.T) {
 // carrying the two shipped defaults.
 //
 // Nothing short-circuits. A resolver that abandoned the second slot on the first
-// failure would leave an adaptive pair half-loaded, which is a state §8.2 has no
-// name for and the gate has no answer for.
+// failure would leave an adaptive pair half-loaded, which is a state the constant-or-pair rule
+// has no name for and the gate has no answer for.
 func TestResolveNomination_BothSlotsCanFallBack(t *testing.T) {
 	requireDistinctDefaults(t)
 
@@ -795,8 +798,8 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 	}
 }
 
-// TestResolveNomination_UnsetSlotIsNotAFallback pins §8.5's "no new mechanism":
-// an unset slot is not a fallback at all, it is the SAME default rule one step
+// TestResolveNomination_UnsetSlotIsNotAFallback pins the per-slot fallback rule's "no new
+// mechanism": an unset slot is not a fallback at all, it is the SAME default rule one step
 // earlier.
 //
 // ResolveSetting has already substituted the shipped default, so the slot
@@ -807,7 +810,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 // values.
 //
 // The three directory states are the three a virgin install can be in, the empty
-// string included: task 5-7 degrades an unresolvable themes-directory path to it,
+// string included: an unresolvable themes-directory path degrades to it,
 // and a built-in must still resolve with no path at all.
 func TestResolveNomination_UnsetSlotIsNotAFallback(t *testing.T) {
 	dirs := []struct {
@@ -848,10 +851,10 @@ func TestResolveNomination_UnsetSlotIsNotAFallback(t *testing.T) {
 // arrive as the identical value — the distinction survives only in RawKeys, which
 // this function is deliberately not given. A flag would therefore have to be
 // GUESSED, and a guess about which slug carries the `●` is a second, wrong source
-// of truth for §9.5's badge.
+// of truth for the row-rendering rule's badge.
 //
-// Nothing consumes one either: §9.5's badge table keys all three of its rows on
-// Requested alone, doctor reads the raw keys directly, and the panel's commit
+// Nothing consumes one either: the row-rendering rule's badge table keys all three of its rows
+// on Requested alone, doctor reads the raw keys directly, and the panel's commit
 // takes the raw slug as a parameter. The structural half is what keeps it that
 // way, since a flag added later would be silently wrong rather than loudly
 // missing.
@@ -889,8 +892,9 @@ func TestResolveNomination_SetAndUnsetDefaultsAreIndistinguishable(t *testing.T)
 	})
 }
 
-// TestResolveNomination_NeverOverwritesPrefs pins §6.3's destructive-versus-
-// transient rule: FALLING BACK MUST NEVER OVERWRITE THE PERSISTED THEME NAME.
+// TestResolveNomination_NeverOverwritesPrefs pins the rejection-surface split's
+// destructive-versus- transient rule: FALLING BACK MUST NEVER OVERWRITE THE PERSISTED THEME
+// NAME.
 //
 // Portal keeps the user's choice and renders the fallback, so fixing the theme
 // file restores it on the next launch with no re-selection. Persisting the
@@ -974,8 +978,8 @@ func TestResolveNomination_NeverOverwritesPrefs(t *testing.T) {
 }
 
 // enumerationOf reads dir through the panel's own entry point and hands back the
-// enumeration it retained — the same value the panel holds for its lifetime
-// (§5.8), produced by the same call the panel makes.
+// enumeration it retained — the same value the panel holds for its lifetime,
+// produced by the same call the panel makes.
 //
 // The union is discarded deliberately: these fixtures are about what the
 // RESOLUTION does with a retained parse, and building the enumeration by hand
@@ -990,11 +994,12 @@ func enumerationOf(t *testing.T, loader theme.Loader, dir string) theme.Enumerat
 
 // TestResolveNominationFrom_ReadsNothing pins the whole reason this entry point
 // exists: it resolves against the RETAINED enumeration and never against the
-// filesystem (§8.4).
+// filesystem.
 //
 // A directory read here would produce a THIRD parse of the same slug — neither
 // construction's nor the panel's — that can disagree with the row the user is
-// looking at, reintroducing exactly the staleness split §5.8 exists to close.
+// looking at, reintroducing exactly the staleness split the re-read-on-open rule exists to
+// close.
 //
 // Both halves are asserted because neither reaches the other. The runtime half
 // removes the directory after the enumeration, so a read would fail to resolve a
@@ -1042,10 +1047,10 @@ func TestResolveNominationFrom_ReadsNothing(t *testing.T) {
 
 // TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries pins that the
 // enumeration's CLASSIFICATION is what answers, reason and all: a valid entry
-// resolves to its palette, and every not-loadable state takes §8.5's fallback
-// carrying the reason the row the user is looking at carries.
+// resolves to its palette, and every not-loadable state takes the per-slot fallback rule's
+// fallback carrying the reason the row the user is looking at carries.
 //
-// The unresolved states are the §5.5 pair the union's own persisted rows draw
+// The unresolved states are the directory pair the union's own persisted rows draw
 // (unresolvedRejection): a slug nothing answers to is `not found` where the
 // directory could be listed, and `unreadable` where it could not — so the panel's
 // row and the theme that actually rendered can never state different reasons for
@@ -1126,13 +1131,13 @@ func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.
 	}
 }
 
-// TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst pins that §8.4's ordering
-// survives the change of source: the embedded set answers before the enumeration,
-// so a drop-in taking a built-in's slug can never become what a nomination — or a
+// TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst pins that the construction-time load
+// rule's ordering survives the change of source: the embedded set answers before the
+// enumeration, so a drop-in taking a built-in's slug can never become what a nomination — or a
 // fallback — resolves to.
 //
 // The fixture is the collision itself. `nord.theme` in the themes directory is
-// enumerated as a `reserved name` entry (§5.4), so an enumeration consulted first
+// enumerated as a `reserved name` entry, so an enumeration consulted first
 // would reject the nomination and send it to the dark default. Landing on the
 // EMBEDDED nord instead — a different palette from the fallback's — is what tells
 // the two orders apart.
@@ -1156,8 +1161,8 @@ func TestResolveNominationFrom_ConsultsTheEmbeddedSetFirst(t *testing.T) {
 	}
 }
 
-// TestResolveNominationFrom_UnresolvableFallbackErrors pins that §7.6's one
-// genuinely fatal state travels this entry point unchanged: a FALLBACK that
+// TestResolveNominationFrom_UnresolvableFallbackErrors pins that the build-time guarantee's
+// one genuinely fatal state travels this entry point unchanged: a FALLBACK that
 // cannot resolve within the embedded set is an ordinary error and a zero
 // Resolution, never a second fallback and never a palette nobody chose.
 //
@@ -1178,8 +1183,8 @@ func TestResolveNominationFrom_UnresolvableFallbackErrors(t *testing.T) {
 	requireZeroResolution(t, got)
 }
 
-// TestResolveNominationFrom_EmitsNoLoadedRecord pins §12.3's cadence split across
-// the two entry points.
+// TestResolveNominationFrom_EmitsNoLoadedRecord pins the `theme` log component's cadence split
+// across the two entry points.
 //
 // `theme: loaded` is a per-LOAD INFO whose catalogued cadence is TUI construction
 // plus the one commit-time load outside it. A panel open re-resolves the same
@@ -1188,8 +1193,8 @@ func TestResolveNominationFrom_UnresolvableFallbackErrors(t *testing.T) {
 // commentary its neighbours dedup precisely to avoid.
 //
 // `theme: fallback applied` is the opposite case and is asserted alongside, or
-// the first assertion would be indistinguishable from a silent seam: §12.3 names
-// the panel open and the `Esc` explicitly as resolutions that apply a fallback,
+// the first assertion would be indistinguishable from a silent seam: the `theme` log component
+// names the panel open and the `Esc` explicitly as resolutions that apply a fallback,
 // and deduplicates the WARN per process rather than suppressing it per site.
 func TestResolveNominationFrom_EmitsNoLoadedRecord(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)

@@ -18,8 +18,8 @@ var (
 // that must hold whatever the gate answers.
 var bothMembers = []theme.Member{theme.MemberLight, theme.MemberDark}
 
-// TestConstantNomination_HoldsOneTheme pins §8.2's constant state: one loaded
-// Theme, active from frame one, with detection NEVER consulted — so Select
+// TestConstantNomination_HoldsOneTheme pins the constant-or-pair rule's constant state: one
+// loaded Theme, active from frame one, with detection NEVER consulted — so Select
 // returns the constant for either answer rather than having an answer-dependent
 // member at all.
 func TestConstantNomination_HoldsOneTheme(t *testing.T) {
@@ -38,8 +38,8 @@ func TestConstantNomination_HoldsOneTheme(t *testing.T) {
 	}
 }
 
-// TestAdaptivePair_HoldsBothWithNoActiveMember pins §8.4's adaptive state: both
-// themes are loaded and held, and the value carries NO provisional active member
+// TestAdaptivePair_HoldsBothWithNoActiveMember pins the construction-time load rule's adaptive
+// state: both themes are loaded and held, and the value carries NO provisional active member
 // — the only way to a member is Select, i.e. the gate's answer.
 func TestAdaptivePair_HoldsBothWithNoActiveMember(t *testing.T) {
 	n := adaptivePairForTest()

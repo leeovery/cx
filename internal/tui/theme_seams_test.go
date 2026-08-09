@@ -9,7 +9,7 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// fixtureThemeEnumerator is the §13.3 fixture shape: a ThemeEnumerator that
+// fixtureThemeEnumerator is the harness contract fixture shape: a ThemeEnumerator that
 // answers with a HAND-BUILT union, holding no loader, naming no directory and
 // touching no filesystem.
 //
@@ -43,7 +43,7 @@ func (f fixtureThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot
 
 func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
 	// Compile-time assertions: the seam is satisfiable BOTH wholesale by a
-	// fixture holding nothing (§13.3) and by theme.DirEnumerator, the exported
+	// fixture holding nothing and by theme.DirEnumerator, the exported
 	// adapter production wires (cmd's newThemeEnumerator returns it). A drift in
 	// either signature stops compiling here rather than at the wiring site — and
 	// because the adapter asserted is production's own rather than a
@@ -52,19 +52,19 @@ func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *test
 	var _ tui.ThemeEnumerator = theme.DirEnumerator{}
 }
 
-// TestThemeEnumeratorReturnsTheFinishedUnion pins §13.3's central claim about
-// this seam: it returns the FINISHED §9.4 union, not a directory listing.
+// TestThemeEnumeratorReturnsTheFinishedUnion pins the harness contract's central claim about
+// this seam: it returns the FINISHED union, not a directory listing.
 //
 // The directory here does not exist, and the seam still answers with rows —
 // every built-in, plus a row for the persisted slug that resolves to none of
 // them, each already carrying its reason. Nothing in internal/tui merges,
 // resolves, counts or SORTS anything, which is what keeps this package from
-// becoming a fourth emitter of the `theme` component (§8.9 closes that set at
-// three).
+// becoming a fourth emitter of the `theme` component (the concurrent-write rule closes that
+// set at three).
 //
 // The persisted row is found by identity rather than by position: it arrives in
-// §9.5's order like every other row, which for `ghost` is among the built-ins
-// rather than after them.
+// the row-rendering rule's order like every other row, which for `ghost` is among the
+// built-ins rather than after them.
 func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
 	var enumerator tui.ThemeEnumerator = theme.DirEnumerator{
 		Loader: theme.NewSilentLoader(),
@@ -96,8 +96,8 @@ func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
 }
 
 // TestThemeEnumeratorReassemblesFromAFixtureUnion pins the seam's second method
-// through the fixture route: §9.2's post-commit recompute and §5.8's `Esc`
-// re-resolution both re-derive from a RETAINED enumeration, so a fake must be
+// through the fixture route: the picker idiom's post-commit recompute and the re-read-on-open
+// rule's `Esc` re-resolution both re-derive from a RETAINED enumeration, so a fake must be
 // able to answer that call with no directory of any kind.
 func TestThemeEnumeratorReassemblesFromAFixtureUnion(t *testing.T) {
 	faked := theme.Union{

@@ -16,9 +16,9 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// §8.4's ONE THEME LOAD OUTSIDE CONSTRUCTION: the newly-live opposite slot on a
-// constant → adaptive conversion, and the commit-time `theme: loaded` §12.3's
-// cadence column exists for.
+// The construction-time load rule's ONE THEME LOAD OUTSIDE CONSTRUCTION: the newly-live
+// opposite slot on a constant → adaptive conversion, and the commit-time `theme: loaded` the
+// `theme` log component's cadence column exists for.
 //
 // Converting a constant makes a SECOND slot live that construction never loaded —
 // a constant nominates one theme, so the other member simply does not exist in the
@@ -31,9 +31,9 @@ import (
 //     most likely to add "for symmetry".
 //   - IT READS NO DIRECTORY. A commit-time read would produce a THIRD parse of the
 //     same slug, neither construction's nor the panel's, that can disagree with the
-//     row on screen — the staleness split §5.8 exists to close. Asserted with the
-//     themes directory REMOVED after the panel opened.
-//   - THE ANSWER HALF IS ESTABLISHED HERE TOO (§9.3). A conversion makes light/dark
+//     row on screen — the staleness split the re-read-on-open rule exists to close. Asserted
+//     with the themes directory REMOVED after the panel opened.
+//   - THE ANSWER HALF IS ESTABLISHED HERE TOO. A conversion makes light/dark
 //     matter for a user whose launch deliberately never consulted detection, so the
 //     in-force answer is classified from the reply already in hand — no new query,
 //     no new race, no new gate — and NEVER read off the constant path's pre-resolved
@@ -84,8 +84,8 @@ func newConversionPanelModel(t *testing.T, dir string, keys theme.RawKeys) (Mode
 
 // newAdaptivePanelModel is the NON-CONVERTING fixture: the same real loader and
 // directory under an adaptive pair, with the light/dark gate resolved by a real OSC
-// 11 reply rather than pinned — the launch shape §9.3 says a conversion never arises
-// for, because the answer is already classified.
+// 11 reply rather than pinned — the launch shape the mid-session conversion rule says a
+// conversion never arises for, because the answer is already classified.
 func newAdaptivePanelModel(t *testing.T, dir string, keys theme.RawKeys, reply tea.BackgroundColorMsg) (Model, *fakeThemePersister, *logtest.Sink) {
 	t.Helper()
 
@@ -108,9 +108,9 @@ func newAdaptivePanelModel(t *testing.T, dir string, keys theme.RawKeys, reply t
 // It stops short of the open deliberately: the light/dark reply lands within
 // milliseconds of launch and the panel opens later, so a case that delivers one
 // delivers it first, as production usually does. The other order IS reachable —
-// §9.3's no-reply case is defined by the panel opening within milliseconds of
-// launch, which is exactly the window a reply can land in with the panel already
-// up — and is driven explicitly by one case below.
+// the mid-session conversion rule's no-reply case is defined by the panel opening within
+// milliseconds of launch, which is exactly the window a reply can land in with the panel
+// already up — and is driven explicitly by one case below.
 func newLoadPanelModel(t *testing.T, dir string, keys theme.RawKeys, loader theme.Loader) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -205,8 +205,8 @@ func requireLoadedLine(t *testing.T, sink *logtest.Sink, slug, slot string) {
 	}
 }
 
-// requireNominationPair fails unless the model's nomination is §8.2's ADAPTIVE
-// shape holding both members.
+// requireNominationPair fails unless the model's nomination is the constant-or-pair rule's
+// ADAPTIVE shape holding both members.
 //
 // It is asserted through Select rather than against the struct, which is
 // constructor-only: an adaptive nomination answers the two answers with two
@@ -229,8 +229,9 @@ func requireNominationPair(t *testing.T, m Model, light, dark theme.Theme) {
 //
 // It is the other half of every "it resolved" assertion below: a slug that resolved
 // and a slug that fell back to the same-named default are indistinguishable from the
-// `loaded` line alone whenever the nomination IS the default (§8.5's values are
-// §8.3's values), so the absence of the WARN is what says which happened.
+// `loaded` line alone whenever the nomination IS the default (the per-slot fallback rule's
+// values are the shipped adaptive default's values), so the absence of the WARN is what says
+// which happened.
 func requireNoFallbackLine(t *testing.T, sink *logtest.Sink) {
 	t.Helper()
 
@@ -259,10 +260,10 @@ func requireSlotCanvas(t *testing.T, m Model, slot theme.Slot, want string) {
 // TestCommitSlotLoad_LoadsTheOppositeSlot: it loads the opposite slot, not the
 // assigned one.
 //
-// §8.4: "The slot the user just assigned needs no read — §5.8's enumeration already
-// holds its parse... The read that is needed is the OPPOSITE one." So a confirmed
-// `l` loads the DARK slot and a confirmed `d` loads the LIGHT one, and the emitted
-// line names that slot rather than the one the keypress wrote.
+// The construction-time load rule: "The slot the user just assigned needs no read — the
+// re-read-on-open rule's enumeration already holds its parse... The read that is needed is the
+// OPPOSITE one." So a confirmed `l` loads the DARK slot and a confirmed `d` loads the LIGHT
+// one, and the emitted line names that slot rather than the one the keypress wrote.
 //
 // The assigned member is the palette already in hand (the row the cursor is on),
 // which is what makes the pair complete without a second parse.
@@ -298,20 +299,20 @@ func TestCommitSlotLoad_LoadsTheOppositeSlot(t *testing.T) {
 // TestCommitSlotLoad_UntouchedSlotIsTheShippedDefault: it resolves an untouched
 // slot from the embedded set.
 //
-// §8.4: "An untouched slot holds a shipped default (§8.3), so it resolves from the
-// embedded set and never touches the themes directory (§8.4's ordering rule) — cheap
-// and infallible."
+// The construction-time load rule: "An untouched slot holds a shipped default, so it resolves
+// from the embedded set and never touches the themes directory (the construction-time load
+// rule's ordering rule) — cheap and infallible."
 //
 // The directory stages a DROP-IN NAMED FOR THE DEFAULT, so the slot has a candidate
-// in the enumeration as well as in the embedded set. §5.4 reserves built-in slugs and
-// the enumeration rejects the file for it, so consulting the embedded set is what
+// in the enumeration as well as in the embedded set. The reserved-slug rule reserves built-in
+// slugs and the enumeration rejects the file for it, so consulting the embedded set is what
 // makes the slot resolve AT ALL: a load that reached only the retained entries would
 // find the rejection and fall back, which is what the absent fallback line below
 // distinguishes.
 //
 // That absence carries the other half too: an untouched slot is NOT a fallback
-// (§8.5's "no new mechanism"), and the two outcomes are otherwise indistinguishable
-// here because the fallback's value IS the shipped default's.
+// (the per-slot fallback rule's "no new mechanism"), and the two outcomes are otherwise
+// indistinguishable here because the fallback's value IS the shipped default's.
 func TestCommitSlotLoad_UntouchedSlotIsTheShippedDefault(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	writeThemeFileForTest(t, dir, theme.DefaultLightSlug+".theme", "#202020")
@@ -328,16 +329,16 @@ func TestCommitSlotLoad_UntouchedSlotIsTheShippedDefault(t *testing.T) {
 // TestCommitSlotLoad_StaleSlotFromEnumeration: it resolves a stale slot from the
 // retained enumeration.
 //
-// §8.4: "A stale hand-edited slot (§8.2, where a `theme`-wins file's slots were
-// invisible until the constant cleared) resolves from the panel's RETAINED
-// ENUMERATION (§5.8)... Only a slug the enumeration has no entry for falls through
+// The construction-time load rule: "A stale hand-edited slot (where a `theme`-wins file's
+// slots were invisible until the constant cleared) resolves from the panel's RETAINED
+// ENUMERATION... Only a slug the enumeration has no entry for falls through
 // to the embedded set."
 //
 // The file is REWRITTEN AFTER THE PANEL OPENED, which is what separates "resolved
 // from the retained parse" from "resolved from a file that happens to still say the
-// same thing": §5.8 retains the enumeration for the panel's lifetime, so the palette
-// that joins the nomination is the one the row on screen was built from and not the
-// bytes now on disk.
+// same thing": the re-read-on-open rule retains the enumeration for the panel's lifetime, so
+// the palette that joins the nomination is the one the row on screen was built from and not
+// the bytes now on disk.
 func TestCommitSlotLoad_StaleSlotFromEnumeration(t *testing.T) {
 	t.Run("a stale slug resolves from the panel's parse", func(t *testing.T) {
 		const opened, edited = "#202020", "#303030"
@@ -372,10 +373,10 @@ func TestCommitSlotLoad_StaleSlotFromEnumeration(t *testing.T) {
 // TestCommitSlotLoad_UnresolvableTakesTheModeMatchedFallback: it falls back per slot
 // when unresolvable.
 //
-// §8.4: "if it is in neither it is unresolvable and takes §8.5's fallback" — and
-// §8.5's table is MODE-MATCHED: `theme_light` falls to `tokyo-night-day`,
-// `theme_dark` to `tokyo-night`. Both directions are driven, because a single fixed
-// fallback (the rejected alternative) passes either one alone.
+// The construction-time load rule: "if it is in neither it is unresolvable and takes the
+// per-slot fallback" — and the fallback table is MODE-MATCHED:
+// `theme_light` falls to `tokyo-night-day`, `theme_dark` to `tokyo-night`. Both directions are
+// driven, because a single fixed fallback (the rejected alternative) passes either one alone.
 func TestCommitSlotLoad_UnresolvableTakesTheModeMatchedFallback(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -417,17 +418,17 @@ func TestCommitSlotLoad_UnresolvableTakesTheModeMatchedFallback(t *testing.T) {
 
 // TestCommitSlotLoad_NoDirectoryRead: it reads no directory at commit.
 //
-// §8.4: "No commit-time directory read. Issuing one would produce a THIRD parse of
-// the same slug — neither construction's nor the panel's — that can disagree with the
-// row the user is looking at, reintroducing exactly the staleness split §5.8 exists
-// to close."
+// The construction-time load rule: "No commit-time directory read. Issuing one would produce a
+// THIRD parse of the same slug — neither construction's nor the panel's — that can disagree
+// with the row the user is looking at, reintroducing exactly the staleness split the
+// re-read-on-open rule exists to close."
 //
 // The directory is REMOVED after the panel opened, so a read would fail rather than
 // merely re-parse — and the two branches fail DIFFERENTLY, which is what makes the
 // assertion non-vacuous on both: a stale slug would come back `not found` and land on
-// the §8.5 fallback instead of on its own palette, while an untouched slot would…
-// still resolve, from the embedded set, which is exactly §8.4's "never touches the
-// themes directory" claim and is asserted here as the second branch.
+// the per-slot fallback rule fallback instead of on its own palette, while an untouched slot
+// would… still resolve, from the embedded set, which is exactly the construction-time load
+// rule's "never touches the themes directory" claim and is asserted here as the second branch.
 func TestCommitSlotLoad_NoDirectoryRead(t *testing.T) {
 	t.Run("a stale slot still resolves from the retained parse", func(t *testing.T) {
 		const value = "#202020"
@@ -475,13 +476,13 @@ func removeThemesDirForTest(t *testing.T, dir string) {
 // TestCommitSlotLoad_EmitsLoadedOncePerConversion: it emits one undeduplicated
 // loaded line.
 //
-// §12.3 catalogues `theme: loaded` as INFO and pointedly does NOT deduplicate it,
-// unlike its WARN neighbours: it is per LOAD rather than per condition, and the
-// commit-time entry is "the same event at a different cadence" (see
+// The `theme` log component catalogues `theme: loaded` as INFO and pointedly does NOT
+// deduplicate it, unlike its WARN neighbours: it is per LOAD rather than per condition, and
+// the commit-time entry is "the same event at a different cadence" (see
 // EventLogger.Loaded).
 //
 // TWO CONVERSIONS IN ONE PANEL SESSION are reachable because `Enter` returns the
-// setting to a constant (§9.2 clears both slots), so the second `d` raises the
+// setting to a constant (the picker idiom clears both slots), so the second `d` raises the
 // confirm again. Both conversions load the SAME slug into the SAME slot, which is
 // exactly the shape a dedup key would collapse — so two lines is the assertion, not
 // an incidental count.
@@ -516,16 +517,16 @@ func TestCommitSlotLoad_EmitsLoadedOncePerConversion(t *testing.T) {
 // TestCommitSlotLoad_LoadedNamesTheFallbackSlug: it names the fallback in loaded and
 // the nomination in fallback applied.
 //
-// §12.3: "When a nomination is unloadable it fires for the fallback too, carrying the
-// FALLBACK's slug — otherwise `theme: fallback applied` and `theme: loaded` both name
-// the slug that FAILED, and a `grep \"theme:\"` on a broken install cannot answer
+// The `theme` log component: "When a nomination is unloadable it fires for the fallback too,
+// carrying the FALLBACK's slug — otherwise `theme: fallback applied` and `theme: loaded` both
+// name the slug that FAILED, and a `grep \"theme:\"` on a broken install cannot answer
 // which palette is actually rendering."
 //
 // So the two lines name DIFFERENT slugs on the same commit, which is the whole point
 // and is asserted as such rather than as two independent line checks.
 //
-// EXACTLY ONE `fallback applied` is the §12.3 dedup rather than a single resolution:
-// two of them resolve the broken light slot on this keypress, in the order
+// EXACTLY ONE `fallback applied` is the `theme` log component dedup rather than a single
+// resolution: two of them resolve the broken light slot on this keypress, in the order
 // commitSlot → recompute → loadNewlyLiveSlot, so the recompute's badge re-resolution
 // emits the line and the load's own ResolveSlot is suppressed as a repeat sighting of
 // the same (slug, reason). Which SITE emits it is the ordering's doing and could
@@ -562,9 +563,9 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 // TestCommitSlotLoad_NonConvertingCommitIsSilent: it emits nothing when nothing
 // converts.
 //
-// §8.4 puts the load on the constant → adaptive transition and nowhere else: a
-// `d`/`l` over a pair changes which slug a LIVE slot names, and `Enter` collapses to
-// a constant whose palette is already the previewed one. Both members are in hand
+// The construction-time load rule puts the load on the constant → adaptive transition and
+// nowhere else: a `d`/`l` over a pair changes which slug a LIVE slot names, and `Enter`
+// collapses to a constant whose palette is already the previewed one. Both members are in hand
 // either way, so there is no load to announce and no member to resolve.
 //
 // The unchanged NOMINATION is asserted alongside the silence because the two fail
@@ -641,7 +642,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 
 // TestCommitSlotLoad_FailedCommitLoadsNothing: it emits nothing on a failed write.
 //
-// The load is specified to run "after a SUCCESSFUL slot commit" (§8.4), and the
+// The load is specified to run "after a SUCCESSFUL slot commit", and the
 // early return that enforces it is the one confirmSlotAssignment takes on
 // commitSlot's error. Run past it, the load would resolve off keys the mirror never
 // touched — still holding the constant, so both slot slugs are empty — and would
@@ -693,14 +694,14 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 // TestCommitSlotLoad_ActiveThemeUnchanged: it completes the nomination without
 // changing the active member.
 //
-// §9.2: "Committing to a non-active slot changes nothing on screen... A commit is a
-// WRITE, NOT A NAVIGATION — the panel keeps previewing whatever the cursor is on."
+// The picker idiom: "Committing to a non-active slot changes nothing on screen... A commit is
+// a WRITE, NOT A NAVIGATION — the panel keeps previewing whatever the cursor is on."
 // So the pair is completed while the frame keeps painting the previewed palette, and
 // ApplyTheme is never called with the newly-loaded one.
 //
 // The FRAME is asserted through the canvas sequence rather than byte-for-byte,
-// because a successful commit legitimately moves the badges and the row set (§9.2's
-// recompute) — the canvas is the part a re-theme would move and the recompute cannot.
+// because a successful commit legitimately moves the badges and the row set (the picker
+// idiom's recompute) — the canvas is the part a re-theme would move and the recompute cannot.
 func TestCommitSlotLoad_ActiveThemeUnchanged(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
@@ -727,12 +728,12 @@ func TestCommitSlotLoad_ActiveThemeUnchanged(t *testing.T) {
 
 // TestCommitSlotLoad_SharesTheResolverBody: it agrees with the badge resolution.
 //
-// §8.4's commit-time load and §9.2's badge re-resolution answer for the SAME slug
-// against the SAME retained enumeration, so they must share one rule body — the
-// charset check, the embedded-set-first ordering and §8.5's per-slot fallback
-// included. Two independently-authored ladders would let the panel mark one theme
-// while the nomination held another's palette, which is the split §5.8 exists to
-// close.
+// The construction-time load rule's commit-time load and the picker idiom's badge
+// re-resolution answer for the SAME slug against the SAME retained enumeration, so they must
+// share one rule body — the charset check, the embedded-set-first ordering and the per-slot
+// fallback rule's per-slot fallback included. Two independently-authored ladders would let the
+// panel mark one theme while the nomination held another's palette, which is the split the
+// re-read-on-open rule exists to close.
 //
 // The table walks every rung that can differ: a built-in, a drop-in, a slug nothing
 // answers to, and one the charset refuses outright.
@@ -766,9 +767,9 @@ func TestCommitSlotLoad_SharesTheResolverBody(t *testing.T) {
 
 // TestCommitSlotLoad_DiscardSilencesLoaded: it is silent on the discard logger.
 //
-// §12.3: "Emission is controlled by an injected logger, not by the loader deciding."
-// A diagnose-shaped caller — `portal doctor`, `portal theme export`, capturetool — is
-// constructed with log.Discard() and writes nothing at all, and the commit-time
+// The `theme` log component: "Emission is controlled by an injected logger, not by the loader
+// deciding." A diagnose-shaped caller — `portal doctor`, `portal theme export`, capturetool —
+// is constructed with log.Discard() and writes nothing at all, and the commit-time
 // cadence is one more event that has to inherit that rather than emit unconditionally.
 //
 // The PROCESS handler captures everything for the test's duration, so a record
@@ -808,12 +809,12 @@ func TestCommitSlotLoad_DiscardSilencesLoaded(t *testing.T) {
 // TestCommitSlotLoad_ConversionUsesTheRetainedAnswer: it classifies the retained
 // background on conversion.
 //
-// §9.3: "`restore.go` issues the OSC 11 query from `Init` REGARDLESS — it needs the
-// original background to restore on exit, independent of detection. The terminal's
-// background is therefore already in hand; the detection decision only ever governed
-// whether to CLASSIFY AND USE it."
+// The mid-session conversion rule: "`restore.go` issues the OSC 11 query from `Init`
+// REGARDLESS — it needs the original background to restore on exit, independent of detection.
+// The terminal's background is therefore already in hand; the detection decision only ever
+// governed whether to CLASSIFY AND USE it."
 //
-// The CLOSE is what makes the answer observable end to end: task 8-10 re-resolves
+// The CLOSE is what makes the answer observable end to end: the close re-resolves
 // persisted state and selects the in-force member from this answer, so a light
 // terminal must land on the light slot and a dark one on the dark slot with no
 // change of its own.
@@ -847,7 +848,7 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 				t.Errorf("the conversion left the light/dark answer %v, want %v — it classifies the reply already in hand (§9.3)", m.themeState.canvasMode, tc.want)
 			}
 
-			// Task 8-10's close selects the in-force member from that answer.
+			// The close selects the in-force member from that answer.
 			closed := closeThemePanelForTest(t, m)
 			want := themetest.Builtin(t, tc.inForce)
 			if closed.themeState.active != want {
@@ -857,9 +858,9 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 	}
 
 	// The third reachable ordering, between the two above and the no-reply case: the
-	// reply lands with the panel ALREADY OPEN. §9.3's no-reply case is defined by the
-	// panel being opened within milliseconds of launch, so that window is precisely
-	// where a reply can arrive late enough to find the slide-over up.
+	// reply lands with the panel ALREADY OPEN. The mid-session conversion rule's no-reply case is
+	// defined by the panel being opened within milliseconds of launch, so that window is
+	// precisely where a reply can arrive late enough to find the slide-over up.
 	//
 	// It must classify exactly as an early reply does, and the reason it does is
 	// structural: the BackgroundColorMsg arm retains the arrival and the verdict
@@ -896,10 +897,10 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 
 // TestCommitSlotLoad_ConversionIssuesNoQuery: it issues no new query on conversion.
 //
-// §9.3: "Converting to adaptive mid-session starts using an answer that already
-// arrived: no new query, no race, no gate." §8.8's gate resolves exactly once, and a
-// conversion is not a second resolution — so the GATE is untouched and the answer is
-// recorded beside it.
+// The mid-session conversion rule: "Converting to adaptive mid-session starts using an answer
+// that already arrived: no new query, no race, no gate." The appearance gate
+// resolves exactly once, and a conversion is not a second resolution — so the GATE is
+// untouched and the answer is recorded beside it.
 //
 // The gate's own appearance staying DARK on a light terminal is the assertion that
 // matters: it is the standing no-answer fallback of a constant that never asked
@@ -934,11 +935,11 @@ func TestCommitSlotLoad_ConversionIssuesNoQuery(t *testing.T) {
 // TestCommitSlotLoad_ConversionWithNoReplyIsDark: it falls back to dark when no reply
 // landed.
 //
-// §9.3: "If the reply has not landed (requiring the panel to be opened within
-// milliseconds of launch) it falls to DARK, the same rule as everywhere else."
+// The mid-session conversion rule: "If the reply has not landed (requiring the panel to be
+// opened within milliseconds of launch) it falls to DARK, the same rule as everywhere else."
 //
-// And the reply arriving AFTERWARDS still does not re-theme: §8.8's single-resolution
-// rule is untouched by the conversion, so a late answer is consumed for
+// And the reply arriving AFTERWARDS still does not re-theme: the appearance-gate rule's
+// single-resolution rule is untouched by the conversion, so a late answer is consumed for
 // restore-on-exit and changes nothing that is painted.
 func TestCommitSlotLoad_ConversionWithNoReplyIsDark(t *testing.T) {
 	dir := newConversionThemesDir(t)
@@ -971,7 +972,7 @@ func TestCommitSlotLoad_ConversionWithNoReplyIsDark(t *testing.T) {
 // TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex: it never moves the
 // startup canvas hex on a conversion.
 //
-// §11.4's anchor is captured ONCE, at gate resolution, and
+// The exit-time restore rule's anchor is captured ONCE, at gate resolution, and
 // RestoreTerminalBackground's canvas-echo guard compares against it on exit. This is
 // the one path where a mistake re-sticks a colour in the user's terminal AFTER
 // Portal exits, and tasks 4-2 / 4-5 / 8-9 guard it only against SWAPS — which a
@@ -1016,9 +1017,9 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 		})
 	}
 
-	// The structural half: §11.4's anchor is captured inside syncResolvedMode, so a
-	// conversion routing its answer through that function would re-anchor the guard
-	// to a canvas the startup window never painted. The behavioural cases above
+	// The structural half: the exit-time restore rule's anchor is captured inside
+	// syncResolvedMode, so a conversion routing its answer through that function would re-anchor
+	// the guard to a canvas the startup window never painted. The behavioural cases above
 	// cover the values; this covers the ROUTE, which is what a later edit is most
 	// likely to reach for when it wants "the mode set properly".
 	t.Run("the classification does not route through syncResolvedMode", func(t *testing.T) {
@@ -1033,7 +1034,7 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 }
 
 // TestCommitSlotLoad_BrokenBuiltinDegrades: it moves nothing when the load reports
-// §7.6's fatal.
+// the build-time guarantee's fatal.
 //
 // The only error the seam can return is the should-never-happen state of a binary
 // whose embedded set cannot supply a fallback, and the panel's shared policy
@@ -1045,7 +1046,7 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 // palette in a live slot, and lipgloss resolves that through its no-colour sentinel —
 // a silently colourless render on the next close, with no error anywhere.
 //
-// The state is unreachable through a real loader (§7.6's build-time guarantee), so
+// The state is unreachable through a real loader (the build-time guarantee), so
 // the seam is the stub that can produce it.
 func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 	rows := arrowValidRows(4)

@@ -12,14 +12,14 @@ import (
 )
 
 // nordSlug is the third built-in's slug — the stem of its committed filename,
-// which §5.1 makes its identity.
+// which the filename-is-identity rule makes its identity.
 const nordSlug = "nord"
 
 // nordPath is the committed source of the Nord built-in.
 var nordPath = filepath.Join(builtinsDir, nordSlug+".theme")
 
-// wantNordTokens is §7.4's port table — the 19 values Nord ships — in §2.4
-// order and in §4.3's canonical upper case.
+// wantNordTokens is the Nord port's port table — the 19 values Nord ships — in canonical table
+// order and in the hex-only value rule's canonical upper case.
 //
 // It is the deliberate second copy of the shipped file's values, matching both
 // Tokyo Night pins: these hexes are what Portal looks like under the first
@@ -56,14 +56,14 @@ var wantNordTokens = []theme.Token{
 // TestLoadBuiltin_NordIsValid pins the third built-in as a theme the shared
 // loader accepts, and pins the palette it accepts.
 //
-// The whole 19-token slice is asserted in §2.4 order, so a value edited in the
+// The whole 19-token slice is asserted in canonical table order, so a value edited in the
 // file, a key wired to the wrong role, or a token quietly dropped surfaces here
 // rather than on a Nord terminal.
 //
 // border and text.faint deliberately carry the SAME hex. Nord's dark end holds
 // only three values (nord1/2/3) for Portal's five dark-end roles, so nord3
 // serves both — one value for two roles is legitimate, unlike two tokens that
-// differ pointlessly, which the §2.2 border consolidation removed. Asserting
+// differ pointlessly, which the border consolidation removed. Asserting
 // the pair as shipped is what stops a later reader "fixing" the repetition.
 func TestLoadBuiltin_NordIsValid(t *testing.T) {
 	got, rejection, found := theme.Loader{}.LoadBuiltin(nordSlug)
@@ -86,11 +86,11 @@ func TestLoadBuiltin_NordIsValid(t *testing.T) {
 	}
 }
 
-// TestNord_IsEnrolledInFloorChecks pins the Nord built-in into §13.5's
+// TestNord_IsEnrolledInFloorChecks pins the Nord built-in into the contrast gate's
 // auto-enumerated floor set.
 //
 // Enrolment is the whole shape of this port's verification: no test names Nord,
-// no floor is relaxed for it, and every §13.5 leg is measured against Nord's own
+// no floor is relaxed for it, and every contrast-floor leg is measured against Nord's own
 // canvas #2E3440 by the same code that measures the other built-ins. That
 // matters more here than for either Tokyo Night, because #2E3440 is a MID-dark
 // rather than a near-black — the headroom is materially tighter and several legs
@@ -98,7 +98,7 @@ func TestLoadBuiltin_NordIsValid(t *testing.T) {
 // look fine and read badly.
 //
 // The set is derived from BuiltinSlugs, so this also pins that the file is
-// embedded, enumerated and reserved with no Go edit (§7.1, §5.4).
+// embedded, enumerated and reserved with no Go edit.
 func TestNord_IsEnrolledInFloorChecks(t *testing.T) {
 	enrolled := slices.Sorted(maps.Keys(embeddedThemes(t)))
 
@@ -124,7 +124,7 @@ type nordJudgement struct {
 // so each row names the source hex, what that source measured, the chroma the
 // shipped value retained of it, and the floor it was corrected for. The chroma
 // figure is the load-bearing one: it is what makes the value checkable against
-// §7.4's derivation rule if it is ever re-derived, and it is the quantity that
+// the Nord port's derivation rule if it is ever re-derived, and it is the quantity that
 // diagnosed the first, rejected red.
 var nordCorrections = []nordJudgement{
 	{"state.destructive", "#DD8188", []string{"#BF616A", "3.05", "94%", "4.50", "Oklab"}},
@@ -150,7 +150,7 @@ var nordInventions = []nordJudgement{
 	{"bg.attention", "#3D4046", []string{"nord13", "8%", "1.20", "#54524F", "visual gate"}},
 }
 
-// nordPortNotes is the two findings §7.4 calls worth carrying forward — port
+// nordPortNotes is the two findings the Nord port calls worth carrying forward — port
 // choices that look like oversights and are not.
 //
 // text.on-attention is COOLER than Portal's other built-ins warm their on-band
@@ -195,8 +195,8 @@ const (
 // Thirteen of the 19 are lifted straight from the published palette and need no
 // justification — the value is Nord's. The other five are judgements Portal
 // made, and a judgement that is not written down is indistinguishable from a
-// typo six months later. §4.2 admits no trailing comments, so the home is a `#`
-// block immediately above the value, which §12.1's byte-faithful export carries
+// typo six months later. The lexical rules admit no trailing comments, so the home is a `#`
+// block immediately above the value, which the export contract's byte-faithful export carries
 // to every user who copies the file.
 //
 // The assertion is on the FIGURES rather than on the prose, so the record can be
@@ -250,8 +250,8 @@ func TestNordFile_CorrectionsAndInventionsCarryComments(t *testing.T) {
 // TestNordFile_HeaderAttributesThePalette pins the file's header.
 //
 // The flat format was chosen over JSON precisely so a ported palette could
-// carry its attribution (§4.1), and §12.1 exports the file's bytes verbatim, so
-// the header is what a user copying Nord actually receives. §4.1's own example
+// carry its attribution, and the export contract exports the file's bytes verbatim, so
+// the header is what a user copying Nord actually receives. The file format's own example
 // models the two lines asserted here: the palette and its upstream link, and the
 // one-line statement that two values are corrected for Portal's floors — which
 // is the honest form of shipping adapted values under the palette's own name.

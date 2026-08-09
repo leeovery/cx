@@ -12,21 +12,22 @@ import (
 )
 
 // tokyoNightDaySlug is the light built-in's slug — the stem of its committed
-// filename, which §5.1 makes its identity.
+// filename, which the filename-is-identity rule makes its identity.
 const tokyoNightDaySlug = "tokyo-night-day"
 
 // tokyoNightDayPath is the committed source of the light built-in.
 var tokyoNightDayPath = filepath.Join(builtinsDir, tokyoNightDaySlug+".theme")
 
-// wantTokyoNightDayTokens is §7.3's light table — the values MV carried as its
-// Light variants — in §2.4 order and in §4.3's canonical upper case.
+// wantTokyoNightDayTokens is the shipped Tokyo Night light table — the values MV carried as
+// its Light variants — in canonical table order and in the hex-only value rule's canonical
+// upper case.
 //
 // It is the deliberate second copy of the shipped file's values, matching the
 // dark built-in's pin: these 19 hexes are what Portal looks like on a light
 // terminal, so changing one is a change to the product and has to be made twice.
 // `canvas` is written lower case in the file and appears here upper case, which
-// is the canonicalisation §11.3's background diffing and §11.4's retained
-// startup canvas hex both compare against.
+// is the canonicalisation the OSC 11 re-emission rule's background diffing and the exit-time
+// restore rule's retained startup canvas hex both compare against.
 var wantTokyoNightDayTokens = []theme.Token{
 	{Name: "text.primary", Value: "#2E3C64"},
 	{Name: "text.secondary", Value: "#3F4760"},
@@ -52,12 +53,12 @@ var wantTokyoNightDayTokens = []theme.Token{
 // TestLoadBuiltin_TokyoNightDayIsValid pins the light built-in as a theme the
 // shared loader accepts, and pins the palette it accepts.
 //
-// The whole 19-token slice is asserted in §2.4 order, so a value edited in the
+// The whole 19-token slice is asserted in canonical table order, so a value edited in the
 // file, a key wired to the wrong role, or a token quietly dropped surfaces here
 // rather than on a light terminal. The case half matters for the same reason it
 // does on the dark side: the file writes `canvas` lower case and the parser
-// canonicalises to upper (§4.3), which is what lets §11.3 and §11.4 compare hex
-// strings at all.
+// canonicalises to upper, which is what lets the OSC 11 re-emission rule and the exit-time
+// restore rule compare hex strings at all.
 func TestLoadBuiltin_TokyoNightDayIsValid(t *testing.T) {
 	got, rejection, found := theme.Loader{}.LoadBuiltin(tokyoNightDaySlug)
 
@@ -79,7 +80,7 @@ func TestLoadBuiltin_TokyoNightDayIsValid(t *testing.T) {
 }
 
 // TestTokyoNightDay_IsEnrolledInFloorChecks pins the light built-in into
-// §13.5's auto-enumerated floor set.
+// the contrast gate's auto-enumerated floor set.
 //
 // Enrolment is what makes every floor in contrast_test.go a statement about
 // THIS palette rather than about the dark one alone — and it is the property
@@ -87,7 +88,7 @@ func TestLoadBuiltin_TokyoNightDayIsValid(t *testing.T) {
 // measured against its own near-white canvas rather than a dark reference. The
 // enumeration is derived, so this cannot fail without the file having gone
 // missing from the embedded set; it is asserted because a light built-in that
-// silently stopped being measured is exactly the failure §6.4's bundled tier
+// silently stopped being measured is exactly the failure the bundled tier
 // exists to prevent.
 func TestTokyoNightDay_IsEnrolledInFloorChecks(t *testing.T) {
 	enrolled := slices.Sorted(maps.Keys(embeddedThemes(t)))
@@ -97,13 +98,13 @@ func TestTokyoNightDay_IsEnrolledInFloorChecks(t *testing.T) {
 	}
 }
 
-// sevenCheckedValues is §7.7's re-derivation check, as the record the shipped
+// sevenCheckedValues is the erratum re-derivation check, as the record the shipped
 // file must carry for each value it covers.
 //
-// Six are the §2.9-erratum contrast corrections; the seventh, text.tertiary, is
+// Six are the erratum contrast corrections; the seventh, text.tertiary, is
 // a darkening for the bg.selection pairing floor rather than an erratum, and
-// carries the same chroma risk. Each row names the FOUR figures §7.7 requires —
-// the original, the chroma the shipped value retained of it, the Oklab
+// carries the same chroma risk. Each row names the FOUR figures the erratum re-derivation
+// requires — the original, the chroma the shipped value retained of it, the Oklab
 // re-derivation, and ΔE(shipped, re-derivation) — plus the verdict that ΔE
 // produced, because a passing check is a finding and has to be recorded as one.
 //
@@ -124,13 +125,13 @@ var sevenCheckedValues = []struct {
 }
 
 // TestTokyoNightDayFile_SevenValuesCarryDerivationComments is the guard on
-// §7.7's durable record.
+// the erratum re-derivation's durable record.
 //
 // The check's whole output — chroma loss against the original and ΔE against
 // the Oklab re-derivation — has exactly one home: a `#` comment beside the value
 // in this file. A commit message would be gone in a year and docs/theming.md
 // documents roles rather than derivations, so if the comment is not here the
-// figures do not exist anywhere. The file is exported byte-faithfully (§12.1),
+// figures do not exist anywhere. The file is exported byte-faithfully,
 // which is what makes the comment travel with the value it describes.
 //
 // The assertion is on the FIGURES rather than on the prose, so the record can be
@@ -158,11 +159,11 @@ func TestTokyoNightDayFile_SevenValuesCarryDerivationComments(t *testing.T) {
 	}
 }
 
-// pinnedTints is §13.5's four eyeball-pinned light surface tints, with the dark
+// pinnedTints is the contrast gate's four eyeball-pinned light surface tints, with the dark
 // anchor each was lifted from.
 //
-// The count of four is load-bearing (§13.5): it is what decides which notes move
-// into the theme file, and it is four rather than three because the §2.2 border
+// The count of four is load-bearing: it is what decides which notes move
+// into the theme file, and it is four rather than three because the border
 // consolidation collapsed border.separator and border.footer into one token that
 // keeps its pin.
 var pinnedTints = []struct {
@@ -181,11 +182,12 @@ const eyeballMarker = "eyeball-confirmed"
 // TestTokyoNightDayFile_PinnedTintsCarryDerivationComments is the guard on the
 // one judgement in this file that is not numerically recoverable.
 //
-// A light tint on a light canvas is numeric-insufficient (§13.5) — the fill legs
+// A light tint on a light canvas is numeric-insufficient — the fill legs
 // bound it from below but nothing decides between two values that both clear
 // 1.10 — so each of the four was settled by human eye against #e1e2e7, from a
-// dark anchor. That derivation is the reason the value is what it is, and §7.1
-// makes the theme file its home now that MV's inline comments are going.
+// dark anchor. That derivation is the reason the value is what it is, and the
+// built-in-is-a-file rule makes the theme file its home now that MV's inline comments are
+// going.
 //
 // The second half is the one that keeps the record honest: NO OTHER value
 // carries the marker. An eyeball pin claimed for a value that was in fact
@@ -224,7 +226,7 @@ func TestTokyoNightDayFile_PinnedTintsCarryDerivationComments(t *testing.T) {
 }
 
 // TestTokyoNightDayFile_AccentPrimaryUnchangedAndMarkedOutOfScope pins the one
-// light value §7.7's check deliberately did not touch.
+// light value the erratum re-derivation's check deliberately did not touch.
 //
 // accent.primary renders bars and glyphs rather than body text, so it carries
 // the 3.00 large/UI floor and cleared it unremedied — it was never darkened, so
@@ -252,8 +254,8 @@ func TestTokyoNightDayFile_AccentPrimaryUnchangedAndMarkedOutOfScope(t *testing.
 // This file carries more comment than value, and every one of those lines is a
 // judgement that cannot be reconstructed — so the cost of keeping them has to be
 // exactly zero. Stripping every comment must yield the identical palette: the
-// parser reads `#` at line start as a comment and never as the start of a value
-// (§4.2), which is what lets the format carry the record at all.
+// parser reads `#` at line start as a comment and never as the start of a value,
+// which is what lets the format carry the record at all.
 //
 // The stripped copy is loaded through LoadFile rather than compared textually,
 // so the assertion is about the PALETTE the loader builds rather than about the
@@ -342,8 +344,8 @@ func valueFor(t *testing.T, text, key string) string {
 }
 
 // commentBlockAbove returns the unbroken run of `#` comment lines directly above
-// key's line, joined — the "beside the value" §7.7 and §7.1 both mean, given
-// §4.2 admits no trailing comments.
+// key's line, joined — the "beside the value" the erratum re-derivation and the
+// built-in-is-a-file rule both mean, given the lexical rules admit no trailing comments.
 //
 // A blank line ends the block, so a note belonging to one value cannot be
 // counted as another's: the header and each group's introduction are separated

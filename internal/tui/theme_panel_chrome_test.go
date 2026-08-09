@@ -8,16 +8,16 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// §9.1's panel chrome, re-cut to the PAGE's vertical rhythm.
+// The panel layout's panel chrome, re-cut to the PAGE's vertical rhythm.
 //
-// Task 8-6 pinned the panel's header at a restated two rows — a label above a rule
+// The panel's header was once pinned at a restated two rows — a label above a rule
 // with the list starting immediately beneath — so `Themes` landed on the page's
 // WORDMARK row and the panel's first row sat three rows above the first session
 // row. Two columns under one rule, running two different rhythms.
 //
 // EVERY ASSERTION HERE IS MADE ON THE COMPOSED FRAME, and that is the whole point:
 // the panel block in isolation cannot show a row relationship with the page, which
-// is exactly why task 8-6's header passed every test it had. The page's row counts
+// is exactly why that header passed every test it had. The page's row counts
 // are READ OFF THE FRAME rather than restated, so a change to the page's own header
 // or section header moves this suite's expectations with it — the same discipline
 // the production measurement follows.
@@ -59,7 +59,7 @@ func newChromePanelModel(t *testing.T) Model {
 }
 
 // chromeFrame is the composed frame's CONTENT REGION, row by row, with every SGR
-// stripped — the §3 gutter cut away so column 0 is the page's own left edge.
+// stripped — the page gutter cut away so column 0 is the page's own left edge.
 func chromeFrame(t *testing.T, m Model) []string {
 	t.Helper()
 	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
@@ -106,7 +106,7 @@ func chromePanelRow(m Model, rows []string, want string) int {
 	return -1
 }
 
-// chromeRuleRow is the index of the single content row carrying the §3.1 separator
+// chromeRuleRow is the index of the single content row carrying the header separator
 // rule, failing when the frame carries none or more than one.
 //
 // ONE LANE IS THE ASSERTION, not merely "a rule exists": the page and the panel each
@@ -153,7 +153,7 @@ func chromeInkColumn(panel string) int {
 // TestPanelChrome_LabelSharesTheSectionHeaderRow: it lands the panel label on the
 // page's section-header row.
 //
-// §9.1's header is measured against the PAGE's, not restated: the panel's header
+// The panel layout's header is measured against the PAGE's, not restated: the panel's header
 // region costs the page's header block plus its section header, so `Themes` lands
 // on the very row `Sessions N` occupies. Asserted on the composed frame, because the
 // panel block in isolation cannot express a relationship with the page.
@@ -351,8 +351,8 @@ func TestPanelChrome_InnerGutter(t *testing.T) {
 
 // TestPanelChrome_WiderLadder: it widens both ends of the ladder.
 //
-// The two ENDS move and nothing else does: the `contentW / 2` cap and §9.8's clamp
-// shape are unchanged, so the ladder is still a staged shrink rather than a switch,
+// The two ENDS move and nothing else does: the `contentW / 2` cap and the geometry rule's
+// clamp shape are unchanged, so the ladder is still a staged shrink rather than a switch,
 // and it still refuses below the minimum.
 func TestPanelChrome_WiderLadder(t *testing.T) {
 	const wantPreferred, wantMinimum = 34, 27
@@ -406,7 +406,7 @@ func TestPanelChrome_WiderLadder(t *testing.T) {
 	})
 }
 
-// chromeMeasuredFloor is §9.8's height floor derived INDEPENDENTLY of the
+// chromeMeasuredFloor is the geometry rule's height floor derived INDEPENDENTLY of the
 // production arithmetic: the panel's header region is exactly the rows the page
 // spends before its first session row, and the rest of the floor is the measured
 // footer plus one list row and one message row.
@@ -424,7 +424,7 @@ func chromeMeasuredFloor(t *testing.T, m Model) int {
 // TestPanelChrome_FloorFollowsTheHeader: it derives the floor from the measured
 // header.
 //
-// Task 8-11's floor read a restated two-row header. It now reads the same
+// The floor once read a restated two-row header. It now reads the same
 // measurement the render does, so the rows the header GAINED are rows the floor
 // gained — asserted against the page's own composed frame rather than against a new
 // literal.
@@ -462,7 +462,7 @@ func TestPanelChrome_FloorFollowsTheHeader(t *testing.T) {
 
 // TestPanelChrome_EntryGateFollowsTheFloor: it moves the entry gate with the floor.
 //
-// Task 8-13's gate and §9.8's resize condition read ONE predicate, so a floor that
+// The entry gate and the geometry rule's resize condition read ONE predicate, so a floor that
 // grows moves the gate with it. The panel now refuses on terminals it previously
 // admitted — correct, because it genuinely needs the rows.
 func TestPanelChrome_EntryGateFollowsTheFloor(t *testing.T) {

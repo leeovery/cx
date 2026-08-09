@@ -9,16 +9,16 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestRowOrder_ReservedNameSortsBySlugLabelsByFilename pins the row §9.5 built
-// the sort-key/label split around: a `nord.theme` drop-in beside the `nord`
+// TestRowOrder_ReservedNameSortsBySlugLabelsByFilename pins the row the row-rendering rule
+// built the sort-key/label split around: a `nord.theme` drop-in beside the `nord`
 // built-in sorts by its SLUG and is labelled by its FILENAME — on the same row,
 // at the same time.
 //
 // Neither value is a reading of the other, and this row is the proof: its slug
 // is perfectly valid and would be a fine label if it were not IDENTICAL to the
-// built-in's, which is the definition of `reserved name` (§6.2). Labelling by
-// slug would put two rows reading `nord` in a list where §9.5 deliberately makes
-// built-in and drop-in rows indistinguishable; sorting by filename would move it
+// built-in's, which is the definition of `reserved name`. Labelling by
+// slug would put two rows reading `nord` in a list where the row-rendering rule deliberately
+// makes built-in and drop-in rows indistinguishable; sorting by filename would move it
 // away from the built-in it collides with, which is exactly where the
 // explanation is useful.
 func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
@@ -40,10 +40,10 @@ func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 	}
 }
 
-// TestRowOrder_BuiltinFirstOnTheGuaranteedTie pins the one tie §9.5 says is
+// TestRowOrder_BuiltinFirstOnTheGuaranteedTie pins the one tie the row-rendering rule says is
 // guaranteed by construction and cannot be settled byte-wise: a `reserved name`
 // row and the built-in it collides with hold an IDENTICAL sort key, because that
-// identity is the definition of the reason (§6.2).
+// identity is the definition of the reason.
 //
 // The built-in wins — the valid, selectable thing the user can act on,
 // immediately followed by the row explaining why their file is not it.
@@ -83,8 +83,8 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 }
 
 // TestRowOrder_BadNameSortsByFilename pins the one row shape with no slug at
-// all: a file §5.2 rejects rather than normalises sorts — and is labelled — by
-// its FILENAME.
+// all: a file the slug charset rule rejects rather than normalises sorts — and is labelled —
+// by its FILENAME.
 //
 // It is the fallback arm of the sort key, and it is what makes the key fully
 // determined: `Bad_Name.theme` yields no identity whatsoever, so a slug-only key
@@ -119,14 +119,14 @@ func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 }
 
 // TestRowOrder_CharsetRejectedSortsByItself pins the third arm of the sort key,
-// which exists so the ordering stays TOTAL: a persisted string §8.6's charset
-// check rejected has neither a slug nor a file, and sorts by the string itself.
+// which exists so the ordering stays TOTAL: a persisted string the validate-before-use rule's
+// charset check rejected has neither a slug nor a file, and sorts by the string itself.
 //
 // There is exactly one thing to sort such a row by, and using it is the whole
 // argument — the alternative is a union member the comparator cannot place,
 // which is precisely what a total order is not. The value arrives already
-// control-stripped (§9.5 strips at the point it is read, not at the point it is
-// drawn), so the key is the ordinary one-line text the row also displays.
+// control-stripped (the row-rendering rule strips at the point it is read, not at the point it
+// is drawn), so the key is the ordinary one-line text the row also displays.
 func TestRowOrder_CharsetRejectedSortsByItself(t *testing.T) {
 	const illegal = "../evil"
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
@@ -150,7 +150,7 @@ func TestRowOrder_CharsetRejectedSortsByItself(t *testing.T) {
 	}
 }
 
-// TestRowOrder_CaseInsensitiveThenByteWise pins §9.5's comparison as the two
+// TestRowOrder_CaseInsensitiveThenByteWise pins the row-rendering rule's comparison as the two
 // legs it is, in order.
 //
 // Slugs are lowercase by construction but FILENAMES ARE NOT, and every uppercase
@@ -212,8 +212,8 @@ func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 // then the persisted leftovers — which is neither alphabetical nor stable across
 // filesystems. So the retained entries are permuted and re-derived, and every
 // permutation must produce the identical union, down to each row's label and
-// source and not merely its key. Without that, §13.3's panel fixtures are not
-// reproducible and §9.5's adjacency argument holds only by accident.
+// source and not merely its key. Without that, the harness contract's panel fixtures are not
+// reproducible and the row-rendering rule's adjacency argument holds only by accident.
 //
 // The fixture is deliberately every row shape at once: a valid drop-in, a broken
 // one, a `reserved name` collision, a `bad name` file, a dead persisted slug and
@@ -278,7 +278,7 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 //
 // The rows are built by hand because no directory can stage this: a reserved
 // name is reserved BY its filename, so the real enumerator cannot vary one
-// without varying the other. A Row is an ordinary value (§13.3), which is what
+// without varying the other. A Row is an ordinary value, which is what
 // makes the pair separable at all.
 func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 	tests := []struct {
@@ -321,8 +321,8 @@ func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 // assembler, so both entry points hand back an ordered union and no consumer
 // sorts.
 //
-// §9.2's post-commit recompute and §5.8's `Esc` re-resolution both go through
-// Reassemble rather than Open, and a sort applied by the panel on open alone
+// The picker idiom's post-commit recompute and the re-read-on-open rule's `Esc` re-resolution
+// both go through Reassemble rather than Open, and a sort applied by the panel on open alone
 // would leave every one of those re-derivations in raw assembly order — a list
 // that reshuffles itself the moment the user presses `Enter`.
 func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
@@ -349,7 +349,7 @@ func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
 // TestRowOrder_NoVariantConcept pins what the ordering must NOT read: a row's
 // palette.
 //
-// Ordering same-mode themes first was proposed as a mitigation for §9.2's
+// Ordering same-mode themes first was proposed as a mitigation for the picker idiom's
 // mixed-mode flash and REJECTED — list order is alphabetical by slug and nothing
 // else. So the identical row set is ordered three times with the palettes swapped
 // underneath it, including the light/dark canvases a mode-aware sort would have
@@ -387,8 +387,8 @@ func TestRowOrder_NoVariantConcept(t *testing.T) {
 	}
 }
 
-// rowSortKeys lists the union's rows by §9.5's sort key, in the order the union
-// hands them back.
+// rowSortKeys lists the union's rows by the row-rendering rule's sort key, in the order the
+// union hands them back.
 func rowSortKeys(union theme.Union) []string {
 	keys := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -397,7 +397,7 @@ func rowSortKeys(union theme.Union) []string {
 	return keys
 }
 
-// rowLabels lists the union's rows by §9.5's display label, in the order the
+// rowLabels lists the union's rows by the row-rendering rule's display label, in the order the
 // union hands them back.
 func rowLabels(union theme.Union) []string {
 	labels := make([]string, 0, len(union.Rows))
@@ -407,7 +407,7 @@ func rowLabels(union theme.Union) []string {
 	return labels
 }
 
-// rowIdentities renders every row as the three values §9.5's ordering has to
+// rowIdentities renders every row as the three values the row-rendering rule's ordering has to
 // place it by and present it as — its sort key, its label and its source — so a
 // comparison of two derivations catches a row that moved, a row that changed and
 // a row that was substituted for its twin alike.
@@ -419,7 +419,7 @@ func rowIdentities(union theme.Union) []string {
 	return identities
 }
 
-// onlyRejectedRow fails the test unless exactly one row carries the given §6.2
+// onlyRejectedRow fails the test unless exactly one row carries the given terse reason
 // reason, and returns it.
 func onlyRejectedRow(t *testing.T, union theme.Union, reason theme.Reason) theme.Row {
 	t.Helper()

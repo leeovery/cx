@@ -12,16 +12,16 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// §9.7's ENTRY CONDITIONS: `t` opens the panel on Sessions and Projects, and
-// nothing blocks it except a modal, a pending burst, `NO_COLOR`, a terminal below
+// The entry-condition rule's ENTRY CONDITIONS: `t` opens the panel on Sessions and Projects,
+// and nothing blocks it except a modal, a pending burst, `NO_COLOR`, a terminal below
 // either render-floor dimension, and the pages where it is not bound at all.
 //
-// THE TWO REFUSALS ARE DELIBERATELY OPPOSITE CALLS (§9.10). `NO_COLOR` is a
+// THE TWO REFUSALS ARE DELIBERATELY OPPOSITE CALLS. `NO_COLOR` is a
 // CAPABILITY ABSENCE — no canvas, no hues, a preview of nothing — so it is blocked
 // proactively exactly as `m` already is; a narrow or short terminal is a SPACE
-// SHORTAGE, which §2.7 mandates degrading for, and which refuses only once even the
-// minimum panel cannot render. Conflating them gets one of them wrong in the one
-// direction that matters: a proactive width block refuses terminals that would have
+// SHORTAGE, which the degrade-never-break doctrine mandates degrading for, and which refuses
+// only once even the minimum panel cannot render. Conflating them gets one of them wrong in
+// the one direction that matters: a proactive width block refuses terminals that would have
 // rendered a good panel.
 //
 // FEEDBACK FOLLOWS THE EXISTING PRECEDENT: FLASH where the key IS bound and the
@@ -32,7 +32,7 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// The §14A entry copy, written out VERBATIM here rather than read from the
+// The pinned copy entry copy, written out VERBATIM here rather than read from the
 // production constants — a test that asserts a constant against itself pins
 // nothing, and this copy is the spec's, not the implementation's. (Its resize
 // siblings live beside the geometry suite as specNarrowClosedFlash /
@@ -150,8 +150,8 @@ func newUnblockedEntryModel(t *testing.T, p page) (Model, *recordingThemeEnumera
 	})
 }
 
-// entryPages is the pair of pages §9.6 binds `t` on. Theme is a GLOBAL setting, so
-// every entry rule is a statement about both — one gate, two dispatch sites.
+// entryPages is the pair of pages the panel-open rule binds `t` on. Theme is a GLOBAL setting,
+// so every entry rule is a statement about both — one gate, two dispatch sites.
 var entryPages = []struct {
 	name string
 	page page
@@ -160,7 +160,7 @@ var entryPages = []struct {
 	{name: "projects", page: PageProjects},
 }
 
-// requireBlocked asserts a `t` press was refused with §14A's pinned copy: no panel,
+// requireBlocked asserts a `t` press was refused with the pinned copy: no panel,
 // the flash raised, and a scheduled auto-clear.
 func requireBlocked(t *testing.T, m Model, cmd tea.Cmd, wantFlash string) {
 	t.Helper()
@@ -214,9 +214,9 @@ func requireSilentRefusal(t *testing.T, m Model, rec *recordingThemeEnumerator, 
 
 // armPanelUnderNoColorForTest opens the panel WITHOUT the `t` keypress.
 //
-// §9.10 blocks `t` under NO_COLOR, so a COLOURLESS panel is unreachable through the
-// production keypress BY DECISION. The colourless RENDER path is still real — the
-// renderer and the row delegate both carry the flag, and §2.5's carve-out is asserted
+// The NO_COLOR panel block blocks `t` under NO_COLOR, so a COLOURLESS panel is unreachable
+// through the production keypress BY DECISION. The colourless RENDER path is still real — the
+// renderer and the row delegate both carry the flag, and the NO_COLOR carve-out is asserted
 // across every other surface — so the two fixtures that assert it (the arrow suite's
 // colourless twin and the open suite's colourless dot row) arm the panel here instead
 // of pressing a key the gate now refuses.
@@ -267,8 +267,8 @@ func TestPanelEntry_OpensOnSessionsAndProjects(t *testing.T) {
 
 // TestPanelEntry_NoColorBlocked: it blocks under NO_COLOR with the pinned copy.
 //
-// §9.10: under `NO_COLOR` Portal paints no canvas and imposes no hues, so the panel
-// previews nothing, its cursor tint and slot dots have no colour, and committing
+// The NO_COLOR panel block: under `NO_COLOR` Portal paints no canvas and imposes no hues, so
+// the panel previews nothing, its cursor tint and slot dots have no colour, and committing
 // would persist a choice with zero visible feedback. It is a CAPABILITY ABSENCE and
 // is blocked PROACTIVELY, following the multi-select precedent exactly — the block
 // is what keeps the user out of a walkable dead end.
@@ -277,7 +277,7 @@ func TestPanelEntry_OpensOnSessionsAndProjects(t *testing.T) {
 // work, which is what distinguishes this refusal from the post-read one below.
 //
 // Both pages are driven here, and the flash is asserted in the RENDERED FRAME on
-// each: §14A gave Projects its own transient-flash slot precisely so this block is
+// each: the pinned copy gave Projects its own transient-flash slot precisely so this block is
 // not a silent no-op there. That makes this the suite's page-parity statement — the
 // floor cases below drive one page, since both consume the same gate.
 func TestPanelEntry_NoColorBlocked(t *testing.T) {
@@ -303,9 +303,9 @@ func TestPanelEntry_NoColorBlocked(t *testing.T) {
 
 // TestPanelEntry_FloorBlocked: it blocks below each render-floor dimension.
 //
-// §9.7: below the render floor `t` refuses with a flash rather than opening a broken
-// frame — "an ENTRY condition, not only the resize condition §9.8 describes" — and
-// §14A pins a string per dimension.
+// The entry-condition rule: below the render floor `t` refuses with a flash rather than
+// opening a broken frame — "an ENTRY condition, not only the resize condition the geometry
+// rule describes" — and the pinned copy pins a string per dimension.
 //
 // WIDTH IS CHECKED FIRST, so a terminal failing BOTH reports narrow. That is the
 // dimension the user can act on with the same gesture that broke it, and pinning the
@@ -344,11 +344,11 @@ func TestPanelEntry_FloorBlocked(t *testing.T) {
 // TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor: it does not reserve the
 // directory row before it knows.
 //
-// The floor is CONDITIONAL on `DirUnusable` (§9.5), and that flag does not exist
+// The floor is CONDITIONAL on `DirUnusable`, and that flag does not exist
 // until the enumeration runs on the keypress — so the pre-read evaluation passes
 // `dirUnusable = false`. Assuming `true` up front is the shortcut this test forbids:
-// it would refuse terminals that render a perfectly good panel, contradicting §9.8's
-// degrade-don't-refuse doctrine outright.
+// it would refuse terminals that render a perfectly good panel, contradicting the geometry
+// rule's degrade-don't-refuse doctrine outright.
 //
 // The height is EXACTLY the non-directory floor, which is one row below the
 // directory-inclusive one — the only height at which the two assumptions differ.
@@ -384,8 +384,8 @@ func TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor(t *testing.T) {
 //
 // The other half of the conditional floor, and the other shortcut refused: assuming
 // `false` and never re-checking would open a panel whose list body is ZERO ROWS —
-// the pinned warning consuming the single row §9.5 requires built-in and persisted
-// rows to render BENEATH, which is the "completely in the dark" state that row
+// the pinned warning consuming the single row the row-rendering rule requires built-in and
+// persisted rows to render BENEATH, which is the "completely in the dark" state that row
 // exists to prevent.
 //
 // So ONE PREDICATE IS EVALUATED TWICE: once before the read with the flag assumed
@@ -446,14 +446,14 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 // TestPanelEntry_SameFloorAsResize: it shares one floor predicate with the resize
 // path.
 //
-// §9.7's entry condition and §9.8's resize condition are the SAME question, and a
-// terminal that passes one check and fails the other is exactly what two independent
-// derivations produce — a panel refused where it would have fitted, or a broken
+// The entry condition and the resize condition are the
+// SAME question, and a terminal that passes one check and fails the other is exactly what two
+// independent derivations produce — a panel refused where it would have fitted, or a broken
 // frame opened where a resize would have closed it.
 //
 // The table drives both paths at each region and asserts the SAME answer: a size
 // that blocks entry also force-closes an open panel, on the same dimension, with the
-// entry / forced-close halves of §14A's per-dimension pair.
+// entry / forced-close halves of the pinned copy's per-dimension pair.
 func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 	floor := themePanelMinHeight(themePanelKeymap(), false)
 
@@ -496,7 +496,7 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 				t.Errorf("the blocked entry raised %q, want the %v copy %q", got, dim, want)
 			}
 			// The forced-close half reads production's own selector: its copy is pinned
-			// verbatim against §14A by the geometry suite (specNarrowClosedFlash /
+			// verbatim against the pinned copy by the geometry suite (specNarrowClosedFlash /
 			// specShortClosedFlash), so what is asserted here is that the two callers agree
 			// on the DIMENSION, not what that dimension's words are.
 			if got, want := resized.flashText, themePanelForcedCloseFlash(dim); got != want {
@@ -506,7 +506,7 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 	}
 }
 
-// specEntryFlash is the §14A entry copy for the dimension the floor refused on,
+// specEntryFlash is the pinned copy entry copy for the dimension the floor refused on,
 // stated HERE rather than taken from production's own selector — an expectation
 // derived from the code under test asserts nothing about which copy is right.
 func specEntryFlash(dim themePanelDim) string {
@@ -529,9 +529,9 @@ func mustEntryModel(t *testing.T, contentW, contentH int) Model {
 
 // TestPanelEntry_SilentOnPreviewAndLoading: it is silent where `t` is not bound.
 //
-// §9.6 refuses both pages, and §9.7's feedback rule makes both SILENT: a flash is
-// for a key that IS bound where the user could reasonably expect it to work, which
-// is exactly how `s` already behaves.
+// The panel-open rule refuses both pages, and the entry-condition rule's feedback rule makes
+// both SILENT: a flash is for a key that IS bound where the user could reasonably expect it to
+// work, which is exactly how `s` already behaves.
 //
 // PREVIEW is refused on two grounds — its body is captured real ANSI scrollback that
 // is deliberately OUT OF THEME, so live preview would re-theme the frame chrome
@@ -578,8 +578,8 @@ func TestPanelEntry_SilentOnPreviewAndLoading(t *testing.T) {
 
 // TestPanelEntry_SwallowedWhileBurstPending: it is swallowed during a pending burst.
 //
-// §9.7: the burst input-locks the model (only `Ctrl-C`/`Esc` live) because it is
-// MID-ASYNC-OPERATION, so swallowing `t` is CONSISTENCY WITH THAT LOCK rather than
+// The entry-condition rule: the burst input-locks the model (only `Ctrl-C`/`Esc` live) because
+// it is MID-ASYNC-OPERATION, so swallowing `t` is CONSISTENCY WITH THAT LOCK rather than
 // an exception to it. The existing guard at the top of updateSessionList returns
 // before any rune dispatch, so this is asserted rather than branched on — a `t` arm
 // that had to know about the burst would be the second place the lock is decided.
@@ -600,9 +600,9 @@ func TestPanelEntry_SwallowedWhileBurstPending(t *testing.T) {
 
 // TestPanelEntry_ModalKeepsTheKey: it never reaches a modal.
 //
-// §9.6/§9.7: modals are key-exclusive BY DESIGN, so `t` never reaches the gate at
-// all — no panel, no read, and no flash, since the key is not bound on the surface
-// that owns the keyboard.
+// The panel-open rule/the entry-condition rule: modals are key-exclusive BY DESIGN, so `t`
+// never reaches the gate at all — no panel, no read, and no flash, since the key is not bound
+// on the surface that owns the keyboard.
 func TestPanelEntry_ModalKeepsTheKey(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -680,11 +680,11 @@ func TestPanelEntry_BlockedFlashLifecycle(t *testing.T) {
 	}
 }
 
-// TestPanelEntry_PinnedCopy: it single-sources §14A's entry copy.
+// TestPanelEntry_PinnedCopy: it single-sources the pinned copy's entry copy.
 //
 // Portal's convention (spawn.UnsupportedNoopMessage) is one constant per pinned
 // string, so no call site can re-word it. The constants are compared against this
-// file's own verbatim transcription of §14A rather than against themselves.
+// file's own verbatim transcription of the pinned copy rather than against themselves.
 func TestPanelEntry_PinnedCopy(t *testing.T) {
 	for _, tc := range []struct {
 		got, want string
@@ -699,7 +699,7 @@ func TestPanelEntry_PinnedCopy(t *testing.T) {
 	}
 }
 
-// §9.7's INPUT ROUTING: while the panel is open it OWNS the keyboard.
+// The entry-condition rule's INPUT ROUTING: while the panel is open it OWNS the keyboard.
 //
 // Pass-through is genuinely bad — `k` would kill the highlighted session while you
 // pick a theme, `x` would swap to Projects with the panel open, `m` would start a
@@ -709,7 +709,7 @@ func TestPanelEntry_PinnedCopy(t *testing.T) {
 // the burst input-lock.
 //
 // NON-BLANKING AND KEY-EXCLUSIVE ARE NOT IN TENSION: seeing the list without being
-// able to drive it IS the live-preview premise (§9.1 — a modal picker would blank the
+// able to drive it IS the live-preview premise (a modal picker would blank the
 // page and preview nothing).
 
 // openEntryPanel builds an unblocked fixture on the page and opens the panel through
@@ -835,8 +835,8 @@ func TestPanelRouting_KeyExclusive(t *testing.T) {
 // TestPanelRouting_PanelOwnedKeysNeverReachThePage: it keeps the panel's own keys off
 // the page beneath.
 //
-// `d` and `l` are PANEL-OWNED (§9.2 gives them the dark and light slots), not
-// swallowed — they are inert only until task 9-3 makes them write. So the assertion
+// `d` and `l` are PANEL-OWNED (the picker idiom gives them the dark and light slots), not
+// swallowed — they are inert only until the commit path makes them write. So the assertion
 // is an ABSENCE OF THE PAGE'S EFFECT rather than "the model is unchanged": on Projects
 // `d` must open NO delete modal, and `l`, which no page binds, must reach no page
 // binding either. Stated that way the criterion still holds once the two become
@@ -895,8 +895,8 @@ func TestPanelRouting_PanelOwnedKeysNeverReachThePage(t *testing.T) {
 
 // TestPanelRouting_CtrlCQuits: it keeps Ctrl-C live.
 //
-// The one exit §9.7 keeps live inside the panel: swallowing it would take away the
-// user's exit key inside a settings surface, which is the same call the burst
+// The one exit the entry-condition rule keeps live inside the panel: swallowing it would take
+// away the user's exit key inside a settings surface, which is the same call the burst
 // input-lock makes for the same reason.
 func TestPanelRouting_CtrlCQuits(t *testing.T) {
 	for _, tc := range entryPages {
@@ -913,8 +913,8 @@ func TestPanelRouting_CtrlCQuits(t *testing.T) {
 // TestPanelRouting_NestsOverMultiSelect: it nests over multi-select without
 // disturbing the set.
 //
-// §9.7: `t` opens and the marked set is UNAFFECTED — the panel NESTS over the mode
-// and `Esc` resolves innermost-first, the rule modals already follow. Previewing
+// The entry-condition rule: `t` opens and the marked set is UNAFFECTED — the panel NESTS over
+// the mode and `Esc` resolves innermost-first, the rule modals already follow. Previewing
 // mid-selection is legitimate, since the marked-row `●` is itself themed.
 //
 // The BANNER is asserted in the rendered frame WHILE THE PANEL IS OPEN: it sits in
@@ -967,13 +967,13 @@ func TestPanelRouting_NestsOverMultiSelect(t *testing.T) {
 	}
 }
 
-// The former TestPanelEntry_LeavesDescriptorsUnfiltered lived here. Task 8-13 owned
+// The former TestPanelEntry_LeavesDescriptorsUnfiltered lived here. That test owned
 // the DISPATCH and the flash only, so its claim ("the blocked entry filters no
 // descriptor") could not fail: both page descriptors were nullary pure functions
 // returning literals, and no mutation of that task's code could touch them.
 //
-// The display half of the block landed with §14 — the `t` row dropped from the
+// The display half of the block landed with the footer revision — the `t` row dropped from the
 // footer and from `?` help IN LOCKSTEP through the same call-site filter that
-// already drops `m` (§9.10/§14.3). The claim is CONSTRAINING now, so it is folded
-// into TestFooterRevision_StaticDescriptorsUnfiltered, which asserts the static
-// descriptors stay whole in exactly the states that DO strip the call-site slices.
+// already drops `m` (the NO_COLOR panel block and the footer rule). The claim is CONSTRAINING
+// now, so it is folded into TestFooterRevision_StaticDescriptorsUnfiltered, which asserts the
+// static descriptors stay whole in exactly the states that DO strip the call-site slices.

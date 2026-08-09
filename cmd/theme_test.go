@@ -127,7 +127,7 @@ func seedThemesDir(t *testing.T, slug string, source []byte) string {
 
 // TestThemeExport_IsBootstrapExempt: it is bootstrap-exempt.
 //
-// §12.1 puts export in skipTmuxCheck: printing a file must not start a tmux
+// The export contract puts export in skipTmuxCheck: printing a file must not start a tmux
 // server, ensure the saver or run restore. Both halves are asserted — the
 // allowlist entry, and the observable consequence that the ten-step
 // orchestrator never runs — because the entry alone would not catch a command
@@ -150,7 +150,7 @@ func TestThemeExport_IsBootstrapExempt(t *testing.T) {
 // TestThemeExport_BuiltinBytesAreVerbatim: it writes a built-in's bytes
 // verbatim.
 //
-// §12.1: the output is the FILE's bytes, comments included — never a
+// The export contract: the output is the FILE's bytes, comments included — never a
 // re-serialisation of the parsed Theme, which would drop the attribution header
 // and the eyeball-pin derivation notes that are the only surviving record of a
 // judgement no test can re-derive.
@@ -186,10 +186,10 @@ func TestThemeExport_BuiltinBytesAreVerbatim(t *testing.T) {
 
 // TestThemeExport_DropInBytesAreVerbatim: it writes a drop-in's bytes verbatim.
 //
-// The slug domain is built-ins AND drop-ins (§12.1), which is what makes export
+// The slug domain is built-ins AND drop-ins, which is what makes export
 // a diagnosis tool — "show me the file Portal read" — rather than only an
 // on-ramp. The no-trailing-newline case is the one that catches a Fprintln-
-// shaped implementation: §12.1 needs no separate decision about the final
+// shaped implementation: the export contract needs no separate decision about the final
 // newline precisely because whatever the file holds is what is written.
 func TestThemeExport_DropInBytesAreVerbatim(t *testing.T) {
 	t.Run("with a trailing newline", func(t *testing.T) {
@@ -264,8 +264,8 @@ func themeKeyLines(t *testing.T) []string {
 //
 // It is derived from a built-in — the key lines reversed, a comment and a blank
 // line between each — so the fixture is guaranteed to parse and restates no hex
-// value in Go. Reversal is deliberate: §2.7 makes file ordering carry nothing,
-// so a re-serialising implementation would be free to emit its own order, and
+// value in Go. Reversal is deliberate: the file-ordering rule makes file ordering carry
+// nothing, so a re-serialising implementation would be free to emit its own order, and
 // this is the fixture that catches it doing so.
 func scrambledThemeSource(t *testing.T) []byte {
 	t.Helper()
@@ -283,7 +283,7 @@ func scrambledThemeSource(t *testing.T) []byte {
 
 // TestThemeExport_IsNotAReserialisation: it preserves comments and key order.
 //
-// §12.1's whole point: what is written is the SOURCE FILE, not a
+// The export contract's whole point: what is written is the SOURCE FILE, not a
 // re-serialisation of the parsed Theme. A re-serialisation would drop every
 // comment and impose its own key order — so a file that carries neither the
 // canonical order nor decoration-free content is the one that tells the two
@@ -308,8 +308,8 @@ func TestThemeExport_IsNotAReserialisation(t *testing.T) {
 // TestThemeExport_BuiltinNeverReadsThemesDirectory: it resolves the embedded
 // set before the themes directory.
 //
-// §8.4's ordering rule, which export is the fourth by-name resolver to inherit:
-// a slug naming a built-in resolves to the built-in and never reads the themes
+// The construction-time load rule's ordering rule, which export is the fourth by-name resolver
+// to inherit: a slug naming a built-in resolves to the built-in and never reads the themes
 // directory at all.
 //
 // Three subtests, each closing what the one before it leaves open. An
@@ -371,8 +371,8 @@ func TestThemeExport_BuiltinNeverReadsThemesDirectory(t *testing.T) {
 
 // TestThemeExport_ExactArgsOne: it takes exactly one slug.
 //
-// §12.1 fixes the arity at one, and an arity violation is deliberately OUTSIDE
-// §14A's four refusal frames — it is a Cobra usage error, inheriting Portal's
+// The export contract fixes the arity at one, and an arity violation is deliberately OUTSIDE
+// the pinned copy's four refusal frames — it is a Cobra usage error, inheriting Portal's
 // existing behaviour for arg-count errors. What matters here is that no output
 // is produced: a redirect must never capture a usage complaint into the file
 // the user is creating.
@@ -417,8 +417,8 @@ func TestThemeExport_ExactArgsOne(t *testing.T) {
 
 // TestThemeExport_EmitsNoThemeEvents: it emits no theme log events.
 //
-// §12.3: the `theme` component records where a theme is USED, never where one
-// is DIAGNOSED. Export is the user looking — its whole output is already the
+// The `theme` log component: the `theme` component records where a theme is USED, never where
+// one is DIAGNOSED. Export is the user looking — its whole output is already the
 // diagnostic on the screen they are reading — so the loader is handed
 // log.Discard() and nothing reaches the log on any path, success or refusal.
 //
@@ -520,8 +520,8 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 
 // TestThemeExport_ReadsNoPrefs: it never reads prefs.
 //
-// §10.5: export does not read prefs.json AT ALL. Its argument is a slug, so the
-// theme setting never enters — side-effect-freedom by construction rather than
+// The write-path ownership rule: export does not read prefs.json AT ALL. Its argument is a
+// slug, so the theme setting never enters — side-effect-freedom by construction rather than
 // by carve-out. Three independent proofs, because no one of them is sufficient
 // alone: an unreadable prefs.json that would surface as an error, a source scan
 // that catches a read whose error is swallowed, and a whole-tree fingerprint
@@ -666,7 +666,7 @@ func sourceBadColours(t *testing.T, overrides ...themeOverride) []byte {
 }
 
 // sourceDuplicateKeyAt is a `bad syntax` drop-in in which the line declaring key
-// is repeated on the given 1-based line, which §6.2's rung 4 refuses at that
+// is repeated on the given 1-based line, which the reason vocabulary's rung 4 refuses at that
 // SECOND occurrence — the one the user has to delete.
 //
 // Both halves of a caller's expectation are verified against the ASSEMBLED
@@ -750,7 +750,7 @@ func requireDeniedRead(t *testing.T, path string) error {
 	return err
 }
 
-// requireExportRefusal fails unless the run refused with EXACTLY §14A's pinned
+// requireExportRefusal fails unless the run refused with EXACTLY the pinned
 // frame and wrote nothing to stdout.
 //
 // Both halves are the contract. The frame is compared whole rather than by
@@ -778,7 +778,7 @@ func requireExportRefusal(t *testing.T, run themeExportRun, want string) {
 // classify has exactly four arms, so ruling out three pins the fourth: a
 // *bootstrap.FatalError exits 1 but suppresses stderr (Execute already printed
 // it), a silent-exit sentinel exits 1 printing nothing, and a *UsageError exits
-// 2. §12.1 fixes export's failure exit code at 1 for every class, with the
+// 2. The export contract fixes export's failure exit code at 1 for every class, with the
 // reason string on stderr doing the discriminating — so an export refusal must
 // be none of the three.
 func requireOrdinaryError(t *testing.T, err error) {
@@ -801,7 +801,7 @@ func requireOrdinaryError(t *testing.T, err error) {
 	}
 }
 
-// themeExportFailure is one of §14A's four refusal classes as a fixture: the
+// themeExportFailure is one of the pinned copy's four refusal classes as a fixture: the
 // state that provokes it, and the argument that reaches it.
 type themeExportFailure struct {
 	name string
@@ -840,9 +840,9 @@ func themeExportFailures() []themeExportFailure {
 // TestThemeExport_UnknownSlugFrame: it refuses an unknown slug with the pinned
 // frame.
 //
-// §14A: `no theme named <slug>`. The reason BEHIND the case is §6.2's `not
-// found`, but the label is deliberately not printed — the frame is a sentence
-// about the name the user typed, which is the thing they have to go and fix.
+// The pinned copy: `no theme named <slug>`. The reason BEHIND the case is the reason
+// vocabulary's `not found`, but the label is deliberately not printed — the frame is a
+// sentence about the name the user typed, which is the thing they have to go and fix.
 func TestThemeExport_UnknownSlugFrame(t *testing.T) {
 	t.Run("with an empty themes directory", func(t *testing.T) {
 		useThemesDir(t)
@@ -860,8 +860,8 @@ func TestThemeExport_UnknownSlugFrame(t *testing.T) {
 // TestThemeExport_InvalidDropInFrame: it refuses an invalid drop-in with its
 // reason.
 //
-// §14A: `theme <slug> is not valid: <reason>`, where the reason is §6.2's terse
-// label VERBATIM. The table is the three content reasons a by-name read can
+// The pinned copy: `theme <slug> is not valid: <reason>`, where the reason is the reason
+// vocabulary's terse label VERBATIM. The table is the three content reasons a by-name read can
 // reach, and each fixture is derived from a built-in so a wrong fixture surfaces
 // as the wrong reason in the message rather than passing quietly.
 func TestThemeExport_InvalidDropInFrame(t *testing.T) {
@@ -898,9 +898,9 @@ func TestThemeExport_InvalidDropInFrame(t *testing.T) {
 
 // TestThemeExport_BadNameFrame: it refuses a charset-failing slug as bad name.
 //
-// §14A: `theme <slug> is not valid: bad name`, NOT `no theme named <slug>` —
+// The pinned copy: `theme <slug> is not valid: bad name`, NOT `no theme named <slug>` —
 // telling a user their file is missing when they typed an illegal name sends
-// them looking in the wrong place (§12.1).
+// them looking in the wrong place.
 //
 // The arguments arrive after `--`. A bare `-nord` never reaches the command at
 // all: pflag claims it as a shorthand cluster and fails, which is Cobra's usage
@@ -930,7 +930,7 @@ func TestThemeExport_BadNameFrame(t *testing.T) {
 	// The sharp one: a themes directory nested one level down, with a valid
 	// theme sitting in its PARENT. If the argument were ever joined onto the
 	// directory, `../evil` would resolve to that file and its bytes would land
-	// on stdout — which is the traversal §5.2's charset rule exists to stop.
+	// on stdout — which is the traversal the slug charset rule exists to stop.
 	t.Run("no path is composed from the argument", func(t *testing.T) {
 		root := t.TempDir()
 		escaped := validThemeSource(t)
@@ -983,7 +983,7 @@ func TestThemeExport_BadNameFrame(t *testing.T) {
 // TestThemeExport_UnreadableFrame: it refuses an unreadable file or directory
 // with the OS error.
 //
-// §14A keeps this frame SEPARATE from `is not valid` on purpose: nothing was
+// The pinned copy keeps this frame SEPARATE from `is not valid` on purpose: nothing was
 // read, so "is not valid" would describe a judgement that was never made. The
 // expected OS error is obtained by performing the same read from the test, so
 // the assertion pins "verbatim" without hard-coding a platform's wording.
@@ -1001,10 +1001,10 @@ func TestThemeExport_UnreadableFrame(t *testing.T) {
 		requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
 	})
 
-	// A themes directory that cannot even be LOCATED lands in this same frame
-	// (§5.5): from the user's side it is the identical fact — the theme could
+	// A themes directory that cannot even be LOCATED lands in this same frame:
+	// from the user's side it is the identical fact — the theme could
 	// not be read, and here is the system's reason. Surfacing the resolution
-	// error raw instead would put a fifth, unpinned sentence on a surface §14A
+	// error raw instead would put a fifth, unpinned sentence on a surface the pinned copy
 	// closes at four, which is exactly what this subtest makes impossible.
 	//
 	// The expectation is derived from themesDirPath's own error rather than
@@ -1028,9 +1028,9 @@ func TestThemeExport_UnreadableFrame(t *testing.T) {
 // TestThemeExport_AbsentIsNotUnreadable: it distinguishes absent from
 // unreadable.
 //
-// §12.1's row, inherited from §5.5: `not found` sends the user to check the
-// filename, `unreadable` sends them to check permissions — and against a themes
-// directory they cannot read, permissions is the actual problem. Printing "no
+// The export contract's row, inherited from the directory-resolution rule: `not found` sends
+// the user to check the filename, `unreadable` sends them to check permissions — and against a
+// themes directory they cannot read, permissions is the actual problem. Printing "no
 // theme named nord-lee" about a file that plainly exists is the misdirection
 // this test exists to make impossible.
 //
@@ -1069,9 +1069,9 @@ func TestThemeExport_AbsentIsNotUnreadable(t *testing.T) {
 // TestThemeExport_ArgumentIsControlStripped: it control-strips the echoed
 // argument.
 //
-// §9.5 extends the prefs rule to the CLI argument, at the point export READS it
-// — export never reads prefs (§10.5), so it is not covered by that rule and
-// needs its own site. §14A echoes the argument back on stderr, and an argument
+// The row-rendering rule extends the prefs rule to the CLI argument, at the point export READS
+// it — export never reads prefs, so it is not covered by that rule and
+// needs its own site. The pinned copy echoes the argument back on stderr, and an argument
 // can carry a pasted escape exactly as a prefs value can.
 //
 // Both halves are asserted: the whole frame, so the stripped value is the one
@@ -1108,7 +1108,7 @@ func TestThemeExport_ArgumentIsControlStripped(t *testing.T) {
 
 // TestThemeExport_AllFailuresExitOne: it exits one for every failure class.
 //
-// §12.1: "Failure exit code: 1 for every failure class… the reason string on
+// The export contract: "Failure exit code: 1 for every failure class… the reason string on
 // stderr is what discriminates, and distinguishing unknown-slug from
 // invalid-file numerically buys nothing scriptable."
 func TestThemeExport_AllFailuresExitOne(t *testing.T) {
@@ -1161,8 +1161,8 @@ func TestThemeExport_StdoutIsEmptyOnFailure(t *testing.T) {
 // TestThemeExport_UsesSharedByNameResolver: it shares one resolver with
 // construction.
 //
-// §8.4's by-name ordering — charset check, embedded set, then the themes
-// directory — lives in ONE place, `theme.Loader.ResolveByName`, so export and
+// The construction-time load rule's by-name ordering — charset check, embedded set, then the
+// themes directory — lives in ONE place, `theme.Loader.ResolveByName`, so export and
 // TUI construction cannot drift about what a slug means. Export's inline
 // sequence was the second implementation, and a second implementation of an
 // ordering rule is a rule that will eventually be two rules.
@@ -1170,8 +1170,8 @@ func TestThemeExport_StdoutIsEmptyOnFailure(t *testing.T) {
 // Two halves, and both are needed. The structural one is the actual claim: cmd
 // composes no path, checks no charset and reaches neither loader entry point of
 // its own, so there is nothing left here to drift. The behavioural one is that
-// §14A's four frames are unchanged by the re-pointing — the shared resolver
-// returns §6.2 reasons, and every frame is still mapped from one.
+// the pinned copy's four frames are unchanged by the re-pointing — the shared resolver
+// returns the terse reasons, and every frame is still mapped from one.
 func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 	t.Run("the four §14A frames are unchanged", func(t *testing.T) {
 		t.Run("an unknown slug", func(t *testing.T) {
@@ -1260,15 +1260,15 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 // TestThemeExport_ReservedAndFilenameReasonsAreUnreachable: it can never report
 // reserved name or a filename bad name.
 //
-// Two of §6.2's reasons cannot arise on export's by-name path, and the
+// Two of the vocabulary's reasons cannot arise on export's by-name path, and the
 // impossibility is pinned rather than assumed — an unreachable arm is only
 // unreachable while the thing that makes it so still holds.
 //
 //   - `reserved name` is decided from a slug that collides with a built-in, and
-//     a built-in slug resolves to the BUILT-IN first (§8.4), so the file is never
+//     a built-in slug resolves to the BUILT-IN first, so the file is never
 //     opened and the rung is never reached.
 //   - A filename `bad name` is decided from the composed base name, which is
-//     always `<valid-slug>.theme` — the argument cleared §5.2's charset rule
+//     always `<valid-slug>.theme` — the argument cleared the slug charset rule
 //     before any path was composed, and the extension is a constant.
 func TestThemeExport_ReservedAndFilenameReasonsAreUnreachable(t *testing.T) {
 	t.Run("a colliding drop-in never reports reserved name", func(t *testing.T) {

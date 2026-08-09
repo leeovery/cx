@@ -9,8 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestBadges_ConstantIsBareDot pins §9.5's constant form: ONE slot, one entry,
-// and NO SLOT WORD — the badge the panel draws as a bare `●`.
+// TestBadges_ConstantIsBareDot pins the row-rendering rule's constant form: ONE slot, one
+// entry, and NO SLOT WORD — the badge the panel draws as a bare `●`.
 //
 // With no slots there is nothing to qualify, so a slot label would be redundant
 // with the marker itself. The entry is keyed on the constant's slug, which is
@@ -27,11 +27,11 @@ func TestBadges_ConstantIsBareDot(t *testing.T) {
 	}
 }
 
-// TestBadges_PairBadgesLightAndDark pins §9.5's adaptive form: each slot badges
-// its OWN nominated slug, on its own row, with its own slot word.
+// TestBadges_PairBadgesLightAndDark pins the row-rendering rule's adaptive form: each slot
+// badges its OWN nominated slug, on its own row, with its own slot word.
 //
 // Both badges are present at all times, which is what lets a user see what light
-// is set to without having to remember whether they ever set it (§9.5).
+// is set to without having to remember whether they ever set it.
 func TestBadges_PairBadgesLightAndDark(t *testing.T) {
 	slots := []theme.SlotResolution{
 		{Slot: theme.SlotLight, Requested: "tokyo-night-day", Resolved: "tokyo-night-day"},
@@ -46,7 +46,7 @@ func TestBadges_PairBadgesLightAndDark(t *testing.T) {
 	}
 }
 
-// TestBadges_SameSlugInBothSlotsIsBoth pins §9.5's collapse: when both slots
+// TestBadges_SameSlugInBothSlotsIsBoth pins the row-rendering rule's collapse: when both slots
 // name the SAME slug, that one row carries `● both` — a SINGLE entry, never two.
 //
 // It is reachable in two keypresses (`d` then `l` on one row) and is a likely
@@ -70,12 +70,12 @@ func TestBadges_SameSlugInBothSlotsIsBoth(t *testing.T) {
 	}
 }
 
-// TestBadges_FallbackDoesNotMoveTheBadge pins the second row of §9.5's table:
-// a slot that FELL BACK keeps its badge on the PERSISTED slug, and the
+// TestBadges_FallbackDoesNotMoveTheBadge pins the second row of the row-rendering rule's
+// table: a slot that FELL BACK keeps its badge on the PERSISTED slug, and the
 // fallback's own row carries NONE.
 //
-// This is §6.3's "falling back must never overwrite the persisted theme name"
-// held at the display layer. A badge on the fallback would sit on a theme the
+// This is the rejection-surface split's "falling back must never overwrite the persisted theme
+// name" held at the display layer. A badge on the fallback would sit on a theme the
 // user never chose and silently claim it as their choice — and because nothing
 // was written, nothing would look wrong.
 func TestBadges_FallbackDoesNotMoveTheBadge(t *testing.T) {
@@ -95,14 +95,14 @@ func TestBadges_FallbackDoesNotMoveTheBadge(t *testing.T) {
 	}
 }
 
-// TestBadges_UnsetSlotBadgesShippedDefault pins the third row of §9.5's table
-// over the MOST COMMON INSTALL: a virgin one, where §8.1 leaves prefs.json
-// absent entirely.
+// TestBadges_UnsetSlotBadgesShippedDefault pins the third row of the row-rendering rule's
+// table over the MOST COMMON INSTALL: a virgin one, where the on-disk prefs shape leaves
+// prefs.json absent entirely.
 //
-// It is the row that makes §9.4's justification for assembling the union true at
+// It is the row that makes the union rule's justification for assembling the union true at
 // all — "the `●` marker always has something to sit on" — because a
 // persisted-slug-only rule would show no marker anywhere on this install. It is
-// also the one place §9.9's inherited-default-versus-pin distinction is visible
+// also the one place the no-unset rule's inherited-default-versus-pin distinction is visible
 // to a user.
 //
 // The fixture runs the REAL read path (absent keys → the setting → the
@@ -125,8 +125,8 @@ func TestBadges_UnsetSlotBadgesShippedDefault(t *testing.T) {
 }
 
 // TestBadges_CharsetRejectedValueKeepsItsBadge pins the badge on a persisted
-// value §8.6 rejected before any file was sought: it sits on THAT RAW VALUE, so
-// it meets the union row task 8-1 keyed on the same string.
+// value the validate-before-use rule rejected before any file was sought: it sits on THAT RAW
+// VALUE, so it meets the union row keyed on the same string.
 //
 // The row and the badge are derived by two different paths from one persisted
 // value, and the value is the only thing either has to hold on to — it yields no
@@ -157,7 +157,7 @@ func TestBadges_CharsetRejectedValueKeepsItsBadge(t *testing.T) {
 	}
 }
 
-// TestBadges_KeyedOnRequestedNotResolved pins the single field §9.5's whole
+// TestBadges_KeyedOnRequestedNotResolved pins the single field the row-rendering rule's whole
 // three-row table reduces to, over a table where Requested and Resolved DIFFER
 // on every slot.
 //
@@ -228,7 +228,7 @@ func TestBadges_KeyedOnRequestedNotResolved(t *testing.T) {
 //
 // Totality matters because the panel recomputes badges on a keypress path: a
 // derivation that could panic on an unexpected slice would take the TUI down
-// mid-commit. Purity is what makes the commit path's recompute (Phase 9) a
+// mid-commit. Purity is what makes the commit path's recompute a
 // re-run of this function rather than a second, drifting derivation.
 //
 // The source half asserts the third property, which no input can demonstrate:
@@ -321,14 +321,14 @@ func badgeSource(t *testing.T) parsedThemeSource {
 // map by: its IDENTITY — the slug where one exists, else the filename, else the
 // raw persisted string.
 //
-// It is the same value SortKey derives from, and that is what makes task 8-1's
+// It is the same value SortKey derives from, and that is what makes the
 // charset-rejected persisted row — keyed on its raw string, having neither slug
 // nor file — match the badge keyed on the same string. A key derived any other
-// way would drop the badge on precisely the row §9.4 minted to carry it.
+// way would drop the badge on precisely the row the union rule minted to carry it.
 //
 // The rows are built directly rather than assembled through a loader, because
 // the claim is about the Row shape rather than about how one comes to exist
-// (§13.3 keeps Row an ordinary value for exactly this reason).
+// (the harness contract keeps Row an ordinary value for exactly this reason).
 func TestBadgeKey_MatchesRowIdentity(t *testing.T) {
 	tests := []struct {
 		name string
@@ -375,12 +375,12 @@ func TestBadgeKey_MatchesRowIdentity(t *testing.T) {
 // badge, and the collision it exists to exclude.
 //
 // A `reserved name` row's slug is IDENTICAL to the built-in's by definition
-// (§6.2) — that collision is the reason's entire content — so a bare identity
+// — that collision is the reason's entire content — so a bare identity
 // lookup would paint `●` on BOTH rows. And the rejected file is not what is
 // persisted: the persisted slug resolved to the BUILT-IN, which is the same
 // discrimination doctor's persisted line draws.
 //
-// This is the only place §9.4's one legitimate two-rows-for-one-slug case has an
+// This is the only place the union rule's one legitimate two-rows-for-one-slug case has an
 // observable consequence, so the exclusion is asserted end to end as well as on
 // the method: with `nord` persisted and a `nord.theme` drop-in present, EXACTLY
 // ONE of the union's rows matches the badge map.

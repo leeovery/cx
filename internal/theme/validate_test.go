@@ -31,8 +31,8 @@ func TestValidate_AcceptsNineteenWellFormedTokens(t *testing.T) {
 	}
 }
 
-// TestValidate_RejectsMalformedHexForms covers §4.3's value domain: exactly '#'
-// and six hex digits, and nothing else.
+// TestValidate_RejectsMalformedHexForms covers the hex-only value rule's value domain: exactly
+// '#' and six hex digits, and nothing else.
 //
 // The last four forms are the ones that make Portal own a validator at all —
 // lipgloss.Color never returns an error and accepts every one of them silently:
@@ -66,9 +66,9 @@ func TestValidate_RejectsMalformedHexForms(t *testing.T) {
 	}
 }
 
-// TestValidate_CanonicalisesHexToUppercase pins §4.3's canonical form. Two hex
-// comparison sites depend on it — the startup canvas hex retained for the
-// exit-time restore (§11.4) and background diffing (§11.3) — so a file written
+// TestValidate_CanonicalisesHexToUppercase pins the hex-only value rule's canonical form. Two
+// hex comparison sites depend on it — the startup canvas hex retained for the
+// exit-time restore and background diffing — so a file written
 // `#c0caf5` must not fail to match one written `#C0CAF5`.
 func TestValidate_CanonicalisesHexToUppercase(t *testing.T) {
 	lower := valued(pairsFrom(lowercaseHexForRow), "text.primary", "#c0caf5")
@@ -88,12 +88,12 @@ func TestValidate_CanonicalisesHexToUppercase(t *testing.T) {
 	}
 }
 
-// TestValidate_IgnoresUnknownKeyAndItsValue pins §4.6's forward-compatibility
+// TestValidate_IgnoresUnknownKeyAndItsValue pins the unknown-key rule's forward-compatibility
 // lever: an unknown key is ignored ENTIRELY, key and value both. Were a removed
 // token's stale line able to reject a file on its value, "old files keep
 // working" would hold only for values that happen to still be well-formed hex —
-// a far weaker guarantee than the one §4.4 states — so the value here is one no
-// hex validator would accept.
+// a far weaker guarantee than the one the file-contents rule states — so the value here is one
+// no hex validator would accept.
 func TestValidate_IgnoresUnknownKeyAndItsValue(t *testing.T) {
 	pairs := append(wellFormedPairs(), Pair{Key: "legacy.thing", Value: "nonsense", Line: 20})
 
@@ -106,7 +106,7 @@ func TestValidate_IgnoresUnknownKeyAndItsValue(t *testing.T) {
 	}
 }
 
-// TestValidate_WrongCaseKeyFailsAsMissingTokens pins §6.2's consequence of
+// TestValidate_WrongCaseKeyFailsAsMissingTokens pins the reason vocabulary's consequence of
 // case-sensitive matching: `Text.Primary` is an unknown key, so it is ignored
 // and the file fails on the token it did not declare. That reason is technically
 // accurate but capable of misdirecting, which is precisely why the detail names
@@ -170,10 +170,10 @@ func TestValidate_BadColourDetailEnumeratesEveryOffendingPair(t *testing.T) {
 // TestValidate_MissingTokensDetailEnumeratesEveryAbsentName is the presence
 // stage's half of the same contract, and pins the order the names come back in.
 // An absent token has no file position, so the ordering can only come from the
-// canonical table — §2.4 order, not alphabetical, which for this pair would
+// canonical table — canonical table order, not alphabetical, which for this pair would
 // invert them.
 //
-// The two names are §14A's own example, so the detail is the exact string the
+// The two names are the pinned copy's own example, so the detail is the exact string the
 // spec pins for it.
 func TestValidate_MissingTokensDetailEnumeratesEveryAbsentName(t *testing.T) {
 	declared := reversed(without(wellFormedPairs(), "text.primary", "bg.subtle"))
@@ -183,8 +183,8 @@ func TestValidate_MissingTokensDetailEnumeratesEveryAbsentName(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonMissingTokens, "missing text.primary, bg.subtle")
 }
 
-// TestValidate_BadColourPrecedesMissingTokens pins §6.2's ladder across the two
-// rungs this file owns: the presence check runs LAST, on a file whose every
+// TestValidate_BadColourPrecedesMissingTokens pins the reason vocabulary's ladder across the
+// two rungs this file owns: the presence check runs LAST, on a file whose every
 // known value is well-formed, so a file that is both bad-coloured and short of a
 // token is `bad colour` alone.
 //
@@ -198,13 +198,13 @@ func TestValidate_BadColourPrecedesMissingTokens(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonBadColour, "canvas = blue")
 }
 
-// wellFormedPairs returns one pair per §2.4 token, in table order, each carrying
+// wellFormedPairs returns one pair per canonical table token, in table order, each carrying
 // a distinct well-formed value — the lexer output of a file that validates.
 func wellFormedPairs() []Pair {
 	return pairsFrom(hexForRow)
 }
 
-// pairsFrom returns one pair per §2.4 token, in table order, valued by row.
+// pairsFrom returns one pair per canonical table token, in table order, valued by row.
 //
 // The names come from TokenNames() rather than a restatement: theme_test.go
 // holds the ONE deliberate restatement of the vocabulary, and this file
@@ -218,7 +218,7 @@ func pairsFrom(value func(row int) string) []Pair {
 	return pairs
 }
 
-// wantTokens renders the tokens wellFormedPairs() should produce, in §2.4 order.
+// wantTokens renders the tokens wellFormedPairs() should produce, in canonical table order.
 func wantTokens() []Token {
 	names := TokenNames()
 	tokens := make([]Token, 0, len(names))
@@ -228,7 +228,7 @@ func wantTokens() []Token {
 	return tokens
 }
 
-// hexForRow renders a distinct well-formed value for the given §2.4 row.
+// hexForRow renders a distinct well-formed value for the given canonical table row.
 func hexForRow(row int) string {
 	return fmt.Sprintf("#0000%02d", row)
 }
@@ -291,7 +291,7 @@ func without(pairs []Pair, keys ...string) []Pair {
 }
 
 // reversed returns pairs in the opposite file order, which for a set built from
-// the canonical table is an order no §2.4-driven enumeration could produce.
+// the canonical table is an order no canonical-table-driven enumeration could produce.
 func reversed(pairs []Pair) []Pair {
 	backwards := slices.Clone(pairs)
 	slices.Reverse(backwards)
@@ -329,7 +329,7 @@ func requireAccepted(t *testing.T, rejection *Rejection) {
 }
 
 // requireRejection fails the test unless the validator rejected the pairs with
-// the one expected reason and the complete §14A detail, which every caller
+// the one expected reason and the complete pinned-copy detail, which every caller
 // states literally rather than re-deriving from the implementation's format.
 //
 // It also pins the two invariants every rejection from here shares: no partial

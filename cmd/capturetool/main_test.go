@@ -24,7 +24,7 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestFlags_AreFixtureAndThemeOnly pins §13.3's flag surface: --appearance is
+// TestFlags_AreFixtureAndThemeOnly pins the harness contract's flag surface: --appearance is
 // REMOVED, not kept alongside --theme, and --theme defaults to the shipped dark
 // built-in.
 //
@@ -88,7 +88,7 @@ func registeredStringFlags(t *testing.T) map[string]string {
 // TestResolveTheme_DefaultsToTheShippedDarkBuiltin pins the built-in --theme
 // resolves to when the flag is omitted, and pins WHERE that value comes from.
 //
-// It is the shipped dark default (§13.3) and every capture taken without the flag
+// It is the shipped dark default and every capture taken without the flag
 // depends on it, so the constant is DERIVED from theme.DefaultDarkSlug rather
 // than restating its value: moving the shipped default has to move every
 // unflagged capture with it, not leave them rendering a palette the product no
@@ -147,8 +147,8 @@ func declaredConstSource(t *testing.T, name string) string {
 	return ""
 }
 
-// TestThemeArg_SlugVersusPath pins §13.3's discrimination rule: the argument is a
-// PATH if it carries a path separator OR ends in `.theme`, and a built-in SLUG
+// TestThemeArg_SlugVersusPath pins the harness contract's discrimination rule: the argument is
+// a PATH if it carries a path separator OR ends in `.theme`, and a built-in SLUG
 // otherwise.
 //
 // The separator half is the load-bearing one. Without it `./mytheme.txt` — a real
@@ -181,7 +181,7 @@ func TestThemeArg_SlugVersusPath(t *testing.T) {
 // hard error carrying the slug, never a silent fall back to some other palette.
 //
 // Rendering the wrong theme at a visual gate is precisely the failure this tool
-// exists to prevent (§13.3), so an unknown slug must render nothing at all.
+// exists to prevent, so an unknown slug must render nothing at all.
 func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
 	got, err := resolveTheme(theme.NewSilentLoader(), "not-a-theme", io.Discard)
 	if err == nil {
@@ -196,10 +196,10 @@ func TestResolveTheme_UnknownSlugIsAnError(t *testing.T) {
 }
 
 // TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback asserts a slug that DOES
-// name a built-in whose file fails validation is a hard error carrying the §6.2
+// name a built-in whose file fails validation is a hard error carrying the reason vocabulary
 // reason — again never a fallback.
 //
-// §7.6's build-time guarantee makes this unreachable through the shipped set, so
+// The build-time guarantee makes this unreachable through the shipped set, so
 // the rejection arrives through an injected loader rather than by breaking a
 // shipped file.
 func TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback(t *testing.T) {
@@ -220,7 +220,7 @@ func TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback(t *testing.T) {
 }
 
 // rejectingLoader is a theme loader that refuses every slug: each one is a known
-// built-in whose file the §6.2 ladder refused.
+// built-in whose file the reason vocabulary ladder refused.
 type rejectingLoader struct {
 	rejection *theme.Rejection
 }
@@ -231,9 +231,9 @@ func (l rejectingLoader) LoadBuiltin(string) (theme.Result, *theme.Rejection, bo
 	return theme.Result{}, l.rejection, true
 }
 
-// TestResolveTheme_PathContentReasonsAreHardErrors pins §13.3's contract for an
+// TestResolveTheme_PathContentReasonsAreHardErrors pins the harness contract for an
 // explicit path: ONLY the four content reasons apply, and each is a hard error
-// carrying its §6.2 reason rather than a fallback.
+// carrying its terse reason rather than a fallback.
 //
 // The files are staged and loaded for real — this is the one place the harness's
 // path branch meets the ladder, and a fake loader would prove only that the fake
@@ -297,7 +297,7 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 // above: NOTHING renders. Not the default theme, not the built-in the slug nearly
 // named — no model at all, on either branch of the harness.
 //
-// This is the failure the tool exists to prevent (§13.3): a visual gate whose
+// This is the failure the tool exists to prevent: a visual gate whose
 // whole job is judging colours cannot be handed a frame of some other palette,
 // and a silent fallback is indistinguishable from a correct capture to a reviewer.
 func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
@@ -341,13 +341,14 @@ func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
 // filename reasons on the path form: a fatal filename WARNS on stderr and renders
 // anyway.
 //
-// Warning rather than blocking is what the flag's stated purpose demands (§13.3):
+// Warning rather than blocking is what the flag's stated purpose demands:
 // this is the only visual-verification route a drop-in author has, so it is the
 // one place a fatal name is worth catching before the file reaches the themes
 // directory — and refusing to render would leave them with no route at all.
 //
-// Both §5.2 causes are covered, because both are `bad name` and both warn with the
-// one line — capturetool is not doctor, which is where §14A's per-cause lines live.
+// Both `bad name` causes are covered — an illegal stem and a wrong extension — and both warn
+// with the one line — capturetool is not doctor, which is where the pinned copy's per-cause
+// lines live.
 func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
 	tests := []struct {
 		name string
@@ -381,12 +382,12 @@ func TestResolveTheme_PathBadNameWarnsWithoutBlocking(t *testing.T) {
 // TestResolveTheme_PathReservedNameWarnsWithoutBlocking pins the second: a file
 // whose basename yields a BUILT-IN's slug warns and renders.
 //
-// The candidate slug exists solely to produce this line (§13.3) and is never used
+// The candidate slug exists solely to produce this line and is never used
 // as identity — the theme it names is still the one the file declared, and the
 // Result carries no slug at all.
 //
-// Blocking would break the workflow §12.1 publishes: `portal theme export` writes
-// a built-in out under its own name, so an exported theme IS a reserved slug right
+// Blocking would break the workflow the export contract publishes: `portal theme export`
+// writes a built-in out under its own name, so an exported theme IS a reserved slug right
 // up until the user renames it.
 func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	const base = "nord.theme"
@@ -417,7 +418,7 @@ func TestResolveTheme_PathReservedNameWarnsWithoutBlocking(t *testing.T) {
 	}
 }
 
-// TestResolveTheme_SlugFormNeverWarns pins the other half of §13.3's "path form
+// TestResolveTheme_SlugFormNeverWarns pins the other half of the harness contract's "path form
 // only": a SLUG argument names a built-in by design, so neither filename reason
 // applies to it.
 //
@@ -474,8 +475,8 @@ func TestResolveModel(t *testing.T) {
 	})
 }
 
-// TestResolveModel_PassesConstantNomination pins the shape §13.3 requires of every
-// tui.Build capture: the CONSTANT nomination, never an adaptive pair.
+// TestResolveModel_PassesConstantNomination pins the shape the harness contract requires of
+// every tui.Build capture: the CONSTANT nomination, never an adaptive pair.
 //
 // A constant is what makes a capture byte-deterministic — no OSC 11 detection, no
 // first-paint wait, the palette named on the command line and no other. Both
@@ -503,7 +504,7 @@ func TestResolveModel_PassesConstantNomination(t *testing.T) {
 	}
 }
 
-// TestResolveModel_NoColorWinsOverTheme pins the §2.5 carve-out's precedence on
+// TestResolveModel_NoColorWinsOverTheme pins the NO_COLOR carve-out's precedence on
 // the fixture path: NO_COLOR is read after the theme resolves and WINS over it,
 // because a colourless render has no canvas to select.
 //
@@ -547,7 +548,7 @@ func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
 	})
 }
 
-// TestResolveProgram_ThemeDrivesBothBranches pins §13.3's "one flag, both
+// TestResolveProgram_ThemeDrivesBothBranches pins the harness contract's "one flag, both
 // branches": the tui.Build fixture path and the standalone contrast-validation
 // swatch render the SAME resolved theme.
 //
@@ -585,8 +586,8 @@ func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
 // TestCaptureTool_ThemeResolutionIsSilent asserts resolving a theme writes
 // NOTHING to the log — through either branch, and on failure as well as success.
 //
-// capturetool is §12.3's fifth caller and neither uses nor diagnoses a theme —
-// it is an offline renderer whose output is a frame — so the loader is handed
+// capturetool is the `theme` log component's fifth caller and neither uses nor diagnoses a
+// theme — it is an offline renderer whose output is a frame — so the loader is handed
 // log.Discard and the `theme` component stays empty on this path. The stderr
 // warnings are not log records either: they go to the injected writer. The
 // positive control proves the assertion is not vacuous: a component logger

@@ -13,27 +13,27 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// §13.3's FIVE REMAINING panel surfaces, as frames.
+// The harness contract's FIVE REMAINING panel surfaces, as frames.
 //
-// Task 8-15 made the slide-over capturable and delivered the two SETTING-state
+// The slide-over became capturable with the two SETTING-state
 // frames. Five specified surfaces still had no way to be seen before release, and
-// §13.4's guard structurally cannot report their absence — it enumerates whatever
+// the completeness guard structurally cannot report their absence — it enumerates whatever
 // fixtures exist, so a missing one READS AS COVERAGE. Each of the five carries
 // something no other frame does:
 //
-//   - the INVALID row is the only place §9.5's four-element composition priority is
-//     observable at all, and the only place the reason can be watched losing its
+//   - the INVALID row is the only place the row-rendering rule's four-element composition
+//     priority is observable at all, and the only place the reason can be watched losing its
 //     slot to a badge;
 //   - the pinned `⚠ dir unreadable` row has its own placement rule, its own token
-//     and its own pinned copy, and §9.5 gives it NO OTHER WAY TO BE CHECKED;
-//   - the NARROW panel is the only observable check on §9.8's ladder between the
+//     and its own pinned copy, and the row-rendering rule gives it NO OTHER WAY TO BE CHECKED;
+//   - the NARROW panel is the only observable check on the geometry rule's ladder between the
 //     preferred and minimum widths;
-//   - the PAGINATING panel is §11.2's own coverage consequence — the dots render
-//     only when the panel's list overflows, so without a fixture carrying enough
-//     rows §13.4's guard is blind at exactly the `bubbles/list` instance the panel
+//   - the PAGINATING panel is the completeness risk's own coverage consequence — the dots
+//     render only when the panel's list overflows, so without a fixture carrying enough
+//     rows the completeness guard is blind at exactly the `bubbles/list` instance the panel
 //     adds;
-//   - the panel over PROJECTS exists because `t` is bound there (§9.6), Projects
-//     carries its own flash slot (§14A), and every other panel fixture is
+//   - the panel over PROJECTS exists because `t` is bound there, Projects
+//     carries its own flash slot, and every other panel fixture is
 //     implicitly Sessions-based.
 //
 // The assertions read the RENDERED frame rather than model internals, exactly as
@@ -54,13 +54,13 @@ func remainingPanelFixtureNames() []string {
 	}
 }
 
-// allPanelFixtureNames is every `theme-panel-*` fixture §13.3 specifies: the two
-// setting-state frames, the five that followed them, and the message-slot set —
+// allPanelFixtureNames is every `theme-panel-*` fixture the harness contract specifies: the
+// two setting-state frames, the five that followed them, and the message-slot set —
 // the slot-from-constant confirm, the failed-commit line and the panel at its
 // minimum height with a message live.
 //
-// The last three arrived separately because all three are COMMIT-PATH states
-// (§9.2, §9.13): until a commit key could write, the message slot had no setter
+// The last three arrived separately because all three are COMMIT-PATH states:
+// until a commit key could write, the message slot had no setter
 // and a fixture for any of them could only render a state nothing could reach.
 func allPanelFixtureNames() []string {
 	names := append(capturePanelFixtureNames(), remainingPanelFixtureNames()...)
@@ -75,7 +75,7 @@ func allPanelFixtureNames() []string {
 // comment records the count its pixel size resolves to, and these constants are
 // the same numbers on the Go side.
 const (
-	// narrowPanelTermWidth lands the panel in §9.8's DEGRADED BAND. The ladder is
+	// narrowPanelTermWidth lands the panel in the geometry rule's DEGRADED BAND. The ladder is
 	// `min(max(contentW/2, minimum), preferred)` against a content region of
 	// termW − 2·tui.Hinset, so 64 columns gives 60 content columns and a 30-column
 	// panel — strictly inside the band, which is the only thing this frame exists
@@ -135,9 +135,9 @@ func panelLineWith(t *testing.T, frame, want string) (index int, raw string) {
 // lookup, matching on the first field after the optional cursor bar rather than on
 // a substring.
 //
-// THE UNIQUENESS IS AN ASSERTION, not a convenience. §9.5's row invariant is that a
-// row NEVER WRAPS — every list row is exactly one delegate line, which is what
-// `bubbles/list` pagination, the invalid-row skip and §9.8's paging all rest on —
+// THE UNIQUENESS IS AN ASSERTION, not a convenience. The row-rendering rule's row invariant is
+// that a row NEVER WRAPS — every list row is exactly one delegate line, which is what
+// `bubbles/list` pagination, the invalid-row skip and the geometry rule's paging all rest on —
 // so a label found on two lines is that invariant broken.
 func panelRowLine(t *testing.T, frame, label string) (index int, raw string) {
 	t.Helper()
@@ -186,8 +186,8 @@ func fgSeq(t *testing.T, tok theme.Token) string {
 }
 
 // panelOuterWidth measures the slide-over's OUTER width off a rendered frame —
-// the value §9.8's ladder chose, recovered from the one thing a frame shows: where
-// the left border falls.
+// the value the geometry rule's ladder chose, recovered from the one thing a frame shows:
+// where the left border falls.
 //
 // overlayThemePanel places the panel at the RIGHT edge of the content region, and
 // the content region sits tui.Hinset cells in from the terminal's own edge, so the
@@ -209,9 +209,9 @@ func panelOuterWidth(t *testing.T, frame string, termW int) int {
 // TestPanelFixture_InvalidRowFrame: it renders the invalid-row composition
 // priority.
 //
-// §13.3 mandates an invalid-theme row, and this frame is the ONLY place §9.5's
-// four-element priority is observable at all. The three rows it carries are the
-// three things that priority decides: a reason that FITS, a reason DROPPED by a
+// The harness contract mandates an invalid-theme row, and this frame is the ONLY place the
+// row-rendering rule's four-element priority is observable at all. The three rows it carries
+// are the three things that priority decides: a reason that FITS, a reason DROPPED by a
 // badge competing for the same right edge, and a label long enough to be
 // truncated.
 func TestPanelFixture_InvalidRowFrame(t *testing.T) {
@@ -223,7 +223,7 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 		if got, want := rows["aurora-glow"].badge, "⚠ bad syntax"; got != want {
 			t.Errorf("the aurora-glow row's trailing elements = %q, want %q", got, want)
 		}
-		// panelRowLine fatals on a second line, which IS §9.5's one-delegate-line
+		// panelRowLine fatals on a second line, which IS the row-rendering rule's one-delegate-line
 		// invariant: an invalid row never wraps.
 		_, line := panelRowLine(t, frame, "aurora-glow")
 		if !strings.Contains(ansi.Strip(line), "bad syntax") {
@@ -252,8 +252,8 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 
 	t.Run("the over-long label is truncated with an ellipsis", func(t *testing.T) {
 		visible := ansi.Strip(frame)
-		// The exact cut: the label flexes to what §9.5's fixed columns leave, which
-		// at the preferred width is 28 cells — 27 visible characters plus the
+		// The exact cut: the label flexes to what the row-rendering rule's fixed columns leave,
+		// which at the preferred width is 28 cells — 27 visible characters plus the
 		// ellipsis, since ansi.Truncate counts the tail inside the width it is given.
 		if !strings.Contains(visible, "My Gorgeous Midnight Palett…") {
 			t.Errorf("the over-long `bad name` label is not truncated to the panel's budget:\n%s", visible)
@@ -278,9 +278,9 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 // TestPanelFixture_InvalidPersistedRowDropsTheReason: it drops the reason when a
 // badge competes.
 //
-// §9.5 makes the reason THE FIRST ELEMENT DROPPED, and the badge outranking it is
-// the one half of that rule no other frame can show: `⚠` still says the row is
-// invalid and doctor says why, which is exactly the split §6.3 draws.
+// The row-rendering rule makes the reason THE FIRST ELEMENT DROPPED, and the badge outranking
+// it is the one half of that rule no other frame can show: `⚠` still says the row is
+// invalid and doctor says why, which is exactly the split the rejection-surface split draws.
 //
 // It is asserted as a PAIR, over one frame, because either half alone is
 // worthless. "`bad colour` renders nowhere" passes just as readily on a panel that
@@ -300,8 +300,8 @@ func TestPanelFixture_InvalidPersistedRowDropsTheReason(t *testing.T) {
 // TestPanelFixture_DirUnreadableIsChromeOnPageTwo: it pins the directory row on
 // page two.
 //
-// §9.5: the `⚠ dir unreadable` row is "chrome pinned to the viewport directly
-// beneath the header, NOT a list row… a list row participates in pagination, so
+// The row-rendering rule: the `⚠ dir unreadable` row is "chrome pinned to the viewport
+// directly beneath the header, NOT a list row… a list row participates in pagination, so
 // the warning would vanish the moment the user paged down".
 //
 // THE FRAME IS TAKEN ON PAGE 2 FOR THAT REASON ALONE. A page-1 capture is
@@ -337,7 +337,7 @@ func TestPanelFixture_DirUnreadableIsChromeOnPageTwo(t *testing.T) {
 
 // TestPanelFixture_RowsBeneathDirRow: it renders rows beneath the directory row.
 //
-// §9.5: "built-in rows and persisted-slug rows still render beneath it — the
+// The row-rendering rule: "built-in rows and persisted-slug rows still render beneath it — the
 // PERSISTED ROWS ESPECIALLY, or a user with an unreadable directory loses the `●`
 // entirely."
 //
@@ -364,7 +364,7 @@ func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 // TestPanelFixture_NarrowIsBetweenMinAndPreferred: it renders in the degraded
 // width band.
 //
-// §9.8's ladder is a STAGED shrink — the panel takes half the content region,
+// The geometry rule's ladder is a STAGED shrink — the panel takes half the content region,
 // clamped to the two ends — and this frame is its ONLY observable check: the two
 // setting-state frames render at the preferred width, and nothing else exercises
 // the band between.
@@ -390,8 +390,8 @@ func TestPanelFixture_NarrowIsBetweenMinAndPreferred(t *testing.T) {
 		t.Errorf("at %d columns the panel renders %d wide, want strictly between the minimum %d and the preferred %d", narrowPanelTermWidth, got, minimum, preferred)
 	}
 
-	// §9.5's one-delegate-line invariant, restated at the degraded width because
-	// that is where a composition budget miscount would first show: every row still
+	// The row-rendering rule's one-delegate-line invariant, restated at the degraded width
+	// because that is where a composition budget miscount would first show: every row still
 	// renders on exactly one line (panelRowLine fatals on a second).
 	t.Run("every row still renders on exactly one line", func(t *testing.T) {
 		for _, slug := range panelUnionSlugs() {
@@ -412,9 +412,9 @@ func TestPanelFixture_NarrowIsBetweenMinAndPreferred(t *testing.T) {
 
 // TestPanelFixture_PaginatedDrawsDots: it paginates and draws the dots.
 //
-// §11.2's own coverage consequence: "pagination dots only render when the panel's
-// list paginates, so one of §13.3's panel fixtures must carry enough theme rows to
-// overflow. OTHERWISE THE GUARD IS BLIND at exactly the new site this paragraph
+// The completeness risk's own coverage consequence: "pagination dots only render when the
+// panel's list paginates, so one of the harness contract's panel fixtures must carry enough
+// theme rows to overflow. OTHERWISE THE GUARD IS BLIND at exactly the new site this paragraph
 // adds." The dots are the exemplar of the cached-style class — `bubbles/list` reads
 // their STRINGS out of the styles once at construction — so a restyle that failed
 // to re-feed the paginator would render the library's hardcoded greys under every
@@ -452,7 +452,7 @@ func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
 
 // paginationDot is the glyph `bubbles/list` draws its paginator with. It is a
 // literal because internal/tui keeps its own copy unexported; it is deliberately
-// NOT the `●` of §9.5's badge, which is what lets a scan tell the two apart.
+// NOT the `●` of the row-rendering rule's badge, which is what lets a scan tell the two apart.
 const paginationDot = "•"
 
 // panelCarriesDots reports whether any panel line carries the paginator glyph.
@@ -468,11 +468,12 @@ func panelCarriesDots(frame string) bool {
 
 // TestPanelFixture_OverProjects: it renders over the Projects page.
 //
-// §9.6 binds `t` on Projects because theme is a GLOBAL setting, and §14A gave that
-// page its own transient-flash slot for the panel's six signals — yet every other
-// panel fixture is implicitly Sessions-based, which is why §13.3 requires this one.
+// The panel-open rule binds `t` on Projects because theme is a GLOBAL setting, and the pinned
+// copy gave that page its own transient-flash slot for the panel's six signals — yet every
+// other panel fixture is implicitly Sessions-based, which is why the harness contract requires
+// this one.
 //
-// It also renders §9.1's ACCEPTED COST where it is most visible: the overlay cuts
+// It also renders the panel layout's ACCEPTED COST where it is most visible: the overlay cuts
 // wherever its left border falls, mid-label included. That is asserted by diffing
 // against the SAME page rendered without the panel, so the claim is "the overlay
 // cut it" rather than "some footer text is missing".
@@ -506,7 +507,7 @@ func TestPanelFixture_OverProjects(t *testing.T) {
 		}
 	})
 
-	// §9.1's accepted cost: the overlay cuts the page's footer WHEREVER ITS BORDER
+	// The panel layout's accepted cost: the overlay cuts the page's footer WHEREVER ITS BORDER
 	// FALLS, because the page beneath is composed at the unreduced content width and
 	// deliberately not re-laid-out. What that removes here is the right-aligned
 	// `? help`; on the Sessions frames the same cut lands mid-entry instead. Which
@@ -549,14 +550,14 @@ func footerLine(t *testing.T, visible string) string {
 // TestPanelFixture_AllRegistered: it registers all five in both lists.
 //
 // FixtureByName's switch and FixtureNames()'s slice are two hand-maintained lists,
-// and a fixture present in one and absent from the other is INVISIBLE to §13.4's
-// enumerating guard — it exists, it renders, and nothing ever swaps it. Absence
-// reads as coverage, which is the shape task 4-3's drift check exists to close;
+// and a fixture present in one and absent from the other is INVISIBLE to the
+// enumerating completeness guard — it exists, it renders, and nothing ever swaps it. Absence
+// reads as coverage, which is the shape the fixture drift check exists to close;
 // this states the same claim for the five by name, so a half-registration fails
 // here with the fixture named.
 //
-// The third leg is the one that matters most for §11.2: the guard NEVER NAMES A
-// FIXTURE, so what is worth pinning is that these five arrive in the set its
+// The third leg is the one that matters most for the completeness risk: the guard NEVER NAMES
+// A FIXTURE, so what is worth pinning is that these five arrive in the set its
 // assertions range over with no edit to the guard itself.
 func TestPanelFixture_AllRegistered(t *testing.T) {
 	guarded := make([]string, 0, len(capture.FixtureNames()))
@@ -582,10 +583,10 @@ func TestPanelFixture_AllRegistered(t *testing.T) {
 // TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet: it registers exactly the
 // specified panel fixtures.
 //
-// §13.3 names the panel surfaces that must be visible before release, and a
+// The harness contract names the panel surfaces that must be visible before release, and a
 // registry holding MORE than them is as much a problem as one holding fewer: an
 // unnamed extra `theme-panel-*` fixture is a frame nobody specified, driven by
-// §13.4's guard and reviewed by no one against anything.
+// the completeness guard and reviewed by no one against anything.
 //
 // It is stated as an EXACT SET rather than as a list of required names, which is
 // what lets it name a surplus. The cost is that a task adding a specified frame

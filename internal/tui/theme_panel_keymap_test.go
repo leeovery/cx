@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// The §9.12 panel-scope gate. These tests lock the theme panel's keymap scope as a
-// COMPLETE six-entry descriptor — the four commits marked Core (what the vertical
-// footer renders) plus arrows and paging as non-core (what makes the scope complete
-// for Phase 9's dispatch guard) — and prove the scope does not leak into either
+// The descriptor-governed keymap rule panel-scope gate. These tests lock the theme panel's
+// keymap scope as a COMPLETE six-entry descriptor — the four commits marked Core (what the
+// vertical footer renders) plus arrows and paging as non-core (what makes the scope complete
+// for the dispatch guard) — and prove the scope does not leak into either
 // main-screen footer or either page's help body.
 //
 // Pure data, no rendering (mirrors TestSessionsKeymap / TestProjectsKeymap); the
@@ -17,15 +17,15 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// TestThemePanelKeymap_CarriesAllSixKeys locks the §9.12 panel scope: ALL SIX keys
-// the panel dispatches — `↑↓`, `^↑/↓`, `⏎`, `d`, `l`, `esc` — in the declared
-// order, with the §14A copy on the four commits.
+// TestThemePanelKeymap_CarriesAllSixKeys locks the descriptor-governed keymap's panel scope:
+// ALL SIX keys the panel dispatches — `↑↓`, `^↑/↓`, `⏎`, `d`, `l`, `esc` — in the declared
+// order, with the pinned copy on the four commits.
 //
 // Completeness is the point rather than a nicety: `keymap_dispatch_guard_test`'s
-// contract is descriptor↔dispatch PARITY (Phase 9 extends it to this scope), so a
+// contract is descriptor↔dispatch PARITY (which extends to this scope), so a
 // scope authored as just the four visible keys is precisely what BREAKS the guard.
 // The scope also carries NO RightAligned entry (a vertical footer has no right
-// anchor) and NO `?` entry (§9.12: `?` does nothing inside the panel — there is no
+// anchor) and NO `?` entry (`?` does nothing inside the panel — there is no
 // panel help modal).
 func TestThemePanelKeymap_CarriesAllSixKeys(t *testing.T) {
 	entries := themePanelKeymap()
@@ -61,12 +61,12 @@ func TestThemePanelKeymap_CarriesAllSixKeys(t *testing.T) {
 	})
 }
 
-// TestThemePanelKeymap_CoreIsTheFourCommits pins the §9.12 Core split from the
-// other side: Core is EXACTLY the four commit/close keys the vertical footer
+// TestThemePanelKeymap_CoreIsTheFourCommits pins the descriptor-governed keymap's Core split
+// from the other side: Core is EXACTLY the four commit/close keys the vertical footer
 // renders, and arrows and paging are non-core.
 //
 // It is the invariant the footer's four pinned rows rest on. Marking a fifth entry
-// Core would silently grow §14A's four-row footer (and task 8-11's height floor
+// Core would silently grow the pinned copy's four-row footer (and the panel's height floor
 // with it); un-marking one would drop a commit the user has no other affordance
 // for, since there is no panel help modal to recover it from.
 func TestThemePanelKeymap_CoreIsTheFourCommits(t *testing.T) {
@@ -91,13 +91,13 @@ func TestThemePanelKeymap_CoreIsTheFourCommits(t *testing.T) {
 
 // TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces proves containment: the panel
 // scope reaches the panel's own vertical footer and NOTHING else. Neither
-// main-screen footer nor either page's help body gains an entry (§9.12 — the panel
+// main-screen footer nor either page's help body gains an entry (the panel
 // is a scope beside the page descriptors, not an addition to them).
 //
 // The two page descriptors are pinned entry-by-entry by TestSessionsKeymap and
 // TestProjectsKeymap, which this task leaves untouched; what those cannot see is
 // the RENDERED direction, so this test walks the four page surfaces the scope
-// could leak into and asserts none of §14A's panel copy appears in any of them.
+// could leak into and asserts none of the pinned copy's panel copy appears in any of them.
 func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	th := testDarkTheme(t)
 	panelCore := coreEntriesOf(themePanelKeymap())
@@ -126,7 +126,7 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	})
 
 	t.Run("no panel copy reaches either footer or either help body", func(t *testing.T) {
-		// §14A's three commit strings verbatim, plus each Core entry's help phrase
+		// The pinned copy's three commit strings verbatim, plus each Core entry's help phrase
 		// and its rendered `<glyph> <label>` row — the forms the copy could arrive in.
 		needles := []string{"set theme", "set as dark", "set as light"}
 		for _, e := range panelCore {
@@ -157,16 +157,17 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 
 // TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces: its scope does not leak.
 //
-// §9.2's nested confirm scope is a SECOND scope beneath the panel's, not a longer
+// The picker idiom's nested confirm scope is a SECOND scope beneath the panel's, not a longer
 // first one, so its containment is a claim of its own: `y confirm` / `n cancel`
 // reach the panel's SUBSTITUTED footer and nothing else. Neither main-screen footer
 // nor either page's help body gains an entry, and — the half the panel scope's own
 // test cannot make — neither does the panel's STANDING footer, which is the surface
 // the confirm's rows temporarily replace rather than join.
 //
-// It also pins the two structural absences §9.12's reasoning gives the panel scope
-// and which apply here verbatim: no RightAligned entry, because a VERTICAL footer
-// has no right anchor, and no `?` entry, because `?` does nothing inside the panel.
+// It also pins the two structural absences the descriptor-governed keymap rule's reasoning
+// gives the panel scope and which apply here verbatim: no RightAligned entry, because a
+// VERTICAL footer has no right anchor, and no `?` entry, because `?` does nothing inside the
+// panel.
 func TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	th := testDarkTheme(t)
 	confirm := themePanelConfirmKeymap()

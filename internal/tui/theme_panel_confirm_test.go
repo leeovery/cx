@@ -13,13 +13,13 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// §9.2's SLOT-FROM-CONSTANT CONFIRM: the one gate in the panel, and the only place
+// The picker idiom's SLOT-FROM-CONSTANT CONFIRM: the one gate in the panel, and the only place
 // a keypress the user was told is inert can silently cost them a setting they
 // chose.
 //
 // On `"theme": "nord"`, pressing `l` clears the constant, the untouched dark slot
 // falls back to the shipped default, and `Esc` in a dark terminal lands on
-// `tokyo-night` rather than `nord`. §9.2 puts a confirm in front of exactly that,
+// `tokyo-night` rather than `nord`. The picker idiom puts a confirm in front of exactly that,
 // and three of its properties are what make the tests below more than a yes/no
 // prompt:
 //
@@ -29,11 +29,11 @@ import (
 //     three answers and `Ctrl-C` is swallowed, and the swallow table below carries
 //     a POSITIVE CONTROL per key: a key that does nothing anyway proves nothing.
 //   - `Esc` CANCELS RATHER THAN CLOSES. The innermost thing resolves first, the
-//     same nesting rule the panel already applies over multi-select (§9.7), so the
+//     same nesting rule the panel already applies over multi-select, so the
 //     assertion is made against the CLOSE path's own observable effects rather than
 //     against the `open` flag alone.
 //   - NOTHING IS WRITTEN UNTIL `y`. A cancel leaves the preview, the cursor, the
-//     badges and the row set exactly as they were, and a forced close (§9.8) drops
+//     badges and the row set exactly as they were, and a forced close drops
 //     the question with no partial state behind it.
 //
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
@@ -49,7 +49,7 @@ import (
 // the same keypress reports that same base rune with shift on the modifier parameter
 // and the text repopulated to "Y". confirmYesShift/confirmNoShift are therefore what a
 // terminal ACTUALLY sends for `Y`/`N` — and why a matcher requiring `Mod == 0` would
-// leave §9.2's uppercase answer dead on EVERY terminal, not on a subset of them.
+// leave the picker idiom's uppercase answer dead on EVERY terminal, not on a subset of them.
 //
 // confirmYesUpper/confirmNoUpper ARE THE DEFENSIVE `Mod == 0` SHAPE, not a second
 // terminal encoding: no path in this stack hands the dispatch an uppercase Code with
@@ -59,8 +59,8 @@ import (
 //
 // CAPS LOCK IS THE OTHER ENCODING OF THAT SAME ANSWER. The Kitty decoder reports it
 // as the base rune carrying ModCapsLock with the shifted text, so a matcher
-// forgiving shift ALONE rejects a caps-lock user's `y` — §9.2's answer key, dead for
-// the one class of user most likely to be typing capitals.
+// forgiving shift ALONE rejects a caps-lock user's `y` — the picker idiom's answer key, dead
+// for the one class of user most likely to be typing capitals.
 //
 // NUM LOCK RIDES ALONG ON A PLAIN LOWERCASE `y`. It is not another encoding of the
 // uppercase answer — it is the ordinary one, wearing a modifier the decoder strips
@@ -170,7 +170,7 @@ func pressConfirmKey(t *testing.T, m Model, press tea.KeyPressMsg) (Model, tea.C
 	return updated.(Model), cmd
 }
 
-// requireConfirmLive fails unless the panel is holding §9.2's confirm for the
+// requireConfirmLive fails unless the panel is holding the picker idiom's confirm for the
 // pending assignment: the message slot naming the PERSISTED constant, the pending
 // slug and typed slot recorded, and the panel still open.
 func requireConfirmLive(t *testing.T, m Model, pending themeSlotConfirm) {
@@ -202,7 +202,7 @@ func requireConfirmResolved(t *testing.T, m Model) {
 // requireConfirmGone fails unless the confirm itself is gone — the question and the
 // pending assignment, which are raised and cleared as one act.
 //
-// It is separate from requireConfirmResolved because §9.13's failed-commit line
+// It is separate from requireConfirmResolved because the failed-commit line
 // legitimately takes the slot the question vacated: the confirm is resolved there
 // too, and asserting an EMPTY slot would read that report as a confirm still
 // standing.
@@ -228,17 +228,17 @@ func slotConfirmPanelText(m Model) string {
 
 // slotConfirmPanelCopy reduces the whole rendered panel to one whitespace-collapsed
 // reading, so a footer row's fixed key column and pad-to-width collapse away and
-// §14A's pinned phrases can be matched verbatim (themePanelFooterCopy's rule
+// the pinned phrases can be matched verbatim (themePanelFooterCopy's rule
 // applied to the block).
 func slotConfirmPanelCopy(m Model) string {
 	return themePanelFooterCopy(slotConfirmPanelText(m))
 }
 
-// requireConfirmFooter fails unless the panel is rendering §9.2's NESTED CONFIRM
+// requireConfirmFooter fails unless the panel is rendering the picker idiom's NESTED CONFIRM
 // SCOPE — `y confirm` / `n cancel` — and none of the standing scope's four rows.
 //
 // The standing footer advertises four keys of which NONE would act during a
-// confirm, and §14.3 is firm that advertising a key that will not act is the dead
+// confirm, and the footer rule is firm that advertising a key that will not act is the dead
 // end a proactive block exists to prevent.
 func requireConfirmFooter(t *testing.T, m Model) {
 	t.Helper()
@@ -256,7 +256,7 @@ func requireConfirmFooter(t *testing.T, m Model) {
 	}
 }
 
-// requireStandingFooter fails unless the panel is back on §14A's four-row footer
+// requireStandingFooter fails unless the panel is back on the pinned copy's four-row footer
 // with no trace of the confirm's substituted rows.
 func requireStandingFooter(t *testing.T, m Model) {
 	t.Helper()
@@ -276,7 +276,7 @@ func requireStandingFooter(t *testing.T, m Model) {
 
 // TestSlotConfirm_RaisedByDAndLOverAConstant: it raises the confirm on a constant.
 //
-// §9.2: "**Assigning a slot while a constant is set asks for confirmation
+// The picker idiom: "**Assigning a slot while a constant is set asks for confirmation
 // first.** This is the one place a keypress described as inert can silently cost
 // the user a setting they chose." So the keypress writes NOTHING, records what it
 // would write, names the constant it would clear, and swaps the footer to the
@@ -322,16 +322,16 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 // TestSlotConfirm_UnselectableRowAsksNothing: it asks nothing on a non-selectable
 // row.
 //
-// The same DEFENSIVE guard `Enter` carries (task 9-2), at the site where it decides
+// The same DEFENSIVE guard `Enter` carries, at the site where it decides
 // the most: the slug the raise records is what a question the user has ALREADY
 // ANSWERED goes on to write. An unguarded raise here would ask "clear constant X?"
 // about an empty slug and, on `y`, clear the constant AND write an empty slot value
-// — the silent loss §9.2's confirm exists to prevent, arrived at THROUGH the
+// — the silent loss the picker idiom's confirm exists to prevent, arrived at THROUGH the
 // confirm.
 //
 // STRUCTURALLY UNREACHABLE, exactly as it is for `Enter`: the arrows skip
-// unselectable rows (task 8-9) and the open-time anchor lands on a selectable one
-// (task 8-8). The cursor is therefore placed DIRECTLY, bypassing both.
+// unselectable rows and the open-time anchor lands on a selectable one.
+// The cursor is therefore placed DIRECTLY, bypassing both.
 func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 	// requireNothingAsked fails unless the keypress left NO question on screen and
 	// nothing pending for a later `y` to write.
@@ -396,8 +396,8 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 
 // TestSlotConfirm_ConfirmsOnEitherCase: it commits on y and Y.
 //
-// §9.2: "`y` or `Y` confirms — the constant is cleared and the slot written, in one
-// atomic prefs write." Both cases are asserted, and the uppercase one in every shape
+// The picker idiom: "`y` or `Y` confirms — the constant is cleared and the slot written, in
+// one atomic prefs write." Both cases are asserted, and the uppercase one in every shape
 // that can reach the dispatch (see the press vars): the ModShift shape BOTH terminal
 // paths converge on, the caps-lock shape — dead on a matcher forgiving shift alone,
 // for the very users most likely to be typing capitals — and the bare `Mod == 0`
@@ -435,7 +435,7 @@ func TestSlotConfirm_ConfirmsOnEitherCase(t *testing.T) {
 
 // TestSlotConfirm_CancelsOnThreeInputs: it cancels on n, N and Esc.
 //
-// §9.2: "`n`, `N` or `Esc` cancels, leaving the panel open and nothing written."
+// The picker idiom: "`n`, `N` or `Esc` cancels, leaving the panel open and nothing written."
 // The uppercase shapes ride along for the same reason `Y`'s do — confirmNoShift is
 // what a terminal sends, confirmNoUpper the defensive `Mod == 0` pin on EqualFold.
 func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
@@ -472,14 +472,14 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 
 // TestSlotConfirm_EscCancelsNotCloses: it does not close the panel on Esc.
 //
-// §9.2: "`Esc` cancels the confirm rather than closing the panel, because the
-// innermost thing resolves first — the same nesting rule §9.7 applies to the panel
-// over multi-select."
+// The picker idiom: "`Esc` cancels the confirm rather than closing the panel, because the
+// innermost thing resolves first — the same nesting rule the entry-condition rule applies to
+// the panel over multi-select."
 //
 // The `open` flag alone is a weak statement (a close that reopened would satisfy
-// it), so this is asserted against the CLOSE path's own observable effects: §5.8's
-// retained enumeration, the union, the badge table, the sized list — and the
-// PREVIEW, which the close discards in favour of the resolved persisted state. The
+// it), so this is asserted against the CLOSE path's own observable effects: the
+// re-read-on-open rule's retained enumeration, the union, the badge table, the sized list —
+// and the PREVIEW, which the close discards in favour of the resolved persisted state. The
 // enumeration is still retained, so the next `Esc` does the close it did not do.
 func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	dir := t.TempDir()
@@ -533,8 +533,8 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 
 // TestSlotConfirm_CtrlCQuits: it keeps Ctrl-C live.
 //
-// §9.2: "`Ctrl-C` quits Portal, per §9.7. It is not a cancel; it stays live
-// everywhere" — swallowing it would take away the user's exit key inside a
+// The picker idiom: "`Ctrl-C` quits Portal, per the entry-condition rule. It is not a cancel;
+// it stays live everywhere" — swallowing it would take away the user's exit key inside a
 // settings surface. It is also not a write: the question was never answered.
 func TestSlotConfirm_CtrlCQuits(t *testing.T) {
 	m, persister := newSlotConfirmModel(t)
@@ -555,12 +555,12 @@ func TestSlotConfirm_CtrlCQuits(t *testing.T) {
 
 // TestSlotConfirm_SwallowsEverythingElse: it swallows every other key.
 //
-// §9.2: "Every other key is swallowed — arrows, `Enter`, the other slot key, all of
-// it. The confirm persists until one of the three above resolves it."
+// The picker idiom: "Every other key is swallowed — arrows, `Enter`, the other slot key, all
+// of it. The confirm persists until one of the three above resolves it."
 //
 // EVERY ROW CARRIES A POSITIVE CONTROL, because a key that does nothing anyway
-// proves nothing about a swallow: the panel already swallows the page's own keys
-// (§9.7), so `k`, `x`, `m`, `/` and `?` are driven with the panel CLOSED and the
+// proves nothing about a swallow: the panel already swallows the page's own keys,
+// so `k`, `x`, `m`, `/` and `?` are driven with the panel CLOSED and the
 // panel's own keys with it OPEN and no confirm live. What is asserted of the live
 // case is the whole frame, byte for byte, plus the confirm still standing — any
 // effect a key could have had is a change to one of those.
@@ -744,8 +744,8 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 
 // TestSlotConfirm_CancelIsInert: it leaves everything untouched on cancel.
 //
-// §9.2: a cancel leaves "the panel open and nothing written". The panel the user is
-// left looking at must therefore be the panel they were looking at before they
+// The picker idiom: a cancel leaves "the panel open and nothing written". The panel the user
+// is left looking at must therefore be the panel they were looking at before they
 // pressed the key — preview, cursor, badges and row set — which is asserted here as
 // the composed frame byte for byte plus each of those four values.
 //
@@ -794,13 +794,13 @@ func TestSlotConfirm_CancelIsInert(t *testing.T) {
 // TestSlotConfirm_AtomicConstantClearPlusSlot: it clears the constant and writes
 // the slot atomically.
 //
-// §9.2: "the constant is cleared and the slot written, in ONE atomic prefs write",
-// which task 6-2 pinned inside prefs.SaveThemeSlot. What the confirm owes it is
+// The picker idiom: "the constant is cleared and the slot written, in ONE atomic prefs write",
+// which prefs.SaveThemeSlot performs. What the confirm owes it is
 // that the panel asks for it ONCE — no second call to clear the constant — and that
 // the recompute then moves the badges: the constant's bare `●` is gone and the
 // committed slot's `●` is on the row the cursor was parked on.
 //
-// The fixture runs over a REAL loader and a REAL directory, for task 9-2's reason:
+// The fixture runs over a REAL loader and a REAL directory, for the recompute's reason:
 // a stub seam answering with a fixed union would make every row and every `●` a
 // statement about the fixture rather than about the derivation the commit drives.
 func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
@@ -825,14 +825,14 @@ func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 	requireStandingFooter(t, m)
 	requireBadge(t, m, "nord", theme.BadgeLight)
 	requireBadge(t, m, "aurora", theme.BadgeNone)
-	// The dark slot was never set, so §9.5's third badge row puts its `●` on the
-	// shipped default — and the constant's bare `●` is gone from the panel entirely.
+	// The dark slot was never set, so the row-rendering rule's third badge row puts its `●` on
+	// the shipped default — and the constant's bare `●` is gone from the panel entirely.
 	requireBadge(t, m, theme.DefaultDarkSlug, theme.BadgeDark)
 	requireBadgeText(t, m, 0, 1, 1)
 
-	// §9.3's other half is a FILE rather than an answer: the slot the user did not
-	// assign was never loaded at construction and becomes live on this keypress.
-	// That load is task 9-6's, reached from the one arm that can create the state.
+	// The mid-session conversion rule's other half is a FILE rather than an answer: the slot the
+	// user did not assign was never loaded at construction and becomes live on this keypress.
+	// That load is the newly-live slot's, reached from the one arm that can create the state.
 	if got := themePanelSeamCallers(t, "loadNewlyLiveSlot"); !slices.Equal(got, []string{"confirmSlotAssignment"}) {
 		t.Errorf("the newly-live-slot seam is called from %v, want exactly [confirmSlotAssignment] — §8.4's load has one route in", got)
 	}
@@ -841,15 +841,15 @@ func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 // TestSlotConfirm_FailedCommitKeepsTheConstant: it keeps the constant in memory
 // when the write fails.
 //
-// §9.13: a failed commit "does not move the `●` — the marker means 'what is
+// The failed-commit rule: a failed commit "does not move the `●` — the marker means 'what is
 // persisted' and would be lying if it moved". The mechanism is that nothing is
-// mutated: the constant is cleared in the WRITE (§8.2), and this write did not
+// mutated: the constant is cleared in the WRITE, and this write did not
 // land, so the panel still marks it with the bare `●`.
 //
 // The confirm itself resolves EITHER WAY — the question has been answered, so the
-// footer comes back — and §9.13's line then takes the slot the question vacated.
-// That ordering is what makes §9.1's two contenders mutually exclusive on this path:
-// the confirm gates the write, so by the time a write can fail it has already
+// footer comes back — and the failed-commit rule's line then takes the slot the question
+// vacated. That ordering is what makes the panel layout's two contenders mutually exclusive on
+// this path: the confirm gates the write, so by the time a write can fail it has already
 // resolved.
 func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	dir := t.TempDir()
@@ -886,8 +886,8 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 		t.Errorf("a failed commit scheduled %T, want nothing", cmd)
 	}
 
-	// The REPORT itself, which is the confirm's whole share of §9.13: the question is
-	// down, the standing footer is back, and the failed-commit line is what the slot
+	// The REPORT itself, which is the confirm's whole share of the failed-commit rule: the
+	// question is down, the standing footer is back, and the failed-commit line is what the slot
 	// now holds.
 	requireCommitFailedMessage(t, m)
 	if !m.themeState.commitFailed {
@@ -915,18 +915,18 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 // TestSlotConfirm_NilPersisterIsInert: it tolerates a nil persister, and reaches
 // no newly-live-slot load.
 //
-// A fixture or `capturetool` model carries NO persister (task 6-7), so `y` during a
+// A fixture or `capturetool` model carries NO persister, so `y` during a
 // capture writes nowhere. It is the ABSENCE OF A WRITER rather than a failed write
 // — the same rule commitConstant/commitSlot state — so the confirm still comes down
 // and nothing else moves at all.
 //
-// AND IT MUST NOT REACH §9.3'S OTHER HALF. commitSlot returns nil for BOTH a landed
-// write and this early return, and the nil-persister one returns BEFORE the mirror
-// and the recompute. §8.4's load runs on mirrored keys, off which it decides which
-// slug the opposite slot now names; run here it would read keys still holding the
-// CONSTANT — whose slot slugs are both EMPTY — resolve §8.5's fallback for one of
-// them, and report a commit-time `theme: loaded` (§12.3) for a write that never
-// happened.
+// AND IT MUST NOT REACH the mid-session conversion rule's OTHER HALF. commitSlot returns nil
+// for BOTH a landed write and this early return, and the nil-persister one returns BEFORE the
+// mirror and the recompute. The construction-time load rule's load runs on mirrored keys, off
+// which it decides which slug the opposite slot now names; run here it would read keys still
+// holding the CONSTANT — whose slot slugs are both EMPTY — resolve the per-slot
+// fallback for one of them, and report a commit-time `theme: loaded` for a write that
+// never happened.
 //
 // THAT REFUSAL IS ASSERTED BEHAVIOURALLY, not structurally. While the seam was an
 // empty no-op no observation could tell a call that happened from one that did not,
@@ -1000,14 +1000,14 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 
 // TestSlotConfirm_ForcedCloseCancels: it is cancelled silently by a forced close.
 //
-// §9.8: "A live slot-from-constant confirm is silently cancelled by a forced close.
-// Nothing has been written at that point (§9.2), so there is no partial state to
+// The geometry rule: "A live slot-from-constant confirm is silently cancelled by a forced
+// close. Nothing has been written at that point, so there is no partial state to
 // leave behind — but it is stated because the confirm is otherwise specified as
 // resolvable only by a keypress."
 //
-// So the close takes task 8-10's path exactly (everything the panel retained is
+// So the close takes the ordinary `Esc` path exactly (everything the panel retained is
 // discarded, the resolved persisted state is rendered), the pending assignment goes
-// with it, nothing is written, and the flash is the geometry event's own §14A copy —
+// with it, nothing is written, and the flash is the geometry event's own pinned copy —
 // the confirm raises none of its own.
 func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 	m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
@@ -1039,14 +1039,15 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 
 // TestSlotConfirm_NotRaisedByEnter: it is not raised by Enter.
 //
-// §9.2: "**The reverse direction needs no confirm.** `Enter` on a theme while a
+// The picker idiom: "**The reverse direction needs no confirm.** `Enter` on a theme while a
 // pair is set clears both slots — but `Enter` visibly does what it says: you get
 // the theme you are looking at, and it is the theme already previewing behind the
 // panel. The asymmetry is the point: the confirm guards the case where the RESOLVED
 // theme changes as a side effect of a write the user was told is inert."
 //
 // Asserted over BOTH settings, because `Enter` is unconditional: over a pair (the
-// direction §9.2 names) and over a constant (where the neighbouring `d`/`l` DO ask).
+// direction the picker idiom names) and over a constant (where the neighbouring `d`/`l` DO
+// ask).
 func TestSlotConfirm_NotRaisedByEnter(t *testing.T) {
 	t.Run("over a pair", func(t *testing.T) {
 		rows := arrowValidRows(4)
@@ -1074,10 +1075,10 @@ func TestSlotConfirm_NotRaisedByEnter(t *testing.T) {
 // TestSlotConfirm_HandEditedFileNamesTheConstant: it names the constant on a
 // theme-wins file.
 //
-// §8.2: a hand-edited file may carry all three keys, and `theme` wins — so the
-// slots are not read at all and the panel shows one bare `●`. "The one visible
+// The constant-or-pair rule: a hand-edited file may carry all three keys, and `theme` wins —
+// so the slots are not read at all and the panel shows one bare `●`. "The one visible
 // consequence: on such a file, `d`/`l` clears the constant and the OTHER stale
-// hand-edited slot becomes live in the same keypress. The §9.2 confirm names the
+// hand-edited slot becomes live in the same keypress. The picker idiom confirm names the
 // constant being cleared, which is the change the user initiated; the stale slot
 // surfacing is then plainly visible in the panel's badges the moment the confirm
 // resolves."
@@ -1108,8 +1109,8 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 
 	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
 	requirePairKeys(t, m, "ghost", "nord")
-	// The stale light slot is live the moment the confirm resolves: §9.4 gives its
-	// unresolvable slug a row of its own, and §9.5 puts the `● light` on it.
+	// The stale light slot is live the moment the confirm resolves: the union rule gives its
+	// unresolvable slug a row of its own, and the row-rendering rule puts the `● light` on it.
 	requireRowLabels(t, m, "aurora", "ghost", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireBadge(t, m, "ghost", theme.BadgeLight)
 	requireBadge(t, m, "nord", theme.BadgeDark)
@@ -1122,7 +1123,7 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 // TestSlotConfirm_ResizesTheListForTheSwappedLayout: it re-sizes the list when the
 // message slot changes.
 //
-// The message slot and §9.2's nested confirm scope BOTH move the panel's vertical
+// The message slot and the picker idiom's nested confirm scope BOTH move the panel's vertical
 // budget — the slot costs a row, the two-row confirm footer hands two back — and
 // renderThemePanel sizes its per-frame copy from the message it is handed. A model
 // whose list keeps the PRE-MESSAGE page derives `Ctrl+↑`/`Ctrl+↓` from a page the
@@ -1130,7 +1131,7 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 // resizeThemePanel re-sizes for, and the same one the main screen's
 // resyncPageLayouts answers on every band raise/clear).
 //
-// It is asserted at the WRITERS rather than at this call site, so §9.13's
+// It is asserted at the WRITERS rather than at this call site, so the failed-commit rule's
 // failed-commit line — which persists with arrows LIVE — inherits it.
 func TestSlotConfirm_ResizesTheListForTheSwappedLayout(t *testing.T) {
 	m, _ := newSlotConfirmModelAt(t, arrowPagingTermH)

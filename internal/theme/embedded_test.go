@@ -12,18 +12,17 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// This file is §7.6's build-time guarantee, and it is deliberately TWO HALVES
+// This file is the build-time guarantee, and it is deliberately TWO HALVES
 // carried in one place.
 //
 // There is no runtime fallback to hardcoded values beneath the built-in
 // fallback — no compiled-in last-resort palette, no "if all else fails, paint
 // these". Making the built-ins FILES moved their parse failures from compile
-// time to load time, and §7.6's answer to that is not a runtime crutch: the
-// situation is made impossible at build time instead.
+// time to load time, and the build-time guarantee's answer to that is not a runtime crutch:
+// the situation is made impossible at build time instead.
 //
-//  1. Every embedded built-in parses and validates against §6.1's rule.
-//  2. Every fallback slug AND the shipped default pair RESOLVE within that set
-//     (§8.3, §8.5).
+//  1. Every embedded built-in parses and validates against the validity rule.
+//  2. Every fallback slug AND the shipped default pair RESOLVE within that set.
 //
 // One half alone is not enough, and the reason is specific. Validating the
 // files proves the FILES are good, but the fallback is hardcoded slug constants
@@ -41,19 +40,19 @@ import (
 // VALIDATION IS DELIBERATELY NOT STARTUP-EAGER. Nothing walks the embedded set
 // at init, because this test already proves the set at build time and
 // re-proving it on every launch buys nothing on a cold path this feature
-// otherwise adds no cost to. Task 2.1's no-init guard
+// otherwise adds no cost to. The no-init guard
 // (TestThemePackage_HasNoInitFunction, leaf_guard_test.go) is the structural
 // half of that claim; this file is the half that makes it safe to hold.
 //
-// The escalation §7.6 does specify — the one-line
+// The escalation the build-time guarantee does specify — the one-line
 // `built-in theme <slug> is missing or invalid — this binary is broken` — is
-// raised where a fallback is NEEDED, which is Phase 5, not here. internal/theme
+// raised where a fallback is NEEDED, which is the fallback path, not here. internal/theme
 // reports a broken embedded file as an ordinary rejection (asserted in-package
 // by TestEmbeddedParseFailureIsAnOrdinaryError), and carries no fatal path at
 // all (asserted below).
 
-// canonicalHexValue is §4.3's stored form: a '#' and exactly six UPPER-CASE hex
-// digits. The parser canonicalises case on the way in, so a shipped value that
+// canonicalHexValue is the hex-only value rule's stored form: a '#' and exactly six UPPER-CASE
+// hex digits. The parser canonicalises case on the way in, so a shipped value that
 // does not match this has not been through it.
 var canonicalHexValue = regexp.MustCompile(`^#[0-9A-F]{6}$`)
 
@@ -65,27 +64,27 @@ const embeddedTestFile = "embedded_test.go"
 // the embedded set — wired to a discarding event seam.
 //
 // The seam is silent because this file DIAGNOSES the shipped set rather than
-// using a theme, so the §12.3 trail has nothing to record. The production shape
-// is used anyway, rather than a bare Loader, because it is the shape Phase 5's
-// fallback will hold when it resolves these same slugs.
+// using a theme, so the `theme` log component trail has nothing to record. The production
+// shape is used anyway, rather than a bare Loader, because it is the shape the fallback
+// holds when it resolves these same slugs.
 func embeddedLoader() theme.Loader {
 	return theme.NewSilentLoader()
 }
 
-// TestEveryEmbeddedThemeIsValid is §7.6's FIRST half: every theme Portal ships
-// parses and validates against §6.1's rule — all 19 tokens present, every value
+// TestEveryEmbeddedThemeIsValid is the build-time guarantee's FIRST half: every theme Portal
+// ships parses and validates against the validity rule — all 19 tokens present, every value
 // syntactically well-formed.
 //
-// The failure names the slug and §6.2's reason WITH its detail, because the
+// The failure names the slug and the reason WITH its detail, because the
 // person who reads it is the maintainer who just added or edited a .theme file
 // and needs to be told which file and which line, not merely that the suite is
 // red.
 //
 // The value check is upper-case canonical rather than merely hex-shaped, which
-// is a stronger assertion than validity alone: §4.3's canonicalisation is what
-// lets §11.3's background diffing and §11.4's retained startup canvas hex
-// compare hex strings at all, so a shipped value reaching a renderer in the
-// file's own case would break a comparison no floor test would notice.
+// is a stronger assertion than validity alone: the hex-only value rule's canonicalisation is
+// what lets the OSC 11 re-emission rule's background diffing and the exit-time restore rule's
+// retained startup canvas hex compare hex strings at all, so a shipped value reaching a
+// renderer in the file's own case would break a comparison no floor test would notice.
 func TestEveryEmbeddedThemeIsValid(t *testing.T) {
 	slugs := theme.BuiltinSlugs()
 	if len(slugs) == 0 {
@@ -124,8 +123,8 @@ func TestEveryEmbeddedThemeIsValid(t *testing.T) {
 	}
 }
 
-// TestFallbackSlugsResolveWithinEmbeddedSet is §7.6's SECOND half: every slug
-// §8.5 falls back to is one the embedded set actually holds.
+// TestFallbackSlugsResolveWithinEmbeddedSet is the build-time guarantee's SECOND half: every
+// slug the per-slot fallback rule falls back to is one the embedded set actually holds.
 //
 // This is a RESOLUTION assertion and is deliberately distinct from the validity
 // one above. The two fail independently and for different reasons: renaming
@@ -133,8 +132,8 @@ func TestEveryEmbeddedThemeIsValid(t *testing.T) {
 // renaming the file DefaultDarkSlug names leaves every embedded theme valid and
 // makes two of the three slots below unresolvable. Only this half sees that.
 //
-// All three of §8.5's slots are stated rather than the two distinct values,
-// because the table is per-slot and mode-matched: the constant `theme` slot
+// All three of the per-slot fallback rule's slots are stated rather than the two distinct
+// values, because the table is per-slot and mode-matched: the constant `theme` slot
 // falling to the DARK default is its own decision, not a consequence of the
 // other two, and a future fourth slot has an obvious home here.
 func TestFallbackSlugsResolveWithinEmbeddedSet(t *testing.T) {
@@ -162,13 +161,13 @@ func TestFallbackSlugsResolveWithinEmbeddedSet(t *testing.T) {
 	}
 }
 
-// TestShippedDefaultPairResolves is the same resolution assertion for §8.3's
-// shipped adaptive pair — the nomination a brand-new user launches with.
+// TestShippedDefaultPairResolves is the same resolution assertion for the shipped adaptive
+// default's shipped adaptive pair — the nomination a brand-new user launches with.
 //
 // It is its own carrier rather than a duplicate of the fallback test because
 // the two roles are separate decisions that merely happen to hold the same two
-// values, and §8.3's "the adaptive pair degrades to a constant dark default"
-// argument rests on that coincidence. Adopting a single fixed fallback would
+// values, and the shipped adaptive default's "the adaptive pair degrades to a constant dark
+// default" argument rests on that coincidence. Adopting a single fixed fallback would
 // leave this test green and the argument dead, which is why builtins.go's
 // constants carry the warning rather than this file.
 //
@@ -207,8 +206,8 @@ func TestShippedDefaultPairResolves(t *testing.T) {
 // TestEmbeddedSetIsNonEmpty refuses the one failure mode a loop over an
 // enumerated set can silently have: measuring nothing and reporting success.
 //
-// Both halves of §7.6 are loops over BuiltinSlugs(), so an empty embedded set
-// passes each of them vacuously — which is precisely the state a binary must
+// Both halves of the build-time guarantee are loops over BuiltinSlugs(), so an empty embedded
+// set passes each of them vacuously — which is precisely the state a binary must
 // never ship in. Stated as its own named test so the guarantee is a fact of the
 // suite rather than a fatal buried in a helper.
 func TestEmbeddedSetIsNonEmpty(t *testing.T) {
@@ -268,18 +267,18 @@ func TestEmbeddedValidity_EnumeratesRatherThanNames(t *testing.T) {
 	}
 }
 
-// fatalCopyOwner is the ONE production file allowed to carry §14A's fatal
+// fatalCopyOwner is the ONE production file allowed to carry the pinned copy's fatal
 // sentence: the file that single-sources it.
 const fatalCopyOwner = "broken_builtin.go"
 
 // TestEmbeddedRejection_HasNoFatalPathInThePackage asserts the other side of
-// §7.6's mechanism: internal/theme reports a broken embedded file and terminates
-// nothing.
+// the build-time guarantee's mechanism: internal/theme reports a broken embedded file and
+// terminates nothing.
 //
 // The loader returns an ordinary error for an embedded parse failure — it does
 // not panic, does not exit and does not print. The escalation happens where the
-// fallback is NEEDED, which under §7.6 is a returned error and never a raised
-// one, so the user sees one line rather than a Go stack trace and main.go's
+// fallback is NEEDED, which under the build-time guarantee is a returned error and never a
+// raised one, so the user sees one line rather than a Go stack trace and main.go's
 // panic-recovering exit stays the backstop for a genuine programming fault
 // rather than the designed route.
 //
@@ -290,14 +289,14 @@ const fatalCopyOwner = "broken_builtin.go"
 //
 // THE COPY CHECK IS AN OWNERSHIP CHECK, not a prohibition. When this guard was
 // first written the escalation had no home yet and the sentence belonged
-// nowhere in the package; Phase 5 gave it one — resolveSlot, where a fallback is
+// nowhere in the package; the fallback path gave it one — resolveSlot, where a fallback is
 // needed — and single-sourced it in fatalCopyOwner. So the invariant is now the
 // stronger of the two: the sentence exists in EXACTLY ONE production file, and
 // the PARSE layer (load.go, builtins.go, lex.go, validate.go) still cannot raise
 // it. A second copy anywhere is what would let the panel, doctor and the fatal
 // path drift apart on the one line a user with a broken binary ever sees.
 func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
-	// §14A's sentence, reduced to the fragment no other copy could contain by
+	// The pinned copy's sentence, reduced to the fragment no other copy could contain by
 	// coincidence.
 	const fatalCopy = "this binary is broken"
 

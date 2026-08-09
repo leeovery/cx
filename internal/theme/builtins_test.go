@@ -17,7 +17,7 @@ import (
 const builtinsDir = "builtins"
 
 // tokyoNightSlug is the first built-in's slug — the stem of its committed
-// filename, which §5.1 makes its identity.
+// filename, which the filename-is-identity rule makes its identity.
 const tokyoNightSlug = "tokyo-night"
 
 // tokyoNightPath is the committed source of the first built-in.
@@ -27,12 +27,12 @@ var tokyoNightPath = filepath.Join(builtinsDir, tokyoNightSlug+".theme")
 // SHAPE, as distinct from the palette its values name.
 //
 // Three things are asserted because three separate decisions land in this one
-// file: it declares exactly the 19 keys of the closed vocabulary (§4.5's
-// full-replacement rule — no partial built-in), it carries NO `border.footer`
-// (§2.2 consolidated the two border tokens into one, so the file is 19 keys and
+// file: it declares exactly the 19 keys of the closed vocabulary (the full-replacement
+// rule — no partial built-in), it carries NO `border.footer`
+// (the border consolidation merged the two border tokens into one, so the file is 19 keys and
 // not 20), and it opens with a `#` header, which is the attribution the flat
-// format was chosen to carry (§4.1) and which `portal theme export` ships
-// verbatim to a user copying it (§12.1).
+// format was chosen to carry and which `portal theme export` ships
+// verbatim to a user copying it.
 func TestTokyoNightFile_HasNineteenKeysAndNoBorderFooter(t *testing.T) {
 	data, err := os.ReadFile(tokyoNightPath)
 	if err != nil {
@@ -61,7 +61,7 @@ func TestTokyoNightFile_HasNineteenKeysAndNoBorderFooter(t *testing.T) {
 // TestBuiltinBytes_MatchesCommittedFile pins the embedded bytes as the
 // committed file's bytes, verbatim.
 //
-// It is the guard on §12.1's byte-faithful export: `portal theme export` prints
+// It is the guard on the export contract's byte-faithful export: `portal theme export` prints
 // what the loader validated, comments and trailing newline included, so a user
 // copying a built-in gets the attribution header rather than a re-serialisation
 // stripped of it. A comparison against the file on disk is what makes that a
@@ -119,7 +119,7 @@ func TestBuiltinBytes_MatchesCommittedFile(t *testing.T) {
 // The expectation is read off the committed directory, so the assertion is that
 // the two agree — which is what makes "adding a built-in is adding a file"
 // literally true: a new .theme file appears in the set, reserves its own slug
-// (§5.4) and is validated by the build-time guarantee (§7.6) without a line of
+// and is validated by the build-time guarantee without a line of
 // Go changing. A hand-written list would pass this test only until someone
 // forgot to extend it, at which point the file would be embedded and invisible.
 //
@@ -167,15 +167,16 @@ func committedBuiltinSlugs(t *testing.T) []string {
 	return slugs
 }
 
-// wantTokyoNightTokens is §7.3's dark table — the values MV carried as its Dark
-// variants — in §2.4 order and in §4.3's canonical upper case.
+// wantTokyoNightTokens is the shipped Tokyo Night dark table — the values MV carried as its
+// Dark variants — in canonical table order and in the hex-only value rule's canonical upper
+// case.
 //
 // It is a deliberate second copy of the shipped file's values, and the only one
 // in Go: these 19 hexes are what Portal looks like out of the box, so changing
 // one is a change to the product and has to be made twice. Two of them
 // (`canvas`, `bg.selection`) are written lower case in the file and appear here
-// upper case, which is the canonicalisation §11.3's background diffing and
-// §11.4's retained startup canvas hex both compare against.
+// upper case, which is the canonicalisation the OSC 11 re-emission rule's background diffing
+// and the exit-time restore rule's retained startup canvas hex both compare against.
 var wantTokyoNightTokens = []theme.Token{
 	{Name: "text.primary", Value: "#C0CAF5"},
 	{Name: "text.secondary", Value: "#A9B1D6"},
@@ -201,15 +202,15 @@ var wantTokyoNightTokens = []theme.Token{
 // TestLoadBuiltin_TokyoNightValuesAreUppercaseCanonical pins the palette the
 // dark built-in ships, and the case it ships it in.
 //
-// The whole 19-token slice is asserted in §2.4 order, so a value edited in the
+// The whole 19-token slice is asserted in canonical table order, so a value edited in the
 // file, a key wired to the wrong role, or a token quietly dropped all surface
 // here rather than in a screenshot.
 //
 // The case half is not cosmetic. The file writes `canvas` and `bg.selection`
-// lower case — verbatim as MV held them — and the parser canonicalises to upper
-// (§4.3), which is what lets §11.3's background diffing and §11.4's retained
-// startup canvas hex compare hex strings at all: a theme written `#0b0c14` must
-// not fail to match one written `#0B0C14`.
+// lower case — verbatim as MV held them — and the parser canonicalises to upper,
+// which is what lets the OSC 11 re-emission rule's background diffing and the exit-time
+// restore rule's retained startup canvas hex compare hex strings at all: a theme written
+// `#0b0c14` must not fail to match one written `#0B0C14`.
 func TestLoadBuiltin_TokyoNightValuesAreUppercaseCanonical(t *testing.T) {
 	got, rejection, found := theme.Loader{}.LoadBuiltin(tokyoNightSlug)
 
@@ -236,8 +237,8 @@ func TestLoadBuiltin_TokyoNightValuesAreUppercaseCanonical(t *testing.T) {
 	}
 }
 
-// TestLoadBuiltin_UsesTheSharedParsePath is the pin on §7.1's central claim: a
-// built-in IS a theme file, parsed by the same loader as a stranger's drop-in.
+// TestLoadBuiltin_UsesTheSharedParsePath is the pin on the built-in-is-a-file rule's central
+// claim: a built-in IS a theme file, parsed by the same loader as a stranger's drop-in.
 //
 // The proof is that the two callers cannot be told apart by behaviour. The
 // embedded bytes are written out under an ordinary filename in an ordinary
@@ -252,7 +253,7 @@ func TestLoadBuiltin_TokyoNightValuesAreUppercaseCanonical(t *testing.T) {
 // exactly the "copy a built-in and edit it" workflow the embedding decision
 // exists for.
 //
-// Source is asserted on both, because §12.1's export prints what the loader
+// Source is asserted on both, because export prints what the loader
 // validated rather than re-reading the file: the bytes on the Result are the
 // bytes that were parsed, comments and trailing newline included, on either
 // route in.
@@ -297,17 +298,17 @@ func TestLoadBuiltin_UsesTheSharedParsePath(t *testing.T) {
 // This is the structural half of "the built-in lookup touches no filesystem".
 // A directory parameter would be the first step to config discovery inside
 // internal/theme, which internal/capture's no-real-config import guard and
-// Phase 5's fallback both depend on never happening — and unlike a runtime
+// the built-in fallback both depend on never happening — and unlike a runtime
 // assertion, this one cannot be satisfied by a function that simply chose not to
 // read the path it was given.
 var _ func(string) (theme.Result, *theme.Rejection, bool) = theme.Loader{}.LoadBuiltin
 
-// TestLoadBuiltin_UnknownSlugIsNotFound pins the outcome Phase 5's by-name
+// TestLoadBuiltin_UnknownSlugIsNotFound pins the outcome by-name
 // resolution falls through on: not-found, with NO rejection.
 //
 // The distinction is the whole reason found is a separate return. A rejection
-// would mean "this built-in is broken" — the thing §7.6's build-time test makes
-// impossible — whereas an unknown slug means only that the answer lies in the
+// would mean "this built-in is broken" — the thing the build-time guarantee's test
+// makes impossible — whereas an unknown slug means only that the answer lies in the
 // themes directory instead, which is where the resolver looks next. Collapsing
 // the two would turn every user's own theme name into a reported failure of the
 // built-in set.

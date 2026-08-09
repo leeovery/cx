@@ -57,8 +57,8 @@ func openPanelForTestWithSessions(t *testing.T, m Model, contentW, contentH int,
 // hands back the panel's own enumerator.
 //
 // The light/dark answer is PINNED rather than detected (WithCanvasMode), because
-// §8.8's gate resolves exactly once and the panel must read THAT answer rather than
-// ask again. Pinning it is what lets one fixture drive the in-force slot in both
+// the appearance gate resolves exactly once and the panel must read THAT answer
+// rather than ask again. Pinning it is what lets one fixture drive the in-force slot in both
 // terminals without touching the async race.
 func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) (Model, *countingThemeEnumerator) {
 	t.Helper()
@@ -132,7 +132,7 @@ func tokenBgSeq(t *testing.T, tok theme.Token) string {
 // dark canvas renders" needs exactly this, and a per-site load would make the
 // suite's notion of "the dark theme" re-derivable in several hundred places.
 //
-// They are FUNCTIONS, not package-level vars, deliberately. §3.4 forbids
+// They are FUNCTIONS, not package-level vars, deliberately. The active-theme plumbing forbids
 // package-level mutable theme state on the render path, and TestNoPackageLevelThemeVar
 // guards production against it; keeping the test-side source a function too means
 // the suite cannot grow the very shape the guard exists to prevent.
@@ -209,7 +209,7 @@ func tokenNamed(t *testing.T, th theme.Theme, name string) theme.Token {
 // canvas answer names.
 //
 // It is how a test pins a palette from frame one now that there is no light/dark
-// appearance to pin: a constant skips the gate entirely (§8.8), so the model is
+// appearance to pin: a constant skips the gate entirely, so the model is
 // resolved at construction and the frame is un-gated — the same property the
 // capture harness relies on.
 func testConstantFor(t *testing.T, appearance canvasAppearance) theme.Nomination {

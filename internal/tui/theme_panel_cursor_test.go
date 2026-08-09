@@ -11,14 +11,14 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// §9.2's opening state: the cursor lands on the theme that is ACTUALLY
+// The picker idiom's opening state: the cursor lands on the theme that is ACTUALLY
 // RENDERING, and opening previews nothing.
 //
-// The open is not a passive read. §5.8 makes the panel's fresh parse supersede
-// the construction-time one, so opening applies a mid-session file edit — in both
+// The open is not a passive read. The re-read-on-open rule makes the panel's fresh parse
+// supersede the construction-time one, so opening applies a mid-session file edit — in both
 // directions: an edit that changes an active theme's values re-renders the same
-// slug with them, and one that INVALIDATES it flips to the §8.5 fallback on OPEN
-// rather than deferring to `Esc`, which would leave the panel listing a theme as
+// slug with them, and one that INVALIDATES it flips to the per-slot fallback rule fallback on
+// OPEN rather than deferring to `Esc`, which would leave the panel listing a theme as
 // invalid while the screen still renders it.
 //
 // The invariant surviving every case: the cursor is on a SELECTABLE row, and that
@@ -87,7 +87,7 @@ func TestPanelOpenCursor_Constant(t *testing.T) {
 // Under a pair only ONE slot is painting the screen — the light one in a light
 // terminal, the dark one otherwise — so only that slot's row may carry the
 // cursor. The other slot's row still carries its badge: `●` is what is SET and
-// the cursor is what is PREVIEWED, and only the cursor is singular (§9.5).
+// the cursor is what is PREVIEWED, and only the cursor is singular.
 func TestPanelOpenCursor_InForceSlot(t *testing.T) {
 	keys := theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
 
@@ -126,7 +126,7 @@ func TestPanelOpenCursor_InForceSlot(t *testing.T) {
 
 // TestPanelOpenCursor_BothSlotsSameSlug: it lands on the `● both` row.
 //
-// Two slots naming one slug collapse to ONE row (§9.5), so there is no second row
+// Two slots naming one slug collapse to ONE row, so there is no second row
 // for the cursor to be tempted onto — and the collapsed badge must survive the
 // resolution rather than being one slot's badge overwriting the other's.
 func TestPanelOpenCursor_BothSlotsSameSlug(t *testing.T) {
@@ -185,7 +185,7 @@ func TestPanelOpenCursor_FallbackRow(t *testing.T) {
 // slug.
 //
 // The pair's half of the same split, on a slug that resolves to NOTHING at all —
-// so the badge's only home is the row §9.4 mints for it. A badge keyed on what
+// so the badge's only home is the row the union rule mints for it. A badge keyed on what
 // LOADED would sit on the fallback and silently claim it was the user's choice.
 func TestPanelOpenCursor_BadgeStaysOnPersisted(t *testing.T) {
 	keys := theme.RawKeys{Light: "gone-light", Dark: "nord"}
@@ -204,7 +204,7 @@ func TestPanelOpenCursor_BadgeStaysOnPersisted(t *testing.T) {
 //
 // Because the cursor starts on what is already rendering, opening the panel never
 // changes WHICH theme is shown — the mixed-mode flash fires only on deliberate
-// navigation (§9.2).
+// navigation.
 func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -224,8 +224,8 @@ func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 // TestPanelOpen_AppliesMidSessionEdit: it applies an edited-but-valid active
 // theme on open.
 //
-// Opening CAN change the active theme's values, and that is correct: §5.8's fresh
-// enumeration supersedes the construction-time parse, so the panel holds the
+// Opening CAN change the active theme's values, and that is correct: the re-read-on-open
+// rule's fresh enumeration supersedes the construction-time parse, so the panel holds the
 // truth. Making the user arrow away and back to see their own edit would be a bug
 // wearing a rule's clothing.
 func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
@@ -275,8 +275,8 @@ func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 // TestPanelOpen_RepairedThemeAppliesOnOpen: it applies a repaired theme on open
 // with no relaunch.
 //
-// §5.8's MIRROR CASE, and the payoff re-reading exists to buy. It is the only case
-// that moves the cursor ONTO a row that was unselectable at construction, so an
+// The re-read-on-open rule's MIRROR CASE, and the payoff re-reading exists to buy. It is the
+// only case that moves the cursor ONTO a row that was unselectable at construction, so an
 // implementation trusting the construction-time classification of an
 // already-broken slug would satisfy every other case here while leaving the user
 // on the fallback after they fixed their file.
@@ -305,8 +305,8 @@ func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 // TestPanelOpenCursor_AnchoredByIdentity: it anchors the cursor by identity, not
 // index.
 //
-// Anchoring to an index would silently break §9.2's invariant the moment a row is
-// inserted above the cursor — which is exactly what Phase 9's commit recompute
+// Anchoring to an index would silently break the picker idiom's invariant the moment a row is
+// inserted above the cursor — which is exactly what the commit recompute
 // does. The two fixtures resolve the IDENTICAL setting and differ only in a row
 // standing above the target, so an index-anchored cursor cannot land on the target
 // in both.
@@ -346,7 +346,7 @@ func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 // TestPanelOpenCursor_DegradesOnMissingIdentity: it degrades rather than indexing
 // out of range.
 //
-// Built-ins are always valid (§7.6), so a union with no row for the resolved slug
+// Built-ins are always valid, so a union with no row for the resolved slug
 // — and one with no selectable row at all — are unreachable in a correctly built
 // binary. The clamp is a structural guard, not a live path, which is why it is
 // driven through a stub: nothing else can produce the state.
@@ -389,16 +389,17 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 // TestPanelOpen_ResolveErrorDegrades: it degrades rather than escalating an
 // unresolvable fallback.
 //
-// §7.6's fatal is reachable here only from a binary whose embedded set cannot
-// supply a fallback, which the build-time guarantee makes impossible — and a
+// The build-time guarantee's fatal is reachable here only from a binary whose embedded set
+// cannot supply a fallback, which the build-time guarantee makes impossible — and a
 // SETTINGS SURFACE MUST NOT BECOME THE ROUTE BY WHICH A BROKEN BINARY QUITS
-// PORTAL MID-SESSION. §7.6 puts the fatal on the startup path deliberately.
+// PORTAL MID-SESSION. The build-time guarantee puts the fatal on the startup path
+// deliberately.
 //
 // ONE POLICY GOVERNS EVERY PANEL CALL SITE of `Resolve` — this open, `Esc`'s
-// close and task 9-2's recompute — so none of the three invents its own. It is
+// close and the recompute — so none of the three invents its own. It is
 // stated once on applyInForceTheme, whose body the open and the close route
 // through; the recompute takes the policy WITHOUT taking the apply, because a
-// commit recomputes rows and badges and never the rendered theme (§11.1, §9.2).
+// commit recomputes rows and badges and never the rendered theme.
 //
 // The fake returns a FULLY POPULATED resolution alongside the error, so the
 // assertions are not vacuous: an open that ignored the error would badge `nord`,
@@ -444,7 +445,7 @@ func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 // TestPanelOpen_CursorInvariant: it keeps the cursor on a selectable row that is
 // what is painted.
 //
-// §9.2's invariant, asserted DIRECTLY rather than as an implication of the four
+// The picker idiom's invariant, asserted DIRECTLY rather than as an implication of the four
 // opening cases: each of them could satisfy its own assertion while breaking this
 // one, and everything the panel does afterwards rests on it.
 func TestPanelOpen_CursorInvariant(t *testing.T) {
@@ -498,7 +499,7 @@ func TestPanelOpen_CursorInvariant(t *testing.T) {
 
 // TestPanelOpen_NoNewOSC11Query: it issues no new detection query.
 //
-// The in-force answer comes from the gate's SINGLE resolution (§8.8) with its
+// The in-force answer comes from the gate's SINGLE resolution with its
 // standing dark no-answer fallback. Re-querying would reopen the race the
 // resolve-once rule closes, a second after the user is already reading the picker.
 func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
@@ -508,7 +509,7 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	m = updated.(Model)
 
 	queryType := reflect.TypeOf(tea.Cmd(tea.RequestBackgroundColor)())
-	// Non-vacuity: Init issues the query unconditionally (§8.8 — restore-on-exit
+	// Non-vacuity: Init issues the query unconditionally (restore-on-exit
 	// needs the reply whatever the setting's shape), so the scan below is looking
 	// for something it can demonstrably see.
 	assertBackgroundQueryIssued(t, m)
@@ -531,9 +532,9 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 // TestPanelOpen_WritesNothing: it writes nothing.
 //
 // Opening is a READ PLUS A RESTYLE: no prefs write, no `@portal-*` option, no
-// file. §6.3's rule that falling back must never overwrite the persisted theme
-// name is exactly what a write here would break, on the surface where the user is
-// least able to tell it happened.
+// file. The rejection-surface split's rule that falling back must never overwrite the
+// persisted theme name is exactly what a write here would break, on the surface where the user
+// is least able to tell it happened.
 func TestPanelOpen_WritesNothing(t *testing.T) {
 	t.Run("a present prefs.json survives byte for byte", func(t *testing.T) {
 		const persisted = `{"session_list_mode":"by-project","theme":"sunset"}`
@@ -606,11 +607,11 @@ func TestDeps_HasNoThemeSlots(t *testing.T) {
 // TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow: it refuses to seed the
 // cursor onto a rejected row.
 //
-// §13.3's fourth fixture input re-anchors the cursor BY IDENTITY, from a string a
-// fixture declares — and §13.3 mandates fixtures built from invalid drop-ins and an
-// unreadable themes directory, whose rows are precisely the unselectable ones. §9.2's
-// invariant is that the cursor is always on a selectable row, and the arrows SKIP
-// unselectable ones (§9.5), so a cursor parked on one would sit somewhere the user
+// The harness contract's fourth fixture input re-anchors the cursor BY IDENTITY, from a string
+// a fixture declares — and the harness contract mandates fixtures built from invalid drop-ins
+// and an unreadable themes directory, whose rows are precisely the unselectable ones. The
+// picker idiom's invariant is that the cursor is always on a selectable row, and the arrows
+// SKIP unselectable ones, so a cursor parked on one would sit somewhere the user
 // cannot navigate back to.
 //
 // The seed therefore falls through to the first selectable row, which is the same

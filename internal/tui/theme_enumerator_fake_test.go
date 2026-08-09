@@ -10,8 +10,8 @@ import (
 // types.
 //
 // It is how the degrade paths are driven at all, none of which a real loader can
-// produce against a correctly built binary: a `Resolve` returning §7.6's fatal, a
-// resolved slug the union has no row for, and a selectable row vanishing from under
+// produce against a correctly built binary: a `Resolve` returning the build-time guarantee's
+// fatal, a resolved slug the union has no row for, and a selectable row vanishing from under
 // the cursor.
 //
 // It also RECORDS what it was asked, which is how a suite driven off declared
@@ -53,10 +53,10 @@ type fakeThemeEnumerator struct {
 	// parse already in hand and must resolve nothing.
 	settings []theme.Setting
 
-	// slotLoads records every §8.4 commit-time slot resolution the seam was asked
+	// slotLoads records every commit-time slot resolution the seam was asked
 	// for. Two cases read it: requireNoSlotLoad, for a NON-CONVERTING commit asking
-	// for none at all, and the §7.6 degrade case, for a conversion whose no-op has to
-	// be the seam's ANSWER rather than a load that never ran.
+	// for none at all, and the build-time guarantee degrade case, for a conversion whose no-op
+	// has to be the seam's ANSWER rather than a load that never ran.
 	slotLoads []slotLoad
 }
 
@@ -88,8 +88,8 @@ func (e *fakeThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme
 // assertions from being vacuous: an open that ignored the error would badge the
 // resolved slug, repaint the screen in its palette and move the cursor onto its row,
 // and each of those is asserted against. The loader's own shape is the opposite —
-// §7.6 returns the ZERO Resolution alongside the fatal, precisely so there is
-// nothing to be tempted to render — and that is what a BADGE-REFRESH fixture
+// the build-time guarantee returns the ZERO Resolution alongside the fatal, precisely so there
+// is nothing to be tempted to render — and that is what a BADGE-REFRESH fixture
 // declares instead, since theme.Badges yields an empty map for the empty slot slice
 // a zero Resolution carries, so a refresh that ignored the error would wipe every
 // `●` off the panel.
@@ -103,11 +103,11 @@ func (e *fakeThemeEnumerator) Resolve(_ theme.Enumeration, setting theme.Setting
 // NOMINATION's member for it.
 //
 // The fallback branch is the live one on a conversion: a fixture whose resolution is
-// a constant (newArrowPanelDeps) declares only a SlotConstant record, and §8.4's load
-// asks for the opposite light/dark slot. Answering it from the nomination is what
-// keeps a fake-driven conversion joining a palette the fixture chose — a zero Theme
-// in a live nomination slot renders through lipgloss's no-colour sentinel, which is
-// the silent colourless render New's dark seed exists to keep out of this package.
+// a constant (newArrowPanelDeps) declares only a SlotConstant record, and the
+// construction-time load rule's load asks for the opposite light/dark slot. Answering it from
+// the nomination is what keeps a fake-driven conversion joining a palette the fixture chose —
+// a zero Theme in a live nomination slot renders through lipgloss's no-colour sentinel, which
+// is the silent colourless render New's dark seed exists to keep out of this package.
 func (e *fakeThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
 	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: slug})
 	if e.err != nil {

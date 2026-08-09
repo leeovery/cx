@@ -30,17 +30,17 @@ import (
 // recorded persister calls. It re-states none of internal/theme's own unit
 // assertions.
 //
-// THE SEAM IS FAKED WHOLESALE (§13.3). behaviourEnumerator holds a DECLARED
+// THE SEAM IS FAKED WHOLESALE. behaviourEnumerator holds a DECLARED
 // theme.Enumeration and answers all four methods from internal/theme's own
 // assembly over it, which reads no directory and no prefs.json — the architectural
-// commitment §13.3 makes, rather than a convenience: an invalid-theme row has to be
-// renderable with no themes directory in existence, and the panel's whole row
+// commitment the harness contract makes, rather than a convenience: an invalid-theme row has
+// to be renderable with no themes directory in existence, and the panel's whole row
 // vocabulary has no other test home.
 //
-// # Coverage checklist — §13.6's named set, and where each item is proven
+// # Coverage checklist — the guard-test reshape's named set, and where each item is proven
 //
-//	1. §9.4's union and one-slug-one-row .... TestThemePanelBehaviour_Union (here)
-//	2. §9.5's sort key rules ................ TestThemePanelBehaviour_Ordering (here)
+//	1. The union and one-slug-one-row ....... TestThemePanelBehaviour_Union (here)
+//	2. Row sort key rules ................... TestThemePanelBehaviour_Ordering (here)
 //	3. Row composition and its floor ........ TestThemePanelBehaviour_RowComposition
 //	                                          (here, at the panel's OWN minimum width;
 //	                                          theme_row_test.go proves the delegate's
@@ -51,7 +51,7 @@ import (
 //	                                          item fields are pinned by
 //	                                          theme_panel_cursor_test.go and
 //	                                          theme_panel_commit_recompute_test.go)
-//	5. §9.2's recompute + anchored cursor ... TestThemePanelBehaviour_CommitRecompute
+//	5. Recompute + anchored cursor .......... TestThemePanelBehaviour_CommitRecompute
 //	                                          (here, as ONE walk over the rendered
 //	                                          panel; the per-effect proofs live in
 //	                                          theme_panel_commit_recompute_test.go)
@@ -59,7 +59,7 @@ import (
 //	                                          as the CLOSURE over the panel's
 //	                                          descriptor; per-key behaviour is proven
 //	                                          in theme_panel_confirm_test.go)
-//	7. §9.13's outstanding-failure machine .. TestThemePanelBehaviour_FailureStateMachine
+//	7. Outstanding-failure machine .......... TestThemePanelBehaviour_FailureStateMachine
 //	                                          (here, as the composed transitions; the
 //	                                          per-transition proofs live in
 //	                                          theme_panel_commit_failure_test.go and
@@ -70,7 +70,7 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// behaviourEnumerator is §13.3's seam faked WHOLESALE: a DECLARED
+// behaviourEnumerator is the harness contract's seam faked WHOLESALE: a DECLARED
 // theme.Enumeration, with all four methods answered from internal/theme's own
 // assembly over it.
 //
@@ -79,7 +79,7 @@ import (
 // ResolveSlot — are pure functions of it plus the embedded built-in set. So the
 // suite renders invalid rows, `not found` rows and a `reserved name` collision with
 // no themes directory in existence and no prefs.json anywhere near it, which is
-// exactly what §13.3 requires the seam to make possible.
+// exactly what the harness contract requires the seam to make possible.
 //
 // IT IS NOT A UNION OF DECLARED ROWS, AND THAT IS THE POINT. A hand-written row
 // slice would make every membership and ordering assertion below a statement about
@@ -117,9 +117,9 @@ func behaviourFile(slug string, palette int) theme.Entry {
 	return theme.Entry{Filename: slug + ".theme", Slug: slug, Theme: arrowPalette(palette)}
 }
 
-// behaviourRejected is one candidate the §6.2 ladder rejected, keeping the slug its
-// filename yields — every rung but the first leaves the name intact, so a broken
-// file still has something to be listed under (§9.4).
+// behaviourRejected is one candidate the reason vocabulary ladder rejected, keeping the slug
+// its filename yields — every rung but the first leaves the name intact, so a broken
+// file still has something to be listed under.
 func behaviourRejected(slug string, reason theme.Reason) theme.Entry {
 	return theme.Entry{
 		Filename:  slug + ".theme",
@@ -128,8 +128,8 @@ func behaviourRejected(slug string, reason theme.Reason) theme.Entry {
 	}
 }
 
-// behaviourBadName is §6.2's rung 1: a candidate whose FILENAME yields no slug at
-// all, so the filename is the only thing it can be labelled or sorted by.
+// behaviourBadName is the reason vocabulary's rung 1: a candidate whose FILENAME yields no
+// slug at all, so the filename is the only thing it can be labelled or sorted by.
 func behaviourBadName(filename string) theme.Entry {
 	return theme.Entry{Filename: filename, Rejection: &theme.Rejection{Reason: theme.ReasonBadName}}
 }
@@ -174,8 +174,8 @@ func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, c
 // behaviourNomination is the CONSTRUCTION-TIME nomination for these keys: the
 // member that will be in force, injected as a CONSTANT.
 //
-// The constant shape is what skips §8.8's gate, so the model is resolved at
-// construction and the frame is un-gated — the same property capturetool relies on.
+// The constant shape is what skips the appearance gate, so the model is resolved
+// at construction and the frame is un-gated — the same property capturetool relies on.
 // The setting's own shape still reaches the panel through the seam's Resolve, which
 // is where a pair's two badges come from, so pinning the palette here costs nothing
 // the assertions need.
@@ -198,8 +198,8 @@ func behaviourNomination(t *testing.T, e *behaviourEnumerator, keys theme.RawKey
 	return theme.ConstantNomination(inForce.Theme)
 }
 
-// themeBadgeGlyph is §9.5's `●` marker as it is DRAWN — the one glyph every badge
-// shape opens with, so counting it counts markers whichever of the four a row
+// themeBadgeGlyph is the row-rendering rule's `●` marker as it is DRAWN — the one glyph every
+// badge shape opens with, so counting it counts markers whichever of the four a row
 // carries. It is written out here rather than read off the panel's own badge
 // copy so the badge vocabulary is asserted against the spec's glyph rather than
 // against itself.
@@ -207,8 +207,8 @@ const themeBadgeGlyph = "●"
 
 // renderedPanelRow is one list row of the RENDERED panel, split into the three
 // things a reader can name on it: the label, the trailing elements to its right
-// (§9.5's `⚠ <reason>` phrase and its `●` badge), and whether the cursor bar is on
-// it.
+// (the row-rendering rule's `⚠ <reason>` phrase and its `●` badge), and whether the cursor bar
+// is on it.
 type renderedPanelRow struct {
 	label   string
 	trailer string
@@ -220,12 +220,12 @@ type renderedPanelRow struct {
 //
 // It is the suite's central observation, and it is taken from the DRAWN BLOCK
 // rather than from list.Items() deliberately: an item slice in the right order says
-// nothing about what the delegate put on screen, and §9.5's composition, its badges
-// and the cursor treatment are all render-time facts.
+// nothing about what the delegate put on screen, and the row-rendering rule's composition, its
+// badges and the cursor treatment are all render-time facts.
 //
 // The body's first line is fixed by the panel's own measurements — the header
-// region plus the pinned directory row — and one union row is exactly one line
-// (§9.5), so the body is the next len(Rows) lines. The single-page precondition is
+// region plus the pinned directory row — and one union row is exactly one line,
+// so the body is the next len(Rows) lines. The single-page precondition is
 // asserted rather than assumed: a paginated panel draws a page rather than the
 // union, and every order assertion below would be reading a window.
 func renderedPanelRows(t *testing.T, m Model) []renderedPanelRow {
@@ -250,9 +250,9 @@ func renderedPanelRows(t *testing.T, m Model) []renderedPanelRow {
 // parseRenderedPanelRow splits one drawn body line into its label, its trailing
 // elements and the cursor bar.
 //
-// Every panel row below the header rule opens with §9.1's border-and-gutter prefix
-// and then §9.5's fixed 2-cell cursor column, so the content begins at a known
-// offset and the `▌` is decided by what sits in that column. A label carries no
+// Every panel row below the header rule opens with the panel layout's border-and-gutter prefix
+// and then the row-rendering rule's fixed 2-cell cursor column, so the content begins at a
+// known offset and the `▌` is decided by what sits in that column. A label carries no
 // whitespace — it is a slug or a filename — so the first field is the label and
 // everything after it is the trailing elements, whitespace-collapsed so the pad to
 // the panel's width falls away.
@@ -314,8 +314,8 @@ func renderedPanelRowFor(t *testing.T, m Model, label string) renderedPanelRow {
 // want — or carries no `●` at all when want is empty.
 //
 // It reads the badge off the DRAWN row rather than off the item's field, which is
-// the half a badge map cannot state: §9.5 right-aligns the badge to the row's edge,
-// and a marker derived correctly but drawn on the wrong row is exactly the wiring
+// the half a badge map cannot state: the row-rendering rule right-aligns the badge to the
+// row's edge, and a marker derived correctly but drawn on the wrong row is exactly the wiring
 // mistake this suite exists to catch.
 func requireRenderedBadge(t *testing.T, m Model, label string, want theme.Badge) {
 	t.Helper()
@@ -366,14 +366,14 @@ func requireRenderedCursorOn(t *testing.T, m Model, label string) {
 
 // TestThemePanelBehaviour_Union: it lists one row per slug.
 //
-// §9.4: "One slug is one row, always" — a persisted slug naming a built-in IS that
+// The union rule: "One slug is one row, always" — a persisted slug naming a built-in IS that
 // built-in's row, and a persisted slug naming an existing-but-invalid file IS that
 // file's row, carrying both the reason and the badge. Keying the union on file
 // existence instead would mint a second `⚠ not found` row for every persisted
 // built-in, which is the state the panel's most common action produces.
 //
 // The one legitimate exception is a `reserved name` file, whose slug is IDENTICAL
-// to the built-in's it collides with by definition (§6.2) — two rows for one slug,
+// to the built-in's it collides with by definition — two rows for one slug,
 // and the only place that collision has an observable consequence.
 //
 // What the panel adds to internal/theme's own union tests is that it LISTS what was
@@ -416,7 +416,7 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 		}
 		requireRenderedBadge(t, m, "sunset", theme.BadgeConstant)
 		requireRenderedBadgeCount(t, m, 1)
-		// §9.2: the cursor is on the FALLBACK's row, never on the persisted-but-broken
+		// The picker idiom: the cursor is on the FALLBACK's row, never on the persisted-but-broken
 		// one, so the marker and the cursor are visibly two different signals here.
 		requireRenderedCursorOn(t, m, theme.DefaultDarkSlug)
 	})
@@ -446,14 +446,14 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 
 // TestThemePanelBehaviour_Ordering: it orders rows and resolves the guaranteed tie.
 //
-// §9.5's order is applied by the ASSEMBLER, so what the panel owes is to DRAW it —
-// no sort of its own, no reversal, no assembly order leaking through. The fixtures
+// The row-rendering rule's order is applied by the ASSEMBLER, so what the panel owes is to
+// DRAW it — no sort of its own, no reversal, no assembly order leaking through. The fixtures
 // below interleave files among the built-ins precisely so that assembly order and
 // display order are different answers.
 //
 // The tie between a `reserved name` row and the built-in it collides with is
-// guaranteed by construction and the byte-wise leg cannot settle it, so §9.5 fixes
-// the built-in first. The panel's half of that rule is its CURSOR: the anchor
+// guaranteed by construction and the byte-wise leg cannot settle it, so the row-rendering rule
+// fixes the built-in first. The panel's half of that rule is its CURSOR: the anchor
 // resolves an identity two rows share, and it must land on the selectable one —
 // parking on the rejected file would put the cursor where the arrows, which skip
 // unselectable rows, cannot return to.
@@ -505,21 +505,21 @@ func TestThemePanelBehaviour_Ordering(t *testing.T) {
 }
 
 // behaviourLongSlug is longer than any label budget the panel has, so it truncates
-// at both ends of §9.8's width ladder.
+// at both ends of the geometry rule's width ladder.
 const behaviourLongSlug = "aurora-midnight-drifting-forever-and-ever"
 
 // TestThemePanelBehaviour_RowComposition: it composes a row within the width
 // budget.
 //
-// §9.5's four elements compete for the panel's columns in a FIXED priority, and the
-// place that priority actually bites is the panel's own MINIMUM width — the
-// narrowest frame §9.8 will open at, where the badge and the reason genuinely
+// The row-rendering rule's four elements compete for the panel's columns in a FIXED priority,
+// and the place that priority actually bites is the panel's own MINIMUM width — the
+// narrowest frame the geometry rule will open at, where the badge and the reason genuinely
 // cannot both have the right edge. The row delegate's own suite pins the rules
 // against widths of its own choosing; what is proven here is that the panel's real
 // budget sustains them.
 //
 // The one-delegate-line invariant is asserted alongside, because it is what
-// `bubbles/list` pagination, the invalid-row skip and §9.8's paging all rest on —
+// `bubbles/list` pagination, the invalid-row skip and the geometry rule's paging all rest on —
 // and Portal already has the scar from breaking it elsewhere.
 func TestThemePanelBehaviour_RowComposition(t *testing.T) {
 	// A content region inside the ladder's minimum band: half of it is below the
@@ -609,16 +609,16 @@ func truncatedBehaviourLabel(t *testing.T, m Model) string {
 
 // TestThemePanelBehaviour_Badges: it derives every badge row.
 //
-// §9.5's badge table has exactly three rows, and the panel has to render all three
-// from ONE rule — the slug a slot resolves to BEFORE fallback:
+// The row-rendering rule's badge table has exactly three rows, and the panel has to render all
+// three from ONE rule — the slug a slot resolves to BEFORE fallback:
 //
 //	set and loadable  → the persisted slug
 //	set but unloadable → STILL the persisted slug; the fallback's row carries none
 //	never set          → the SHIPPED DEFAULT's slug
 //
-// The third row is the most common install there is (§8.1 leaves a fresh install
-// with no prefs.json at all) and the one a persisted-slug-only rule would drop
-// entirely, falsifying §9.4's whole justification for the union — that the `●`
+// The third row is the most common install there is (the on-disk prefs shape leaves a fresh
+// install with no prefs.json at all) and the one a persisted-slug-only rule would drop
+// entirely, falsifying the union rule's whole justification for the union — that the `●`
 // always has something to sit on.
 //
 // The assertions are on the DRAWN badge text, which is the half the derived map
@@ -635,9 +635,9 @@ func TestThemePanelBehaviour_Badges(t *testing.T) {
 	})
 
 	t.Run("set but unloadable still badges the persisted slug", func(t *testing.T) {
-		// `gone-light` resolves to nothing, so §9.4 mints it a row and §8.5 falls the
-		// light slot back to the shipped light default. The marker stays on what is
-		// SET; the fallback's row carries none.
+		// `gone-light` resolves to nothing, so the union rule mints it a row and the per-slot
+		// fallback rule falls the light slot back to the shipped light default. The marker stays on
+		// what is SET; the fallback's row carries none.
 		m, _ := behaviourPanel(t, nil, theme.RawKeys{Light: "gone-light", Dark: "nord"})
 
 		requireRenderedBadge(t, m, "gone-light", theme.BadgeLight)
@@ -667,7 +667,7 @@ func TestThemePanelBehaviour_Badges(t *testing.T) {
 // TestThemePanelBehaviour_CommitRecompute: it recomputes and re-anchors after a
 // commit.
 //
-// §9.2: "a successful commit recomputes the panel's full row set, not just the
+// The picker idiom: "a successful commit recomputes the panel's full row set, not just the
 // badges", and it "re-anchors the cursor to the previewed theme's identity, never
 // to its index".
 //
@@ -679,12 +679,12 @@ func TestThemePanelBehaviour_Badges(t *testing.T) {
 // the rows, their order, the markers and the cursor bar — rather than the fields
 // they were derived from.
 //
-// The walk goes constant → pair → constant, because §9.2 makes the row set move in
+// The walk goes constant → pair → constant, because the picker idiom makes the row set move in
 // BOTH directions: a slot commit makes the other slot live so a row APPEARS, and
 // `Enter` clears both slots so that row loses its reason to exist and DISAPPEARS.
 func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
-	// A hand-edited prefs.json carrying all three keys, which §8.2 makes legal and
-	// resolves as a CONSTANT — the one shape in which a persisted slot names
+	// A hand-edited prefs.json carrying all three keys, which the constant-or-pair rule makes
+	// legal and resolves as a CONSTANT — the one shape in which a persisted slot names
 	// something the open-time union is blind to.
 	keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 	m, persister := behaviourPanel(t, []theme.Entry{behaviourFile("sunset", 0)}, keys)
@@ -696,7 +696,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	previewed := m.themeState.active
 	before := m.themePanel.list.Index()
 
-	// `d` over a constant asks first (§9.2), and `y` performs the write.
+	// `d` over a constant asks first, and `y` performs the write.
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	if !m.themePanel.confirming() {
 		t.Fatal("`d` over a constant did not raise the confirm, so the commit below is not the one §9.2 gates")
@@ -748,7 +748,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	}
 }
 
-// behaviourConfirmAnswers is §9.2's CLOSED set of resolving inputs: `y`/`Y`
+// behaviourConfirmAnswers is the picker idiom's CLOSED set of resolving inputs: `y`/`Y`
 // confirm, `n`/`N`/`Esc` cancel. The uppercase forms carry ModShift because that is
 // what a terminal actually sends; the lock-modifier shapes the matcher additionally
 // forgives are not this suite's subject.
@@ -758,7 +758,7 @@ var behaviourConfirmAnswers = []tea.KeyPressMsg{
 
 // TestThemePanelBehaviour_Confirm: it resolves the confirm on three inputs.
 //
-// §9.2: the confirm "resolves on exactly three inputs" and "every other key is
+// The picker idiom: the confirm "resolves on exactly three inputs" and "every other key is
 // swallowed — arrows, `Enter`, the other slot key, all of it".
 //
 // What is proven here is the CLOSURE, which a hand-written key list cannot state:
@@ -826,7 +826,7 @@ func TestThemePanelBehaviour_Confirm(t *testing.T) {
 }
 
 // behaviourConfirmModel opens a panel over a CONSTANT with the cursor arrowed off
-// the persisted row, and presses `l` to raise §9.2's question.
+// the persisted row, and presses `l` to raise the picker idiom's question.
 //
 // The cursor is moved first because it is the only shape in which the pending slug
 // and the constant being cleared are distinguishable strings — a question naming
@@ -853,12 +853,12 @@ func behaviourConfirmModel(t *testing.T) Model {
 // TestThemePanelBehaviour_FailureStateMachine: it runs the outstanding-failure
 // state machine.
 //
-// §9.13 splits one failed write into TWO lifetimes, and the split is the whole
-// mechanism: the MESSAGE persists only until the next keypress, while the STATE
+// The failed-commit rule splits one failed write into TWO lifetimes, and the split is the
+// whole mechanism: the MESSAGE persists only until the next keypress, while the STATE
 // runs until a subsequent commit SUCCEEDS. Composed without that, the very next
 // `Esc` both takes the message down and drops the theme the user chose — with no
-// `●` movement to signal it, because §9.13 forbids the marker moving on a write
-// that did not land — and "reported rather than silent" would hold for exactly one
+// `●` movement to signal it, because the failed-commit rule forbids the marker moving on a
+// write that did not land — and "reported rather than silent" would hold for exactly one
 // keystroke.
 //
 // Each transition has its own proof in theme_panel_commit_failure_test.go and
@@ -965,7 +965,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 }
 
 // behaviourFailureModel opens a panel under an ADAPTIVE PAIR, which is the setting
-// shape in which `d`/`l` write straight through — over a constant §9.2's confirm
+// shape in which `d`/`l` write straight through — over a constant the picker idiom's confirm
 // would gate them and the walk would be about the question rather than the write.
 func behaviourFailureModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
@@ -998,9 +998,9 @@ var behaviourBannedCalls = []string{
 
 // TestThemePanelBehaviour_NoConfigAccess: it touches no config.
 //
-// §13.3 requires the seam as an ARCHITECTURAL COMMITMENT rather than a convenience,
-// and this is the property that commitment buys: an invalid-theme row renders with
-// no themes directory in existence, so the panel's whole row vocabulary is
+// The harness contract requires the seam as an ARCHITECTURAL COMMITMENT rather than a
+// convenience, and this is the property that commitment buys: an invalid-theme row renders
+// with no themes directory in existence, so the panel's whole row vocabulary is
 // reachable from a suite that opens no directory and reads no prefs.json.
 //
 // Both halves are needed. The BEHAVIOURAL half shows the property holding — the

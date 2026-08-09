@@ -14,17 +14,17 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestUnion_AbsentDirectoryIsBuiltinsOnly pins the common install against §9.4's
+// TestUnion_AbsentDirectoryIsBuiltinsOnly pins the common install against the union rule's
 // union: no themes directory at all yields the built-ins and nothing else — no
 // rejections, no error, and no `directory unusable` record.
 //
-// The absent directory is deliberately NOT an error state (§5.5), so the union
+// The absent directory is deliberately NOT an error state, so the union
 // has to be indistinguishable from a usable-but-empty one: the user has simply
 // never dropped a theme in. `theme: enumerated` still fires, because the panel
-// still opened (§12.3), and its count is the built-ins.
+// still opened, and its count is the built-ins.
 //
 // Every built-in row carries its PALETTE, which is what makes the panel's preview
-// an O(1) restyle from values already in hand (§5.8) rather than a file read per
+// an O(1) restyle from values already in hand rather than a file read per
 // keystroke.
 func TestUnion_AbsentDirectoryIsBuiltinsOnly(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "themes")
@@ -66,18 +66,18 @@ func TestUnion_AbsentDirectoryIsBuiltinsOnly(t *testing.T) {
 	}
 }
 
-// TestUnion_ReservedNameIsTheOnlyTwoRowCase pins §9.4's one legitimate exception
+// TestUnion_ReservedNameIsTheOnlyTwoRowCase pins the union rule's one legitimate exception
 // to "one slug is one row": a `nord.theme` drop-in beside the `nord` built-in
 // stands as TWO rows.
 //
-// The collision IS the reason's entire content (§6.2), so deduping the file
+// The collision IS the reason's entire content, so deduping the file
 // against the built-in it collides with would delete the only explanation the
 // user gets for why their file never appeared. The built-in comes first — the
 // valid, selectable thing to act on, immediately followed by the row saying why
-// the file is not it (§9.5).
+// the file is not it.
 //
 // Every OTHER slug in the same directory stays single, which is the structural
-// half of the claim: §5.6 mints no duplicate slug, so no other dedup arises
+// half of the claim: the enumeration rule mints no duplicate slug, so no other dedup arises
 // between the built-in rows and the file rows at all.
 func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 	dir := t.TempDir()
@@ -114,13 +114,13 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 	}
 }
 
-// TestUnion_BuiltinRowsCarryNoMarker pins §9.5's "built-in rows are deliberately
-// indistinguishable from drop-in rows": a valid built-in and a valid drop-in
-// differ in Source — which only task 8-2's ordering tie-break reads — and in the
+// TestUnion_BuiltinRowsCarryNoMarker pins the row-rendering rule's "built-in rows are
+// deliberately indistinguishable from drop-in rows": a valid built-in and a valid drop-in
+// differ in Source — which only the ordering tie-break reads — and in the
 // filename an embedded theme does not have, and in NOTHING else.
 //
 // No reason, no marker and no flag may reach a built-in row, or the panel would
-// quietly grow a two-tier list where §9.5 promises one. The comparison is
+// quietly grow a two-tier list where the row-rendering rule promises one. The comparison is
 // STRUCTURAL rather than field-by-field so a field added to Row later cannot
 // carry a distinction in unnoticed.
 func TestUnion_BuiltinRowsCarryNoMarker(t *testing.T) {
@@ -148,7 +148,7 @@ func TestUnion_BuiltinRowsCarryNoMarker(t *testing.T) {
 }
 
 // TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow pins what the union
-// does in the one state §7.6's build-time guarantee says cannot ship: a binary
+// does in the one state the build-time guarantee says cannot ship: a binary
 // whose embedded set does not supply a built-in.
 //
 // The two causes are deliberately NOT collapsed, because the right answer
@@ -159,7 +159,7 @@ func TestUnion_BuiltinRowsCarryNoMarker(t *testing.T) {
 // is present and unparseable keeps its row and carries its rejection like any
 // other, since there is a named theme to explain.
 //
-// The state is reachable only through Loader.BuiltinSource (§7.6), which exists
+// The state is reachable only through Loader.BuiltinSource, which exists
 // precisely because an unreachable path with no test is a path nobody has ever
 // run.
 func TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow(t *testing.T) {
@@ -208,12 +208,12 @@ func TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow(t *testing.T) {
 	}
 }
 
-// TestUnion_EnumeratedFiresPerOpenUndeduped pins §12.3's cadence for the one
-// event this assembly emits: `theme: enumerated` is a per-event INFO and fires on
+// TestUnion_EnumeratedFiresPerOpenUndeduped pins the `theme` log component's cadence for the
+// one event this assembly emits: `theme: enumerated` is a per-event INFO and fires on
 // EVERY open, so five opens are five lines rather than one.
 //
 // Its neighbours behave the opposite way and must keep doing so in the same
-// process: enumeration re-reads the directory on every open (§5.8), and Phase 1's
+// process: enumeration re-reads the directory on every open, and the loader's
 // per-process dedup is what keeps five opens over the same broken directory from
 // producing five identical WARN sets.
 //
@@ -262,7 +262,7 @@ func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 
 // TestUnion_DiscardSilencesEnumerated pins the diagnose-shaped callers' contract
 // on the new event: a silenced Loader produces ZERO records for any sequence of
-// opens (§12.3).
+// opens.
 //
 // The process handler captures everything for the test's duration, so a record
 // reaching the sink would mean the discard logger had been bypassed rather than
@@ -312,7 +312,7 @@ func TestUnion_ZeroValueLoaderIsASilentSeam(t *testing.T) {
 	}
 }
 
-// TestUnion_IsAnOrdinaryValue pins §13.3's fixture requirement: a Union is an
+// TestUnion_IsAnOrdinaryValue pins the harness contract's fixture requirement: a Union is an
 // ordinary value with exported fields, constructible WHOLESALE with no loader, no
 // themes directory and no filesystem of any kind.
 //
@@ -342,7 +342,7 @@ func TestUnion_IsAnOrdinaryValue(t *testing.T) {
 	}
 }
 
-// TestUnion_PersistedBuiltinIsOneRow pins the distinction §9.4 calls load-bearing:
+// TestUnion_PersistedBuiltinIsOneRow pins the distinction the union rule calls load-bearing:
 // the union keys on "RESOLVES", not on "has a file".
 //
 // A built-in is embedded rather than a directory entry, so a file-existence rule
@@ -371,8 +371,8 @@ func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
 }
 
 // TestUnion_PersistedInvalidFileIsOneRow pins the same rule for the other half of
-// §9.4's sentence: a persisted slug naming an existing-but-INVALID file is that
-// file's row, carrying its reason (and, from task 8-3, its badge).
+// the union rule's sentence: a persisted slug naming an existing-but-INVALID file is that
+// file's row, carrying its reason and its badge.
 //
 // One slug is one row always, so the failure here would be the same shape as the
 // built-in's: a second `⚠ not found` row beside a file that plainly exists,
@@ -399,7 +399,7 @@ func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 	}
 }
 
-// TestUnion_UnresolvablePersistedSlugIsNotFound pins the third member of §9.4's
+// TestUnion_UnresolvablePersistedSlugIsNotFound pins the third member of the union rule's
 // union: a persisted slug that resolves to NEITHER a built-in nor a file gets a
 // row of its own — marked, unselectable, reason `not found`.
 //
@@ -430,8 +430,8 @@ func TestUnion_UnresolvablePersistedSlugIsNotFound(t *testing.T) {
 	}
 }
 
-// TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable pins §5.5's
-// distinction on the row the user actually reads: the SAME missing slug reports
+// TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable pins the directory-resolution
+// rule's distinction on the row the user actually reads: the SAME missing slug reports
 // `unreadable` rather than `not found` when the directory itself is unusable.
 //
 // `not found` sends the user to check the filename; `unreadable` sends them to
@@ -455,15 +455,15 @@ func TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable(t *testing.T
 	}
 }
 
-// TestUnion_CharsetRejectedPersistedStringIsBadName pins §9.4's other reason
-// rule: a persisted string rejected by §8.6's charset check is `bad name`, NEVER
-// `not found`.
+// TestUnion_CharsetRejectedPersistedStringIsBadName pins the union rule's other reason
+// rule: a persisted string rejected by the validate-before-use rule's charset check is `bad
+// name`, NEVER `not found`.
 //
-// Each §6.2 reason has exactly one condition, and telling a user their file is
+// Each terse reason has exactly one condition, and telling a user their file is
 // missing when they typed an illegal name sends them looking in the wrong place.
 // The row is labelled by the raw value because it has nothing else — no slug was
 // derived and no file was sought, which is also what stops a hand-edited
-// `../something` ever becoming a path component (§8.6).
+// `../something` ever becoming a path component.
 func TestUnion_CharsetRejectedPersistedStringIsBadName(t *testing.T) {
 	const illegal = "../evil"
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
@@ -485,8 +485,8 @@ func TestUnion_CharsetRejectedPersistedStringIsBadName(t *testing.T) {
 	}
 }
 
-// TestUnion_ConstantContributesOnlyTheConstant pins §8.2's tiebreak inside the
-// union: under a constant the two slot keys are NOT READ AT ALL, even when both
+// TestUnion_ConstantContributesOnlyTheConstant pins the constant-or-pair rule's tiebreak
+// inside the union: under a constant the two slot keys are NOT READ AT ALL, even when both
 // name unresolvable slugs.
 //
 // A hand-edited prefs.json may legally carry all three keys — mutual exclusion is
@@ -514,12 +514,12 @@ func TestUnion_ConstantContributesOnlyTheConstant(t *testing.T) {
 // — and the collapse is keyed on the persisted VALUE rather than on the derived
 // slug, so a value yielding no slug at all collapses by the same rule.
 //
-// An unset slot holds the shipped default (§8.3), which is a built-in and
-// therefore already has a row; it is the "never set" line of §9.5's badge table
-// rather than a nomination the user made.
+// An unset slot holds the shipped default, which is a built-in and
+// therefore already has a row; it is the "never set" line of the row-rendering rule's badge
+// table rather than a nomination the user made.
 //
-// The expectations are in §9.5's order rather than in slot order, because the
-// union arrives sorted (see sortRows). Which slot contributed a row is not
+// The expectations are in the row-rendering rule's order rather than in slot order, because
+// the union arrives sorted (see sortRows). Which slot contributed a row is not
 // something the panel — or this test — reads position for.
 func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 	tests := []struct {
@@ -549,8 +549,8 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 	}
 }
 
-// TestUnion_DirUnusableIsAFlagNotAMember pins §9.5's placement rule at the union
-// level: the unusable-directory condition comes back as a FLAG and is never a row.
+// TestUnion_DirUnusableIsAFlagNotAMember pins the row-rendering rule's placement rule at the
+// union level: the unusable-directory condition comes back as a FLAG and is never a row.
 //
 // The `⚠ dir unreadable` warning is viewport chrome pinned beneath the header,
 // not a list row — a list row participates in pagination and would vanish the
@@ -578,7 +578,7 @@ func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
 	}
 }
 
-// TestUnion_CountAndRejectedAttrs pins the two values §12.3 makes `theme:
+// TestUnion_CountAndRejectedAttrs pins the two values the `theme` log component makes `theme:
 // enumerated` carry, over an install exercising every member of the union at
 // once: valid and invalid files, built-ins, and two dead persisted slots.
 //
@@ -625,9 +625,9 @@ func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 	}
 }
 
-// TestUnion_ReassembleReadsNothing pins the entry point §9.2's post-commit
-// recompute and §5.8's `Esc` re-resolution both depend on: the union re-derives
-// from CHANGED prefs state with no fresh directory read and no event.
+// TestUnion_ReassembleReadsNothing pins the entry point the picker idiom's post-commit
+// recompute and the re-read-on-open rule's `Esc` re-resolution both depend on: the union
+// re-derives from CHANGED prefs state with no fresh directory read and no event.
 //
 // The directory is REMOVED between the two calls, so a row for a file that no
 // longer exists is proof the retained enumeration was used rather than re-read —
@@ -635,7 +635,7 @@ func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 // exists to be an O(1) restyle.
 //
 // Emitting nothing matters for the same reason: `theme: enumerated` is per PANEL
-// OPEN (§12.3), and firing it per recompute would turn one open into a line per
+// OPEN, and firing it per recompute would turn one open into a line per
 // keystroke.
 func TestUnion_ReassembleReadsNothing(t *testing.T) {
 	dir := t.TempDir()
@@ -669,8 +669,8 @@ func TestUnion_ReassembleReadsNothing(t *testing.T) {
 	}
 }
 
-// unionSlugs lists the union's row slugs in §9.5's display order, which is the
-// order the union hands them back.
+// unionSlugs lists the union's row slugs in the row-rendering rule's display order, which is
+// the order the union hands them back.
 func unionSlugs(union theme.Union) []string {
 	slugs := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -679,7 +679,7 @@ func unionSlugs(union theme.Union) []string {
 	return slugs
 }
 
-// rowsWithSlug returns the rows carrying the given slug, in §9.5's display
+// rowsWithSlug returns the rows carrying the given slug, in the row-rendering rule's display
 // order, which is the order the union hands them back.
 func rowsWithSlug(union theme.Union, slug string) []theme.Row {
 	rows := []theme.Row{}
@@ -705,8 +705,8 @@ func onlyRowWithSlug(t *testing.T, union theme.Union, slug string) theme.Row {
 
 // stripRowIdentity blanks what a row is legitimately allowed to differ in — the
 // identity it is listed under, the palette it carries, the filename only a file
-// has, and the Source consumed by §9.5's ordering tie-break — so what is left is
-// everything a built-in and a valid drop-in must agree on.
+// has, and the Source consumed by the row-rendering rule's ordering tie-break — so what is
+// left is everything a built-in and a valid drop-in must agree on.
 func stripRowIdentity(row theme.Row) theme.Row {
 	row.Slug = ""
 	row.Filename = ""

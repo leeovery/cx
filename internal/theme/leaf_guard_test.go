@@ -88,8 +88,8 @@ func TestThemePackage_ResolvesNoPaths(t *testing.T) {
 // internal/theme declares a `#RRGGBB` value.
 //
 // Every colour Portal renders lives in a `.theme` file, built-in or drop-in
-// (§7.1) — there is no Go-side palette, no compiled-in last-resort values
-// beneath the built-in fallback (§7.6's build-time guarantee replaces exactly
+// — there is no Go-side palette, no compiled-in last-resort values
+// beneath the built-in fallback (the build-time guarantee replaces exactly
 // that crutch), and no hex constant a test could quietly diverge from the
 // shipped files. This is also what retires the `internal/tui` colour-literal
 // guard's exemption for the token layer: with the values out of Go entirely,
@@ -122,7 +122,7 @@ func TestThemePackage_DeclaresNoHexLiterals(t *testing.T) {
 // TestThemePackage_HasNoInitFunction asserts the package does no work when it
 // is loaded.
 //
-// §7.6 is explicit that validation is NOT startup-eager: nothing walks the
+// The build-time guarantee is explicit that validation is NOT startup-eager: nothing walks the
 // embedded set at init, because the build-time test already proves the set and
 // re-proving it on every launch buys nothing on a cold path this feature
 // otherwise adds no cost to. Embedding the built-ins is what makes that worth

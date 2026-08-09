@@ -8,7 +8,7 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// This file is §13.5's light-only leg: the four eyeball-pinned surface tints,
+// This file is the contrast gate's light-only leg: the four eyeball-pinned surface tints,
 // and the enrolment table that decides which built-ins they apply to.
 //
 // It exists because a light tint on a light canvas is NUMERICALLY
@@ -19,7 +19,7 @@ import (
 // exact-value pin is therefore the only guard those four values can have.
 //
 // THE SCOPE RULE, because "light-only" is easy to misread as a discount:
-// the carve-out is ENROLMENT, NOT RELAXATION. Every §13.5 rule asserted in
+// the carve-out is ENROLMENT, NOT RELAXATION. Every contrast-floor rule asserted in
 // contrast_test.go applies to a light built-in exactly as it does to a dark one
 // — including all three ≥ 1.10 fill legs on bg.selection, bg.attention and
 // bg.subtle, which contrast_test.go already measures against each theme's own
@@ -30,8 +30,8 @@ import (
 // human eyeball at a visual gate, through
 // `go run ./cmd/capturetool --fixture contrast-validation --theme <slug>`.
 // There is no automatic path and no derivation to fall back on — which is
-// precisely why §7.5 defers a second light theme to separate work and calls it
-// a design task rather than a file drop. A dark theme, by contrast, is
+// precisely why the further-light-theme follow-up defers a second light theme to separate work
+// and calls it a design task rather than a file drop. A dark theme, by contrast, is
 // near-free: it is floor-checked by auto-enumeration with no eyeball step at
 // all.
 
@@ -39,12 +39,12 @@ import (
 // slug, mapped to whether its palette is light.
 //
 // It is TEST-SIDE KNOWLEDGE ONLY, and deliberately so. Portal itself has no
-// notion of a theme being light or dark (§4.7): it is neither declared in a
+// notion of a theme being light or dark: it is neither declared in a
 // .theme file nor derived from canvas luminance, because the mechanic has no
 // consumer — under the adaptive two-slot form THE SLOT classifies the theme
 // ("use this one when the terminal is light"), so Portal never inspects a
 // palette to find out. A test is allowed to know things the runtime does not,
-// and this is the one exception §4.7 names.
+// and this is the one exception the no-variant rule names.
 //
 // The table's sole job is to tell the two tests below WHICH themes to run
 // against, so a light theme is never pinned against a dark reference and a dark
@@ -61,18 +61,18 @@ var themeIsLight = map[string]bool{
 }
 
 // pinnedTokenNames is the eyeball-pinned SET: four tokens, and the COUNT IS
-// LOAD-BEARING (§13.5).
+// LOAD-BEARING.
 //
 // The pre-consolidation test listed five entries — bg.selection, bg.warning,
 // bg.track, border.separator and border.footer — but the last two shared one
-// light hex and §2.2 consolidated them into a single `border` role, so the set
+// light hex and the border consolidation merged them into a single `border` role, so the set
 // is four DISTINCT tokens under the current vocabulary. The count determines
 // how wide the light-only enrolment has to be and which pin notes live as `#`
-// comments in the theme files (§7.1), which is why it is asserted rather than
+// comments in the theme files, which is why it is asserted rather than
 // merely written down.
 //
 // `border` is the row that makes the set four rather than three, and it is
-// pinned here while carrying NO numeric floor anywhere in §13.5's table — it
+// pinned here while carrying NO numeric floor anywhere in the contrast gate's table — it
 // participates in the pins and in nothing else.
 var pinnedTokenNames = []string{
 	"bg.selection",
@@ -85,11 +85,11 @@ var pinnedTokenNames = []string{
 // name → the exact value that theme's file must carry.
 //
 // It is keyed by slug so a future light theme is a ROW, not a rewrite. The
-// values are §4.3's canonical upper case, which is the form the parser hands
-// back regardless of how the file writes them.
+// values are the hex-only value rule's canonical upper case, which is the form the parser
+// hands back regardless of how the file writes them.
 //
-// tokyo-night-day's four are §7.3's values. §7.7's re-derivation check ran over
-// that file's contrast corrections and found nothing over the ΔE threshold, so
+// tokyo-night-day's four are the shipped Tokyo Night values. The erratum re-derivation check
+// ran over that file's contrast corrections and found nothing over the ΔE threshold, so
 // no pin moved and these are the values the built-in always shipped.
 var lightPins = map[string]map[string]string{
 	"tokyo-night-day": {
@@ -117,7 +117,7 @@ var lightPins = map[string]map[string]string{
 // shipping unexamined — a light theme with no row would be skipped by both
 // tests below, so its four un-derivable tints would carry no guard at all, and
 // "Portal-endorsed but nobody checked it" is exactly the failure the bundled
-// tier exists to prevent (§6.4). A row naming a slug that no longer exists
+// tier exists to prevent. A row naming a slug that no longer exists
 // fails here too, so a deleted or renamed built-in leaves no stale entry
 // pretending to enrol something.
 func TestThemeAppearanceTableCoversEveryEmbeddedTheme(t *testing.T) {
@@ -192,7 +192,7 @@ func TestLightSurfaceTintsPinned(t *testing.T) {
 // tints against THAT THEME'S OWN canvas.
 //
 // The reference is th.Canvas.Value rather than a light-canvas constant: a theme
-// is one palette carrying its own surface (§3.1), so there is no mode axis left
+// is one palette carrying its own surface, so there is no mode axis left
 // to measure against and no constant that would be right for a second light
 // theme with a different near-white.
 //
@@ -214,11 +214,11 @@ func TestLightTintFillsArePerceptible(t *testing.T) {
 	}
 }
 
-// TestLightPins_AreExactlyFourTokens pins the count §13.5 calls load-bearing.
+// TestLightPins_AreExactlyFourTokens pins the count the contrast floors calls load-bearing.
 //
 // Four, not the three it is easy to assume from the tint roles alone, and not
 // the five rows the pre-consolidation test carried: `border` participates, and
-// `border.separator`/`border.footer` no longer exist as separate roles (§2.2).
+// `border.separator`/`border.footer` no longer exist as separate roles.
 // The names are checked against the live vocabulary too, so a set that drifted
 // back to the old pair — or to any name a .theme file cannot key against —
 // fails here rather than silently pinning nothing.
@@ -253,7 +253,7 @@ func TestLightPins_AreExactlyFourTokens(t *testing.T) {
 // here.
 //
 // It is not an exemption. A dark theme is covered in full by contrast_test.go,
-// which auto-enumerates the embedded set and measures every §13.5 rule —
+// which auto-enumerates the embedded set and measures every contrast-floor rule —
 // including the three ≥ 1.10 fill legs — against that theme's own canvas. What
 // it has no business carrying is a set of exact-value pins established by
 // eyeball against a near-white surface it does not have.

@@ -13,25 +13,25 @@ import (
 	"github.com/leeovery/portal/internal/prefs"
 )
 
-// §9.13's CLOSE REPORT: the failed-commit state has to SURVIVE the panel closing,
-// and composed naively it does not.
+// The failed-commit rule's CLOSE REPORT: the failed-commit state has to SURVIVE the panel
+// closing, and composed naively it does not.
 //
-// `Esc` is the only way out and it re-resolves from persisted state (§9.2), so the
+// `Esc` is the only way out and it re-resolves from persisted state, so the
 // very next keypress both clears the panel's message and drops the theme the user
-// chose — with no `●` movement to signal it (§9.13 forbids that) and nothing on the
-// main screen. "Reported rather than silent" would hold for exactly one keystroke.
+// chose — with no `●` movement to signal it (the failed-commit rule forbids that) and nothing
+// on the main screen. "Reported rather than silent" would hold for exactly one keystroke.
 //
 // So closing with a failure outstanding raises a main-screen flash, and RAISING IT
 // DISCHARGES THE STATE — it is the report the state exists to produce. The two
 // edges either side of that are decided in opposite directions and each is a named
-// test below: a FORCED CLOSE (§9.8) has both flashes due at once into a single-slot
+// test below: a FORCED CLOSE has both flashes due at once into a single-slot
 // band and the commit flash wins, while `Ctrl-C` is an accepted UNDELIVERED report
 // with `theme: commit failed` in the log as the record.
 //
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// specThemeNotSavedFlash is §14A's close-report copy, written out VERBATIM here
+// specThemeNotSavedFlash is the pinned copy's close-report copy, written out VERBATIM here
 // rather than read from the production constant — a test that asserts a constant
 // against itself pins nothing, and this copy is the spec's, not the
 // implementation's.
@@ -55,9 +55,9 @@ func newCloseReportModel(t *testing.T) (Model, *fakeThemePersister) {
 	return m, persister
 }
 
-// requireReportRaised fails unless the model carries §14A's close report as an
+// requireReportRaised fails unless the model carries the pinned copy's close report as an
 // ordinary theme-origin warning flash, and unless the state that produced it has
-// been DISCHARGED — the two halves are one act (§9.13), so they are asserted
+// been DISCHARGED — the two halves are one act, so they are asserted
 // together everywhere the report is due.
 func requireReportRaised(t *testing.T, m Model) {
 	t.Helper()
@@ -123,8 +123,8 @@ func requireReportTick(t *testing.T, m Model, cmd tea.Cmd) {
 
 // TestCloseReport_RaisesTheFlash: it raises the pinned report on close.
 //
-// §9.13: "closing the panel with a failed commit outstanding raises a main-screen
-// flash: `theme not saved — see portal.log`". The user is left on the main screen
+// The failed-commit rule: "closing the panel with a failed commit outstanding raises a
+// main-screen flash: `theme not saved — see portal.log`". The user is left on the main screen
 // reading it, on whichever page they were on — which is the whole of what stops the
 // revert being silent.
 //
@@ -163,8 +163,8 @@ func TestCloseReport_RaisesTheFlash(t *testing.T) {
 	}
 }
 
-// closeReportFloorCrossings are the two ways §9.8's resize condition can cross the
-// render floor, each with the geometry copy it would raise on its own.
+// closeReportFloorCrossings are the two ways the geometry rule's resize condition can cross
+// the render floor, each with the geometry copy it would raise on its own.
 var closeReportFloorCrossings = []struct {
 	name         string
 	region       func() (contentW, contentH int)
@@ -177,15 +177,15 @@ var closeReportFloorCrossings = []struct {
 // TestCloseReport_ForcedCloseCommitFlashWins: it wins over the geometry flash on a
 // forced close.
 //
-// §9.13: "on a forced close (§9.8) both flashes are due at once, and the
+// The failed-commit rule: "on a forced close both flashes are due at once, and the
 // failed-commit flash wins. The notice band has one slot, and the two report
 // different things: a geometry event the user can see for themselves — their
 // terminal just got smaller and the panel vanished — versus an unsaved setting they
 // must act on."
 //
 // Losing the geometry flash costs nothing; losing the commit flash on the one path
-// where the user cannot reopen the panel to retry is exactly the failure §9.13
-// closes. The state is discharged either way, because the report was made.
+// where the user cannot reopen the panel to retry is exactly the failure the failed-commit
+// rule closes. The state is discharged either way, because the report was made.
 //
 // The TICK is asserted here for a reason that is particular to this path: the resize
 // is handled in a pre-step of Update, so the report's auto-clear reaches the runtime
@@ -214,8 +214,8 @@ func TestCloseReport_ForcedCloseCommitFlashWins(t *testing.T) {
 // nothing is outstanding.
 //
 // The commit flash winning is scoped to the case where one is DUE. With nothing
-// outstanding §9.8's forced close is untouched — its own pinned per-dimension copy,
-// and no report about a theme that was saved.
+// outstanding the geometry rule's forced close is untouched — its own pinned per-dimension
+// copy, and no report about a theme that was saved.
 //
 // It also keeps the geometry flash's LIFECYCLE, which is the opposite of the
 // report's: it schedules no auto-clear and stands until the next actionable key,
@@ -266,8 +266,8 @@ func requireCloseIsSilent(t *testing.T, m Model, cmd tea.Cmd, gen uint64) {
 
 // TestCloseReport_DischargedOnRaise: it discharges the state.
 //
-// §9.13: "raising the flash discharges the state — it is the report the state exists
-// to produce, so once made the state has done its job. Without that, reopening the
+// The failed-commit rule: "raising the flash discharges the state — it is the report the state
+// exists to produce, so once made the state has done its job. Without that, reopening the
 // panel and pressing `Esc` would re-fire the flash about a failure already reported,
 // on every close for the life of the process."
 //
@@ -313,8 +313,8 @@ func TestCloseReport_SilentWhenNothingOutstanding(t *testing.T) {
 // TestCloseReport_SuccessfulRetryIsSilent: it raises nothing after a successful
 // retry.
 //
-// §9.13: "because a successful retry clears it, a `d` that fails followed by an `l`
-// that succeeds raises no flash — the user is not told a theme was not saved when it
+// The failed-commit rule: "because a successful retry clears it, a `d` that fails followed by
+// an `l` that succeeds raises no flash — the user is not told a theme was not saved when it
 // was." The state was already discharged by the landed write, so the close finds
 // nothing outstanding and this task adds nothing to that path.
 func TestCloseReport_SuccessfulRetryIsSilent(t *testing.T) {
@@ -338,11 +338,11 @@ func TestCloseReport_SuccessfulRetryIsSilent(t *testing.T) {
 
 // TestCloseReport_CtrlCIsAnUndeliveredReport: it delivers nothing on `Ctrl-C`.
 //
-// §9.13: "`Ctrl-C` with a failure outstanding is accepted as an undelivered report.
-// It is the one exit §9.7 keeps live inside the panel, and the main screen is going
-// away, so there is nowhere to raise a flash. The log is the record — `theme: commit
-// failed` is already written — and the alternative, a post-TUI stderr warning, would
-// put a message about a colour preference on the same channel Portal reserves for
+// The failed-commit rule: "`Ctrl-C` with a failure outstanding is accepted as an undelivered
+// report. It is the one exit the entry-condition rule keeps live inside the panel, and the
+// main screen is going away, so there is nowhere to raise a flash. The log is the record —
+// `theme: commit failed` is already written — and the alternative, a post-TUI stderr warning,
+// would put a message about a colour preference on the same channel Portal reserves for
 // bootstrap failures."
 //
 // So: it quits, it raises nothing, it writes nothing to stderr, and it leaves the
@@ -410,8 +410,8 @@ func captureStderrForTest(t *testing.T, fn func()) string {
 
 // TestCloseReport_RevertStands: it still reverts to persisted state.
 //
-// §9.13: "the revert itself is correct and stays — the write did not land, so the
-// theme is not persisted and `Esc` resolving to persisted state is right — but the
+// The failed-commit rule: "the revert itself is correct and stays — the write did not land, so
+// the theme is not persisted and `Esc` resolving to persisted state is right — but the
 // user is told, on the surface they are left looking at."
 //
 // The flash is the ONLY thing that changed about the close: the previewed theme is
@@ -440,11 +440,11 @@ func TestCloseReport_RevertStands(t *testing.T) {
 
 // TestCloseReport_ProjectsFlashSlot: it reports on Projects too.
 //
-// §14A gave Projects the transient-flash contender precisely so these signals are
-// not Sessions-only, and closing the panel is reachable from both pages (§9.6 binds
-// `t` on each). A report that vanished on Projects would be the silent revert §9.13
-// closes, reached by another route — and worse than a missing band, because the
-// discharge happens whether or not one rendered.
+// The pinned copy gave Projects the transient-flash contender precisely so these signals are
+// not Sessions-only, and closing the panel is reachable from both pages (the panel-open rule
+// binds `t` on each). A report that vanished on Projects would be the silent revert the
+// failed-commit rule closes, reached by another route — and worse than a missing band, because
+// the discharge happens whether or not one rendered.
 func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
 	rows := arrowValidRows(4)
 	persister := &fakeThemePersister{err: errThemeCommitFailed}
@@ -476,9 +476,9 @@ func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
 
 // TestCloseReport_OutranksFilterLine: it claims the band with a filter applied.
 //
-// §14A: "the filter line is the one contender above flash that can be live
+// The pinned copy: "the filter line is the one contender above flash that can be live
 // throughout a panel open/use/close, and the theme flashes take precedence over it"
-// — because "§9.13's failed-commit report would never reach the band, and because
+// — because "the failed-commit report would never reach the band, and because
 // raising the flash DISCHARGES the outstanding state, the report would be destroyed
 // rather than deferred. That is the silent revert the section exists to close."
 //
@@ -522,7 +522,7 @@ func TestCloseReport_OutranksFilterLine(t *testing.T) {
 
 // TestCloseReport_SingleClosePath: it uses the one close path.
 //
-// §9.8's forced close "takes the `Esc` path exactly", and this report attaches to
+// The geometry rule's forced close "takes the `Esc` path exactly", and this report attaches to
 // that ONE close through its post-close step rather than to a second teardown beside
 // it. Two implementations that agree today are two that can drift, and the drift
 // lands on the one path where the user cannot reopen the panel to see what happened.

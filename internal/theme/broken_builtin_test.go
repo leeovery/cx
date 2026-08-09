@@ -16,7 +16,7 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestBrokenBuiltinError_CopyIsPinned pins §14A's fatal startup sentence
+// TestBrokenBuiltinError_CopyIsPinned pins the pinned copy's fatal startup sentence
 // verbatim, em dash included.
 //
 // The `want` strings below are TRANSCRIBED FROM THE SPECIFICATION and are
@@ -25,7 +25,7 @@ import (
 // drifted to. That is the whole of the assertion: two independent statements of
 // one sentence, so an edit to either side fails.
 //
-// Terse is right for a path the build-time guarantee (§7.6) makes unreachable,
+// Terse is right for a path the build-time guarantee makes unreachable,
 // but it is still new user-facing copy, so it is pinned rather than left
 // implicit — the one line a user gets instead of a Go panic trace.
 func TestBrokenBuiltinError_CopyIsPinned(t *testing.T) {
@@ -59,16 +59,16 @@ func TestBrokenBuiltinError_CopyIsPinned(t *testing.T) {
 	}
 }
 
-// TestFallback_MissingBuiltinIsFatal pins §7.6's one genuinely fatal state at
-// the level task 5-4 deliberately left open: the MESSAGE.
+// TestFallback_MissingBuiltinIsFatal pins the build-time guarantee's one genuinely fatal state
+// at the level the per-slot fallback rule leaves open: the MESSAGE.
 //
 // The theme a slot falls back to cannot be loaded from the embedded set, so
-// there is nothing honest left to paint — §7.6 removed the safety net beneath
-// this point on purpose, rejecting "a compiled-in last-resort palette equal to
+// there is nothing honest left to paint — the build-time guarantee removed the safety net
+// beneath this point on purpose, rejecting "a compiled-in last-resort palette equal to
 // Tokyo Night Dark" in favour of a build-time guarantee. What the user gets is
 // therefore one printed line, and this is that line.
 //
-// Each row asserts BOTH halves the criterion asks for: the literal §14A sentence
+// Each row asserts BOTH halves the criterion asks for: the literal pinned sentence
 // naming the fallback slug, and that the same text comes out of the exported
 // single source. Either drifting fails — a reworded format string fails the
 // literal, and an ad-hoc fmt.Errorf at the return site fails the single-source
@@ -130,8 +130,8 @@ func TestFallback_MissingBuiltinIsFatal(t *testing.T) {
 // REASON: a fallback file that is present and unparseable produces the same
 // sentence an absent one does.
 //
-// §8.5's "one not-loadable path serves every cause" applies to the fallback as
-// much as to the nomination. The user cannot act on the distinction either way —
+// The per-slot fallback rule's "one not-loadable path serves every cause" applies to the
+// fallback as much as to the nomination. The user cannot act on the distinction either way —
 // the binary is broken, and which of the two ways it is broken changes nothing
 // they can do — so a second sentence would be copy with no reader.
 func TestFallback_CorruptBuiltinIsFatal(t *testing.T) {
@@ -214,19 +214,19 @@ func TestFallback_NominationFailureIsNotFatal(t *testing.T) {
 	}
 }
 
-// TestResolution_NoStartupEagerValidation is §7.6's NEGATIVE assertion:
+// TestResolution_NoStartupEagerValidation is the build-time guarantee's NEGATIVE assertion:
 // nothing walks the embedded set.
 //
-// Validation is not startup-eager by decision — §7.6's build-time test already
-// proves the set, and re-proving it on every launch would put a parse of every
+// Validation is not startup-eager by decision — the build-time guarantee's test
+// already proves the set, and re-proving it on every launch would put a parse of every
 // built-in on the one cold path this feature otherwise adds no cost to. The
 // checkable form is a counting byte source: a resolution reads EXACTLY the
 // built-ins it was asked about, one under a constant and two under a pair, and
 // never the set.
 //
 // The count is of BYTE READS — parses — and not of name enumerations. NewLoader
-// derives §5.4's reserved-slug set from the embedded FILENAMES, which reads no
-// file's contents and is what the counting source therefore cannot see.
+// derives the reserved-slug rule's reserved-slug set from the embedded FILENAMES, which reads
+// no file's contents and is what the counting source therefore cannot see.
 //
 // The third case is the sharp one: a nomination that is NOT a built-in still
 // costs exactly one built-in read (the miss that sends it to the themes
@@ -284,8 +284,8 @@ func TestResolution_NoStartupEagerValidation(t *testing.T) {
 // TestTheme_NoCompiledInFallbackPalette asserts no production file in
 // internal/theme declares a populated Theme.
 //
-// §7.6 rejected "a compiled-in last-resort palette equal to Tokyo Night Dark" in
-// those words — a build-time guarantee beats a runtime crutch — so the fatal
+// The build-time guarantee rejected "a compiled-in last-resort palette equal to Tokyo Night
+// Dark" in those words — a build-time guarantee beats a runtime crutch — so the fatal
 // path above must never grow one later. The temptation sits exactly where the
 // error is returned: the one place that discovers the embedded set cannot supply
 // a fallback is also the one place a hardcoded palette would look like mercy
@@ -373,12 +373,12 @@ var builtinSourceOwners = map[string]bool{
 // source is reached by TESTS ONLY.
 //
 // The seam exists BECAUSE the path it stages is unreachable: a correctly built
-// binary cannot reach §7.6's broken-fallback state, and an unreachable fatal
-// with no test is a path nobody has ever run. It costs production one nil check
+// binary cannot reach the build-time guarantee's broken-fallback state, and an unreachable
+// fatal with no test is a path nobody has ever run. It costs production one nil check
 // per built-in read and nothing else.
 //
-// What it must never become is a production knob. §7.6's whole guarantee is that
-// "built-in" means the embedded set — the files the build-time test parses and
+// What it must never become is a production knob. The build-time guarantee's whole guarantee
+// is that "built-in" means the embedded set — the files the build-time test parses and
 // validates — so a production call site wiring this field would redefine the
 // term on the exact path the guarantee is about, and every assertion resting on
 // it would still pass. The scan is repo-wide rather than package-local because

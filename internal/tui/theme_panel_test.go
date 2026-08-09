@@ -15,12 +15,12 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §9.1 slide-over surface gate. These tests pin the panel's block geometry
+// The panel layout slide-over surface gate. These tests pin the panel's block geometry
 // (exactly height × width, left border only from the header rule down), its
 // page-measured countless header and its inner gutter, the
-// §9.5 `⚠ dir unreadable` row as pinned CHROME rather than a list delegate, the
-// message slot's unreserved-when-empty budget, the §9.11 requirement that every
-// chrome surface re-derives from the previewed theme, and the compositor wiring
+// the `⚠ dir unreadable` row as pinned CHROME rather than a list delegate, the
+// message slot's unreserved-when-empty budget, the re-theme-everything rule requirement that
+// every chrome surface re-derives from the previewed theme, and the compositor wiring
 // that puts the panel over the page without re-laying the page out.
 //
 // Colour roles are asserted as theme-resolved SGR runs (like the session-row and
@@ -31,7 +31,7 @@ import (
 // helpers make parallelism unsafe across this package's tests.
 
 // themePanelTestBodyRows / themePanelTestMessageRows are the test's own reading of
-// §9.8's floor arithmetic: one list row and one message row. They are literals
+// the geometry rule's floor arithmetic: one list row and one message row. They are literals
 // here — deliberately NOT re-derived from the production layout — so the floor the
 // tests scan up from is an independent statement of the same rule.
 const (
@@ -90,8 +90,8 @@ func themePanelLines(block string) []string {
 	return strings.Split(ansi.Strip(block), "\n")
 }
 
-// themePanelContentPrefix is the cells every BORDERED panel row opens with — §9.1's
-// left `│` plus the inner gutter — so a row assertion states the panel's inset once
+// themePanelContentPrefix is the cells every BORDERED panel row opens with — the panel
+// layout's left `│` plus the inner gutter — so a row assertion states the panel's inset once
 // rather than restating it at each call site.
 func themePanelContentPrefix() string {
 	return panelFrameSide + strings.Repeat(" ", themePanelGutterWidth)
@@ -99,7 +99,7 @@ func themePanelContentPrefix() string {
 
 // themePanelColourParams collects the distinct 24-bit colour SGR parameter lists a
 // rendered block emits. Two renders of the same state under two themes must share
-// none of them (§9.11 — the panel's own chrome re-themes, no exceptions).
+// none of them (the panel's own chrome re-themes, no exceptions).
 func themePanelColourParams(block string) map[string]bool {
 	params := map[string]bool{}
 	for _, chunk := range strings.Split(block, "\x1b[")[1:] {
@@ -114,12 +114,12 @@ func themePanelColourParams(block string) map[string]bool {
 	return params
 }
 
-// TestThemePanel_BlockGeometry is §9.1's shape made executable: the panel is a
+// TestThemePanel_BlockGeometry is the panel layout's shape made executable: the panel is a
 // block of EXACTLY height rows, each EXACTLY width cells, at every height from its
-// own floor upward and at both ends of §9.8's width ladder.
+// own floor upward and at both ends of the geometry rule's width ladder.
 //
 // The floor moves with the state — the pinned directory row and a live message
-// each cost a viewport row (§9.5 / §9.8) — so each case scans up from its own.
+// each cost a viewport row — so each case scans up from its own.
 func TestThemePanel_BlockGeometry(t *testing.T) {
 	th := testDarkTheme(t)
 	footerRows := themePanelFooterHeight(themePanelKeymap())
@@ -169,20 +169,20 @@ func TestThemePanel_BlockGeometry(t *testing.T) {
 //
 // They can be eaten because `bubbles/list` has a hard minimum rendered height of
 // three rows (one item, a blank, the paginator) whatever height it is given, while
-// §9.8's floor budgets the body ONE row. At every floor case the list therefore
+// the geometry rule's floor budgets the body ONE row. At every floor case the list therefore
 // overshoots its budget, and the assembly's clamp drops the overshoot off the
 // BOTTOM of the block — off the footer, silently, keymap first.
 //
-// That is the failure §9.8 exists to prevent, reached in band: on an 11-row terminal
-// raising §9.2's confirm shrinks the body budget to two and takes `esc close` with
-// it — the one key that closes a panel the user can no longer read the way out of.
+// That is the failure the geometry rule exists to prevent, reached in band: on an 11-row
+// terminal raising the picker idiom's confirm shrinks the body budget to two and takes `esc
+// close` with it — the one key that closes a panel the user can no longer read the way out of.
 //
 // So the footer is asserted WHOLE — against its own renderer, row for row — at each
 // of the four floor cases (the pinned directory row and a live message each cost a
-// viewport row, §9.5 / §9.8), together with the message slot that is due directly
-// above it.
+// viewport row, the row-rendering rule / the geometry rule), together with the message slot
+// that is due directly above it.
 //
-// The footer it is asserted against is the SLOT'S OWN SCOPE (§9.2's nested confirm
+// The footer it is asserted against is the SLOT'S OWN SCOPE (the picker idiom's nested confirm
 // scope while the confirm is live), because that is the footer the panel renders —
 // and each case's floor is scanned from that footer's height, so the confirm's
 // shorter one is exercised at ITS floor rather than at the standing footer's.
@@ -222,8 +222,8 @@ func TestThemePanel_FooterSurvivesAtTheFloor(t *testing.T) {
 					return
 				}
 				slot := lines[len(lines)-len(wantFooter)-1]
-				// The floor is the height at which §9.1 truncates rather than wraps, so
-				// the expected slot is the truncating render (task 8-11's rule).
+				// The floor is the height at which the panel layout truncates rather than wraps, so
+				// the expected slot is the truncating render.
 				want := themePanelContentPrefix() + themePanelLines(renderThemePanelMessage(message, inner, false, th, false))[0]
 				if got := strings.TrimRight(slot, " "); got != want {
 					t.Errorf("message slot = %q, want %q", got, want)
@@ -233,14 +233,14 @@ func TestThemePanel_FooterSurvivesAtTheFloor(t *testing.T) {
 	}
 }
 
-// TestThemePanel_LeftBorderOnly is §9.1's "left border only — deliberately not an
+// TestThemePanel_LeftBorderOnly is the panel layout's "left border only — deliberately not an
 // inset bordered panel like the modals": every row from the header rule down opens
 // with the border-coloured `│`, no row above it carries one, and NO other frame
 // glyph is emitted anywhere in the block.
 //
 // The absence assertions are what make it a SLIDE-OVER rather than a floating
 // dialog: a top/bottom edge or a right side would read as the modals' frame, which
-// is exactly the shape §9.1 refuses. The border's ORIGIN is the same argument one
+// is exactly the shape the panel layout refuses. The border's ORIGIN is the same argument one
 // row further in — a `│` from row 0 cuts the page's header band in two, and the
 // panel reads as a second column beside the page rather than as a layer over it.
 func TestThemePanel_LeftBorderOnly(t *testing.T) {
@@ -286,7 +286,7 @@ func TestThemePanel_LeftBorderOnly(t *testing.T) {
 	}
 
 	// The border cell is the `border` token, not an accent: it is the ONLY thing
-	// distinguishing the panel from the list behind it (§9.1). It is read from the
+	// distinguishing the panel from the list behind it. It is read from the
 	// rows BELOW the header rule, which is where the border lives — the rule itself is
 	// the same token, so the first border-painted run in the whole block is its.
 	bordered := strings.Join(strings.Split(block, "\n")[themePanelBorderFromRow():], "\n")
@@ -295,7 +295,7 @@ func TestThemePanel_LeftBorderOnly(t *testing.T) {
 	}
 }
 
-// TestThemePanel_HeaderIsMeasuredAndCountless pins §9.1's header region within the
+// TestThemePanel_HeaderIsMeasuredAndCountless pins the panel layout's header region within the
 // block: a full-width `border` rule in the rule lane, the label `Themes` in
 // accent.mode on the section-header row, NOTHING anywhere else in the region, and NO
 // theme count.
@@ -343,8 +343,8 @@ func TestThemePanel_HeaderIsMeasuredAndCountless(t *testing.T) {
 	}
 }
 
-// TestThemePanel_DirUnreadableIsPinnedChrome is §9.5's central claim about the
-// `⚠ dir unreadable` row: it is CHROME pinned directly beneath the header, not a
+// TestThemePanel_DirUnreadableIsPinnedChrome is the row-rendering rule's central claim about
+// the `⚠ dir unreadable` row: it is CHROME pinned directly beneath the header, not a
 // list delegate.
 //
 // The proof is page 2. A list row participates in pagination, so a delegate would
@@ -394,8 +394,8 @@ func TestThemePanel_DirUnreadableIsPinnedChrome(t *testing.T) {
 	}
 }
 
-// TestThemePanel_RowsRenderBeneathDirRow is §9.5's other half: built-in rows and
-// persisted-slug rows STILL render beneath the pinned warning — the persisted rows
+// TestThemePanel_RowsRenderBeneathDirRow is the row-rendering rule's other half: built-in rows
+// and persisted-slug rows STILL render beneath the pinned warning — the persisted rows
 // especially, or a user with an unreadable directory loses the `●` entirely.
 func TestThemePanel_RowsRenderBeneathDirRow(t *testing.T) {
 	th := testDarkTheme(t)
@@ -424,10 +424,10 @@ func TestThemePanel_RowsRenderBeneathDirRow(t *testing.T) {
 	}
 }
 
-// TestThemePanel_DirRowFitsMinimumWidthUntruncated pins §9.5's deliberate 16-column
-// copy: none of §9.5's four composition priorities apply to this row (no label, no
-// badge, no reason), so the truncation-floor argument does not transfer to it — it
-// has to FIT.
+// TestThemePanel_DirRowFitsMinimumWidthUntruncated pins the row-rendering rule's deliberate
+// 16-column copy: none of the row-rendering rule's four composition priorities apply to this
+// row (no label, no badge, no reason), so the truncation-floor argument does not transfer to
+// it — it has to FIT.
 func TestThemePanel_DirRowFitsMinimumWidthUntruncated(t *testing.T) {
 	th := testDarkTheme(t)
 
@@ -458,11 +458,11 @@ func TestThemePanel_DirRowFitsMinimumWidthUntruncated(t *testing.T) {
 	}
 }
 
-// TestThemePanel_MessageSlotUnreservedWhenEmpty is §9.1's "not reserved when
+// TestThemePanel_MessageSlotUnreservedWhenEmpty is the panel layout's "not reserved when
 // empty": an empty message renders NOTHING and costs NO row of the panel's
 // vertical budget.
 //
-// The wrap flag (task 8-11's per-dimension rule) is passed both ways, because
+// The wrap flag (the per-dimension degrade rule) is passed both ways, because
 // "unreserved when empty" is a statement about the slot at every height — the
 // message-shortage rules govern a slot that HAS something in it.
 func TestThemePanel_MessageSlotUnreservedWhenEmpty(t *testing.T) {
@@ -482,14 +482,14 @@ func TestThemePanel_MessageSlotUnreservedWhenEmpty(t *testing.T) {
 	}
 }
 
-// TestThemePanel_MessageSlotRecomputesListHeight is the other half of §9.1's slot
+// TestThemePanel_MessageSlotRecomputesListHeight is the other half of the panel layout's slot
 // rule: the message appears and the list shrinks by one, exactly the way the main
 // screen's notice band recomputes list height.
 //
 // It is driven by setting the field directly, since raising either contender is a
-// commit-path dispatch. The contender is §9.13's FAILED-COMMIT line rather than
-// §9.2's confirm, because the confirm additionally substitutes its own shorter
-// footer (§9.2's nested scope) and would net the list a row rather than costing it
+// commit-path dispatch. The contender is the FAILED-COMMIT line rather than
+// the picker idiom's confirm, because the confirm additionally substitutes its own shorter
+// footer (the picker idiom's nested scope) and would net the list a row rather than costing it
 // one — the substitution has its own gate in theme_panel_message_test.go, and this
 // one is about the slot alone.
 func TestThemePanel_MessageSlotRecomputesListHeight(t *testing.T) {
@@ -527,7 +527,7 @@ func TestThemePanel_MessageSlotRecomputesListHeight(t *testing.T) {
 // TestThemePanel_ListIsConstructedWithPanelChromeDisabled pins the panel's own
 // `bubbles/list` construction: the panel supplies its own header, footer and
 // warning chrome, so the list's title, status bar, help and filtering are all off
-// (§9.1 / §1.4 — panel search is deferred by decision).
+// (the panel layout — panel search is deferred by decision).
 //
 // It also pins the sizing contract: the list is fed the panel's INNER width (the
 // left border is not list space) and the computed body height.
@@ -568,12 +568,12 @@ func TestThemePanel_ListIsConstructedWithPanelChromeDisabled(t *testing.T) {
 	}
 }
 
-// TestThemePanel_EveryChromeSurfaceIsATokenLookup is §9.11 made executable: the
-// slide-over's OWN chrome re-themes with the previewed theme, no exceptions.
+// TestThemePanel_EveryChromeSurfaceIsATokenLookup is the re-theme-everything rule made
+// executable: the slide-over's OWN chrome re-themes with the previewed theme, no exceptions.
 //
 // Rendering the same state under the two shipped built-ins must produce identical
 // text painted in wholly disjoint colours — a surface holding a cached style, or a
-// literal the reference frames tempted in (§9.1 refuses `#0C0C16` / `#2B3050`
+// literal the reference frames tempted in (the panel layout refuses `#0C0C16` / `#2B3050`
 // precisely here), would survive the swap and show up as a shared parameter list.
 func TestThemePanel_EveryChromeSurfaceIsATokenLookup(t *testing.T) {
 	dark, light := testDarkTheme(t), testLightTheme(t)
@@ -584,7 +584,7 @@ func TestThemePanel_EveryChromeSurfaceIsATokenLookup(t *testing.T) {
 	// production restyle (applyThemePanelCanvasMode), so a rendered paginator would
 	// show `bubbles/list`'s own hardcoded dot greys on BOTH renders and read as a
 	// chrome surface surviving the swap — a fixture artefact rather than the defect
-	// this test hunts. Task 8-9's dot re-point has its own coverage, on a panel opened
+	// this test hunts. The dot re-point has its own coverage, on a panel opened
 	// the production way.
 	//
 	// It is the floor with its single body row swapped for one row per theme, plus the
@@ -651,12 +651,12 @@ func themePanelPaintedOverlayBase(contentW, contentH int, th theme.Theme) []stri
 	return rows
 }
 
-// TestThemePanel_OverlayDoesNotRelayoutTheBase is §9.1's compositor contract: the
+// TestThemePanel_OverlayDoesNotRelayoutTheBase is the panel layout's compositor contract: the
 // panel is an OPAQUE LAYER over a page laid out at the UNREDUCED content width.
 //
 // Every base cell to the left of the panel survives untouched and every cell under
-// it is replaced. That is what keeps the swap the O(1) restyle of §11.1 and keeps
-// the surface being previewed from reflowing under the user — reflowing to the
+// it is replaced. That is what keeps the swap the O(1) restyle of the swap-speed finding and
+// keeps the surface being previewed from reflowing under the user — reflowing to the
 // reduced width would produce a cleaner edge and was rejected for exactly that cost.
 //
 // "Untouched" and "replaced" are asserted at CELL level — glyphs AND background
@@ -731,21 +731,21 @@ func TestThemePanel_OverlayDoesNotRelayoutTheBase(t *testing.T) {
 	}
 }
 
-// TestThemePanel_OverlayCutsMidLabel pins the accepted cost §9.1 states outright:
+// TestThemePanel_OverlayCutsMidLabel pins the accepted cost the panel layout states outright:
 // "the overlay cuts wherever its left border falls, mid-label included — `x proje▏`".
 //
-// That is NOT a violation of §14.4's "never truncate a label": §14.4 governs how the
-// footer lays ITSELF out as the terminal narrows, and the panel is an opaque layer
+// That is NOT a violation of the footer's "never truncate a label" rule: that rule governs how
+// the footer lays ITSELF out as the terminal narrows, and the panel is an opaque layer
 // composited over a footer that laid out at full width. The assertion is therefore
 // the opposite of the usual one — the covered footer must be CUT rather than
 // re-laid-out.
 func TestThemePanel_OverlayCutsMidLabel(t *testing.T) {
 	th := testDarkTheme(t)
 	// At this content width the panel's left border lands inside `x projects`,
-	// reproducing §9.1's own worked example (`x proje▏`) a character earlier. The
-	// width has moved twice: with §14.2's re-authored footer row (§15.1's named
-	// amendment), and again with the panel's own widening — a wider panel cuts further
-	// left, so the content width had to follow the cut column back into a label.
+	// reproducing the panel layout's own worked example (`x proje▏`) a character earlier. The
+	// width has moved twice: with the re-authored footer row (the amendment this feature
+	// carries to the keymap), and again with the panel's own widening — a wider panel cuts
+	// further left, so the content width had to follow the cut column back into a label.
 	const contentW, contentH = 90, 20
 
 	footer := renderSessionsFooter(sessionsKeymap(), contentW, th, false)
@@ -770,7 +770,8 @@ func TestThemePanel_OverlayCutsMidLabel(t *testing.T) {
 	covered := []rune(strings.Split(ansi.Strip(composed), "\n")[contentH-1])
 
 	// The cut lands INSIDE a word: the footer was not re-laid-out to fit, and no
-	// entry was dropped from the right as §14.4 would do for a narrowing terminal.
+	// entry was dropped from the right as the footer's right-to-left degrade would do for a
+	// narrowing terminal.
 	full := []rune(keyRow)
 	if full[cut-1] == ' ' || full[cut] == ' ' {
 		t.Fatalf("the panel's left border falls on a word boundary at col %d (%q) — the case is not exercised",
@@ -806,12 +807,12 @@ func TestThemePanel_OverlayCutsMidLabel(t *testing.T) {
 // Compositing before the fill leaves this whole suite green — the frame's bytes
 // shift elsewhere, but not one panel cell moves. The shipped order is therefore
 // defence-in-depth on the painted path. It is load-bearing only under colourless,
-// where the panel's pad IS background-less, and §9.10 blocks the panel there — on a
-// path whose current output is ragged-width anyway, so asserting it would encode a
-// shape nobody ships.
+// where the panel's pad IS background-less, and the NO_COLOR panel block blocks the panel
+// there — on a path whose current output is ragged-width anyway, so asserting it would encode
+// a shape nobody ships.
 //
-// `open` is set directly because nothing in this task opens the panel (task 8-7's
-// `t` does).
+// `open` is set directly because nothing here opens the panel (the
+// `t` keypress does).
 func TestThemePanel_ViewCompositesWhenOpen(t *testing.T) {
 	const termW, termH = 90, 24
 
@@ -873,14 +874,14 @@ func TestThemePanel_ViewCompositesWhenOpen(t *testing.T) {
 	}
 }
 
-// TestThemePanel_DelegateHasASingleConstructionPoint is the §11.2 guard: the panel's
-// row delegate has EXACTLY ONE construction site, and it takes all three of its
+// TestThemePanel_DelegateHasASingleConstructionPoint is the completeness risk guard: the
+// panel's row delegate has EXACTLY ONE construction site, and it takes all three of its
 // inputs from the model.
 //
 // Two construction sites can disagree about width or colourlessness, and the
 // disagreement is invisible until a resize during a live preview — on the surface
-// §11.2 calls the worst case of the cached-style class. The source half of the
-// assertion is what stops a second site appearing later (task 8-9's restyle path is
+// the completeness risk calls the worst case of the cached-style class. The source half of the
+// assertion is what stops a second site appearing later (the restyle path is
 // specified to re-invoke this method, not to build its own).
 func TestThemePanel_DelegateHasASingleConstructionPoint(t *testing.T) {
 	th := testLightTheme(t)
@@ -945,7 +946,7 @@ func themeRowDelegateLiteralSites(t *testing.T) []string {
 	return sites
 }
 
-// TestThemePanel_BodyIsCanvas is §9.1's body assignment: the panel is painted
+// TestThemePanel_BodyIsCanvas is the panel layout's body assignment: the panel is painted
 // `canvas`, on EVERY cell.
 //
 // It is asserted cell-by-cell rather than by the presence of the colour, because the
@@ -986,9 +987,9 @@ func TestThemePanel_BodyIsCanvas(t *testing.T) {
 	}
 }
 
-// TestThemePanel_Colourless is the §2.5 NO_COLOR carve-out: Portal paints no
-// canvas, so NO cell in the block may carry a background SGR. §9.10 blocks the
-// panel under NO_COLOR outright, so this is the defence rather than the daily path.
+// TestThemePanel_Colourless is the NO_COLOR carve-out: Portal paints no
+// canvas, so NO cell in the block may carry a background SGR. The NO_COLOR panel block blocks
+// the panel under NO_COLOR outright, so this is the defence rather than the daily path.
 func TestThemePanel_Colourless(t *testing.T) {
 	th := testDarkTheme(t)
 	p := newThemePanelFixture(themePanelFixtureOpts{

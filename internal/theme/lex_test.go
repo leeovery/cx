@@ -14,7 +14,7 @@ const bom = "\uFEFF"
 // TestLex_ParsesKeyValuePairsWithLineNumbers pins the shape of a lexed file:
 // pairs in file order, and a 1-based line number counted over the ORIGINAL file
 // including the comments and blanks that produce no pair. The line number is the
-// only carrier of which line is wrong in §14A's detail, so it has to survive the
+// only carrier of which line is wrong in the pinned copy's detail, so it has to survive the
 // lines the lexer discards.
 func TestLex_ParsesKeyValuePairsWithLineNumbers(t *testing.T) {
 	file := "# Nord — https://www.nordtheme.com/\n" +
@@ -31,7 +31,7 @@ func TestLex_ParsesKeyValuePairsWithLineNumbers(t *testing.T) {
 	)
 }
 
-// TestLex_TrimsLineAndAroundSeparator covers §4.2's whitespace rule: the whole
+// TestLex_TrimsLineAndAroundSeparator covers the lexical rules's whitespace rule: the whole
 // line is trimmed at both ends BEFORE anything is classified, so indentation
 // before a key is fine — the same tolerance the comment rule already grants '#' —
 // and then the key and value are trimmed around the '='.
@@ -49,7 +49,7 @@ func TestLex_TrimsLineAndAroundSeparator(t *testing.T) {
 	)
 }
 
-// TestLex_HashStartsCommentOnlyAtLineStart is the forcing case of §4.2: '#' is
+// TestLex_HashStartsCommentOnlyAtLineStart is the forcing case of the lexical rules: '#' is
 // both the comment marker and the hex prefix, and every value in a theme file
 // starts with one. Comments exist only at line start, so there are no trailing
 // comments and a '#' after the '=' is part of the value — here producing a value
@@ -125,7 +125,7 @@ func TestLex_BlankAndCommentOnlyFileYieldsNoPairs(t *testing.T) {
 // anything right of the first separator: a second '=' is part of the value and
 // fails hex validation later, not here.
 //
-// The same rule is why §4.2's "a key contains no '='" clause has no reachable
+// The same rule is why the lexical rules's "a key contains no '='" clause has no reachable
 // case through the lexer — the left part of a first-'=' split cannot contain one,
 // so a line the user meant as `text=primary = …` yields the key `text`, which is
 // merely unknown. The clause is stated in wellFormedKey regardless, so the
@@ -172,7 +172,7 @@ func TestLex_TrailingWhitespaceIsNotAnError(t *testing.T) {
 
 // TestLex_EmptyValueIsAWellFormedPair pins the deliberate absence of an
 // empty-value branch. The line IS a well-formed pair; the value simply is not a
-// hex, so it fails later as `bad colour`. That is also the route §4.1 closes for
+// hex, so it fails later as `bad colour`. That is also the route the file format closes for
 // the deferred transparent theme — a distinguished keyword, never btop's empty
 // right-hand side.
 func TestLex_EmptyValueIsAWellFormedPair(t *testing.T) {
@@ -242,7 +242,7 @@ func TestLex_InteriorBOMIsBadSyntax(t *testing.T) {
 	}
 }
 
-// TestLex_RejectsMalformedPairLines covers §4.2's malformed-line branch. The
+// TestLex_RejectsMalformedPairLines covers the lexical rules's malformed-line branch. The
 // well-formed-key rule is what keeps a plain typo honest: without it,
 // `text primary = …` is a well-formed pair with an unknown key, which is
 // IGNORED, and the file then fails as `missing tokens` — pointing at the wrong
@@ -386,7 +386,7 @@ func requireNoRejection(t *testing.T, rejection *Rejection) {
 }
 
 // requireBadSyntax fails the test unless the lexer rejected the file with the
-// one expected `bad syntax` rejection. wantDetail is the complete §14A string,
+// one expected `bad syntax` rejection. wantDetail is the complete pinned-copy string,
 // stated literally by each caller rather than re-derived from the format the
 // implementation uses. It also pins that no pairs come back alongside a
 // rejection — a caller never sees a partial file.

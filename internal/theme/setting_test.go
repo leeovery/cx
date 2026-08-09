@@ -11,8 +11,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestResolveSetting_ConstantWins pins §8.2's tiebreak: a non-empty `theme` key
-// resolves to the CONSTANT state, whatever else the file carries.
+// TestResolveSetting_ConstantWins pins the constant-or-pair rule's tiebreak: a non-empty
+// `theme` key resolves to the CONSTANT state, whatever else the file carries.
 //
 // The rule is what keeps "two states, not three" a resolution rule rather than a
 // file constraint — a hand-edited prefs.json may legally carry every key at once,
@@ -34,11 +34,11 @@ func TestResolveSetting_ConstantWins(t *testing.T) {
 // TestResolveSetting_ConstantIgnoresSlots pins the half of the tiebreak that is
 // easy to lose: `theme` winning means the slots are NOT READ AT ALL.
 //
-// The resolved Setting carries no slot values, which is what makes §9.5's "the
-// two setting states never coexist on screen" hold — the panel has no pair to
+// The resolved Setting carries no slot values, which is what makes the row-rendering rule's
+// "the two setting states never coexist on screen" hold — the panel has no pair to
 // render badges for. The stale slots are still returned in RawKeys, because they
 // are on disk and untouched: nothing prunes them, and the surfaces that report
-// what the file says (§9.4's list, §14A's advisory line) need them.
+// what the file says (the union rule's list, the pinned copy's advisory line) need them.
 func TestResolveSetting_ConstantIgnoresSlots(t *testing.T) {
 	got, raw := theme.ResolveSetting("nord", "solarized", "gruvbox")
 
@@ -53,8 +53,8 @@ func TestResolveSetting_ConstantIgnoresSlots(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_UnsetSlotsTakeShippedDefaults pins §8.3: "nothing set" and
-// "pair nominated" are THE SAME STATE. There is no unconfigured branch — only a
+// TestResolveSetting_UnsetSlotsTakeShippedDefaults pins the shipped adaptive default: "nothing
+// set" and "pair nominated" are THE SAME STATE. There is no unconfigured branch — only a
 // default value per slot.
 //
 // Partial pairs therefore do not exist. `theme_dark = nord` alone is the whole
@@ -114,10 +114,10 @@ func TestResolveSetting_UnsetSlotsTakeShippedDefaults(t *testing.T) {
 
 // TestResolveSetting_DefaultsAreTheSharedConstants pins WHERE the substituted
 // values come from: DefaultLightSlug and DefaultDarkSlug, the same two constants
-// task 5-4's per-slot fallback resolves to.
+// the per-slot fallback resolves to.
 //
-// The coincidence is load-bearing rather than incidental — §8.3's "the adaptive
-// pair degrades to a constant dark default" argument is true only because an
+// The coincidence is load-bearing rather than incidental — the shipped adaptive default's "the
+// adaptive pair degrades to a constant dark default" argument is true only because an
 // unresolvable slot lands on the theme the shipped default already nominates. A
 // literal here would leave that argument silently untrue the day either constant
 // moves, so the substitution is asserted against the constants themselves.
@@ -170,7 +170,7 @@ var settingKeyReaders = []struct {
 	},
 }
 
-// TestResolveSetting_ControlStripsAllThree pins §9.5: a slug that came from
+// TestResolveSetting_ControlStripsAllThree pins the row-rendering rule: a slug that came from
 // prefs.json is control-stripped AT THE POINT IT IS READ, not at the point it is
 // drawn.
 //
@@ -216,7 +216,7 @@ func TestResolveSetting_ControlStripsAllThree(t *testing.T) {
 // ONLY control characters.
 //
 // Stripping happens first, so such a value is UNSET rather than an illegal slug.
-// §9.5 makes the stripped form "the value" for every consumer, and the
+// The row-rendering rule makes the stripped form "the value" for every consumer, and the
 // alternative would mint a panel row labelled with an empty string.
 func TestResolveSetting_ControlOnlyValueIsUnset(t *testing.T) {
 	t.Run("a control-only theme does not win the tiebreak", func(t *testing.T) {
@@ -246,14 +246,14 @@ func TestResolveSetting_ControlOnlyValueIsUnset(t *testing.T) {
 }
 
 // TestResolveSetting_NoTrimOrLowercase pins the negative half of the stripping
-// rule: it normalises NOTHING ELSE (§5.2).
+// rule: it normalises NOTHING ELSE.
 //
 // A value that is merely wrong — a stray leading space, the wrong case — arrives
-// at task 5-3's charset check unaltered, so it is reported as `bad name` for what
+// at the charset check unaltered, so it is reported as `bad name` for what
 // the user typed rather than quietly corrected into a different slug. Trimming
 // `"  nord"` to `"nord"` would silently resolve a theme the file does not name;
 // lowercasing `"Nord"` would let a hand-edit shadow a built-in, which is the very
-// thing §5.4 exists to prevent.
+// thing the reserved-slug rule exists to prevent.
 func TestResolveSetting_NoTrimOrLowercase(t *testing.T) {
 	values := []struct {
 		name string
@@ -282,8 +282,8 @@ func TestResolveSetting_NoTrimOrLowercase(t *testing.T) {
 }
 
 // TestResolveSetting_ReturnsRawKeysForTheSameEvaluation pins why the raw keys
-// ride back alongside the Setting: §8.4's "the nomination alone is insufficient
-// for the panel".
+// ride back alongside the Setting: the construction-time load rule's "the nomination alone is
+// insufficient for the panel".
 //
 // The two answer different questions from ONE evaluation, so they cannot
 // disagree. The Setting says what is ACTIVE — with the shipped defaults already
@@ -382,12 +382,12 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	})
 }
 
-// TestInForceKeys_SelectsTheKeysInForce pins all three clauses of §8.4's "the
-// keys in force" rule in the one place they are now decided: the `theme`-wins
+// TestInForceKeys_SelectsTheKeysInForce pins all three clauses of the construction-time load
+// rule's "the keys in force" rule in the one place they are now decided: the `theme`-wins
 // tiebreak, the non-empty-raw-value rule, and the same-value collapse.
 //
-// The three used to be authored twice — once for §9.4's panel rows and once for
-// §14A's doctor lines — and it is their single home, not this table, that moves
+// The three used to be authored twice — once for the union rule's panel rows and once for
+// the pinned copy's doctor lines — and it is their single home, not this table, that moves
 // both surfaces at once; the table holds that home to its rule. The slot each
 // entry carries is what doctor's parenthetical is rendered from, so it is
 // asserted alongside the value rather than left to the caller's own reading of
@@ -455,7 +455,7 @@ func TestInForceKeys_SelectsTheKeysInForce(t *testing.T) {
 }
 
 // TestInForceKeys_UnsetSlotIsNeverInForce pins the half of the rule the Setting
-// alone cannot express: an unset slot holds the SHIPPED DEFAULT (§8.3), and that
+// alone cannot express: an unset slot holds the SHIPPED DEFAULT, and that
 // substituted value is not something the user set.
 //
 // The vacuity guard is the whole test: the default really is in the Setting, so
@@ -649,7 +649,7 @@ func assertFieldKinds(t *testing.T, structType reflect.Type, want []fieldKind) {
 }
 
 // assertSingleLine fails when a value still carries a control character, which is
-// the checkable form of §9.5's "renders as one line of ordinary text".
+// the checkable form of the row-rendering rule's "renders as one line of ordinary text".
 func assertSingleLine(t *testing.T, what, value string) {
 	t.Helper()
 

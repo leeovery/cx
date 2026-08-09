@@ -12,16 +12,16 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// brokenCanvasValue is the typo'd hex §5.4 tells its story with — a value that
-// is not a `#RRGGBB` at all, so a file carrying it is `bad colour` the moment
+// brokenCanvasValue is the typo'd hex the reserved-slug rule tells its story with — a value
+// that is not a `#RRGGBB` at all, so a file carrying it is `bad colour` the moment
 // anything reads it.
 const brokenCanvasValue = "blue"
 
-// TestLoadFile_ReservedSlugRejected pins §5.4 on the PRODUCTION loader: a
+// TestLoadFile_ReservedSlugRejected pins the reserved-slug rule on the PRODUCTION loader: a
 // drop-in whose slug collides with a built-in is rejected `reserved name`, even
 // when there is nothing else wrong with it whatsoever.
 //
-// This is the wiring test, and it is deliberately distinct from Phase 1's
+// This is the wiring test, and it is deliberately distinct from the loader's
 // rung test (TestLoadFile_ReservedNameDecidedFromSlugAlone), which drives the
 // rung through an injected synthetic set: that one passes whether or not
 // NewLoader populates the seam, so it can say nothing about whether the safety
@@ -81,7 +81,7 @@ func TestLoadFile_ReservedDecidedBeforeRead(t *testing.T) {
 }
 
 // TestLoadFile_MixedCaseFilenameIsBadNameNotReserved pins the half of the
-// no-shadowing property that lives in §5.2's reject-never-normalise rule: a
+// no-shadowing property that lives in the slug charset rule's reject-never-normalise rule: a
 // mis-cased filename is `bad name` at rung 1 and never reaches the reserved
 // rung, so it yields NO slug rather than a quietly corrected one.
 //
@@ -125,8 +125,8 @@ func TestLoadFile_MixedCaseFilenameIsBadNameNotReserved(t *testing.T) {
 // of BuiltinSlugs() reserves, and the test NAMES no theme.
 //
 // A built-in added by a later PR is therefore covered here without this file
-// changing — which is the property that keeps §5.4's guarantee true as the set
-// grows. A hand-maintained reserved list, or a test that spelled the slugs out,
+// changing — which is the property that keeps the reserved-slug rule's guarantee true as the
+// set grows. A hand-maintained reserved list, or a test that spelled the slugs out,
 // would both pass right up until the day someone added a built-in and forgot,
 // at which point the new theme would ship shadowable.
 func TestReservedSet_CoversEveryBuiltinSlug(t *testing.T) {
@@ -144,11 +144,11 @@ func TestReservedSet_CoversEveryBuiltinSlug(t *testing.T) {
 }
 
 // TestNoShadowing_BrokenDropInCannotReplaceBuiltin is the safety property
-// itself, stated end to end: the built-in Portal falls back to (§8.5) can never
+// itself, stated end to end: the built-in Portal falls back to can never
 // be the user's broken file.
 //
-// The fixture is §5.4's own story — `tokyo-night.theme` dropped into the themes
-// directory with a typo'd hex — driven through the two calls that would have to
+// The fixture is the reserved-slug rule's own story — `tokyo-night.theme` dropped into the
+// themes directory with a typo'd hex — driven through the two calls that would have to
 // agree for the property to hold: the enumerating path REPORTS it, and the
 // built-in lookup is UNAFFECTED by it. Without the reserved rung the first
 // would hand the panel a selectable palette from that file and the second would
@@ -210,7 +210,7 @@ func TestNoShadowing_BrokenDropInCannotReplaceBuiltin(t *testing.T) {
 	}
 }
 
-// TestLoadFile_RenamedCopyIsAccepted pins §5.4's published workaround — copy
+// TestLoadFile_RenamedCopyIsAccepted pins the reserved-slug rule's published workaround — copy
 // `nord` to `nord-lee.theme` — as a working escape hatch, for every built-in.
 //
 // It is the other face of exact string equality: a slug that merely CONTAINS a

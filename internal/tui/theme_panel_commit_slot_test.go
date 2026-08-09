@@ -17,31 +17,31 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// §9.2's `d` and `l`: they COMMIT ONE SLOT — `theme_dark`/`theme_light` = the
+// The picker idiom's `d` and `l`: they COMMIT ONE SLOT — `theme_dark`/`theme_light` = the
 // cursor's slug, the constant cleared in the same atomic prefs write — and the
 // panel STAYS OPEN.
 //
-// This is the panel's genuinely novel half (§9.14 records that assigning a theme
-// to a light/dark slot from inside a picker was found in no surveyed tool), and
+// This is the panel's genuinely novel half (the reference frames records that assigning a
+// theme to a light/dark slot from inside a picker was found in no surveyed tool), and
 // three properties make it more than a second `Enter`:
 //
 //   - THE OTHER SLOT SURVIVES. A slot save leaves the other slot's raw value
 //     exactly as it was, which is what makes `d` then `l` on one row produce
-//     §9.5's `● both` in two keypresses — the likely path for a user wanting
+//     the row-rendering rule's `● both` in two keypresses — the likely path for a user wanting
 //     "this theme everywhere" without realising `Enter` is the idiom for it.
 //   - IT IS THE SHARPEST CASE OF "A COMMIT IS A WRITE, NOT A NAVIGATION".
 //     Previewing a light theme in a dark terminal and pressing `l` writes the
 //     light slot while the resolved-active theme is still the dark slot, so
 //     absolutely nothing changes on screen and the only feedback is the badge.
-//   - A CONSTANT MAKES IT INERT, DELIBERATELY. §9.2 gates `d`/`l` over a constant
-//     behind a confirm (task 9-5) because a silent constant-clear is exactly the
+//   - A CONSTANT MAKES IT INERT, DELIBERATELY. The picker idiom gates `d`/`l` over a constant
+//     behind a confirm because a silent constant-clear is exactly the
 //     loss that confirm exists to prevent, so the interim behaviour here writes
 //     NOTHING rather than writing directly.
 //
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// slotDarkPress / slotLightPress are §9.2's two slot-commit presses.
+// slotDarkPress / slotLightPress are the picker idiom's two slot-commit presses.
 var (
 	slotDarkPress  = tea.KeyPressMsg{Code: 'd', Text: "d"}
 	slotLightPress = tea.KeyPressMsg{Code: 'l', Text: "l"}
@@ -80,11 +80,11 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 	}
 }
 
-// requireNoSlotLoad fails unless the recording fake behind m was asked for NO §8.4
+// requireNoSlotLoad fails unless the recording fake behind m was asked for NO commit-time
 // commit-time slot resolution at all.
 //
-// It is the SEAM-LEVEL statement of §8.4's "the load happens on the constant →
-// adaptive transition and nowhere else": a `d`/`l` over an adaptive PAIR changes
+// It is the SEAM-LEVEL statement of the construction-time load rule's "the load happens on the
+// constant → adaptive transition and nowhere else": a `d`/`l` over an adaptive PAIR changes
 // which slug a slot that is already live names, so both members are in hand and
 // there is nothing to resolve. TestCommitSlotLoad_NonConvertingCommitIsSilent states
 // the same rule from the other end — no `theme: loaded` line — and the two fail
@@ -101,8 +101,8 @@ func requireNoSlotLoad(t *testing.T, m Model) {
 	}
 }
 
-// requirePairKeys fails unless the model's raw keys are §8.2's adaptive shape:
-// these two slots, with the constant cleared.
+// requirePairKeys fails unless the model's raw keys are the constant-or-pair rule's adaptive
+// shape: these two slots, with the constant cleared.
 func requirePairKeys(t *testing.T, m Model, light, dark string) {
 	t.Helper()
 	if got := m.themeState.keys; got != (theme.RawKeys{Light: light, Dark: dark}) {
@@ -112,10 +112,11 @@ func requirePairKeys(t *testing.T, m Model, light, dark string) {
 
 // newSlotPairPanelModel is the SLOT fixture over a REAL loader and a REAL themes
 // directory, under an adaptive pair: the light slot on lightSlug, the dark slot on
-// darkSlug, and the dark one in force (the standing no-answer canvas, §8.8).
+// darkSlug, and the dark one in force (the standing no-answer canvas, the appearance-gate
+// rule).
 //
-// The loader is real wherever a test asserts ROWS or BADGES, for the reason task
-// 9-2's recompute fixture is: a stub seam answers Reassemble with a fixed union
+// The loader is real wherever a test asserts ROWS or BADGES, for the reason the
+// recompute fixture is: a stub seam answers Reassemble with a fixed union
 // and Resolve with a fixed resolution, so every row and every `●` would be a
 // statement about the fixture rather than about the derivation the commit drives.
 func newSlotPairPanelModel(t *testing.T, dir, lightSlug, darkSlug string) (Model, *fakeThemePersister) {
@@ -163,8 +164,8 @@ func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Mode
 	return openCommitPanel(t, deps, PageSessions, dark.Slug), enumerator, persister
 }
 
-// requireBothBadge fails unless the labelled row carries §9.5's collapsed `● both`
-// and it is the ONLY badge the panel renders.
+// requireBothBadge fails unless the labelled row carries the row-rendering rule's collapsed `●
+// both` and it is the ONLY badge the panel renders.
 //
 // The rendered text is asserted alongside the item's badge because the two say
 // different things: the map is what the recompute derived, the glyphs are what the
@@ -185,7 +186,7 @@ func requireBothBadge(t *testing.T, m Model, label string) {
 
 // TestPanelSlotCommit_DarkWritesTheDarkSlot: it writes the dark slot.
 //
-// §9.2: "`d` — **Commits the dark slot** — writes `theme_dark = <selection>`,
+// The picker idiom: "`d` — **Commits the dark slot** — writes `theme_dark = <selection>`,
 // clears the constant | stays open."
 //
 // The fixture ARROWS AWAY from the row the panel opened on, which is the only
@@ -213,7 +214,7 @@ func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 
 // TestPanelSlotCommit_LightWritesTheLightSlot: it writes the light slot.
 //
-// §9.2: "`l` — **Commits the light slot** — writes `theme_light = <selection>`,
+// The picker idiom: "`l` — **Commits the light slot** — writes `theme_light = <selection>`,
 // clears the constant | stays open." The mirror of the dark case, and asserted
 // separately rather than as a table row because the two keys are the one place a
 // transposed slot argument would be invisible in either direction.
@@ -238,8 +239,8 @@ func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 
 // TestPanelSlotCommit_OtherSlotSurvives: it leaves the other slot untouched.
 //
-// The property §9.5's `● both` rests on, and the one a naive "write the pair"
-// implementation loses. It is asserted with the other slot naming a slug that
+// The property the row-rendering rule's `● both` rests on, and the one a naive "write the
+// pair" implementation loses. It is asserted with the other slot naming a slug that
 // resolves to NOTHING (`ghost`), which is the strongest form: prefs persists
 // values verbatim, so a commit that re-derived the pair — or "helpfully" dropped
 // an unresolvable slug — would show up here and nowhere else. The `ghost` row and
@@ -269,8 +270,8 @@ func TestPanelSlotCommit_OtherSlotSurvives(t *testing.T) {
 // The fresh-install shape of the same rule, and the one a real user reaches first:
 // with no theme keys persisted at all, `d` produces `{Light:"" Dark:<slug>}`. The
 // empty slot is carried through AS EMPTY rather than materialised into the shipped
-// default it happens to resolve to — §8.3's "an unset slot holds the shipped
-// default" is a READ rule, and writing that default out would freeze today's
+// default it happens to resolve to — the shipped adaptive default's "an unset slot holds the
+// shipped default" is a READ rule, and writing that default out would freeze today's
 // default into the user's prefs, silently declining every later change to it. It is
 // the same refusal commitSlot makes for an already-empty CONSTANT, which is
 // likewise not special-cased in the write or in the mirror.
@@ -301,13 +302,13 @@ func TestPanelSlotCommit_EmptyOtherSlotStaysEmpty(t *testing.T) {
 // TestPanelSlotCommit_DThenLYieldsBoth: it produces the both badge in two
 // keypresses.
 //
-// §9.5: "**When both slots name the same slug, that one row carries `● both`.**
-// This is reachable in two keypresses (`d` then `l` on one row) and is a likely
+// The row-rendering rule: "**When both slots name the same slug, that one row carries `●
+// both`.** This is reachable in two keypresses (`d` then `l` on one row) and is a likely
 // path — it is where a user lands wanting 'this theme everywhere' without
 // realising `Enter` is the idiom for it."
 //
 // So the fixture presses exactly those two keys on one row, and the collapse falls
-// out of the untouched-other-slot rule plus task 9-2's recompute rather than out of
+// out of the untouched-other-slot rule plus the post-commit recompute rather than out of
 // any badge derivation on the commit path.
 func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 	dir := t.TempDir()
@@ -340,14 +341,14 @@ func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 // TestPanelSlotCommit_ClearsTheConstantAtomically: it clears the constant in the
 // same write.
 //
-// §8.2's mutual exclusion is enforced ON WRITE, and task 6-2 pinned prefs.
-// SaveThemeSlot performing both halves in ONE AtomicWrite. What this task owes it
+// The constant-or-pair rule's mutual exclusion is enforced ON WRITE, and prefs.
+// SaveThemeSlot performs both halves in ONE AtomicWrite. What the panel owes it
 // is that the panel asks for it ONCE — no second call to clear the constant, and
 // no merge re-implemented here — and that the in-memory mirror clears `Theme` the
 // same way.
 //
 // The memory half is driven through commitSlot DIRECTLY, because the KEY is
-// deliberately inert over a constant until task 9-5's confirm lands: this helper
+// deliberately inert over a constant until the confirm resolves: this helper
 // is what that confirm will drive on `y`, so the mirror is asserted where it is
 // implemented rather than through a route that does not exist yet.
 func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
@@ -369,7 +370,7 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 	t.Run("the constant is cleared in memory", func(t *testing.T) {
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-		// The hand-edited three-key shape §8.2 makes legal and resolves as a
+		// The hand-edited three-key shape the constant-or-pair rule makes legal and resolves as a
 		// CONSTANT — the one state in which there is a constant for a slot commit
 		// to clear, and in which the untouched slot is invisible until it does.
 		keys := theme.RawKeys{Theme: "aurora", Light: "ghost", Dark: "aurora"}
@@ -396,14 +397,14 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 // TestPanelSlotCommit_InertOverAConstant: it writes nothing while a constant is
 // set.
 //
-// §9.2 gives `d`/`l` over a constant a CONFIRM naming the constant that will be
+// The picker idiom gives `d`/`l` over a constant a CONFIRM naming the constant that will be
 // cleared, because it is "the one place a keypress described as inert can silently
 // cost the user a setting they chose": on `"theme": "nord"`, pressing `l` clears
 // the constant, the untouched dark slot falls back to the shipped default, and
 // `Esc` in a dark terminal lands on `tokyo-night` rather than `nord`.
 //
 // So the KEYPRESS ITSELF WRITES NOTHING: it asks, and the write happens on `y`
-// (task 9-5, theme_panel_confirm.go). What this file keeps asserting is the GATE at
+// (theme_panel_confirm.go). What this file keeps asserting is the GATE at
 // the `d`/`l` dispatch — no prefs call, no mutated keys, no re-theme, no close and
 // no deferred write riding a tea.Cmd — while the question's own behaviour (its copy,
 // its swapped footer, and the three inputs that resolve it) is covered by the
@@ -447,7 +448,7 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			}
 
 			// Positive control: the SAME key over an ADAPTIVE setting writes, so the
-			// inertness above is §9.2's gate rather than a dead arm.
+			// inertness above is the picker idiom's gate rather than a dead arm.
 			pair, pairPersister := newCommitPairPanelModel(t, rows)
 			pair, _ = pressSlotKey(t, arrowToThemeRow(t, pair, target), tc.press)
 			requireSlotCommits(t, pairPersister, slotCommit{slug: target, slot: tc.slot})
@@ -460,7 +461,7 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 
 // TestPanelSlotCommit_NonActiveSlotIsVisuallyInert: it changes nothing on screen.
 //
-// §9.2: "**Committing to a non-active slot changes nothing on screen.** Previewing
+// The picker idiom: "**Committing to a non-active slot changes nothing on screen.** Previewing
 // a light theme in a dark terminal and pressing `l` writes the light slot, but the
 // resolved-active theme is still the dark slot. A commit is a **write, not a
 // navigation**."
@@ -470,9 +471,9 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 // bytes, the palette across a commit that legitimately moves a badge, and what
 // `Esc` resolves to afterwards.
 func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
-	// The dark slot is in force (§8.8's standing no-answer canvas), so every
+	// The dark slot is in force (the appearance-gate rule's standing no-answer canvas), so every
 	// subtest below previews a LIGHT theme in a dark terminal and commits the LIGHT
-	// slot — the exact configuration §9.2 names.
+	// slot — the exact configuration the picker idiom names.
 	newModel := func(t *testing.T) (Model, *fakeThemePersister) {
 		t.Helper()
 		dir := t.TempDir()
@@ -552,8 +553,8 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 
 // TestPanelSlotCommit_RepeatIsIdempotent: it is idempotent.
 //
-// §9.13: "A commit is always re-attemptable. The commit keys are unconditional
-// writes (§9.2), so pressing `d`/`l`/`Enter` again simply retries — no special
+// The failed-commit rule: "A commit is always re-attemptable. The commit keys are
+// unconditional writes, so pressing `d`/`l`/`Enter` again simply retries — no special
 // retry affordance, and no state to clear first."
 //
 // Driven on the row ALREADY carrying that slot's badge, which is both the
@@ -604,9 +605,9 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 // TestPanelSlotCommit_TypedSlotOnly: it cannot mint a third slot.
 //
 // The slot is the TYPED prefs value threaded through the seam, never a
-// caller-supplied key name — the structural half of §8.2's two-slot model, whose
-// other half is prefs.SaveThemeSlot rejecting an out-of-range value before it
-// writes anything (task 6-2). The type alone does most of the work (ThemeSlot is
+// caller-supplied key name — the structural half of the constant-or-pair rule's two-slot
+// model, whose other half is prefs.SaveThemeSlot rejecting an out-of-range value before it
+// writes anything. The type alone does most of the work (ThemeSlot is
 // not a string, so `prefs.ThemeSlot("dark")` does not compile), which leaves
 // exactly two shapes a scan has to close: a CONVERSION minting a value from an
 // integer, and a THIRD constant appearing beside the two.
@@ -675,7 +676,7 @@ func isPrefsSelector(expr ast.Expr, sel string) bool {
 
 // TestPanelSlotCommit_FailedWriteLeavesKeysAlone: it mutates nothing on failure.
 //
-// §9.13: a failed commit "does not move the `●` — the marker means 'what is
+// The failed-commit rule: a failed commit "does not move the `●` — the marker means 'what is
 // persisted' and would be lying if it moved". The badges are derived from the raw
 // keys, so the mechanism is that nothing is mutated and the recompute is never
 // reached. The whole key struct is compared, so the OTHER slot's raw value riding
@@ -688,8 +689,8 @@ func isPrefsSelector(expr ast.Expr, sel string) bool {
 // write that never landed. Committing the slug the slot already holds leaves those
 // keys byte-identical either way, and would assert nothing.
 //
-// The error is RETURNED rather than swallowed, and the panel REPORTS it: §9.13's
-// message-slot line is raised from the value while everything the `●` derives from
+// The error is RETURNED rather than swallowed, and the panel REPORTS it: the failed-commit
+// rule's message-slot line is raised from the value while everything the `●` derives from
 // is left exactly as it was. What this file asserts is the untouched half; the
 // report's own behaviour — its copy, its lifetime and the outstanding state behind
 // it — is covered by the failure suite.
@@ -736,14 +737,15 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 	})
 
 	// The helper's own return, driven over the shape that carries a CONSTANT for the
-	// failed write to have wrongly cleared — task 9-5's half: it calls this helper on
+	// failed write to have wrongly cleared — the confirm's half: it calls this helper on
 	// `y`, and on failure the constant is not cleared in memory, so the badges still
 	// show it. The KEY cannot reach here over a constant (that is 9-5's confirm), so
 	// the helper is called directly, exactly as the successful clear is.
 	t.Run("the helper returns the error and leaves the constant set", func(t *testing.T) {
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-		// The hand-edited three-key shape §8.2 makes legal and resolves as a CONSTANT.
+		// The hand-edited three-key shape the constant-or-pair rule makes legal and resolves as a
+		// CONSTANT.
 		keys := theme.RawKeys{Theme: "aurora", Light: "ghost", Dark: "aurora"}
 		m, _, persister := newRecomputePanelModel(t, dir, keys)
 		requireBadge(t, m, "aurora", theme.BadgeConstant)
@@ -781,7 +783,7 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 
 // TestPanelSlotCommit_NilPersisterIsInert: it tolerates a nil persister.
 //
-// A fixture or `capturetool` model carries NO persister (task 6-7), so a slot
+// A fixture or `capturetool` model carries NO persister, so a slot
 // commit during a capture writes nowhere. It is the ABSENCE OF A WRITER rather
 // than a failed write — it raises no message and no outstanding-failure state
 // — which is why it mutates nothing either: there is nothing on disk
@@ -828,14 +830,14 @@ func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 // TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm: it needs no confirm for a
 // following `Enter`.
 //
-// §9.2: "**The reverse direction needs no confirm.** `Enter` on a theme while a
+// The picker idiom: "**The reverse direction needs no confirm.** `Enter` on a theme while a
 // pair is set clears both slots — but `Enter` visibly does what it says." The pair
 // this one clears is the one the user has just built with `d`, which is the
 // sharpest form of the asymmetry: the slot key that CREATED the pair is gated
 // behind a confirm over a constant, and the key that destroys the pair is not
 // gated at all.
 //
-// So the constant lands on that single keypress, with nothing in §9.1's message
+// So the constant lands on that single keypress, with nothing in the panel layout's message
 // slot and the panel's standing footer untouched.
 func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	dir := t.TempDir()
@@ -873,7 +875,7 @@ func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 // TestPanelSlotCommit_NoOtherIO: it reads nothing and writes nothing else.
 //
 // The prefs call is the ONE write this keypress may make. Everything else is
-// asserted absent: no directory read and no fresh enumeration (§8.4 — a commit
+// asserted absent: no directory read and no fresh enumeration (a commit
 // changes prefs, not the directory, and a read here would produce a third parse of
 // the same slug that can disagree with the row the user is looking at), no other
 // file-touching seam, and no deferred write riding a tea.Cmd.
@@ -919,8 +921,8 @@ func TestPanelSlotCommit_NoOtherIO(t *testing.T) {
 	if !m.themePanel.open {
 		t.Fatal("fixture: the panel did not open")
 	}
-	// The OPEN's own read is not what this measures — §5.8 pins one directory read
-	// per open, and the question here is what the COMMIT adds to it.
+	// The OPEN's own read is not what this measures — the re-read-on-open rule pins one directory
+	// read per open, and the question here is what the COMMIT adds to it.
 	stores.reset()
 	opens := enumerator.opens
 

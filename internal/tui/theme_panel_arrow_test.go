@@ -13,20 +13,21 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// §9.2's arrow-preview: `↑`/`↓` move the panel cursor, `Ctrl+↑`/`Ctrl+↓` page it,
-// the cursor steps past unselectable rows (§9.5), and every landing re-themes the
-// WHOLE frame — main screen and panel chrome alike (§9.11) — through the §11.1
+// The picker idiom's arrow-preview: `↑`/`↓` move the panel cursor, `Ctrl+↑`/`Ctrl+↓` page it,
+// the cursor steps past unselectable rows, and every landing re-themes the
+// WHOLE frame — main screen and panel chrome alike — through the swap-speed finding
 // restyle path.
 //
 // Most of this file asserts NEGATIVES, because live preview's whole risk profile
-// is what a keypress must NOT do: no file read (§5.8), no rebuild and no lazy pane
-// read (§11.1), no movement of the startup canvas hex (§11.4), and no write of any
-// kind (§9.2 — "nothing is written").
+// is what a keypress must NOT do: no file read, no rebuild and no lazy pane
+// read, no movement of the startup canvas hex, and no write of any
+// kind ("nothing is written").
 //
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// The four navigation presses the panel routes, and the banned forms §12.2 drops.
+// The four navigation presses the panel routes, and the banned forms the arrow-only keymap
+// revision drops.
 var (
 	arrowUp       = tea.KeyPressMsg{Code: tea.KeyUp}
 	arrowDown     = tea.KeyPressMsg{Code: tea.KeyDown}
@@ -58,7 +59,7 @@ const (
 // region — header block plus section header) and the four-row vertical footer leaves
 // a 4-row body, of which `bubbles/list` spends 2 on its own pagination block (the
 // dot row plus its leading blank) — a two-row page. It is the SHORTEST terminal that
-// paginates, one row above §9.8's floor.
+// paginates, one row above the geometry rule's floor.
 const (
 	arrowPagingTermH   = 15
 	arrowPagingPerPage = 2
@@ -122,7 +123,7 @@ func arrowRowBySlug(t *testing.T, rows []theme.Row, slug string) theme.Row {
 
 // newArrowPanelDeps assembles the Build deps for an arrow fixture: a stub seam
 // answering with the given rows verbatim (so the fixture's ORDER is the panel's
-// order) and a resolution naming cursorSlug's row, which is where §9.2's open
+// order) and a resolution naming cursorSlug's row, which is where the picker idiom's open
 // lands the cursor.
 func newArrowPanelDeps(t *testing.T, rows []theme.Row, cursorSlug string) Deps {
 	t.Helper()
@@ -230,7 +231,7 @@ func requireArrowCursorAt(t *testing.T, m Model, want int) {
 // TestPanelArrow_NavigationBindings: it moves the cursor on arrows and pages on
 // ctrl-arrows.
 //
-// §9.2's first two rows, end to end: `↑`/`↓` step one row and `Ctrl+↑`/`Ctrl+↓`
+// The picker idiom's first two rows, end to end: `↑`/`↓` step one row and `Ctrl+↑`/`Ctrl+↓`
 // move a whole page, driven through the live Update so what is proven is the
 // panel's own routing rather than a call into `bubbles/list`.
 //
@@ -269,17 +270,17 @@ func TestPanelArrow_NavigationBindings(t *testing.T) {
 
 // TestPanelArrow_ArrowOnlyNavigation: it binds no vim alias or page-jump key.
 //
-// §12.2's arrow-only revision applies to the panel's list exactly as
+// MV's arrow-only keymap revision applies to the panel's list exactly as
 // pinArrowOnlyNav applies it to the other two: the v2 DefaultKeyMap re-introduces
 // h/j/k/l, g/G and PgUp/PgDn/Home/End/b/u/f/d, and `l`/`d` additionally collide with
-// the panel's own commit keys (§9.2). The binding table is asserted alongside the
+// the panel's own commit keys. The binding table is asserted alongside the
 // behaviour, because a key that reaches the list at all is a key the panel has
 // already lost control of.
 //
 // `←`/`→`/`d` are in the banned set because the v2 default binds all three to a
 // PAGE (`left`/`h`/`pgup`/`b`/`u` and `right`/`l`/`pgdown`/`f`/`d`), and `d` is the
-// one §9.2 hands to the dark slot — a `d` that reached the list would page the panel
-// instead of committing.
+// one the picker idiom hands to the dark slot — a `d` that reached the list would page the
+// panel instead of committing.
 //
 // The fixture runs at the PAGING terminal height so the page keys have a page to
 // move to: on a single-page list every banned page key is a no-op whatever it is
@@ -365,10 +366,10 @@ func arrowMainColumn(m Model) int {
 // TestPanelArrow_PreviewsThroughApplyTheme: it re-themes the main screen and the
 // panel together.
 //
-// §9.2 ("the app re-themes live behind the panel") and §9.11 ("the slide-over's own
-// chrome re-themes with the previewed theme, no exceptions") are ONE keypress, so
-// they are asserted as one diff of the composed frame across a single `↓`: a cell
-// inside the panel and a cell of the main screen both carry the newly-selected
+// The picker idiom ("the app re-themes live behind the panel") and the re-theme-everything
+// rule ("the slide-over's own chrome re-themes with the previewed theme, no exceptions") are
+// ONE keypress, so they are asserted as one diff of the composed frame across a single `↓`: a
+// cell inside the panel and a cell of the main screen both carry the newly-selected
 // row's canvas and neither carries the previous row's.
 func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 	rows := arrowValidRows(4)
@@ -441,8 +442,8 @@ func TestPanelArrow_SkipsConsecutiveInvalidRows(t *testing.T) {
 //
 // The second deliberate difference from skipHeaderRow, in both directions: with no
 // selectable row left in the direction of travel the loop turns round rather than
-// parking on an invalid row or running off the end. Built-ins are always valid
-// (§7.6), so a selectable row always exists for it to turn back to.
+// parking on an invalid row or running off the end. Built-ins are always valid,
+// so a selectable row always exists for it to turn back to.
 //
 // AFTER A SINGLE-ROW STEP — which is what both cases below take — A REVERSAL ENDS
 // WHERE IT BEGAN: everything between the boundary and the starting row was walked
@@ -506,8 +507,8 @@ func requireArrowMoves(t *testing.T, m Model, press tea.KeyPressMsg, want int) {
 
 // TestPanelArrow_SkipComposesWithPaging: it composes the skip with paging.
 //
-// §9.5: "the skip composes with paging exactly as the group-header skip already
-// does". `Ctrl+↓` lands on a page whose FIRST row is invalid, and the skip must
+// The row-rendering rule: "the skip composes with paging exactly as the group-header skip
+// already does". `Ctrl+↓` lands on a page whose FIRST row is invalid, and the skip must
 // resolve that within the page it just landed on rather than undoing the page move.
 //
 // The fixture is only a fixture at the PRODUCTION page size: on a one-row page
@@ -538,8 +539,8 @@ func TestPanelArrow_SkipComposesWithPaging(t *testing.T) {
 
 // TestPanelArrow_NoFileReadPerKeystroke: it reads no file per keystroke.
 //
-// §5.8's retention made executable, in the only way that cannot be faked: the
-// themes directory is DELETED after the panel opened, and arrowing still previews
+// The re-read-on-open rule's retention made executable, in the only way that cannot be faked:
+// the themes directory is DELETED after the panel opened, and arrowing still previews
 // the drop-in's own palette. A preview reading the file per keystroke could not
 // produce that colour at all.
 func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
@@ -624,8 +625,8 @@ func newArrowRebuildProbeModel(t *testing.T, rows []theme.Row, reader *fakeStamp
 
 // TestPanelArrow_DoesNotRebuildSessionList: it does not rebuild the session list.
 //
-// §11.1's central prohibition on the surface it matters most: a rebuild re-derives
-// the item list and, in grouped modes, pays the lazy per-session tmux pane reads
+// The swap-speed finding's central prohibition on the surface it matters most: a rebuild
+// re-derives the item list and, in grouped modes, pays the lazy per-session tmux pane reads
 // (the known ~0.5s By-Project cost at ~38 sessions). Nothing that heavy may sit on
 // a path the user takes on every arrow keypress.
 //
@@ -663,9 +664,9 @@ func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 
 // TestPanelArrow_StartupCanvasHexUnmoved: it never moves the startup canvas hex.
 //
-// §11.4's anchor: the exit-time canvas restore compares against the canvas in force
-// during the STARTUP window, and an uncommitted preview is precisely the state that
-// would otherwise poison it — the user quits with `Ctrl-C` and a colour they never
+// The exit-time restore rule's anchor: the exit-time canvas restore compares against the
+// canvas in force during the STARTUP window, and an uncommitted preview is precisely the state
+// that would otherwise poison it — the user quits with `Ctrl-C` and a colour they never
 // chose stays stuck in their terminal. Both counts are asserted because a swap that
 // WRITES the hex moves it once, while one that re-derives it drifts only under
 // repetition.
@@ -697,8 +698,8 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 
 // TestPanelArrow_WritesNothing: it writes nothing on an arrow.
 //
-// §9.2 states it as part of the keymap itself — "the app re-themes live behind the
-// panel. Nothing is written." Every write is an explicit commit keypress (Phase 9),
+// The picker idiom states it as part of the keymap itself — "the app re-themes live behind the
+// panel. Nothing is written." Every write is an explicit commit keypress,
 // so an arrow must persist no preference and must not touch the themes directory it
 // previews from.
 //
@@ -706,12 +707,12 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 // path and reads no PORTAL_* env var: every route from this package to prefs.json
 // runs through an injected persister, so watching a prefs file here would be
 // watching a file nothing in this package could write whatever the preview did. The
-// mode persister is the only such seam an arrow could reach in this phase — §9.2's
-// commit keys are Phase 9's and the panel's default arm swallows them, so the theme
-// persister has no dispatch to reach it from yet.
+// mode persister is the only such seam an arrow could reach in this phase — the picker idiom's
+// commit keys are dispatched elsewhere and the panel's default arm swallows them,
+// so the theme persister has no dispatch to reach it from.
 //
 // The themes directory IS watched on disk, because the enumeration seam really does
-// reach it (§5.8's retention is what keeps a keypress off it).
+// reach it (the re-read-on-open rule's retention is what keeps a keypress off it).
 func TestPanelArrow_WritesNothing(t *testing.T) {
 	t.Run("arrowing persists no preference", func(t *testing.T) {
 		persister := &countingModePersister{}
@@ -736,7 +737,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 
 		// Positive control: the seam is wired to THIS model and live, so the zero
 		// above is an absence of writes rather than an absence of wiring. `s` is
-		// swallowed while the panel is open (§9.7), so it is closed first.
+		// swallowed while the panel is open, so it is closed first.
 		m = pressPanelKey(t, closeThemePanelForTest(t, m), tea.KeyPressMsg{Code: 's', Text: "s"})
 		if persister.calls != 1 {
 			t.Fatalf("positive control: `s` on the closed picker persisted %d time(s), want 1 — the counting persister proves nothing about the arrows", persister.calls)
@@ -770,7 +771,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 // TestPanelArrow_PanelListStylesRepointed: it re-points the panel's own list
 // styles.
 //
-// §11.2 names the panel's `bubbles/list` instance the WORST CASE of the
+// The completeness risk names the panel's `bubbles/list` instance the WORST CASE of the
 // cached-style class: its styles are assigned once at open while its theme changes
 // on every arrow. The pagination dots are the class's exemplar — `bubbles/list`
 // reads its dot STRINGS out of the styles once at construction — so the union is
@@ -817,7 +818,7 @@ func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
 		l.Styles.TitleBar.Render("x"), tokenBgSeq(t, after.Canvas), tokenBgSeq(t, before.Canvas))
 	// Styles.NoItems is the last bubbles/list-owned colour-bearing style on this
 	// instance, and it is re-pointed on the same terms as the two main lists' rather
-	// than justified as unreachable: the panel arm's coverage of §11.2's class is
+	// than justified as unreachable: the panel arm's coverage of the completeness risk's class is
 	// asserted per VALUE, which is the discipline applyCanvasMode's residue record
 	// adopted after a blanket "none of these renders" claim let this exact style sit
 	// unnoticed while reaching a real frame.
@@ -827,7 +828,7 @@ func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
 		t.Errorf("the panel list's Styles.Title emits colour %q — nothing paints the title box", escSeq(titleRun))
 	}
 
-	// The delegate is the other half of §11.2's rule: the cursor row's label is
+	// The delegate is the other half of the completeness risk's rule: the cursor row's label is
 	// text.on-selection, which no other panel surface paints.
 	assertRepointed(t, "the panel's row delegate (cursor-row label)",
 		panel, tokenFgSeq(t, after.TextOnSelection), tokenFgSeq(t, before.TextOnSelection))
@@ -835,7 +836,7 @@ func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
 
 // TestPanelArrow_ColourlessStaysColourless: it keeps a colourless model colourless.
 //
-// §2.5's carve-out across a preview swap: Portal imposes no hue under NO_COLOR, and
+// The NO_COLOR carve-out across a preview swap: Portal imposes no hue under NO_COLOR, and
 // re-pointing three lists' worth of cached styles is exactly where one would leak
 // back in. The coloured twin is the positive control, so the two negatives are
 // absences rather than a frame that never had colour.
@@ -852,8 +853,8 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 		m := Build(deps)
 		m.termWidth, m.termHeight = arrowTermW, arrowTermH
 		m.applySessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 2}})
-		// §9.10's entry gate BLOCKS `t` under NO_COLOR, so the colourless twin arms the
-		// panel directly (armPanelUnderNoColorForTest states why) while the coloured
+		// The NO_COLOR panel block's entry gate BLOCKS `t` under NO_COLOR, so the colourless twin
+		// arms the panel directly (armPanelUnderNoColorForTest states why) while the coloured
 		// control still opens through the production keypress. The preview swap below is
 		// the same on both.
 		if colourless {

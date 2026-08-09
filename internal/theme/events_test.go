@@ -13,13 +13,13 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// themeComponent is the log component §12.3 adds to the closed vocabulary. The
+// themeComponent is the log component this feature adds to the closed vocabulary. The
 // loader never binds it — `cmd` does, on the paths where a theme is USED — so
 // every test that asserts on the component binds it here exactly as production
 // will.
 const themeComponent = "theme"
 
-// closedAttrKeys is §12.3's closed attr-key vocabulary for the `theme`
+// closedAttrKeys is the closed attr-key vocabulary for the `theme`
 // component, restated here so a call site that invents a key fails the suite.
 // Five of the seven are reachable from the per-theme events below; `count` and
 // `rejected` belong to `theme: enumerated`, the one event about a SET of themes,
@@ -29,13 +29,13 @@ var closedAttrKeys = []string{"slug", "slot", "reason", "path", "token", "count"
 // TestEventLogger_RejectionsAreWarn pins the level and the component of both of
 // this phase's events, and their messages.
 //
-// WARN rather than INFO is a decision, not a default (§12.3): "doctor treats
+// WARN rather than INFO is a decision, not a default: "doctor treats
 // them as advisory for exit-code purposes, but 'your config did not work' is a
 // warning in a log."
 //
 // The component is asserted through a REAL log.For binding rather than a bare
-// capture logger, because the binding is the whole mechanism §12.3 describes:
-// the loader emits and the caller decides, so `theme` reaches the line from the
+// capture logger, because the binding is the whole mechanism the `theme` log component
+// describes: the loader emits and the caller decides, so `theme` reaches the line from the
 // injected logger and from nowhere in this package.
 func TestEventLogger_RejectionsAreWarn(t *testing.T) {
 	sink := &logtest.Sink{}
@@ -66,12 +66,12 @@ func TestEventLogger_RejectionsAreWarn(t *testing.T) {
 }
 
 // TestEventLogger_TokenAttrOnlyWhereReasonNamesOne pins the `token` attr against
-// every one of §6.2's seven reasons: present for exactly the two that NAME a
+// every one of the reason vocabulary's seven reasons: present for exactly the two that NAME a
 // token — `missing tokens` and `bad colour` — and absent for the other five.
 // This event is that attr's only consumer in the whole vocabulary, so the
 // biconditional is the contract.
 //
-// The value is §14A's comma-separated list, the same one doctor prints, so a
+// The value is the pinned copy's comma-separated list, the same one doctor prints, so a
 // grep of the log and a doctor run name the same tokens. `missing tokens` is the
 // one detail carrying a lead-in ("missing …"), and the list is what rides the
 // attr — the reason is already its own attr, so repeating it inside the value
@@ -113,8 +113,8 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 }
 
 // TestEventLogger_AttrKeysAreInTheClosedSet pins the exact attr keys of every
-// shape this phase emits, and that each is drawn from §12.3's closed seven —
-// the component's vocabulary is spec-governed and never extended at a call site.
+// shape this phase emits, and that each is drawn from the `theme` log component's closed seven
+// — the component's vocabulary is spec-governed and never extended at a call site.
 //
 // The logger is deliberately UNBOUND (no component), so the captured keys are
 // exactly what this package passed rather than what a caller's binding added.
@@ -150,7 +150,7 @@ func TestEventLogger_AttrKeysAreInTheClosedSet(t *testing.T) {
 
 // TestEventLogger_DiscardSilencesEverything pins the diagnose-shaped callers'
 // contract: a seam constructed with log.Discard() writes NOTHING, for any
-// sequence of calls including a full reject set (§12.3).
+// sequence of calls including a full reject set.
 //
 // That is what `portal doctor`, `portal theme export` and capturetool are
 // constructed with, and doctor is the run most likely to hit every reason at
@@ -211,7 +211,7 @@ func TestEventLogger_NilLoggerIsSafe(t *testing.T) {
 
 // TestEventLogger_DedupsRejectedOnSlugAndReason pins the per-process dedup that
 // keeps a forensic trail from turning into a running commentary: enumeration
-// re-reads the directory on EVERY panel open (§5.8), so five opens over the same
+// re-reads the directory on EVERY panel open, so five opens over the same
 // broken directory must produce one WARN per distinct slug+reason, not five sets
 // of identical ones.
 //
@@ -294,8 +294,8 @@ func TestEventLogger_DedupsOnPathWhenNoSlug(t *testing.T) {
 }
 
 // TestEventLogger_DirectoryUnusableDedupsOnPathAndReason pins the same rule for
-// §5.5's misconfigured directory: enumeration runs on every panel open, so
-// without dedup a user with a bad directory would collect an identical WARN per
+// the directory-resolution rule's misconfigured directory: enumeration runs on every panel
+// open, so without dedup a user with a bad directory would collect an identical WARN per
 // open.
 func TestEventLogger_DirectoryUnusableDedupsOnPathAndReason(t *testing.T) {
 	dir := unreadableDir(t)
@@ -325,8 +325,8 @@ func TestEventLogger_DirectoryUnusableDedupsOnPathAndReason(t *testing.T) {
 // (identity, reason) PAIR rather than per file: the same theme reported for a
 // different reason is a different problem and earns its own line.
 //
-// It is the mid-session shape §5.8 exists for — a user edits a file that was
-// missing a token and introduces a bad colour instead — and a per-file key would
+// It is the mid-session shape the re-read-on-open rule exists for — a user edits a file that
+// was missing a token and introduces a bad colour instead — and a per-file key would
 // silently swallow the second state.
 func TestEventLogger_SameSlugDifferentReasonEmitsTwice(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -351,11 +351,11 @@ func TestEventLogger_SameSlugDifferentReasonEmitsTwice(t *testing.T) {
 }
 
 // TestEventLogger_FreshInstanceHasFreshDedupState pins where the dedup state
-// lives: on the injected INSTANCE, not in package state in the leaf (§12.3).
+// lives: on the injected INSTANCE, not in package state in the leaf.
 //
 // Both seams here write to the same logger, so only the instance boundary can
-// separate them — and that is exactly how a test controls dedup, and how §8.9's
-// concurrent Portal processes each keep their own.
+// separate them — and that is exactly how a test controls dedup, and how the concurrent-write
+// rule's concurrent Portal processes each keep their own.
 func TestEventLogger_FreshInstanceHasFreshDedupState(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	rejection := &theme.Rejection{Reason: theme.ReasonMissingTokens, Detail: "missing canvas"}
@@ -372,8 +372,8 @@ func TestEventLogger_FreshInstanceHasFreshDedupState(t *testing.T) {
 }
 
 // TestEventLogger_ConcurrentEmissionIsRaceFree pins that the dedup set is safe
-// under concurrent emission — several instances are normal (§8.9) and one TUI
-// process may drive enumeration from more than one path (§5.5), so the
+// under concurrent emission — several instances are normal and one TUI
+// process may drive enumeration from more than one path, so the
 // check-and-record must be atomic rather than merely fast.
 //
 // Under -race this fails on an unsynchronised map; without it, the exactly-once
@@ -401,8 +401,8 @@ func TestEventLogger_ConcurrentEmissionIsRaceFree(t *testing.T) {
 }
 
 // TestEnumerate_AbsentDirectoryEmitsNothing pins the one directory state that
-// owes the log nothing: an absent themes directory is §5.5's common case and is
-// silent — no doctor line and NO log entry, because zero drop-ins is not an
+// owes the log nothing: an absent themes directory is the directory-resolution rule's common
+// case and is silent — no doctor line and NO log entry, because zero drop-ins is not an
 // error.
 //
 // It is asserted against a REAL component logger, so the silence is the loader's
@@ -429,8 +429,8 @@ func TestEnumerate_AbsentDirectoryEmitsNothing(t *testing.T) {
 	}
 }
 
-// TestEvents_LoadedOncePerNomination pins §12.3's cadence for `theme: loaded`:
-// ONE line per NOMINATED theme — one under a constant, two under an adaptive
+// TestEvents_LoadedOncePerNomination pins the `theme` log component's cadence for `theme:
+// loaded`: ONE line per NOMINATED theme — one under a constant, two under an adaptive
 // pair — never one combined line carrying both.
 //
 // One line per nomination is what keeps `slug` and `slot` SINGLE-VALUED, which
@@ -540,8 +540,8 @@ func TestEvents_SlotAttrOnlyUnderAPair(t *testing.T) {
 //
 // Without it, `theme: fallback applied` and `theme: loaded` both name the slug
 // that FAILED, and a `grep "theme:"` on a broken install cannot answer which
-// palette is actually rendering — which is the greppability §6.3 justifies the
-// whole component on.
+// palette is actually rendering — which is the greppability the rejection-surface split
+// justifies the whole component on.
 //
 // The surviving dark slot is asserted alongside it, so the light slot's fallback
 // is shown not to have disturbed what the other slot reports.
@@ -577,10 +577,10 @@ func TestEvents_LoadedNamesTheFallbackSlug(t *testing.T) {
 
 // TestEvents_FallbackAppliedNamesTheFailedSlug pins the other half of that pair:
 // `theme: fallback applied` carries the slug that FAILED, the slot it failed in,
-// and the §6.2 reason it failed for.
+// and the terse reason it failed for.
 //
 // Without all three the line is not greppable, which is the whole reason the
-// component earns its place (§12.3). And the two events naming DIFFERENT slugs is
+// component earns its place. And the two events naming DIFFERENT slugs is
 // asserted explicitly rather than left implied by the two slug assertions: naming
 // the same slug twice is precisely the failure the rule exists to prevent, so a
 // future change that made both name the nomination has to fail HERE rather than
@@ -627,8 +627,8 @@ func TestEvents_FallbackAppliedNamesTheFailedSlug(t *testing.T) {
 // two events over a REPEATED resolution: five resolutions of the same broken slug
 // are ONE `fallback applied` and FIVE `loaded`.
 //
-// Five is the shape a live process actually produces — construction resolves once
-// (§8.4), every panel open resolves again (§9.2) and so does every `Esc` (§5.8) —
+// Five is the shape a live process actually produces — construction resolves once,
+// every panel open resolves again and so does every `Esc` —
 // so a per-fallback WARN would turn the passive forensic trail into running
 // commentary about a condition the user was already told about once. The INFO
 // does not dedup because it is per LOAD, not per condition: five loads happened,
@@ -697,7 +697,7 @@ func TestEvents_FallbackDifferentReasonEmitsTwice(t *testing.T) {
 // failure anywhere near it: five resolutions of a perfectly good constant are
 // five `loaded` records.
 //
-// It is per LOAD, not per condition — Phase 9's commit-time load is the same
+// It is per LOAD, not per condition — the commit-time load is the same
 // event at a different cadence — so deduping it would make the log unable to say
 // that a theme was loaded again at all.
 func TestEvents_LoadedIsNotDeduplicated(t *testing.T) {
@@ -725,8 +725,8 @@ func TestEvents_LoadedIsNotDeduplicated(t *testing.T) {
 // TestEvents_LevelsAreLoadedInfoFallbackWarn pins each event's level, its
 // component, and the fixed ORDER the two are emitted in.
 //
-// WARN for the fallback and INFO for the load is the same judgement §12.3 makes
-// for its neighbours: "your config did not work" is a warning in a log, while a
+// WARN for the fallback and INFO for the load is the same judgement the `theme` log component
+// makes for its neighbours: "your config did not work" is a warning in a log, while a
 // theme loading is a fact.
 //
 // The order is part of the contract, not an accident of the call site: the
@@ -766,8 +766,8 @@ func TestEvents_LevelsAreLoadedInfoFallbackWarn(t *testing.T) {
 }
 
 // TestEvents_AttrKeysAreInTheClosedSet pins the exact attr keys of all FOUR
-// shapes a resolution emits, and that each is drawn from §12.3's closed seven —
-// the component's vocabulary is spec-governed and never extended at a call site.
+// shapes a resolution emits, and that each is drawn from the `theme` log component's closed
+// seven — the component's vocabulary is spec-governed and never extended at a call site.
 //
 // Both events are driven under BOTH setting states, so the exact key set is what
 // pins `slot` to the pair: a constant's `fallback applied` is {slug, reason} and
@@ -778,7 +778,7 @@ func TestEvents_LevelsAreLoadedInfoFallbackWarn(t *testing.T) {
 //
 // `count` and `rejected` are asserted absent by name as well as by the exact key
 // sets: NOTHING IS ENUMERATED at construction, and those two keys belong to
-// Phase 8's `theme: enumerated`, which counts the panel's rows.
+// the panel's `theme: enumerated`, which counts its rows.
 //
 // The logger is deliberately UNBOUND (no component), so the captured keys are
 // exactly what this package passed rather than what a caller's binding added.
@@ -878,12 +878,11 @@ func TestEvents_DiscardSilencesResolution(t *testing.T) {
 }
 
 // TestEvents_FreshInstanceHasFreshDedupState pins where the fallback WARN's dedup
-// state lives: on the injected INSTANCE, not in package state in the leaf
-// (§12.3).
+// state lives: on the injected INSTANCE, not in package state in the leaf.
 //
 // Both loaders here write to the same logger and resolve the same broken slug, so
-// only the instance boundary can separate them — and that is exactly how §8.9's
-// concurrent Portal processes each keep their own, and how a test controls dedup
+// only the instance boundary can separate them — and that is exactly how the concurrent-write
+// rule's concurrent Portal processes each keep their own, and how a test controls dedup
 // at all.
 func TestEvents_FreshInstanceHasFreshDedupState(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -952,7 +951,7 @@ func recordsNamed(sink *logtest.Sink, msg string) []logtest.Record {
 	return named
 }
 
-// emitFullRejectSet drives every event this phase emits over every §6.2 reason,
+// emitFullRejectSet drives every event this phase emits over every terse reason,
 // under both identities and twice over — the sequence a silenced seam must
 // produce nothing for.
 func emitFullRejectSet(events *theme.EventLogger) {

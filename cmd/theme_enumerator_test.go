@@ -22,7 +22,7 @@ import (
 )
 
 // themeEnumeratorForTest builds the production adapter over a loader emitting
-// into a capture sink, so the §12.3 `theme: enumerated` cadence is observable
+// into a capture sink, so the `theme: enumerated` cadence is observable
 // while the directory resolution stays the production one (themesDirPath).
 func themeEnumeratorForTest(t *testing.T) (theme.Loader, *logtest.Sink) {
 	t.Helper()
@@ -42,14 +42,14 @@ func pressThemeKeyOnModel(t *testing.T, m tui.Model) string {
 	return model.View().Content
 }
 
-// themePanelHeaderCopy is §9.1's pinned panel header label, restated here rather
+// themePanelHeaderCopy is the panel layout's pinned panel header label, restated here rather
 // than reached for: internal/tui holds it unexported, and a cmd-side test
 // asserting the composed frame is asserting the user-visible copy anyway.
 const themePanelHeaderCopy = "Themes"
 
-// TestThemeEnumerator_ReadsOnlyWhenOpened pins the cadence half of §5.7/§5.8 on
-// the PRODUCTION adapter: constructing it touches nothing, and each Open is one
-// directory read emitting exactly one `theme: enumerated`.
+// TestThemeEnumerator_ReadsOnlyWhenOpened pins the cadence half of the lazy-discovery rule/the
+// re-read-on-open rule on the PRODUCTION adapter: constructing it touches nothing, and each
+// Open is one directory read emitting exactly one `theme: enumerated`.
 //
 // The directory is POPULATED and resolved through PORTAL_THEMES_DIR, so a
 // construction-time sweep would be visible as a record and a drop-in row.
@@ -78,8 +78,8 @@ func TestThemeEnumerator_ReadsOnlyWhenOpened(t *testing.T) {
 }
 
 // TestThemeEnumerator_ReassembleDoesNoIO pins the second method's contract at the
-// production boundary: §9.2's post-commit recompute and §5.8's `Esc`
-// re-resolution both re-derive from the RETAINED enumeration with no fresh read,
+// production boundary: the picker idiom's post-commit recompute and the re-read-on-open rule's
+// `Esc` re-resolution both re-derive from the RETAINED enumeration with no fresh read,
 // so a directory emptied underneath a live panel changes nothing.
 func TestThemeEnumerator_ReassembleDoesNoIO(t *testing.T) {
 	dir := useThemesDir(t)
@@ -100,8 +100,8 @@ func TestThemeEnumerator_ReassembleDoesNoIO(t *testing.T) {
 	}
 }
 
-// TestThemeEnumerator_SharesTheConstructionReadsDedupScope pins §5.5's
-// requirement on the loader this adapter is given: ONE loader per launch is ONE
+// TestThemeEnumerator_SharesTheConstructionReadsDedupScope pins the directory-resolution
+// rule's requirement on the loader this adapter is given: ONE loader per launch is ONE
 // dedup scope per launch.
 //
 // The construction-time by-name read and the panel's enumeration hit the same
@@ -112,8 +112,8 @@ func TestThemeEnumerator_ReassembleDoesNoIO(t *testing.T) {
 // second emission being possible at all.
 func TestThemeEnumerator_SharesTheConstructionReadsDedupScope(t *testing.T) {
 	// A DROP-IN slug, so the by-name read must consult the themes directory and
-	// meet §5.5's unusable verdict; a built-in would resolve out of the embedded
-	// set and never look.
+	// meet the directory-resolution rule's unusable verdict; a built-in would resolve out of the
+	// embedded set and never look.
 	const dropIn = "a-drop-in"
 
 	openAfterConstruction := func(t *testing.T, panelLoader func(theme.Loader) theme.Loader) int {
@@ -215,10 +215,10 @@ func callCount(n ast.Node, name string) int {
 // TestThemePanelOpen_WiredThroughBuildTUIModel: it threads the constructor slots
 // end to end.
 //
-// Phase 5 task 5-7 deliberately left the control-stripped raw keys unthreaded —
-// computed, then discarded — because §8.4's slot had no consumer until the panel
-// existed. This asserts the whole chain from the cmd config through tui.Build to a
-// rendered frame: `t` on the built model paints the §9.1 slide-over, listing a
+// The control-stripped raw keys were deliberately left unthreaded —
+// computed, then discarded — because the construction-time load rule's slot had no consumer
+// until the panel existed. This asserts the whole chain from the cmd config through tui.Build
+// to a rendered frame: `t` on the built model paints the panel layout slide-over, listing a
 // drop-in that only a real directory read could have produced and marking the
 // persisted slug the adapter's own re-resolution names.
 //
@@ -245,10 +245,10 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 
 // TestThemePanelOpen_ExecPathUntouched: it does no theme work on the exec path.
 //
-// §12.3 records the win this feature is careful to keep: `portal open <target>`
-// constructs no TUI, so the loader never runs there — and the panel seam added
+// The `theme` log component records the win this feature is careful to keep: `portal open
+// <target>` constructs no TUI, so the loader never runs there — and the panel seam added
 // here must not change that. The themes directory is poisoned (mode 0000), which
-// makes any read of it LOUD: §5.5 gives an unusable directory a
+// makes any read of it LOUD: the directory-resolution rule gives an unusable directory a
 // `theme: directory unusable` WARN where an absent one is silent, so "emitted
 // nothing" is not vacuous.
 func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {

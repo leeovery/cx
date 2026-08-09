@@ -18,8 +18,8 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// §13.3's FOUR panel-fixture inputs, and the no-I/O fake that turns three of
-// them into a §9.4 union the panel can list.
+// The harness contract's FOUR panel-fixture inputs, and the no-I/O fake that turns three of
+// them into a union the panel can list.
 //
 // These tests are IN-PACKAGE because the inputs are declared fields and the fake
 // is unexported: what they pin is that a fixture DECLARES its panel and that the
@@ -29,12 +29,12 @@ import (
 //
 // No t.Parallel() anywhere — the project bans it outright.
 
-// panelLeftBorder is §9.1's left-border-only glyph, the one column marking where
+// panelLeftBorder is the panel layout's left-border-only glyph, the one column marking where
 // the slide-over starts on every row of a frame. It is a literal because
 // internal/tui keeps its own copy unexported.
 const panelLeftBorder = "│"
 
-// panelFixtureNames is EVERY §13.3 panel fixture, DERIVED FROM THE REGISTRY so a
+// panelFixtureNames is EVERY harness-mandated panel fixture, DERIVED FROM THE REGISTRY so a
 // fixture added to the catalogue is covered by the assertions below without being
 // enrolled a second time by hand.
 //
@@ -52,14 +52,14 @@ func panelFixtureNames() []string {
 	return names
 }
 
-// panelFixturePrefix is what every §13.3 panel fixture's registered name begins
+// panelFixturePrefix is what every harness-mandated panel fixture's registered name begins
 // with, and the whole of what distinguishes one from the picker fixtures beside
 // it in the registry.
 const panelFixturePrefix = "theme-panel-"
 
 // TestPanelFixture_FourInputs: it declares all four panel inputs.
 //
-// §13.3 names four and calls the fourth PREVIOUSLY UNSTATED: the `--theme`
+// The harness contract names four and calls the fourth PREVIOUSLY UNSTATED: the `--theme`
 // palette, the raw persisted keys, the faked ThemeEnumerator's row set, and the
 // CURSOR POSITION. The palette arrives per render (Deps takes it), so what a
 // fixture can declare for itself is the other three — plus the enumeration and
@@ -127,7 +127,7 @@ func rowSortKeys(rows []theme.Row) []string {
 // TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette: it reports the
 // injected palette.
 //
-// THE WHOLE POINT IS THAT THE OPEN-TIME ApplyTheme IS A NO-OP. Task 8-8's open
+// THE WHOLE POINT IS THAT THE OPEN-TIME ApplyTheme IS A NO-OP. The open
 // applies the theme its Resolve return names, BEFORE the cursor seed runs. So a
 // fake reporting anything other than the palette the model's nomination carries
 // REPAINTS the frame — and three distinct failures follow, none of them loud:
@@ -138,8 +138,8 @@ func rowSortKeys(rows []theme.Row) []string {
 //   - A HARD-CODED BUILT-IN makes `--theme` inert on precisely the frames a
 //     drop-in author most wants to check, and contradicts the coherence rule the
 //     fixtures' own doc comments state.
-//   - Inside §13.4's swap-and-diff guard the same apply OVERWRITES the synthetic
-//     theme ModelAt was handed, so a panel fixture contributes neither an A value
+//   - Inside the swap-and-diff completeness guard the same apply OVERWRITES the
+//     synthetic theme ModelAt was handed, so a panel fixture contributes neither an A value
 //     nor a B value: assertion 1 passes as a vacuous negative, assertion 2's union
 //     balances, and the panel's bubbles/list instance reads as covered while being
 //     covered by nothing.
@@ -216,17 +216,17 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 // injected palette too.
 //
 // This is the fake's FOURTH reason for reporting the injected palette, and the one
-// belonging to the live view rather than to a still: §9.2's arrow-preview applies
+// belonging to the live view rather than to a still: the picker idiom's arrow-preview applies
 // THE CURSOR ROW'S OWN palette, so a row left with a zero Theme paints the whole
 // frame through lipgloss.Color("")'s no-colour sentinel the moment anyone presses
-// `↓` in `go run ./cmd/capturetool --fixture …` — which §13.1 makes the human's
+// `↓` in `go run ./cmd/capturetool --fixture …` — which the capture harness makes the human's
 // route at the visual gate, the one audience a PNG cannot serve.
 //
 // IT IS DRIVEN RATHER THAN DESCRIBED because nothing else in this suite would
 // notice. Row.Theme has exactly one consumer, this preview, and no still frame
 // reads it: with the row repaint removed, every capture, every badge assertion and
-// §13.4's whole guard stay green while the live view goes colourless on the first
-// arrow key. That is the same silent-hazard shape as the sibling Resolve case, and
+// the whole completeness guard stay green while the live view goes colourless on the
+// first arrow key. That is the same silent-hazard shape as the sibling Resolve case, and
 // it is held to the same standard.
 func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 	t.Run("arrowing to the next row keeps the frame on the injected palette", func(t *testing.T) {
@@ -268,7 +268,7 @@ func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 	// The carve-out repaintUnion states, which no fixture's union can exercise
 	// today: theme.Row populates Theme IFF Rejection is nil, so a rejected row
 	// coming back with a palette would be a shape the real assembly cannot produce
-	// — and §13.3's mandated invalid-row and `⚠ dir unreadable` fixtures are built
+	// — and the harness contract's mandated invalid-row and `⚠ dir unreadable` fixtures are built
 	// from precisely that row.
 	t.Run("a rejected row keeps its rejection and takes no palette", func(t *testing.T) {
 		injected := themetest.Builtin(t, "nord")
@@ -320,11 +320,11 @@ const truecolorBackground = "48;2;"
 // declaring none renders no badge on any row.
 //
 // It is worth an assertion of its own because the failure is entirely silent.
-// Task 8-8 retired the injected slot record, so the seam's Resolve return is now
+// The injected slot record was retired, so the seam's Resolve return is now
 // the panel's only badge source — a fixture that declared its slots anywhere else
 // would list every row correctly, mark nothing, and look like a panel on an
 // install with no theme set. On the adaptive-pair frame that is the loss of the
-// entire subject: §9.14 makes those two badges the reference for a vocabulary
+// entire subject: those two badges are the reference for a vocabulary
 // with no prior art anywhere.
 func TestFakeThemeEnumerator_ResolveIsTheOnlyBadgeSource(t *testing.T) {
 	pinned := themetest.Builtin(t, "nord")
@@ -379,7 +379,7 @@ func panelBadges(t *testing.T, frame string) []string {
 	return badges
 }
 
-// badgeIn is the §9.5 `●` badge a panel row's text carries, from the glyph to the
+// badgeIn is the `●` badge a panel row's text carries, from the glyph to the
 // end of the row — or "" where the row carries none.
 func badgeIn(text string) string {
 	at := strings.Index(text, "●")
@@ -391,9 +391,9 @@ func badgeIn(text string) string {
 
 // TestFakeThemeEnumerator_NoIO: its fake enumerator does no I/O.
 //
-// §7.1's no-real-config import guard forbids internal/capture reaching config at
-// all, and §13.3 rests the whole panel-fixture route on the seam being fakeable
-// wholesale — so the fake must answer from declared values on every one of its
+// The built-in-is-a-file rule's no-real-config import guard forbids internal/capture reaching
+// config at all, and the harness contract rests the whole panel-fixture route on the seam
+// being fakeable wholesale — so the fake must answer from declared values on every one of its
 // four methods.
 //
 // It is checked STRUCTURALLY and behaviourally, because neither alone is enough.
@@ -622,7 +622,7 @@ func mentionsLoader(expr ast.Expr, pkg string) bool {
 // `t` its captureKeys declare — the same drive ModelAt performs — returning the
 // model with the panel open.
 //
-// The MODEL rather than its frame, because §9.2's arrow-preview is only reachable
+// The MODEL rather than its frame, because the picker idiom's arrow-preview is only reachable
 // from a model that can take another key: a still is where a fixture stops, not
 // where the live view does.
 func panelModel(t *testing.T, deps tui.Deps) tea.Model {

@@ -11,8 +11,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestThemeFatal_TravelsExecuteUnaltered pins the propagation contract §7.6
-// depends on: a fallback that cannot resolve is an ORDINARY ERROR, so it reaches
+// TestThemeFatal_TravelsExecuteUnaltered pins the propagation contract the build-time
+// guarantee depends on: a fallback that cannot resolve is an ORDINARY ERROR, so it reaches
 // the user as one printed line through the path every ordinary error takes.
 //
 // Three shapes in this package would each swallow that line, and all three are
@@ -20,7 +20,7 @@ import (
 //
 //   - a *bootstrap.FatalError — Execute prints its UserMessage and main
 //     deliberately does NOT reprint, so dressing the theme fatal as one would
-//     surface the bootstrap's wording in place of §14A's;
+//     surface the bootstrap's wording in place of the pinned copy's;
 //   - a silent-exit sentinel (IsSilentExitError) — main suppresses stderr
 //     entirely, and the user would get a bare non-zero exit with no explanation
 //     of a binary they cannot fix;
@@ -74,7 +74,7 @@ func TestThemeFatal_TravelsExecuteUnaltered(t *testing.T) {
 // TestThemeCallSites_TerminateNoProcess asserts no function in cmd that touches
 // internal/theme terminates the process.
 //
-// §7.6's escalation is a RETURNED error all the way to main.go's single
+// The build-time guarantee's escalation is a RETURNED error all the way to main.go's single
 // os.Exit owner — no bare exit, no log.Fatal, no panic. The prohibition on a
 // bare os.Exit outside main is a standing rule of this codebase with exactly one
 // sanctioned exception (the daemon self-eject, which pairs itself with a

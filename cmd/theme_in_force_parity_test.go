@@ -51,9 +51,9 @@ var inForceKeyShapes = []struct {
 // TestThemeKeysInForce_PanelAndDoctorReportTheSameSlugs: it reports one slug set
 // on both surfaces — the panel's persisted rows and doctor's persisted lines.
 //
-// §9.4's "one slug is one row" and §14A's "one slug is one line" are two
-// renderings of ONE rule about which persisted keys Portal is reading: §8.2's
-// `theme`-wins tiebreak, then only the slots the user actually SET, then two
+// The union rule's "one slug is one row" and the pinned copy's "one slug is one line" are two
+// renderings of ONE rule about which persisted keys Portal is reading: the constant-or-pair
+// rule's `theme`-wins tiebreak, then only the slots the user actually SET, then two
 // slots naming one value collapsed to one report. A panel listing a row doctor
 // does not report — or the reverse — is the failure this pins, and no
 // single-surface table can see it.

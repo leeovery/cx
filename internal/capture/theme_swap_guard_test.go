@@ -18,15 +18,15 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// This file is §13.4's swap-and-diff completeness guard: render EVERY fixture
+// This file is the swap-and-diff completeness guard: render EVERY fixture
 // under theme A, swap live to theme B through the production entry point, render
 // again, and scan the second frame for any colour belonging to A. A survivor means
 // some element never got the new theme — the "assert no stale data survived the
 // invalidation" trick applied to rendered output rather than to a cache.
 //
-// It exists because §11.2's class of once-assigned cached styles (bubbles/list's
-// help styles, pagination dots, TitleBar, both filter inputs) "cannot reliably be
-// found by reading code". Task 4-1's sweep is a point-in-time act; this is the
+// It exists because the completeness risk's class of once-assigned cached styles
+// (bubbles/list's help styles, pagination dots, TitleBar, both filter inputs) "cannot reliably
+// be found by reading code". A one-off sweep is a point-in-time act; this is the
 // standing behavioural net that catches whatever the sweep missed and whatever is
 // added later.
 //
@@ -42,8 +42,8 @@ import (
 // THREE WAYS TO BUILD IT WRONG, ALL SILENT, all closed here:
 //
 //  1. Naming fixtures instead of enumerating them. The guard iterates
-//     capture.FixtureNames(); §13.4: "the fixture list IS the coverage list, and it
-//     grows automatically as screens are added". A guard naming four or five passes
+//     capture.FixtureNames(); the completeness guard: "the fixture list IS the coverage list,
+//     and it grows automatically as screens are added". A guard naming four or five passes
 //     today and keeps passing while the next screen goes uncovered.
 //  2. Using two shipped themes. A hex both palettes set identically renders
 //     identically before and after, so the guard cannot tell whether that site
@@ -58,7 +58,7 @@ import (
 //     every scan, by TestThemeSwapGuard_TokenFormsAreWellFormed: every derived form
 //     must round-trip back to its own token's channels — see tokenForms below.
 //
-// All three of §13.4's assertions live here: 1 (no theme-A value survives the
+// All three of the completeness guard's assertions live here: 1 (no theme-A value survives the
 // swap), 2 (every token rendering under A renders again under B, as a union
 // across fixtures) and 3 (every token in the vocabulary is rendered by SOME
 // fixture, which is what makes 2's union complete rather than self-balancing).
@@ -104,11 +104,11 @@ const (
 
 // syntheticTheme builds one whole 19-token palette from a fixed red channel.
 //
-// theme.Theme is an ordinary struct (§3.2), so the guard's palettes need no
+// theme.Theme is an ordinary struct, so the guard's palettes need no
 // loader, no file and no embedded set — which is what keeps them independent of
 // anything done to the shipped ones.
 //
-// SHIPPED PALETTES ARE DELIBERATELY NOT USED (§13.4). Two shipped themes fail two
+// SHIPPED PALETTES ARE DELIBERATELY NOT USED. Two shipped themes fail two
 // ways, both a matter of time: a hex both palettes happen to set identically
 // survives the swap LEGITIMATELY, so the guard fails permanently for a non-bug;
 // and — worse because it is silent — a token with the same value either side
@@ -154,9 +154,9 @@ type tokenForm struct {
 	bg   string // `48;2;R;G;B` — the background run
 }
 
-// tokenForms derives every token's rendered SGR forms, in the §2.4 table order.
+// tokenForms derives every token's rendered SGR forms, in the canonical table order.
 //
-// THE COMPARISON IS AGAINST THE RENDERED FORM, NOT THE HEX (§13.4). Styled output
+// THE COMPARISON IS AGAINST THE RENDERED FORM, NOT THE HEX. Styled output
 // carries no hex at all — a truecolor foreground is `ESC[38;2;R;G;Bm`, decimal —
 // so a guard that searched for `#6E81C9` would find nothing, ever. Assertion 1 is
 // a NEGATIVE ("no theme-A value survives"), so searching for the wrong
@@ -255,7 +255,7 @@ func observedTokens(frame string, forms []tokenForm) map[string]bool {
 	return seen
 }
 
-// colourReporter is the structural discriminator §13.4 excludes colourless
+// colourReporter is the structural discriminator the completeness guard excludes colourless
 // fixtures on. It is an interface so the exclusion can be driven from a test with
 // a locally-constructed colourless fixture — no registry fixture is colourless
 // today, so asserting only over the registered set would exercise nothing but the
@@ -279,8 +279,8 @@ func excludeColourless[F colourReporter](all []F) []F {
 //
 // The single sanctioned skip is the contrast-validation swatch, compared against
 // the exported constant rather than a string literal: it is a standalone tea.Model
-// resolved by the capture tool and deliberately not routed through tui.Build
-// (§13.3), so it has no tui.Model to swap. Every other enumerated name must
+// resolved by the capture tool and deliberately not routed through tui.Build,
+// so it has no tui.Model to swap. Every other enumerated name must
 // resolve or the guard fails LOUDLY — a silent skip reads as coverage, which is
 // the whole failure mode this construction exists to prevent.
 func registryFixtures(t *testing.T) []*capture.Fixture {
@@ -348,7 +348,7 @@ func sameColour(got, want color.Color) bool {
 
 // TestThemeSwapGuard_EnumeratesRegistry pins the mechanism every claim this file
 // makes rests on: the guard enumerates the harness's fixture set and never names a
-// fixture, so a screen added later is covered with no edit here (§13.4).
+// fixture, so a screen added later is covered with no edit here.
 func TestThemeSwapGuard_EnumeratesRegistry(t *testing.T) {
 	t.Run("every enumerated name but the swatch resolves to a fixture", func(t *testing.T) {
 		resolved := make([]string, 0, len(capture.FixtureNames()))
@@ -383,7 +383,7 @@ func TestThemeSwapGuard_EnumeratesRegistry(t *testing.T) {
 // FixtureByName's switch and FixtureNames()'s slice are two hand-maintained lists.
 // A fixture present in the switch but ABSENT from the slice is invisible to an
 // enumerating guard — it exists, it renders, and nothing ever swaps it. Absence
-// reads as coverage, which is exactly the shape §13.4 warns about.
+// reads as coverage, which is exactly the shape the completeness guard warns about.
 func TestFixtureRegistry_ByNameCasesMatchFixtureNames(t *testing.T) {
 	cases := fixtureByNameCases(t)
 	want := slices.DeleteFunc(capture.FixtureNames(), func(n string) bool {
@@ -453,8 +453,8 @@ func fixtureByNameCases(t *testing.T) []string {
 	return cases
 }
 
-// TestSyntheticThemes_AllValuesUnique pins the property §13.4 makes the guard's
-// discriminating power rest on: all 38 values differ, none repeated within a
+// TestSyntheticThemes_AllValuesUnique pins the property the completeness guard makes the
+// guard's discriminating power rest on: all 38 values differ, none repeated within a
 // palette or across the pair. A value shared across the pair renders identically
 // before and after, so the guard could not tell whether that site updated.
 func TestSyntheticThemes_AllValuesUnique(t *testing.T) {
@@ -590,7 +590,7 @@ func assertParameterRun(t *testing.T, token, role, run, introducer string, want 
 // here: each A-frame must carry at least one DERIVED theme-A run.
 //
 // Comparing View().Content rather than a writer-flushed frame is what satisfies
-// §13.4's truecolor requirement — lipgloss v2 moved profile handling to the
+// the completeness guard's truecolor requirement — lipgloss v2 moved profile handling to the
 // output-writer layer, so Render is unconditionally truecolor and the model's own
 // view string carries full 24-bit SGRs even under `go test`, where stdout is not a
 // TTY. Without this canary a future profile change could strip colour and leave
@@ -623,11 +623,11 @@ func TestThemeSwapGuard_RenderIsTruecolor(t *testing.T) {
 	}
 }
 
-// TestThemeSwapGuard_NoStaleValueSurvives is §13.4's assertion 1: after the live
-// swap, no theme-A value appears anywhere on the frame.
+// TestThemeSwapGuard_NoStaleValueSurvives is the completeness guard's assertion 1: after the
+// live swap, no theme-A value appears anywhere on the frame.
 //
 // A survivor means some element never got the new theme — a once-assigned cached
-// style that the restyle path does not re-point (§11.2), which is the class that
+// style that the restyle path does not re-point, which is the class that
 // "cannot reliably be found by reading code".
 //
 // The swap is a live mutation of ONE already-rendered model through
@@ -654,8 +654,8 @@ func TestThemeSwapGuard_NoStaleValueSurvives(t *testing.T) {
 	}
 }
 
-// TestThemeSwapGuard_EveryBValuePresentInUnion is §13.4's assertion 2: every token
-// that rendered under theme A renders again under theme B — catching a site that
+// TestThemeSwapGuard_EveryBValuePresentInUnion is the completeness guard's assertion 2: every
+// token that rendered under theme A renders again under theme B — catching a site that
 // renders NOTHING after the swap rather than merely something stale, which
 // assertion 1, being a negative, reports as clean. That is a live shape here and
 // not a hypothetical: theme.Token.Color() resolves a zero-value token through
@@ -673,8 +673,8 @@ func TestThemeSwapGuard_NoStaleValueSurvives(t *testing.T) {
 //     goes colourless, so that residual is uncovered here and by assertion 1 alike
 //     (a colourless site carries no stale run to find). Both scan the frame as one
 //     string, so no per-element claim is available to either.
-//   - ACROSS FIXTURES, as the UNION §13.4 names. Deliberately not a per-fixture
-//     "all 19 roles": no single screen renders them all, so that form would be
+//   - ACROSS FIXTURES, as the UNION the completeness guard names. Deliberately not a
+//     per-fixture "all 19 roles": no single screen renders them all, so that form would be
 //     false for every fixture in the set.
 //
 // THE PER-FIXTURE CHECK IS THE STRICTLY STRONGER OF THE TWO — they do not divide
@@ -696,7 +696,7 @@ func TestThemeSwapGuard_NoStaleValueSurvives(t *testing.T) {
 // Which roles a screen paints follows from its content and chrome, and no render
 // path branches on a colour's VALUE — the one place that reads darkness is the
 // appearance gate, which the harness resolves at construction by injecting a
-// CONSTANT nomination (§13.3). Swapping the palette therefore cannot change which
+// CONSTANT nomination. Swapping the palette therefore cannot change which
 // sites paint, only what they paint with.
 func TestThemeSwapGuard_EveryBValuePresentInUnion(t *testing.T) {
 	a, b := syntheticPalettes()
@@ -796,7 +796,7 @@ func coveredTokens(frames []swappedFrame, forms []tokenForm) map[string][]string
 }
 
 // uncoveredTokens returns every token of the closed vocabulary that no frame
-// carried, in the §2.4 table order.
+// carried, in the canonical table order.
 //
 // It enumerates theme.TokenNames() rather than the coverage map's keys, and that
 // is the whole mechanism: an uncovered token is by definition absent from the
@@ -811,25 +811,25 @@ func uncoveredTokens(loci map[string][]string) []string {
 	return gaps
 }
 
-// TestThemeSwapGuard_EveryTokenExercisedByAFixture is §13.4's assertion 3: over
-// the INCLUDED fixtures' post-swap frames, every one of the 19 tokens is observed
+// TestThemeSwapGuard_EveryTokenExercisedByAFixture is the completeness guard's assertion 3:
+// over the INCLUDED fixtures' post-swap frames, every one of the 19 tokens is observed
 // at least once.
 //
 // IT IS WHAT MAKES ASSERTION 2's UNION COMPLETE. Assertion 2 compares a union
 // under A against a union under B, so a token rendering on NO fixture is absent
 // from both, the two balance perfectly, and it reports nothing — the guard is
-// silently blind at exactly the sites it exists to protect (§13.4). §13.3 states
+// silently blind at exactly the sites it exists to protect. The harness contract states
 // the same shape from the fixture end: "a missing fixture is a blind spot the
 // guard structurally cannot report … absence reads as coverage."
 //
 // A GAP IS CLOSED BY ADDING A FIXTURE, NEVER BY EXEMPTING A TOKEN. An exemption
-// list is the permanent render-layer carve-out §9.11 calls "precisely the shape
-// the swap-and-diff guard exists to catch"; carving one into the guard itself is
+// list is the permanent render-layer carve-out the re-theme-everything rule calls "precisely
+// the shape the swap-and-diff guard exists to catch"; carving one into the guard itself is
 // the one response that cannot be right.
 //
 // It enumerates theme.TokenNames() rather than naming tokens, exactly as the
 // fixture set is enumerated rather than named, so it covers the whole vocabulary
-// and §13.3's panel fixtures enrol with no edit here.
+// and the harness contract's panel fixtures enrol with no edit here.
 func TestThemeSwapGuard_EveryTokenExercisedByAFixture(t *testing.T) {
 	a, b := syntheticPalettes()
 	bForms := tokenForms(t, b)
@@ -860,7 +860,7 @@ func TestThemeSwapGuard_EveryTokenExercisedByAFixture(t *testing.T) {
 // TestThemeSwapGuard_ViewBackgroundColourFollowsSwap covers the one themed value
 // the frame scan structurally cannot see.
 //
-// View().BackgroundColor is the DECLARATIVE per-frame background (§11.3) — Bubble
+// View().BackgroundColor is the DECLARATIVE per-frame background — Bubble
 // Tea diffs it and emits OSC 11 only on change — and it is not part of Content, so
 // no amount of scanning the frame string would notice it holding the old canvas.
 func TestThemeSwapGuard_ViewBackgroundColourFollowsSwap(t *testing.T) {
@@ -947,7 +947,7 @@ func backgroundOnlyForms(forms []tokenForm) []tokenForm {
 // bg.subtle is the exception in the table below and is NOT evidence for the OR.
 // Its locus is the loading bar's empty track, which sets it as the foreground AND
 // the background of the same glyph run (internal/tui/loading_view.go), so it is
-// found either way. It is listed because §2.5 groups it with the surfaces and the
+// found either way. It is listed because the role contract groups it with the surfaces and the
 // reasonable expectation is that a surface tint renders only as a background —
 // an expectation the measurement contradicts, which is worth an assertion rather
 // than a comment.
@@ -990,7 +990,7 @@ func TestTokenCoverage_MatchesBackgroundForm(t *testing.T) {
 //
 // MEASURED over the guarded set: border is found by a FOREGROUND run and by no
 // background run on any fixture. Its measured loci here are the title rule and
-// the footer rule; §2.5 also gives it modal frames and edit-modal chips, which no
+// the footer rule; the role contract also gives it modal frames and edit-modal chips, which no
 // guarded fixture renders today — cited, not measured. Scanning backgrounds alone
 // would report it missing on every screen that draws a rule.
 func TestTokenCoverage_MatchesForegroundForm(t *testing.T) {
@@ -1010,8 +1010,8 @@ func TestTokenCoverage_MatchesForegroundForm(t *testing.T) {
 	}
 }
 
-// TestTokenCoverage_IgnoresExcludedFixtures pins §13.4's "colourless fixtures are
-// excluded" as it bears on COVERAGE specifically: a token carried only by an
+// TestTokenCoverage_IgnoresExcludedFixtures pins the completeness guard's "colourless fixtures
+// are excluded" as it bears on COVERAGE specifically: a token carried only by an
 // excluded fixture must still count as uncovered.
 //
 // The exclusion has opposite consequences for the two kinds of assertion.
@@ -1057,7 +1057,7 @@ func frameCarrying(run string) string {
 }
 
 // TestTokenCoverage_TransientStatesHaveALocus records the NAMED locus of each
-// at-risk token: §13.4's transient states (bg.attention / text.on-attention,
+// at-risk token: the completeness guard's transient states (bg.attention / text.on-attention,
 // accent.mode, state.destructive, text.on-selection) plus text.subtle and
 // bg.subtle, whose only loci are on screens no flat Sessions fixture reaches.
 //
@@ -1066,11 +1066,11 @@ func frameCarrying(run string) string {
 // would report only "text.on-attention renders on no included fixture" — true,
 // but silent about which edit caused it.
 //
-// EVERY ROW IS MEASURED rather than read off §2.5's role table: that table names
+// EVERY ROW IS MEASURED rather than read off the role table: that table names
 // where a token is MEANT to render, which is a different claim from where the
 // fixture set actually renders it. Where a token has several loci, the row
-// records the one §2.5 makes its canonical home. text.on-attention is the
-// thinnest edge of the set — §2.5 gives it exactly one role, the warning-flash
+// records the one the role table makes its canonical home. text.on-attention is the
+// thinnest edge of the set — the role table gives it exactly one role, the warning-flash
 // message, so only a fixture seeding that flash can carry it at all.
 func TestTokenCoverage_TransientStatesHaveALocus(t *testing.T) {
 	a, b := syntheticPalettes()

@@ -7,7 +7,7 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestValidSlug_AcceptsCharsetAndAnchors pins §5.2's `^[a-z0-9][a-z0-9-]*$`
+// TestValidSlug_AcceptsCharsetAndAnchors pins the slug charset rule's `^[a-z0-9][a-z0-9-]*$`
 // from the accepting side, including the two edges the anchoring deliberately
 // leaves legal: a single character, and a trailing hyphen.
 func TestValidSlug_AcceptsCharsetAndAnchors(t *testing.T) {
@@ -35,8 +35,8 @@ func TestValidSlug_AcceptsCharsetAndAnchors(t *testing.T) {
 
 // TestValidSlug_RejectsIllegalForms pins the rule from the rejecting side.
 //
-// `../evil` is the case §8.6 exists for: a persisted slug is used verbatim as a
-// path component on a by-name lookup that deliberately does not enumerate, so
+// `../evil` is the case the validate-before-use rule exists for: a persisted slug is used
+// verbatim as a path component on a by-name lookup that deliberately does not enumerate, so
 // the charset check is what stops a hand-edited prefs.json from escaping the
 // themes directory.
 func TestValidSlug_RejectsIllegalForms(t *testing.T) {
@@ -64,9 +64,9 @@ func TestValidSlug_RejectsIllegalForms(t *testing.T) {
 	}
 }
 
-// TestValidSlug_NoLengthBound pins §5.2's "there is no length bound": the slug
-// is an identity, and §9.5/§9.8's truncation is a display concern that must not
-// silently become a validity rule.
+// TestValidSlug_NoLengthBound pins the slug charset rule's "there is no length bound": the
+// slug is an identity, and the row-rendering rule/the geometry rule's truncation is a display
+// concern that must not silently become a validity rule.
 //
 // Both surfaces are checked, because the rule is that no length bound exists
 // anywhere in the name rules — not merely that the charset check has none.
@@ -86,8 +86,8 @@ func TestValidSlug_NoLengthBound(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_DerivesStem pins §5.1: the filename minus its extension
-// IS the slug. Nothing is added, trimmed or rearranged on the accepting path.
+// TestSlugFromFilename_DerivesStem pins the filename-is-identity rule: the filename minus its
+// extension IS the slug. Nothing is added, trimmed or rearranged on the accepting path.
 func TestSlugFromFilename_DerivesStem(t *testing.T) {
 	tests := []struct {
 		name string
@@ -114,11 +114,11 @@ func TestSlugFromFilename_DerivesStem(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_RejectsNonLowercaseExtension pins §5.6: only the exact
-// lowercase `.theme` is ACCEPTED. Enumeration (task 1.7) matches the extension
+// TestSlugFromFilename_RejectsNonLowercaseExtension pins the enumeration rule: only the exact
+// lowercase `.theme` is ACCEPTED. Enumeration matches the extension
 // case-insensitively so the file is still visible, but a non-exact extension
-// never contributes a slug — which is what keeps §5.1's structural uniqueness
-// true without a precedence rule.
+// never contributes a slug — which is what keeps the filename-is-identity rule's structural
+// uniqueness true without a precedence rule.
 //
 // `Nord.THEME` reports the extension cause even though its stem is illegal too:
 // a name that is not a theme filename at all is decided first, so the stem is
@@ -156,7 +156,7 @@ func TestSlugFromFilename_RejectsNonLowercaseExtension(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_CausesAreDistinct pins the discrimination §14A needs: one
+// TestSlugFromFilename_CausesAreDistinct pins the discrimination the pinned copy needs: one
 // reason class, two causes, so doctor can render `slug must be lowercase
 // letters, digits and hyphens` and `extension must be lowercase .theme` from
 // the same `bad name` reason.
@@ -191,12 +191,12 @@ func TestSlugFromFilename_CausesAreDistinct(t *testing.T) {
 	}
 }
 
-// TestSlugFromFilename_NeverNormalisesCase pins §5.2's reject-never-normalise
+// TestSlugFromFilename_NeverNormalisesCase pins the slug charset rule's reject-never-normalise
 // rule, which is a safety property rather than a style choice: lowercasing
 // `Nord.theme` to `nord` would let a user file shadow the built-in that is the
-// §8.5 fallback, so a typo'd drop-in could break the very thing Portal falls
-// back to. Rejecting instead is also what keeps §5.4's reserved-name check
-// exact string equality.
+// the per-slot fallback rule fallback, so a typo'd drop-in could break the very thing Portal
+// falls back to. Rejecting instead is also what keeps the reserved-slug rule's reserved-name
+// check exact string equality.
 func TestSlugFromFilename_NeverNormalisesCase(t *testing.T) {
 	tests := []struct {
 		name string
@@ -226,8 +226,8 @@ func TestSlugFromFilename_NeverNormalisesCase(t *testing.T) {
 
 // TestSlugFromFilename_EmptyStemRejected pins the one edge the anchoring closes
 // on the file side: a file named exactly `.theme` has a legal extension and an
-// empty stem, and the empty string stays unambiguously §8.1's unset sentinel
-// rather than becoming a selectable theme with no name.
+// empty stem, and the empty string stays unambiguously the on-disk prefs shape's unset
+// sentinel rather than becoming a selectable theme with no name.
 func TestSlugFromFilename_EmptyStemRejected(t *testing.T) {
 	got, rejection := theme.SlugFromFilename(".theme")
 
@@ -273,7 +273,7 @@ func TestSlugFromFilename_RejectsLeadingHyphenStem(t *testing.T) {
 // not merely its ESC byte.
 //
 // Stripping the ESC alone would leave `[31m` behind — printable, so it survives
-// any control-character pass, and it would then be echoed into §14A's message as
+// any control-character pass, and it would then be echoed into the pinned copy's message as
 // if the user had typed it. The sequence is the unit, which is why this composes
 // the terminal-grammar parser rather than filtering bytes.
 func TestStripControl_RemovesAnsiEscapes(t *testing.T) {
@@ -306,7 +306,7 @@ func TestStripControl_RemovesAnsiEscapes(t *testing.T) {
 // characters a paste carries, which an escape-sequence parser leaves in place
 // because they open no sequence.
 //
-// The newline is the one that matters most — §14A's frames are single lines, and
+// The newline is the one that matters most — the pinned copy's frames are single lines, and
 // a value carrying one would split a refusal in two, with the second half
 // looking like a message Portal never wrote.
 func TestStripControl_RemovesControlCharacters(t *testing.T) {
@@ -333,7 +333,7 @@ func TestStripControl_RemovesControlCharacters(t *testing.T) {
 }
 
 // TestStripControl_LeavesEverythingElseAlone pins the negative half: stripping
-// is not normalising (§5.2).
+// is not normalising.
 //
 // A value that is merely WRONG — the wrong case, an illegal punctuation mark, a
 // traversal attempt — must reach the charset check unaltered, so it is reported

@@ -8,7 +8,7 @@
 // path none of them cross — `portal doctor --fix`, which renders TWO reports.
 //
 // What is pinned here is that the theme surface appears in BOTH of them and
-// repairs NOTHING in either: §12.2's "the theme scan runs on the `--fix` path
+// repairs NOTHING in either: doctor's "the theme scan runs on the `--fix` path
 // too" together with its "read-only, with no `--fix` action". The two halves are
 // one concern because they are the same decision seen from either side — doctor
 // has a repair surface, so the reason the advisories may ride it is exactly the
@@ -86,7 +86,7 @@ func requireBothReportsEndWith(t *testing.T, out, want string) {
 // TestDoctorFix_AdvisoriesInBothPasses: it renders advisories in both --fix
 // passes.
 //
-// §12.2: the theme scan runs on the `--fix` path too. Suppressing it there would
+// Doctor's theme line: the theme scan runs on the `--fix` path too. Suppressing it there would
 // make `--fix` a LESS informative diagnosis than the plain run — and the user who
 // reaches for the repairing form is the one most likely to have something wrong,
 // so they would be the one who could not see it.
@@ -118,7 +118,7 @@ func TestDoctorFix_AdvisoriesInBothPasses(t *testing.T) {
 //
 // The subtest is the case the two summaries can be told apart in — a health
 // check that `--fix` genuinely repairs, so the checks half MOVES between the
-// passes while the advisory half does not. It is also the acceptance of §12.2's
+// passes while the advisory half does not. It is also the acceptance of doctor's
 // exit-code rule on this path: the repaired run exits 0 with advisories standing
 // in both reports.
 func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
@@ -174,7 +174,7 @@ func TestDoctorFix_SuffixInBothSummaries(t *testing.T) {
 // TestDoctorFix_AdvisoryOnlyExitsZero: it exits zero when the only findings are
 // advisories.
 //
-// The two halves of §12.2 on the one path that could break either: an advisory
+// The two halves of doctor's theme line on the one path that could break either: an advisory
 // cannot drive the exit code, and it cannot summon a repair. A run whose sole
 // findings are theme advisories must therefore exit 0 AND print no "Pruned …"
 // line — because a `Pruned ` here could only mean doctor had decided to delete
@@ -211,7 +211,7 @@ func TestDoctorFix_AdvisoryOnlyExitsZero(t *testing.T) {
 }
 
 // fixThemeFixture seeds a config root holding a themes directory with one file
-// per §6.2 reason class beside a valid drop-in and a non-theme neighbour, plus a
+// per reason class beside a valid drop-in and a non-theme neighbour, plus a
 // prefs.json, and points the production resolutions at both. It returns the root
 // to fingerprint and the prefs path to byte-compare.
 //
@@ -220,9 +220,9 @@ func TestDoctorFix_AdvisoryOnlyExitsZero(t *testing.T) {
 // built-in collision to resolve — and a fixture holding only one of them would
 // leave the others' absence of a repair unasserted.
 //
-// The prefs body carries an `appearance` key on purpose: it is the value §10.5's
-// one-shot translation acts on, over a file with no theme key and no marker — so
-// it is a file the MIGRATING loader would genuinely rewrite. That is what makes
+// The prefs body carries an `appearance` key on purpose: it is the value the write-path
+// ownership rule's one-shot translation acts on, over a file with no theme key and no marker —
+// so it is a file the MIGRATING loader would genuinely rewrite. That is what makes
 // "prefs.json is byte-identical" evidence that doctor read it through the
 // NON-migrating variant, rather than evidence that this particular file had
 // nothing to translate.
@@ -270,7 +270,7 @@ func fixThemeFixture(t *testing.T) (root, prefsPath string) {
 
 // TestDoctorFix_ThemeStateUntouched: it repairs no theme state.
 //
-// §12.2: "doctor can prune a stale hook entry; it cannot repair someone's
+// Doctor's theme line: "doctor can prune a stale hook entry; it cannot repair someone's
 // colours". `--fix` is the ONE doctor path that writes, so it is the one where
 // that claim has to be proven rather than assumed — and it is proven over the
 // whole surface at once: every `.theme` file's bytes and mode, the directory's
@@ -309,7 +309,7 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 		// The byte-compare above already covers this, but only incidentally — a
 		// future prefs write that happened to be idempotent would satisfy it while
 		// still recording the one-shot marker, which is the state that permanently
-		// disarms §10.5's translation for a user who never launched a TUI.
+		// disarms the write-path ownership rule's translation for a user who never launched a TUI.
 		if translateAppearance("light") == "" {
 			t.Fatal("the fixture's appearance value translates to nothing, so a --fix that ran the migration would write no marker anyway and this assertion would be vacuous")
 		}
@@ -323,8 +323,8 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 	})
 
 	t.Run("it creates no themes directory when there is none", func(t *testing.T) {
-		// §5.5: Portal never creates or seeds the themes directory — and `--fix`,
-		// the one doctor path that writes, is the one that would be tempted to.
+		// The directory-resolution rule: Portal never creates or seeds the themes directory — and
+		// `--fix`, the one doctor path that writes, is the one that would be tempted to.
 		absent := filepath.Join(t.TempDir(), "themes")
 		t.Setenv("PORTAL_THEMES_DIR", absent)
 
@@ -418,7 +418,7 @@ func TestDoctorFix_ScanReRunForSecondPass(t *testing.T) {
 // TestDoctorFix_EmitsNoThemeRecords: it emits zero theme records across both
 // passes.
 //
-// §12.3: the component records where a theme is USED, never where one is
+// The `theme` log component: the component records where a theme is USED, never where one is
 // DIAGNOSED — and `--fix` is the strongest case for it, being the only doctor
 // path that diagnoses the same reject set TWICE. A loader logging here would
 // write the largest possible WARN volume, doubled, on the surface that needs it

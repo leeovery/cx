@@ -10,10 +10,10 @@ import (
 	"github.com/lucasb-eyer/go-colorful"
 )
 
-// This file is §13.5's contrast gate: the canonical rule set, measured over
+// This file is the contrast gate: the canonical rule set, measured over
 // EVERY embedded theme.
 //
-// It is what the bundled tier means (§6.4). A built-in — or an accepted PR —
+// It is what the bundled tier means. A built-in — or an accepted PR —
 // must be valid AND good, because it carries Portal's name; a drop-in in the
 // user's themes directory must only be valid, because whether it looks good is
 // the user's business. Relaxing a floor for a named port was the one option
@@ -27,7 +27,7 @@ import (
 //     committed, with no test edit — the same "adding a built-in is adding a
 //     file" property BuiltinSlugs gives the loader.
 //  2. Every reference background is THE THEME'S OWN `canvas` token, never a
-//     constant. A theme is one palette carrying its own surface (§3.1), so
+//     constant. A theme is one palette carrying its own surface, so
 //     there is no mode axis left to measure against: a light built-in is
 //     checked against its light canvas by the same code, by construction.
 //
@@ -44,9 +44,9 @@ import (
 // TestContrastMath, without which every assertion below could pass vacuously.
 
 const (
-	floorNormal          = 4.5  // §13.5 normal text
-	floorLargeUI         = 3.0  // §13.5 large / bold / UI
-	floorFillPerceptible = 1.10 // §13.5 fill-perceptible (a tint, NOT 3:1)
+	floorNormal          = 4.5  // normal text
+	floorLargeUI         = 3.0  // large / bold / UI
+	floorFillPerceptible = 1.10 // fill-perceptible (a tint, NOT 3:1)
 
 	// ratioIdentity is the ratio of a colour against itself. text.faint must be
 	// strictly above it to be visible at all, which is the lower half of its
@@ -99,7 +99,7 @@ func TestContrastMath(t *testing.T) {
 // It is the assertion that makes "a new built-in is checked by default" a fact
 // rather than a convention. A palette added to builtins/ but somehow missed by
 // the enumeration would otherwise ship Portal-endorsed and unchecked, which is
-// exactly the failure the bundled tier exists to prevent (§6.4).
+// exactly the failure the bundled tier exists to prevent.
 func TestFloorsEnumerateTheEmbeddedSet(t *testing.T) {
 	enrolled := slices.Sorted(maps.Keys(embeddedThemes(t)))
 
@@ -111,7 +111,7 @@ func TestFloorsEnumerateTheEmbeddedSet(t *testing.T) {
 	}
 }
 
-// TestForegroundFloorAgainstOwnCanvas is §13.5's foreground-vs-canvas table:
+// TestForegroundFloorAgainstOwnCanvas is the contrast gate's foreground-vs-canvas table:
 // every token that renders directly on the canvas, measured against that
 // theme's own canvas.
 //
@@ -177,7 +177,7 @@ func TestTextSubtleBand(t *testing.T) {
 // above the identity ratio and strictly below the UI floor.
 //
 // Reaching the UI floor is a FAILURE, not a pass. text.faint renders inactive
-// dots, `+ add` and hints, and §2.5 forbids it carrying content a user must
+// dots, `+ add` and hints, and the role contract forbids it carrying content a user must
 // read; the band is what structurally stops a theme promoting it into a
 // functional role by making it legible enough to look like one.
 func TestTextFaintDecorativeBand(t *testing.T) {
@@ -192,7 +192,7 @@ func TestTextFaintDecorativeBand(t *testing.T) {
 	}
 }
 
-// TestBgSelectionPairRule is §13.5's three-leg rule for the selection band. A
+// TestBgSelectionPairRule is the contrast gate's three-leg rule for the selection band. A
 // tint is never judged alone: it is judged with the text that sits on it and
 // the accent that marks it.
 //
@@ -236,14 +236,14 @@ func TestBgAttentionPairRule(t *testing.T) {
 	}
 }
 
-// TestInlineFlashAttentionPairClearsFloor is the §11.2 inline-flash band's
+// TestInlineFlashAttentionPairClearsFloor is the inline-flash band's
 // co-tuned-pair gate: the flash renders its message in text.on-attention ON the
 // bg.attention tint, so that exact pairing must clear the normal-text floor.
 //
 // The flash reuses the single co-tuned pairing rather than inventing a
 // flash-specific one, so this is the same numeric leg the pair rule checks. It
 // is asserted distinctly so a regression that breaks the inline flash fails
-// with a §11.2-scoped message rather than only as one leg of a band rule.
+// with a flash-scoped message rather than only as one leg of a band rule.
 func TestInlineFlashAttentionPairClearsFloor(t *testing.T) {
 	themes := embeddedThemes(t)
 	for _, slug := range slices.Sorted(maps.Keys(themes)) {
@@ -255,7 +255,7 @@ func TestInlineFlashAttentionPairClearsFloor(t *testing.T) {
 	}
 }
 
-// TestPreviewPeekChromeClearsFloorAgainstCanvas is the §9.1 peek-mode chrome's
+// TestPreviewPeekChromeClearsFloorAgainstCanvas is the preview peek-mode chrome's
 // gate: the frame and `◉ preview` marker (accent.mode), the session name
 // (text.primary) and the counters plus right-aligned nav hints (text.muted) all
 // render directly on the owned canvas, so each must clear the normal-text floor
@@ -263,7 +263,7 @@ func TestInlineFlashAttentionPairClearsFloor(t *testing.T) {
 //
 // Every token here is already covered by the per-token gate above; this carrier
 // exists so a regression that specifically breaks the preview chrome's
-// legibility fails with a §9.1-scoped message naming the surface, not just the
+// legibility fails with a preview-chrome-scoped message naming the surface, not just the
 // token.
 func TestPreviewPeekChromeClearsFloorAgainstCanvas(t *testing.T) {
 	themes := embeddedThemes(t)
@@ -306,14 +306,14 @@ func TestBgSubtlePairRule(t *testing.T) {
 	}
 }
 
-// TestForegroundOnTintPairings is §13.5's foreground-on-tint table: every
+// TestForegroundOnTintPairings is the contrast gate's foreground-on-tint table: every
 // foreground that renders on a tint, measured against that tint rather than
 // against the canvas.
 //
 // These are the legs that catch a palette whose tokens each clear the canvas
 // individually but collide on the selected row — the Nord port's second
 // correction was found exactly here. text.primary on bg.selection is
-// deliberately NOT a leg: §13.5 omits it because the selected row's name
+// deliberately NOT a leg: the contrast floors omits it because the selected row's name
 // renders in text.on-selection, and it was walked during the Nord port as free
 // information rather than as a gate.
 func TestForegroundOnTintPairings(t *testing.T) {
@@ -369,12 +369,12 @@ func TestStatePositiveClearsCanvasAndSelection(t *testing.T) {
 //
 // It FATALS on an empty set, because a suite that measures nothing passes
 // everything — the one failure mode a loop over an enumerated set can silently
-// have. It fatals on a rejection too: §7.6 makes a broken built-in a build-time
-// failure, so reaching one here means the floors are being asked about a
+// have. It fatals on a rejection too: the build-time guarantee makes a broken built-in a
+// build-time failure, so reaching one here means the floors are being asked about a
 // palette that does not exist.
 //
 // The event logger is a discarding one: this is diagnosis, not use, so the
-// §12.3 trail has nothing to record.
+// the `theme` log component trail has nothing to record.
 func embeddedThemes(t *testing.T) map[string]theme.Theme {
 	t.Helper()
 

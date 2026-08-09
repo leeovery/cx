@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder pins §9.5's
+// TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder pins the row-rendering rule's
 // third leg as what it claims to be: a RULE that settles the one tie guaranteed
 // by construction, and not a side effect of the built-ins being assembled first.
 //
@@ -19,7 +19,7 @@ import (
 // produces: the `reserved name` file FIRST, its built-in second.
 //
 // The rows are minimal on purpose. The tie is the whole fixture — an identical
-// sort key, which is the definition of `reserved name` (§6.2) — so nothing else
+// sort key, which is the definition of `reserved name` — so nothing else
 // about them may participate in the outcome.
 func TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder(t *testing.T) {
 	collider := Row{

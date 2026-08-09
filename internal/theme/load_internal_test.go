@@ -9,11 +9,11 @@ import (
 // mode: an ordinary *Rejection, for each of the three rungs that read a file's
 // CONTENTS.
 //
-// This is the mechanism §7.6's build-time guarantee rests on. Making the
+// This is the mechanism the build-time guarantee rests on. Making the
 // built-ins files moved their parse failures from compile time to load time,
 // and the answer is a build-time test (embedded_test.go) plus a loader that
 // reports a broken embedded file exactly as it reports a broken drop-in. The
-// escalation happens where a fallback is NEEDED — Phase 5 — so the user sees
+// escalation happens where a fallback is NEEDED — so the user sees
 // one line rather than a Go stack trace; main.go's panic-recovering exit stays
 // the backstop for a genuine programming fault, not the designed route.
 //
@@ -28,7 +28,7 @@ import (
 // happens, with the stack a recover() would have swallowed.
 //
 // Only the reason class and the presence of a detail are asserted. The exact
-// §14A detail text of each rung is pinned by the ladder tests in load_test.go
+// the pinned copy detail text of each rung is pinned by the ladder tests in load_test.go
 // and lex_test.go, and re-asserting it here would tie this test to the shipped
 // file's line layout for nothing.
 func TestEmbeddedParseFailureIsAnOrdinaryError(t *testing.T) {

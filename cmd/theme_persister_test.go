@@ -22,8 +22,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// prefsStoreForTest builds the process's prefs store WITHOUT the migrating load
-// (§10.5), which is what keeps every assertion below about the persister alone:
+// prefsStoreForTest builds the process's prefs store WITHOUT the migrating load,
+// which is what keeps every assertion below about the persister alone:
 // the migrating loader would compute a translation and dispatch a write of its
 // own, and cmd's TestMain neutralises that dispatch SILENTLY — so a negative
 // assertion taken over the migrating path could pass for a reason that has
@@ -40,7 +40,7 @@ func prefsStoreForTest(t *testing.T) *prefs.Store {
 // TestThemePersister_CommitTheme: it commits a constant through the store.
 //
 // The fixture seeds BOTH slots and both sibling fields, because the write is only
-// correct if it does three things at once (§8.2 / §8.9): writes `theme`, clears
+// correct if it does three things at once: writes `theme`, clears
 // both slots in the same atomic write, and merges rather than overwrites — so
 // session_list_mode and the retained raw appearance survive.
 func TestThemePersister_CommitTheme(t *testing.T) {
@@ -61,9 +61,9 @@ func TestThemePersister_CommitTheme(t *testing.T) {
 // TestThemePersister_CommitThemeSlot: it commits a slot through the store.
 //
 // Both halves are driven, and each fixture pins what the other slot does: the
-// constant is cleared (§8.2's mutual exclusion) while the OTHER slot is left
-// exactly as it was — the property that makes §9.5's `● both` reachable in two
-// keypresses.
+// constant is cleared (the constant-or-pair rule's mutual exclusion) while the OTHER slot is
+// left exactly as it was — the property that makes the row-rendering rule's `● both` reachable
+// in two keypresses.
 func TestThemePersister_CommitThemeSlot(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -90,15 +90,15 @@ func TestThemePersister_CommitThemeSlot(t *testing.T) {
 // TestThemePersister_FailedCommitLogsAndReturns: it logs and returns a failed
 // write.
 //
-// Both halves are asserted together because either alone is the bug §8.9 and
-// §9.13 are written against. Logging without returning leaves the panel unable to
-// render `⚠ couldn't save theme` and unable to hold the failure outstanding —
+// Both halves are asserted together because either alone is the bug the concurrent-write rule
+// and the failed-commit rule are written against. Logging without returning leaves the panel
+// unable to render `⚠ couldn't save theme` and unable to hold the failure outstanding —
 // silently "applied but not persisted", the state the picker idiom exists to
 // close. Returning without logging leaves `theme: commit failed` with no emission
 // site at all, since nothing else may produce it.
 //
-// The fixture is a malformed file, so the abort happens at §8.9's strict re-read
-// and the on-disk bytes are asserted untouched: a write never becomes an
+// The fixture is a malformed file, so the abort happens at the concurrent-write rule's strict
+// re-read and the on-disk bytes are asserted untouched: a write never becomes an
 // overwrite.
 func TestThemePersister_FailedCommitLogsAndReturns(t *testing.T) {
 	const malformed = `{"session_list_mode":"by-tag",`
@@ -127,8 +127,8 @@ func TestThemePersister_FailedCommitLogsAndReturns(t *testing.T) {
 
 // TestThemePersister_CommitFailedAttrs: it carries slot only for a slot commit.
 //
-// §12.3 pins the attrs: `slug`, `slot` — ABSENT when committing a constant — and
-// `reason`. The absence is the load-bearing half: the attr names which half of an
+// The `theme` log component pins the attrs: `slug`, `slot` — ABSENT when committing a constant
+// — and `reason`. The absence is the load-bearing half: the attr names which half of an
 // adaptive PAIR a line is about, and a constant has no halves, so an empty value
 // would grep as a slot named nothing.
 func TestThemePersister_CommitFailedAttrs(t *testing.T) {
@@ -179,7 +179,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 				t.Errorf("slot = %q, want %q", rec.AttrString(t, "slot"), tc.slot)
 			}
 
-			// §12.3's closed attr-key set, asserted key by key so an attr added
+			// The `theme` log component's closed attr-key set, asserted key by key so an attr added
 			// later reads as a vocabulary breach rather than a changed expectation.
 			closed := map[string]bool{"slug": true, "slot": true, "reason": true, "path": true, "token": true, "count": true, "rejected": true}
 			for _, key := range rec.Keys {
@@ -215,8 +215,8 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 
 // TestThemePersister_SuccessIsSilent: it emits nothing on success.
 //
-// §12.3 gives the persister ONE event and it is a failure. The commit-time
-// `theme: loaded` belongs to the loader (Phase 9), so a success line here would
+// The `theme` log component gives the persister ONE event and it is a failure. The commit-time
+// `theme: loaded` belongs to the loader, so a success line here would
 // be a second, unspecified record of the same act — and it would dilute the
 // forensic trail the component earns its place with.
 //
@@ -251,10 +251,10 @@ func TestThemePersister_SuccessIsSilent(t *testing.T) {
 
 // TestThemePersister_PerInstanceLastWriteWins: it does not sync across instances.
 //
-// §8.9's concurrency contract, driven with two persisters over two stores on one
-// file — the shape the multi-window burst makes ordinary. There is no file watch
+// The concurrent-write rule's concurrency contract, driven with two persisters over two stores
+// on one file — the shape the multi-window burst makes ordinary. There is no file watch
 // and no cross-instance sync: the second commit simply wins, and every other
-// field survives because each write is task 6-1's read-modify-write rather than a
+// field survives because each write is a read-modify-write rather than a
 // whole-record flush of a stale snapshot.
 //
 // The second commit is a SLOT while the first is a constant, so the assertion

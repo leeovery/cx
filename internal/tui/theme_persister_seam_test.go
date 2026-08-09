@@ -20,18 +20,18 @@ import (
 //
 // `slugs` is every commit whatever its shape, which is what a "nothing was
 // written" assertion wants; `constants` is the CommitTheme calls alone and
-// `slots` the CommitThemeSlot ones, so §9.2's two commit keys are
+// `slots` the CommitThemeSlot ones, so the picker idiom's two commit keys are
 // distinguishable — `Enter` writes the constant and clears both slots, `d`/`l`
 // write a slot and clear the constant, and a test asserting one must not pass
 // over the other.
 //
 // `slotCommits` is the slot calls with their SLUG AND SLOT TOGETHER. The flat
 // slices above cannot express that pairing once a fixture drives both commit
-// shapes — `slugs` then interleaves them — and §9.2's `d`/`l` is precisely a
+// shapes — `slugs` then interleaves them — and the picker idiom's `d`/`l` is precisely a
 // statement about which slug went into which slot.
 //
-// `err` is returned by both methods. §9.13's outstanding-failure state machine
-// renders its line from the value the seam hands back, so a failed write has to
+// `err` is returned by both methods. The failed-commit rule's outstanding-failure state
+// machine renders its line from the value the seam hands back, so a failed write has to
 // be drivable end to end rather than only described.
 type fakeThemePersister struct {
 	slugs       []string
@@ -103,7 +103,7 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 		if m.themeState.persister != persister {
 			t.Fatalf("themePersister = %#v, want the injected recorder", m.themeState.persister)
 		}
-		// Exercised BY DIRECT CALL — nothing presses a key until Phase 9.
+		// Exercised BY DIRECT CALL — no keypress reaches it here.
 		if err := m.themeState.persister.CommitThemeSlot("nord", prefs.SlotDark); err != nil {
 			t.Fatalf("CommitThemeSlot: %v", err)
 		}
@@ -117,7 +117,7 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 }
 
 // TestPrefsStore_DoesNotSatisfyThemePersister pins the deliberate method-name
-// divergence (§8.9): the store's savers are SaveTheme / SaveThemeSlot, the seam's
+// divergence: the store's savers are SaveTheme / SaveThemeSlot, the seam's
 // methods are CommitTheme / CommitThemeSlot, so *prefs.Store cannot be wired
 // straight into the seam and bypass cmd's single emission site for
 // `theme: commit failed`.
@@ -138,7 +138,7 @@ func TestPrefsStore_DoesNotSatisfyThemePersister(t *testing.T) {
 	}
 }
 
-// TestCommitFailed_SingleEmissionSite pins §8.9's ownership from the side
+// TestCommitFailed_SingleEmissionSite pins the concurrent-write rule's ownership from the side
 // internal/tui owns: the model HOLDS the seam and logs nothing, so
 // `theme: commit failed` has exactly one emission site (cmd's persister) rather
 // than a doubled one.
@@ -170,8 +170,8 @@ func TestCommitFailed_SingleEmissionSite(t *testing.T) {
 	}
 }
 
-// commitFailedEvent is §12.3's message, restated here as the string the guard
-// above searches for. It is deliberately a TEST-side constant: production in this
+// commitFailedEvent is the `theme` log component's message, restated here as the string the
+// guard above searches for. It is deliberately a TEST-side constant: production in this
 // package must not carry it at all, so importing one from here would defeat the
 // guard.
 const commitFailedEvent = "commit failed"

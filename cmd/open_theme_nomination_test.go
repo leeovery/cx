@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestOpenExecPath_DoesNoThemeWork pins §12.3's recorded win: on the path Portal
-// is most careful to keep free of cost — `portal open <target>`, which execs
+// TestOpenExecPath_DoesNoThemeWork pins the `theme` log component's recorded win: on the path
+// Portal is most careful to keep free of cost — `portal open <target>`, which execs
 // without painting — this feature adds nothing at all.
 //
 // Both halves are needed, and they fail differently.
@@ -35,7 +35,7 @@ import (
 // internals unguarded but fails the moment the scan itself is wired into the open
 // path ("open.go: openResolved calls collectThemeAdvisories"). The runtime half
 // below does NOT back the exemption up and must not be read as doing so: doctor
-// hands its loader log.Discard() by design (§12.3), so a doctor-side helper
+// hands its loader log.Discard() by design, so a doctor-side helper
 // called from the exec path would read the poisoned directory and still write no
 // record.
 //
@@ -58,7 +58,7 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 			// newThemeEnumerator is deliberately ABSENT. It resolves the themes
 			// directory and reads nothing, so it encloses no theme call site to
 			// permit — and naming it here would licence in advance exactly the
-			// construction-time sweep §5.7 forbids, since these names are matched in
+			// construction-time sweep the lazy-discovery rule forbids, since these names are matched in
 			// EVERY file. What puts the constructor under this guard is the `local`
 			// map below, which tracks it as openTUI's callee.
 		}
@@ -103,9 +103,9 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 }
 
 // poisonThemesDir points PORTAL_THEMES_DIR at an existing but UNREADABLE
-// directory, so any attempt to read it is loud: §5.5 makes an unusable directory
-// the one state that earns a `theme: directory unusable` WARN, where an absent
-// one is silent. Absence would make "emitted nothing" vacuous.
+// directory, so any attempt to read it is loud: the directory-resolution rule makes an
+// unusable directory the one state that earns a `theme: directory unusable` WARN, where an
+// absent one is silent. Absence would make "emitted nothing" vacuous.
 func poisonThemesDir(t *testing.T) {
 	t.Helper()
 
@@ -152,9 +152,9 @@ func execOpenSession(t *testing.T, name string) string {
 }
 
 // TestThemeComponent_BoundOnceInCmd pins CLAUDE.md's bind-once-per-package rule
-// for the `theme` component (§12.3): one package-level logger, bound once.
+// for the `theme` component: one package-level logger, bound once.
 //
-// The component is legitimately emitted from more than one PACKAGE (§8.9 — the
+// The component is legitimately emitted from more than one PACKAGE (the
 // loader, the translation, the persister), which is exactly why the per-package
 // rule needs guarding here: a second binding inside cmd would be invisible at
 // review, since every call site would still look correct in isolation.

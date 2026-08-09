@@ -12,13 +12,13 @@ import (
 )
 
 // oldThemeSubpackage is the import path of the retired internal/tui/theme package.
-// §3.2 moved the token layer out to the internal/theme leaf, so nothing in the tree
+// The token layer moved out to the internal/theme leaf, so nothing in the tree
 // may import this path and the directory itself must be gone.
 const oldThemeSubpackage = "github.com/leeovery/portal/internal/tui" + "/theme"
 
 // TestOldThemeSubpackageIsGone walks the whole module and fails if any file still
 // imports the retired internal/tui/theme package, or if the package directory
-// survives. It is the cheap source guard §3.2's relocation needs: a leftover
+// survives. It is the cheap source guard that relocation needs: a leftover
 // importer would keep the old paired-token vocabulary compiling alongside the new
 // single-palette one, which is precisely the drift the move exists to end.
 func TestOldThemeSubpackageIsGone(t *testing.T) {
@@ -42,11 +42,11 @@ func TestOldThemeSubpackageIsGone(t *testing.T) {
 // a PACKAGE-SCOPE var holding theme data — a Theme, a Token, or anything derived
 // from the theme package at init time.
 //
-// §11.2 names `pagepreview.go`'s package-init Token copy as one of two offenders
-// "fixed outright, not guarded around", and is explicit that "the guard is what
+// The completeness risk names `pagepreview.go`'s package-init Token copy as one of two
+// offenders "fixed outright, not guarded around", and is explicit that "the guard is what
 // stops them returning": a value captured at package init can never see a theme
-// swap, so the element it paints silently keeps the previous theme's colours. §3.4
-// forbids the same shape for a different reason — package-level mutable theme
+// swap, so the element it paints silently keeps the previous theme's colours. The active-theme
+// plumbing forbids the same shape for a different reason — package-level mutable theme
 // state on the render path, in a suite that already forbids t.Parallel().
 //
 // It scans production files only, matching the colour-literal guard's scope: a

@@ -4,7 +4,7 @@
 // Concern-split from cmd/doctor_theme_test.go and
 // cmd/doctor_persisted_theme_test.go, which own doctor's two theme-advisory
 // PRODUCERS — what is IN the themes directory, and what the user PICKED. This
-// file owns what belongs to neither: the ASSEMBLY between them, which is §12.2's
+// file owns what belongs to neither: the ASSEMBLY between them, which is doctor's
 // one-slug-one-line union (a persisted line outranks the same slug's file line),
 // the block's pinned region order, and <M> counted from the assembled set rather
 // than from the producers' raw findings.
@@ -49,14 +49,14 @@ func requireAdvisoryLines(t *testing.T, got []advisory, want ...string) {
 // TestThemeAdvisoryUnion_PersistedLineWins: it drops the file line when a
 // persisted line covers the same slug.
 //
-// §12.2, over the most likely failure in the whole feature — the user's persisted
-// theme IS the invalid file. Two producers detect it independently, and without
+// Doctor's theme line, over the most likely failure in the whole feature — the user's
+// persisted theme IS the invalid file. Two producers detect it independently, and without
 // the union the report would carry two lines for one problem, so <M> would count
-// DETECTIONS while §9.4's panel counted the one row it renders. The persisted
+// DETECTIONS while the union rule's panel counted the one row it renders. The persisted
 // line is the survivor because it carries strictly more: the reason AND which
 // slot is affected.
 //
-// Both §14A renderings of that line are covered, since the parenthetical is the
+// Both the pinned copy renderings of that line are covered, since the parenthetical is the
 // only thing that differs between them and the dedup must not depend on it.
 func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 	requireDropInSlug(t, "nord-lee")
@@ -134,8 +134,8 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 // TestThemeAdvisoryUnion_BadNameFileNeverCollides: it keeps both lines for a
 // bad-name file.
 //
-// §6.2's rung 1 yields no usable identity, so a `bad name` row carries NO slug —
-// and the union's non-empty-slug guard is what turns that into a structural
+// The reason vocabulary's rung 1 yields no usable identity, so a `bad name` row carries NO
+// slug — and the union's non-empty-slug guard is what turns that into a structural
 // non-collision rather than a coincidence: such a row can never match a persisted
 // slug, so both lines legitimately stand and both count toward <M>.
 func TestThemeAdvisoryUnion_BadNameFileNeverCollides(t *testing.T) {
@@ -171,8 +171,8 @@ func TestThemeAdvisoryUnion_BadNameFileNeverCollides(t *testing.T) {
 // reserved-name file line and produces no persisted line.
 //
 // The second structural non-collision. A persisted slug naming a `reserved name`
-// file resolves to the BUILT-IN at ResolveByName's step 2 — §5.4's no-shadowing
-// property — so the persisted producer emits nothing for it and there is nothing
+// file resolves to the BUILT-IN at ResolveByName's step 2 — the reserved-slug rule's
+// no-shadowing property — so the persisted producer emits nothing for it and there is nothing
 // to dedup against. The file keeps its own line, which is right: that collision is
 // the entire content of the reason.
 func TestThemeAdvisoryUnion_ReservedNameResolvesToBuiltin(t *testing.T) {
@@ -212,10 +212,10 @@ func TestThemeAdvisoryUnion_ValidPersistedFileIsSilent(t *testing.T) {
 // TestThemeAdvisoryUnion_BothSlotsStayOneLine: it renders one both line rather
 // than two.
 //
-// §9.5's `● both` state is reachable in two keypresses, so one slug naming both
-// slots of a broken file is ordinary rather than exotic — and it is the case where
+// The row-rendering rule's `● both` state is reachable in two keypresses, so one slug naming
+// both slots of a broken file is ordinary rather than exotic — and it is the case where
 // a naive union would render THREE lines for one problem (two slots plus the
-// file). §14A pins one line in every case: the persisted producer collapses the
+// file). The pinned copy pins one line in every case: the persisted producer collapses the
 // pair, and the union drops the file line under it.
 func TestThemeAdvisoryUnion_BothSlotsStayOneLine(t *testing.T) {
 	requireDropInSlug(t, "nord-lee")
@@ -257,8 +257,8 @@ func TestThemeAdvisoryUnion_DirectoryLineIsNeverDeduped(t *testing.T) {
 // assembly owns is observable at once: file lines in the enumeration's order
 // (`Nord.theme` sorts above the lowercase names, so the order is provably
 // os.ReadDir's rather than any tidier one), one of them dropped under a persisted
-// line, a valid file contributing nothing, and both persisted slots in §8.2's key
-// order. It returns the deps and the block they must assemble to.
+// line, a valid file contributing nothing, and both persisted slots in the constant-or-pair
+// rule's key order. It returns the deps and the block they must assemble to.
 func everyRegionFixture(t *testing.T) (*DoctorDeps, []string) {
 	t.Helper()
 
@@ -382,7 +382,7 @@ func TestThemeAdvisoryUnion_OrderIsDeterministic(t *testing.T) {
 // TestThemeAdvisoryUnion_CountMatchesRenderedLines: it counts M from the final
 // line set.
 //
-// §12.2: <M> counts LINES, so it counts problems rather than detections — which
+// Doctor's theme line: <M> counts LINES, so it counts problems rather than detections — which
 // only holds if it is taken from the assembled slice rather than from either
 // producer's raw finding count. The property is asserted as an identity between
 // the summary's count and the advisory lines actually rendered beside it, over
@@ -450,7 +450,7 @@ func TestThemeAdvisoryUnion_CountMatchesRenderedLines(t *testing.T) {
 			want := "  1 of 2 checks passed"
 			switch len(rendered) {
 			case 0:
-				// §14A suppresses the suffix entirely at M == 0.
+				// The pinned copy suppresses the suffix entirely at M == 0.
 			case 1:
 				want += " · 1 advisory"
 			default:

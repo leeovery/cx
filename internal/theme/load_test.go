@@ -14,8 +14,8 @@ import (
 
 // TestLoadFile_ValidThemeReturnsSlugAndTheme pins the accepting path end to end:
 // the slug comes from the filename, the palette from the contents, and the 19
-// values arrive in §4.3's canonical upper case even though the file wrote them
-// lower.
+// values arrive in the hex-only value rule's canonical upper case even though the file wrote
+// them lower.
 func TestLoadFile_ValidThemeReturnsSlugAndTheme(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.Lines())
 
@@ -33,8 +33,8 @@ func TestLoadFile_ValidThemeReturnsSlugAndTheme(t *testing.T) {
 }
 
 // TestLoadFile_LadderShortCircuits is the pin the whole function exists for:
-// every file below fails TWO of §6.2's rungs at once, and each reports only the
-// higher one.
+// every file below fails TWO of the reason vocabulary's rungs at once, and each reports only
+// the higher one.
 //
 // Nothing else in the feature asserts this ordering, and without it a file that
 // is simultaneously duplicate-keyed and missing tokens has two defensible
@@ -140,7 +140,7 @@ func TestLoadFile_BadNameDecidedBeforeOpen(t *testing.T) {
 	}
 }
 
-// TestLoadFile_ReservedNameDecidedFromSlugAlone pins rung 2 and §5.4's
+// TestLoadFile_ReservedNameDecidedFromSlugAlone pins rung 2 and the reserved-slug rule's
 // no-shadowing rule: a user file whose slug collides with a built-in is rejected
 // whatever its contents are — including when there are no contents to have.
 //
@@ -204,8 +204,8 @@ func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 // slugs are populated through: the set is an INJECTED field, so a Loader
 // carrying an empty one produces `reserved name` for no input at all.
 //
-// That stays true now that NewLoader populates the field from the embedded set
-// (§5.4), and it is what keeps the rung drivable from a test with a synthetic
+// That stays true now that NewLoader populates the field from the embedded set,
+// and it is what keeps the rung drivable from a test with a synthetic
 // set — the injection point is a seam rather than a formality. Both empty forms
 // are covered because both are reachable: a zero-value Loader carries a nil map,
 // and a caller assembling a set from an empty collection produces an allocated
@@ -247,7 +247,7 @@ func TestLoadFile_EmptyInjectedReservedSetNeverRejects(t *testing.T) {
 	}
 }
 
-// TestLoadFile_UnreadableKeepsOSErrorVerbatim pins rung 3 and §14A's detail for
+// TestLoadFile_UnreadableKeepsOSErrorVerbatim pins rung 3 and the pinned copy's detail for
 // it. `unreadable` covers EVERY read failure, not only permissions, and the OS
 // error is kept verbatim because it is the only thing distinguishing a
 // permission denial from a dangling symlink — the two cases below.
@@ -286,9 +286,9 @@ func TestLoadFile_UnreadableKeepsOSErrorVerbatim(t *testing.T) {
 	}
 }
 
-// TestLoadFile_NotFoundIsOutsideTheLadder pins §6.2's seventh reason as
+// TestLoadFile_NotFoundIsOutsideTheLadder pins the reason vocabulary's seventh reason as
 // deliberately unreachable from a path: `not found` applies only to a slug named
-// by prefs.json with no corresponding file (§9.4), where there is nothing to
+// by prefs.json with no corresponding file, where there is nothing to
 // check. An absent file handed to LoadFile is `unreadable`, which is the reason
 // that sends the user to check permissions rather than the filename.
 //
@@ -320,7 +320,7 @@ func TestLoadFile_NotFoundIsOutsideTheLadder(t *testing.T) {
 	}
 }
 
-// TestLoadFile_DetailNeverSpansTwoReasons pins §6.2's other half: doctor
+// TestLoadFile_DetailNeverSpansTwoReasons pins the reason vocabulary's other half: doctor
 // enumerates WITHIN the reason, never across reasons, so it never reports a file
 // as both `bad colour` and `missing tokens`.
 //
@@ -379,9 +379,9 @@ func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 }
 
 // TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung pins what an EXPLICIT PATH is:
-// an input, not a directory entry. §6.2's two filename rungs are not run, and no
-// slug is derived — §3.2 gives a Theme no identity field, so a theme loaded from
-// a path has none.
+// an input, not a directory entry. The reason vocabulary's two filename rungs are not run, and
+// no slug is derived — the Go-side data shape gives a Theme no identity field, so a theme
+// loaded from a path has none.
 //
 // Every file below is perfectly valid content behind a name LoadFile refuses, and
 // each case asserts that refusal alongside the acceptance. That pairing is the
@@ -456,11 +456,11 @@ func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
 }
 
 // TestLoadPath_RunsTheContentRungs pins the other half: the four rungs that read
-// the file DO apply, in §6.2's order, with the same reasons and the same §14A
-// details LoadFile produces.
+// the file DO apply, in the reason vocabulary's order, with the same reasons and the same
+// pinned-copy details LoadFile produces.
 //
 // Only the content reasons are reachable, which is what makes the harness's
-// hard-error contract (§13.3) exhaustive: `bad syntax`, `bad colour`,
+// hard-error contract exhaustive: `bad syntax`, `bad colour`,
 // `missing tokens` and `unreadable` are everything a path can be wrong in.
 func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 	tests := []struct {
@@ -526,8 +526,8 @@ type loadCase struct {
 	wantReason theme.Reason
 }
 
-// rejectionCorpus stages one file per §6.2 rung, plus the accepting path and the
-// three shapes of read failure — the absent file among them, which is the case
+// rejectionCorpus stages one file per the reason vocabulary's rung, plus the accepting path
+// and the three shapes of read failure — the absent file among them, which is the case
 // `not found` would otherwise be tempting for.
 func rejectionCorpus() []loadCase {
 	return []loadCase{
@@ -606,7 +606,7 @@ func rejectionCorpus() []loadCase {
 }
 
 // wantThemeTokens renders the tokens themetest.Lines() must parse into: the same
-// values in §4.3's canonical upper case, in §2.4 order.
+// values in the hex-only value rule's canonical upper case, in canonical table order.
 //
 // The expectation is read back off the fixture's own lines rather than rebuilt
 // from a second copy of its value generator, so the two cannot drift apart.
@@ -660,11 +660,11 @@ func writeDanglingThemeLink(t *testing.T, dir, base string) string {
 }
 
 // requireLoadRejection fails the test unless the load rejected with the one
-// expected reason and the complete §14A detail.
+// expected reason and the complete pinned-copy detail.
 //
 // It serves both loader entry points — LoadFile's full ladder and LoadPath's
 // content half — because the rejection contract is the same on either: exactly
-// one reason, the whole §14A detail, and the zero Result alongside it.
+// one reason, the whole pinned-copy detail, and the zero Result alongside it.
 //
 // It also pins the invariants every rejection from the ladder shares: no
 // populated Result comes back alongside one — never a slug, never a partial

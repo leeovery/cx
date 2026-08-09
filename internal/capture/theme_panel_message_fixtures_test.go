@@ -15,10 +15,10 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// §13.3's THREE REMAINING panel surfaces, as frames: the message slot in both of
-// its states, and the panel at its minimum height with a message live.
+// The harness contract's THREE REMAINING panel surfaces, as frames: the message slot in both
+// of its states, and the panel at its minimum height with a message live.
 //
-// Each carries something no other frame does, and §13.4's guard structurally
+// Each carries something no other frame does, and the completeness guard structurally
 // cannot report their absence — it enumerates whatever fixtures exist, so a
 // missing one READS AS COVERAGE:
 //
@@ -29,8 +29,8 @@ import (
 //     `bg.attention` band is checkable — the whole point of that decision is that a
 //     full-width main-screen band reads as heavy inside a 27-column panel, which is
 //     a judgement only an image settles;
-//   - the MINIMUM-HEIGHT frame is the only surface on which §9.8's floor arithmetic
-//     is observable at all, and the only check that the slot TRUNCATES to one line
+//   - the MINIMUM-HEIGHT frame is the only surface on which the geometry rule's floor
+//     arithmetic is observable at all, and the only check that the slot TRUNCATES to one line
 //     there rather than wrapping.
 //
 // The assertions read the RENDERED frame rather than model internals, exactly as
@@ -57,13 +57,13 @@ func messagePanelFixtureNames() []string {
 // comment records the count its pixel size resolves to, and these constants are the
 // same numbers on the Go side.
 const (
-	// messagePanelTermWidth lands the panel on §9.8's MINIMUM width, which is where
-	// §9.1's wrap case lives: the ladder is `min(max(contentW/2, minimum), preferred)`
-	// against a content region of termW − 2·tui.Hinset, so 54 columns gives 50 content
-	// columns, half of which is below the minimum and clamps to it.
+	// messagePanelTermWidth lands the panel on the geometry rule's MINIMUM width, which is where
+	// the panel layout's wrap case lives: the ladder is `min(max(contentW/2, minimum),
+	// preferred)` against a content region of termW − 2·tui.Hinset, so 54 columns gives 50
+	// content columns, half of which is below the minimum and clamps to it.
 	messagePanelTermWidth = 54
 
-	// messagePanelFloorTermHeight lands the panel EXACTLY on §9.8's height floor —
+	// messagePanelFloorTermHeight lands the panel EXACTLY on the geometry rule's height floor —
 	// header + footer + one list row + one message row. 13 rows leaves 11 content
 	// rows, which is that floor; a taller terminal gives the body a second row and
 	// the frame stops being about the arithmetic.
@@ -144,16 +144,16 @@ func panelFieldText(lines []panelLine) string {
 	return strings.Join(fields, "\n")
 }
 
-// themePanelConfirmCopy is §14A's slot-from-constant confirm as the confirm
+// themePanelConfirmCopy is the pinned copy's slot-from-constant confirm as the confirm
 // fixture renders it — the pinned format around that fixture's persisted constant.
 //
 // It is a literal here because internal/tui keeps the format unexported, and the
-// point of the assertion is that the frame carries §14A's wording VERBATIM: a copy
+// point of the assertion is that the frame carries the pinned copy's wording VERBATIM: a copy
 // derived from the same place the renderer reads would agree with a paraphrase.
 const themePanelConfirmCopy = "clear constant nord?  y / n"
 
 // confirmFooterRows / standingFooterRows are the two scopes' footer labels, in
-// descriptor order — §9.2's nested confirm scope and the panel's standing one.
+// descriptor order — the picker idiom's nested confirm scope and the panel's standing one.
 var (
 	confirmFooterRows  = []string{"y confirm", "n cancel"}
 	standingFooterRows = []string{"⏎ set theme", "d set as dark", "l set as light", "esc close"}
@@ -186,11 +186,11 @@ func footerBlock(t *testing.T, lines []panelLine, want []string) (start int, row
 // TestPanelFixture_ConfirmFrame: it renders the confirm with its substituted
 // footer.
 //
-// §13.3 mandates the message slot in BOTH states, and this frame is the ONLY
-// visual proof of the footer substitution. While §9.2's confirm is live it is
+// The harness contract mandates the message slot in BOTH states, and this frame is the ONLY
+// visual proof of the footer substitution. While the picker idiom's confirm is live it is
 // key-exclusive within the panel and resolves on `y`/`n`/`Esc` alone, so the
 // standing `⏎ set theme` / `d set as dark` / `l set as light` / `esc close` would
-// advertise four keys of which NONE would act — the dead end §14.3 is firm about.
+// advertise four keys of which NONE would act — the dead end the footer rule is firm about.
 // A reviewer cannot see the substitution anywhere else.
 //
 // # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
@@ -246,14 +246,14 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 // TestPanelFixture_ConfirmWrapsAtMinWidth: it wraps the confirm at the minimum
 // width.
 //
-// §9.1 warns that "at the minimum panel width the slot may wrap to two rows", and
-// §14A calls panel wording "a layout constraint as much as a copy choice" — so the
+// The panel layout warns that "at the minimum panel width the slot may wrap to two rows", and
+// the pinned copy calls panel wording "a layout constraint as much as a copy choice" — so the
 // one copy the spec says might not fit has to be capturable AT the width it might
 // not fit at. This is that frame, and the fixture is captured there for this reason
 // alone.
 //
 // THE SECOND ROW COMES OUT OF THE LIST BODY, which is the half a reader is most
-// likely to assume rather than check. §9.1's slot is not reserved when empty, so
+// likely to assume rather than check. The panel layout's slot is not reserved when empty, so
 // its measured height is subtracted from the list's budget — and the alternative,
 // an assembly that let the message push the block down, would take the row off the
 // BOTTOM, where the footer is: `esc close` first, the one key that closes a panel
@@ -291,10 +291,10 @@ func TestPanelFixture_ConfirmWrapsAtMinWidth(t *testing.T) {
 	})
 }
 
-// themePanelCommitFailedCopy is §14A's failed-commit line, VERBATIM. It is a
+// themePanelCommitFailedCopy is the pinned copy's failed-commit line, VERBATIM. It is a
 // literal here for the reason the confirm's is: internal/tui keeps the constant
 // unexported, and reading the copy from the same place the renderer reads it would
-// agree with a paraphrase as readily as with §14A's wording.
+// agree with a paraphrase as readily as with the pinned copy's wording.
 const themePanelCommitFailedCopy = "⚠ couldn't save theme"
 
 // foregroundRuns matches every truecolor FOREGROUND SGR core in a rendered line.
@@ -304,7 +304,7 @@ var foregroundRuns = regexp.MustCompile(`38;2;[0-9]+;[0-9]+;[0-9]+`)
 
 // distinctForegrounds is the set of foreground tokens a rendered line was painted
 // with, deduped and sorted — the observable form of "the glyph and the text are ONE
-// run" (§9.1's table gives the failed-commit line a single `accent.attention` run
+// run" (the panel layout's table gives the failed-commit line a single `accent.attention` run
 // covering both).
 func distinctForegrounds(raw string) []string {
 	found := foregroundRuns.FindAllString(raw, -1)
@@ -315,17 +315,17 @@ func distinctForegrounds(raw string) []string {
 // TestPanelFixture_CommitFailedFrame: it renders the failed-commit line with no
 // band.
 //
-// §13.3 mandates the message slot in BOTH states, and this frame is the ONLY place
-// the deliberate ABSENCE of a `bg.attention` band is checkable. §9.1's table gives
-// the failed-commit line `accent.attention` for the `⚠` and the text and NO band —
+// The harness contract mandates the message slot in BOTH states, and this frame is the ONLY
+// place the deliberate ABSENCE of a `bg.attention` band is checkable. The panel layout's table
+// gives the failed-commit line `accent.attention` for the `⚠` and the text and NO band —
 // the reasoning being that the band is a full-width main-screen flash treatment
 // that would read as heavy inside a 27–34 column panel, which is a judgement only
 // an image settles.
 //
 // # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
 //
-// Rendered under `nord`, the adaptive pair's dark slot — the row §9.2's open
-// anchors the cursor to under capturetool's gate-free dark fallback (§8.8).
+// Rendered under `nord`, the adaptive pair's dark slot — the row the picker idiom's open
+// anchors the cursor to under capturetool's gate-free dark fallback.
 func TestPanelFixture_CommitFailedFrame(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 	lines := panelLinesOf(t, panelFixtureFrame(t, "theme-panel-commit-failed", palette))
@@ -364,7 +364,7 @@ func TestPanelFixture_CommitFailedFrame(t *testing.T) {
 // TestPanelFixture_CommitFailedBadgeUnmoved: it leaves the badge in place on a
 // failure.
 //
-// §9.13: a failed commit "does not move the `●` — the marker means what is
+// The failed-commit rule: a failed commit "does not move the `●` — the marker means what is
 // PERSISTED and would be lying if it moved". The frame is where that is visible,
 // and the adaptive pair is what makes it legible: two slot badges on two different
 // rows, both still where the persisted setting put them.
@@ -395,16 +395,16 @@ func TestPanelFixture_CommitFailedBadgeUnmoved(t *testing.T) {
 // TestPanelFixture_MinHeightMessageFrame: it renders the floor arithmetic with a
 // message.
 //
-// §9.8 defines the height floor as header + footer + ONE LIST ROW + ONE MESSAGE
-// ROW, and §13.3 requires a frame of it because "that arithmetic is only observable
-// on a frame that renders it". The message row is counted although §9.1 leaves the
-// slot unreserved when empty, because neither contender can be suppressed — so a
+// The geometry rule defines the height floor as header + footer + ONE LIST ROW + ONE MESSAGE
+// ROW, and the harness contract requires a frame of it because "that arithmetic is only
+// observable on a frame that renders it". The message row is counted although the panel layout
+// leaves the slot unreserved when empty, because neither contender can be suppressed — so a
 // floor computed without it puts the panel one row short at exactly the moment a
 // message appears.
 //
 // THAT THE CAPTURED HEIGHT IS THE FLOOR IS PROVEN, NOT ASSERTED: one row shorter
-// and §9.7's entry gate REFUSES with §14A's pinned copy. Without that leg the frame
-// would only be of some short terminal, and the arithmetic it is captured for would
+// and the entry gate REFUSES with the pinned copy. Without that leg the
+// frame would only be of some short terminal, and the arithmetic it is captured for would
 // be a coincidence of the size someone picked.
 func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
@@ -459,7 +459,7 @@ func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 // TestPanelFixture_MinHeightMessageTruncates: it truncates rather than wraps at
 // the floor height.
 //
-// §9.1's two dimensions degrade DIFFERENTLY on purpose: at the minimum WIDTH the
+// The panel layout's two dimensions degrade DIFFERENTLY on purpose: at the minimum WIDTH the
 // slot may wrap to two rows, but "it does cost a row of vertical budget, so at the
 // minimum HEIGHT the message is truncated to one line rather than wrapped". A
 // two-row message at the floor would leave zero list rows or overflow the frame.
@@ -511,7 +511,7 @@ func joinMessageLines(lines []panelLine) string {
 // is exactly what would let a fixture start carrying copy.
 var messageSeedFields = []string{"ThemeConfirm", "ThemeCommitFailed"}
 
-// pinnedMessageCopy is §14A's message-slot copy in both states, as the strings a
+// pinnedMessageCopy is the pinned copy's message-slot copy in both states, as the strings a
 // fixture must NOT contain.
 //
 // The confirm is matched on its invariant PREFIX rather than on the whole line: the
@@ -521,7 +521,7 @@ var pinnedMessageCopy = []string{"clear constant", "couldn't save theme"}
 
 // TestPanelFixture_MessageSeedsAreStateOnly: it seeds state, never text.
 //
-// §14A pins the message slot's copy, and in the panel that wording is "a layout
+// The pinned copy pins the message slot's copy, and in the panel that wording is "a layout
 // constraint as much as a copy choice" — so a fixture able to supply its own text
 // could ship a frame that reads plausibly, reviews cleanly and says something the
 // spec never wrote. The seeds are therefore BOOLEANS that declare which contender
@@ -598,9 +598,9 @@ func packageSourceFiles(t *testing.T) []string {
 // TestPanelFixture_MessageFramesRegistered: it registers all three in both lists.
 //
 // FixtureByName's switch and FixtureNames()'s slice are two hand-maintained lists,
-// and a fixture present in one and absent from the other is INVISIBLE to §13.4's
-// enumerating guard — it exists, it renders, and nothing ever swaps it. Absence
-// reads as coverage, which is the shape task 4-3's drift check exists to close;
+// and a fixture present in one and absent from the other is INVISIBLE to the
+// enumerating completeness guard — it exists, it renders, and nothing ever swaps it. Absence
+// reads as coverage, which is the shape the fixture drift check exists to close;
 // this states the same claim for the three by name, so a half-registration fails
 // here with the fixture named.
 func TestPanelFixture_MessageFramesRegistered(t *testing.T) {
@@ -619,7 +619,7 @@ func TestPanelFixture_MessageFramesRegistered(t *testing.T) {
 // TestPanelFixture_MessageFramesUnderTheGuard: it is enumerated by the
 // swap-and-diff guard.
 //
-// §13.4's guard NEVER NAMES A FIXTURE — it iterates the registry — so the claim
+// The completeness guard NEVER NAMES A FIXTURE — it iterates the registry — so the claim
 // worth pinning is that these three arrive in the set its assertions range over,
 // with no edit to the guard itself. That is the whole reason the specified frames
 // are ENUMERATED rather than listed.

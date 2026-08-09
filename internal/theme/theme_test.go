@@ -16,18 +16,18 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// tokenCount is the size of the closed vocabulary (§2.1). It is stated here as a
+// tokenCount is the size of the closed vocabulary. It is stated here as a
 // literal rather than derived from anything in the package so growing the
 // vocabulary is a deliberate, spec-amending act.
 const tokenCount = 19
 
-// wantTokenNames is the §2.4 rename table, rows 1 through 19, in table order.
+// wantTokenNames is the canonical rename table, rows 1 through 19, in table order.
 //
 // Production derives every name from internal/theme's single canonical
 // name↔field table, so this slice is the ONE deliberate restatement of the
 // vocabulary: renaming a token has to be done twice, here and there. That is the
 // point — these names are the public contract every .theme file is written
-// against (§1.3), and a rename breaks every file in a user's themes directory.
+// against, and a rename breaks every file in a user's themes directory.
 var wantTokenNames = []string{
 	"text.primary",
 	"text.secondary",
@@ -50,8 +50,8 @@ var wantTokenNames = []string{
 	"text.on-attention",
 }
 
-// TestTokenCount_IsNineteen pins the closed vocabulary at 19 tokens (§2.1), the
-// count the 20-token TestMVTokenCount is retired into (§13.6). Both accessors
+// TestTokenCount_IsNineteen pins the closed vocabulary at 19 tokens, the
+// count the 20-token TestMVTokenCount is retired into. Both accessors
 // are checked so neither can grow without the other.
 func TestTokenCount_IsNineteen(t *testing.T) {
 	if got := len(wantTokenNames); got != tokenCount {
@@ -66,10 +66,10 @@ func TestTokenCount_IsNineteen(t *testing.T) {
 }
 
 // TestAll_ReturnsSpecTableOrder asserts the whole ordered slice, not a set:
-// position 1 is text.primary and position 19 is text.on-attention (§3.2 — the
-// §2.4 numbering IS the definition of All()'s stable order).
+// position 1 is text.primary and position 19 is text.on-attention (the
+// The canonical table's numbering IS the definition of All()'s stable order).
 //
-// Each field is seeded with a distinct value in §2.4 row order, so the
+// Each field is seeded with a distinct value in canonical table row order, so the
 // assertion also pins the name↔field pairing: an entry in the canonical table
 // wired to the wrong field, a duplicated field or a reordered one all surface as
 // a value mismatch rather than passing silently.
@@ -109,7 +109,7 @@ func TestAll_ReturnsSpecTableOrder(t *testing.T) {
 	}
 }
 
-// TestTokenNames_MatchExactSet pins the exact 19 names in the exact §2.4 order —
+// TestTokenNames_MatchExactSet pins the exact 19 names in the exact canonical table order —
 // not alphabetical, not grouped by kind, not whatever the struct's textual order
 // happens to be.
 func TestTokenNames_MatchExactSet(t *testing.T) {
@@ -120,8 +120,7 @@ func TestTokenNames_MatchExactSet(t *testing.T) {
 
 // TestAll_CoversEveryStructField cross-checks the canonical table against the
 // struct by reflection, so a field added to Theme without a table entry fails
-// the suite rather than being silently invisible to All() (and, from task 1.3
-// on, to the parser).
+// the suite rather than being silently invisible to All() (and to the parser).
 func TestAll_CoversEveryStructField(t *testing.T) {
 	themeType := reflect.TypeFor[theme.Theme]()
 	tokenType := reflect.TypeFor[theme.Token]()
@@ -140,7 +139,7 @@ func TestAll_CoversEveryStructField(t *testing.T) {
 // TestTokenColor_ZeroValueDoesNotPanic pins that an unset token is safe to
 // render. lipgloss.Color("") yields the no-colour sentinel rather than erroring,
 // which matters because a Theme is an ordinary struct a test may construct by
-// hand with only some tokens populated (§3.2, §13.4's synthetic guard themes).
+// hand with only some tokens populated (the completeness guard's synthetic themes).
 func TestTokenColor_ZeroValueDoesNotPanic(t *testing.T) {
 	var zero theme.Token
 
@@ -175,25 +174,25 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // wantExports is the package's entire exported surface. Absent from it, and
 // deliberately so: Mode, ColorFor, MV, and any Light/Dark variant surface — a
 // theme is one palette, and light/dark is the shape of the theme setting rather
-// than anything inside a theme (§1.2, §3.1, §3.2).
+// than anything inside a theme.
 //
 // Later tasks legitimately extend this list — the lexer added Pair and the
 // reason vocabulary, the name rules added ValidSlug, SlugFromFilename and the
-// bad-name causes, the §6.2 ladder added Loader, Result and LoadFile,
+// bad-name causes, the reason vocabulary ladder added Loader, Result and LoadFile,
 // enumeration added Entry and Enumerate, the `theme` log component added the
 // EventLogger seam with the NewLoader that injects it, the embedded built-in
-// set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, §7.6's build-time
-// guarantee added DefaultDarkSlug and DefaultLightSlug, §8.4's loaded nomination
-// added Nomination with its two constructors and three accessors, §13.3's
-// explicit-path input added LoadPath alongside LoadFile, §8.2's two-state
-// setting added ResolveSetting with the Setting and RawKeys it returns, §8.5's
-// per-slot fallback added ResolveNomination with the Resolution, Slot and
-// SlotResolution it reports through, §12.3's per-theme records added
-// EventLogger.Loaded and EventLogger.FallbackApplied beside the two rejection
-// events, §7.6's runtime escalation added BrokenBuiltinError, §9.4's union
-// added the Assembler's Open and Reassemble with the Enumeration, Union, Row and
-// RowSource they deal in plus the EventLogger.Enumerated they report through, and
-// single-sourcing the light/dark vocabulary added Slot.AttrName — the one
+// set added BuiltinBytes, BuiltinSlugs and LoadBuiltin, the build-time guarantee's
+// guarantee added DefaultDarkSlug and DefaultLightSlug, the construction-time load rule's
+// loaded nomination added Nomination with its two constructors and three accessors, the
+// harness contract's explicit-path input added LoadPath alongside LoadFile, the
+// constant-or-pair rule's two-state setting added ResolveSetting with the Setting and RawKeys
+// it returns, the per-slot fallback rule's per-slot fallback added ResolveNomination with the
+// Resolution, Slot and SlotResolution it reports through, the `theme` log component's
+// per-theme records added EventLogger.Loaded and EventLogger.FallbackApplied beside the two
+// rejection events, the build-time guarantee's runtime escalation added BrokenBuiltinError,
+// the panel's union added the Assembler's Open and Reassemble with the Enumeration,
+// Union, Row and RowSource they deal in plus the EventLogger.Enumerated they report through,
+// and single-sourcing the light/dark vocabulary added Slot.AttrName — the one
 // definition of those two words, which the persister and doctor read across the
 // package boundary rather than restating, and single-sourcing the silenced
 // loader added NewSilentLoader beside NewLoader — the diagnose-shaped
@@ -202,10 +201,10 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 //
 // InForceKeys and the InForceKey it yields are the latest such addition, and
 // they are exported for a REASON RATHER THAN FOR A CALLER'S CONVENIENCE: which
-// persisted keys Portal is actually reading — §8.2's tiebreak, then the slots
-// the user really set, then two slots naming one value collapsed — is one rule
-// that §9.4's panel rows and §14A's doctor lines must answer identically, and it
-// was authored twice, once on each side of this package boundary, until it was
+// persisted keys Portal is actually reading — the constant-or-pair rule's tiebreak, then the
+// slots the user really set, then two slots naming one value collapsed — is one rule
+// that the union rule's panel rows and the pinned copy's doctor lines must answer identically,
+// and it was authored twice, once on each side of this package boundary, until it was
 // exported. The Slot they carry is not a light/dark variant surface returning
 // either: it names the POSITION a value occupies in the setting.
 //
@@ -231,13 +230,13 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // seam bears on a path a caller named itself — a method would take a receiver it
 // cannot read.
 //
-// BrokenBuiltinError is exported for one reason and it is not a caller's: §14A's
+// BrokenBuiltinError is exported for one reason and it is not a caller's: the pinned copy's
 // fatal sentence is pinned copy, so the test that pins it must be able to state
 // it independently and compare. Nothing constructs one but resolveSlot.
 //
 // Slot is the second addition that could be mistaken for the removed surface
 // returning: it names a light and a dark position. It is not — a slot is a
-// position in the SETTING that a whole theme is nominated for, and §4.7's rule
+// position in the SETTING that a whole theme is nominated for, and the no-variant rule
 // still holds in full: the slot classifies the theme, and no theme declares a
 // variant of itself.
 //
@@ -250,13 +249,13 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // Nomination's arrival is the one addition that could be mistaken for the
 // removed surface returning: it holds a light and a dark Theme. It is not — the
 // pairing is the shape of the SETTING, held outside any theme, and neither
-// member is a variant of the other (§3.1, §8.2). Setting's light and dark fields
+// member is a variant of the other. Setting's light and dark fields
 // are the same shape one level earlier and are not variants either: they are
 // SLUGS, and the slot classifies the theme rather than the theme declaring a
-// variant (§4.7).
+// variant.
 //
-// The exact-equality check is also what pins the negative half of §7.6: there
-// is no exported eager-validation helper, because validation is not
+// The exact-equality check is also what pins the negative half of the build-time guarantee:
+// there is no exported eager-validation helper, because validation is not
 // startup-eager and no caller is offered a "check the built-ins now" entry
 // point to put one on a cold path.
 var wantExports = []string{
@@ -381,7 +380,7 @@ func TestVocabulary_HasNoModeSurface(t *testing.T) {
 	}
 }
 
-// seedValue renders a distinct, well-formed hex for the given §2.4 row number.
+// seedValue renders a distinct, well-formed hex for the given canonical table row number.
 func seedValue(row int) string {
 	return fmt.Sprintf("#0000%02d", row)
 }
