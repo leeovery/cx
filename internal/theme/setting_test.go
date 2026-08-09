@@ -382,6 +382,120 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	})
 }
 
+// TestInForceKeys_SelectsTheKeysInForce pins all three clauses of §8.4's "the
+// keys in force" rule in the one place they are now decided: the `theme`-wins
+// tiebreak, the non-empty-raw-value rule, and the same-value collapse.
+//
+// The three used to be authored twice — once for §9.4's panel rows and once for
+// §14A's doctor lines — and it is their single home, not this table, that moves
+// both surfaces at once; the table holds that home to its rule. The slot each
+// entry carries is what doctor's parenthetical is rendered from, so it is
+// asserted alongside the value rather than left to the caller's own reading of
+// the keys.
+func TestInForceKeys_SelectsTheKeysInForce(t *testing.T) {
+	tests := []struct {
+		name string
+		keys theme.RawKeys
+		want []theme.InForceKey
+	}{
+		{
+			name: "a constant alone",
+			keys: theme.RawKeys{Theme: "nord-lee"},
+			want: []theme.InForceKey{{Value: "nord-lee", Slot: theme.SlotConstant}},
+		},
+		{
+			name: "a constant leaves the slots unread",
+			keys: theme.RawKeys{Theme: "nord-lee", Light: "solar", Dark: "gruv"},
+			want: []theme.InForceKey{{Value: "nord-lee", Slot: theme.SlotConstant}},
+		},
+		{
+			name: "the light slot alone",
+			keys: theme.RawKeys{Light: "solar"},
+			want: []theme.InForceKey{{Value: "solar", Slot: theme.SlotLight}},
+		},
+		{
+			name: "the dark slot alone",
+			keys: theme.RawKeys{Dark: "gruv"},
+			want: []theme.InForceKey{{Value: "gruv", Slot: theme.SlotDark}},
+		},
+		{
+			name: "two slots naming different values, light then dark",
+			keys: theme.RawKeys{Light: "solar", Dark: "gruv"},
+			want: []theme.InForceKey{{Value: "solar", Slot: theme.SlotLight}, {Value: "gruv", Slot: theme.SlotDark}},
+		},
+		{
+			name: "two slots naming one value collapse",
+			keys: theme.RawKeys{Light: "solar", Dark: "solar"},
+			want: []theme.InForceKey{{Value: "solar", Slot: theme.SlotLight, Both: true}},
+		},
+		{
+			name: "two slots naming one value that yields no slug collapse too",
+			keys: theme.RawKeys{Light: "../evil", Dark: "../evil"},
+			want: []theme.InForceKey{{Value: "../evil", Slot: theme.SlotLight, Both: true}},
+		},
+		{
+			name: "no keys at all",
+			keys: theme.RawKeys{},
+			want: nil,
+		},
+		{
+			name: "a control-only constant leaves the slots in force",
+			keys: theme.RawKeys{Theme: "\x1b[0m\n", Dark: "gruv"},
+			want: []theme.InForceKey{{Value: "gruv", Slot: theme.SlotDark}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := theme.InForceKeys(tt.keys); !slices.Equal(got, tt.want) {
+				t.Errorf("InForceKeys(%+v) = %+v, want %+v", tt.keys, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestInForceKeys_UnsetSlotIsNeverInForce pins the half of the rule the Setting
+// alone cannot express: an unset slot holds the SHIPPED DEFAULT (§8.3), and that
+// substituted value is not something the user set.
+//
+// The vacuity guard is the whole test: the default really is in the Setting, so
+// its absence from the keys in force is evidence that the RAW value is what was
+// read rather than the resolved slot.
+func TestInForceKeys_UnsetSlotIsNeverInForce(t *testing.T) {
+	setting, _ := theme.ResolveSetting("", "", "gruv")
+	if setting.Light != theme.DefaultLightSlug {
+		t.Fatalf("Setting.Light = %q, want the substituted default %q — the assertion below would be vacuous", setting.Light, theme.DefaultLightSlug)
+	}
+
+	got := theme.InForceKeys(theme.RawKeys{Dark: "gruv"})
+
+	want := []theme.InForceKey{{Value: "gruv", Slot: theme.SlotDark}}
+	if !slices.Equal(got, want) {
+		t.Errorf("InForceKeys = %+v, want %+v — a value Portal substituted is not one the user set", got, want)
+	}
+}
+
+// TestInForceKeys_AcceptsAlreadyResolvedKeys pins the property the RawKeys
+// parameter rests on: handing back the keys ResolveSetting already produced
+// answers identically to handing over the values as they were read.
+//
+// That is what lets a caller holding either form ask the same question of the
+// same function — stripping is idempotent, and the resolution is pure and total.
+func TestInForceKeys_AcceptsAlreadyResolvedKeys(t *testing.T) {
+	asRead := theme.RawKeys{Light: "\x1b[31msolar\n", Dark: "gruv\t"}
+	_, resolved := theme.ResolveSetting(asRead.Theme, asRead.Light, asRead.Dark)
+
+	if resolved == asRead {
+		t.Fatalf("the fixture strips to itself (%+v) — the assertion below would not be about stripping at all", resolved)
+	}
+	if got, want := theme.InForceKeys(asRead), theme.InForceKeys(resolved); !slices.Equal(got, want) {
+		t.Errorf("InForceKeys over the keys as read = %+v, over the stripped keys = %+v, want identical", got, want)
+	}
+	if got, want := theme.InForceKeys(asRead)[0].Value, "solar"; got != want {
+		t.Errorf("first value = %q, want the stripped %q", got, want)
+	}
+}
+
 // impureSettingImports names the routes out of a pure function, and what each
 // one would let in. It is a deny-list rather than an allow-list because the
 // property being guarded is "no I/O, no environment, no clock", not "these exact

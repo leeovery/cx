@@ -68,10 +68,9 @@ var (
 )
 
 // themeSlotBoth is not a third slot — the setting has exactly two — it is the
-// rendering of ONE slug occupying both of them, which the panel makes reachable
-// in two keypresses and which the one-slug-one-line rule requires be one line
-// rather than two. Having no slot to be named by, it is declared here beside the
-// pair it joins rather than derived.
+// label for ONE slug occupying both of them, a state two keypresses in the theme
+// panel reach and therefore an ordinary one to report. Having no slot to be named
+// by, it is declared here beside the pair it joins rather than derived.
 const themeSlotBoth = "both"
 
 // collectThemeAdvisories is doctor's whole theme-advisory surface: the single
@@ -216,10 +215,10 @@ func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []advisory 
 	}
 
 	keys, _ := deps.PrefsStore.LoadThemeKeys()
-	setting, raw := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	raw := theme.RawKeys{Theme: keys.Theme, Light: keys.Light, Dark: keys.Dark}
 
 	var advisories []advisory
-	for _, nomination := range persistedThemeNominations(setting, raw) {
+	for _, nomination := range persistedThemeNominations(raw) {
 		if a, reported := persistedThemeAdvisory(loader, nomination, deps.ThemesDir); reported {
 			advisories = append(advisories, a)
 		}
@@ -235,44 +234,46 @@ type persistedThemeNomination struct {
 	slot string
 }
 
-// persistedThemeNominations selects which of prefs.json's three keys doctor
-// checks: THE KEYS IN FORCE, never every key present.
+// persistedThemeNominations renders the keys in force as the nominations doctor
+// checks: theme.InForceKeys decides WHICH keys those are, and this puts a label
+// on each one.
 //
-// The Setting says which state the tiebreak settled on; the RAW keys say which
-// values are actually PERSISTED. Both are needed and neither substitutes for the
-// other:
+// LABELLING IS ALL DOCTOR DOES HERE. The `theme`-wins tiebreak, the rule that
+// only a slot with a non-empty raw value is in force, and the collapse of two
+// slots naming one value all belong to the SELECTOR, and none of them is
+// restated or re-derived here.
 //
-//   - A CONSTANT is checked alone, with no slot. The slots are not read at all
-//     under the `theme`-wins rule — a hand-edited file may legally carry all
-//     three keys — and reporting one Portal is not reading would send the user
-//     to fix something that has no effect.
-//   - Otherwise ONLY THE SLOTS WITH A NON-EMPTY RAW VALUE are checked. An unset
-//     slot arrives in the Setting as the shipped default, which is a built-in
-//     and always resolves, so checking it could only ever produce a line about
-//     the broken-binary state — which is a fatal, not an advisory. The raw value
-//     is what distinguishes "the user chose this" from "we substituted it", and
-//     only the former is reportable.
-//
-// Two raw slots naming the SAME slug collapse to one `both` nomination, so one
-// slug yields one line — the one-slug-one-line rule two lines would break, along
-// with <M>'s problems-not-detections property.
-func persistedThemeNominations(setting theme.Setting, raw theme.RawKeys) []persistedThemeNomination {
-	if setting.IsConstant {
-		return []persistedThemeNomination{{slug: setting.Constant}}
-	}
+// The label is doctor's own, because the parenthetical is: it is one rendering of
+// where a value sits, not a decision about which values are read.
+func persistedThemeNominations(keys theme.RawKeys) []persistedThemeNomination {
+	inForce := theme.InForceKeys(keys)
 
-	if raw.Light != "" && raw.Light == raw.Dark {
-		return []persistedThemeNomination{{slug: raw.Light, slot: themeSlotBoth}}
-	}
-
-	var nominations []persistedThemeNomination
-	if raw.Light != "" {
-		nominations = append(nominations, persistedThemeNomination{slug: raw.Light, slot: themeSlotLight})
-	}
-	if raw.Dark != "" {
-		nominations = append(nominations, persistedThemeNomination{slug: raw.Dark, slot: themeSlotDark})
+	nominations := make([]persistedThemeNomination, 0, len(inForce))
+	for _, key := range inForce {
+		nominations = append(nominations, persistedThemeNomination{slug: key.Value, slot: persistedThemeSlotLabel(key)})
 	}
 	return nominations
+}
+
+// persistedThemeSlotLabel is the label one in-force key renders under: `both`
+// where a single value occupies the whole pair, else the slot's own name.
+//
+// A CONSTANT YIELDS THE EMPTY LABEL, which persistedThemeSlotSuffix renders as no
+// parenthetical at all rather than as a placeholder — the constant state has no
+// halves for a label to name.
+func persistedThemeSlotLabel(key theme.InForceKey) string {
+	if key.Both {
+		return themeSlotBoth
+	}
+
+	switch key.Slot {
+	case theme.SlotLight:
+		return themeSlotLight
+	case theme.SlotDark:
+		return themeSlotDark
+	default:
+		return ""
+	}
 }
 
 // persistedThemeAdvisory resolves one nomination and renders its advisory,

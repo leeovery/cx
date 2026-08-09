@@ -113,3 +113,72 @@ func ResolveSetting(theme, light, dark string) (Setting, RawKeys) {
 		Dark:  cmp.Or(raw.Dark, DefaultDarkSlug),
 	}, raw
 }
+
+// InForceKey is one persisted value Portal is actually reading, and where in the
+// setting it sits.
+//
+// It is the value AS PERSISTED rather than a slug: nothing here has been
+// validated, resolved or defaulted, because a value the charset check rejects is
+// still in force — it is what the user set, and therefore what a surface has to
+// report back to them.
+type InForceKey struct {
+	// Value is the persisted value itself, control-stripped. It may be no legal
+	// slug at all.
+	Value string
+
+	// Slot is the position the value occupies: SlotConstant under a constant, else
+	// the pair's light or dark slot — and the LIGHT one where Both is set, since a
+	// collapsed key occupies that slot as well as the other.
+	Slot Slot
+
+	// Both reports that this ONE value occupies BOTH slots of the pair.
+	//
+	// It is a flag rather than a third Slot value because the setting has exactly
+	// two slots: a third would name a position that does not exist, and every
+	// surface reading a slot's own name would then have to special-case it.
+	Both bool
+}
+
+// InForceKeys selects which of prefs.json's three keys a surface reports on: THE
+// KEYS IN FORCE, never every key present.
+//
+// THE TIEBREAK IS ResolveSetting's, applied here rather than restated: a
+// non-empty `theme` wins and the slots are not read at all. A hand-edited file
+// may legally carry all three keys, and reporting two values Portal is not
+// reading would put the user to work fixing something with no effect. The raw
+// keys are resolved HERE rather than taken pre-resolved so a caller cannot skip
+// that step; handing back keys ResolveSetting already produced is safe, because
+// stripping is idempotent and the resolution is pure and total.
+//
+// THE SETTING AND THE RAW KEYS ARE BOTH READ, AND NEITHER SUBSTITUTES FOR THE
+// OTHER. The Setting says which state the tiebreak settled on; the raw keys say
+// which values are actually PERSISTED. So under a pair only the slots with a
+// NON-EMPTY RAW VALUE are in force: an unset slot arrives in the Setting as the
+// shipped default, which is a built-in that always resolves, and the raw value is
+// what distinguishes "the user chose this" from "Portal substituted it".
+//
+// TWO SLOTS NAMING THE SAME VALUE COLLAPSE TO ONE ENTRY, keyed on the persisted
+// VALUE rather than on a derived slug, so a value yielding no slug at all
+// collapses by the same rule. One value the user set is one problem, however many
+// slots it sits in.
+//
+// The order is light then dark, and a constant is the single entry.
+func InForceKeys(keys RawKeys) []InForceKey {
+	setting, raw := ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	if setting.IsConstant {
+		return []InForceKey{{Value: setting.Constant, Slot: SlotConstant}}
+	}
+
+	if raw.Light != "" && raw.Light == raw.Dark {
+		return []InForceKey{{Value: raw.Light, Slot: SlotLight, Both: true}}
+	}
+
+	var inForce []InForceKey
+	if raw.Light != "" {
+		inForce = append(inForce, InForceKey{Value: raw.Light, Slot: SlotLight})
+	}
+	if raw.Dark != "" {
+		inForce = append(inForce, InForceKey{Value: raw.Dark, Slot: SlotDark})
+	}
+	return inForce
+}

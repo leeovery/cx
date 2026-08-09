@@ -347,52 +347,19 @@ func fileRows(entries []Entry) []Row {
 // SlugFromFilename derived — so a persisted value that is not a legal slug cannot
 // match one by accident.
 //
-// Only what is IN FORCE is considered, and only what the user actually SET: see
-// inForceValues.
+// Only what is IN FORCE is considered, and only what the user actually SET: the
+// selection is InForceKeys' — the tiebreak, the unset slots and the collapse of
+// two slots naming one value — and only the VALUE of each key is read here,
+// because which slot a value sits in makes no difference to the row it earns.
 func persistedRows(listed []Row, e Enumeration, keys RawKeys) []Row {
 	var rows []Row
-	for _, value := range inForceValues(keys) {
-		if listedUnder(listed, value) {
+	for _, key := range InForceKeys(keys) {
+		if listedUnder(listed, key.Value) {
 			continue
 		}
-		rows = append(rows, persistedRow(value, e))
+		rows = append(rows, persistedRow(key.Value, e))
 	}
 	return rows
-}
-
-// inForceValues selects which of prefs.json's three keys the union reports on:
-// THE KEYS IN FORCE, never every key present.
-//
-// The tiebreak is applied HERE, through ResolveSetting, rather than restated: a
-// non-empty `theme` wins and the slots are not read at all. A hand-edited file
-// may legally carry all three keys, and listing rows for two slugs Portal is not
-// reading would put the user to work fixing something with no effect. Doctor's
-// persisted line makes the identical call for the identical reason, so the two
-// surfaces cannot disagree about which slug is live. Passing the already-stripped
-// raw keys back through it is safe: stripping is idempotent, and the resolution is
-// pure and total.
-//
-// Under a pair only the slots with a NON-EMPTY RAW value contribute. An unset
-// slot arrives in the Setting as the shipped default, which is a built-in and
-// therefore already has a row — it is the "never set" badge row, not a nomination
-// that failed.
-//
-// Two slots naming the same value collapse to ONE, keyed on the persisted VALUE
-// rather than on a derived slug, so a value yielding no slug at all collapses by
-// the same rule: one value the user set is one problem, and one row.
-func inForceValues(keys RawKeys) []string {
-	setting, raw := ResolveSetting(keys.Theme, keys.Light, keys.Dark)
-	if setting.IsConstant {
-		return []string{setting.Constant}
-	}
-
-	var values []string
-	for _, slot := range []string{raw.Light, raw.Dark} {
-		if slot != "" && !slices.Contains(values, slot) {
-			values = append(values, slot)
-		}
-	}
-	return values
 }
 
 // listedUnder reports whether one of the already-assembled rows is the row for

@@ -200,6 +200,15 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // callers assembled that seam themselves until it had one definition here.
 // Nothing on the removed list ever returns to it.
 //
+// InForceKeys and the InForceKey it yields are the latest such addition, and
+// they are exported for a REASON RATHER THAN FOR A CALLER'S CONVENIENCE: which
+// persisted keys Portal is actually reading — §8.2's tiebreak, then the slots
+// the user really set, then two slots naming one value collapsed — is one rule
+// that §9.4's panel rows and §14A's doctor lines must answer identically, and it
+// was authored twice, once on each side of this package boundary, until it was
+// exported. The Slot they carry is not a light/dark variant surface returning
+// either: it names the POSITION a value occupies in the setting.
+//
 // Badge.Text is a DEPARTURE rather than an addition: the badge derivation stays
 // here, because which badge a slug carries is a fact about the setting, but the
 // words it is drawn with are the theme panel's copy and live with the panel's
@@ -275,6 +284,8 @@ var wantExports = []string{
 	"EventLogger.FallbackApplied",
 	"EventLogger.Loaded",
 	"EventLogger.Rejected",
+	"InForceKey",
+	"InForceKeys",
 	"LoadPath",
 	"Loader",
 	"Loader.Enumerate",
