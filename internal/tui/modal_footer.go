@@ -18,6 +18,11 @@ import (
 // renderBlueKeyHint is the named accent.blue pin every contextual footer hint (the edit
 // footer + the Preview nav footer) shares — the ONE canonical blue-key-hint path, after
 // the five superseded per-modal wrappers were removed.
+//
+// keyColumnRow is the file's second shape: the same key-then-label pairing laid out in a
+// FIXED-WIDTH key COLUMN, for the vertical surfaces that stack such pairs and need their
+// labels on a common left edge. It sits here rather than inside one of those surfaces so
+// that none of them owns another's geometry.
 
 // footerHintGroup is one `<key/glyph> <label>` footer-hint pair — the single shape
 // modelling the {Key/Glyph, Label} concept across the contextual edit footer and the
@@ -52,6 +57,30 @@ func renderKeyHint(key, label string, keyTok theme.Token, th theme.Theme, colour
 // than each re-authoring the token. An empty key takes renderKeyHint's label-only path.
 func renderBlueKeyHint(key, label string, th theme.Theme, colourless bool) string {
 	return renderKeyHint(key, label, th.AccentKey, th, colourless)
+}
+
+// keyColumnRow renders one `<glyph> <label>` row in the fixed-width key-column layout:
+// the glyph in keyStyle, padded out to columnWidth with canvas-painted spaces so the
+// labels of stacked rows share a left edge, then a canvas-painted gap, then the label in
+// labelStyle. Every structural cell is canvas-painted, so the column opens no
+// terminal-bg island inside the surface it sits in.
+//
+// A glyph already at or past columnWidth takes NO pad segment: a canvas style renders
+// the empty string as a styled empty run rather than as nothing, so padding
+// unconditionally would leave a stray escape pair on every full-width row.
+//
+// It takes ready STYLES rather than role tokens because a key column can diverge in more
+// than hue — a bolded glyph, a token chosen per entry — and resolving that at the call
+// site is what keeps this builder free of a branch per surface.
+func keyColumnRow(glyph, label string, keyStyle, labelStyle lipgloss.Style, columnWidth int, gap string, th theme.Theme, colourless bool) string {
+	key := keyStyle.Render(glyph)
+	keyWidth := lipgloss.Width(key)
+	pad := ""
+	if keyWidth < columnWidth {
+		pad = headerCanvasBg(th, colourless).Render(spaces(columnWidth - keyWidth))
+	}
+	gapSeg := headerCanvasBg(th, colourless).Render(gap)
+	return lipgloss.JoinHorizontal(lipgloss.Top, key, pad, gapSeg, labelStyle.Render(label))
 }
 
 // renderConfirmCancelFooter renders the two-hint modal footer row: the confirm hint,

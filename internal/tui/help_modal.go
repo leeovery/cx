@@ -159,17 +159,12 @@ func helpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
 	if isDestructiveHelpKey(e) {
 		keyTok = th.StateDestructive
 	}
-	key := headerStyle(keyTok, th, colourless).Bold(true).Render(helpKeyGlyph(e))
-	keyWidth := lipgloss.Width(key)
-	// Pad the key column to a fixed width so labels share a left edge. The pad is
-	// canvas-painted so the column gap is not a terminal-bg island.
-	pad := ""
-	if keyWidth < helpKeyColumnWidth {
-		pad = headerCanvasBg(th, colourless).Render(strings.Repeat(" ", helpKeyColumnWidth-keyWidth))
-	}
-	gap := headerCanvasBg(th, colourless).Render(helpColumnGap)
-	label := headerStyle(th.TextSecondary, th, colourless).Render(helpActionLabel(e))
-	return lipgloss.JoinHorizontal(lipgloss.Top, key, pad, gap, label)
+	return keyColumnRow(
+		helpKeyGlyph(e), helpActionLabel(e),
+		headerStyle(keyTok, th, colourless).Bold(true),
+		headerStyle(th.TextSecondary, th, colourless),
+		helpKeyColumnWidth, helpColumnGap, th, colourless,
+	)
 }
 
 // helpActionLabel returns the label the help modal shows for an entry: the longer

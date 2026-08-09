@@ -31,10 +31,9 @@ import (
 // than the daily path.
 
 // themePanelFooterKeyColumnWidth is the fixed width of the left key-glyph column,
-// so the labels share a left edge regardless of glyph length — the same
-// two-column idiom as helpModalRow, sized for the panel rather than the help body
-// (the widest glyph in the panel scope is `esc`; helpKeyColumnWidth's 10 cells is
-// nearly half a 27-column panel).
+// so the labels share a left edge regardless of glyph length. It is sized for the
+// panel: the widest glyph in the panel scope is `esc`, and the help body's far
+// wider column would eat nearly half a 27-column panel.
 //
 // It is a FIXED constant rather than the widest glyph in the entries it is handed,
 // deliberately: the confirm footer substitutes `y`/`n` into the SAME screen
@@ -99,25 +98,19 @@ func themePanelFooterRows(entries []keymapEntry, width int, th theme.Theme, colo
 
 // themePanelFooterRow renders one entry as `<glyph> <label>`: the key glyph in
 // accent.key within the fixed key column, one canvas gap, then the Action label in
-// text.muted — the SAME token split the horizontal footer uses,
-// laid out in the help body's two-column geometry.
+// text.muted — the SAME token split the horizontal footer uses, in the shared
+// fixed-width key-column layout.
 //
 // The glyph resolves through helpKeyGlyph, so a HelpKey override reads exactly as
 // it does in the help body and the panel scope needs no glyph rule of its own.
 // The label is the TERSE Action (the pinned copy), never HelpAction — a ~30
 // column panel has no room for "Assign to the dark slot".
 func themePanelFooterRow(e keymapEntry, width int, th theme.Theme, colourless bool) string {
-	key := headerStyle(th.AccentKey, th, colourless).Render(helpKeyGlyph(e))
-	keyWidth := lipgloss.Width(key)
-	// Pad the key column to its fixed width so the labels share a left edge. The
-	// pad is canvas-painted so the column gap is not a terminal-bg island.
-	pad := ""
-	if keyWidth < themePanelFooterKeyColumnWidth {
-		pad = headerCanvasBg(th, colourless).Render(spaces(themePanelFooterKeyColumnWidth - keyWidth))
-	}
-	gap := headerCanvasBg(th, colourless).Render(footerKeyLabelGap)
-	label := headerStyle(th.TextMuted, th, colourless).Render(e.Action)
-
-	row := lipgloss.JoinHorizontal(lipgloss.Top, key, pad, gap, label)
+	row := keyColumnRow(
+		helpKeyGlyph(e), e.Action,
+		headerStyle(th.AccentKey, th, colourless),
+		headerStyle(th.TextMuted, th, colourless),
+		themePanelFooterKeyColumnWidth, footerKeyLabelGap, th, colourless,
+	)
 	return headerPadRight(row, lipgloss.Width(row), width, th, colourless)
 }
