@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -660,7 +659,7 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
 		t.Errorf("a failed write emitted %d `theme: loaded` line(s), want none — nothing became live\n%s", len(got), sink.Body())
 	}

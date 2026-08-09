@@ -3,7 +3,6 @@ package tui
 import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -176,13 +175,13 @@ func (m *Model) reportCommitFailure() {
 // raised inside the commit, and on failure the raw keys are untouched. The
 // confirmed path reads its own error to gate the newly-live-slot load on the
 // write having landed (confirmSlotAssignment).
-func (m Model) handleSlotCommitKey(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
+func (m Model) handleSlotCommitKey(member theme.Member) (tea.Model, tea.Cmd) {
 	if !m.themeSetting().IsConstant {
-		_ = (&m).commitSelectedSlot(slot)
+		_ = (&m).commitSelectedSlot(member)
 		return m, nil
 	}
 	if slug, ok := committableThemeSlug(m.themePanel.list); ok {
-		(&m).raiseSlotConfirm(slug, slot)
+		(&m).raiseSlotConfirm(slug, member)
 	}
 	return m, nil
 }
@@ -197,12 +196,12 @@ func (m Model) handleSlotCommitKey(slot prefs.ThemeSlot) (tea.Model, tea.Cmd) {
 // The error is returned rather than handled here, for the same reason
 // commitSelectedConstant returns its own: the report line is raised inside the
 // commit rather than by whoever holds the value.
-func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
+func (m *Model) commitSelectedSlot(member theme.Member) error {
 	slug, ok := committableThemeSlug(m.themePanel.list)
 	if !ok {
 		return nil
 	}
-	return m.commitSlot(slug, slot)
+	return m.commitSlot(slug, member)
 }
 
 // commitSlot writes one slot and clears the constant (mutual exclusion,
@@ -222,41 +221,27 @@ func (m *Model) commitSelectedSlot(slot prefs.ThemeSlot) error {
 // It holds for a slot naming a slug that resolves to nothing just as for a live
 // one: prefs persists values verbatim and this layer re-derives none of them.
 //
-// The slot is the typed prefs value, so no path here can mint a third slot, and
-// the write is one call so no partial state is reachable. Clearing is writing the
-// empty string, which `omitempty` renders as key-absent, so an already-empty
-// constant is deliberately not special-cased.
-func (m *Model) commitSlot(slug string, slot prefs.ThemeSlot) error {
+// The half is theme.Member, the domain's two-valued light/dark type, so no path
+// here can mint a third slot; the persister owns the single translation to what
+// prefs.json is keyed by. The write is one call so no partial state is reachable,
+// and clearing is writing the empty string, which `omitempty` renders as
+// key-absent, so an already-empty constant is deliberately not special-cased.
+//
+// The mirror is theme.RawKeys.WithMember — the named half set to slug, the other
+// half's raw value carried through untouched and the constant gone — as
+// commitConstant's is WithConstant.
+func (m *Model) commitSlot(slug string, member theme.Member) error {
 	if m.themeState.persister == nil {
 		return nil
 	}
-	err := m.themeState.persister.CommitThemeSlot(slug, slot)
+	err := m.themeState.persister.CommitThemeSlot(slug, member)
 	m.applyCommitResult(err)
 	if err != nil {
 		return err
 	}
-	m.themeState.keys = mirrorThemeSlot(m.themeState.keys, slug, slot)
+	m.themeState.keys = m.themeState.keys.WithMember(member, slug)
 	m.recomputeThemePanel()
 	return nil
-}
-
-// mirrorThemeSlot is the slot direction of the same mutual exclusion, over the
-// keys in hand: slug in the named slot, the other slot's raw value carried
-// through untouched, and the constant gone.
-//
-// The rule is theme.RawKeys.WithMember's, as commitConstant's clear is
-// WithConstant's. What is left here is the type translation: the keypress threads
-// the typed prefs slot, which is what the write takes, while the keys name their
-// half in the token layer's own two-valued vocabulary.
-//
-// Anything that is not the light slot is the dark one. An out-of-range slot is
-// rejected by the store before this is reached, and the only values this package
-// names are the two constants.
-func mirrorThemeSlot(keys theme.RawKeys, slug string, slot prefs.ThemeSlot) theme.RawKeys {
-	if slot == prefs.SlotLight {
-		return keys.WithMember(theme.MemberLight, slug)
-	}
-	return keys.WithMember(theme.MemberDark, slug)
 }
 
 // recomputeThemePanel is the post-commit recompute: the panel re-rendered against

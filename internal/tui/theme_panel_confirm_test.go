@@ -9,7 +9,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -144,9 +143,9 @@ func slotConfirmTarget() string   { return arrowSlug(2) }
 // raiseSlotConfirmForTest drives a slot key through the live Update and fails
 // unless it raised the confirm, so a test whose subject is the ANSWER does not
 // silently start from an un-raised panel.
-func raiseSlotConfirmForTest(t *testing.T, m Model, press tea.KeyPressMsg, slot prefs.ThemeSlot) Model {
+func raiseSlotConfirmForTest(t *testing.T, m Model, press tea.KeyPressMsg, member theme.Member) Model {
 	t.Helper()
-	return raiseSlotConfirmForTestAt(t, m, press, themeSlotConfirm{slug: slotConfirmTarget(), slot: slot})
+	return raiseSlotConfirmForTestAt(t, m, press, themeSlotConfirm{slug: slotConfirmTarget(), member: member})
 }
 
 // raiseSlotConfirmForTestAt is raiseSlotConfirmForTest for a fixture whose pending
@@ -283,12 +282,12 @@ func requireStandingFooter(t *testing.T, m Model) {
 // question's own keys.
 func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		press tea.KeyPressMsg
-		slot  prefs.ThemeSlot
+		name   string
+		press  tea.KeyPressMsg
+		member theme.Member
 	}{
-		{name: "d", press: slotDarkPress, slot: prefs.SlotDark},
-		{name: "l", press: slotLightPress, slot: prefs.SlotLight},
+		{name: "d", press: slotDarkPress, member: theme.MemberDark},
+		{name: "l", press: slotLightPress, member: theme.MemberLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, persister := newSlotConfirmModel(t)
@@ -300,7 +299,7 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 			if len(persister.slugs) != 0 {
 				t.Errorf("%q wrote %v while raising the confirm; nothing is written until `y` (§9.2)", tc.name, persister.slugs)
 			}
-			requireConfirmLive(t, m, themeSlotConfirm{slug: slotConfirmTarget(), slot: tc.slot})
+			requireConfirmLive(t, m, themeSlotConfirm{slug: slotConfirmTarget(), member: tc.member})
 			requireConstantKeys(t, m, slotConfirmConstant())
 			requireConfirmFooter(t, m)
 			if want := "clear constant " + slotConfirmConstant() + "?  y / n"; !strings.Contains(slotConfirmPanelText(m), want) {
@@ -389,7 +388,7 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 
 		m, _ = pressSlotKey(t, m, slotDarkPress)
 
-		requireConfirmLive(t, m, themeSlotConfirm{slug: rows[0].Slug, slot: prefs.SlotDark})
+		requireConfirmLive(t, m, themeSlotConfirm{slug: rows[0].Slug, member: theme.MemberDark})
 		requireSlotCommits(t, persister)
 	})
 }
@@ -418,11 +417,11 @@ func TestSlotConfirm_ConfirmsOnEitherCase(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, persister := newSlotConfirmModel(t)
-			m = raiseSlotConfirmForTest(t, m, slotLightPress, prefs.SlotLight)
+			m = raiseSlotConfirmForTest(t, m, slotLightPress, theme.MemberLight)
 
 			m, cmd := pressConfirmKey(t, m, tc.press)
 
-			requireSlotCommits(t, persister, slotCommit{slug: slotConfirmTarget(), slot: prefs.SlotLight})
+			requireSlotCommits(t, persister, slotCommit{slug: slotConfirmTarget(), member: theme.MemberLight})
 			requirePairKeys(t, m, slotConfirmTarget(), "")
 			requireConfirmResolved(t, m)
 			requireStandingFooter(t, m)
@@ -451,7 +450,7 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m, persister := newSlotConfirmModel(t)
 			keys := m.themeState.keys
-			m = raiseSlotConfirmForTest(t, m, slotDarkPress, prefs.SlotDark)
+			m = raiseSlotConfirmForTest(t, m, slotDarkPress, theme.MemberDark)
 
 			m, cmd := pressConfirmKey(t, m, tc.press)
 
@@ -493,7 +492,7 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 		t.Fatal("fixture: the previewed row paints the persisted theme, so a close would be invisible")
 	}
 	m, _ = pressSlotKey(t, m, slotDarkPress)
-	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
+	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 
 	m, cmd := pressConfirmKey(t, m, confirmEsc)
 
@@ -538,7 +537,7 @@ func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 // settings surface. It is also not a write: the question was never answered.
 func TestSlotConfirm_CtrlCQuits(t *testing.T) {
 	m, persister := newSlotConfirmModel(t)
-	m = raiseSlotConfirmForTest(t, m, slotDarkPress, prefs.SlotDark)
+	m = raiseSlotConfirmForTest(t, m, slotDarkPress, theme.MemberDark)
 
 	quit, cmd := pressConfirmKey(t, m, confirmCtrlC)
 
@@ -593,7 +592,7 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 	answerControl := func(answer tea.KeyPressMsg, effect func(before, after Model) bool) func(*testing.T, Model, tea.KeyPressMsg) bool {
 		return func(t *testing.T, base Model, _ tea.KeyPressMsg) bool {
 			t.Helper()
-			raised := raiseSlotConfirmForTest(t, base, slotLightPress, prefs.SlotLight)
+			raised := raiseSlotConfirmForTest(t, base, slotLightPress, theme.MemberLight)
 			answered, _ := pressConfirmKey(t, raised, answer)
 			return effect(raised, answered)
 		}
@@ -621,7 +620,7 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			name:  "d",
 			press: slotDarkPress,
 			control: openControl(func(_, after Model) bool {
-				return after.themePanel.pending == themeSlotConfirm{slug: slotConfirmTarget(), slot: prefs.SlotDark}
+				return after.themePanel.pending == themeSlotConfirm{slug: slotConfirmTarget(), member: theme.MemberDark}
 			}),
 			controlS: "raise the dark-slot confirm",
 		},
@@ -629,7 +628,7 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			name:  "l",
 			press: slotLightPress,
 			control: openControl(func(_, after Model) bool {
-				return after.themePanel.pending == themeSlotConfirm{slug: slotConfirmTarget(), slot: prefs.SlotLight}
+				return after.themePanel.pending == themeSlotConfirm{slug: slotConfirmTarget(), member: theme.MemberLight}
 			}),
 			controlS: "raise the light-slot confirm",
 		},
@@ -710,12 +709,12 @@ func TestSlotConfirm_SwallowsEverythingElse(t *testing.T) {
 			}
 
 			live, persister := newSlotConfirmModelAt(t, arrowPagingTermH)
-			live = raiseSlotConfirmForTest(t, live, slotLightPress, prefs.SlotLight)
+			live = raiseSlotConfirmForTest(t, live, slotLightPress, theme.MemberLight)
 			frame := live.View().Content
 
 			got, cmd := pressConfirmKey(t, live, tc.press)
 
-			requireConfirmLive(t, got, themeSlotConfirm{slug: slotConfirmTarget(), slot: prefs.SlotLight})
+			requireConfirmLive(t, got, themeSlotConfirm{slug: slotConfirmTarget(), member: theme.MemberLight})
 			if len(persister.slugs) != 0 {
 				t.Errorf("%v wrote %v while the confirm was live; only `y` writes (§9.2)", tc.press, persister.slugs)
 			}
@@ -761,7 +760,7 @@ func TestSlotConfirm_CancelIsInert(t *testing.T) {
 	labels := themePanelRowLabels(m)
 	frame := m.View().Content
 
-	raised := raiseSlotConfirmForTest(t, m, slotLightPress, prefs.SlotLight)
+	raised := raiseSlotConfirmForTest(t, m, slotLightPress, theme.MemberLight)
 	if raised.View().Content == frame {
 		t.Fatal("fixture: raising the confirm did not change the frame, so restoring it asserts nothing")
 	}
@@ -812,11 +811,11 @@ func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 
 	m = arrowToThemeRow(t, m, "nord")
 	m, _ = pressSlotKey(t, m, slotLightPress)
-	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotLight})
+	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberLight})
 
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotLight})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberLight})
 	if len(persister.slugs) != 1 {
 		t.Errorf("the answer made %d seam call(s) (%v), want the single atomic slot write (§8.2)", len(persister.slugs), persister.slugs)
 	}
@@ -866,7 +865,7 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 
 	m, cmd := pressConfirmKey(t, m, confirmYes)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	if m.themeState.keys != keys {
 		t.Errorf("a failed commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeState.keys, keys)
 	}
@@ -946,7 +945,7 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 		m = arrowToThemeRow(t, m, target)
 		before := m.View().Content
 
-		raised := raiseSlotConfirmForTestAt(t, m, slotDarkPress, themeSlotConfirm{slug: target, slot: prefs.SlotDark})
+		raised := raiseSlotConfirmForTestAt(t, m, slotDarkPress, themeSlotConfirm{slug: target, member: theme.MemberDark})
 		answered, cmd := pressConfirmKey(t, raised, confirmYes)
 
 		requireConstantKeys(t, answered, persisted)
@@ -1096,7 +1095,7 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 	m = arrowToThemeRow(t, m, "nord")
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
+	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 	rendered := slotConfirmPanelText(m)
 	if want := "clear constant aurora?  y / n"; !strings.Contains(rendered, want) {
 		t.Errorf("the confirm does not read %q — it names the CONSTANT being cleared (§8.2)\n%s", want, rendered)
@@ -1107,7 +1106,7 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requirePairKeys(t, m, "ghost", "nord")
 	// The stale light slot is live the moment the confirm resolves: the union rule gives its
 	// unresolvable slug a row of its own, and the row-rendering rule puts the `● light` on it.
@@ -1139,7 +1138,7 @@ func TestSlotConfirm_ResizesTheListForTheSwappedLayout(t *testing.T) {
 	requireThemePanelListSized(t, m, "on open")
 	before := m.themePanel.list.Height()
 
-	raised := raiseSlotConfirmForTest(t, m, slotDarkPress, prefs.SlotDark)
+	raised := raiseSlotConfirmForTest(t, m, slotDarkPress, theme.MemberDark)
 
 	requireThemePanelListSized(t, raised, "with the confirm live")
 	if got := raised.themePanel.list.Height(); got == before {

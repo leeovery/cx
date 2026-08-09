@@ -59,16 +59,13 @@ func (p themePersister) CommitTheme(slug string) error {
 // constant and leaving the other slot untouched — which is what makes a `● both`
 // badge reachable in two keypresses.
 //
-// The slot is the existing typed prefs.ThemeSlot rather than a name this layer
-// invents, so no caller can mint a third slot — and an out-of-range value is the
-// saver's error, reported here like any other failed write, with no `slot` attr
-// to carry.
-func (p themePersister) CommitThemeSlot(slug string, slot prefs.ThemeSlot) error {
-	identity := []any{"slug", slug}
-	if name, named := themeSlotAttr(slot); named {
-		identity = append(identity, "slot", name)
-	}
-	return p.reportCommit(p.store.SaveThemeSlot(slug, slot), identity...)
+// The half is named in the domain's own light/dark type, which the caller carries
+// end to end; this seam is where it becomes the value prefs.json is keyed by.
+func (p themePersister) CommitThemeSlot(slug string, member theme.Member) error {
+	return p.reportCommit(
+		p.store.SaveThemeSlot(slug, prefsSlotFor(member)),
+		"slug", slug, "slot", themeSlotAttr(member),
+	)
 }
 
 // reportCommit emits `theme: commit failed` for a failed write and hands err back
@@ -87,31 +84,24 @@ func (p themePersister) reportCommit(err error, identity ...any) error {
 	return err
 }
 
-// themeSlotAttr renders a prefs slot as the `slot` attr value, and reports
-// whether the slot has one at all.
+// themeSlotAttr renders one half of the adaptive pair as the `slot` attr value.
 //
-// The words come off theme.Slot's own name mapping, where the constant's absent
-// attr is decided and where every other surface naming a slot reads them.
-// Persistence and resolution keep separate slot types — prefs is a deliberate
-// no-logging leaf that must not import internal/theme — but they share one
-// vocabulary, so the conversion happens here, at the boundary the two types
-// already meet on.
-func themeSlotAttr(slot prefs.ThemeSlot) (string, bool) {
-	return themeSlotFor(slot).AttrName()
+// The words come off theme.Slot's own name mapping, where every other surface
+// naming a slot reads them. A member is always one half of a pair, so it always
+// has a name — the nameless case is the constant, which reaches this component's
+// commit line through CommitTheme and carries no attr at all.
+func themeSlotAttr(member theme.Member) string {
+	name, _ := member.Slot().AttrName()
+	return name
 }
 
-// themeSlotFor reads a persisted slot as the resolution layer's.
-//
-// Anything that is not one half of the adaptive pair — including the zero value
-// the saver rejects — is the constant, which is the slot with no name and
-// therefore no attr.
-func themeSlotFor(slot prefs.ThemeSlot) theme.Slot {
-	switch slot {
-	case prefs.SlotLight:
-		return theme.SlotLight
-	case prefs.SlotDark:
-		return theme.SlotDark
-	default:
-		return theme.SlotConstant
+// prefsSlotFor is the domain light/dark answer as the value prefs.json is keyed
+// by — the single conversion between the two vocabularies, which stay separate
+// types because prefs is a deliberate no-logging leaf that must not import
+// internal/theme.
+func prefsSlotFor(member theme.Member) prefs.ThemeSlot {
+	if member == theme.MemberLight {
+		return prefs.SlotLight
 	}
+	return prefs.SlotDark
 }

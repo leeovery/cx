@@ -104,11 +104,12 @@ type ModePersister interface {
 // It RETURNS the error as well as having logged it: the panel's
 // outstanding-failure state renders `⚠ couldn't save theme` from the value, so a persister
 // that only logged would recreate the silent "applied but not persisted" state.
-// The slot is the existing typed prefs.ThemeSlot, so the seam cannot mint a third
-// slot.
+// The half of the adaptive pair is named in theme.Member, the domain's two-valued
+// light/dark type, so the seam cannot mint a third slot and the implementation
+// owns the one conversion to what prefs.json is keyed by.
 type ThemePersister interface {
 	CommitTheme(slug string) error
-	CommitThemeSlot(slug string, slot prefs.ThemeSlot) error
+	CommitThemeSlot(slug string, member theme.Member) error
 }
 
 // ProjectEditor defines the interface for renaming projects and mutating their

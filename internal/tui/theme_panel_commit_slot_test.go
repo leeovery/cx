@@ -13,7 +13,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -201,7 +200,7 @@ func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 	m = arrowToThemeRow(t, m, target)
 	m, cmd := pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: target, slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: target, member: theme.MemberDark})
 	requirePairKeys(t, m, light, target)
 	requireNoSlotLoad(t, m)
 	if !m.themePanel.open {
@@ -226,7 +225,7 @@ func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 	m = arrowToThemeRow(t, m, target)
 	m, cmd := pressSlotKey(t, m, slotLightPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: target, slot: prefs.SlotLight})
+	requireSlotCommits(t, persister, slotCommit{slug: target, member: theme.MemberLight})
 	requirePairKeys(t, m, target, dark)
 	requireNoSlotLoad(t, m)
 	if !m.themePanel.open {
@@ -256,7 +255,7 @@ func TestPanelSlotCommit_OtherSlotSurvives(t *testing.T) {
 	m = arrowToThemeRow(t, m, "nord")
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requirePairKeys(t, m, "ghost", "nord")
 	requireRowLabels(t, m, "aurora", "ghost", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireBadge(t, m, "ghost", theme.BadgeLight)
@@ -292,7 +291,7 @@ func TestPanelSlotCommit_EmptyOtherSlotStaysEmpty(t *testing.T) {
 	m = arrowToThemeRow(t, m, "zephyr")
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "zephyr", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "zephyr", member: theme.MemberDark})
 	requirePairKeys(t, m, "", "zephyr")
 	requireBadge(t, m, "zephyr", theme.BadgeDark)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeLight)
@@ -326,8 +325,8 @@ func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 	m, _ = pressSlotKey(t, m, slotLightPress)
 
 	requireSlotCommits(t, persister,
-		slotCommit{slug: "nord", slot: prefs.SlotDark},
-		slotCommit{slug: "nord", slot: prefs.SlotLight},
+		slotCommit{slug: "nord", member: theme.MemberDark},
+		slotCommit{slug: "nord", member: theme.MemberLight},
 	)
 	requirePairKeys(t, m, "nord", "nord")
 	requireBothBadge(t, m, "nord")
@@ -358,7 +357,7 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 
 		m, _ = pressSlotKey(t, m, slotDarkPress)
 
-		requireSlotCommits(t, persister, slotCommit{slug: rows[1].Slug, slot: prefs.SlotDark})
+		requireSlotCommits(t, persister, slotCommit{slug: rows[1].Slug, member: theme.MemberDark})
 		if len(persister.slugs) != 1 {
 			t.Errorf("the keypress made %d seam call(s) (%v), want the single atomic slot write", len(persister.slugs), persister.slugs)
 		}
@@ -377,11 +376,11 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 		m, _, persister := newRecomputePanelModel(t, dir, keys)
 		requireRowLabels(t, m, "aurora", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 
-		if err := (&m).commitSlot("nord", prefs.SlotDark); err != nil {
+		if err := (&m).commitSlot("nord", theme.MemberDark); err != nil {
 			t.Fatalf("commitSlot(nord, dark): %v", err)
 		}
 
-		requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+		requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 		if len(persister.slugs) != 1 {
 			t.Errorf("the commit made %d seam call(s) (%v), want one — the clear rides the SAME write (§8.2)", len(persister.slugs), persister.slugs)
 		}
@@ -414,12 +413,12 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 // write — so the absence above is the gate rather than an unwired key.
 func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		press tea.KeyPressMsg
-		slot  prefs.ThemeSlot
+		name   string
+		press  tea.KeyPressMsg
+		member theme.Member
 	}{
-		{name: "d", press: slotDarkPress, slot: prefs.SlotDark},
-		{name: "l", press: slotLightPress, slot: prefs.SlotLight},
+		{name: "d", press: slotDarkPress, member: theme.MemberDark},
+		{name: "l", press: slotLightPress, member: theme.MemberLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rows := arrowValidRows(4)
@@ -451,7 +450,7 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			// inertness above is the picker idiom's gate rather than a dead arm.
 			pair, pairPersister := newCommitPairPanelModel(t, rows)
 			pair, _ = pressSlotKey(t, arrowToThemeRow(t, pair, target), tc.press)
-			requireSlotCommits(t, pairPersister, slotCommit{slug: target, slot: tc.slot})
+			requireSlotCommits(t, pairPersister, slotCommit{slug: target, member: tc.member})
 			if pair.themeState.keys.Theme != "" {
 				t.Errorf("positive control: the adaptive commit left the constant %q set", pair.themeState.keys.Theme)
 			}
@@ -491,7 +490,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 
 		m, cmd := pressSlotKey(t, m, slotLightPress)
 
-		requireSlotCommits(t, persister, slotCommit{slug: theme.DefaultLightSlug, slot: prefs.SlotLight})
+		requireSlotCommits(t, persister, slotCommit{slug: theme.DefaultLightSlug, member: theme.MemberLight})
 		if m.themeState.active != previewed {
 			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
@@ -521,7 +520,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 
 		m, _ = pressSlotKey(t, m, slotLightPress)
 
-		requireSlotCommits(t, persister, slotCommit{slug: "sunset", slot: prefs.SlotLight})
+		requireSlotCommits(t, persister, slotCommit{slug: "sunset", member: theme.MemberLight})
 		requireBadge(t, m, "sunset", theme.BadgeLight)
 		requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeNone)
 		if m.themeState.active != previewed {
@@ -538,7 +537,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		m, persister := newModel(t)
 
 		m, _ = pressSlotKey(t, arrowToThemeRow(t, m, "sunset"), slotLightPress)
-		requireSlotCommits(t, persister, slotCommit{slug: "sunset", slot: prefs.SlotLight})
+		requireSlotCommits(t, persister, slotCommit{slug: "sunset", member: theme.MemberLight})
 
 		m = closeThemePanelForTest(t, m)
 
@@ -575,7 +574,7 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 
 	m, cmd := pressSlotKey(t, m, slotDarkPress)
 
-	repeat := slotCommit{slug: "aurora", slot: prefs.SlotDark}
+	repeat := slotCommit{slug: "aurora", member: theme.MemberDark}
 	requireSlotCommits(t, persister, repeat, repeat)
 	requirePairKeys(t, m, theme.DefaultLightSlug, "aurora")
 	if m.themeState.keys != onceKeys {
@@ -597,81 +596,100 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	// The NO-ERROR half, which the keypress itself discards (the report is raised
 	// inside the commit): a third identical commit through the helper reports success rather
 	// than merely writing again.
-	if err := (&m).commitSelectedSlot(prefs.SlotDark); err != nil {
+	if err := (&m).commitSelectedSlot(theme.MemberDark); err != nil {
 		t.Errorf("a repeated commit returned %v, want nil — a commit is always re-attemptable (§9.13)", err)
 	}
 }
 
-// TestPanelSlotCommit_TypedSlotOnly: it cannot mint a third slot.
+// TestPanelSlotCommit_TypedSlotOnly: it cannot mint a third slot, and it names
+// the half of the pair in the domain's own type rather than in the store's.
 //
-// The slot is the TYPED prefs value threaded through the seam, never a
-// caller-supplied key name — the structural half of the constant-or-pair rule's two-slot
-// model, whose other half is prefs.SaveThemeSlot rejecting an out-of-range value before it
-// writes anything. The type alone does most of the work (ThemeSlot is
-// not a string, so `prefs.ThemeSlot("dark")` does not compile), which leaves
-// exactly two shapes a scan has to close: a CONVERSION minting a value from an
-// integer, and a THIRD constant appearing beside the two.
+// The half is theme.Member, the two-valued light/dark answer, threaded from the
+// keypress to the seam — the structural half of the constant-or-pair rule's
+// two-slot model, whose other half is prefs.SaveThemeSlot rejecting an
+// out-of-range value before it writes anything. The type alone does most of the
+// work (Member is not a string, so `theme.Member("dark")` does not compile),
+// which leaves two shapes a scan has to close: a CONVERSION minting a value from
+// an integer, and the persistence type leaking back into this layer — where a
+// second translation is free to invert against the seam's.
 //
 // The seam's parameter type is asserted alongside, because it is what makes the
-// panel's call site incapable of naming a slot any other way.
+// panel's call site incapable of naming a half any other way.
 func TestPanelSlotCommit_TypedSlotOnly(t *testing.T) {
-	constants, conversions := themeSlotUsagesInPackage(t)
+	members, conversions, prefsSlots := themeSlotUsagesInPackage(t)
 
 	if len(conversions) != 0 {
-		t.Errorf("%v convert a value to prefs.ThemeSlot; the slot is the typed value threaded through the seam, never one minted here", conversions)
+		t.Errorf("%v convert a value to theme.Member; the half is the typed value threaded through the seam, never one minted here", conversions)
 	}
-	if want := []string{"SlotDark", "SlotLight"}; !slices.Equal(constants, want) {
-		t.Errorf("the package names prefs slots %v, want exactly %v — a third slot must not be nameable", constants, want)
+	if len(prefsSlots) != 0 {
+		t.Errorf("%v name a prefs slot; the persistence type is the persister's, and this layer carries the domain's light/dark type end to end", prefsSlots)
+	}
+	if want := []string{"MemberDark", "MemberLight"}; !slices.Equal(members, want) {
+		t.Errorf("the package names theme members %v, want exactly %v — a third half must not be nameable", members, want)
 	}
 
 	method, ok := reflect.TypeFor[ThemePersister]().MethodByName("CommitThemeSlot")
 	if !ok {
 		t.Fatal("ThemePersister declares no CommitThemeSlot")
 	}
-	if got, want := method.Type.In(1), reflect.TypeFor[prefs.ThemeSlot](); got != want {
+	if got, want := method.Type.In(1), reflect.TypeFor[theme.Member](); got != want {
 		t.Errorf("CommitThemeSlot takes a %s, want the typed %s", got, want)
 	}
 }
 
 // themeSlotUsagesInPackage walks the package's PRODUCTION sources and returns
-// every prefs slot constant it names (sorted and deduplicated) alongside every
-// file converting a value to prefs.ThemeSlot.
+// every theme.Member constant it names (sorted and deduplicated), every file
+// converting a value to theme.Member, and every file naming the persistence
+// slot type or one of its constants.
 //
-// The constants list is the scan's own positive control: it is asserted to hold
-// both slots, so a scan looking for a shape that never appears would fail rather
-// than pass an empty conversion list vacuously.
-func themeSlotUsagesInPackage(t *testing.T) (constants, conversions []string) {
+// The members list is the scan's own positive control: it is asserted to hold
+// both halves, so a scan looking for a shape that never appears would fail rather
+// than pass empty lists vacuously.
+func themeSlotUsagesInPackage(t *testing.T) (members, conversions, prefsSlots []string) {
 	t.Helper()
 
 	for name, file := range parsePackageFilesByName(t) {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.CallExpr:
-				if isPrefsSelector(node.Fun, "ThemeSlot") {
+				if isPackageSelector(node.Fun, "theme", "Member") {
 					conversions = append(conversions, name)
 				}
 			case *ast.SelectorExpr:
-				if isPrefsSelector(node, "") && strings.HasPrefix(node.Sel.Name, "Slot") {
-					constants = append(constants, node.Sel.Name)
+				if isPackageSelector(node, "theme", "") && isThemeMemberValue(node.Sel.Name) {
+					members = append(members, node.Sel.Name)
+				}
+				if isPackageSelector(node, "prefs", "") && strings.HasPrefix(node.Sel.Name, "Slot") ||
+					isPackageSelector(node, "prefs", "ThemeSlot") {
+					prefsSlots = append(prefsSlots, name)
 				}
 			}
 			return true
 		})
 	}
-	slices.Sort(constants)
-	slices.Sort(conversions)
-	return slices.Compact(constants), conversions
+	for _, found := range []*[]string{&members, &conversions, &prefsSlots} {
+		slices.Sort(*found)
+		*found = slices.Compact(*found)
+	}
+	return members, conversions, prefsSlots
 }
 
-// isPrefsSelector reports whether expr is `prefs.<sel>` — or any `prefs.*`
+// isThemeMemberValue reports whether name is one of the theme package's
+// Member-prefixed VALUES rather than one of its Member-prefixed type names,
+// which a signature names without naming a half of the pair.
+func isThemeMemberValue(name string) bool {
+	return strings.HasPrefix(name, "Member") && name != "Member" && name != "MemberPalette"
+}
+
+// isPackageSelector reports whether expr is `pkg.<sel>` — or any `pkg.*`
 // selector when sel is empty.
-func isPrefsSelector(expr ast.Expr, sel string) bool {
+func isPackageSelector(expr ast.Expr, pkg, sel string) bool {
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok {
 		return false
 	}
-	pkg, ok := selector.X.(*ast.Ident)
-	return ok && pkg.Name == "prefs" && (sel == "" || selector.Sel.Name == sel)
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && ident.Name == pkg && (sel == "" || selector.Sel.Name == sel)
 }
 
 // TestPanelSlotCommit_FailedWriteLeavesKeysAlone: it mutates nothing on failure.
@@ -711,7 +729,7 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 
 		m, cmd := pressSlotKey(t, m, slotDarkPress)
 
-		requireSlotCommits(t, persister, slotCommit{slug: opened[2].Slug, slot: prefs.SlotDark})
+		requireSlotCommits(t, persister, slotCommit{slug: opened[2].Slug, member: theme.MemberDark})
 		if m.themeState.keys != keys {
 			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 		}
@@ -753,11 +771,11 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		m = arrowToThemeRow(t, m, "nord")
 		persister.err = errThemeCommitFailed
 
-		if err := (&m).commitSelectedSlot(prefs.SlotDark); !errors.Is(err, errThemeCommitFailed) {
+		if err := (&m).commitSelectedSlot(theme.MemberDark); !errors.Is(err, errThemeCommitFailed) {
 			t.Errorf("commitSelectedSlot returned %v, want the persister's error — the caller reads the outcome from it", err)
 		}
 
-		requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+		requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 		if m.themeState.keys != keys {
 			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeState.keys, keys)
 		}
@@ -823,7 +841,7 @@ func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 	// mutate, so the untouched keys above are the nil seam rather than a dead arm.
 	wired, persister := newCommitPairPanelModel(t, rows)
 	wired, _ = pressSlotKey(t, arrowToThemeRow(t, wired, target), slotDarkPress)
-	requireSlotCommits(t, persister, slotCommit{slug: target, slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: target, member: theme.MemberDark})
 	requirePairKeys(t, wired, rows[0].Slug, target)
 }
 
@@ -845,7 +863,7 @@ func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	m, persister := newSlotPairPanelModel(t, dir, theme.DefaultLightSlug, "aurora")
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
-	requireSlotCommits(t, persister, slotCommit{slug: "aurora", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "aurora", member: theme.MemberDark})
 	requirePairKeys(t, m, theme.DefaultLightSlug, "aurora")
 	footer := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.themeState.active, m.colourless)
 
@@ -928,7 +946,7 @@ func TestPanelSlotCommit_NoOtherIO(t *testing.T) {
 
 	m, cmd := pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "sunset", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "sunset", member: theme.MemberDark})
 	if got := stores.calls(); got != 0 {
 		t.Errorf("the slot commit made %d file-touching seam call(s) — the prefs write is the only one (project store %d, project editor %d, alias editor %d, mode persister %d, theme persister %d, scrollback %d, lister %d)",
 			got, stores.projectStore.calls, stores.projectEditor.calls, stores.aliasEditor.calls,

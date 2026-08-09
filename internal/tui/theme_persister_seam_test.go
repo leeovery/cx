@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -25,10 +26,10 @@ import (
 // write a slot and clear the constant, and a test asserting one must not pass
 // over the other.
 //
-// `slotCommits` is the slot calls with their SLUG AND SLOT TOGETHER. The flat
+// `slotCommits` is the slot calls with their SLUG AND HALF TOGETHER. The flat
 // slices above cannot express that pairing once a fixture drives both commit
 // shapes — `slugs` then interleaves them — and the picker idiom's `d`/`l` is precisely a
-// statement about which slug went into which slot.
+// statement about which slug went into which half of the pair.
 //
 // `err` is returned by both methods. The failed-commit rule's outstanding-failure state
 // machine renders its line from the value the seam hands back, so a failed write has to
@@ -36,15 +37,15 @@ import (
 type fakeThemePersister struct {
 	slugs       []string
 	constants   []string
-	slots       []prefs.ThemeSlot
+	slots       []theme.Member
 	slotCommits []slotCommit
 	err         error
 }
 
 // slotCommit is one recorded CommitThemeSlot call.
 type slotCommit struct {
-	slug string
-	slot prefs.ThemeSlot
+	slug   string
+	member theme.Member
 }
 
 func (f *fakeThemePersister) CommitTheme(slug string) error {
@@ -53,10 +54,10 @@ func (f *fakeThemePersister) CommitTheme(slug string) error {
 	return f.err
 }
 
-func (f *fakeThemePersister) CommitThemeSlot(slug string, slot prefs.ThemeSlot) error {
+func (f *fakeThemePersister) CommitThemeSlot(slug string, member theme.Member) error {
 	f.slugs = append(f.slugs, slug)
-	f.slots = append(f.slots, slot)
-	f.slotCommits = append(f.slotCommits, slotCommit{slug: slug, slot: slot})
+	f.slots = append(f.slots, member)
+	f.slotCommits = append(f.slotCommits, slotCommit{slug: slug, member: member})
 	return f.err
 }
 
@@ -104,14 +105,14 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 			t.Fatalf("themePersister = %#v, want the injected recorder", m.themeState.persister)
 		}
 		// Exercised BY DIRECT CALL — no keypress reaches it here.
-		if err := m.themeState.persister.CommitThemeSlot("nord", prefs.SlotDark); err != nil {
+		if err := m.themeState.persister.CommitThemeSlot("nord", theme.MemberDark); err != nil {
 			t.Fatalf("CommitThemeSlot: %v", err)
 		}
 		if len(persister.slugs) != 1 || persister.slugs[0] != "nord" {
 			t.Errorf("recorded slugs = %v, want [nord]", persister.slugs)
 		}
-		if len(persister.slots) != 1 || persister.slots[0] != prefs.SlotDark {
-			t.Errorf("recorded slots = %v, want [SlotDark]", persister.slots)
+		if len(persister.slots) != 1 || persister.slots[0] != theme.MemberDark {
+			t.Errorf("recorded slots = %v, want [MemberDark]", persister.slots)
 		}
 	})
 }

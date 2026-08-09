@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -168,12 +167,12 @@ func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 		// d set as dark — the persister records the cursor's slug against the TYPED
 		// dark slot.
 		"d": {press: slotDarkPress, honour: func(t *testing.T) bool {
-			return themePanelSlotHonoured(t, dispatch, slotDarkPress, prefs.SlotDark)
+			return themePanelSlotHonoured(t, dispatch, slotDarkPress, theme.MemberDark)
 		}},
 		// l set as light — the same against the light slot. Asserted separately from
 		// `d` because a transposed slot argument is invisible from either key alone.
 		"l": {press: slotLightPress, honour: func(t *testing.T) bool {
-			return themePanelSlotHonoured(t, dispatch, slotLightPress, prefs.SlotLight)
+			return themePanelSlotHonoured(t, dispatch, slotLightPress, theme.MemberLight)
 		}},
 		// esc close — the panel CLOSES and the retained parse goes with it. This is
 		// the close, never the confirm's cancel: the seed holds no confirm, and
@@ -193,13 +192,13 @@ func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 // The seed is an ADAPTIVE PAIR precisely so no confirm intervenes — over a constant
 // §9.2's gate would make these keys ask rather than write, and the probe would be
 // asserting the question instead of the commit.
-func themePanelSlotHonoured(t *testing.T, dispatch themePanelDispatch, press tea.KeyPressMsg, slot prefs.ThemeSlot) bool {
+func themePanelSlotHonoured(t *testing.T, dispatch themePanelDispatch, press tea.KeyPressMsg, member theme.Member) bool {
 	t.Helper()
 
 	m, persister := themePanelGuardModel(t)
 	slug := themePanelCursorRow(t, m).Slug
 	after := dispatchPanelKey(t, dispatch, m, press)
-	return slices.Equal(persister.slotCommits, []slotCommit{{slug: slug, slot: slot}}) &&
+	return slices.Equal(persister.slotCommits, []slotCommit{{slug: slug, member: member}}) &&
 		after.themePanel.open && !after.themePanel.confirming()
 }
 
@@ -260,7 +259,7 @@ func themeConfirmNoHonoured(t *testing.T, dispatch themePanelDispatch, press tea
 // its cursor is parked on, into the slot its raise named. `y` writes exactly this and
 // the other two answers write nothing, so the pending value and the raise that
 // produces it are declared together rather than restated at each predicate.
-var themeConfirmPending = slotCommit{slug: slotConfirmTarget(), slot: prefs.SlotLight}
+var themeConfirmPending = slotCommit{slug: slotConfirmTarget(), member: theme.MemberLight}
 
 // themeConfirmGuardModel is the confirm scope's seed: a CONSTANT setting with the
 // cursor arrowed off the persisted row, and `l` pressed to raise §9.2's question.
@@ -273,7 +272,7 @@ func themeConfirmGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
 	m, persister := newSlotConfirmModel(t)
-	return raiseSlotConfirmForTest(t, m, slotLightPress, themeConfirmPending.slot), persister
+	return raiseSlotConfirmForTest(t, m, slotLightPress, themeConfirmPending.member), persister
 }
 
 // TestThemePanelDescriptorDispatchParity: it keeps the panel descriptor and

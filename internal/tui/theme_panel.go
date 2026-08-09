@@ -9,7 +9,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -568,7 +567,7 @@ func (m *Model) seedThemePanelMessage() {
 	switch {
 	case m.themeState.initialConfirm:
 		if slug, ok := committableThemeSlug(m.themePanel.list); ok {
-			m.raiseSlotConfirm(slug, prefs.SlotLight)
+			m.raiseSlotConfirm(slug, theme.MemberLight)
 		}
 	case m.themeState.initialCommitFailed:
 		m.reportCommitFailure()
@@ -1011,9 +1010,9 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		_ = (&m).commitSelectedConstant()
 		return m, nil
 	case isRuneKey(msg, "d"):
-		return m.handleSlotCommitKey(prefs.SlotDark)
+		return m.handleSlotCommitKey(theme.MemberDark)
 	case isRuneKey(msg, "l"):
-		return m.handleSlotCommitKey(prefs.SlotLight)
+		return m.handleSlotCommitKey(theme.MemberLight)
 	case themePanelNavKey(m.themePanel.list.KeyMap, msg):
 		return m, (&m).moveThemePanelCursor(msg)
 	default:

@@ -10,7 +10,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // The failed-commit rule's CLOSE REPORT: the failed-commit state has to SURVIVE the panel
@@ -331,8 +331,8 @@ func TestCloseReport_SuccessfulRetryIsSilent(t *testing.T) {
 
 	requireCloseIsSilent(t, m, cmd, gen)
 	requireSlotCommits(t, persister,
-		slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark},
-		slotCommit{slug: commitFailureTarget, slot: prefs.SlotLight},
+		slotCommit{slug: commitFailureTarget, member: theme.MemberDark},
+		slotCommit{slug: commitFailureTarget, member: theme.MemberLight},
 	)
 }
 
@@ -435,7 +435,7 @@ func TestCloseReport_RevertStands(t *testing.T) {
 	if m.themeState.keys != keys {
 		t.Errorf("the close left keys %+v, want the untouched %+v", m.themeState.keys, keys)
 	}
-	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
 }
 
 // TestCloseReport_ProjectsFlashSlot: it reports on Projects too.

@@ -66,24 +66,45 @@ func TestThemePersister_CommitTheme(t *testing.T) {
 // in two keypresses.
 func TestThemePersister_CommitThemeSlot(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		slot prefs.ThemeSlot
-		want prefsOnDisk
+		name   string
+		member theme.Member
+		want   prefsOnDisk
 	}{
-		{"dark", prefs.SlotDark, prefsOnDisk{Appearance: "light", ThemeLight: theme.DefaultLightSlug, ThemeDark: nordSlug}},
-		{"light", prefs.SlotLight, prefsOnDisk{Appearance: "light", ThemeLight: nordSlug, ThemeDark: theme.DefaultDarkSlug}},
+		{"dark", theme.MemberDark, prefsOnDisk{Appearance: "light", ThemeLight: theme.DefaultLightSlug, ThemeDark: nordSlug}},
+		{"light", theme.MemberLight, prefsOnDisk{Appearance: "light", ThemeLight: nordSlug, ThemeDark: theme.DefaultDarkSlug}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			seeded := `{"appearance":"light","theme":"` + theme.DefaultDarkSlug + `","theme_light":"` + theme.DefaultLightSlug + `","theme_dark":"` + theme.DefaultDarkSlug + `"}`
 			path := setPrefsFile(t, seeded)
 			persister := newThemePersister(prefsStoreForTest(t))
 
-			if err := persister.CommitThemeSlot(nordSlug, tc.slot); err != nil {
-				t.Fatalf("CommitThemeSlot(%s, %v): %v", nordSlug, tc.slot, err)
+			if err := persister.CommitThemeSlot(nordSlug, tc.member); err != nil {
+				t.Fatalf("CommitThemeSlot(%s, %v): %v", nordSlug, tc.member, err)
 			}
 
 			assertPrefsOnDisk(t, path, tc.want)
 		})
+	}
+}
+
+// TestThemePersister_MemberToPrefsSlot: the one domain→persistence slot
+// conversion maps each half of the pair onto the store's own value.
+//
+// The panel carries the light/dark ANSWER end to end and this seam is where it
+// becomes the value prefs.json is keyed by, so the mapping is asserted directly:
+// a swapped pair would write the user's light choice into `theme_dark` on every
+// commit.
+func TestThemePersister_MemberToPrefsSlot(t *testing.T) {
+	for _, tc := range []struct {
+		member theme.Member
+		want   prefs.ThemeSlot
+	}{
+		{theme.MemberLight, prefs.SlotLight},
+		{theme.MemberDark, prefs.SlotDark},
+	} {
+		if got := prefsSlotFor(tc.member); got != tc.want {
+			t.Errorf("prefsSlotFor(%v) = %v, want %v", tc.member, got, tc.want)
+		}
 	}
 }
 
@@ -145,13 +166,13 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 		},
 		{
 			name:   "a dark slot carries slot=dark",
-			commit: func(p themePersister) error { return p.CommitThemeSlot(nordSlug, prefs.SlotDark) },
+			commit: func(p themePersister) error { return p.CommitThemeSlot(nordSlug, theme.MemberDark) },
 			want:   []string{"component", "slug", "slot", "reason"},
 			slot:   "dark",
 		},
 		{
 			name:   "a light slot carries slot=light",
-			commit: func(p themePersister) error { return p.CommitThemeSlot(nordSlug, prefs.SlotLight) },
+			commit: func(p themePersister) error { return p.CommitThemeSlot(nordSlug, theme.MemberLight) },
 			want:   []string{"component", "slug", "slot", "reason"},
 			slot:   "light",
 		},
@@ -191,23 +212,16 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 	}
 
 	t.Run("the slot renders exactly as the theme component renders its own", func(t *testing.T) {
-		// The two vocabularies are different types (prefs.ThemeSlot here,
-		// theme.Slot in the loader's events) but ONE user-visible string, so this
-		// reads the loader's rendering back off a real emission rather than
+		// The commit line and the loader's events are ONE user-visible string, so
+		// this reads the loader's rendering back off a real emission rather than
 		// restating the literals a second time.
-		for _, tc := range []struct {
-			prefsSlot prefs.ThemeSlot
-			themeSlot theme.Slot
-		}{
-			{prefs.SlotLight, theme.SlotLight},
-			{prefs.SlotDark, theme.SlotDark},
-		} {
+		for _, member := range []theme.Member{theme.MemberLight, theme.MemberDark} {
 			sink := installMigrateCapture(t)
-			theme.NewEventLogger(themeLogger).Loaded(nordSlug, tc.themeSlot)
+			theme.NewEventLogger(themeLogger).Loaded(nordSlug, member.Slot())
 			want := sink.OnlyRecord(t).AttrString(t, "slot")
 
-			if got, named := themeSlotAttr(tc.prefsSlot); !named || got != want {
-				t.Errorf("themeSlotAttr(%v) = (%q, %v), want (%q, true) — the persister's slot attr must not drift from the loader's", tc.prefsSlot, got, named, want)
+			if got := themeSlotAttr(member); got != want {
+				t.Errorf("themeSlotAttr(%v) = %q, want %q — the persister's slot attr must not drift from the loader's", member, got, want)
 			}
 		}
 	})
@@ -232,7 +246,7 @@ func TestThemePersister_SuccessIsSilent(t *testing.T) {
 	if err := persister.CommitTheme(nordSlug); err != nil {
 		t.Fatalf("CommitTheme(%s): %v", nordSlug, err)
 	}
-	if err := persister.CommitThemeSlot(nordSlug, prefs.SlotDark); err != nil {
+	if err := persister.CommitThemeSlot(nordSlug, theme.MemberDark); err != nil {
 		t.Fatalf("CommitThemeSlot(%s, dark): %v", nordSlug, err)
 	}
 
@@ -270,7 +284,7 @@ func TestThemePersister_PerInstanceLastWriteWins(t *testing.T) {
 	}
 	assertPrefsOnDisk(t, path, prefsOnDisk{SessionListMode: "by-tag", Appearance: "dark", Theme: nordSlug})
 
-	if err := second.CommitThemeSlot(theme.DefaultLightSlug, prefs.SlotLight); err != nil {
+	if err := second.CommitThemeSlot(theme.DefaultLightSlug, theme.MemberLight); err != nil {
 		t.Fatalf("second instance CommitThemeSlot: %v", err)
 	}
 

@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -36,7 +35,7 @@ import (
 
 // themeSlotConfirm is the assignment a live confirm will apply when the user
 // answers `y`: the slug under the cursor at the moment the question was asked, and
-// the typed slot the keypress named.
+// the half of the pair the keypress named.
 //
 // The slug is captured at the raise rather than re-read at the answer, so the
 // question on screen and the write name the same row independently of what the
@@ -44,9 +43,9 @@ import (
 type themeSlotConfirm struct {
 	// slug is the row the cursor was on when the confirm was raised.
 	slug string
-	// slot is the half of the adaptive pair `d`/`l` named — the typed prefs value
-	// threaded from the keypress, so no path here can mint a third slot.
-	slot prefs.ThemeSlot
+	// member is the half of the adaptive pair `d`/`l` named, in the domain's
+	// two-valued light/dark type, so no path here can mint a third slot.
+	member theme.Member
 }
 
 // confirming reports whether the confirm is live, read off the message slot
@@ -71,8 +70,8 @@ func (p themePanel) confirming() bool {
 // than the resolution): the confirm names what is being cleared, while the pending
 // value names what is being set. Under a fallback those two rows are not even the
 // same theme.
-func (m *Model) raiseSlotConfirm(slug string, slot prefs.ThemeSlot) {
-	m.themePanel.pending = themeSlotConfirm{slug: slug, slot: slot}
+func (m *Model) raiseSlotConfirm(slug string, member theme.Member) {
+	m.themePanel.pending = themeSlotConfirm{slug: slug, member: member}
 	m.raiseThemePanelConfirm()
 }
 
@@ -139,13 +138,13 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // report a commit-time `theme: loaded` for a write that never happened.
 func (m *Model) confirmSlotAssignment() {
 	pending := m.resolveSlotConfirm()
-	if err := m.commitSlot(pending.slug, pending.slot); err != nil {
+	if err := m.commitSlot(pending.slug, pending.member); err != nil {
 		return
 	}
 	if m.themeState.persister == nil {
 		return
 	}
-	m.loadNewlyLiveSlot(pending.slot)
+	m.loadNewlyLiveSlot(pending.member)
 }
 
 // loadNewlyLiveSlot completes the constant → adaptive transition in both halves:
@@ -187,8 +186,8 @@ func (m *Model) confirmSlotAssignment() {
 //
 // It never calls ApplyTheme: a commit is a write, not a navigation, so the pair is
 // completed while the screen keeps previewing whatever the cursor is on.
-func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
-	newlyLive := oppositeThemeMember(assigned)
+func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
+	newlyLive := assigned.Opposite()
 	slot := newlyLive.Slot()
 	resolved, err := m.themeState.enumerator.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot))
 	if err != nil {
@@ -200,21 +199,6 @@ func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
 		newlyLive.Palette(resolved.Theme),
 		newlyLive.Opposite().Palette(m.themeState.active),
 	)
-}
-
-// oppositeThemeMember is the half of the adaptive pair the keypress did not
-// assign.
-//
-// It maps the prefs slot the keypress threaded onto the theme package's
-// light/dark answer; the two are separate types because one is what prefs.json
-// writes and the other is which palette of a pair is in play. Neither side has a
-// third value to fall through to — prefs.SaveThemeSlot rejects an out-of-range
-// slot and commitSlot has already returned on that error.
-func oppositeThemeMember(assigned prefs.ThemeSlot) theme.Member {
-	if assigned == prefs.SlotLight {
-		return theme.MemberDark
-	}
-	return theme.MemberLight
 }
 
 // persistedSlotSlug is the slug one slot of the mirrored keys nominates, with

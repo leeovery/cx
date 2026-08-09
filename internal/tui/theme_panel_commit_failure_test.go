@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -131,7 +130,7 @@ func TestCommitFailure_MessageCopy(t *testing.T) {
 
 	m, cmd := pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if !m.themePanel.open {
 		t.Error("a failed commit closed the panel; `Esc` is the only way out (§9.2)")
@@ -144,7 +143,7 @@ func TestCommitFailure_MessageCopy(t *testing.T) {
 	// the line above is the failure rather than a slot that fills on every commit.
 	landed, landedPersister := newCommitFailureFixture(t)
 	landed, _ = pressSlotKey(t, landed, slotDarkPress)
-	requireSlotCommits(t, landedPersister, slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark})
+	requireSlotCommits(t, landedPersister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
 	if got := landed.themePanel.message; got.Kind != themeMessageNone {
 		t.Errorf("a successful commit raised the message %+v, want an empty slot", got)
 	}
@@ -166,7 +165,7 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: commitFailureTarget, member: theme.MemberDark})
 	if got := badgeRows(m); !slices.Equal(got, rendered) {
 		t.Errorf("a failed commit rendered the markers on %v, want the untouched %v — the `●` means what is PERSISTED (§9.13)", got, rendered)
 	}
@@ -218,7 +217,7 @@ func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: rows[2].Slug, slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: rows[2].Slug, member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if m.themeState.active != previewed {
 		t.Errorf("a failed commit rendered %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", themeLabel(m.themeState.active), themeLabel(previewed))
@@ -426,7 +425,7 @@ func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 		// The raise takes the message down and puts the QUESTION in its place — the panel layout's
 		// two contenders, one slot — and the cancel writes nothing at all.
 		m, _ = pressSlotKey(t, m, slotDarkPress)
-		requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
+		requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 		if !m.themeState.commitFailed {
 			t.Error("raising the confirm discharged the outstanding failure")
 		}
@@ -477,8 +476,8 @@ func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 	m, cmd := pressSlotKey(t, m, slotLightPress)
 
 	requireSlotCommits(t, persister,
-		slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark},
-		slotCommit{slug: commitFailureTarget, slot: prefs.SlotLight},
+		slotCommit{slug: commitFailureTarget, member: theme.MemberDark},
+		slotCommit{slug: commitFailureTarget, member: theme.MemberLight},
 	)
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
 		t.Errorf("the successful commit left the message %+v, want the slot empty (§9.13)", got)
@@ -510,7 +509,7 @@ func TestCommitFailure_SuccessDischargesTheState(t *testing.T) {
 // seam would leave the message looking identical.
 func TestCommitFailure_RetryIsJustPressingAgain(t *testing.T) {
 	m, persister := newFailedCommitModel(t)
-	failed := slotCommit{slug: commitFailureTarget, slot: prefs.SlotDark}
+	failed := slotCommit{slug: commitFailureTarget, member: theme.MemberDark}
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	requireCommitFailedMessage(t, m)
@@ -558,11 +557,11 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	previewed := m.themeState.active
 	persister.err = errThemeCommitFailed
 	m, _ = pressSlotKey(t, m, slotDarkPress)
-	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
+	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 
 	m, cmd := pressConfirmKey(t, m, confirmYes)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if !m.themeState.commitFailed {
 		t.Error("a failed confirmed commit left nothing outstanding (§9.13)")
@@ -614,7 +613,7 @@ func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
 	requireOnlySlotContender(t, m, "clear constant aurora?  y / n")
-	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", slot: prefs.SlotDark})
+	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 	if !m.themeState.commitFailed {
 		t.Error("raising the confirm discharged the outstanding failure; only a successful commit does (§9.13)")
 	}
@@ -667,7 +666,7 @@ func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "nord", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 	requireCommitFailedMessage(t, m)
 	if got := sink.Records(); len(got) != opened {
 		t.Errorf("the failure path emitted %d record(s):\n%s\nthe persister is the SINGLE site for `theme: commit failed` (§8.9)", len(got)-opened, sink.Body())

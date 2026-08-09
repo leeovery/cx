@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -118,11 +117,11 @@ func TestPanelRecompute_RowDisappearsOnConstantCommit(t *testing.T) {
 // The KEY that reaches this commit is gated behind the confirm while a
 // constant is set, which is why the helper calls the commit directly rather
 // than pressing `d` — the recompute's half is identical whichever route gets there.
-func commitSlotForTest(t *testing.T, m Model, slug string, slot prefs.ThemeSlot) Model {
+func commitSlotForTest(t *testing.T, m Model, slug string, member theme.Member) Model {
 	t.Helper()
 
-	if err := (&m).commitSlot(slug, slot); err != nil {
-		t.Fatalf("commitSlot(%s, %v): %v", slug, slot, err)
+	if err := (&m).commitSlot(slug, member); err != nil {
+		t.Fatalf("commitSlot(%s, %v): %v", slug, member, err)
 	}
 	if m.themeState.keys.Theme != "" {
 		t.Fatalf("the slot commit left the constant %q set; §8.2 clears it in the SAME write", m.themeState.keys.Theme)
@@ -150,7 +149,7 @@ func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 	requireRowLabels(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireCursorOn(t, m, "sunset")
 
-	m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
+	m = commitSlotForTest(t, m, keys.Dark, theme.MemberDark)
 
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	ghost := themePanelRowFor(t, m, "ghost")
@@ -178,7 +177,7 @@ func TestPanelRecompute_ReSortsThroughTheComparator(t *testing.T) {
 
 	requireRowLabels(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 
-	m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
+	m = commitSlotForTest(t, m, keys.Dark, theme.MemberDark)
 
 	requireRowLabels(t, m, "nord", "prism", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 }
@@ -287,7 +286,7 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 		m, _, _ := newRecomputePanelModel(t, dir, keys)
 
-		m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
+		m = commitSlotForTest(t, m, keys.Dark, theme.MemberDark)
 
 		requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 		after, err := os.ReadFile(prefsFile)
@@ -386,7 +385,7 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 		t.Fatalf("fixture: the cursor opened at index %d, want 1 — the inserted row must land above it", before)
 	}
 
-	m = commitSlotForTest(t, m, keys.Dark, prefs.SlotDark)
+	m = commitSlotForTest(t, m, keys.Dark, theme.MemberDark)
 
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireCursorOn(t, m, "sunset")

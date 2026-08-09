@@ -256,7 +256,7 @@ type countingThemePersister struct{ calls int }
 
 func (c *countingThemePersister) CommitTheme(string) error { c.calls++; return nil }
 
-func (c *countingThemePersister) CommitThemeSlot(string, prefs.ThemeSlot) error {
+func (c *countingThemePersister) CommitThemeSlot(string, theme.Member) error {
 	c.calls++
 	return nil
 }

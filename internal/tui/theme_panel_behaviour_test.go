@@ -10,7 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -703,7 +702,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	}
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
-	requireSlotCommits(t, persister, slotCommit{slug: "sunset", slot: prefs.SlotDark})
+	requireSlotCommits(t, persister, slotCommit{slug: "sunset", member: theme.MemberDark})
 	requirePairKeys(t, m, "ghost", "sunset")
 	// A ROW APPEARS and it is RE-SORTED into place: `ghost` was invisible to the
 	// open-time union, because a `theme`-wins file's slots are not read at all, and
@@ -844,7 +843,7 @@ func behaviourConfirmModel(t *testing.T) Model {
 	if !m.themePanel.confirming() {
 		t.Fatal("fixture: `l` over a constant raised no confirm, so there is no question to resolve")
 	}
-	if m.themePanel.pending != (themeSlotConfirm{slug: "sunset", slot: prefs.SlotLight}) {
+	if m.themePanel.pending != (themeSlotConfirm{slug: "sunset", member: theme.MemberLight}) {
 		t.Fatalf("fixture: the pending assignment is %+v, want `sunset` into the light slot", m.themePanel.pending)
 	}
 	return m
