@@ -18,10 +18,7 @@ import (
 // between two distinguishable palettes injects.
 func testBuiltinPair(t *testing.T) theme.Nomination {
 	t.Helper()
-	return theme.AdaptivePair(
-		theme.MemberLight.Palette(testLightTheme(t)),
-		theme.MemberDark.Palette(testDarkTheme(t)),
-	)
+	return theme.AdaptivePair(theme.MemberLight.Palette(testLightTheme(t)), testDarkTheme(t))
 }
 
 // memberForSlot is the pair member whose palette a setting slot nominates — the

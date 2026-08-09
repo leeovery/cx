@@ -224,6 +224,22 @@ func requireNominationPair(t *testing.T, m Model, light, dark theme.Theme) {
 	}
 }
 
+// requireNominationConstant fails unless the model's nomination is the
+// constant-or-pair rule's CONSTANT shape holding this palette.
+//
+// It is the counterpart of requireNominationPair and is asserted the same way,
+// through the accessors rather than against the constructor-only struct.
+func requireNominationConstant(t *testing.T, m Model, want theme.Theme) {
+	t.Helper()
+
+	if !m.themeState.nomination.IsConstant() {
+		t.Fatalf("the nomination is %+v, want the CONSTANT shape", m.themeState.nomination)
+	}
+	if got := m.themeState.nomination.Constant(); got != want {
+		t.Errorf("the nomination's constant is %s, want %s", themeLabel(got), themeLabel(want))
+	}
+}
+
 // requireNoFallbackLine fails unless the sink holds NO `theme: fallback applied`.
 //
 // It is the other half of every "it resolved" assertion below: a slug that resolved
@@ -559,6 +575,43 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 	requireSlotCanvas(t, m, theme.SlotLight, testLightTheme(t).Canvas.Value)
 }
 
+// TestCommit_NominationTracksThePersistedSetting: a landed commit leaves the
+// nomination describing the setting that was just persisted.
+//
+// The field is the LOADED SETTING, so every landed commit moves it — a constant
+// commit to the constant's palette, a slot commit to the pair the two slots now
+// name. Without that, a commit leaves a field claiming the setting the user
+// replaced, and a later reader (a second gate arm, a re-detect) selects a palette
+// from it.
+//
+// Both directions are driven because they take different shapes: one nomination
+// state each, from opposite starting states.
+func TestCommit_NominationTracksThePersistedSetting(t *testing.T) {
+	t.Run("Enter over a constant persists the constant it commits", func(t *testing.T) {
+		dir := newConversionThemesDir(t)
+		m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
+		m = openConversionPanel(t, m)
+
+		m = arrowToThemeRow(t, m, "nord")
+		m, _ = pressCommitKey(t, m)
+
+		requireConstantKeys(t, m, "nord")
+		requireNominationConstant(t, m, themetest.Builtin(t, "nord"))
+	})
+
+	t.Run("a slot commit over a pair persists the slot it writes", func(t *testing.T) {
+		dir := newConversionThemesDir(t)
+		keys := theme.RawKeys{Light: conversionConstant, Dark: "nord"}
+		m, _, _ := newAdaptivePanelModel(t, dir, keys, lightBg)
+		m = pressThemeKey(t, m)
+
+		m = arrowToThemeRow(t, m, theme.DefaultDarkSlug)
+		m, _ = pressSlotKey(t, m, slotLightPress)
+
+		requireNominationPair(t, m, themetest.Builtin(t, theme.DefaultDarkSlug), themetest.Builtin(t, "nord"))
+	})
+}
+
 // TestCommitSlotLoad_NonConvertingCommitIsSilent: it emits nothing when nothing
 // converts.
 //
@@ -567,27 +620,39 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 // collapses to a constant whose palette is already the previewed one. Both members are in hand
 // either way, so there is no load to announce and no member to resolve.
 //
-// The unchanged NOMINATION is asserted alongside the silence because the two fail
-// independently: a load that ran but emitted nothing would move the pair, and one
-// that emitted without resolving would not.
+// The NOMINATION is asserted alongside the silence, and it does move: the field
+// tracks the setting in force, so a commit re-resolves it from the keys it just
+// mirrored. What a load would add is a palette NEITHER member held before, which
+// is why each case names the two palettes the keypress leaves behind — the
+// previewed one it wrote, and whatever the untouched slot already named.
 func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 	adaptive := theme.RawKeys{Light: conversionConstant, Dark: "nord"}
 
 	for _, tc := range []struct {
 		name string
 		run  func(*testing.T, Model) (Model, tea.Cmd)
+		want func(*testing.T, Model, theme.Theme)
 	}{
 		{
 			name: "d over a pair",
 			run:  func(t *testing.T, m Model) (Model, tea.Cmd) { return pressSlotKey(t, m, slotDarkPress) },
+			want: func(t *testing.T, m Model, previewed theme.Theme) {
+				requireNominationPair(t, m, previewed, previewed)
+			},
 		},
 		{
 			name: "l over a pair",
 			run:  func(t *testing.T, m Model) (Model, tea.Cmd) { return pressSlotKey(t, m, slotLightPress) },
+			want: func(t *testing.T, m Model, previewed theme.Theme) {
+				requireNominationPair(t, m, previewed, themetest.Builtin(t, "nord"))
+			},
 		},
 		{
 			name: "Enter over a pair",
 			run:  func(t *testing.T, m Model) (Model, tea.Cmd) { return pressCommitKey(t, m) },
+			want: func(t *testing.T, m Model, previewed theme.Theme) {
+				requireNominationConstant(t, m, previewed)
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -597,7 +662,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 			if !m.themePanel.open {
 				t.Fatal("fixture: the panel did not open")
 			}
-			nomination, mode := m.themeState.nomination, m.themeState.canvasMode
+			previewed, mode := m.themeState.active, m.themeState.canvasMode
 
 			m, _ = tc.run(t, m)
 
@@ -607,9 +672,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 			if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
 				t.Errorf("a non-converting commit emitted %d `theme: loaded` line(s), want none (§8.4)\n%s", len(got), sink.Body())
 			}
-			if m.themeState.nomination != nomination {
-				t.Error("a non-converting commit moved the nomination; both members were already in hand")
-			}
+			tc.want(t, m, previewed)
 			if m.themeState.canvasMode != mode {
 				t.Errorf("a non-converting commit moved the light/dark answer to %v, want the classified %v — an adaptive launch already has one (§9.3)", m.themeState.canvasMode, mode)
 			}
@@ -620,7 +683,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 		dir := newConversionThemesDir(t)
 		m, persister, sink := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 		m = openConversionPanel(t, m)
-		nomination, mode := m.themeState.nomination, m.themeState.canvasMode
+		mode := m.themeState.canvasMode
 
 		m = arrowToThemeRow(t, m, "nord")
 		m, _ = pressCommitKey(t, m)
@@ -630,9 +693,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 		if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
 			t.Errorf("`Enter` emitted %d `theme: loaded` line(s), want none (§8.4)\n%s", len(got), sink.Body())
 		}
-		if m.themeState.nomination != nomination {
-			t.Error("`Enter` moved the nomination; it commits the palette already previewing")
-		}
+		requireNominationConstant(t, m, themetest.Builtin(t, "nord"))
 		if m.themeState.canvasMode != mode {
 			t.Errorf("`Enter` moved the light/dark answer to %v, want the untouched %v", m.themeState.canvasMode, mode)
 		}
@@ -1040,10 +1101,11 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 // (applyInForceTheme) is to DEGRADE rather than escalate: a settings surface must not
 // become the route by which a broken binary quits Portal mid-session.
 //
-// Degrading has to mean NOTHING MOVES, which is why the return sits ahead of both
-// assignments: a zero SlotResolution joined into the nomination would put an empty
-// palette in a live slot, and lipgloss resolves that through its no-colour sentinel —
-// a silently colourless render on the next close, with no error anywhere.
+// Degrading has to mean NOTHING MOVES: the light/dark answer and the re-resolved
+// nomination both sit behind a return, because a zero resolution joined into either
+// would put an empty palette in a live slot, and lipgloss resolves that through its
+// no-colour sentinel — a silently colourless render on the next close, with no error
+// anywhere.
 //
 // The state is unreachable through a real loader (the build-time guarantee), so
 // the seam is the stub that can produce it.

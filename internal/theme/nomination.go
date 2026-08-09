@@ -64,31 +64,28 @@ func ConstantNomination(t Theme) Nomination {
 // loaded palettes and no active member. Which one becomes active is the gate's
 // answer, delivered through Select.
 //
-// EACH PALETTE NAMES THE MEMBER IT SERVES, so the arguments carry nothing
-// positional and transposing them yields the same nomination. A light-then-dark
+// ONE PALETTE NAMES THE MEMBER IT SERVES and opposite is the other half, so the
+// pair is whole by construction: every member of every constructed pair holds
+// one of the two arguments, and no call can leave a member unfilled — an
+// unfilled member is the zero Theme, whose every token resolves through
+// lipgloss.Color("") into a silently colourless render.
+//
+// The named palette is what carries which half is which. A light-then-dark
 // parameter order is a contract only a comment can state, and reading it the
 // wrong way round at one call site inverts light and dark for the whole product
 // — with every palette still loading, every token still resolving and nothing
 // failing anywhere.
-//
-// BOTH MEMBERS MUST BE NAMED. A pair naming one member twice fills that member
-// and leaves the other the zero Theme, for the reason the zero Nomination
-// answers with one: a caller error degrades to a palette that renders rather
-// than taking the process down at construction.
-func AdaptivePair(a, b MemberPalette) Nomination {
-	n := Nomination{state: nominationAdaptive}
-	n.hold(a)
-	n.hold(b)
-	return n
+func AdaptivePair(named MemberPalette, opposite Theme) Nomination {
+	if named.member == MemberLight {
+		return pairFor(named.theme, opposite)
+	}
+	return pairFor(opposite, named.theme)
 }
 
-// hold puts one palette in the member it names.
-func (n *Nomination) hold(p MemberPalette) {
-	if p.member == MemberLight {
-		n.light = p.theme
-		return
-	}
-	n.dark = p.theme
+// pairFor assembles the adaptive state from its two halves, which is where the
+// light-and-dark positional order is confined.
+func pairFor(light, dark Theme) Nomination {
+	return Nomination{state: nominationAdaptive, light: light, dark: dark}
 }
 
 // IsConstant reports whether the setting is constant — the question the caller

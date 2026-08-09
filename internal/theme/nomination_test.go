@@ -58,39 +58,51 @@ func TestAdaptivePair_HoldsBothWithNoActiveMember(t *testing.T) {
 	}
 }
 
-// TestAdaptivePair_ArgumentOrderCarriesNothing pins what replaces the light-then-dark
-// POSITIONAL contract: each palette arrives named by the member it serves, so
-// handing the two in the other order is the same nomination rather than a
-// silently transposed one.
-func TestAdaptivePair_ArgumentOrderCarriesNothing(t *testing.T) {
-	light := theme.MemberLight.Palette(nominationLight)
-	dark := theme.MemberDark.Palette(nominationDark)
+// TestAdaptivePair_WhichMemberIsNamedCarriesTheHalves pins what replaces the
+// light-then-dark POSITIONAL contract: the named palette lands in the member it
+// names and the other argument lands in the opposite half, so naming either
+// member builds the same pair.
+func TestAdaptivePair_WhichMemberIsNamedCarriesTheHalves(t *testing.T) {
+	fromLight := theme.AdaptivePair(theme.MemberLight.Palette(nominationLight), nominationDark)
+	fromDark := theme.AdaptivePair(theme.MemberDark.Palette(nominationDark), nominationLight)
 
-	transposed := theme.AdaptivePair(dark, light)
-
-	if want := adaptivePairForTest(); transposed != want {
-		t.Errorf("AdaptivePair(dark, light) != AdaptivePair(light, dark); the members are named, so the order cannot carry which is which")
+	if fromLight != fromDark {
+		t.Errorf("naming the light half and naming the dark half built different pairs; the member names which half, so either naming is the same nomination")
 	}
 	if theme.MemberLight.Palette(nominationLight) == theme.MemberDark.Palette(nominationLight) {
 		t.Errorf("one palette tagged light equals itself tagged dark; the member does not travel with the palette, so the pair is positional after all")
 	}
-	if got := transposed.Select(theme.MemberLight); got != nominationLight {
-		t.Errorf("Select(MemberLight) = %s after transposing the arguments, want %s", label(got), label(nominationLight))
+	if got := fromDark.Select(theme.MemberLight); got != nominationLight {
+		t.Errorf("Select(MemberLight) = %s, want %s", label(got), label(nominationLight))
 	}
-	if got := transposed.Select(theme.MemberDark); got != nominationDark {
-		t.Errorf("Select(MemberDark) = %s after transposing the arguments, want %s", label(got), label(nominationDark))
+	if got := fromDark.Select(theme.MemberDark); got != nominationDark {
+		t.Errorf("Select(MemberDark) = %s, want %s", label(got), label(nominationDark))
 	}
 }
 
-// TestAdaptivePair_OneMemberNamedTwiceLeavesTheOtherZero pins the caller error the
-// named members make possible: a pair is TWO members, and naming one of them
-// twice fills that member and leaves the other the zero Theme rather than
-// silently promoting the spare palette into the slot nobody named.
-func TestAdaptivePair_OneMemberNamedTwiceLeavesTheOtherZero(t *testing.T) {
-	n := theme.AdaptivePair(theme.MemberDark.Palette(nominationDark), theme.MemberDark.Palette(nominationDark))
+// TestAdaptivePair_FillsBothMembers pins the property that makes a half-empty pair
+// unconstructible: whichever member is named, BOTH halves are filled from the
+// arguments, so no call can leave a member unfilled — an unfilled member is the
+// zero Theme, which every token of resolves through lipgloss.Color("") into a
+// silently colourless render.
+//
+// A same-member pair cannot be expressed at all: the second argument is a bare
+// palette, so it can only land in the half the first one does not name.
+func TestAdaptivePair_FillsBothMembers(t *testing.T) {
+	for _, named := range bothMembers {
+		n := theme.AdaptivePair(named.Palette(nominationLight), nominationDark)
 
-	if got := n.Select(theme.MemberLight); got != (theme.Theme{}) {
-		t.Errorf("Select(MemberLight) = %s, want the zero Theme (no light palette was named)", label(got))
+		if got := n.Select(named); got != nominationLight {
+			t.Errorf("Select(%s) = %s, want the named palette %s", memberLabel(named), label(got), label(nominationLight))
+		}
+		if got := n.Select(named.Opposite()); got != nominationDark {
+			t.Errorf("Select(%s) = %s, want the opposite palette %s", memberLabel(named.Opposite()), label(got), label(nominationDark))
+		}
+		for _, member := range bothMembers {
+			if got := n.Select(member); got == (theme.Theme{}) {
+				t.Errorf("Select(%s) = the zero Theme after naming %s; a constructed pair fills both members", memberLabel(member), memberLabel(named))
+			}
+		}
 	}
 }
 
@@ -129,10 +141,7 @@ func TestMember_ZeroValueIsDark(t *testing.T) {
 // adaptivePairForTest is the two distinguishable palettes as an adaptive pair,
 // each named by the member it serves.
 func adaptivePairForTest() theme.Nomination {
-	return theme.AdaptivePair(
-		theme.MemberLight.Palette(nominationLight),
-		theme.MemberDark.Palette(nominationDark),
-	)
+	return theme.AdaptivePair(theme.MemberLight.Palette(nominationLight), nominationDark)
 }
 
 // TestNomination_ZeroValueIsNeitherState pins the constructor-only contract: the
@@ -181,10 +190,7 @@ func TestNomination_ZeroValueIsDistinguishableFromBothStates(t *testing.T) {
 	if theme.ConstantNomination(theme.Theme{}) == zero {
 		t.Errorf("a constant nomination of the zero Theme equals the zero Nomination; 'nothing was injected' becomes undecidable")
 	}
-	pairOfZeroes := theme.AdaptivePair(
-		theme.MemberLight.Palette(theme.Theme{}),
-		theme.MemberDark.Palette(theme.Theme{}),
-	)
+	pairOfZeroes := theme.AdaptivePair(theme.MemberLight.Palette(theme.Theme{}), theme.Theme{})
 	if pairOfZeroes == zero {
 		t.Errorf("an adaptive pair of zero Themes equals the zero Nomination; 'nothing was injected' becomes undecidable")
 	}

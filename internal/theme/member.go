@@ -45,7 +45,7 @@ func (m Member) Slot() Slot {
 }
 
 // Palette tags a loaded palette as the one this member serves, which is how
-// AdaptivePair is told which half each of its arguments is.
+// AdaptivePair is told which half of the pair it is being handed.
 //
 // It is the only constructor for a MemberPalette. The fields are unexported so a
 // palette cannot reach the pair untagged, which — dark being the zero value —

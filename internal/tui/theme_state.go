@@ -18,10 +18,13 @@ import "github.com/leeovery/portal/internal/theme"
 //     the moment the gate selected a member; a commit or an uncommitted preview
 //     moves the active palette and must leave this alone.
 type themeState struct {
-	// nomination is the loaded theme setting injected at construction — one Theme
-	// under a constant, both under an adaptive pair. Its zero value is neither
-	// state, the "nothing was injected" sentinel that leaves New's dark-built-in
-	// seed in place.
+	// nomination is the loaded theme setting — one Theme under a constant, both
+	// under an adaptive pair. Its zero value is neither state, the "nothing was
+	// injected" sentinel that leaves New's dark-built-in seed in place.
+	//
+	// CONTRACT: it describes the setting CURRENTLY IN FORCE, not only the one
+	// injected at construction — every commit that lands re-resolves it
+	// (applyCommittedSetting), so a reader past the gate may trust it.
 	nomination theme.Nomination
 
 	// keys are prefs.json's three theme keys as read (control-stripped,

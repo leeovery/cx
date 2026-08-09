@@ -247,9 +247,10 @@ func (m *Model) commitSlot(slug string, member theme.Member) error {
 // recomputeThemePanel is the post-commit recompute: the panel re-rendered against
 // the state this instance has just created.
 //
-// A commit that did not land must not recompute. The badges are derived from the
-// raw keys, which a failed write leaves untouched, so recomputing would move the
-// `●` off a theme that is still what is persisted.
+// A commit that did not land must not recompute. The badges and the nomination
+// are derived from the raw keys, which a failed write leaves untouched, so
+// recomputing would move the `●` off a theme that is still what is persisted and
+// load the palettes of a setting nothing wrote.
 //
 // The row set moves, not only the badges, and in both directions. `Enter` clears
 // both slots, so a `not found` or charset-rejected row that existed only because
@@ -292,7 +293,7 @@ func (m *Model) recomputeThemePanel() {
 	previewed := previewedThemeIdentity(m.themePanel.list)
 
 	m.themePanel.union = m.themeState.enumerator.Reassemble(m.themePanel.enumeration, m.themeState.keys)
-	m.refreshThemePanelBadges()
+	m.applyCommittedSetting()
 
 	// The list instance is kept and its items replaced: a rebuild is the expensive
 	// path, and a commit does not change the theme, so there is nothing to
@@ -318,24 +319,31 @@ func previewedThemeIdentity(l list.Model) string {
 	return row.SortKey()
 }
 
-// refreshThemePanelBadges re-derives the `●` table from a re-resolution of the
-// mutated setting against the retained enumeration.
+// applyCommittedSetting re-resolves the mutated setting against the retained
+// enumeration and takes both of its products: the `●` table and the loaded
+// nomination the setting now names.
 //
-// The re-resolution is for the badges alone: it never selects a new active member
-// and never calls Model.ApplyTheme, because a commit is a write rather than a
-// navigation and routing it through applyInForceTheme would swap the screen off
-// the preview the user is still looking at. It does take that function's degrade
-// policy, stated there once for all panel call sites.
+// The nomination rides the badges' own resolution so the two cannot disagree about
+// what is set, and so themeState.nomination keeps its contract through one site
+// rather than one per kind of commit.
 //
-// On a non-nil error the existing table stands rather than being derived from a
-// zero Resolution: theme.Badges returns an empty map for an empty slice, so a
-// discarded error would wipe every `●` off the panel at the moment the user
+// The re-resolution never selects a new active member and never calls
+// Model.ApplyTheme, because a commit is a write rather than a navigation and
+// routing it through applyInForceTheme would swap the screen off the preview the
+// user is still looking at. It does take that function's degrade policy, stated
+// there once for all panel call sites.
+//
+// On a non-nil error nothing moves rather than either value being derived from a
+// zero Resolution: theme.Badges returns an empty map for an empty slice and a zero
+// Nomination is the "nothing was injected" sentinel, so a discarded error would
+// wipe every `●` off the panel and drop the loaded palettes at the moment the user
 // committed one. The caller's other steps still run on that path — they read the
 // mutated keys and the retained enumeration, not the resolution.
-func (m *Model) refreshThemePanelBadges() {
+func (m *Model) applyCommittedSetting() {
 	resolution, err := m.themeState.enumerator.Resolve(m.themePanel.enumeration, m.themeSetting())
 	if err != nil {
 		return
 	}
 	m.themePanel.badges = theme.Badges(resolution.Slots)
+	m.themeState.nomination = resolution.Nomination
 }

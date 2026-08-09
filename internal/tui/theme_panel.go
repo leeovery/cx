@@ -339,7 +339,7 @@ type themePanel struct {
 	// parse, never construction's — and rowItems assembles the list through it.
 	//
 	// The post-commit recompute re-derives it against that same enumeration
-	// (refreshThemePanelBadges), which is what makes the `●` mean "what is
+	// (applyCommittedSetting), which is what makes the `●` mean "what is
 	// persisted" after a write as well as before one. A failed commit reaches
 	// neither writer, so the marker cannot move on a write that did not land.
 	badges map[string]theme.Badge
