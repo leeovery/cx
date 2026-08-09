@@ -290,11 +290,25 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 // confirm resolved, which is the direction that breaks: the floor must hold for the
 // footer that is live LONGEST, not for the transient one.
 func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
+	return themePanelChromeRows(dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
+}
+
+// themePanelChromeRows is the panel's whole chrome cost at a given state — header +
+// directory row + message rows + footer — i.e. every row that is NOT the list body.
+//
+// It is the SET of components the floor and the body budget share
+// (themePanelMinHeight, themePanelListSize), held in one place so a component added
+// to the chrome cannot reach one arithmetic and miss the other. Each component is
+// single-sourced individually; this is what single-sources their membership.
+//
+// Callers differ in the arguments they pass, not in the sum: the floor passes its
+// fixed message row and the standing footer scope, while the body passes the slot's
+// measured height and the live scope.
+func themePanelChromeRows(dirUnusable bool, messageRows int, footer []keymapEntry) int {
 	return themePanelHeaderRows() +
 		themePanelDirRowHeight(dirUnusable) +
-		themePanelMinBodyRows +
-		themePanelFloorMessageRows +
-		themePanelFooterHeight(entries)
+		messageRows +
+		themePanelFooterHeight(footer)
 }
 
 // themePanelFloor is THE render-floor predicate, and it has TWO callers by design:
@@ -1459,10 +1473,11 @@ func themePanelInnerWidth(width int) int {
 // (themePanelMinHeight).
 func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
-	reserved := themePanelHeaderRows() +
-		themePanelDirRowHeight(p.union.DirUnusable) +
-		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)) +
-		themePanelFooterHeight(themePanelFooterScope(p.message))
+	reserved := themePanelChromeRows(
+		p.union.DirUnusable,
+		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)),
+		themePanelFooterScope(p.message),
+	)
 	return inner, max(height-reserved, themePanelMinBodyRows)
 }
 

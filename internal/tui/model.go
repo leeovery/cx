@@ -2525,17 +2525,14 @@ func (m *Model) setThemeFlash(text string) {
 
 // setSuccessFlash records an inline flash styled as the SUCCESS variant — a
 // state.green left-bar + ✓ glyph (glyph-distinct from the warning ⚠, never
-// colour-only). It shares the warning flash's lifecycle exactly: it bumps
-// flashGen, assigns flashText, and re-syncs the layout — the only difference is
-// the kind, so the auto-clear tick + generation guard + actionable-key clear all
-// apply unchanged. The verbatim message is the caller's (no wording owned here).
+// colour-only). It is setFlash PLUS the kind, and it delegates rather than
+// restating the assignments so the two can never fork: a success flash bumps the
+// same generation, carries the same default precedence tier, rides the same
+// auto-clear tick and its generation guard, and re-syncs the same layouts. The
+// verbatim message is the caller's (no wording owned here).
 func (m *Model) setSuccessFlash(text string) {
-	m.flashGen++
-	m.flashText = text
+	m.setFlash(text)
 	m.flashKind = flashSuccess
-	// Default precedence tier, for the same reason setFlash resets it.
-	m.flashOrigin = flashOriginDefault
-	m.resyncPageLayouts()
 }
 
 // clearFlash zeros flashText, leaving flashGen untouched. Idempotent: a

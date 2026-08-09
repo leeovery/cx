@@ -157,6 +157,68 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	}
 }
 
+// TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics: it charges the panel's
+// chrome from one sum.
+//
+// The height floor and the list body's budget are the SAME question asked at two
+// heights — header + directory row + message rows + footer — and the floor is only
+// meaningful while it agrees with what renders: a floor that admits a terminal the
+// body arithmetic then overflows is precisely the broken frame the floor exists to
+// refuse. Each component is single-sourced already; the SET of them is what this
+// pins, so a component added to the panel's chrome cannot reach one arithmetic and
+// miss the other.
+//
+// Each side is asserted against the shared sum plus the one term it alone owns: the
+// floor adds the list row it guarantees, the body takes the remainder.
+func TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics(t *testing.T) {
+	entries := themePanelKeymap()
+
+	t.Run("the floor is the chrome sum plus its guaranteed list row", func(t *testing.T) {
+		for _, dirUnusable := range []bool{false, true} {
+			want := themePanelChromeRows(dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
+			if got := themePanelMinHeight(entries, dirUnusable); got != want {
+				t.Errorf("themePanelMinHeight(dirUnusable=%v) = %d, want the chrome sum plus its %d list row = %d",
+					dirUnusable, got, themePanelMinBodyRows, want)
+			}
+		}
+	})
+
+	t.Run("the body is the render height less the chrome sum", func(t *testing.T) {
+		for _, tc := range []struct {
+			name        string
+			dirUnusable bool
+			message     themePanelMessage
+		}{
+			{name: "an empty slot"},
+			{name: "an unusable directory", dirUnusable: true},
+			{name: "the confirm's shorter footer", message: geometryMessage()},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				p := newThemePanelFixture(themePanelFixtureOpts{
+					th:          testDarkTheme(t),
+					width:       themePanelPreferredWidth,
+					rows:        themePanelTestRows(12),
+					dirUnusable: tc.dirUnusable,
+					message:     tc.message,
+				})
+
+				inner := themePanelInnerWidth(p.width)
+				messageRows := themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, geometryContentH))
+				want := geometryContentH - themePanelChromeRows(tc.dirUnusable, messageRows, themePanelFooterScope(p.message))
+				if want <= themePanelMinBodyRows {
+					t.Fatalf("fixture: a %d-row content region leaves a %d-row body, at or below the %d-row floor — the remainder is clamped, so the assertion proves nothing",
+						geometryContentH, want, themePanelMinBodyRows)
+				}
+
+				if _, got := themePanelListSize(p, geometryContentH); got != want {
+					t.Errorf("the list body at %d rows = %d, want the height less the chrome sum = %d",
+						geometryContentH, got, want)
+				}
+			})
+		}
+	})
+}
+
 // TestPanelGeometry_DirRowRaisesTheFloor: it adds a row to the floor for an
 // unreadable directory.
 //

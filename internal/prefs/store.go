@@ -193,6 +193,26 @@ func NewStore(path string) *Store {
 	return &Store{path: path}
 }
 
+// readBytes reads prefs.json and classifies the read — the half BOTH decodes share,
+// held here so the absent-file and permission policies have one home. An absent file
+// (the normal first-run state) is reported as not present with NO error; any other
+// read failure is returned verbatim, with no bytes.
+//
+// It stops at the bytes. Which record those bytes decode to, and what a decode
+// failure means, is the half the two paths must NOT share — see readFile and
+// readFileStrict.
+func (s *Store) readBytes() (data []byte, present bool, err error) {
+	data, err = os.ReadFile(s.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	return data, true, nil
+}
+
 // readFile reads and decodes prefs.json with the tolerant policy shared by every
 // loader: a missing file (the normal first-run state) and an empty or
 // corrupt/unparseable file both yield a zero-valued prefsFile with no error (its
@@ -210,12 +230,12 @@ func NewStore(path string) *Store {
 // commits it, erasing session_list_mode, every theme key and the retained raw
 // appearance in one keypress. Neither function may do the other's job.
 func (s *Store) readFile() (prefsFile, bool, error) {
-	data, err := os.ReadFile(s.path)
+	data, present, err := s.readBytes()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return prefsFile{}, false, nil
-		}
 		return prefsFile{}, false, err
+	}
+	if !present {
+		return prefsFile{}, false, nil
 	}
 
 	var f prefsFile
@@ -261,12 +281,12 @@ func (s *Store) readFile() (prefsFile, bool, error) {
 //     so absorbing it would merge into an empty record and commit it — the exact
 //     destruction this decode exists to prevent. It aborts.
 func (s *Store) readFileStrict() (prefsFile, bool, error) {
-	data, err := os.ReadFile(s.path)
+	data, present, err := s.readBytes()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return prefsFile{}, false, nil
-		}
 		return prefsFile{}, false, err
+	}
+	if !present {
+		return prefsFile{}, false, nil
 	}
 
 	var f prefsFile

@@ -92,6 +92,50 @@ func TestModel_FlashState_SetClearSet(t *testing.T) {
 	}
 }
 
+// TestModel_SetSuccessFlash_InheritsTheWholeSetFlashSequence asserts the success
+// variant raises everything setFlash raises — the generation bump, the text, the
+// default precedence tier and the layout re-sync — and differs in the KIND alone.
+//
+// That shared sequence is what the auto-clear tick, its generation guard and the
+// actionable-key clear all key on, so a success flash raising only part of it is a
+// band no key clears and no tick retires. The two are equal only by being ONE
+// sequence: two that agree today drift the next time a field joins the flash state.
+func TestModel_SetSuccessFlash_InheritsTheWholeSetFlashSequence(t *testing.T) {
+	const text = "__SUCCESS_PARITY__"
+
+	warning := noticeBandModel("alpha-row")
+	success := noticeBandModel("alpha-row")
+
+	warning.setFlash(text)
+	success.setSuccessFlash(text)
+
+	if got, want := success.flashText, warning.flashText; got != want {
+		t.Errorf("flashText after setSuccessFlash = %q, want setFlash's %q", got, want)
+	}
+	if got, want := success.flashGen, warning.flashGen; got != want {
+		t.Errorf("flashGen after setSuccessFlash = %d, want setFlash's %d", got, want)
+	}
+	if got, want := success.flashOrigin, warning.flashOrigin; got != want {
+		t.Errorf("flash origin after setSuccessFlash = %v, want setFlash's %v", got, want)
+	}
+	if warning.flashKind != flashWarning || success.flashKind != flashSuccess {
+		t.Errorf("flash kinds are warning=%v success=%v, want the kind to be the ONE difference", warning.flashKind, success.flashKind)
+	}
+
+	if slot := success.sessionBandHeight(); slot == 0 {
+		t.Fatal("a success flash reserved no band rows; the slot must be measured like every other flash's")
+	}
+	_, baseH := noticeBandModel("alpha-row").SessionListSize()
+	_, warningH := warning.SessionListSize()
+	_, successH := success.SessionListSize()
+	if warningH == baseH {
+		t.Fatalf("fixture: setFlash left the session list at its %d-row unflashed height, so the comparison below proves nothing", baseH)
+	}
+	if successH != warningH {
+		t.Errorf("the session list is %d rows after setSuccessFlash and %d after setFlash — the success variant skipped the layout re-sync", successH, warningH)
+	}
+}
+
 func TestModel_SetFlash_EmptyStringStillBumpsGen(t *testing.T) {
 	// Per task edge cases: setFlash("") is a state primitive; the caller
 	// decides what counts as a flash. Empty input still bumps gen.
