@@ -80,7 +80,7 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 	}
 }
 
-// requireNoSlotLoad fails unless the stub seam behind m was asked for NO §8.4
+// requireNoSlotLoad fails unless the recording fake behind m was asked for NO §8.4
 // commit-time slot resolution at all.
 //
 // It is the SEAM-LEVEL statement of §8.4's "the load happens on the constant →
@@ -92,9 +92,9 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 func requireNoSlotLoad(t *testing.T, m Model) {
 	t.Helper()
 
-	seam, ok := m.themeEnumerator.(*stubThemeEnumerator)
+	seam, ok := m.themeEnumerator.(*fakeThemeEnumerator)
 	if !ok {
-		t.Fatalf("fixture: the seam is %T, want the recording stub — this is a statement about what the seam was ASKED", m.themeEnumerator)
+		t.Fatalf("fixture: the seam is %T, want the recording fake — this is a statement about what the seam was ASKED", m.themeEnumerator)
 	}
 	if len(seam.slotLoads) != 0 {
 		t.Errorf("a non-converting commit asked the seam for slot load(s) %v, want none — §8.4 puts the load on the constant → adaptive transition and nowhere else", seam.slotLoads)
@@ -127,21 +127,23 @@ func newSlotPairPanelModel(t *testing.T, dir, lightSlug, darkSlug string) (Model
 }
 
 // newSlotSplitPanelModel opens the panel over `opened` under an ADAPTIVE PAIR
-// (light on opened[0], dark on opened[1], the dark one in force), with the seam
-// primed to answer a recompute's reassembly with `reassembled`.
+// (light on opened[0], dark on opened[1], the dark one in force), with the seam's
+// split-reassembly field primed to answer a recompute with `reassembled`.
 //
 // The two DIFFERENT unions are what make the recompute's own effect observable: a
 // reassembly that ran replaces the panel's rows outright, so "the rows did not
 // move" plus a zero reassembly count is the recompute genuinely not happening —
 // which a real loader cannot show, since a failed write leaves the keys untouched
 // and a recompute over untouched keys derives the identical union.
-func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Model, *splitThemeEnumerator, *fakeThemePersister) {
+func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Model, *fakeThemeEnumerator, *fakeThemePersister) {
 	t.Helper()
 
 	light, dark := opened[0], opened[1]
-	enumerator := &splitThemeEnumerator{
-		opened:      themeRowsUnion(opened),
-		reassembled: themeRowsUnion(reassembled),
+	reassembly := themeRowsUnion(reassembled)
+	enumerator := &fakeThemeEnumerator{
+		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
+		union:       themeRowsUnion(opened),
+		reassembled: &reassembly,
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(dark.Theme),
 			Slots: []theme.SlotResolution{

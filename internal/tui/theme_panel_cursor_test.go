@@ -26,72 +26,6 @@ import (
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
 // across this package's tests.
 
-// stubThemeEnumerator answers every seam method from declared values, touching no
-// filesystem and holding no loader. It is how the degrade paths — a `Resolve`
-// returning §7.6's fatal, and a resolved slug the union has no row for — are
-// driven at all: a real loader cannot produce either against a correctly built
-// binary.
-type stubThemeEnumerator struct {
-	union       theme.Union
-	enumeration theme.Enumeration
-	resolution  theme.Resolution
-	err         error
-	settings    []theme.Setting
-	// slotLoads records every §8.4 commit-time slot resolution the seam was asked
-	// for, which is how a suite driven off declared values observes the ASK itself.
-	// Two cases read it: requireNoSlotLoad, for a NON-CONVERTING commit asking for
-	// none at all, and the §7.6 degrade case, for a conversion whose no-op has to be
-	// the seam's ANSWER rather than a load that never ran.
-	slotLoads []slotLoad
-}
-
-// slotLoad is one recorded ResolveSlot call.
-type slotLoad struct {
-	slot theme.Slot
-	slug string
-}
-
-func (s *stubThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
-	return s.enumeration, s.union
-}
-
-func (s *stubThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
-	return s.union
-}
-
-func (s *stubThemeEnumerator) Resolve(_ theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
-	s.settings = append(s.settings, setting)
-	return s.resolution, s.err
-}
-
-// ResolveSlot records the ask and answers with the declared resolution's record for
-// that slot — or, for a slot the fixture declared no record for, with the declared
-// NOMINATION's member for it.
-//
-// The fallback branch is the live one on a conversion: a fixture whose resolution is
-// a constant (newArrowPanelDeps) declares only a SlotConstant record, and §8.4's load
-// asks for the opposite light/dark slot. Answering it from the nomination is what
-// keeps a stub-driven conversion joining a palette the fixture chose — a zero Theme
-// in a live nomination slot renders through lipgloss's no-colour sentinel, which is
-// the silent colourless render New's dark seed exists to keep out of this package.
-func (s *stubThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	s.slotLoads = append(s.slotLoads, slotLoad{slot: slot, slug: slug})
-	if s.err != nil {
-		return theme.SlotResolution{}, s.err
-	}
-	for _, declared := range s.resolution.Slots {
-		if declared.Slot == slot {
-			return declared, nil
-		}
-	}
-	return theme.SlotResolution{
-		Slot:      slot,
-		Requested: slug,
-		Resolved:  slug,
-		Theme:     s.resolution.Nomination.Select(memberForSlot(slot)),
-	}, nil
-}
-
 // themeCursorModel builds a Sessions-page model wired to a REAL loader over dir,
 // with its construction-time nomination resolved exactly as cmd/open.go resolves
 // one — the by-name read of the same keys against the same directory.
@@ -409,7 +343,7 @@ func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 		{name: "a row is inserted above the target", rows: []theme.Row{above, target}, wantIndex: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			enumerator := &stubThemeEnumerator{
+			enumerator := &fakeThemeEnumerator{
 				union:      theme.Union{Rows: tc.rows, Count: len(tc.rows)},
 				resolution: resolution,
 			}
@@ -443,7 +377,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 			{Slug: "broken", Filename: "broken.theme", Source: theme.SourceFile, Rejection: &theme.Rejection{Reason: theme.ReasonBadColour}},
 			{Slug: "nord", Source: theme.SourceBuiltin, Theme: testBuiltinTheme(t, "nord")},
 		}
-		enumerator := &stubThemeEnumerator{union: theme.Union{Rows: rows, Count: len(rows), Rejected: 1}, resolution: ghost}
+		enumerator := &fakeThemeEnumerator{union: theme.Union{Rows: rows, Count: len(rows), Rejected: 1}, resolution: ghost}
 		m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
 
 		m = pressThemeKey(t, m)
@@ -457,7 +391,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 	})
 
 	t.Run("an empty union leaves the cursor at index 0", func(t *testing.T) {
-		enumerator := &stubThemeEnumerator{union: theme.Union{}, resolution: ghost}
+		enumerator := &fakeThemeEnumerator{union: theme.Union{}, resolution: ghost}
 		m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
 
 		m = pressThemeKey(t, m)
@@ -489,7 +423,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 	nord := testBuiltinTheme(t, "nord")
 	rows := []theme.Row{{Slug: "nord", Source: theme.SourceBuiltin, Theme: nord}}
-	enumerator := &stubThemeEnumerator{
+	enumerator := &fakeThemeEnumerator{
 		union: theme.Union{Rows: rows, Count: len(rows)},
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(nord),

@@ -439,83 +439,30 @@ func TestPanelRecompute_NoChangeCommitIsStable(t *testing.T) {
 // the degrade path is driven through a fake.
 var errThemeResolveFatal = errors.New("theme: the embedded set cannot supply a fallback")
 
-// splitThemeEnumerator answers Open and Reassemble with DIFFERENT unions, which is
-// how the recompute's own effect is isolated: whatever the panel lists after a
-// commit came from the REASSEMBLY, and whatever it lists without one came from the
-// open.
-//
-// It is a fake rather than a real loader because the three states below are ones a
-// correct loader cannot reach — a selectable row vanishing from under the cursor
-// (no directory is re-read, so a valid file's row cannot go away), a Resolve
-// returning §7.6's fatal, and a reassembly the panel must render in the assembler's
-// order rather than in its own.
-type splitThemeEnumerator struct {
-	opened      theme.Union
-	reassembled theme.Union
-	resolution  theme.Resolution
-	resolveErr  error
-	reassembles int
-	slotLoads   []slotLoad
-}
-
-func (e *splitThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
-	return theme.Enumeration{DirPath: fixtureThemesDir}, e.opened
-}
-
-func (e *splitThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
-	e.reassembles++
-	return e.reassembled
-}
-
-// Resolve answers with the ZERO Resolution alongside an error, which is the
-// loader's own contract (§7.6: "the Resolution alongside it is the zero value
-// precisely so there is nothing to be tempted to render") — and therefore the
-// shape the degrade policy has to survive, since theme.Badges yields an EMPTY map
-// for the empty slot slice a zero Resolution carries.
-func (e *splitThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
-	if e.resolveErr != nil {
-		return theme.Resolution{}, e.resolveErr
-	}
-	return e.resolution, nil
-}
-
-// ResolveSlot records §8.4's commit-time asks and answers from the declared
-// resolution — its record for that slot, or the declared nomination's member where
-// no record was declared for it — so a split-union fixture can state whether the
-// conversion's load ran at all without a real loader, and answers it with a palette
-// the fixture chose either way (see stubThemeEnumerator.ResolveSlot).
-func (e *splitThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: slug})
-	if e.resolveErr != nil {
-		return theme.SlotResolution{}, e.resolveErr
-	}
-	for _, declared := range e.resolution.Slots {
-		if declared.Slot == slot {
-			return declared, nil
-		}
-	}
-	return theme.SlotResolution{
-		Slot:      slot,
-		Requested: slug,
-		Resolved:  slug,
-		Theme:     e.resolution.Nomination.Select(memberForSlot(slot)),
-	}, nil
-}
-
 // themeRowsUnion wraps hand-declared rows as the union shape the seam hands back.
 func themeRowsUnion(rows []theme.Row) theme.Union {
 	return theme.Union{Rows: rows, Count: len(rows), Rejected: arrowRejectedCount(rows)}
 }
 
-// newSplitPanelModel opens the panel over `opened`, with the seam primed to answer
-// the recompute's reassembly with `reassembled`.
-func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlug string) (Model, *splitThemeEnumerator, *fakeThemePersister) {
+// newSplitPanelModel opens the panel over `opened`, with the seam's split-reassembly
+// field primed to answer the recompute with `reassembled`.
+//
+// The two DIFFERENT unions are what isolate the recompute's own effect: whatever the
+// panel lists after a commit came from the REASSEMBLY, and whatever it lists without
+// one came from the open. A real loader can show none of it, because the three
+// states the suite drives are ones it cannot reach — a selectable row vanishing from
+// under the cursor (no directory is re-read, so a valid file's row cannot go away),
+// a Resolve returning §7.6's fatal, and a reassembly the panel must render in the
+// assembler's order rather than in its own.
+func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlug string) (Model, *fakeThemeEnumerator, *fakeThemePersister) {
 	t.Helper()
 
 	target := arrowRowBySlug(t, opened, cursorSlug)
-	enumerator := &splitThemeEnumerator{
-		opened:      themeRowsUnion(opened),
-		reassembled: themeRowsUnion(reassembled),
+	reassembly := themeRowsUnion(reassembled)
+	enumerator := &fakeThemeEnumerator{
+		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
+		union:       themeRowsUnion(opened),
+		reassembled: &reassembly,
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(target.Theme),
 			Slots: []theme.SlotResolution{{
@@ -595,7 +542,12 @@ func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 	if badges[arrowSlug(0)] != theme.BadgeConstant {
 		t.Fatalf("fixture: the open left badges %v, want a constant `●` on %q", badges, arrowSlug(0))
 	}
-	enumerator.resolveErr = errThemeResolveFatal
+	// From here the seam answers as the LOADER itself does — §7.6's fatal alongside
+	// the ZERO Resolution — and that shape is what keeps the assertion below from
+	// being vacuous: theme.Badges yields an empty map for an empty slot slice, so a
+	// refresh that ignored the error would wipe the table rather than leave it.
+	enumerator.resolution = theme.Resolution{}
+	enumerator.err = errThemeResolveFatal
 
 	m, _ = pressCommitKey(t, m)
 

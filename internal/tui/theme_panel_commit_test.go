@@ -118,7 +118,7 @@ func commitPairPanelDeps(t *testing.T, rows []theme.Row) Deps {
 	return Deps{
 		Lister: fakeLister{},
 		Theme:  theme.ConstantNomination(dark.Theme),
-		ThemeEnumerator: &stubThemeEnumerator{
+		ThemeEnumerator: &fakeThemeEnumerator{
 			union: theme.Union{Rows: rows, Count: len(rows)},
 			resolution: theme.Resolution{
 				Nomination: theme.ConstantNomination(dark.Theme),

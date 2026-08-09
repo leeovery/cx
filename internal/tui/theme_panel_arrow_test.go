@@ -130,7 +130,7 @@ func newArrowPanelDeps(t *testing.T, rows []theme.Row, cursorSlug string) Deps {
 	return Deps{
 		Lister: fakeLister{},
 		Theme:  theme.ConstantNomination(target.Theme),
-		ThemeEnumerator: &stubThemeEnumerator{
+		ThemeEnumerator: &fakeThemeEnumerator{
 			union: theme.Union{Rows: rows, Count: len(rows), Rejected: arrowRejectedCount(rows)},
 			resolution: theme.Resolution{
 				Nomination: theme.ConstantNomination(target.Theme),

@@ -1053,9 +1053,9 @@ func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 	deps := newArrowPanelDeps(t, rows, persisted)
 	deps.ThemePersister = persister
 	m := openCommitPanel(t, deps, PageSessions, persisted)
-	seam, ok := m.themeEnumerator.(*stubThemeEnumerator)
+	seam, ok := m.themeEnumerator.(*fakeThemeEnumerator)
 	if !ok {
-		t.Fatalf("fixture: the seam is %T, want the recording stub", m.themeEnumerator)
+		t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeEnumerator)
 	}
 	m = arrowToThemeRow(t, m, target)
 	nomination, mode, active := m.nomination, m.canvasMode, m.activeTheme

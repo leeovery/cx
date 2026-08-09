@@ -97,12 +97,12 @@ func closePanelSessions() []tmux.Session {
 // newClosePanelStubModel builds a RENDERABLE Sessions model over hand-declared
 // union rows, with the panel still CLOSED — the pre-open state a "restores the
 // frame" comparison needs a frame from.
-func newClosePanelStubModel(t *testing.T, rows []theme.Row) (Model, *stubThemeEnumerator) {
+func newClosePanelStubModel(t *testing.T, rows []theme.Row) (Model, *fakeThemeEnumerator) {
 	t.Helper()
 	deps := newArrowPanelDeps(t, rows, rows[0].Slug)
-	stub, ok := deps.ThemeEnumerator.(*stubThemeEnumerator)
+	stub, ok := deps.ThemeEnumerator.(*fakeThemeEnumerator)
 	if !ok {
-		t.Fatalf("the arrow deps' seam is %T, want the recording stub", deps.ThemeEnumerator)
+		t.Fatalf("the arrow deps' seam is %T, want the recording fake", deps.ThemeEnumerator)
 	}
 	m := Build(deps)
 	m.termWidth, m.termHeight = arrowTermW, arrowTermH
