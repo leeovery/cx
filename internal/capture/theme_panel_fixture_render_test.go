@@ -89,12 +89,7 @@ func panelRows(t *testing.T, frame string) map[string]panelRow {
 // through its own captureKeys by ModelAt — the identical drive a tape performs.
 func panelFixtureFrame(t *testing.T, fixture string, palette theme.Theme) string {
 	t.Helper()
-
-	fx, err := capture.FixtureByName(fixture)
-	if err != nil {
-		t.Fatalf("FixtureByName(%s): %v", fixture, err)
-	}
-	return fx.ModelAt(palette, harnessWidth, harnessHeight).View().Content
+	return panelFrameAt(t, fixture, palette, harnessWidth, harnessHeight)
 }
 
 // TestPanelFixture_AdaptivePairBadges: it renders the adaptive-pair badges.

@@ -752,19 +752,8 @@ func themePanelUnion() theme.Union {
 
 // themePanelEnumeration is the retained parse Open hands back: the one drop-in
 // the directory held, and the directory it was read from.
-//
-// The path is a plausible-looking literal and is never resolved, opened or
-// stat'ed — the fake reads nothing. It is declared so a retained enumeration says
-// which directory it is OF, exactly as a real one does.
 func themePanelEnumeration() theme.Enumeration {
-	return theme.Enumeration{
-		Entries: []theme.Entry{{
-			Path:     "/home/user/.config/portal/themes/" + themePanelDropInSlug + ".theme",
-			Filename: themePanelDropInSlug + ".theme",
-			Slug:     themePanelDropInSlug,
-		}},
-		DirPath: "/home/user/.config/portal/themes",
-	}
+	return themePanelDirEnumeration(themePanelDirEntry(themePanelDropInSlug+".theme", themePanelDropInSlug))
 }
 
 // themePanelAdaptivePairFixture builds the deterministic
@@ -1224,22 +1213,19 @@ func themePanelNarrowFixture() *Fixture {
 // machines and runs. They sort AFTER every built-in, which is what keeps both slot
 // badges on the captured first page.
 //
+// EVERYTHING ELSE IS THE ADAPTIVE-PAIR FRAME'S, so the two are a controlled pair:
+// the same list, keys, slots and cursor, and the longer union is the only reason
+// the dots are there.
+//
 // # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR
 //
 // Capture it with `--theme nord` — the in-force dark slot, which the open anchors
 // the cursor to and which sits on page 1.
 func themePanelPaginatedFixture() *Fixture {
-	fx := sessionsFlatFixture()
+	fx := themePanelAdaptivePairFixture()
 	fx.name = "theme-panel-paginated"
-	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
 	fx.themeUnion = themePanelPaginatedUnion()
 	fx.themeEnumeration = themePanelDirEnumeration(themePanelPaginatedEntries()...)
-	fx.themeSlots = []theme.SlotResolution{
-		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
-		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord"},
-	}
-	fx.initialThemeCursor = "nord"
-	fx.captureKeys = []tea.KeyPressMsg{keyRune('t')}
 	return fx
 }
 

@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/project"
-	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -83,7 +82,7 @@ func TestFixtureByName(t *testing.T) {
 
 		// The fixture exposes its seam set as a tui.Deps so the harness builds
 		// the production model — no bespoke render path.
-		m := tui.Build(fx.Deps(darkBuiltin(t)))
+		m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 		if m.ActivePage() != tui.PageSessions {
 			t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
 		}
@@ -109,7 +108,7 @@ func TestSessionsEmptyFixture(t *testing.T) {
 		t.Fatalf("sessions-empty must have ZERO sessions, got %d (the empty state would not render)", len(sessions))
 	}
 
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
 	}
@@ -144,7 +143,7 @@ func TestLoadingScreenFixture(t *testing.T) {
 		t.Fatalf("FixtureByName(loading-screen): %v", err)
 	}
 
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageLoading {
 		t.Errorf("ActivePage() = %d, want PageLoading (the loading-screen fixture must park on the loading page)", m.ActivePage())
 	}
@@ -183,7 +182,7 @@ func TestLoadingErrorFixture(t *testing.T) {
 	// Pass the CONSTANT nomination shape (as the capturetool does) so the
 	// detect-or-timeout first-paint gate is already resolved and View() paints the
 	// real frame rather than the neutral held blank.
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageLoading {
 		t.Errorf("ActivePage() = %d, want PageLoading (the loading-error fixture must park on the loading page)", m.ActivePage())
 	}
@@ -243,7 +242,7 @@ func TestSessionsByProjectFixture(t *testing.T) {
 	}
 
 	// It builds the production Sessions model opened in By-Project mode.
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
 	}
@@ -252,7 +251,7 @@ func TestSessionsByProjectFixture(t *testing.T) {
 	}
 
 	// There must be MULTIPLE projects so several group headings render.
-	projects, err := fx.Deps(darkBuiltin(t)).ProjectStore.List()
+	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
 	}
@@ -302,7 +301,7 @@ func TestSessionsByTagFixtureExercisesMultiTagAndUntagged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FixtureByName(sessions-by-tag): %v", err)
 	}
-	projects, err := fx.Deps(darkBuiltin(t)).ProjectStore.List()
+	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
 	}
@@ -348,14 +347,14 @@ func TestSessionsByTagFixture(t *testing.T) {
 	}
 
 	// It builds the production Sessions model opened in By-Tag mode.
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if got, want := m.SessionListTitle(), "Sessions — by tag"; got != want {
 		t.Errorf("SessionListTitle() = %q, want %q (fixture opens in By-Tag mode)", got, want)
 	}
 
 	// At least one project carries a tag, so the By-Tag view groups rather than
 	// degrading to the "No tags yet" signpost.
-	projects, err := fx.Deps(darkBuiltin(t)).ProjectStore.List()
+	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
 	}
@@ -419,7 +418,7 @@ func TestSessionsPagedFixture(t *testing.T) {
 
 	// It builds the production Sessions model opened in Flat mode (the dots are a
 	// Flat-list concern; By-Tag has its own fixture).
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
 	}
@@ -477,11 +476,11 @@ func TestSessionsInlineFlashFixture(t *testing.T) {
 	// styling, ⚠ glyph, bg.warning tint) lives in internal/tui; here we pin that the
 	// fixture wires the message through to Build.
 	const msg = "folio-Jiz4el closed externally — list updated"
-	if got := fx.Deps(darkBuiltin(t)).InitialFlash; got != msg {
+	if got := fx.Deps(darkBuiltinTheme(t)).InitialFlash; got != msg {
 		t.Errorf("Deps().InitialFlash = %q, want %q (seeded warning flash)", got, msg)
 	}
 
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
 	}
@@ -516,7 +515,7 @@ func TestSessionsNoTagsSignpostFixture(t *testing.T) {
 	}
 
 	// It opens in By-Tag mode (the mode that drives the zero-tags signpost).
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions", m.ActivePage())
 	}
@@ -526,7 +525,7 @@ func TestSessionsNoTagsSignpostFixture(t *testing.T) {
 
 	// NO project carries a tag → the signpost shows over the flat list (degrade
 	// with message, not silent flatten).
-	projects, err := fx.Deps(darkBuiltin(t)).ProjectStore.List()
+	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
 	}
@@ -601,12 +600,12 @@ func TestProjectsFixture(t *testing.T) {
 
 	// It builds the production model opened on the Sessions page (the tape reaches
 	// Projects via the `x` key, mirroring a real no-arg launch).
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions (the tape types x to reach Projects)", m.ActivePage())
 	}
 
-	projects, err := fx.Deps(darkBuiltin(t)).ProjectStore.List()
+	projects, err := fx.Deps(darkBuiltinTheme(t)).ProjectStore.List()
 	if err != nil {
 		t.Fatalf("ProjectStore.List: %v", err)
 	}
@@ -663,7 +662,7 @@ func TestPreviewScreenFixture(t *testing.T) {
 
 	// It builds the production Sessions model opened in Flat mode (the tape
 	// presses Space to reach the preview overlay).
-	m := tui.Build(fx.Deps(darkBuiltin(t)))
+	m := tui.Build(fx.Deps(darkBuiltinTheme(t)))
 	if m.ActivePage() != tui.PageSessions {
 		t.Errorf("ActivePage() = %d, want PageSessions (the tape presses Space to reach the preview)", m.ActivePage())
 	}
@@ -683,7 +682,7 @@ func TestPreviewScreenFixture(t *testing.T) {
 
 	// The enumerator must be a single 1/1 window/pane so the §9.1 counters read
 	// "Window 1/1 · Pane 1/1" (matching the reference frame).
-	groups, err := fx.Deps(darkBuiltin(t)).Enumerator.ListWindowsAndPanesInSession("aviva-proxy-qNyfEO")
+	groups, err := fx.Deps(darkBuiltinTheme(t)).Enumerator.ListWindowsAndPanesInSession("aviva-proxy-qNyfEO")
 	if err != nil {
 		t.Fatalf("Enumerator: %v", err)
 	}
@@ -693,7 +692,7 @@ func TestPreviewScreenFixture(t *testing.T) {
 
 	// The scrollback is non-empty generic example output — and must NOT
 	// reference any specific tool/model (Portal's preview is tool-agnostic).
-	body, err := fx.Deps(darkBuiltin(t)).Reader.Tail("any-pane-key")
+	body, err := fx.Deps(darkBuiltinTheme(t)).Reader.Tail("any-pane-key")
 	if err != nil {
 		t.Fatalf("Reader.Tail: %v", err)
 	}
@@ -770,7 +769,7 @@ func TestSessionsMultiSelectActiveFixture(t *testing.T) {
 	}
 
 	// The seed seam wires the three marked names + the cursor anchor through Deps.
-	deps := fx.Deps(darkBuiltin(t))
+	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
 	if len(deps.InitialMultiSelect) != len(wantMarked) {
 		t.Fatalf("Deps().InitialMultiSelect = %v, want %v", deps.InitialMultiSelect, wantMarked)
@@ -886,7 +885,7 @@ func TestSessionsUnsupportedTerminalFixture(t *testing.T) {
 
 	assertFlatFixtureSet(t, fx)
 
-	deps := fx.Deps(darkBuiltin(t))
+	deps := fx.Deps(darkBuiltinTheme(t))
 	if deps.InitialDetection == nil {
 		t.Fatal("Deps().InitialDetection = nil, want a seeded Apple Terminal identity")
 	}
@@ -936,7 +935,7 @@ func TestSessionsUnsupportedNullFixture(t *testing.T) {
 
 	assertFlatFixtureSet(t, fx)
 
-	deps := fx.Deps(darkBuiltin(t))
+	deps := fx.Deps(darkBuiltinTheme(t))
 	if deps.InitialDetection == nil {
 		t.Fatal("Deps().InitialDetection = nil, want a seeded empty (NULL) identity")
 	}
@@ -990,7 +989,7 @@ func TestSessionsMultiSelectPreflightAbortFixture(t *testing.T) {
 
 	assertFlatFixtureSet(t, fx)
 
-	deps := fx.Deps(darkBuiltin(t))
+	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
 	if len(deps.InitialMultiSelect) != len(wantMarked) {
 		t.Fatalf("Deps().InitialMultiSelect = %v, want %v", deps.InitialMultiSelect, wantMarked)
@@ -1037,7 +1036,7 @@ func TestSessionsBurstOpeningFixture(t *testing.T) {
 
 	assertFlatFixtureSet(t, fx)
 
-	deps := fx.Deps(darkBuiltin(t))
+	deps := fx.Deps(darkBuiltinTheme(t))
 	wantMarked := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
 	if len(deps.InitialMultiSelect) != len(wantMarked) {
 		t.Fatalf("Deps().InitialMultiSelect = %v, want %v", deps.InitialMultiSelect, wantMarked)
@@ -1075,7 +1074,7 @@ func TestFakeSeamsAreInert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FixtureByName(sessions-flat): %v", err)
 	}
-	d := fx.Deps(darkBuiltin(t))
+	d := fx.Deps(darkBuiltinTheme(t))
 
 	if err := d.Killer.KillSession("anything"); err != nil {
 		t.Errorf("Killer.KillSession returned %v, want nil (no-op)", err)
@@ -1098,19 +1097,4 @@ func TestFakeSeamsAreInert(t *testing.T) {
 	if _, err := d.Reader.Tail("any-pane-key"); err != nil {
 		t.Errorf("Reader.Tail returned %v, want nil", err)
 	}
-}
-
-// darkBuiltin loads the shipped dark built-in — the palette capturetool pins by
-// default — failing on anything but a clean parse (§7.6 makes a rejection here a
-// build-time impossibility).
-func darkBuiltin(t *testing.T) theme.Theme {
-	t.Helper()
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(theme.DefaultDarkSlug)
-	if !found {
-		t.Fatalf("built-in %q not found in the embedded set", theme.DefaultDarkSlug)
-	}
-	if rejection != nil {
-		t.Fatalf("built-in %q was rejected: %s", theme.DefaultDarkSlug, rejection.Reason)
-	}
-	return loaded.Theme
 }

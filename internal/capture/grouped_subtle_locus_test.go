@@ -47,22 +47,6 @@ const groupedNordFixture = "sessions-by-project"
 // delegate's `…` truncation ellipsis.
 var groupCountPattern = regexp.MustCompile(`··· \d+`)
 
-// nordBuiltin loads the Nord built-in — the palette the grouped capture pins —
-// failing on anything but a clean parse (§7.6 makes a rejection here a build-time
-// impossibility, so it is Fatal rather than a fallback).
-func nordBuiltin(t *testing.T) theme.Theme {
-	t.Helper()
-	const slug = "nord"
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
-	if !found {
-		t.Fatalf("built-in %q not found in the embedded set", slug)
-	}
-	if rejection != nil {
-		t.Fatalf("built-in %q was rejected: %s", slug, rejection.Reason)
-	}
-	return loaded.Theme
-}
-
 // flattenCmd executes cmd and returns every leaf message it produces, draining
 // tea.BatchMsg recursively.
 //
@@ -141,7 +125,7 @@ func styledRunOpening(t *testing.T, fg, bg theme.Token, text string) string {
 // carries `··· N` group counts painted in nord's text.subtle over nord's own
 // canvas — the locus the §7.4 visual gate is taken on.
 func TestGroupedRender_CarriesTextSubtleCountLocus(t *testing.T) {
-	nord := nordBuiltin(t)
+	nord := builtinPalette(t, "nord")
 
 	// Precondition: text.subtle must be distinguishable from every other role on
 	// the frame, or "this run is text.subtle" would be undecidable from its

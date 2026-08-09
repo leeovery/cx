@@ -101,10 +101,9 @@ const (
 // panelFrameAt renders one fixture at an explicit size, driven through its own
 // captureKeys by ModelAt — the identical drive a tape performs.
 //
-// It exists beside panelFixtureFrame because two of these frames are SIZE-
-// SENSITIVE by construction: the narrow one is about the width ladder and the
-// directory one about pagination, so neither can be asserted at the guard's one
-// pinned size.
+// The size is explicit because some of these frames are SIZE-SENSITIVE by
+// construction: the narrow one is about the width ladder and the directory one
+// about pagination, so neither can be asserted at the guard's one pinned size.
 func panelFrameAt(t *testing.T, fixture string, palette theme.Theme, w, h int) string {
 	t.Helper()
 
@@ -180,18 +179,11 @@ func uniquePanelLine(t *testing.T, frame, subject string, matches func(visible s
 }
 
 // fgSeq is a token's rendered FOREGROUND SGR core (`38;2;R;G;B`) — the
-// foreground counterpart of swap_harness_test.go's bgSeq. Styled output carries
-// no hex, so a line is searched for this rather than for the value a theme file
-// declares.
+// foreground counterpart of bgSeq. Styled output carries no hex, so a line is
+// searched for this rather than for the value a theme file declares.
 func fgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
-	probe := lipgloss.NewStyle().Foreground(tok.Color()).Render("x")
-	start := strings.IndexByte(probe, '[')
-	end := strings.IndexByte(probe, 'm')
-	if start < 0 || end <= start {
-		t.Fatalf("could not derive the foreground SGR core from %q", probe)
-	}
-	return probe[start+1 : end]
+	return sgrParameterRun(t, lipgloss.NewStyle().Foreground(tok.Color()))
 }
 
 // panelOuterWidth measures the slide-over's OUTER width off a rendered frame —
