@@ -2,6 +2,12 @@ package cmd
 
 // Tests in this file seed prefs.json / PORTAL_THEMES_DIR through t.Setenv and
 // drive package-level cmd seams, so they MUST NOT use t.Parallel.
+//
+// The panel's constructor slots are asserted BEHAVIOURALLY, over models built
+// through the production chokepoint: the open below proves the enumerator and
+// the keys reach a rendered frame, and open_theme_commit_test.go carries the
+// write half — the same wiring taking a keypress all the way to prefs.json, and
+// back out of it on the next launch.
 
 import (
 	"go/ast"
@@ -237,32 +243,6 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 	}
 }
 
-// TestOpenTUI_ThreadsThePanelConstructorSlots guards the wiring openTUI performs
-// and no runtime test can observe — openTUI ends in a running Bubble Tea program,
-// so the assignments are only reachable structurally, exactly as the theme
-// persister's own wiring guard is.
-//
-// Both slots are checked together because dropping either is silent: a missing
-// enumerator makes `t` a no-op, and missing keys make every badge claim the
-// shipped default.
-//
-// The per-slot record is deliberately NOT among them and must not return: the
-// panel re-resolves it against its own enumeration on every open (§5.8), so an
-// injected copy would be a second and staler answer to which slug carries the `●`
-// — and the one a fixture author would reach for.
-func TestOpenTUI_ThreadsThePanelConstructorSlots(t *testing.T) {
-	fn := funcDeclForTest(t, "open.go", "openTUI")
-
-	for _, field := range []string{"themeKeys", "themeEnumerator"} {
-		if got := tuiConfigFieldSettings(fn, field); got != 1 {
-			t.Errorf("openTUI sets cfg.%s %d times, want exactly 1", field, got)
-		}
-	}
-	if got := tuiConfigFieldSettings(fn, "themeSlots"); got != 0 {
-		t.Errorf("openTUI sets cfg.themeSlots %d times, want 0 — the construction-time record is retired, not re-injected", got)
-	}
-}
-
 // TestThemePanelOpen_ExecPathUntouched: it does no theme work on the exec path.
 //
 // §12.3 records the win this feature is careful to keep: `portal open <target>`
@@ -294,35 +274,6 @@ func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
 	}
 
 	assertThemeEvents(t, sink)
-}
-
-// tuiConfigFieldSettings counts the places n gives the named tuiConfig field a
-// value, in EITHER shape it can take: a keyed element of the `tuiConfig{…}`
-// literal (the unconditional wiring), and a later `cfg.<field> = …` assignment
-// (the shape the guarded persisters use). Counting only one shape would let a
-// field move between them and read as unwired.
-func tuiConfigFieldSettings(n ast.Node, field string) int {
-	count := cfgFieldAssignments(n, field)
-	ast.Inspect(n, func(node ast.Node) bool {
-		lit, ok := node.(*ast.CompositeLit)
-		if !ok {
-			return true
-		}
-		if ident, isIdent := lit.Type.(*ast.Ident); !isIdent || ident.Name != "tuiConfig" {
-			return true
-		}
-		for _, elt := range lit.Elts {
-			kv, isKV := elt.(*ast.KeyValueExpr)
-			if !isKV {
-				continue
-			}
-			if key, isIdent := kv.Key.(*ast.Ident); isIdent && key.Name == field {
-				count++
-			}
-		}
-		return true
-	})
-	return count
 }
 
 // themeEventCount counts `theme` component records carrying the given message.

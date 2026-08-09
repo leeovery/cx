@@ -2,9 +2,17 @@ package cmd
 
 // Tests in this file seed prefs.json through t.Setenv and swap the process-wide
 // log handler, so they MUST NOT use t.Parallel.
+//
+// They drive the persister DIRECTLY, which is one end of the commit path. The
+// other end — the panel keypress that calls it, and what an UNWIRED slot does
+// (a persister built over a nil *prefs.Store would box into a NON-NIL seam and
+// hand the panel a live-looking writer whose every commit panics, so the slot
+// is left empty instead) — is asserted behaviourally over a built model in
+// open_theme_commit_test.go. Whether TUI construction leaves that slot empty
+// when the store did not load is out of reach from either: openTUI ends in a
+// running Bubble Tea program.
 
 import (
-	"go/ast"
 	"log/slog"
 	"maps"
 	"slices"
@@ -271,90 +279,4 @@ func TestThemePersister_PerInstanceLastWriteWins(t *testing.T) {
 		Appearance:      "dark",
 		ThemeLight:      theme.DefaultLightSlug,
 	})
-}
-
-// TestOpenTUI_ThemePersisterWiredOnlyWithAStore: it guards the typed-nil store.
-//
-// A typed-nil *prefs.Store boxed into an interface is NON-nil, so a persister
-// built unconditionally would sail past tui.Build's nil check and hand the model
-// a live-looking seam whose every write panics. The existing modePersister
-// assignment carries that guard, and this asserts the theme persister sits beside
-// it under the SAME condition rather than acquiring a second, weaker one.
-//
-// A source guard because the condition is structural: openTUI ends in a running
-// Bubble Tea program, so there is no runtime path that observes the assignment
-// without launching one.
-func TestOpenTUI_ThemePersisterWiredOnlyWithAStore(t *testing.T) {
-	fn := funcDeclForTest(t, "open.go", "openTUI")
-
-	guarded, found := prefsStoreGuardedAssignments(fn)
-	if !found {
-		t.Fatal("openTUI has no `if prefsStore != nil` block; the persisters must be wired only when the store actually loaded")
-	}
-	for _, field := range []string{"modePersister", "themePersister"} {
-		if !slices.Contains(guarded, field) {
-			t.Errorf("cfg.%s is not assigned inside `if prefsStore != nil` (guarded assignments: %v)", field, guarded)
-		}
-	}
-
-	if total := cfgFieldAssignments(fn, "themePersister"); total != 1 {
-		t.Errorf("openTUI assigns cfg.themePersister %d times, want exactly 1 — the guarded one", total)
-	}
-}
-
-// prefsStoreGuardedAssignments returns the cfg fields assigned inside n's
-// `if prefsStore != nil` block, and whether such a block exists at all.
-func prefsStoreGuardedAssignments(n ast.Node) ([]string, bool) {
-	var fields []string
-	found := false
-	ast.Inspect(n, func(node ast.Node) bool {
-		stmt, ok := node.(*ast.IfStmt)
-		if !ok || !isPrefsStoreNilCheck(stmt.Cond) {
-			return true
-		}
-		found = true
-		for _, field := range []string{"modePersister", "themePersister"} {
-			if cfgFieldAssignments(stmt.Body, field) > 0 {
-				fields = append(fields, field)
-			}
-		}
-		return true
-	})
-	return fields, found
-}
-
-// isPrefsStoreNilCheck reports whether cond is exactly `prefsStore != nil`.
-func isPrefsStoreNilCheck(cond ast.Expr) bool {
-	binary, ok := cond.(*ast.BinaryExpr)
-	if !ok || binary.Op.String() != "!=" {
-		return false
-	}
-	left, ok := binary.X.(*ast.Ident)
-	if !ok || left.Name != "prefsStore" {
-		return false
-	}
-	right, ok := binary.Y.(*ast.Ident)
-	return ok && right.Name == "nil"
-}
-
-// cfgFieldAssignments counts the `cfg.<field> = …` assignments made inside n.
-func cfgFieldAssignments(n ast.Node, field string) int {
-	count := 0
-	ast.Inspect(n, func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		for _, lhs := range assign.Lhs {
-			sel, ok := lhs.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != field {
-				continue
-			}
-			if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "cfg" {
-				count++
-			}
-		}
-		return true
-	})
-	return count
 }

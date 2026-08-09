@@ -280,11 +280,11 @@
         "theming-system": {
           "status": "in-progress",
           "task_gate_mode": "auto",
-          "fix_gate_mode": "auto",
-          "analysis_gate_mode": "auto",
+          "fix_gate_mode": "gated",
+          "analysis_gate_mode": "gated",
           "fix_attempts": 0,
           "analysis_cycle_total": 1,
-          "analysis_cycle_session": 1,
+          "analysis_cycle_session": 0,
           "linters": [
             {
               "name": "go vet",
@@ -316,7 +316,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 11,
-          "current_task": "theming-system-11-4",
+          "current_task": "theming-system-11-5",
           "completed_tasks": [
             "theming-system-1-1",
             "theming-system-1-2",
@@ -408,7 +408,8 @@
             "theming-system-10-10",
             "theming-system-11-1",
             "theming-system-11-2",
-            "theming-system-11-3"
+            "theming-system-11-3",
+            "theming-system-11-4"
           ],
           "completed_phases": [
             1,
