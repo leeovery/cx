@@ -807,6 +807,11 @@ func (m Model) themeSetting() theme.Setting {
 // gate.appearance, and substituting one for the other closes a converted light
 // terminal onto the DARK slot. See Model.canvasMode and loadNewlyLiveSlot.
 //
+// The answer reaches the slot vocabulary through the gate's own conversion
+// rather than a light/dark rule restated here, so the slot this matches on and
+// the member the active palette is selected by can never be two different
+// readings of one answer.
+//
 // The slot is matched on its Slot rather than taken by position, and ONE record
 // answers for both the palette and the cursor's target — which is what makes the
 // invariant structural: the theme applied and the row anchored come from
@@ -816,10 +821,7 @@ func (m Model) themeSetting() theme.Setting {
 // resolver produces, but a shape a fixture can hand back, and the caller degrades
 // on it rather than selecting a zero Theme.
 func inForceSlot(r theme.Resolution, mode canvasAppearance) (theme.SlotResolution, bool) {
-	want := theme.SlotDark
-	if mode == appearanceLightCanvas {
-		want = theme.SlotLight
-	}
+	want := mode.member().Slot()
 	for _, slot := range r.Slots {
 		if slot.Slot == theme.SlotConstant || slot.Slot == want {
 			return slot, true

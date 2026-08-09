@@ -84,6 +84,29 @@ func themeForAppearance(t *testing.T, appearance canvasAppearance) theme.Theme {
 	return testDarkTheme(t)
 }
 
+// TestCanvasAppearance_NamesThePairMember pins the ONE conversion between the
+// gate's light/dark answer and the theme package's two-valued member: the light
+// canvas names the light member, and the dark canvas — which is also the
+// no-answer fallback — the dark one.
+//
+// It is asserted on the conversion itself because that is the single site the
+// correspondence is stated at. The active palette's selection and the panel's
+// in-force slot both read it, so a second statement at either would be invisible
+// until one terminal painted the other terminal's theme.
+func TestCanvasAppearance_NamesThePairMember(t *testing.T) {
+	for _, tc := range []struct {
+		appearance canvasAppearance
+		want       theme.Member
+	}{
+		{appearance: appearanceLightCanvas, want: theme.MemberLight},
+		{appearance: appearanceDarkCanvas, want: theme.MemberDark},
+	} {
+		if got := tc.appearance.member(); got != tc.want {
+			t.Errorf("canvasAppearance(%v).member() = %v, want %v", tc.appearance, got, tc.want)
+		}
+	}
+}
+
 // TestAdaptiveDetectsDark: an adaptive pair + a dark BackgroundColorMsg resolves
 // canvasMode Dark, marks resolved, and paints the dark canvas. Before the message
 // the frame is the neutral blank (no pre-resolution real paint).

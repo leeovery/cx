@@ -1598,7 +1598,7 @@ func (m Model) hasNomination() bool {
 func (m *Model) syncResolvedMode() {
 	m.canvasMode = m.gate.appearance
 	if m.hasNomination() {
-		m.activeTheme = m.nomination.Select(m.canvasMode == appearanceDarkCanvas)
+		m.activeTheme = m.nomination.Select(m.canvasMode.member())
 	}
 	m.captureStartupCanvasHex()
 	m.applyCanvasMode()

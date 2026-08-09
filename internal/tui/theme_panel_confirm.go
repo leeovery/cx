@@ -224,30 +224,34 @@ func (m *Model) confirmSlotAssignment() {
 // join is model consistency rather than a dependency of the close: the `Esc`
 // re-resolves from persisted state regardless.
 func (m *Model) loadNewlyLiveSlot(assigned prefs.ThemeSlot) {
-	newlyLive := oppositeThemeSlot(assigned)
-	resolved, err := m.themeEnumerator.ResolveSlot(m.themePanel.enumeration, newlyLive, m.persistedSlotSlug(newlyLive))
+	newlyLive := oppositeThemeMember(assigned)
+	slot := newlyLive.Slot()
+	resolved, err := m.themeEnumerator.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot))
 	if err != nil {
 		return
 	}
 
 	m.canvasMode = m.retainedCanvasAnswer()
-	m.nomination = joinNomination(newlyLive, resolved.Theme, m.activeTheme)
+	m.nomination = theme.AdaptivePair(
+		newlyLive.Palette(resolved.Theme),
+		newlyLive.Opposite().Palette(m.activeTheme),
+	)
 }
 
-// oppositeThemeSlot is the half of the adaptive pair the keypress did NOT assign —
+// oppositeThemeMember is the half of the adaptive pair the keypress did NOT assign —
 // the one construction loads.
 //
-// It maps the prefs slot the keypress threaded onto the resolution's own, which are
-// separate types because they name different things: one is what prefs.json writes,
-// the other is what a fallback is matched against. There is no third value on
-// either side to fall through to — prefs.SaveThemeSlot rejects an out-of-range slot
-// and commitSlot has already returned on that error — so the light case and its
-// complement are the whole of it.
-func oppositeThemeSlot(assigned prefs.ThemeSlot) theme.Slot {
+// It maps the prefs slot the keypress threaded onto the theme package's light/dark
+// answer, which are separate types because they name different things: one is what
+// prefs.json writes, the other is which palette of a pair is in play. There is no
+// third value on either side to fall through to — prefs.SaveThemeSlot rejects an
+// out-of-range slot and commitSlot has already returned on that error — so the
+// light case and its complement are the whole of it.
+func oppositeThemeMember(assigned prefs.ThemeSlot) theme.Member {
 	if assigned == prefs.SlotLight {
-		return theme.SlotDark
+		return theme.MemberDark
 	}
-	return theme.SlotLight
+	return theme.MemberLight
 }
 
 // persistedSlotSlug is the slug one slot of the mirrored keys nominates, with
@@ -264,22 +268,6 @@ func (m Model) persistedSlotSlug(slot theme.Slot) string {
 		return setting.Light
 	}
 	return setting.Dark
-}
-
-// joinNomination completes the pair: the newly-loaded palette in the slot that
-// just became live, and the one already in hand in the slot the user assigned.
-//
-// THE ASSIGNED MEMBER IS THE PREVIEWED PALETTE, and that is an identity rather than
-// an approximation: the arrow-preview applies the cursor row's own palette, the
-// confirm captures the slug the cursor was on and swallows every key that could move
-// it, and a commit takes the CURSOR's slug — so the palette on screen is the parse
-// of the slug just written. Taking it from here is what keeps the assigned slot
-// unread.
-func joinNomination(newlyLive theme.Slot, loaded, assigned theme.Theme) theme.Nomination {
-	if newlyLive == theme.SlotLight {
-		return theme.AdaptivePair(loaded, assigned)
-	}
-	return theme.AdaptivePair(assigned, loaded)
 }
 
 // retainedCanvasAnswer is the transition's ANSWER HALF: the light/dark classification of the

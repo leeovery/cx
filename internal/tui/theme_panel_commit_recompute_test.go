@@ -498,7 +498,7 @@ func (e *splitThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot,
 		Slot:      slot,
 		Requested: slug,
 		Resolved:  slug,
-		Theme:     e.resolution.Nomination.Select(slot == theme.SlotDark),
+		Theme:     e.resolution.Nomination.Select(memberForSlot(slot)),
 	}, nil
 }
 

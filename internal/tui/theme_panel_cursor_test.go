@@ -88,7 +88,7 @@ func (s *stubThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, 
 		Slot:      slot,
 		Requested: slug,
 		Resolved:  slug,
-		Theme:     s.resolution.Nomination.Select(slot == theme.SlotDark),
+		Theme:     s.resolution.Nomination.Select(memberForSlot(slot)),
 	}, nil
 }
 

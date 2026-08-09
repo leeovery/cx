@@ -18,7 +18,20 @@ import (
 // between two distinguishable palettes injects.
 func testBuiltinPair(t *testing.T) theme.Nomination {
 	t.Helper()
-	return theme.AdaptivePair(testLightTheme(t), testDarkTheme(t))
+	return theme.AdaptivePair(
+		theme.MemberLight.Palette(testLightTheme(t)),
+		theme.MemberDark.Palette(testDarkTheme(t)),
+	)
+}
+
+// memberForSlot is the pair member whose palette a setting slot nominates — the
+// test-side counterpart of theme.Member.Slot, for the stubs and assertions that
+// hold a slot and need the member the nomination is selected by.
+func memberForSlot(slot theme.Slot) theme.Member {
+	if slot == theme.SlotLight {
+		return theme.MemberLight
+	}
+	return theme.MemberDark
 }
 
 // TestDeps_HasNoAppearanceField pins §8.8's removal: the light/dark appearance
@@ -206,8 +219,8 @@ func TestNoColor_LoadsBothAndSelectsDark(t *testing.T) {
 	if got, want := m.activeTheme, testDarkTheme(t); got != want {
 		t.Errorf("activeTheme = %s, want the dark member %s (the standing no-answer fallback)", themeLabel(got), themeLabel(want))
 	}
-	if got, want := m.nomination.Select(false), testLightTheme(t); got != want {
-		t.Errorf("the light member is no longer held (Select(false) = %s, want %s); NO_COLOR must not skip loading either nomination", themeLabel(got), themeLabel(want))
+	if got, want := m.nomination.Select(theme.MemberLight), testLightTheme(t); got != want {
+		t.Errorf("the light member is no longer held (Select(MemberLight) = %s, want %s); NO_COLOR must not skip loading either nomination", themeLabel(got), themeLabel(want))
 	}
 }
 

@@ -263,8 +263,8 @@ func TestThemePanelCommit_DarkKeyRoundTripsOneSlotToPrefs(t *testing.T) {
 	if nomination.IsConstant() {
 		t.Fatalf("the relaunch resolved a constant; want the pair `d` completed")
 	}
-	assertCanvasValue(t, nomination.Select(false), roundTripStandingCanvas)
-	assertCanvasValue(t, nomination.Select(true), roundTripChosenCanvas)
+	assertCanvasValue(t, nomination.Select(theme.MemberLight), roundTripStandingCanvas)
+	assertCanvasValue(t, nomination.Select(theme.MemberDark), roundTripChosenCanvas)
 }
 
 // TestThemePanelCommit_NoPrefsStoreWritesNothing: with no prefs store there is

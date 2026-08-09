@@ -307,8 +307,8 @@ func TestConstruction_ReadBudget(t *testing.T) {
 
 		nomination := themeNominationForTest(t)
 
-		assertCanvasValue(t, nomination.Select(false), lightCanvas)
-		assertCanvasValue(t, nomination.Select(true), darkCanvas)
+		assertCanvasValue(t, nomination.Select(theme.MemberLight), lightCanvas)
+		assertCanvasValue(t, nomination.Select(theme.MemberDark), darkCanvas)
 		assertThemeEvents(t, sink,
 			"INFO loaded slug=drop-light slot=light",
 			"INFO loaded slug=drop-dark slot=dark",
@@ -517,10 +517,10 @@ func assertPair(t *testing.T, n theme.Nomination, wantLight, wantDark theme.Them
 	if n.IsConstant() {
 		t.Fatalf("nomination is constant; want the adaptive pair the persisted slots nominate")
 	}
-	if got := n.Select(false); got != wantLight {
+	if got := n.Select(theme.MemberLight); got != wantLight {
 		t.Errorf("light member = %s, want %s", canvasOf(got), canvasOf(wantLight))
 	}
-	if got := n.Select(true); got != wantDark {
+	if got := n.Select(theme.MemberDark); got != wantDark {
 		t.Errorf("dark member = %s, want %s", canvasOf(got), canvasOf(wantDark))
 	}
 }

@@ -280,7 +280,7 @@ func TestResolveNomination_NominationShapeMatchesSetting(t *testing.T) {
 		if got.Nomination.Constant() != want {
 			t.Errorf("Constant() = %+v, want the resolved palette %+v", got.Nomination.Constant(), want)
 		}
-		if got.Nomination.Select(true) != want || got.Nomination.Select(false) != want {
+		if got.Nomination.Select(theme.MemberDark) != want || got.Nomination.Select(theme.MemberLight) != want {
 			t.Error("Select() answers differ under a constant, want the constant for either answer — detection is never consulted")
 		}
 	})
@@ -307,11 +307,11 @@ func TestResolveNomination_NominationShapeMatchesSetting(t *testing.T) {
 		if want := (theme.Theme{}); got.Nomination.Constant() != want {
 			t.Error("Constant() returned a palette under a pair, want the zero Theme — there is no active member to hand out")
 		}
-		if want := dropInTheme(t, light); got.Nomination.Select(false) != want {
-			t.Errorf("Select(false) = %+v, want the light slot's palette %+v", got.Nomination.Select(false), want)
+		if want := dropInTheme(t, light); got.Nomination.Select(theme.MemberLight) != want {
+			t.Errorf("Select(MemberLight) = %+v, want the light slot's palette %+v", got.Nomination.Select(theme.MemberLight), want)
 		}
-		if want := builtinTheme(t, "nord"); got.Nomination.Select(true) != want {
-			t.Errorf("Select(true) = %+v, want the dark slot's palette %+v", got.Nomination.Select(true), want)
+		if want := builtinTheme(t, "nord"); got.Nomination.Select(theme.MemberDark) != want {
+			t.Errorf("Select(MemberDark) = %+v, want the dark slot's palette %+v", got.Nomination.Select(theme.MemberDark), want)
 		}
 	})
 
@@ -380,7 +380,7 @@ func requireZeroResolution(t *testing.T, got theme.Resolution) {
 		t.Error("IsConstant() = true alongside an error, want the zero Nomination")
 	}
 	zero := theme.Theme{}
-	if got.Nomination.Constant() != zero || got.Nomination.Select(true) != zero || got.Nomination.Select(false) != zero {
+	if got.Nomination.Constant() != zero || got.Nomination.Select(theme.MemberDark) != zero || got.Nomination.Select(theme.MemberLight) != zero {
 		t.Error("the nomination carries a palette alongside an error, want the zero Theme — there is no runtime last-resort palette")
 	}
 }
@@ -511,9 +511,9 @@ func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 			t.Fatalf("ResolveNomination(the shipped pair) = %v", err)
 		}
 
-		for _, dark := range []bool{false, true} {
-			if fallen.Nomination.Select(dark) != virgin.Nomination.Select(dark) {
-				t.Errorf("Select(%t) differs between a fallen-back pair and the shipped default, want identical palettes — §8.3's degrades-to-a-constant-dark-default argument rests on them being the same values", dark)
+		for _, member := range []theme.Member{theme.MemberLight, theme.MemberDark} {
+			if fallen.Nomination.Select(member) != virgin.Nomination.Select(member) {
+				t.Errorf("Select(%v) differs between a fallen-back pair and the shipped default, want identical palettes — §8.3's degrades-to-a-constant-dark-default argument rests on them being the same values", member)
 			}
 		}
 		if got := []string{fallen.Slots[0].Resolved, fallen.Slots[1].Resolved}; !slices.Equal(got, []string{theme.DefaultLightSlug, theme.DefaultDarkSlug}) {
@@ -719,7 +719,7 @@ func TestResolveNomination_BothSlotsCanFallBack(t *testing.T) {
 		if !slices.Equal(got.Slots, want) {
 			t.Fatalf("Slots = %+v, want %+v", got.Slots, want)
 		}
-		if got.Nomination.Select(false) != builtinTheme(t, theme.DefaultLightSlug) || got.Nomination.Select(true) != builtinTheme(t, theme.DefaultDarkSlug) {
+		if got.Nomination.Select(theme.MemberLight) != builtinTheme(t, theme.DefaultLightSlug) || got.Nomination.Select(theme.MemberDark) != builtinTheme(t, theme.DefaultDarkSlug) {
 			t.Error("the nomination does not carry the two shipped defaults — a doubly-fallen-back pair is exactly the shipped pair")
 		}
 	})
@@ -754,6 +754,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 		setting      theme.Setting
 		survivor     int
 		wantSlot     theme.Slot
+		wantMember   theme.Member
 		fallenSlot   theme.Slot
 		wantFallback string
 	}{
@@ -762,6 +763,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 			setting:      theme.Setting{Light: "gone-light", Dark: "nord-lee"},
 			survivor:     1,
 			wantSlot:     theme.SlotDark,
+			wantMember:   theme.MemberDark,
 			fallenSlot:   theme.SlotLight,
 			wantFallback: theme.DefaultLightSlug,
 		},
@@ -770,6 +772,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 			setting:      theme.Setting{Light: "nord-lee", Dark: "gone-dark"},
 			survivor:     0,
 			wantSlot:     theme.SlotLight,
+			wantMember:   theme.MemberLight,
 			fallenSlot:   theme.SlotDark,
 			wantFallback: theme.DefaultDarkSlug,
 		},
@@ -801,7 +804,7 @@ func TestResolveNomination_SurvivingSlotUnaffected(t *testing.T) {
 			if !got.Slots[1-tt.survivor].FellBack {
 				t.Errorf("the other slot = %+v, want FellBack — this fixture is meant to stage one of each", got.Slots[1-tt.survivor])
 			}
-			if got.Nomination.Select(tt.wantSlot == theme.SlotDark) != survivorTheme {
+			if got.Nomination.Select(tt.wantMember) != survivorTheme {
 				t.Error("the nomination's surviving member is not the drop-in's palette — a fallback substitutes one slot, never the setting")
 			}
 		})

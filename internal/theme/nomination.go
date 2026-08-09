@@ -63,8 +63,32 @@ func ConstantNomination(t Theme) Nomination {
 // AdaptivePair returns the nomination for an adaptive theme setting: both
 // loaded palettes and no active member. Which one becomes active is the gate's
 // answer, delivered through Select.
-func AdaptivePair(light, dark Theme) Nomination {
-	return Nomination{state: nominationAdaptive, light: light, dark: dark}
+//
+// EACH PALETTE NAMES THE MEMBER IT SERVES, so the arguments carry nothing
+// positional and transposing them yields the same nomination. A light-then-dark
+// parameter order is a contract only a comment can state, and reading it the
+// wrong way round at one call site inverts light and dark for the whole product
+// — with every palette still loading, every token still resolving and nothing
+// failing anywhere.
+//
+// BOTH MEMBERS MUST BE NAMED. A pair naming one member twice fills that member
+// and leaves the other the zero Theme, for the reason the zero Nomination
+// answers with one: a caller error degrades to a palette that renders rather
+// than taking the process down at construction.
+func AdaptivePair(a, b MemberPalette) Nomination {
+	n := Nomination{state: nominationAdaptive}
+	n.hold(a)
+	n.hold(b)
+	return n
+}
+
+// hold puts one palette in the member it names.
+func (n *Nomination) hold(p MemberPalette) {
+	if p.member == MemberLight {
+		n.light = p.theme
+		return
+	}
+	n.dark = p.theme
 }
 
 // IsConstant reports whether the setting is constant — the question the caller
@@ -96,7 +120,7 @@ func (n Nomination) Constant() Theme {
 // stray gate resolution able to change what a constant paints.
 //
 // A zero Nomination returns the zero Theme for either answer, matching Constant.
-func (n Nomination) Select(dark bool) Theme {
+func (n Nomination) Select(m Member) Theme {
 	switch {
 	case n.state == nominationUnset:
 		// Redundant against the zero fields, and deliberately kept: this is the one
@@ -105,7 +129,7 @@ func (n Nomination) Select(dark bool) Theme {
 		return Theme{}
 	case n.state == nominationConstant:
 		return n.constant
-	case dark:
+	case m == MemberDark:
 		return n.dark
 	default:
 		return n.light

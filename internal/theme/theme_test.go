@@ -220,6 +220,12 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // still holds in full: the slot classifies the theme, and no theme declares a
 // variant of itself.
 //
+// Member is the same kind of addition and takes the same distinction, more
+// sharply because it has exactly two values named light and dark: it is the
+// light/dark ANSWER, naming which member of an adaptive PAIR the gate picks. No
+// Theme declares one, carries one or resolves through one, and there is no
+// per-token variant anywhere beneath it.
+//
 // Nomination's arrival is the one addition that could be mistaken for the
 // removed surface returning: it holds a light and a dark Theme. It is not — the
 // pairing is the shape of the SETTING, held outside any theme, and neither
@@ -276,6 +282,13 @@ var wantExports = []string{
 	"Loader.ResolveNomination",
 	"Loader.ResolveNominationFrom",
 	"Loader.ResolveSlot",
+	"Member",
+	"Member.Opposite",
+	"Member.Palette",
+	"Member.Slot",
+	"MemberDark",
+	"MemberLight",
+	"MemberPalette",
 	"NewEventLogger",
 	"NewLoader",
 	"Nomination",

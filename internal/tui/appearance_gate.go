@@ -54,6 +54,21 @@ const (
 	appearanceLightCanvas
 )
 
+// member is the answer as the theme package names it — the ONE conversion
+// between this package's appearance enum and the pair member a Nomination is
+// selected by.
+//
+// It is a single site rather than a rule restated wherever the theme side is
+// needed: reading the correspondence the wrong way round at one call site paints
+// a light terminal the dark theme with every palette still loading and nothing
+// failing anywhere.
+func (a canvasAppearance) member() theme.Member {
+	if a == appearanceLightCanvas {
+		return theme.MemberLight
+	}
+	return theme.MemberDark
+}
+
 // appearanceGate is the reusable detect-or-timeout first-paint mechanism. It owns
 // the resolved canvas appearance and the "may the real canvas
 // paint yet?" flag, so a page that gates its first paint (the foundation Sessions

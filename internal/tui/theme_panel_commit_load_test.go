@@ -216,10 +216,10 @@ func requireNominationPair(t *testing.T, m Model, light, dark theme.Theme) {
 	if m.nomination.IsConstant() {
 		t.Fatalf("the nomination is still a CONSTANT after a conversion; §8.4's load joins the pair")
 	}
-	if got := m.nomination.Select(false); got != light {
+	if got := m.nomination.Select(theme.MemberLight); got != light {
 		t.Errorf("the nomination's light member is %s, want %s", themeLabel(got), themeLabel(light))
 	}
-	if got := m.nomination.Select(true); got != dark {
+	if got := m.nomination.Select(theme.MemberDark); got != dark {
 		t.Errorf("the nomination's dark member is %s, want %s", themeLabel(got), themeLabel(dark))
 	}
 }
@@ -249,7 +249,7 @@ func requireNoFallbackLine(t *testing.T, sink *logtest.Sink) {
 func requireSlotCanvas(t *testing.T, m Model, slot theme.Slot, want string) {
 	t.Helper()
 
-	got := m.nomination.Select(slot == theme.SlotDark)
+	got := m.nomination.Select(memberForSlot(slot))
 	if got.Canvas.Value != want {
 		t.Errorf("the nomination's %v member has canvas %q, want %q", slot, got.Canvas.Value, want)
 	}
