@@ -95,7 +95,7 @@ func (l Loader) Enumerate(dir string) ([]Entry, *Rejection) {
 // Anything else is ignored ENTIRELY — no entry, no reason, no log. A file that
 // was never a theme file did not fail to be one.
 func isCandidate(name string) bool {
-	return strings.EqualFold(filepath.Ext(name), themeExtension)
+	return strings.EqualFold(filepath.Ext(name), FileExtension)
 }
 
 // resolvesToDirectory reports whether a candidate resolves to a directory, which

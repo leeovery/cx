@@ -7,9 +7,15 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// themeExtension is the one extension a theme file carries. It is compared by
-// exact bytes and never case-folded — see SlugFromFilename.
-const themeExtension = ".theme"
+// FileExtension is the one extension a theme file carries. Acceptance compares
+// it by exact bytes and never case-folds — see SlugFromFilename. Enumeration is
+// the deliberate exception: it matches the extension case-insensitively so a
+// mis-cased file is visible before it is rejected.
+//
+// It is exported because the extension is a published, user-facing part of the
+// theme-file contract, so every surface that composes or recognises a theme
+// filename states it from here.
+const FileExtension = ".theme"
 
 // BadNameCause records WHICH of `bad name`'s rules a name broke.
 //
@@ -140,7 +146,7 @@ func StripControl(s string) string {
 // error, and `Nord.theme` in particular yields no slug at all rather than a
 // quietly corrected one.
 func SlugFromFilename(base string) (string, *Rejection) {
-	stem, exact := strings.CutSuffix(base, themeExtension)
+	stem, exact := strings.CutSuffix(base, FileExtension)
 	if !exact {
 		return "", badName(BadNameExtension)
 	}

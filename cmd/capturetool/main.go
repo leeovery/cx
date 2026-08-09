@@ -47,13 +47,6 @@ import (
 // that default moves every unflagged capture with it.
 const defaultThemeSlug = theme.DefaultDarkSlug
 
-// themeFileExtension is the extension that marks a --theme argument as a FILE
-// even when it carries no directory at all (`nord.theme` in the working
-// directory). It is a local restatement of the theme-file extension because
-// internal/theme keeps its own copy unexported — the loader decides validity,
-// this program only decides which of its two entry points to call.
-const themeFileExtension = ".theme"
-
 // main parses the two flags and maps any resolution or program failure onto a
 // non-zero exit.
 //
@@ -183,7 +176,7 @@ func resolveTheme(loader themeLoader, arg string, warnings io.Writer) (theme.The
 // charset admits neither separators nor dots, so no valid slug can satisfy either
 // half.
 func isThemePath(arg string) bool {
-	return strings.ContainsRune(arg, filepath.Separator) || strings.HasSuffix(arg, themeFileExtension)
+	return strings.ContainsRune(arg, filepath.Separator) || strings.HasSuffix(arg, theme.FileExtension)
 }
 
 // resolveBuiltinTheme resolves a --theme SLUG out of the embedded set.

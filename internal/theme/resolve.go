@@ -119,7 +119,7 @@ func (l Loader) loadFromThemesDir(slug, themesDir string) (Result, *Rejection) {
 		return Result{}, notFound()
 	}
 
-	path := filepath.Join(themesDir, slug+themeExtension)
+	path := filepath.Join(themesDir, slug+FileExtension)
 	result, rejection := l.LoadFile(path)
 	if rejection != nil {
 		return Result{}, l.narrowReadFailure(themesDir, path, rejection)

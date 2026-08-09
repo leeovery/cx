@@ -156,6 +156,30 @@ func TestSlugFromFilename_RejectsNonLowercaseExtension(t *testing.T) {
 	}
 }
 
+// TestFileExtension_IsWhatSlugFromFilenameAccepts pins the exported extension to
+// the comparison it names: a slug composed with FileExtension round-trips, and an
+// uppercased FileExtension is rejected as a bad extension.
+func TestFileExtension_IsWhatSlugFromFilenameAccepts(t *testing.T) {
+	const slug = "nord-lee"
+
+	got, rejection := theme.SlugFromFilename(slug + theme.FileExtension)
+	if rejection != nil {
+		t.Fatalf("SlugFromFilename(%q) rejected with %v, want the slug %q", slug+theme.FileExtension, rejection, slug)
+	}
+	if got != slug {
+		t.Errorf("SlugFromFilename(%q) = %q, want %q", slug+theme.FileExtension, got, slug)
+	}
+
+	shouted := slug + strings.ToUpper(theme.FileExtension)
+	got, rejection = theme.SlugFromFilename(shouted)
+	if rejection == nil {
+		t.Fatalf("SlugFromFilename(%q) = %q with no rejection, want a bad name rejection", shouted, got)
+	}
+	if rejection.Reason != theme.ReasonBadName || rejection.BadNameCause != theme.BadNameExtension {
+		t.Errorf("SlugFromFilename(%q) = {reason %q, cause %v}, want {%q, BadNameExtension (%v)}", shouted, rejection.Reason, rejection.BadNameCause, theme.ReasonBadName, theme.BadNameExtension)
+	}
+}
+
 // TestSlugFromFilename_CausesAreDistinct pins the discrimination the pinned copy needs: one
 // reason class, two causes, so doctor can render `slug must be lowercase
 // letters, digits and hyphens` and `extension must be lowercase .theme` from

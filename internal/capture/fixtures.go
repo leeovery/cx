@@ -744,7 +744,7 @@ const themePanelDropInSlug = "catppuccin-latte"
 // palette here would be the hard-coded built-in that makes `--theme` inert.
 func themePanelUnion() theme.Union {
 	rows := []theme.Row{
-		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + ".theme", Source: theme.SourceFile},
+		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + theme.FileExtension, Source: theme.SourceFile},
 		{Slug: "nord", Source: theme.SourceBuiltin},
 		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
 		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
@@ -755,7 +755,7 @@ func themePanelUnion() theme.Union {
 // themePanelEnumeration is the retained parse Open hands back: the one drop-in
 // the directory held, and the directory it was read from.
 func themePanelEnumeration() theme.Enumeration {
-	return themePanelDirEnumeration(themePanelDirEntry(themePanelDropInSlug+".theme", themePanelDropInSlug))
+	return themePanelDirEnumeration(themePanelDirEntry(themePanelDropInSlug+theme.FileExtension, themePanelDropInSlug))
 }
 
 // themePanelAdaptivePairFixture builds the deterministic
@@ -1032,9 +1032,9 @@ func themePanelInvalidRowFixture() *Fixture {
 	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: themePanelBrokenSlug}
 	fx.themeUnion = themePanelInvalidRowUnion()
 	fx.themeEnumeration = themePanelDirEnumeration(
-		themePanelDirEntry("aurora-glow.theme", "aurora-glow"),
-		themePanelDirEntry("My Gorgeous Midnight Palette.theme", ""),
-		themePanelDirEntry(themePanelBrokenSlug+".theme", themePanelBrokenSlug),
+		themePanelDirEntry("aurora-glow"+theme.FileExtension, "aurora-glow"),
+		themePanelDirEntry("My Gorgeous Midnight Palette"+theme.FileExtension, ""),
+		themePanelDirEntry(themePanelBrokenSlug+theme.FileExtension, themePanelBrokenSlug),
 	)
 	fx.themeSlots = []theme.SlotResolution{
 		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
@@ -1067,21 +1067,21 @@ func themePanelInvalidRowUnion() theme.Union {
 	rows := []theme.Row{
 		// Invalid with a reason that FITS beside its label.
 		{
-			Slug: "aurora-glow", Filename: "aurora-glow.theme", Source: theme.SourceFile,
+			Slug: "aurora-glow", Filename: "aurora-glow" + theme.FileExtension, Source: theme.SourceFile,
 			Rejection: &theme.Rejection{Reason: theme.ReasonBadSyntax, Line: 12, Detail: "quoted value"},
 		},
 		// `bad name`: no slug at all (names are rejected, never normalised), so it is
 		// LABELLED and SORTED by its filename — and that filename is long enough to
 		// take the whole row, which is what drops its reason.
 		{
-			Filename: "My Gorgeous Midnight Palette.theme", Source: theme.SourceFile,
+			Filename: "My Gorgeous Midnight Palette" + theme.FileExtension, Source: theme.SourceFile,
 			Rejection: &theme.Rejection{Reason: theme.ReasonBadName, BadNameCause: theme.BadNameSlug},
 		},
 		{Slug: "nord", Source: theme.SourceBuiltin},
 		// Invalid AND persisted: `bad colour` never renders, because the `● dark`
 		// badge takes the right edge they compete for.
 		{
-			Slug: themePanelBrokenSlug, Filename: themePanelBrokenSlug + ".theme", Source: theme.SourceFile,
+			Slug: themePanelBrokenSlug, Filename: themePanelBrokenSlug + theme.FileExtension, Source: theme.SourceFile,
 			Rejection: &theme.Rejection{Reason: theme.ReasonBadColour, Line: 7, Detail: "text.primary = #12345"},
 		},
 		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
@@ -1254,14 +1254,14 @@ func themePanelSyntheticSlug(i int) string {
 // order throughout.
 func themePanelPaginatedUnion() theme.Union {
 	rows := []theme.Row{
-		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + ".theme", Source: theme.SourceFile},
+		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + theme.FileExtension, Source: theme.SourceFile},
 		{Slug: "nord", Source: theme.SourceBuiltin},
 		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
 		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
 	}
 	for i := range themePanelSyntheticDropIns {
 		slug := themePanelSyntheticSlug(i)
-		rows = append(rows, theme.Row{Slug: slug, Filename: slug + ".theme", Source: theme.SourceFile})
+		rows = append(rows, theme.Row{Slug: slug, Filename: slug + theme.FileExtension, Source: theme.SourceFile})
 	}
 	return theme.Union{Rows: rows, Count: len(rows)}
 }
@@ -1269,10 +1269,10 @@ func themePanelPaginatedUnion() theme.Union {
 // themePanelPaginatedEntries is the retained parse behind that union: every file
 // row it lists, in the directory order a real read produces.
 func themePanelPaginatedEntries() []theme.Entry {
-	entries := []theme.Entry{themePanelDirEntry(themePanelDropInSlug+".theme", themePanelDropInSlug)}
+	entries := []theme.Entry{themePanelDirEntry(themePanelDropInSlug+theme.FileExtension, themePanelDropInSlug)}
 	for i := range themePanelSyntheticDropIns {
 		slug := themePanelSyntheticSlug(i)
-		entries = append(entries, themePanelDirEntry(slug+".theme", slug))
+		entries = append(entries, themePanelDirEntry(slug+theme.FileExtension, slug))
 	}
 	return entries
 }

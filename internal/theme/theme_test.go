@@ -66,8 +66,8 @@ func TestTokenCount_IsNineteen(t *testing.T) {
 }
 
 // TestAll_ReturnsSpecTableOrder asserts the whole ordered slice, not a set:
-// position 1 is text.primary and position 19 is text.on-attention (the
-// The canonical table's numbering IS the definition of All()'s stable order).
+// position 1 is text.primary and position 19 is text.on-attention (the canonical
+// table's numbering IS the definition of All()'s stable order).
 //
 // Each field is seeded with a distinct value in canonical table row order, so the
 // assertion also pins the name↔field pairing: an entry in the canonical table
@@ -218,6 +218,11 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // a Member rather than a Slot so the pair's two halves are the whole of the
 // argument's domain, matching what the write side will accept.
 //
+// FileExtension is exported for the same kind of reason: the extension is a
+// published part of the theme-file contract rather than a private parsing
+// detail, and the surfaces that compose or recognise a theme filename outside
+// this package restated it verbatim until it had one home.
+//
 // Badge.Text is a DEPARTURE rather than an addition: the badge derivation stays
 // here, because which badge a slug carries is a fact about the setting, but the
 // words it is drawn with are the theme panel's copy and live with the panel's
@@ -293,6 +298,7 @@ var wantExports = []string{
 	"EventLogger.FallbackApplied",
 	"EventLogger.Loaded",
 	"EventLogger.Rejected",
+	"FileExtension",
 	"InForceKey",
 	"InForceKeys",
 	"LoadPath",

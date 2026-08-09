@@ -77,7 +77,7 @@ var builtinFS embed.FS
 // is a routine answer on the by-name resolution path, where the themes
 // directory is the next place to look.
 func BuiltinBytes(slug string) ([]byte, bool) {
-	data, err := builtinFS.ReadFile(builtinDir + "/" + slug + themeExtension)
+	data, err := builtinFS.ReadFile(builtinDir + "/" + slug + FileExtension)
 	if err != nil {
 		return nil, false
 	}
@@ -107,7 +107,7 @@ func BuiltinSlugs() []string {
 
 	slugs := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		slugs = append(slugs, strings.TrimSuffix(entry.Name(), themeExtension))
+		slugs = append(slugs, strings.TrimSuffix(entry.Name(), FileExtension))
 	}
 
 	slices.Sort(slugs)

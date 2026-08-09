@@ -126,7 +126,7 @@ func stageDecoyConfig(t *testing.T) (configDir string) {
 	if err := os.MkdirAll(themes, 0o755); err != nil {
 		t.Fatalf("stage the decoy themes directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(themes, decoySlug+".theme"), themetest.Body(), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themes, decoySlug+theme.FileExtension), themetest.Body(), 0o644); err != nil {
 		t.Fatalf("stage the decoy theme: %v", err)
 	}
 	t.Setenv("XDG_CONFIG_HOME", dir)
