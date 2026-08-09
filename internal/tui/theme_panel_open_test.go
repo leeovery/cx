@@ -70,31 +70,30 @@ func (e *recordingThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.S
 	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
 }
 
-// realThemeEnumerator is the PRODUCTION adapter's shape, staged here so the open
-// path can be driven against a real theme.Loader and a real directory — the only
-// way to assert that a mid-session file edit is picked up and that each open is a
-// genuine directory read rather than a replayed fake.
-type realThemeEnumerator struct {
-	loader theme.Loader
-	dir    string
-	opens  int
+// countingThemeEnumerator is the PRODUCTION adapter itself — theme.DirEnumerator
+// over a real theme.Loader and a real directory — carrying the open count the
+// cadence assertions below read. Driving the real one is the only way to assert
+// that a mid-session file edit is picked up and that each open is a genuine
+// directory read rather than a replayed fake.
+//
+// The adapter is EMBEDDED rather than restated, so counting is the only
+// behaviour added: three of the four methods are production's untouched, and the
+// fourth delegates to production's after incrementing. A re-implementation here
+// could drift from the seam production actually wires while both still compiled.
+type countingThemeEnumerator struct {
+	theme.DirEnumerator
+	opens int
 }
 
-func (e *realThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
+func (e *countingThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
 	e.opens++
-	return e.loader.Open(e.dir, keys)
+	return e.DirEnumerator.Open(keys)
 }
 
-func (e *realThemeEnumerator) Reassemble(enumeration theme.Enumeration, keys theme.RawKeys) theme.Union {
-	return e.loader.Reassemble(enumeration, keys)
-}
-
-func (e *realThemeEnumerator) Resolve(enumeration theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
-	return e.loader.ResolveNominationFrom(enumeration, setting)
-}
-
-func (e *realThemeEnumerator) ResolveSlot(enumeration theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	return e.loader.ResolveSlot(enumeration, slot, slug)
+// countingEnumeratorOver binds the production adapter to a loader and a staged
+// directory, wrapped in the open counter.
+func countingEnumeratorOver(loader theme.Loader, dir string) *countingThemeEnumerator {
+	return &countingThemeEnumerator{DirEnumerator: theme.DirEnumerator{Loader: loader, Dir: dir}}
 }
 
 // nilProneThemeEnumerator is a POINTER-receiver seam whose methods dereference the
@@ -349,7 +348,7 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	loader, sink := themeOpenTestLoader(t)
-	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
+	enumerator := countingEnumeratorOver(loader, dir)
 
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
@@ -383,7 +382,7 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 	loader, sink := themeOpenTestLoader(t)
-	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
+	enumerator := countingEnumeratorOver(loader, dir)
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
 	const opens = 3
@@ -413,7 +412,7 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
 	loader, _ := themeOpenTestLoader(t)
-	m := themeOpenTestModel(t, &realThemeEnumerator{loader: loader, dir: dir}, theme.RawKeys{})
+	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
 
 	m = pressThemeKey(t, m)
 	if broken := themePanelRowFor(t, m, "sunset"); broken.Row.Selectable() {
@@ -450,7 +449,7 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	// be a mutation and the re-read half would prove nothing.
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
 	loader, _ := themeOpenTestLoader(t)
-	m := themeOpenTestModel(t, &realThemeEnumerator{loader: loader, dir: dir}, theme.RawKeys{})
+	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
 
 	m = pressThemeKey(t, m)
 	if len(m.themePanel.union.Rows) == 0 {

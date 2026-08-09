@@ -122,7 +122,7 @@ func newLoadPanelModel(t *testing.T, dir string, keys theme.RawKeys, loader them
 	m := Build(Deps{
 		Lister:          fakeLister{},
 		Theme:           resolution.Nomination,
-		ThemeEnumerator: &realThemeEnumerator{loader: loader, dir: dir},
+		ThemeEnumerator: countingEnumeratorOver(loader, dir),
 		ThemeKeys:       keys,
 		ThemePersister:  persister,
 	})
@@ -739,7 +739,7 @@ func TestCommitSlotLoad_SharesTheResolverBody(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	writeThemeFileForTest(t, dir, "ghostly.theme", "#202020")
 	loader, _ := themeOpenTestLoader(t)
-	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
+	enumerator := countingEnumeratorOver(loader, dir)
 	enumeration, _ := enumerator.Open(theme.RawKeys{})
 
 	for _, slug := range []string{"nord", "ghostly", conversionConstant, "nope", "../escape"} {

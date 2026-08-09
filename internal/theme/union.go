@@ -198,6 +198,27 @@ type Union struct {
 	Rejected int
 }
 
+// Assembler builds the panel's ROW MODEL — the Rows, their order and the counts
+// over them — from what a Loader parses.
+//
+// It is a type of its own rather than more surface on the Loader because it
+// LOADS NOTHING ITSELF. Everything here is assembly: which rows exist, which
+// reason each carries, and what order they are listed in. The Loader beneath it
+// answers the only question assembly cannot — what one file or one built-in
+// parses to — so the two jobs stay separable and a consumer that merely reads a
+// theme never holds the row model's entry points.
+//
+// It is constructed from a Loader rather than from a Loader's parts so the
+// assembly shares that loader's `theme` dedup scope: the enumeration beneath Open
+// hits the same directory conditions a by-name read does, and one dedup scope per
+// launch is what stops a broken file being reported twice.
+type Assembler struct {
+	// Loader is what parses the built-ins and the directory's candidates. The
+	// zero value is a valid silent one, exactly as it is anywhere else: it
+	// reserves nothing and emits nothing.
+	Loader Loader
+}
+
 // Open is the panel's entry point: ONE directory read, producing the retained
 // enumeration and the finished union together.
 //
@@ -216,12 +237,12 @@ type Union struct {
 // absent directory and on an unusable one alike — the panel opened either way,
 // which is what the event records — and it does NOT dedup, unlike the WARNs
 // Enumerate emits beneath it.
-func (l Loader) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
-	entries, rejection := l.Enumerate(themesDir)
+func (a Assembler) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
+	entries, rejection := a.Loader.Enumerate(themesDir)
 	enumeration := Enumeration{Entries: entries, DirUnusable: rejection != nil, DirPath: themesDir}
 
-	union := l.Reassemble(enumeration, keys)
-	l.events.Enumerated(union.Count, union.Rejected)
+	union := a.Reassemble(enumeration, keys)
+	a.Loader.events.Enumerated(union.Count, union.Rejected)
 
 	return enumeration, union
 }
@@ -254,8 +275,8 @@ func (l Loader) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
 //     forget to sort — see sortRows. It runs last because it is a pure
 //     rearrangement: the three steps above decide MEMBERSHIP, and each one's
 //     dedup reads the rows already assembled by slug rather than by position.
-func (l Loader) Reassemble(e Enumeration, keys RawKeys) Union {
-	rows := l.builtinRows()
+func (a Assembler) Reassemble(e Enumeration, keys RawKeys) Union {
+	rows := a.builtinRows()
 	rows = append(rows, fileRows(e.Entries)...)
 	rows = append(rows, persistedRows(rows, e, keys)...)
 	sortRows(rows)
@@ -276,12 +297,12 @@ func (l Loader) Reassemble(e Enumeration, keys RawKeys) Union {
 // state (see Loader.BuiltinSource), where "this built-in is not in this binary" is
 // exactly what the union should say. A built-in that IS present and does not
 // parse carries its rejection like any other row.
-func (l Loader) builtinRows() []Row {
+func (a Assembler) builtinRows() []Row {
 	slugs := BuiltinSlugs()
 
 	rows := make([]Row, 0, len(slugs))
 	for _, slug := range slugs {
-		result, rejection, found := l.LoadBuiltin(slug)
+		result, rejection, found := a.Loader.LoadBuiltin(slug)
 		if !found {
 			continue
 		}

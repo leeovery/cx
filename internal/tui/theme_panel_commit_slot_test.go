@@ -891,7 +891,7 @@ func TestPanelSlotCommit_NoOtherIO(t *testing.T) {
 	// covers everything else and this records what the one write was.
 	persister := &fakeThemePersister{}
 	loader := theme.NewLoader(nil)
-	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
+	enumerator := countingEnumeratorOver(loader, dir)
 	keys := theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "sunset"}
 	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
 	resolution, err := loader.ResolveNomination(setting, dir)

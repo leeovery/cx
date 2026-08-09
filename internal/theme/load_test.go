@@ -389,7 +389,9 @@ func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 // LoadFile whose fixtures happened to have legal names.
 //
 // The reserved case carries an INJECTED reserved set, so the rung it skips is the
-// one a directory entry would certainly hit rather than a hypothetical.
+// one a directory entry would certainly hit rather than a hypothetical. The
+// loader in the table is the LoadFile half's alone: LoadPath is a function, so
+// the set it must not consult is not even reachable from it.
 func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
 	reserving := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}, "tokyo-night": {}}}
 
@@ -433,7 +435,7 @@ func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
 				t.Fatalf("LoadFile(%q) = %v, want %q — the fixture does not exercise a filename rung", path, rejection, tt.wantFileRejected)
 			}
 
-			got, rejection := tt.loader.LoadPath(path)
+			got, rejection := theme.LoadPath(path)
 
 			if rejection != nil {
 				t.Fatalf("LoadPath(%q) rejected the file: %v", path, rejection)
@@ -509,7 +511,7 @@ func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path, wantDetail := tt.setup(t, t.TempDir())
 
-			got, rejection := theme.Loader{}.LoadPath(path)
+			got, rejection := theme.LoadPath(path)
 
 			requireLoadRejection(t, got, rejection, tt.wantReason, wantDetail)
 		})

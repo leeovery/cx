@@ -136,16 +136,18 @@ func resolveProgram(fixture, themeArg string, warnings io.Writer) (tea.Model, er
 	return m, nil
 }
 
-// themeLoader is the seam --theme resolves through: theme.Loader's two input
-// entry points, the embedded built-in set and an explicit path, and nothing else.
-// Neither reads config, which is what keeps the no-real-config invariant true.
+// themeLoader is the seam --theme's SLUG branch resolves through: the embedded
+// built-in set, and nothing else. It reads no config, which is what keeps the
+// no-real-config invariant true.
 //
 // It is an interface so the built-in rejection branch can be driven at all: the
 // build-time validation of the embedded set makes that branch unreachable through
 // the shipped themes, and the alternative would be breaking a shipped .theme file.
+//
+// The PATH branch takes no seam. theme.LoadPath is a function over a path the
+// caller named, with nothing injected to fake.
 type themeLoader interface {
 	LoadBuiltin(slug string) (theme.Result, *theme.Rejection, bool)
-	LoadPath(path string) (theme.Result, *theme.Rejection)
 }
 
 // newThemeLoader builds the loader --theme resolves through, handed
@@ -167,7 +169,7 @@ func newThemeLoader() theme.Loader {
 // prevent, and the gate's whole job is judging colours the tests cannot.
 func resolveTheme(loader themeLoader, arg string, warnings io.Writer) (theme.Theme, error) {
 	if isThemePath(arg) {
-		return resolvePathTheme(loader, arg, warnings)
+		return resolvePathTheme(arg, warnings)
 	}
 	return resolveBuiltinTheme(loader, arg)
 }
@@ -210,7 +212,7 @@ func resolveBuiltinTheme(loader themeLoader, slug string) (theme.Theme, error) {
 	return result.Theme, nil
 }
 
-// resolvePathTheme resolves a --theme PATH through the loader's explicit-path
+// resolvePathTheme resolves a --theme PATH through the package's explicit-path
 // entry point, which runs the four CONTENT rungs and neither filename one.
 //
 // Only the content reasons can therefore reject, and any of them is a hard error
@@ -220,8 +222,8 @@ func resolveBuiltinTheme(loader themeLoader, slug string) (theme.Theme, error) {
 //
 // The warnings are emitted only once the file has loaded, so a broken file reports
 // what is wrong with its contents rather than trailing a remark about its name.
-func resolvePathTheme(loader themeLoader, path string, warnings io.Writer) (theme.Theme, error) {
-	result, rejection := loader.LoadPath(path)
+func resolvePathTheme(path string, warnings io.Writer) (theme.Theme, error) {
+	result, rejection := theme.LoadPath(path)
 	if rejection != nil {
 		return theme.Theme{}, fmt.Errorf("--theme %q is not usable: %w", path, rejection)
 	}

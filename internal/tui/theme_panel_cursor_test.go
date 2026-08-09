@@ -110,7 +110,7 @@ func themeCursorModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasA
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 	}
 	return New(fakeLister{},
-		WithThemeEnumerator(&realThemeEnumerator{loader: loader, dir: dir}),
+		WithThemeEnumerator(countingEnumeratorOver(loader, dir)),
 		WithThemeKeys(keys),
 		WithThemeNomination(resolution.Nomination),
 		WithCanvasMode(mode),

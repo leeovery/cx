@@ -87,37 +87,28 @@ import (
 // the only thing under test: what it lists, what order it lists it in, and what it
 // marks.
 //
-// It is the production adapter minus the ONE thing this suite must not do — the
-// directory read — so a drift in the seam's contract fails here rather than in the
-// wiring.
+// It is LITERALLY the production adapter minus the ONE thing this suite must not
+// do — the directory read: theme.DirEnumerator is embedded, so the three methods
+// it does not override are production's own and a drift in the seam's contract
+// fails here rather than in the wiring. Only Open is replaced, and only to swap
+// the read for a declared enumeration.
 type behaviourEnumerator struct {
+	theme.DirEnumerator
 	enumeration theme.Enumeration
-	loader      theme.Loader
 }
 
 // newBehaviourEnumerator declares an enumeration holding entries and NAMING NO
-// DIRECTORY: DirPath is empty, because there was none.
+// DIRECTORY: DirPath is empty, because there was none — and so is the adapter's
+// own Dir, which nothing on this path reads.
 func newBehaviourEnumerator(entries []theme.Entry) *behaviourEnumerator {
 	return &behaviourEnumerator{
-		enumeration: theme.Enumeration{Entries: entries},
-		loader:      theme.NewLoader(nil),
+		DirEnumerator: theme.DirEnumerator{Loader: theme.NewLoader(nil)},
+		enumeration:   theme.Enumeration{Entries: entries},
 	}
 }
 
 func (e *behaviourEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
-	return e.enumeration, e.loader.Reassemble(e.enumeration, keys)
-}
-
-func (e *behaviourEnumerator) Reassemble(enumeration theme.Enumeration, keys theme.RawKeys) theme.Union {
-	return e.loader.Reassemble(enumeration, keys)
-}
-
-func (e *behaviourEnumerator) Resolve(enumeration theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
-	return e.loader.ResolveNominationFrom(enumeration, setting)
-}
-
-func (e *behaviourEnumerator) ResolveSlot(enumeration theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	return e.loader.ResolveSlot(enumeration, slot, slug)
+	return e.enumeration, e.Reassemble(e.enumeration, keys)
 }
 
 // behaviourFile is one VALID candidate the themes directory would have held: a

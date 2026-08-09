@@ -182,9 +182,8 @@ func TestResolveTheme_InvalidBuiltinIsAnErrorNotAFallback(t *testing.T) {
 	}
 }
 
-// rejectingLoader is a theme loader that refuses everything: every slug is a
-// known built-in whose file the §6.2 ladder refused, and every path is refused
-// with the same rejection.
+// rejectingLoader is a theme loader that refuses every slug: each one is a known
+// built-in whose file the §6.2 ladder refused.
 type rejectingLoader struct {
 	rejection *theme.Rejection
 }
@@ -193,11 +192,6 @@ type rejectingLoader struct {
 // theme.Loader produces for a built-in that does not parse.
 func (l rejectingLoader) LoadBuiltin(string) (theme.Result, *theme.Rejection, bool) {
 	return theme.Result{}, l.rejection, true
-}
-
-// LoadPath returns the canned rejection and no palette.
-func (l rejectingLoader) LoadPath(string) (theme.Result, *theme.Rejection) {
-	return theme.Result{}, l.rejection
 }
 
 // TestResolveTheme_PathContentReasonsAreHardErrors pins §13.3's contract for an

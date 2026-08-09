@@ -556,7 +556,7 @@ func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
 	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
 	loader, _ := themeOpenTestLoader(t)
-	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
+	enumerator := countingEnumeratorOver(loader, dir)
 
 	m := New(fakeLister{},
 		WithThemeEnumerator(enumerator),

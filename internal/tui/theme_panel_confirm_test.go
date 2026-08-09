@@ -972,7 +972,7 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 		m := Build(Deps{
 			Lister:          fakeLister{},
 			Theme:           resolution.Nomination,
-			ThemeEnumerator: &realThemeEnumerator{loader: loader, dir: dir},
+			ThemeEnumerator: countingEnumeratorOver(loader, dir),
 			ThemeKeys:       keys,
 		})
 		if m.themePersister != nil {

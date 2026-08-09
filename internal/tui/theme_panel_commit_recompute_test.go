@@ -46,7 +46,7 @@ import (
 // which rows the union holds for a given set of persisted keys, and in what order.
 // A stub seam answering with a fixed union would make every row assertion a
 // statement about the fixture rather than about theme.Reassemble.
-func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *realThemeEnumerator, *fakeThemePersister) {
+func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeEnumerator, *fakeThemePersister) {
 	t.Helper()
 
 	m, enumerator, _ := newClosePanelModel(t, dir, keys)

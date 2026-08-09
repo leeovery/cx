@@ -191,9 +191,16 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // SlotResolution it reports through, §12.3's per-theme records added
 // EventLogger.Loaded and EventLogger.FallbackApplied beside the two rejection
 // events, §7.6's runtime escalation added BrokenBuiltinError, and §9.4's union
-// added Open and Reassemble with the Enumeration, Union, Row and RowSource they
-// deal in plus the EventLogger.Enumerated they report through. Nothing on the
-// removed list ever returns to it.
+// added the Assembler's Open and Reassemble with the Enumeration, Union, Row and
+// RowSource they deal in plus the EventLogger.Enumerated they report through.
+// Nothing on the removed list ever returns to it.
+//
+// The three-way split of the loader's old surface is pinned here rather than
+// merely done: the row-model assembly is Assembler's, the panel seam's four
+// methods are DirEnumerator's, and what is left on Loader parses, enumerates and
+// resolves. LoadPath is a FUNCTION because neither the reserved set nor the event
+// seam bears on a path a caller named itself — a method would take a receiver it
+// cannot read.
 //
 // BrokenBuiltinError is exported for one reason and it is not a caller's: §14A's
 // fatal sentence is pinned copy, so the test that pins it must be able to state
@@ -219,6 +226,9 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // point to put one on a cold path.
 var wantExports = []string{
 	"AdaptivePair",
+	"Assembler",
+	"Assembler.Open",
+	"Assembler.Reassemble",
 	"BadNameCause",
 	"BadNameExtension",
 	"BadNameNone",
@@ -237,6 +247,11 @@ var wantExports = []string{
 	"ConstantNomination",
 	"DefaultDarkSlug",
 	"DefaultLightSlug",
+	"DirEnumerator",
+	"DirEnumerator.Open",
+	"DirEnumerator.Reassemble",
+	"DirEnumerator.Resolve",
+	"DirEnumerator.ResolveSlot",
 	"Entry",
 	"Enumeration",
 	"EventLogger",
@@ -245,13 +260,11 @@ var wantExports = []string{
 	"EventLogger.FallbackApplied",
 	"EventLogger.Loaded",
 	"EventLogger.Rejected",
+	"LoadPath",
 	"Loader",
 	"Loader.Enumerate",
 	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
-	"Loader.LoadPath",
-	"Loader.Open",
-	"Loader.Reassemble",
 	"Loader.ResolveByName",
 	"Loader.ResolveNomination",
 	"Loader.ResolveNominationFrom",

@@ -53,7 +53,7 @@ import (
 // The light/dark answer is PINNED rather than detected (WithCanvasMode), for
 // themeCursorModel's reason: §8.8's gate resolves exactly once and the close must
 // read THAT answer rather than ask again.
-func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *realThemeEnumerator, *logtest.Sink) {
+func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeEnumerator, *logtest.Sink) {
 	t.Helper()
 
 	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
@@ -62,7 +62,7 @@ func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *r
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 	}
 	loader, sink := themeOpenTestLoader(t)
-	enumerator := &realThemeEnumerator{loader: loader, dir: dir}
+	enumerator := countingEnumeratorOver(loader, dir)
 	m := New(fakeLister{},
 		WithThemeEnumerator(enumerator),
 		WithThemeKeys(keys),
@@ -477,7 +477,7 @@ func TestPanelClose_EventCadence(t *testing.T) {
 		t.Fatalf("%d opens emitted %d `theme: enumerated` records, want %d — the sink is not recording this loader", cycles, got, cycles)
 	}
 	setting, _ := theme.ResolveSetting("sunset", "", "")
-	if _, err := enumerator.loader.ResolveNomination(setting, dir); err != nil {
+	if _, err := enumerator.Loader.ResolveNomination(setting, dir); err != nil {
 		t.Fatalf("positive-control by-name resolution: %v", err)
 	}
 	if countThemeEvents(sink, "loaded") == 0 {

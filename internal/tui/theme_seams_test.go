@@ -42,38 +42,15 @@ func (f fixtureThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot
 	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
 }
 
-// loaderThemeEnumerator is the shape the PRODUCTION adapter takes (task 8-7
-// wires it): a theme.Loader plus the resolved themes directory, closed over so
-// the seam's Open takes only the persisted keys — the same hiding
-// ScrollbackReader applies to the state directory.
-type loaderThemeEnumerator struct {
-	loader    theme.Loader
-	themesDir string
-}
-
-func (a loaderThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
-	return a.loader.Open(a.themesDir, keys)
-}
-
-func (a loaderThemeEnumerator) Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union {
-	return a.loader.Reassemble(e, keys)
-}
-
-func (a loaderThemeEnumerator) Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error) {
-	return a.loader.ResolveNominationFrom(e, s)
-}
-
-func (a loaderThemeEnumerator) ResolveSlot(e theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
-	return a.loader.ResolveSlot(e, slot, slug)
-}
-
-func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheLoader(t *testing.T) {
+func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
 	// Compile-time assertions: the seam is satisfiable BOTH wholesale by a
-	// fixture holding nothing (§13.3) and by a thin closure over
-	// theme.Loader.Open / Reassemble. If either internal/theme signature drifts,
-	// the second stops compiling here rather than in task 8-7's wiring.
+	// fixture holding nothing (§13.3) and by theme.DirEnumerator, the exported
+	// adapter production wires (cmd's newThemeEnumerator returns it). A drift in
+	// either signature stops compiling here rather than at the wiring site — and
+	// because the adapter asserted is production's own rather than a
+	// re-implementation of it, this cannot pass while production fails.
 	var _ tui.ThemeEnumerator = fixtureThemeEnumerator{}
-	var _ tui.ThemeEnumerator = loaderThemeEnumerator{}
+	var _ tui.ThemeEnumerator = theme.DirEnumerator{}
 }
 
 // TestThemeEnumeratorReturnsTheFinishedUnion pins §13.3's central claim about
@@ -90,9 +67,9 @@ func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheLoader(t *testing.T) {
 // §9.5's order like every other row, which for `ghost` is among the built-ins
 // rather than after them.
 func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
-	var enumerator tui.ThemeEnumerator = loaderThemeEnumerator{
-		loader:    theme.NewLoader(theme.NewEventLogger(log.Discard())),
-		themesDir: filepath.Join(t.TempDir(), "themes"),
+	var enumerator tui.ThemeEnumerator = theme.DirEnumerator{
+		Loader: theme.NewLoader(theme.NewEventLogger(log.Discard())),
+		Dir:    filepath.Join(t.TempDir(), "themes"),
 	}
 
 	_, union := enumerator.Open(theme.RawKeys{Theme: "ghost"})

@@ -193,14 +193,15 @@ func (l Loader) LoadFile(path string) (Result, *Rejection) {
 // preceded by the same read), so a file judged here and the same file judged as a
 // directory entry can differ only in the two rungs deliberately skipped.
 //
-// The receiver is unused for the same reason LoadBuiltin's is: neither the
-// reserved-slug set nor the event seam bears on an input the caller named itself
-// — the log component reports on the directory enumeration, not on a file handed
-// in. It stays a method so a caller reaches every entry point through the one
-// Loader it holds.
+// It is a FUNCTION rather than a Loader method because none of a Loader's
+// injected dependencies bears on it: the reserved-slug set decides a rung this
+// never runs, the built-in source serves a lookup this never performs, and the
+// log component reports on the directory enumeration rather than on a file the
+// caller named itself. Taking no receiver is what makes them unreachable from
+// here rather than merely unread.
 //
 // On rejection the Result is the zero value, exactly as LoadFile's is.
-func (l Loader) LoadPath(path string) (Result, *Rejection) {
+func LoadPath(path string) (Result, *Rejection) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Result{}, unreadable(err)

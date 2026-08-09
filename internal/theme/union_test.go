@@ -29,9 +29,9 @@ import (
 func TestUnion_AbsentDirectoryIsBuiltinsOnly(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "themes")
 	logger, sink := logtest.NewCaptureLogger(t)
-	loader := theme.NewLoader(theme.NewEventLogger(logger))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(logger))}
 
-	enumeration, union := loader.Open(dir, theme.RawKeys{})
+	enumeration, union := assembler.Open(dir, theme.RawKeys{})
 
 	if enumeration.DirUnusable {
 		t.Errorf("enumeration reports the directory unusable, want an absent directory treated silently")
@@ -83,9 +83,9 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{})
+	_, union := assembler.Open(dir, theme.RawKeys{})
 
 	collided := rowsWithSlug(union, "nord")
 	if len(collided) != 2 {
@@ -126,9 +126,9 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 func TestUnion_BuiltinRowsCarryNoMarker(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{})
+	_, union := assembler.Open(dir, theme.RawKeys{})
 
 	builtin := onlyRowWithSlug(t, union, theme.DefaultDarkSlug)
 	dropIn := onlyRowWithSlug(t, union, "nord-lee")
@@ -177,7 +177,7 @@ func TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow(t *testing.T) {
 			loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
 			loader.BuiltinSource = tt.source
 
-			_, union := loader.Open(t.TempDir(), theme.RawKeys{})
+			_, union := theme.Assembler{Loader: loader}.Open(t.TempDir(), theme.RawKeys{})
 
 			rows := rowsWithSlug(union, theme.DefaultDarkSlug)
 			if !tt.wantRow {
@@ -227,11 +227,11 @@ func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
-	loader := theme.NewLoader(theme.NewEventLogger(logger))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(logger))}
 
 	const opens = 5
 	for open := range opens {
-		if _, union := loader.Open(dir, theme.RawKeys{}); len(union.Rows) != len(theme.BuiltinSlugs())+3 {
+		if _, union := assembler.Open(dir, theme.RawKeys{}); len(union.Rows) != len(theme.BuiltinSlugs())+3 {
 			t.Fatalf("open %d: union has %d rows, want the built-ins plus the three staged files", open, len(union.Rows))
 		}
 	}
@@ -274,10 +274,10 @@ func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
 	log.SetTestHandler(t, sink)
 	dir := t.TempDir()
 	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
 	for open := range 5 {
-		_, union := loader.Open(dir, theme.RawKeys{Theme: "ghost"})
+		_, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
 		if union.Count == 0 || union.Rejected == 0 {
 			t.Fatalf("open %d: union = %+v, want rows and rejections so the silence is not vacuous", open, union)
 		}
@@ -290,7 +290,7 @@ func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
 
 // TestUnion_ZeroValueLoaderIsASilentSeam pins the other half of the emission
 // contract on the union's entry point: a Loader ASSEMBLED BY HAND carries no
-// event seam at all, and Open is silent on it rather than dereferencing a nil.
+// event seam at all, and Open is silent over it rather than dereferencing a nil.
 //
 // It is the shape every other emitting entry point in this package is already
 // driven through, and the one a caller reaches by writing theme.Loader{} instead
@@ -302,7 +302,7 @@ func TestUnion_ZeroValueLoaderIsASilentSeam(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 
-	_, union := theme.Loader{}.Open(dir, theme.RawKeys{Theme: "ghost"})
+	_, union := theme.Assembler{Loader: theme.Loader{}}.Open(dir, theme.RawKeys{Theme: "ghost"})
 
 	if len(rowsWithSlug(union, "nord-lee")) != 1 || len(persistedRows(union)) != 1 {
 		t.Fatalf("union = %v, want the staged file and the dead persisted slug — the silence must not be vacuous", unionSlugs(union))
@@ -351,9 +351,9 @@ func TestUnion_IsAnOrdinaryValue(t *testing.T) {
 // `tokyo-night`. The persisted slug contributes nothing because the built-in's
 // row already IS its row.
 func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(t.TempDir(), theme.RawKeys{Theme: theme.DefaultDarkSlug})
+	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: theme.DefaultDarkSlug})
 
 	rows := rowsWithSlug(union, theme.DefaultDarkSlug)
 	if len(rows) != 1 {
@@ -380,9 +380,9 @@ func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
 func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{Theme: "nord-lee"})
+	_, union := assembler.Open(dir, theme.RawKeys{Theme: "nord-lee"})
 
 	rows := rowsWithSlug(union, "nord-lee")
 	if len(rows) != 1 {
@@ -408,9 +408,9 @@ func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 // Portal falls back silently and never overwrites the persisted name, so without
 // this row the only signal the user gets is "my colours changed".
 func TestUnion_UnresolvablePersistedSlugIsNotFound(t *testing.T) {
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(t.TempDir(), theme.RawKeys{Theme: "ghost"})
+	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: "ghost"})
 
 	row := onlyPersistedRow(t, union)
 	if row.Slug != "ghost" {
@@ -439,9 +439,9 @@ func TestUnion_UnresolvablePersistedSlugIsNotFound(t *testing.T) {
 // be sitting right there in a directory nothing can list.
 func TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable(t *testing.T) {
 	dir := unreadableDir(t)
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	enumeration, union := loader.Open(dir, theme.RawKeys{Theme: "ghost"})
+	enumeration, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
 
 	if !enumeration.DirUnusable || !union.DirUnusable {
 		t.Fatalf("enumeration/union DirUnusable = %v/%v, want both true", enumeration.DirUnusable, union.DirUnusable)
@@ -466,9 +466,9 @@ func TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable(t *testing.T
 // `../something` ever becoming a path component (§8.6).
 func TestUnion_CharsetRejectedPersistedStringIsBadName(t *testing.T) {
 	const illegal = "../evil"
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(t.TempDir(), theme.RawKeys{Theme: illegal})
+	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: illegal})
 
 	row := onlyPersistedRow(t, union)
 	if row.Slug != "" {
@@ -495,9 +495,9 @@ func TestUnion_CharsetRejectedPersistedStringIsBadName(t *testing.T) {
 // for two slugs Portal is not reading and put the user to work fixing something
 // with no effect.
 func TestUnion_ConstantContributesOnlyTheConstant(t *testing.T) {
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(t.TempDir(), theme.RawKeys{Theme: "ghost", Light: "phantom", Dark: "spectre"})
+	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: "ghost", Light: "phantom", Dark: "spectre"})
 
 	row := onlyPersistedRow(t, union)
 	if row.Slug != "ghost" {
@@ -533,10 +533,10 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 		{name: "both slots name the same illegal string", keys: theme.RawKeys{Light: "../evil", Dark: "../evil"}, want: []string{"../evil"}},
 	}
 
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, union := loader.Open(t.TempDir(), tt.keys)
+			_, union := assembler.Open(t.TempDir(), tt.keys)
 
 			got := []string{}
 			for _, row := range persistedRows(union) {
@@ -563,9 +563,9 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 // `●` entirely.
 func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
 	dir := unreadableDir(t)
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{Theme: "ghost"})
+	_, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
 
 	if !union.DirUnusable {
 		t.Fatal("union DirUnusable = false, want true")
@@ -592,9 +592,9 @@ func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
-	loader := theme.NewLoader(theme.NewEventLogger(logger))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(logger))}
 
-	_, union := loader.Open(dir, theme.RawKeys{Light: "phantom", Dark: "ghost"})
+	_, union := assembler.Open(dir, theme.RawKeys{Light: "phantom", Dark: "ghost"})
 
 	wantCount := len(theme.BuiltinSlugs()) + 3 + 2
 	if len(union.Rows) != wantCount {
@@ -641,9 +641,9 @@ func TestUnion_ReassembleReadsNothing(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
-	loader := theme.NewLoader(theme.NewEventLogger(logger))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(logger))}
 
-	enumeration, union := loader.Open(dir, theme.RawKeys{})
+	enumeration, union := assembler.Open(dir, theme.RawKeys{})
 	if len(rowsWithSlug(union, "nord-lee")) != 1 {
 		t.Fatalf("union has no row for the staged file: %v", unionSlugs(union))
 	}
@@ -651,7 +651,7 @@ func TestUnion_ReassembleReadsNothing(t *testing.T) {
 		t.Fatalf("remove %s: %v", dir, err)
 	}
 
-	again := loader.Reassemble(enumeration, theme.RawKeys{Theme: "ghost"})
+	again := assembler.Reassemble(enumeration, theme.RawKeys{Theme: "ghost"})
 
 	if len(rowsWithSlug(again, "nord-lee")) != 1 {
 		t.Errorf("re-derived union = %v, want the retained file row — Reassemble re-read the directory", unionSlugs(again))

@@ -140,7 +140,7 @@ func TestBadges_CharsetRejectedValueKeepsItsBadge(t *testing.T) {
 	loader := nominationLoader()
 	setting, keys := theme.ResolveSetting(illegal, "", "")
 
-	_, union := loader.Open(t.TempDir(), keys)
+	_, union := theme.Assembler{Loader: loader}.Open(t.TempDir(), keys)
 	resolution, err := loader.ResolveNomination(setting, t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveNomination(a charset-rejected constant) = %v", err)
@@ -427,7 +427,7 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 		loader := nominationLoader()
 		setting, _ := theme.ResolveSetting("nord", "", "")
 
-		_, union := loader.Open(dir, theme.RawKeys{Theme: "nord"})
+		_, union := theme.Assembler{Loader: loader}.Open(dir, theme.RawKeys{Theme: "nord"})
 		resolution, err := loader.ResolveNomination(setting, dir)
 		if err != nil {
 			t.Fatalf("ResolveNomination(a constant %q) = %v", "nord", err)

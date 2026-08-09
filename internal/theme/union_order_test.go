@@ -25,9 +25,9 @@ import (
 func TestRowOrder_ReservedNameSortsBySlugLabelsByFilename(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{})
+	_, union := assembler.Open(dir, theme.RawKeys{})
 
 	row := onlyRejectedRow(t, union, theme.ReasonReservedName)
 	if got, want := row.SortKey(), "nord"; got != want {
@@ -58,9 +58,9 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{})
+	_, union := assembler.Open(dir, theme.RawKeys{})
 
 	collided := rowsWithSlug(union, "nord")
 	if len(collided) != 2 {
@@ -98,9 +98,9 @@ func TestRowOrder_BuiltinFirstOnTheGuaranteedTie(t *testing.T) {
 func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "Bad_Name.theme", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(dir, theme.RawKeys{})
+	_, union := assembler.Open(dir, theme.RawKeys{})
 
 	row := onlyRejectedRow(t, union, theme.ReasonBadName)
 	if row.Slug != "" {
@@ -130,9 +130,9 @@ func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 // drawn), so the key is the ordinary one-line text the row also displays.
 func TestRowOrder_CharsetRejectedSortsByItself(t *testing.T) {
 	const illegal = "../evil"
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	_, union := loader.Open(t.TempDir(), theme.RawKeys{Theme: illegal})
+	_, union := assembler.Open(t.TempDir(), theme.RawKeys{Theme: illegal})
 
 	row := onlyPersistedRow(t, union)
 	if row.Slug != "" || row.Filename != "" {
@@ -184,7 +184,7 @@ func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 		},
 	}
 
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -192,13 +192,13 @@ func TestRowOrder_CaseInsensitiveThenByteWise(t *testing.T) {
 				themetest.Write(t, dir, file, themetest.Lines())
 			}
 
-			enumeration, union := loader.Open(dir, tt.keys)
+			enumeration, union := assembler.Open(dir, tt.keys)
 
 			if got := rowSortKeys(union); !slices.Equal(got, tt.want) {
 				t.Fatalf("union sort keys = %v, want %v", got, tt.want)
 			}
 			for again := range 5 {
-				if got := rowSortKeys(loader.Reassemble(enumeration, tt.keys)); !slices.Equal(got, tt.want) {
+				if got := rowSortKeys(assembler.Reassemble(enumeration, tt.keys)); !slices.Equal(got, tt.want) {
 					t.Fatalf("re-derivation %d = %v, want the identical %v — the order must not vary by run", again, got, tt.want)
 				}
 			}
@@ -230,9 +230,9 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
 	themetest.Write(t, dir, "aa-early.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 	keys := theme.RawKeys{Light: "ghost", Dark: "../evil"}
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	enumeration, union := loader.Open(dir, keys)
+	enumeration, union := assembler.Open(dir, keys)
 
 	want := []string{"../evil", "aa-early", "Bad_Name.theme", "ghost", "nord", "nord.theme", "tokyo-night", "tokyo-night-day", "zz-late"}
 	if got := rowLabels(union); !slices.Equal(got, want) {
@@ -258,7 +258,7 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 				DirPath:     enumeration.DirPath,
 			}
 
-			again := loader.Reassemble(shuffled, keys)
+			again := assembler.Reassemble(shuffled, keys)
 
 			if got, want := rowIdentities(again), rowIdentities(union); !slices.Equal(got, want) {
 				t.Errorf("re-derived union = %v, want the identical %v — the order must not carry any of the input's", got, want)
@@ -291,7 +291,7 @@ func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 		{name: "a filename that would sort to the tail", filename: "zzz.theme"},
 	}
 
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 	wantAt := builtinIndex(t, "nord") + 1
 
 	for _, tt := range tests {
@@ -303,7 +303,7 @@ func TestRowOrder_SortKeyAndLabelAreSeparateValues(t *testing.T) {
 				Rejection: &theme.Rejection{Reason: theme.ReasonReservedName},
 			}}}
 
-			union := loader.Reassemble(enumeration, theme.RawKeys{})
+			union := assembler.Reassemble(enumeration, theme.RawKeys{})
 
 			if got, want := union.Rows[wantAt].Label(), tt.filename; got != want {
 				t.Errorf("the reserved-name row's label = %q, want the filename %q — the label follows the file", got, want)
@@ -330,16 +330,16 @@ func TestRowOrder_UnionIsOrderedOnReturn(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
 	themetest.Write(t, dir, "aa-early.theme", themetest.Lines())
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 
-	enumeration, opened := loader.Open(dir, theme.RawKeys{Theme: "zzz-ghost"})
+	enumeration, opened := assembler.Open(dir, theme.RawKeys{Theme: "zzz-ghost"})
 
 	want := append(append([]string{"aa-early"}, theme.BuiltinSlugs()...), "zz-late", "zzz-ghost")
 	if got := rowSortKeys(opened); !slices.Equal(got, want) {
 		t.Errorf("the opened union's sort keys = %v, want %v", got, want)
 	}
 
-	again := loader.Reassemble(enumeration, theme.RawKeys{Theme: "../evil"})
+	again := assembler.Reassemble(enumeration, theme.RawKeys{Theme: "../evil"})
 
 	want = append(append([]string{"../evil", "aa-early"}, theme.BuiltinSlugs()...), "zz-late")
 	if got := rowSortKeys(again); !slices.Equal(got, want) {
@@ -369,7 +369,7 @@ func TestRowOrder_NoVariantConcept(t *testing.T) {
 		{name: "neither row carries a palette at all", early: theme.Theme{}, late: theme.Theme{}},
 	}
 
-	loader := theme.NewLoader(theme.NewEventLogger(log.Discard()))
+	assembler := theme.Assembler{Loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))}
 	want := append(append([]string{"aa-early"}, theme.BuiltinSlugs()...), "zz-late")
 
 	for _, tt := range tests {
@@ -379,7 +379,7 @@ func TestRowOrder_NoVariantConcept(t *testing.T) {
 				{Path: "/themes/zz-late.theme", Filename: "zz-late.theme", Slug: "zz-late", Theme: tt.late},
 			}}
 
-			union := loader.Reassemble(enumeration, theme.RawKeys{})
+			union := assembler.Reassemble(enumeration, theme.RawKeys{})
 
 			if got := rowSortKeys(union); !slices.Equal(got, want) {
 				t.Errorf("union sort keys = %v, want %v — the palette is not an input to the ordering", got, want)

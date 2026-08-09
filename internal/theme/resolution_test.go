@@ -965,7 +965,7 @@ func TestResolveNomination_NeverOverwritesPrefs(t *testing.T) {
 func enumerationOf(t *testing.T, loader theme.Loader, dir string) theme.Enumeration {
 	t.Helper()
 
-	enumeration, _ := loader.Open(dir, theme.RawKeys{})
+	enumeration, _ := theme.Assembler{Loader: loader}.Open(dir, theme.RawKeys{})
 	return enumeration
 }
 
