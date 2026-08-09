@@ -31,6 +31,40 @@ type RawKeys struct {
 	Dark  string
 }
 
+// WithConstant is these keys with slug as the constant theme and BOTH SLOTS
+// CLEARED — the setting's mutual exclusion in the constant direction, as a
+// value.
+//
+// NOTHING OF THE RECEIVER SURVIVES, which is the rule rather than an oversight.
+// The clear is STRUCTURAL: it is performed by constructing a value that holds
+// only the constant, so no edit can half-apply it by forgetting a line.
+//
+// It states in memory what a commit performs on the file, so a surface holding
+// keys alongside a write does not author the rule a second time.
+func (k RawKeys) WithConstant(slug string) RawKeys {
+	return RawKeys{Theme: slug}
+}
+
+// WithMember is these keys with slug in the named half of the adaptive pair, the
+// OTHER half carried across verbatim, and THE CONSTANT GONE — the same mutual
+// exclusion in the slot direction.
+//
+// The clear is structural exactly as WithConstant's is, so neither direction can
+// be half-applied by an edit that forgets a line. The untouched other half is
+// what makes one slug reachable in both slots by two separate assignments.
+//
+// THE HALF IS NAMED BY A Member RATHER THAN BY A Slot, and the narrowing is what
+// makes this total: a Slot carries a constant position, which is no half of the
+// pair and so names nothing to put a slug in — an argument the write side rejects
+// outright, and one a caller reaches by passing a selector they forgot to set.
+// Member has two values and no third to answer for.
+func (k RawKeys) WithMember(m Member, slug string) RawKeys {
+	if m == MemberLight {
+		return RawKeys{Light: slug, Dark: k.Dark}
+	}
+	return RawKeys{Light: k.Light, Dark: slug}
+}
+
 // Setting is the theme setting: EXACTLY TWO STATES, derived from the three raw
 // keys.
 //

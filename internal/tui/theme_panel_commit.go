@@ -91,9 +91,12 @@ func committableThemeSlug(l list.Model) (string, bool) {
 // to.
 //
 // THE MIRROR IS A MIRROR, NOT A RE-READ. Mutual exclusion is prefs'
-// (SaveTheme clears both slots in the same atomic write); restating it here as an
-// in-memory assignment is what keeps the panel's badges and rows in step with what
-// was just persisted, with no second implementation of the rule and no read-back.
+// (SaveTheme clears both slots in the same atomic write); applying the same
+// transformation to the keys in hand is what keeps the panel's badges and rows in
+// step with what was just persisted, with no read-back. The rule itself is
+// theme.RawKeys.WithConstant's — prefs is a leaf that cannot import the token
+// layer, so the file's half and this one cannot be one mutator, and stating the
+// in-memory half anywhere but there would author it a second time.
 //
 // AND IT IS APPLIED TO THE CONSTRUCTION-TIME SNAPSHOT, never to the merged bytes
 // the persister's read-modify-write just had in hand. That RMW necessarily holds
@@ -128,7 +131,7 @@ func (m *Model) commitConstant(slug string) error {
 	if err != nil {
 		return err
 	}
-	m.themeState.keys = theme.RawKeys{Theme: slug}
+	m.themeState.keys = m.themeState.keys.WithConstant(slug)
 	m.recomputeThemePanel()
 	return nil
 }
@@ -293,29 +296,26 @@ func (m *Model) commitSlot(slug string, slot prefs.ThemeSlot) error {
 	return nil
 }
 
-// mirrorThemeSlot is mutual exclusion as an in-memory value: keys with
-// slug in the named slot, the OTHER slot's raw value carried through untouched,
-// and the constant gone.
+// mirrorThemeSlot is the slot direction of the same mutual exclusion, over the
+// keys in hand: slug in the named slot, the OTHER slot's raw value carried
+// through untouched, and the constant gone.
 //
-// THE CLEAR IS STRUCTURAL. The constant is dropped by CONSTRUCTING a value that
-// holds only the pair, exactly as commitConstant expresses its own clear by
-// constructing one that holds only the constant — so neither direction of the
-// mutual exclusion can be half-applied by an edit that forgets a line.
+// THE RULE IS theme.RawKeys.WithMember'S, not a second copy of it — exactly as
+// commitConstant's clear is WithConstant's. What is left here is the TYPE
+// TRANSLATION and nothing more: the keypress threads the typed prefs slot, which
+// is what the write takes, while the keys name their half in the token layer's
+// own two-valued vocabulary. It is the same prefs-slot-to-Member translation
+// oppositeThemeMember makes, minus its flip to the other half.
 //
-// THERE IS NO DEFAULT ARM, mirroring prefs.SaveThemeSlot's own switch: an
-// out-of-range slot is rejected by the store BEFORE this is reached (its guard
-// returns an error and commitSlot has already returned on it), and the only
-// values this package names are the two constants — which the typed-slot source
-// guard pins.
+// ANYTHING THAT IS NOT THE LIGHT SLOT IS THE DARK ONE. An out-of-range slot is
+// rejected by the store BEFORE this is reached — its guard returns an error and
+// commitSlot has already returned on it — and the only values this package names
+// are the two constants.
 func mirrorThemeSlot(keys theme.RawKeys, slug string, slot prefs.ThemeSlot) theme.RawKeys {
-	mirrored := theme.RawKeys{Light: keys.Light, Dark: keys.Dark}
-	switch slot {
-	case prefs.SlotLight:
-		mirrored.Light = slug
-	case prefs.SlotDark:
-		mirrored.Dark = slug
+	if slot == prefs.SlotLight {
+		return keys.WithMember(theme.MemberLight, slug)
 	}
-	return mirrored
+	return keys.WithMember(theme.MemberDark, slug)
 }
 
 // recomputeThemePanel is the POST-COMMIT RECOMPUTE: the panel re-rendered

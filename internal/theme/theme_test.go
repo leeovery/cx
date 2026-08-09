@@ -209,6 +209,16 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // exported. The Slot they carry is not a light/dark variant surface returning
 // either: it names the POSITION a value occupies in the setting.
 //
+// RawKeys.WithConstant and RawKeys.WithMember are exported for the same kind of
+// reason InForceKeys is: the setting's mutual exclusion — a constant clears both
+// slots, a slot clears the constant and carries the other half across — is one
+// rule that prefs performs on the FILE and the theme panel must restate on the
+// KEYS IT HOLDS, since prefs is a leaf that cannot import this package and so
+// cannot share the mutator itself. Exporting the transformation gives the
+// in-memory half one home instead of one per commit handler. The half is named by
+// a Member rather than a Slot so the pair's two halves are the whole of the
+// argument's domain, matching what the write side will accept.
+//
 // Badge.Text is a DEPARTURE rather than an addition: the badge derivation stays
 // here, because which badge a slug carries is a fact about the setting, but the
 // words it is drawn with are the theme panel's copy and live with the panel's
@@ -311,6 +321,8 @@ var wantExports = []string{
 	"Nomination.Select",
 	"Pair",
 	"RawKeys",
+	"RawKeys.WithConstant",
+	"RawKeys.WithMember",
 	"Reason",
 	"ReasonBadColour",
 	"ReasonBadName",

@@ -496,6 +496,103 @@ func TestInForceKeys_AcceptsAlreadyResolvedKeys(t *testing.T) {
 	}
 }
 
+// TestRawKeysWithConstant_HoldsOnlyTheConstant pins the constant direction of the
+// setting's mutual exclusion as a value: the named slug, and NOTHING of the
+// receiver.
+//
+// The clear is what the rule is FOR, so the fixture arrives carrying both slots
+// and a stale constant — over empty keys the transformation and a plain field
+// assignment are the same value.
+func TestRawKeysWithConstant_HoldsOnlyTheConstant(t *testing.T) {
+	keys := theme.RawKeys{Theme: "nord-lee", Light: "solar", Dark: "gruv"}
+
+	got := keys.WithConstant("latte")
+
+	if want := (theme.RawKeys{Theme: "latte"}); got != want {
+		t.Errorf("WithConstant over %+v = %+v, want %+v — a constant clears both slots", keys, got, want)
+	}
+}
+
+// TestRawKeysWithMember_ReplacesTheNamedHalf pins the other direction: one half
+// of the pair replaced, the other carried across verbatim, and the constant gone.
+func TestRawKeysWithMember_ReplacesTheNamedHalf(t *testing.T) {
+	tests := []struct {
+		name   string
+		keys   theme.RawKeys
+		member theme.Member
+		slug   string
+		want   theme.RawKeys
+	}{
+		{
+			name:   "the light half over a constant",
+			keys:   theme.RawKeys{Theme: "nord-lee"},
+			member: theme.MemberLight,
+			slug:   "solar",
+			want:   theme.RawKeys{Light: "solar"},
+		},
+		{
+			name:   "the dark half over a constant",
+			keys:   theme.RawKeys{Theme: "nord-lee"},
+			member: theme.MemberDark,
+			slug:   "gruv",
+			want:   theme.RawKeys{Dark: "gruv"},
+		},
+		{
+			name:   "the light half of a pair, the dark one carried across",
+			keys:   theme.RawKeys{Light: "solar", Dark: "gruv"},
+			member: theme.MemberLight,
+			slug:   "latte",
+			want:   theme.RawKeys{Light: "latte", Dark: "gruv"},
+		},
+		{
+			name:   "the dark half of a pair, the light one carried across",
+			keys:   theme.RawKeys{Light: "solar", Dark: "gruv"},
+			member: theme.MemberDark,
+			slug:   "latte",
+			want:   theme.RawKeys{Light: "solar", Dark: "latte"},
+		},
+		{
+			name:   "a constant beside a stale pair takes the pair and drops the constant",
+			keys:   theme.RawKeys{Theme: "nord-lee", Light: "solar", Dark: "gruv"},
+			member: theme.MemberDark,
+			slug:   "latte",
+			want:   theme.RawKeys{Light: "solar", Dark: "latte"},
+		},
+		{
+			name:   "an empty slug empties the named half",
+			keys:   theme.RawKeys{Light: "solar", Dark: "gruv"},
+			member: theme.MemberLight,
+			slug:   "",
+			want:   theme.RawKeys{Dark: "gruv"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.keys.WithMember(tt.member, tt.slug); got != tt.want {
+				t.Errorf("WithMember(%d, %q) over %+v = %+v, want %+v", tt.member, tt.slug, tt.keys, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRawKeys_TransformationsLeaveTheReceiverAlone pins that both are VALUES
+// rather than mutations: the caller's own keys are untouched, so a caller that
+// discards the result changes nothing.
+func TestRawKeys_TransformationsLeaveTheReceiverAlone(t *testing.T) {
+	original := theme.RawKeys{Theme: "nord-lee", Light: "solar", Dark: "gruv"}
+
+	keys := original
+	constant, slotted := keys.WithConstant("latte"), keys.WithMember(theme.MemberLight, "latte")
+
+	if keys != original {
+		t.Errorf("the receiver is now %+v, want the original %+v — both transformations return a NEW value", keys, original)
+	}
+	if constant == original || slotted == original {
+		t.Errorf("WithConstant returned %+v and WithMember %+v over %+v; neither moved, so an untouched receiver says nothing", constant, slotted, original)
+	}
+}
+
 // impureSettingImports names the routes out of a pure function, and what each
 // one would let in. It is a deny-list rather than an allow-list because the
 // property being guarded is "no I/O, no environment, no clock", not "these exact

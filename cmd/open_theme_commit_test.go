@@ -5,10 +5,12 @@ package cmd
 
 import (
 	"image/color"
+	"maps"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tui"
 )
@@ -64,6 +66,12 @@ const (
 	// away from a blocked-entry flash.
 	roundTripTermWidth  = 100
 	roundTripTermHeight = 28
+
+	// roundTripPanelBorder is the panel's left-border glyph, the one column every
+	// row of the slide-over begins with. It is a literal because internal/tui keeps
+	// its own copy unexported; should the two ever disagree the parse below finds no
+	// panel rows at all and says so.
+	roundTripPanelBorder = "│"
 )
 
 var (
@@ -78,6 +86,20 @@ var (
 	// previewing as they go.
 	themePanelCursorUpKey   = tea.KeyPressMsg{Code: tea.KeyUp}
 	themePanelCursorDownKey = tea.KeyPressMsg{Code: tea.KeyDown}
+	// themePanelConfirmKey is `y` — the answer that lets a slot commit through the
+	// gate `d`/`l` raise over a constant, so the write on that route happens here
+	// rather than on `d`.
+	themePanelConfirmKey = tea.KeyPressMsg{Code: 'y', Text: "y"}
+
+	// roundTripBadgeCopy is the panel's `●` vocabulary, restated here because
+	// internal/tui keeps the four strings unexported. It is what turns the badge
+	// table prefs' own bytes derive to into the words a frame can be searched for.
+	roundTripBadgeCopy = map[theme.Badge]string{
+		theme.BadgeConstant: "●",
+		theme.BadgeLight:    "● light",
+		theme.BadgeDark:     "● dark",
+		theme.BadgeBoth:     "● both",
+	}
 )
 
 // seedRoundTripThemes writes the two drop-ins into a fresh themes directory and
@@ -196,6 +218,136 @@ func canvasColour(canvas string) color.Color {
 	return theme.Token{Value: canvas}.Color()
 }
 
+// assertBadgesMatchPersistedKeys binds the panel's `●` set to the keys prefs
+// ACTUALLY WROTE: ONE read-back off disk, resolved into the badge table, compared
+// against the markers on the frame.
+//
+// IT IS THE JOIN BETWEEN THE TWO ENDS. A commit writes through the persister and
+// then restates prefs' mutual exclusion over the keys the model holds, so the
+// panel can re-derive its rows and badges without a read-back. Those are two
+// statements of one rule, and what they admit is the invariant the whole panel
+// rests on: a `●` claiming a state the file does not hold, with no other surface
+// to contradict it until relaunch.
+//
+// The badges are the observation this package CAN make: internal/tui keeps the
+// model's keys unexported, and the marker is derived from them and from nothing
+// else.
+//
+// THEY ARE A PROJECTION OF THE KEYS RATHER THAN THE KEYS. A stale slot sitting
+// beside a constant is invisible to them — the `theme`-wins tiebreak leaves the
+// slots unread, so a constant commit that failed to clear them moves no badge and
+// mints no row — and that drift surfaces only on the NEXT commit, once clearing
+// the constant makes those slots live. A constant commit is therefore bound by
+// the commit that FOLLOWS it rather than by itself, which is what a sequence of
+// two is for.
+func assertBadgesMatchPersistedKeys(t *testing.T, m tui.Model) {
+	t.Helper()
+
+	want := badgesForPersistedKeys(t)
+	got := panelBadgesOnFrame(t, m)
+	if !maps.Equal(got, want) {
+		t.Errorf("the panel marks %v, want %v — the badges and prefs.json disagree about what is set\n%s",
+			got, want, ansi.Strip(m.View().Content))
+	}
+}
+
+// badgesForPersistedKeys is the badge table prefs.json's own bytes derive to,
+// rendered in the panel's copy.
+//
+// The read is the NON-MIGRATING one, so a diagnosis of what was written cannot
+// itself write, and the resolution is the production construction-time one — the
+// same derivation the next launch performs on the same bytes.
+func badgesForPersistedKeys(t *testing.T) map[string]string {
+	t.Helper()
+
+	store, err := loadPrefsStoreNoMigrate()
+	if err != nil {
+		t.Fatalf("resolve the prefs store: %v", err)
+	}
+	keys, err := store.LoadThemeKeys()
+	if err != nil {
+		t.Fatalf("read the theme keys back off disk: %v", err)
+	}
+	resolution, _, err := themeResolution(keys, newThemeLoader())
+	if err != nil {
+		t.Fatalf("resolve the persisted theme setting %+v: %v", keys, err)
+	}
+
+	badges := make(map[string]string)
+	for slug, badge := range theme.Badges(resolution.Slots) {
+		marker, ok := roundTripBadgeCopy[badge]
+		if !ok {
+			t.Fatalf("prefs.json's keys derive badge %d for %q, which the panel has no copy for", badge, slug)
+		}
+		badges[slug] = marker
+	}
+	return badges
+}
+
+// panelBadgesOnFrame reads the `●` off the rendered slide-over, keyed by the slug
+// whose row carries it.
+//
+// ONLY THE UNION'S OWN SLUGS ARE LOOKED UP. The parse sees the whole panel, and
+// the vertical footer's rows read `d set as dark` and `l set as light` — a scan
+// for the badge vocabulary over everything would match on chrome the panel always
+// draws. Each slug is required PRESENT, so a badged row that paginated off the
+// frame fails rather than reading as an absent marker.
+func panelBadgesOnFrame(t *testing.T, m tui.Model) map[string]string {
+	t.Helper()
+
+	frame := ansi.Strip(m.View().Content)
+	trailing := panelRowTrailing(t, frame)
+
+	badges := make(map[string]string)
+	for _, slug := range roundTripUnionSlugs() {
+		row, listed := trailing[slug]
+		if !listed {
+			t.Fatalf("the frame carries no %q row, so a badge on it could not be seen:\n%s", slug, frame)
+		}
+		if row != "" {
+			badges[slug] = row
+		}
+	}
+	return badges
+}
+
+// panelRowTrailing is every row of the rendered slide-over, keyed by its first
+// word and holding whatever follows it.
+//
+// Every panel line begins with the one border column, so the panel's own text is
+// whatever follows the first such glyph, and a list row composes as
+// `[cursor column][label][pad][badge]` — leaving the label as the key and the
+// badge as the value.
+func panelRowTrailing(t *testing.T, frame string) map[string]string {
+	t.Helper()
+
+	trailing := make(map[string]string)
+	for line := range strings.SplitSeq(frame, "\n") {
+		_, panel, onPanel := strings.Cut(line, roundTripPanelBorder)
+		if !onPanel {
+			continue
+		}
+		fields := strings.Fields(panel)
+		if len(fields) > 0 && fields[0] == "▌" {
+			fields = fields[1:]
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		trailing[fields[0]] = strings.Join(fields[1:], " ")
+	}
+	if len(trailing) == 0 {
+		t.Fatalf("no panel rows parsed out of the frame; the slide-over did not render:\n%s", frame)
+	}
+	return trailing
+}
+
+// roundTripUnionSlugs is every row the panel lists in these fixtures: the
+// embedded set plus the two seeded drop-ins.
+func roundTripUnionSlugs() []string {
+	return append(theme.BuiltinSlugs(), roundTripStandingSlug, roundTripChosenSlug)
+}
+
 // TestThemePanelCommit_EnterRoundTripsAConstantToPrefs: `Enter` writes the
 // cursor's slug to prefs.json as the constant theme, and the next launch renders
 // it.
@@ -210,6 +362,11 @@ func canvasColour(canvas string) color.Color {
 // shape in which "the cursor's slug" and "the persisted slug" are
 // distinguishable strings: with the cursor left where the open put it, a commit
 // of the wrong one of the two would write the same bytes.
+//
+// THE PANEL IS HELD TO THE SAME BYTES. Both slots being cleared is a rule the
+// write applies to the file and the panel applies to the keys it holds, so the
+// badges are asserted against what a read-back derives: two `●` collapsing to one
+// bare marker on the committed row is the visible half of the clear.
 func TestThemePanelCommit_EnterRoundTripsAConstantToPrefs(t *testing.T) {
 	seedRoundTripThemes(t)
 	path := setPrefsFile(t, `{"session_list_mode":"by-tag","theme_dark":"`+roundTripStandingSlug+`"}`)
@@ -219,9 +376,10 @@ func TestThemePanelCommit_EnterRoundTripsAConstantToPrefs(t *testing.T) {
 	assertPaintedCanvas(t, m, canvasColour(roundTripStandingCanvas))
 	m = arrowToPreviewedCanvas(t, m, roundTripChosenCanvas)
 
-	update(t, m, themePanelConstantKey)
+	m = update(t, m, themePanelConstantKey)
 
 	assertPrefsOnDisk(t, path, prefsOnDisk{SessionListMode: "by-tag", Theme: roundTripChosenSlug})
+	assertBadgesMatchPersistedKeys(t, m)
 
 	// The relaunch: prefs.json read fresh off disk and resolved through the same
 	// construction-time resolution the next launch runs.
@@ -230,6 +388,81 @@ func TestThemePanelCommit_EnterRoundTripsAConstantToPrefs(t *testing.T) {
 		t.Fatalf("the relaunch resolved an adaptive pair; want the constant `Enter` committed")
 	}
 	assertCanvasValue(t, nomination.Constant(), roundTripChosenCanvas)
+}
+
+// TestThemePanelCommit_DarkKeyOverAConstantRoundTripsThePairToPrefs: over a
+// CONSTANT, `d` asks first and `y` writes the cursor's slug into the dark half,
+// clearing the constant in the same write.
+//
+// It is the other direction of the mutual exclusion, and the only one in which
+// the clear is destructive: the constant the user chose goes, and the untouched
+// light slot becomes live at the shipped default. The confirm exists for exactly
+// that, so the write is driven through it rather than around it.
+//
+// THE BADGES ARE ASSERTED AGAINST THE SAME READ-BACK the bytes are, which is what
+// binds the panel's in-memory restatement of the rule to the file: one bare `●`
+// becoming a `● light` on a default nobody set and a `● dark` on the committed row
+// is the whole of the transition, and it is claimed by the panel with nothing else
+// on screen to contradict it.
+func TestThemePanelCommit_DarkKeyOverAConstantRoundTripsThePairToPrefs(t *testing.T) {
+	seedRoundTripThemes(t)
+	path := setPrefsFile(t, `{"theme":"`+roundTripStandingSlug+`"}`)
+
+	m := startRoundTripPicker(t, themeRoundTripConfig(t))
+	m = openRoundTripPanel(t, m)
+	assertPaintedCanvas(t, m, canvasColour(roundTripStandingCanvas))
+	m = arrowToPreviewedCanvas(t, m, roundTripChosenCanvas)
+
+	// `d` alone only raises the question, so the file is asserted untouched before
+	// the answer: a keypress that wrote here would make the confirm decorative.
+	m = update(t, m, themePanelDarkSlotKey)
+	assertPrefsOnDisk(t, path, prefsOnDisk{Theme: roundTripStandingSlug})
+	m = update(t, m, themePanelConfirmKey)
+
+	assertPrefsOnDisk(t, path, prefsOnDisk{ThemeDark: roundTripChosenSlug})
+	assertBadgesMatchPersistedKeys(t, m)
+
+	nomination := themeNominationForTest(t)
+	if nomination.IsConstant() {
+		t.Fatalf("the relaunch resolved a constant; want the pair `d` converted it into")
+	}
+	assertCanvasValue(t, nomination.Select(theme.MemberDark), roundTripChosenCanvas)
+	assertCanvasValue(t, nomination.Select(theme.MemberLight), builtinThemeForTest(t, theme.DefaultLightSlug).Canvas.Value)
+}
+
+// TestThemePanelCommit_ConsecutiveCommitsStayBoundToPrefs: a SECOND commit in the
+// same panel session mirrors from the keys the FIRST one actually wrote.
+//
+// A CONSTANT'S CLEAR IS NOT VISIBLE ON THE FRAME IT HAPPENS ON. Under a constant
+// the slots are not read at all, so slots the commit failed to clear move no
+// badge and mint no row — one constant commit renders identically whether the
+// rule was applied or dropped. The next commit is where it bites:
+// clearing the constant makes those stale slots live, and the panel then marks a
+// `● light` on a slug prefs.json has no key for, claiming a setting the file does
+// not hold.
+//
+// So the sequence is a constant over a pair and then a slot over that constant,
+// with the bytes and the badges asserted after EACH. The second commit goes
+// through the confirm because the setting it acts on is the constant the first one
+// just made.
+func TestThemePanelCommit_ConsecutiveCommitsStayBoundToPrefs(t *testing.T) {
+	seedRoundTripThemes(t)
+	path := setPrefsFile(t, `{"theme_light":"`+roundTripStandingSlug+`","theme_dark":"`+nordSlug+`"}`)
+
+	m := startRoundTripPicker(t, themeRoundTripConfig(t))
+	m = openRoundTripPanel(t, m)
+	assertPaintedCanvas(t, m, builtinThemeForTest(t, nordSlug).Canvas.Color())
+	m = arrowToPreviewedCanvas(t, m, roundTripChosenCanvas)
+
+	m = update(t, m, themePanelConstantKey)
+	assertPrefsOnDisk(t, path, prefsOnDisk{Theme: roundTripChosenSlug})
+	assertBadgesMatchPersistedKeys(t, m)
+
+	m = update(t, m, themePanelDarkSlotKey)
+	m = update(t, m, themePanelConfirmKey)
+
+	assertPrefsOnDisk(t, path, prefsOnDisk{ThemeDark: roundTripChosenSlug})
+	assertBadgesMatchPersistedKeys(t, m)
 }
 
 // TestThemePanelCommit_DarkKeyRoundTripsOneSlotToPrefs: `d` writes the cursor's
