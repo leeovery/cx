@@ -45,7 +45,7 @@ import (
 // path is a statement about what an open and an `Esc` emit, and a sink construction also
 // resolved through would make every count a delta against construction's own lines
 // instead of an absolute.
-func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeEnumerator, *logtest.Sink) {
+func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeSource, *logtest.Sink) {
 	t.Helper()
 
 	loader, sink := themeOpenTestLoader(t)
@@ -78,12 +78,12 @@ func closePanelSessions() []tmux.Session {
 // newClosePanelStubModel builds a RENDERABLE Sessions model over hand-declared
 // union rows, with the panel still CLOSED — the pre-open state a "restores the
 // frame" comparison needs a frame from.
-func newClosePanelStubModel(t *testing.T, rows []theme.Row) (Model, *fakeThemeEnumerator) {
+func newClosePanelStubModel(t *testing.T, rows []theme.Row) (Model, *fakeThemeSource) {
 	t.Helper()
 	deps := newArrowPanelDeps(t, rows, rows[0].Slug)
-	stub, ok := deps.ThemeEnumerator.(*fakeThemeEnumerator)
+	stub, ok := deps.ThemeSource.(*fakeThemeSource)
 	if !ok {
-		t.Fatalf("the arrow deps' seam is %T, want the recording fake", deps.ThemeEnumerator)
+		t.Fatalf("the arrow deps' seam is %T, want the recording fake", deps.ThemeSource)
 	}
 	m := Build(deps)
 	m.termWidth, m.termHeight = arrowTermW, arrowTermH

@@ -44,14 +44,14 @@ const fixtureThemesDir = "/fixture/themes"
 // value names no slot, which the open's degrade policy reads as "leave all three
 // exactly as they were": the cases below that declare none are asserting the open
 // CADENCE, not its resolution.
-func newOpenEnumerator(union theme.Union) *fakeThemeEnumerator {
-	return &fakeThemeEnumerator{
+func newOpenEnumerator(union theme.Union) *fakeThemeSource {
+	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       union,
 	}
 }
 
-// countingThemeEnumerator is the PRODUCTION adapter itself — theme.DirEnumerator
+// countingThemeSource is the PRODUCTION adapter itself — theme.DirThemeSource
 // over a real theme.Loader and a real directory — carrying the open count the
 // cadence assertions below read. Driving the real one is the only way to assert
 // that a mid-session file edit is picked up and that each open is a genuine
@@ -61,20 +61,20 @@ func newOpenEnumerator(union theme.Union) *fakeThemeEnumerator {
 // behaviour added: three of the four methods are production's untouched, and the
 // fourth delegates to production's after incrementing. A re-implementation here
 // could drift from the seam production actually wires while both still compiled.
-type countingThemeEnumerator struct {
-	theme.DirEnumerator
+type countingThemeSource struct {
+	theme.DirThemeSource
 	opens int
 }
 
-func (e *countingThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
+func (e *countingThemeSource) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
 	e.opens++
-	return e.DirEnumerator.Open(keys)
+	return e.DirThemeSource.Open(keys)
 }
 
 // countingEnumeratorOver binds the production adapter to a loader and a staged
 // directory, wrapped in the open counter.
-func countingEnumeratorOver(loader theme.Loader, dir string) *countingThemeEnumerator {
-	return &countingThemeEnumerator{DirEnumerator: theme.DirEnumerator{Loader: loader, Dir: dir}}
+func countingEnumeratorOver(loader theme.Loader, dir string) *countingThemeSource {
+	return &countingThemeSource{DirThemeSource: theme.DirThemeSource{Loader: loader, Dir: dir}}
 }
 
 // themeOpenTestUnion is a two-row union: one built-in and one unresolvable
@@ -94,12 +94,12 @@ func themeOpenTestUnion() theme.Union {
 // There is no slot record to pass: the panel's badges come from the seam's own
 // Resolve against the enumeration it just read, which is what the injected
 // record was retired in favour of.
-func themeOpenTestModel(t *testing.T, enumerator ThemeEnumerator, keys theme.RawKeys) Model {
+func themeOpenTestModel(t *testing.T, enumerator ThemeSource, keys theme.RawKeys) Model {
 	t.Helper()
 	return Build(Deps{
-		Lister:          fakeLister{},
-		ThemeEnumerator: enumerator,
-		ThemeKeys:       keys,
+		Lister:      fakeLister{},
+		ThemeSource: enumerator,
+		ThemeKeys:   keys,
 	})
 }
 
@@ -107,13 +107,13 @@ func themeOpenTestModel(t *testing.T, enumerator ThemeEnumerator, keys theme.Raw
 // the filter and swallow assertions need: `bubbles/list` will not focus a filter
 // input over an empty list, and a swallowed row action has to have a row to act
 // on.
-func themeOpenTestPopulatedModel(t *testing.T, enumerator ThemeEnumerator) Model {
+func themeOpenTestPopulatedModel(t *testing.T, enumerator ThemeSource) Model {
 	t.Helper()
 	m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 2}})
 	m.sessionKiller = keymapParityKiller{}
 	m.projectList.SetItems(ProjectsToListItems([]project.Project{{Path: "/p/one", Name: "one"}}))
 	m.projectList.Select(0)
-	WithThemeEnumerator(enumerator)(&m)
+	WithThemeSource(enumerator)(&m)
 	return m
 }
 

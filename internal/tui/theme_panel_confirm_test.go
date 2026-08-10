@@ -969,10 +969,10 @@ func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 			t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 		}
 		m := Build(Deps{
-			Lister:          fakeLister{},
-			Theme:           resolution.Nomination,
-			ThemeEnumerator: countingEnumeratorOver(loader, dir),
-			ThemeKeys:       keys,
+			Lister:      fakeLister{},
+			Theme:       resolution.Nomination,
+			ThemeSource: countingEnumeratorOver(loader, dir),
+			ThemeKeys:   keys,
 		})
 		if m.themeState.persister != nil {
 			t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)

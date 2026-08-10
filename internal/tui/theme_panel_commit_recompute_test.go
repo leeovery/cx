@@ -45,7 +45,7 @@ import (
 // which rows the union holds for a given set of persisted keys, and in what order.
 // A stub seam answering with a fixed union would make every row assertion a
 // statement about the fixture rather than about theme.Reassemble.
-func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeEnumerator, *fakeThemePersister) {
+func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeSource, *fakeThemePersister) {
 	t.Helper()
 
 	m, enumerator, _ := newClosePanelModel(t, dir, keys)
@@ -453,12 +453,12 @@ func themeRowsUnion(rows []theme.Row) theme.Union {
 // under the cursor (no directory is re-read, so a valid file's row cannot go away),
 // a Resolve returning the build-time guarantee's fatal, and a reassembly the panel must render
 // in the assembler's order rather than in its own.
-func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlug string) (Model, *fakeThemeEnumerator, *fakeThemePersister) {
+func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlug string) (Model, *fakeThemeSource, *fakeThemePersister) {
 	t.Helper()
 
 	target := arrowRowBySlug(t, opened, cursorSlug)
 	reassembly := themeRowsUnion(reassembled)
-	enumerator := &fakeThemeEnumerator{
+	enumerator := &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       themeRowsUnion(opened),
 		reassembled: &reassembly,
@@ -474,11 +474,11 @@ func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlu
 	}
 	persister := &fakeThemePersister{}
 	deps := Deps{
-		Lister:          fakeLister{},
-		Theme:           theme.ConstantNomination(target.Theme),
-		ThemeEnumerator: enumerator,
-		ThemeKeys:       theme.RawKeys{Theme: cursorSlug},
-		ThemePersister:  persister,
+		Lister:         fakeLister{},
+		Theme:          theme.ConstantNomination(target.Theme),
+		ThemeSource:    enumerator,
+		ThemeKeys:      theme.RawKeys{Theme: cursorSlug},
+		ThemePersister: persister,
 	}
 	return openCommitPanel(t, deps, PageSessions, cursorSlug), enumerator, persister
 }

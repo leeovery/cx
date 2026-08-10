@@ -120,11 +120,11 @@ func newLoadPanelModel(t *testing.T, dir string, keys theme.RawKeys, loader them
 	}
 	persister := &fakeThemePersister{}
 	m := Build(Deps{
-		Lister:          fakeLister{},
-		Theme:           resolution.Nomination,
-		ThemeEnumerator: countingEnumeratorOver(loader, dir),
-		ThemeKeys:       keys,
-		ThemePersister:  persister,
+		Lister:         fakeLister{},
+		Theme:          resolution.Nomination,
+		ThemeSource:    countingEnumeratorOver(loader, dir),
+		ThemeKeys:      keys,
+		ThemePersister: persister,
 	})
 	m.termWidth, m.termHeight = arrowTermW, arrowTermH
 	m.applySessions(closePanelSessions())
@@ -1154,9 +1154,9 @@ func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 	deps := newArrowPanelDeps(t, rows, persisted)
 	deps.ThemePersister = persister
 	m := openCommitPanel(t, deps, PageSessions, persisted)
-	seam, ok := m.themeState.enumerator.(*fakeThemeEnumerator)
+	seam, ok := m.themeState.source.(*fakeThemeSource)
 	if !ok {
-		t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeState.enumerator)
+		t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeState.source)
 	}
 	m = arrowToThemeRow(t, m, target)
 	nomination, mode, active := m.themeState.nomination, m.themeState.canvasMode, m.themeState.active

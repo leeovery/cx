@@ -190,7 +190,7 @@ func (m *Model) confirmSlotAssignment() {
 func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
 	newlyLive := assigned.Opposite()
 	slot := newlyLive.Slot()
-	if _, err := m.themeState.enumerator.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot)); err != nil {
+	if _, err := m.themeState.source.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot)); err != nil {
 		return
 	}
 

@@ -42,9 +42,9 @@ type themeState struct {
 	// shows.
 	keys theme.RawKeys
 
-	// enumerator is the panel's theme seam, consulted only on the `t` keypress
+	// source is the panel's theme seam, consulted only on the `t` keypress
 	// (discovery is lazy). Nil makes `t` a silent no-op.
-	enumerator ThemeEnumerator
+	source ThemeSource
 
 	// persister is the theme-commit seam, held and nothing more: the panel owns
 	// the keypresses, the outstanding-failure state and its message. Nil is the

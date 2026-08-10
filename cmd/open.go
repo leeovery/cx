@@ -682,17 +682,17 @@ type tuiConfig struct {
 	// which leaves a model on tui.New's dark built-in seed — the shape every
 	// test config that does not care about theming carries.
 	theme theme.Nomination
-	// themeKeys / themeEnumerator are the panel's constructor slots. The keys are
+	// themeKeys / themeSource are the panel's constructor slots. The keys are
 	// prefs.json's three theme keys as read (control-stripped, post-translation) —
 	// the SNAPSHOT the panel lists and marks from and never re-reads; the
-	// enumerator is the seam the `t` keypress reads the themes directory through,
+	// source is the seam the `t` keypress reads the themes directory through,
 	// and through which the panel re-resolves the setting against that read for its
 	// badges. Their zero values are what a test config that
 	// does not care about theming carries: no keys is the shipped adaptive pair,
-	// and a nil enumerator makes `t` a silent no-op.
-	themeKeys       theme.RawKeys
-	themeEnumerator tui.ThemeEnumerator
-	modePersister   tui.ModePersister
+	// and a nil source makes `t` a silent no-op.
+	themeKeys     theme.RawKeys
+	themeSource   tui.ThemeSource
+	modePersister tui.ModePersister
 	// themePersister is the theme-commit seam — the cmd-owned persister, never
 	// the store itself (whose savers deliberately do not satisfy the interface, so
 	// the single `theme: commit failed` emission site cannot be bypassed). Wired
@@ -844,7 +844,7 @@ func buildTUIModel(cfg tuiConfig, initialFilter string, command []string) tui.Mo
 		InitialMode:      cfg.initialMode,
 		Theme:            cfg.theme,
 		ThemeKeys:        cfg.themeKeys,
-		ThemeEnumerator:  cfg.themeEnumerator,
+		ThemeSource:      cfg.themeSource,
 		InitialFilter:    initialFilter,
 		Command:          command,
 		ServerStarted:    cfg.serverStarted,
@@ -972,7 +972,7 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	// detection and no first-paint wait; a PAIR holds both palettes and the
 	// light/dark gate selects a member before anything is painted.
 	//
-	// The loader is built ONCE and shared with the panel's enumerator below,
+	// The loader is built ONCE and shared with the panel's theme source below,
 	// because a Loader owns the `theme` component's per-process dedup state: the
 	// construction-time by-name read and the panel's enumeration hit the same
 	// directory conditions, so one loader per launch is one dedup scope per launch.
@@ -1037,14 +1037,14 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		// under a fallback the `●` belongs on the slug the user SET rather than on the
 		// palette that rendered. The construction-time per-slot record deliberately
 		// does NOT — the panel re-resolves it against its own enumeration on every
-		// open, through the enumerator's Resolve, so an injected copy would be a
-		// second and staler answer to which slug carries the `●`. The enumerator
+		// open, through the source's Resolve, so an injected copy would be a
+		// second and staler answer to which slug carries the `●`. The source
 		// shares this resolution's loader (one dedup scope per launch) and reads
 		// nothing until `t` is pressed.
-		themeKeys:       themeKeys,
-		themeEnumerator: newThemeEnumerator(themeLoader),
-		cwd:             cwd,
-		serverStarted:   serverStarted,
+		themeKeys:     themeKeys,
+		themeSource:   newThemeSource(themeLoader),
+		cwd:           cwd,
+		serverStarted: serverStarted,
 		// The async host-terminal detection seams, from the shared builder: the
 		// detector over the shared *tmux.Client, and the config-aware resolver's
 		// Resolve (buildResolver loads terminals.json once, degrading to an empty

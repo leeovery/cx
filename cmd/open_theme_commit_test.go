@@ -146,7 +146,7 @@ func themeRoundTripConfig(t *testing.T) tuiConfig {
 	cfg := defaultTestTUIConfig()
 	cfg.theme = resolution.Nomination
 	cfg.themeKeys = keys
-	cfg.themeEnumerator = newThemeEnumerator(loader)
+	cfg.themeSource = newThemeSource(loader)
 	if load.Store != nil {
 		cfg.themePersister = newThemePersister(load.Store)
 	}

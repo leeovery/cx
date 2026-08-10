@@ -4,7 +4,7 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// fakeThemeEnumerator is the shared ThemeEnumerator fake behind the panel suites: it
+// fakeThemeSource is the shared ThemeSource fake behind the panel suites: it
 // answers every seam method from DECLARED VALUES, touching no filesystem and holding
 // no loader, and the cases those suites differ on are FIELDS on it rather than second
 // types.
@@ -16,7 +16,7 @@ import (
 //
 // It also RECORDS what it was asked, which is how a suite driven off declared
 // values observes the ASK itself rather than only its effect.
-type fakeThemeEnumerator struct {
+type fakeThemeSource struct {
 	// enumeration is the parse Open hands back for the panel to retain, so an
 	// assertion on the retained value has a declared one to compare against.
 	enumeration theme.Enumeration
@@ -75,7 +75,7 @@ type slotLoad struct {
 }
 
 // Open records the ask and answers with the declared parse and union.
-func (e *fakeThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
+func (e *fakeThemeSource) Open(keys theme.RawKeys) (theme.Enumeration, theme.Union) {
 	e.opens++
 	e.keys = append(e.keys, keys)
 	return e.enumeration, e.union
@@ -83,7 +83,7 @@ func (e *fakeThemeEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme
 
 // Reassemble counts the ask and answers with the split reassembly where the fixture
 // declared one, else with the single union it declared.
-func (e *fakeThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
+func (e *fakeThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
 	e.reassembles++
 	if e.reassembled != nil {
 		return *e.reassembled
@@ -104,7 +104,7 @@ func (e *fakeThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme
 // declares instead, since theme.Badges yields an empty map for the empty slot slice
 // a zero Resolution carries, so a refresh that ignored the error would wipe every
 // `●` off the panel.
-func (e *fakeThemeEnumerator) Resolve(_ theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
+func (e *fakeThemeSource) Resolve(_ theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
 	e.settings = append(e.settings, setting)
 	return e.resolution, e.err
 }
@@ -119,7 +119,7 @@ func (e *fakeThemeEnumerator) Resolve(_ theme.Enumeration, setting theme.Setting
 // the nomination is what keeps a fake-driven conversion joining a palette the fixture chose —
 // a zero Theme in a live nomination slot renders through lipgloss's no-colour sentinel, which
 // is the silent colourless render New's dark seed exists to keep out of this package.
-func (e *fakeThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+func (e *fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
 	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: slug})
 	if e.err != nil {
 		return theme.SlotResolution{}, e.err

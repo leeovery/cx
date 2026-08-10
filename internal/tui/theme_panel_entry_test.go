@@ -60,9 +60,9 @@ func entryRows() []theme.Row { return arrowValidRows(4) }
 // recorded OPEN COUNT is what discriminates the two refusal shapes: a proactive
 // block reads nothing, while the post-read re-evaluation has already enumerated by
 // the time it refuses.
-func newEntryEnumerator(dirUnusable bool) *fakeThemeEnumerator {
+func newEntryEnumerator(dirUnusable bool) *fakeThemeSource {
 	rows := entryRows()
-	return &fakeThemeEnumerator{
+	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       theme.Union{Rows: rows, Count: len(rows), DirUnusable: dirUnusable},
 		resolution: theme.Resolution{
@@ -98,25 +98,25 @@ type entryModelOpts struct {
 // The dimensions are assigned directly rather than through a tea.WindowSizeMsg, so
 // the entry gate is asked about the region the fixture declares and nothing has
 // resized on the way in.
-func newEntryModel(t *testing.T, e ThemeEnumerator, o entryModelOpts) (Model, *fakeThemeEnumerator) {
+func newEntryModel(t *testing.T, e ThemeSource, o entryModelOpts) (Model, *fakeThemeSource) {
 	t.Helper()
 
-	rec, _ := e.(*fakeThemeEnumerator)
+	rec, _ := e.(*fakeThemeSource)
 	rows := entryRows()
 	deps := Deps{
-		Lister:          fakeLister{},
-		Killer:          keymapParityKiller{},
-		Renamer:         keymapParityRenamer{},
-		Creator:         sessionsGuardCreator{},
-		ProjectStore:    projectsParityStore{},
-		ProjectEditor:   stubTagsProjectEditor{},
-		AliasEditor:     stubTagsAliasEditor{},
-		Enumerator:      keymapParityEnumerator{},
-		Reader:          keymapParityReader{},
-		ThemeEnumerator: e,
-		Theme:           theme.ConstantNomination(rows[0].Theme),
-		ThemeKeys:       theme.RawKeys{Theme: rows[0].Slug},
-		NoColor:         o.colourless,
+		Lister:        fakeLister{},
+		Killer:        keymapParityKiller{},
+		Renamer:       keymapParityRenamer{},
+		Creator:       sessionsGuardCreator{},
+		ProjectStore:  projectsParityStore{},
+		ProjectEditor: stubTagsProjectEditor{},
+		AliasEditor:   stubTagsAliasEditor{},
+		Enumerator:    keymapParityEnumerator{},
+		Reader:        keymapParityReader{},
+		ThemeSource:   e,
+		Theme:         theme.ConstantNomination(rows[0].Theme),
+		ThemeKeys:     theme.RawKeys{Theme: rows[0].Slug},
+		NoColor:       o.colourless,
 	}
 	m := Build(deps)
 	m.termWidth, m.termHeight = geometryTerm(o.contentW, o.contentH)
@@ -142,7 +142,7 @@ func newEntryModel(t *testing.T, e ThemeEnumerator, o entryModelOpts) (Model, *f
 }
 
 // newUnblockedEntryModel is the fixture at the standard unblocked content region.
-func newUnblockedEntryModel(t *testing.T, p page) (Model, *fakeThemeEnumerator) {
+func newUnblockedEntryModel(t *testing.T, p page) (Model, *fakeThemeSource) {
 	t.Helper()
 	return newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
 		page:     p,
@@ -200,7 +200,7 @@ func pressThemeKeyCmd(t *testing.T, m Model) (Model, tea.Cmd) {
 
 // requireSilentRefusal asserts `t` did nothing at all: no panel, no directory read,
 // and — the half that distinguishes this from a block — NO FLASH.
-func requireSilentRefusal(t *testing.T, m Model, rec *fakeThemeEnumerator, where string) {
+func requireSilentRefusal(t *testing.T, m Model, rec *fakeThemeSource, where string) {
 	t.Helper()
 	if m.themePanel.open {
 		t.Errorf("t opened the panel on %s, where it is not bound", where)
@@ -229,7 +229,7 @@ func armPanelUnderNoColorForTest(t *testing.T, m Model) Model {
 	if !m.colourless {
 		t.Fatal("fixture: the model is not colourless, so `t` is not blocked and this bypass says nothing")
 	}
-	enumeration, union := m.themeState.enumerator.Open(m.themeState.keys)
+	enumeration, union := m.themeState.source.Open(m.themeState.keys)
 	(&m).armThemePanel(enumeration, union)
 	if !m.themePanel.open {
 		t.Fatal("fixture: arming the panel directly left it closed")

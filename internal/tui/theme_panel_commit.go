@@ -286,13 +286,13 @@ func (m *Model) commitSlot(slug string, member theme.Member) error {
 // deduplicated per process on slug+reason, so a persistently broken persisted
 // slug does not produce one per keypress.
 //
-// The enumerator seam is dereferenced without a nil guard: a commit is reachable
+// The theme source seam is dereferenced without a nil guard: a commit is reachable
 // only while themePanel.open, which armThemePanel sets past openThemePanel's nil
 // guard.
 func (m *Model) recomputeThemePanel() {
 	previewed := previewedThemeIdentity(m.themePanel.list)
 
-	m.themePanel.union = m.themeState.enumerator.Reassemble(m.themePanel.enumeration, m.themeState.keys)
+	m.themePanel.union = m.themeState.source.Reassemble(m.themePanel.enumeration, m.themeState.keys)
 	m.applyCommittedSetting()
 
 	// The list instance is kept and its items replaced: a rebuild is the expensive
@@ -342,7 +342,7 @@ func previewedThemeIdentity(l list.Model) string {
 // committed one. The caller's other steps still run on that path — they read the
 // mutated keys and the retained enumeration, not the resolution.
 func (m *Model) applyCommittedSetting() {
-	resolution, err := m.themeState.enumerator.Resolve(m.themePanel.enumeration, m.themeSetting())
+	resolution, err := m.themeState.source.Resolve(m.themePanel.enumeration, m.themeSetting())
 	if err != nil {
 		return
 	}

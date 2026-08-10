@@ -111,7 +111,7 @@ func commitPairPanelDeps(t *testing.T, rows []theme.Row) Deps {
 	return Deps{
 		Lister: fakeLister{},
 		Theme:  theme.ConstantNomination(dark.Theme),
-		ThemeEnumerator: &fakeThemeEnumerator{
+		ThemeSource: &fakeThemeSource{
 			union: theme.Union{Rows: rows, Count: len(rows)},
 			resolution: theme.Resolution{
 				Nomination: theme.ConstantNomination(dark.Theme),
@@ -559,16 +559,16 @@ func TestPanelEnter_NoOtherIO(t *testing.T) {
 	}
 
 	m := Build(Deps{
-		Lister:          stores.lister,
-		Theme:           resolution.Nomination,
-		ProjectStore:    stores.projectStore,
-		ProjectEditor:   stores.projectEditor,
-		AliasEditor:     stores.aliasEditor,
-		ModePersister:   stores.modePersister,
-		Reader:          stores.scrollback,
-		ThemeEnumerator: enumerator,
-		ThemeKeys:       keys,
-		ThemePersister:  persister,
+		Lister:         stores.lister,
+		Theme:          resolution.Nomination,
+		ProjectStore:   stores.projectStore,
+		ProjectEditor:  stores.projectEditor,
+		AliasEditor:    stores.aliasEditor,
+		ModePersister:  stores.modePersister,
+		Reader:         stores.scrollback,
+		ThemeSource:    enumerator,
+		ThemeKeys:      keys,
+		ThemePersister: persister,
 	})
 	m.termWidth, m.termHeight = arrowTermW, arrowTermH
 	m.applySessions(closePanelSessions())

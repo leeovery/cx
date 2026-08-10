@@ -199,7 +199,7 @@ func TestSessionsDescriptorDispatchParity(t *testing.T) {
 			m = pressSession(t, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
 			return m.activePage == PageProjects
 		}},
-		// t theme — opens the §9.1 slide-over. The seed WIRES A FAKE ThemeEnumerator:
+		// t theme — opens the §9.1 slide-over. The seed WIRES A FAKE ThemeSource:
 		// an unwired seam is a silent no-op (§9.6), so a probe without one would pass
 		// vacuously against a key that did nothing.
 		"t": {press: tea.KeyPressMsg{Code: 't', Text: "t"}, honour: func(t *testing.T) bool {
@@ -379,7 +379,7 @@ func themeGuardModel(t *testing.T, m Model) Model {
 	if m.colourless {
 		t.Fatal("the guard seed must not be colourless — §9.10 would block t and the probe would assert a refusal")
 	}
-	m.themeState.enumerator = newEntryEnumerator(false)
+	m.themeState.source = newEntryEnumerator(false)
 	return m
 }
 

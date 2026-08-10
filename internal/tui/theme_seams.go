@@ -2,7 +2,10 @@ package tui
 
 import "github.com/leeovery/portal/internal/theme"
 
-// ThemeEnumerator is the seam through which the theme panel gets its rows.
+// ThemeSource is the seam through which the theme panel gets its rows AND
+// resolves the persisted setting: it assembles the finished union, and it answers
+// the per-slot resolution the panel's badges, applied theme and cursor seed all
+// derive from. A fake must answer for both halves, not for listing alone.
 //
 // Open takes the raw persisted theme keys and returns the finished union, never
 // a directory listing: every built-in, every `.theme` file, and every persisted
@@ -26,7 +29,7 @@ import "github.com/leeovery/portal/internal/theme"
 // the same slug, free to disagree with the row the user is looking at. Resolve's
 // error is the broken-builtin fatal, which the panel degrades on rather than
 // escalating (see Model.applyInForceTheme).
-type ThemeEnumerator interface {
+type ThemeSource interface {
 	Open(keys theme.RawKeys) (theme.Enumeration, theme.Union)
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union
 	Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error)

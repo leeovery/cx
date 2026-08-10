@@ -233,7 +233,7 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 //
 // The three-way split of the loader's old surface is pinned here rather than
 // merely done: the row-model assembly is Assembler's, the panel seam's four
-// methods are DirEnumerator's, and what is left on Loader parses, enumerates and
+// methods are DirThemeSource's, and what is left on Loader parses, enumerates and
 // resolves. LoadPath is a FUNCTION because neither the reserved set nor the event
 // seam bears on a path a caller named itself — a method would take a receiver it
 // cannot read.
@@ -288,11 +288,11 @@ var wantExports = []string{
 	"ConstantNomination",
 	"DefaultDarkSlug",
 	"DefaultLightSlug",
-	"DirEnumerator",
-	"DirEnumerator.Open",
-	"DirEnumerator.Reassemble",
-	"DirEnumerator.Resolve",
-	"DirEnumerator.ResolveSlot",
+	"DirThemeSource",
+	"DirThemeSource.Open",
+	"DirThemeSource.Reassemble",
+	"DirThemeSource.Resolve",
+	"DirThemeSource.ResolveSlot",
 	"Entry",
 	"Enumeration",
 	"EventLogger",

@@ -91,9 +91,9 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 func requireNoSlotLoad(t *testing.T, m Model) {
 	t.Helper()
 
-	seam, ok := m.themeState.enumerator.(*fakeThemeEnumerator)
+	seam, ok := m.themeState.source.(*fakeThemeSource)
 	if !ok {
-		t.Fatalf("fixture: the seam is %T, want the recording fake — this is a statement about what the seam was ASKED", m.themeState.enumerator)
+		t.Fatalf("fixture: the seam is %T, want the recording fake — this is a statement about what the seam was ASKED", m.themeState.source)
 	}
 	if len(seam.slotLoads) != 0 {
 		t.Errorf("a non-converting commit asked the seam for slot load(s) %v, want none — §8.4 puts the load on the constant → adaptive transition and nowhere else", seam.slotLoads)
@@ -135,12 +135,12 @@ func newSlotPairPanelModel(t *testing.T, dir, lightSlug, darkSlug string) (Model
 // move" plus a zero reassembly count is the recompute genuinely not happening —
 // which a real loader cannot show, since a failed write leaves the keys untouched
 // and a recompute over untouched keys derives the identical union.
-func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Model, *fakeThemeEnumerator, *fakeThemePersister) {
+func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Model, *fakeThemeSource, *fakeThemePersister) {
 	t.Helper()
 
 	light, dark := opened[0], opened[1]
 	reassembly := themeRowsUnion(reassembled)
-	enumerator := &fakeThemeEnumerator{
+	enumerator := &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       themeRowsUnion(opened),
 		reassembled: &reassembly,
@@ -154,11 +154,11 @@ func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Mode
 	}
 	persister := &fakeThemePersister{}
 	deps := Deps{
-		Lister:          fakeLister{},
-		Theme:           theme.ConstantNomination(dark.Theme),
-		ThemeEnumerator: enumerator,
-		ThemeKeys:       theme.RawKeys{Light: light.Slug, Dark: dark.Slug},
-		ThemePersister:  persister,
+		Lister:         fakeLister{},
+		Theme:          theme.ConstantNomination(dark.Theme),
+		ThemeSource:    enumerator,
+		ThemeKeys:      theme.RawKeys{Light: light.Slug, Dark: dark.Slug},
+		ThemePersister: persister,
 	}
 	return openCommitPanel(t, deps, PageSessions, dark.Slug), enumerator, persister
 }
@@ -922,16 +922,16 @@ func TestPanelSlotCommit_NoOtherIO(t *testing.T) {
 	}
 
 	m := Build(Deps{
-		Lister:          stores.lister,
-		Theme:           resolution.Nomination,
-		ProjectStore:    stores.projectStore,
-		ProjectEditor:   stores.projectEditor,
-		AliasEditor:     stores.aliasEditor,
-		ModePersister:   stores.modePersister,
-		Reader:          stores.scrollback,
-		ThemeEnumerator: enumerator,
-		ThemeKeys:       keys,
-		ThemePersister:  persister,
+		Lister:         stores.lister,
+		Theme:          resolution.Nomination,
+		ProjectStore:   stores.projectStore,
+		ProjectEditor:  stores.projectEditor,
+		AliasEditor:    stores.aliasEditor,
+		ModePersister:  stores.modePersister,
+		Reader:         stores.scrollback,
+		ThemeSource:    enumerator,
+		ThemeKeys:      keys,
+		ThemePersister: persister,
 	})
 	m.termWidth, m.termHeight = arrowTermW, arrowTermH
 	m.applySessions(closePanelSessions())

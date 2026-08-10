@@ -2,7 +2,7 @@ package cmd
 
 import "github.com/leeovery/portal/internal/theme"
 
-// newThemeEnumerator binds the process's theme loader to the resolved themes
+// newThemeSource binds the process's theme loader to the resolved themes
 // directory, ONCE, at TUI construction.
 //
 // It resolves the path and reads NOTHING: the cold path stays free of the N-file
@@ -22,7 +22,7 @@ import "github.com/leeovery/portal/internal/theme"
 // The adapter itself belongs to internal/theme — resolving the path is all cmd
 // contributes here, so wiring the panel composes the shared adapter rather than
 // restating its delegation.
-func newThemeEnumerator(loader theme.Loader) theme.DirEnumerator {
+func newThemeSource(loader theme.Loader) theme.DirThemeSource {
 	themesDir, _ := themesDirPath()
-	return theme.DirEnumerator{Loader: loader, Dir: themesDir}
+	return theme.DirThemeSource{Loader: loader, Dir: themesDir}
 }

@@ -327,11 +327,11 @@ func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 		{name: "a row is inserted above the target", rows: []theme.Row{above, target}, wantIndex: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			enumerator := &fakeThemeEnumerator{
+			enumerator := &fakeThemeSource{
 				union:      theme.Union{Rows: tc.rows, Count: len(tc.rows)},
 				resolution: resolution,
 			}
-			m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
+			m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
 
 			m = pressThemeKey(t, m)
 
@@ -361,8 +361,8 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 			{Slug: "broken", Filename: "broken.theme", Source: theme.SourceFile, Rejection: &theme.Rejection{Reason: theme.ReasonBadColour}},
 			{Slug: "nord", Source: theme.SourceBuiltin, Theme: themetest.Builtin(t, "nord")},
 		}
-		enumerator := &fakeThemeEnumerator{union: theme.Union{Rows: rows, Count: len(rows), Rejected: 1}, resolution: ghost}
-		m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
+		enumerator := &fakeThemeSource{union: theme.Union{Rows: rows, Count: len(rows), Rejected: 1}, resolution: ghost}
+		m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
 
 		m = pressThemeKey(t, m)
 
@@ -375,8 +375,8 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 	})
 
 	t.Run("an empty union leaves the cursor at index 0", func(t *testing.T) {
-		enumerator := &fakeThemeEnumerator{union: theme.Union{}, resolution: ghost}
-		m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
+		enumerator := &fakeThemeSource{union: theme.Union{}, resolution: ghost}
+		m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
 
 		m = pressThemeKey(t, m)
 
@@ -408,7 +408,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 	nord := themetest.Builtin(t, "nord")
 	rows := []theme.Row{{Slug: "nord", Source: theme.SourceBuiltin, Theme: nord}}
-	enumerator := &fakeThemeEnumerator{
+	enumerator := &fakeThemeSource{
 		union: theme.Union{Rows: rows, Count: len(rows)},
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(nord),
@@ -416,7 +416,7 @@ func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 		},
 		err: theme.BrokenBuiltinError(theme.DefaultDarkSlug),
 	}
-	m := New(fakeLister{}, WithThemeEnumerator(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
+	m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
 	before := m.themeState.active
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})

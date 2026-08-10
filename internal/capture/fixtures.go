@@ -53,7 +53,7 @@ type Fixture struct {
 	// these keys are what it MARKS. Zero for every fixture that declares no panel.
 	themeKeys theme.RawKeys
 	// themeUnion / themeEnumeration / themeSlots are the THIRD panel-fixture input,
-	// all three fed to the no-I/O fakeThemeEnumerator (see theme_fake.go): the
+	// all three fed to the no-I/O fakeThemeSource (see theme_fake.go): the
 	// finished row set the panel lists, the retained enumeration Open hands back,
 	// and the badge source Resolve returns.
 	//
@@ -174,28 +174,28 @@ type Fixture struct {
 // THE PALETTE IS A PARAMETER BECAUSE TWO SEAMS DEPEND ON IT, and assembling them
 // anywhere but here would let them disagree. `--theme` pins the CONSTANT
 // nomination the model paints from — no gate, no wait, byte-deterministic
-// frames — and the panel's faked ThemeEnumerator must report that SAME palette
+// frames — and the panel's faked ThemeSource must report that SAME palette
 // from its Resolve, because the panel's open applies the theme that return names
 // and a fake reporting anything else repaints the frame off `--theme`. There is
 // exactly one construction site for the pair, and this is it; see
-// newFakeThemeEnumerator for what follows from getting it wrong.
+// newFakeThemeSource for what follows from getting it wrong.
 //
 // A fixture that declares no union gets NO panel seam, so `t` stays the silent
 // no-op the model's nil guard gives it.
 func (f *Fixture) Deps(th theme.Theme) tui.Deps {
 	return tui.Deps{
-		Theme:           theme.ConstantNomination(th),
-		ThemeKeys:       f.themeKeys,
-		ThemeEnumerator: f.themeEnumerator(th),
-		Lister:          f.Lister,
-		Killer:          fakeKiller{},
-		Renamer:         fakeRenamer{},
-		Creator:         fakeCreator{},
-		ProjectStore:    f.projectStore,
-		ProjectEditor:   f.projectEditor,
-		AliasEditor:     f.aliasEditor,
-		Enumerator:      fakeEnumerator{groups: f.enumeratorGroups},
-		Reader:          fakeScrollbackReader{content: f.scrollback},
+		Theme:         theme.ConstantNomination(th),
+		ThemeKeys:     f.themeKeys,
+		ThemeSource:   f.themeSource(th),
+		Lister:        f.Lister,
+		Killer:        fakeKiller{},
+		Renamer:       fakeRenamer{},
+		Creator:       fakeCreator{},
+		ProjectStore:  f.projectStore,
+		ProjectEditor: f.projectEditor,
+		AliasEditor:   f.aliasEditor,
+		Enumerator:    fakeEnumerator{groups: f.enumeratorGroups},
+		Reader:        fakeScrollbackReader{content: f.scrollback},
 		// DirReader/DirRunner are deliberately left nil: the fixture sessions are
 		// pre-stamped (Session.Dir set), so the lazy pane-read fallback never
 		// fires — and the harness has no tmux server to read panes from anyway.
@@ -228,18 +228,18 @@ func (f *Fixture) Deps(th theme.Theme) tui.Deps {
 	}
 }
 
-// themeEnumerator returns the fixture's no-I/O panel seam bound to the palette
+// themeSource returns the fixture's no-I/O panel seam bound to the palette
 // the frame is being rendered at, or nil when the fixture declares no panel.
 //
 // THE NIL IS THE POINT for every other fixture. tui's seam guard makes a nil
-// enumerator a silent `t` no-op, so a fixture with nothing to list simply has no
+// source a silent `t` no-op, so a fixture with nothing to list simply has no
 // panel — rather than opening a zero-row slide-over over a screen the frame was
 // never designed to carry.
-func (f *Fixture) themeEnumerator(th theme.Theme) tui.ThemeEnumerator {
+func (f *Fixture) themeSource(th theme.Theme) tui.ThemeSource {
 	if len(f.themeUnion.Rows) == 0 {
 		return nil
 	}
-	return newFakeThemeEnumerator(th, f.themeEnumeration, f.themeUnion, f.themeSlots)
+	return newFakeThemeSource(th, f.themeEnumeration, f.themeUnion, f.themeSlots)
 }
 
 // loadingReceiverOrNil returns the loading-progress receiver for the seeded
@@ -741,7 +741,7 @@ const themePanelDropInSlug = "catppuccin-latte"
 // import guard.
 //
 // Every row is left with a ZERO palette here and repainted by the fake onto the
-// `--theme` value the frame is rendered at (newFakeThemeEnumerator). Declaring a
+// `--theme` value the frame is rendered at (newFakeThemeSource). Declaring a
 // palette here would be the hard-coded built-in that makes `--theme` inert.
 func themePanelUnion() theme.Union {
 	rows := []theme.Row{

@@ -266,7 +266,7 @@ func resolveModel(fixture string, pinned theme.Theme) (tui.Model, error) {
 	}
 	// The palette is handed to Deps rather than assigned afterwards, because it
 	// drives TWO seams: the constant nomination the model paints from, and the
-	// panel's faked ThemeEnumerator, whose Resolve must report the SAME palette or
+	// panel's faked ThemeSource, whose Resolve must report the SAME palette or
 	// the panel's open-time apply repaints the frame off --theme. Fixture.Deps is
 	// the one place the pair is assembled.
 	deps := fx.Deps(pinned)

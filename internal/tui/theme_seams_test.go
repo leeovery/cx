@@ -9,7 +9,7 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// fixtureThemeEnumerator is the harness contract fixture shape: a ThemeEnumerator that
+// fixtureThemeSource is the harness contract fixture shape: a ThemeSource that
 // answers with a HAND-BUILT union, holding no loader, naming no directory and
 // touching no filesystem.
 //
@@ -20,39 +20,39 @@ import (
 // Its Resolve is declared the same way: a hand-built theme.Resolution, which is
 // where a fixture states its `●` slots and the palette the panel opens on now that
 // the injected slot record is retired.
-type fixtureThemeEnumerator struct {
+type fixtureThemeSource struct {
 	union      theme.Union
 	resolution theme.Resolution
 }
 
-func (f fixtureThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
+func (f fixtureThemeSource) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
 	return theme.Enumeration{}, f.union
 }
 
-func (f fixtureThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
+func (f fixtureThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
 	return f.union
 }
 
-func (f fixtureThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+func (f fixtureThemeSource) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
 	return f.resolution, nil
 }
 
-func (f fixtureThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+func (f fixtureThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
 	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
 }
 
-func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
+func TestThemeSourceIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
 	// Compile-time assertions: the seam is satisfiable BOTH wholesale by a
-	// fixture holding nothing and by theme.DirEnumerator, the exported
-	// adapter production wires (cmd's newThemeEnumerator returns it). A drift in
+	// fixture holding nothing and by theme.DirThemeSource, the exported
+	// adapter production wires (cmd's newThemeSource returns it). A drift in
 	// either signature stops compiling here rather than at the wiring site — and
 	// because the adapter asserted is production's own rather than a
 	// re-implementation of it, this cannot pass while production fails.
-	var _ tui.ThemeEnumerator = fixtureThemeEnumerator{}
-	var _ tui.ThemeEnumerator = theme.DirEnumerator{}
+	var _ tui.ThemeSource = fixtureThemeSource{}
+	var _ tui.ThemeSource = theme.DirThemeSource{}
 }
 
-// TestThemeEnumeratorReturnsTheFinishedUnion pins the harness contract's central claim about
+// TestThemeSourceReturnsTheFinishedUnion pins the harness contract's central claim about
 // this seam: it returns the FINISHED union, not a directory listing.
 //
 // The directory here does not exist, and the seam still answers with rows —
@@ -65,8 +65,8 @@ func TestThemeEnumeratorIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *test
 // The persisted row is found by identity rather than by position: it arrives in
 // the row-rendering rule's order like every other row, which for `ghost` is among the
 // built-ins rather than after them.
-func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
-	var enumerator tui.ThemeEnumerator = theme.DirEnumerator{
+func TestThemeSourceReturnsTheFinishedUnion(t *testing.T) {
+	var enumerator tui.ThemeSource = theme.DirThemeSource{
 		Loader: theme.NewSilentLoader(),
 		Dir:    filepath.Join(t.TempDir(), "themes"),
 	}
@@ -95,11 +95,11 @@ func TestThemeEnumeratorReturnsTheFinishedUnion(t *testing.T) {
 	}
 }
 
-// TestThemeEnumeratorReassemblesFromAFixtureUnion pins the seam's second method
+// TestThemeSourceReassemblesFromAFixtureUnion pins the seam's second method
 // through the fixture route: the picker idiom's post-commit recompute and the re-read-on-open
 // rule's `Esc` re-resolution both re-derive from a RETAINED enumeration, so a fake must be
 // able to answer that call with no directory of any kind.
-func TestThemeEnumeratorReassemblesFromAFixtureUnion(t *testing.T) {
+func TestThemeSourceReassemblesFromAFixtureUnion(t *testing.T) {
 	faked := theme.Union{
 		Rows: []theme.Row{
 			{Slug: "nord", Source: theme.SourceBuiltin},
@@ -109,7 +109,7 @@ func TestThemeEnumeratorReassemblesFromAFixtureUnion(t *testing.T) {
 		Count:       2,
 		Rejected:    1,
 	}
-	var enumerator tui.ThemeEnumerator = fixtureThemeEnumerator{union: faked}
+	var enumerator tui.ThemeSource = fixtureThemeSource{union: faked}
 
 	enumeration, opened := enumerator.Open(theme.RawKeys{})
 	reassembled := enumerator.Reassemble(enumeration, theme.RawKeys{Theme: "nord"})

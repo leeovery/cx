@@ -87,12 +87,12 @@ import (
 // marks.
 //
 // It is LITERALLY the production adapter minus the ONE thing this suite must not
-// do — the directory read: theme.DirEnumerator is embedded, so the three methods
+// do — the directory read: theme.DirThemeSource is embedded, so the three methods
 // it does not override are production's own and a drift in the seam's contract
 // fails here rather than in the wiring. Only Open is replaced, and only to swap
 // the read for a declared enumeration.
 type behaviourEnumerator struct {
-	theme.DirEnumerator
+	theme.DirThemeSource
 	enumeration theme.Enumeration
 }
 
@@ -101,8 +101,8 @@ type behaviourEnumerator struct {
 // own Dir, which nothing on this path reads.
 func newBehaviourEnumerator(entries []theme.Entry) *behaviourEnumerator {
 	return &behaviourEnumerator{
-		DirEnumerator: theme.DirEnumerator{Loader: theme.NewLoader(nil)},
-		enumeration:   theme.Enumeration{Entries: entries},
+		DirThemeSource: theme.DirThemeSource{Loader: theme.NewLoader(nil)},
+		enumeration:    theme.Enumeration{Entries: entries},
 	}
 }
 
@@ -161,11 +161,11 @@ func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, c
 	enumerator := newBehaviourEnumerator(entries)
 	persister := &fakeThemePersister{}
 	m := Build(Deps{
-		Lister:          fakeLister{},
-		Theme:           behaviourNomination(t, enumerator, keys),
-		ThemeEnumerator: enumerator,
-		ThemeKeys:       keys,
-		ThemePersister:  persister,
+		Lister:         fakeLister{},
+		Theme:          behaviourNomination(t, enumerator, keys),
+		ThemeSource:    enumerator,
+		ThemeKeys:      keys,
+		ThemePersister: persister,
 	})
 	return openPanelForTest(t, m, contentW, contentH), persister
 }

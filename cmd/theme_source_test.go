@@ -4,7 +4,7 @@ package cmd
 // drive package-level cmd seams, so they MUST NOT use t.Parallel.
 //
 // The panel's constructor slots are asserted BEHAVIOURALLY, over models built
-// through the production chokepoint: the open below proves the enumerator and
+// through the production chokepoint: the open below proves the theme source and
 // the keys reach a rendered frame, and open_theme_commit_test.go carries the
 // write half — the same wiring taking a keypress all the way to prefs.json, and
 // back out of it on the next launch.
@@ -21,10 +21,10 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// themeEnumeratorForTest builds the production adapter over a loader emitting
+// themeSourceForTest builds the production adapter over a loader emitting
 // into a capture sink, so the `theme: enumerated` cadence is observable
 // while the directory resolution stays the production one (themesDirPath).
-func themeEnumeratorForTest(t *testing.T) (theme.Loader, *logtest.Sink) {
+func themeSourceForTest(t *testing.T) (theme.Loader, *logtest.Sink) {
 	t.Helper()
 	sink := installMigrateCapture(t)
 	return newThemeLoader(), sink
@@ -47,18 +47,18 @@ func pressThemeKeyOnModel(t *testing.T, m tui.Model) string {
 // asserting the composed frame is asserting the user-visible copy anyway.
 const themePanelHeaderCopy = "Themes"
 
-// TestThemeEnumerator_ReadsOnlyWhenOpened pins the cadence half of the lazy-discovery rule/the
+// TestThemeSource_ReadsOnlyWhenOpened pins the cadence half of the lazy-discovery rule/the
 // re-read-on-open rule on the PRODUCTION adapter: constructing it touches nothing, and each
 // Open is one directory read emitting exactly one `theme: enumerated`.
 //
 // The directory is POPULATED and resolved through PORTAL_THEMES_DIR, so a
 // construction-time sweep would be visible as a record and a drop-in row.
-func TestThemeEnumerator_ReadsOnlyWhenOpened(t *testing.T) {
+func TestThemeSource_ReadsOnlyWhenOpened(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
-	loader, sink := themeEnumeratorForTest(t)
+	loader, sink := themeSourceForTest(t)
 
-	enumerator := newThemeEnumerator(loader)
+	enumerator := newThemeSource(loader)
 
 	if got := themeEventCount(t, sink, "enumerated"); got != 0 {
 		t.Errorf("constructing the adapter emitted %d `theme: enumerated` records, want 0 — the read is on the keypress (§5.7)", got)
@@ -77,15 +77,15 @@ func TestThemeEnumerator_ReadsOnlyWhenOpened(t *testing.T) {
 	}
 }
 
-// TestThemeEnumerator_ReassembleDoesNoIO pins the second method's contract at the
+// TestThemeSource_ReassembleDoesNoIO pins the second method's contract at the
 // production boundary: the picker idiom's post-commit recompute and the re-read-on-open rule's
 // `Esc` re-resolution both re-derive from the RETAINED enumeration with no fresh read,
 // so a directory emptied underneath a live panel changes nothing.
-func TestThemeEnumerator_ReassembleDoesNoIO(t *testing.T) {
+func TestThemeSource_ReassembleDoesNoIO(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
-	loader, sink := themeEnumeratorForTest(t)
-	enumerator := newThemeEnumerator(loader)
+	loader, sink := themeSourceForTest(t)
+	enumerator := newThemeSource(loader)
 
 	enumeration, _ := enumerator.Open(theme.RawKeys{})
 	before := themeEventCount(t, sink, "enumerated")
@@ -100,7 +100,7 @@ func TestThemeEnumerator_ReassembleDoesNoIO(t *testing.T) {
 	}
 }
 
-// TestThemeEnumerator_SharesTheConstructionReadsDedupScope pins the directory-resolution
+// TestThemeSource_SharesTheConstructionReadsDedupScope pins the directory-resolution
 // rule's requirement on the loader this adapter is given: ONE loader per launch is ONE
 // dedup scope per launch.
 //
@@ -110,7 +110,7 @@ func TestThemeEnumerator_ReassembleDoesNoIO(t *testing.T) {
 // WARN the user twice about one misconfiguration on a single launch. The negative
 // control drives exactly that, or the positive half could pass for want of a
 // second emission being possible at all.
-func TestThemeEnumerator_SharesTheConstructionReadsDedupScope(t *testing.T) {
+func TestThemeSource_SharesTheConstructionReadsDedupScope(t *testing.T) {
 	// A DROP-IN slug, so the by-name read must consult the themes directory and
 	// meet the directory-resolution rule's unusable verdict; a built-in would resolve out of the
 	// embedded set and never look.
@@ -129,7 +129,7 @@ func TestThemeEnumerator_SharesTheConstructionReadsDedupScope(t *testing.T) {
 			t.Fatalf("precondition: the construction read emitted %d `theme: directory unusable` records, want 1", got)
 		}
 
-		newThemeEnumerator(panelLoader(construction)).Open(theme.RawKeys{Theme: dropIn})
+		newThemeSource(panelLoader(construction)).Open(theme.RawKeys{Theme: dropIn})
 		return themeEventCount(t, sink, "directory unusable")
 	}
 
@@ -150,14 +150,14 @@ func TestThemeEnumerator_SharesTheConstructionReadsDedupScope(t *testing.T) {
 
 // TestOpenTUI_BuildsOneThemeLoader guards the sharing the test above depends on,
 // at the one site that decides it: openTUI must build no more than one theme
-// loader, and must hand the panel's enumerator a loader already bound in the
+// loader, and must hand the panel's theme source a loader already bound in the
 // function rather than one constructed in the argument. Building a second is
 // silent — everything still works, the user just gets every theme WARN twice per
 // launch — and openTUI ends in a running Bubble Tea program, so only a source
 // guard reaches it.
 //
 // BOTH are asserted, because the construction count does not reach the second on
-// its own: `newThemeEnumerator(newThemeLoader())` keeps every constructor at one
+// its own: `newThemeSource(newThemeLoader())` keeps every constructor at one
 // call and still hands the panel a dedup scope of its own.
 func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 	fn := funcDeclForTest(t, "open.go", "openTUI")
@@ -171,7 +171,7 @@ func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 	assertEnumeratorTakesBoundLoader(t, fn)
 }
 
-// assertEnumeratorTakesBoundLoader fails unless every newThemeEnumerator call
+// assertEnumeratorTakesBoundLoader fails unless every newThemeSource call
 // inside n takes a bare identifier for its argument.
 //
 // It asserts the argument's SHAPE, not its identity: a call expression in that
@@ -186,11 +186,11 @@ func assertEnumeratorTakesBoundLoader(t *testing.T, n ast.Node) {
 		if !ok {
 			return true
 		}
-		if ident, isIdent := call.Fun.(*ast.Ident); !isIdent || ident.Name != "newThemeEnumerator" || len(call.Args) != 1 {
+		if ident, isIdent := call.Fun.(*ast.Ident); !isIdent || ident.Name != "newThemeSource" || len(call.Args) != 1 {
 			return true
 		}
 		if _, isIdent := call.Args[0].(*ast.Ident); !isIdent {
-			t.Errorf("openTUI hands newThemeEnumerator a freshly-constructed loader; it must share the construction-time instance (§5.5)")
+			t.Errorf("openTUI hands newThemeSource a freshly-constructed loader; it must share the construction-time instance (§5.5)")
 		}
 		return true
 	})
@@ -223,15 +223,15 @@ func callCount(n ast.Node, name string) int {
 // persisted slug the adapter's own re-resolution names.
 //
 // The `●` is what proves the third method is wired: nothing is injected for it,
-// so the marker exists only if the panel reached themeEnumerator.Resolve and got
+// so the marker exists only if the panel reached themeSource.Resolve and got
 // the constant back.
 func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
-	loader, _ := themeEnumeratorForTest(t)
+	loader, _ := themeSourceForTest(t)
 
 	cfg := defaultTestTUIConfig()
-	cfg.themeEnumerator = newThemeEnumerator(loader)
+	cfg.themeSource = newThemeSource(loader)
 	cfg.themeKeys = theme.RawKeys{Theme: "sunset"}
 
 	view := pressThemeKeyOnModel(t, buildTUIModel(cfg, "", nil))
@@ -262,7 +262,7 @@ func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
 	// proves the records exist to be seen — and proves it through the seam THIS
 	// task adds rather than through the construction-time read alone.
 	loud := installMigrateCapture(t)
-	newThemeEnumerator(newThemeLoader()).Open(theme.RawKeys{Theme: "a-drop-in"})
+	newThemeSource(newThemeLoader()).Open(theme.RawKeys{Theme: "a-drop-in"})
 	if len(themeEvents(t, loud)) == 0 {
 		t.Fatal("the panel seam emitted no theme record against the poisoned directory; the zero-record assertion below would be vacuous")
 	}

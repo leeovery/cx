@@ -56,7 +56,7 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 			"themeResolution":  true,
 			"buildThemeLoader": true,
 			"newThemeLoader":   true,
-			// newThemeEnumerator is deliberately ABSENT. It resolves the themes
+			// newThemeSource is deliberately ABSENT. It resolves the themes
 			// directory and reads nothing, so it encloses no theme call site to
 			// permit — and naming it here would licence in advance exactly the
 			// construction-time sweep the lazy-discovery rule forbids, since these names are matched in
@@ -195,10 +195,10 @@ func canvasOf(th theme.Theme) string {
 func themeCallSites(t *testing.T) map[string]map[string]string {
 	t.Helper()
 	local := map[string]bool{
-		"themeResolution":    true,
-		"buildThemeLoader":   true,
-		"newThemeLoader":     true,
-		"newThemeEnumerator": true,
+		"themeResolution":  true,
+		"buildThemeLoader": true,
+		"newThemeLoader":   true,
+		"newThemeSource":   true,
 		// Tracked because their FILE is exempt in full: exempting the file would
 		// otherwise make every helper declared in it invisible to this scan, so a
 		// doctor-side helper called from the exec path would read as no call at

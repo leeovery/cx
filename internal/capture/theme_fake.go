@@ -5,18 +5,9 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// fakeThemeEnumerator is the panel's theme seam answered wholly from DECLARED
+// fakeThemeSource is the panel's theme seam answered wholly from DECLARED
 // VALUES: the fixture's faked union, its retained enumeration and its per-slot
 // resolution records, with the palette threaded in from `--theme`.
-//
-// IT PERFORMS NO I/O ON ANY OF ITS FOUR METHODS, and that is the requirement
-// rather than a property it happens to have. The no-real-config import guard
-// forbids internal/capture reaching config at all, so faking the seam wholesale
-// is the ONLY way the harness renders a panel — an invalid-theme row, a
-// persisted-but-missing slug, an unreadable themes directory — without a real
-// themes directory to stage any of it in. It holds no theme.Loader, resolves no
-// path and reads no file, and this package's own source is scanned to keep it
-// that way.
 //
 // # THE PALETTE IS INJECTED, AND EVERY ANSWER REPORTS IT
 //
@@ -51,7 +42,17 @@ import (
 // pressed `↓` in `go run ./cmd/capturetool`. A fake holds ONE palette, so every
 // row reporting it is the honest answer — arrowing previews the same colours
 // rather than none.
-type fakeThemeEnumerator struct {
+//
+// # IT PERFORMS NO I/O ON ANY OF ITS FOUR METHODS
+//
+// That is the requirement rather than a property it happens to have. The
+// no-real-config import guard forbids internal/capture reaching config at all, so
+// faking the seam wholesale is the ONLY way the harness renders a panel — an
+// invalid-theme row, a persisted-but-missing slug, an unreadable themes directory
+// — without a real themes directory to stage any of it in. It holds no
+// theme.Loader, resolves no path and reads no file, and this package's own source
+// is scanned to keep it that way.
+type fakeThemeSource struct {
 	// palette is the injected `--theme` value every answer reports.
 	palette theme.Theme
 
@@ -70,14 +71,14 @@ type fakeThemeEnumerator struct {
 }
 
 // Satisfying the seam is the whole point of the type, so a signature drift is a
-// compile error here rather than a nil enumerator at the wiring site.
-var _ tui.ThemeEnumerator = fakeThemeEnumerator{}
+// compile error here rather than a nil seam at the wiring site.
+var _ tui.ThemeSource = fakeThemeSource{}
 
-// newFakeThemeEnumerator binds a fixture's declared panel data to the palette
+// newFakeThemeSource binds a fixture's declared panel data to the palette
 // the frame is being rendered at, repainting every answer onto it (see the type
 // comment for why every one of them must report it).
-func newFakeThemeEnumerator(palette theme.Theme, enumeration theme.Enumeration, union theme.Union, slots []theme.SlotResolution) fakeThemeEnumerator {
-	return fakeThemeEnumerator{
+func newFakeThemeSource(palette theme.Theme, enumeration theme.Enumeration, union theme.Union, slots []theme.SlotResolution) fakeThemeSource {
+	return fakeThemeSource{
 		palette:     palette,
 		enumeration: enumeration,
 		union:       repaintUnion(union, palette),
@@ -87,14 +88,14 @@ func newFakeThemeEnumerator(palette theme.Theme, enumeration theme.Enumeration, 
 
 // Open hands back the declared enumeration and union — the fixture's whole list,
 // with no directory read and no keys consulted.
-func (f fakeThemeEnumerator) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
+func (f fakeThemeSource) Open(theme.RawKeys) (theme.Enumeration, theme.Union) {
 	return f.enumeration, f.union
 }
 
 // Reassemble hands back the same declared union. The post-commit recompute
 // re-derives from the retained parse with changed prefs state; a fixture
 // declares one list and holds it.
-func (f fakeThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
+func (f fakeThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
 	return f.union
 }
 
@@ -104,7 +105,7 @@ func (f fakeThemeEnumerator) Reassemble(theme.Enumeration, theme.RawKeys) theme.
 //
 // The declared slots are what the badges come from, and the injected palette is
 // what keeps the panel's open-time apply a no-op. See the type comment.
-func (f fakeThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+func (f fakeThemeSource) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
 	return theme.Resolution{
 		Nomination: theme.ConstantNomination(f.palette),
 		Slots:      f.slots,
@@ -119,7 +120,7 @@ func (f fakeThemeEnumerator) Resolve(theme.Enumeration, theme.Setting) (theme.Re
 // conversion this serves returns before the load. It is implemented honestly
 // anyway, because a fake answering a fourth method differently from its other
 // three is exactly the divergence the injected palette exists to prevent.
-func (f fakeThemeEnumerator) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+func (f fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
 	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug, Theme: f.palette}, nil
 }
 

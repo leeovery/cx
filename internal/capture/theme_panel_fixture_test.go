@@ -60,7 +60,7 @@ const panelFixturePrefix = "theme-panel-"
 // TestPanelFixture_FourInputs: it declares all four panel inputs.
 //
 // The harness contract names four and calls the fourth PREVIOUSLY UNSTATED: the `--theme`
-// palette, the raw persisted keys, the faked ThemeEnumerator's row set, and the
+// palette, the raw persisted keys, the faked ThemeSource's row set, and the
 // CURSOR POSITION. The palette arrives per render (Deps takes it), so what a
 // fixture can declare for itself is the other three — plus the enumeration and
 // the slot records that feed the fake.
@@ -98,11 +98,11 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 			if deps.Capture.ThemeCursor != fx.initialThemeCursor {
 				t.Errorf("Deps().Capture.ThemeCursor = %q, want the declared %q", deps.Capture.ThemeCursor, fx.initialThemeCursor)
 			}
-			if deps.ThemeEnumerator == nil {
-				t.Fatal("Deps() wires no ThemeEnumerator, so `t` is a silent no-op and the fixture renders no panel at all")
+			if deps.ThemeSource == nil {
+				t.Fatal("Deps() wires no ThemeSource, so `t` is a silent no-op and the fixture renders no panel at all")
 			}
 
-			enumeration, union := deps.ThemeEnumerator.Open(fx.themeKeys)
+			enumeration, union := deps.ThemeSource.Open(fx.themeKeys)
 			if got, want := rowSortKeys(union.Rows), rowSortKeys(fx.themeUnion.Rows); !slices.Equal(got, want) {
 				t.Errorf("the seam's union lists %v, want the declared %v", got, want)
 			}
@@ -115,7 +115,7 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 
 // rowSortKeys is a union's rows by identity, for comparing a seam's answer
 // against a fixture's declaration without comparing palettes (which the fake
-// deliberately rewrites — see newFakeThemeEnumerator).
+// deliberately rewrites — see newFakeThemeSource).
 func rowSortKeys(rows []theme.Row) []string {
 	keys := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -124,7 +124,7 @@ func rowSortKeys(rows []theme.Row) []string {
 	return keys
 }
 
-// TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette: it reports the
+// TestFakeThemeSource_ResolveReportsTheInjectedPalette: it reports the
 // injected palette.
 //
 // THE WHOLE POINT IS THAT THE OPEN-TIME ApplyTheme IS A NO-OP. The open
@@ -143,7 +143,7 @@ func rowSortKeys(rows []theme.Row) []string {
 //     nor a B value: assertion 1 passes as a vacuous negative, assertion 2's union
 //     balances, and the panel's bubbles/list instance reads as covered while being
 //     covered by nothing.
-func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
+func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 	injected := themetest.Builtin(t, theme.DefaultDarkSlug)
 	// The declared slots carry a DIFFERENT palette, so an implementation passing
 	// them through untouched fails rather than agreeing by coincidence.
@@ -151,7 +151,7 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 		{Slot: theme.SlotLight, Requested: "tokyo-night-day", Resolved: "tokyo-night-day", Theme: themetest.Builtin(t, theme.DefaultLightSlug)},
 		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord", Theme: themetest.Builtin(t, "nord")},
 	}
-	fake := newFakeThemeEnumerator(injected, theme.Enumeration{}, theme.Union{}, declared)
+	fake := newFakeThemeSource(injected, theme.Enumeration{}, theme.Union{}, declared)
 
 	resolution, err := fake.Resolve(theme.Enumeration{}, theme.Setting{})
 	if err != nil {
@@ -212,7 +212,7 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 	})
 }
 
-// TestFakeThemeEnumerator_RowsCarryTheInjectedPalette: its union rows carry the
+// TestFakeThemeSource_RowsCarryTheInjectedPalette: its union rows carry the
 // injected palette too.
 //
 // This is the fake's FOURTH reason for reporting the injected palette, and the one
@@ -228,7 +228,7 @@ func TestFakeThemeEnumerator_ResolveReportsTheInjectedPalette(t *testing.T) {
 // the whole completeness guard stay green while the live view goes colourless on the
 // first arrow key. That is the same silent-hazard shape as the sibling Resolve case, and
 // it is held to the same standard.
-func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
+func TestFakeThemeSource_RowsCarryTheInjectedPalette(t *testing.T) {
 	t.Run("arrowing to the next row keeps the frame on the injected palette", func(t *testing.T) {
 		pinned := themetest.Builtin(t, "nord")
 
@@ -278,7 +278,7 @@ func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 			{Filename: "broken.theme", Source: theme.SourceFile, Rejection: rejection},
 		}}
 
-		_, union := newFakeThemeEnumerator(injected, theme.Enumeration{}, declared, nil).Open(theme.RawKeys{})
+		_, union := newFakeThemeSource(injected, theme.Enumeration{}, declared, nil).Open(theme.RawKeys{})
 		if len(union.Rows) != len(declared.Rows) {
 			t.Fatalf("the fake lists %d row(s), want the declared %d", len(union.Rows), len(declared.Rows))
 		}
@@ -296,7 +296,7 @@ func TestFakeThemeEnumerator_RowsCarryTheInjectedPalette(t *testing.T) {
 }
 
 // panelDepsReporting builds a panel fixture's seam set painted from pinned, with
-// its fake enumerator deliberately REPORTING a different palette — the only way
+// its fake theme source deliberately REPORTING a different palette — the only way
 // to drive what happens when the two disagree, since Deps assembles them from one
 // value precisely so they cannot.
 func panelDepsReporting(t *testing.T, fixture string, pinned, reported theme.Theme) tui.Deps {
@@ -307,7 +307,7 @@ func panelDepsReporting(t *testing.T, fixture string, pinned, reported theme.The
 		t.Fatalf("FixtureByName(%s): %v", fixture, err)
 	}
 	deps := fx.Deps(pinned)
-	deps.ThemeEnumerator = newFakeThemeEnumerator(reported, fx.themeEnumeration, fx.themeUnion, fx.themeSlots)
+	deps.ThemeSource = newFakeThemeSource(reported, fx.themeEnumeration, fx.themeUnion, fx.themeSlots)
 	return deps
 }
 
@@ -315,7 +315,7 @@ func panelDepsReporting(t *testing.T, fixture string, pinned, reported theme.The
 // A frame carrying none has no theme background anywhere on it.
 const truecolorBackground = "48;2;"
 
-// TestFakeThemeEnumerator_ResolveIsTheOnlyBadgeSource pins the other half of the
+// TestFakeThemeSource_ResolveIsTheOnlyBadgeSource pins the other half of the
 // Resolve contract: the DECLARED slots are what the `●` comes from, and a fixture
 // declaring none renders no badge on any row.
 //
@@ -326,7 +326,7 @@ const truecolorBackground = "48;2;"
 // install with no theme set. On the adaptive-pair frame that is the loss of the
 // entire subject: those two badges are the reference for a vocabulary
 // with no prior art anywhere.
-func TestFakeThemeEnumerator_ResolveIsTheOnlyBadgeSource(t *testing.T) {
+func TestFakeThemeSource_ResolveIsTheOnlyBadgeSource(t *testing.T) {
 	pinned := themetest.Builtin(t, "nord")
 
 	fx, err := FixtureByName("theme-panel-adaptive-pair")
@@ -345,7 +345,7 @@ func TestFakeThemeEnumerator_ResolveIsTheOnlyBadgeSource(t *testing.T) {
 
 	t.Run("declaring no slots renders no badge on any row", func(t *testing.T) {
 		deps := fx.Deps(pinned)
-		deps.ThemeEnumerator = newFakeThemeEnumerator(pinned, fx.themeEnumeration, fx.themeUnion, nil)
+		deps.ThemeSource = newFakeThemeSource(pinned, fx.themeEnumeration, fx.themeUnion, nil)
 
 		for i, badge := range panelBadges(t, driveToPanel(t, deps)) {
 			if badge != "" {
@@ -389,7 +389,7 @@ func badgeIn(text string) string {
 	return strings.TrimSpace(text[at:])
 }
 
-// TestFakeThemeEnumerator_NoIO: its fake enumerator does no I/O.
+// TestFakeThemeSource_NoIO: its fake theme source does no I/O.
 //
 // The built-in-is-a-file rule's no-real-config import guard forbids internal/capture reaching
 // config at all, and the harness contract rests the whole panel-fixture route on the seam
@@ -405,15 +405,15 @@ func badgeIn(text string) string {
 // theme.Resolution values — so the import ban structurally cannot name it, and
 // theme.Loader, the only I/O-capable type the package declares, would walk past a
 // green import scan in silence. Closing it takes a scan of the fake's own FIELDS.
-func TestFakeThemeEnumerator_NoIO(t *testing.T) {
+func TestFakeThemeSource_NoIO(t *testing.T) {
 	const source = "theme_fake.go"
 	file := parseFakeSource(t, source)
 
 	// The non-vacuity guard on BOTH structural scans: a fake renamed out from under
 	// them leaves each one passing green over nothing.
-	fake, ok := fakeThemeEnumeratorStruct(file)
+	fake, ok := fakeThemeSourceStruct(file)
 	if !ok {
-		t.Fatalf("%s declares no fakeThemeEnumerator struct, so scanning it proves nothing", source)
+		t.Fatalf("%s declares no fakeThemeSource struct, so scanning it proves nothing", source)
 	}
 
 	t.Run("the fake's source imports nothing that can touch the filesystem", func(t *testing.T) {
@@ -429,7 +429,7 @@ func TestFakeThemeEnumerator_NoIO(t *testing.T) {
 
 	t.Run("the fake holds no theme.Loader", func(t *testing.T) {
 		if field, held := loaderFieldIn(fake, themePackageName(file)); held {
-			t.Errorf("%s's fakeThemeEnumerator declares field %q, a theme.Loader — the one I/O-capable type in internal/theme, and the one the import scan above cannot ban. The fake must hold no loader, resolve no path and read no file", source, field)
+			t.Errorf("%s's fakeThemeSource declares field %q, a theme.Loader — the one I/O-capable type in internal/theme, and the one the import scan above cannot ban. The fake must hold no loader, resolve no path and read no file", source, field)
 		}
 	})
 
@@ -439,9 +439,9 @@ func TestFakeThemeEnumerator_NoIO(t *testing.T) {
 	// coverage" failure the assertion itself exists to close, one level up.
 	t.Run("the loader scan reports one that is there", func(t *testing.T) {
 		control := parseControlSource(t, loaderHoldingFakeSource)
-		fake, ok := fakeThemeEnumeratorStruct(control)
+		fake, ok := fakeThemeSourceStruct(control)
 		if !ok {
-			t.Fatal("the control source declares no fakeThemeEnumerator struct, so it controls nothing")
+			t.Fatal("the control source declares no fakeThemeSource struct, so it controls nothing")
 		}
 		field, held := loaderFieldIn(fake, themePackageName(control))
 		if !held {
@@ -465,7 +465,7 @@ func TestFakeThemeEnumerator_NoIO(t *testing.T) {
 			t.Fatalf("FixtureByName: %v", err)
 		}
 		palette := themetest.Builtin(t, "nord")
-		seam := fx.Deps(palette).ThemeEnumerator
+		seam := fx.Deps(palette).ThemeSource
 
 		enumeration, union := seam.Open(fx.themeKeys)
 		if got, want := rowSortKeys(union.Rows), rowSortKeys(fx.themeUnion.Rows); !slices.Equal(got, want) {
@@ -510,7 +510,7 @@ const loaderHoldingFakeSource = `package capture
 
 import palette "github.com/leeovery/portal/internal/theme"
 
-type fakeThemeEnumerator struct {
+type fakeThemeSource struct {
 	slots  []palette.SlotResolution
 	loader *palette.Loader
 }
@@ -537,17 +537,17 @@ func parseControlSource(t *testing.T, src string) *ast.File {
 	return file
 }
 
-// fakeThemeEnumeratorStruct resolves the fake's declared struct type out of a
+// fakeThemeSourceStruct resolves the fake's declared struct type out of a
 // parsed file.
 //
 // The false return is what makes the two structural scans non-vacuous: a file
 // that had been renamed out from under them declares no such type, and both would
 // otherwise pass green over nothing.
-func fakeThemeEnumeratorStruct(file *ast.File) (*ast.StructType, bool) {
+func fakeThemeSourceStruct(file *ast.File) (*ast.StructType, bool) {
 	var found *ast.StructType
 	ast.Inspect(file, func(n ast.Node) bool {
 		spec, ok := n.(*ast.TypeSpec)
-		if !ok || spec.Name.Name != "fakeThemeEnumerator" {
+		if !ok || spec.Name.Name != "fakeThemeSource" {
 			return true
 		}
 		if declared, ok := spec.Type.(*ast.StructType); ok {

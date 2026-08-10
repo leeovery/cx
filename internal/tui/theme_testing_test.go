@@ -60,7 +60,7 @@ func openPanelForTestWithSessions(t *testing.T, m Model, contentW, contentH int,
 // the appearance gate resolves exactly once and the panel must read THAT answer
 // rather than ask again. Pinning it is what lets one fixture drive the in-force slot in both
 // terminals without touching the async race.
-func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) (Model, *countingThemeEnumerator) {
+func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) (Model, *countingThemeSource) {
 	t.Helper()
 	return newDirBackedPanelModelOver(t, dir, keys, mode, theme.NewLoader(nil))
 }
@@ -71,7 +71,7 @@ func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode c
 // Construction always resolves through a loader of its own, so a caller passing a
 // sink-backed one gets a sink holding the PANEL's emissions alone rather than a
 // delta against construction's.
-func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance, panelLoader theme.Loader) (Model, *countingThemeEnumerator) {
+func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance, panelLoader theme.Loader) (Model, *countingThemeSource) {
 	t.Helper()
 
 	setting, _ := theme.ResolveSetting(keys)
@@ -81,7 +81,7 @@ func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mo
 	}
 	enumerator := countingEnumeratorOver(panelLoader, dir)
 	m := New(fakeLister{},
-		WithThemeEnumerator(enumerator),
+		WithThemeSource(enumerator),
 		WithThemeKeys(keys),
 		WithThemeNomination(resolution.Nomination),
 		WithCanvasMode(mode),

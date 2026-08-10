@@ -487,11 +487,11 @@ func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
 // flashed, selected through the shared themePanelEntryFlash so the two
 // evaluations' copy is identical.
 func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
-	if m.themeState.enumerator == nil {
+	if m.themeState.source == nil {
 		return m, nil
 	}
 
-	enumeration, union := m.themeState.enumerator.Open(m.themeState.keys)
+	enumeration, union := m.themeState.source.Open(m.themeState.keys)
 	if dim, fits := themePanelFloor(m.contentWidth(), m.contentHeight(), union.DirUnusable); !fits {
 		return m.blockThemePanel(themePanelEntryFlash(dim))
 	}
@@ -605,7 +605,7 @@ func (m *Model) seedThemePanelMessage() {
 // necessity, since ApplyTheme is idempotent per swap, and it makes the common
 // close cost no restyle.
 func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.SlotResolution, bool) {
-	resolution, err := m.themeState.enumerator.Resolve(e, m.themeSetting())
+	resolution, err := m.themeState.source.Resolve(e, m.themeSetting())
 	if err != nil {
 		return theme.Resolution{}, theme.SlotResolution{}, false
 	}

@@ -131,7 +131,7 @@ func newArrowPanelDeps(t *testing.T, rows []theme.Row, cursorSlug string) Deps {
 	return Deps{
 		Lister: fakeLister{},
 		Theme:  theme.ConstantNomination(target.Theme),
-		ThemeEnumerator: &fakeThemeEnumerator{
+		ThemeSource: &fakeThemeSource{
 			union: theme.Union{Rows: rows, Count: len(rows), Rejected: arrowRejectedCount(rows)},
 			resolution: theme.Resolution{
 				Nomination: theme.ConstantNomination(target.Theme),
@@ -551,7 +551,7 @@ func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	enumerator := countingEnumeratorOver(loader, dir)
 
 	m := New(fakeLister{},
-		WithThemeEnumerator(enumerator),
+		WithThemeSource(enumerator),
 		WithThemeKeys(theme.RawKeys{Theme: "aurora"}),
 		WithThemeNomination(theme.ConstantNomination(testDarkTheme(t))),
 	)

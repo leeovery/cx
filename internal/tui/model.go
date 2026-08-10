@@ -844,14 +844,14 @@ func WithThemeKeys(keys theme.RawKeys) Option {
 	}
 }
 
-// WithThemeEnumerator injects the panel's theme seam — the ScrollbackReader
+// WithThemeSource injects the panel's theme seam — the ScrollbackReader
 // idiom applied to the theme union, production wiring the real implementation and
 // fixtures faking it. It is the WithModePersister shape, line for line: the option
 // assigns, Build applies it only for a non-nil seam, and openThemePanel's nil
 // check is what makes an unwired `t` a silent no-op.
-func WithThemeEnumerator(e ThemeEnumerator) Option {
+func WithThemeSource(e ThemeSource) Option {
 	return func(m *Model) {
-		m.themeState.enumerator = e
+		m.themeState.source = e
 	}
 }
 

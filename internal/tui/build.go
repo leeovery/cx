@@ -55,13 +55,13 @@ type Deps struct {
 	// `theme: commit failed` — and the offline capture harness passes none, so a
 	// commit during a capture writes nowhere, exactly as ModePersister behaves.
 	ThemePersister ThemePersister
-	// ThemeEnumerator is the panel's theme seam — the TmuxEnumerator /
+	// ThemeSource is the panel's theme seam — the TmuxEnumerator /
 	// ScrollbackReader idiom applied to the theme union. Production (cmd/open.go)
 	// passes an adapter closing over the process's theme.Loader and the resolved
 	// themes directory; a fixture passes a fake holding a hand-built union, which
 	// is what lets internal/capture render a panel under its no-real-config import
 	// guard. Nil is the ordinary unwired state and makes `t` a silent no-op.
-	ThemeEnumerator ThemeEnumerator
+	ThemeSource ThemeSource
 	// Detector + Resolve are the async host-terminal detection seams. Both are
 	// injected together by cmd/open.go (Detector = spawn.NewDetector(client), Resolve
 	// = the config-aware resolver's Resolve, loaded once from terminals.json) and
@@ -112,7 +112,7 @@ type Deps struct {
 	// itself writes and re-reading it would import another instance's commit.
 	//
 	// There is deliberately NO per-slot resolution record beside it. The `●`
-	// needs one, but the panel derives it at OPEN from ThemeEnumerator.Resolve —
+	// needs one, but the panel derives it at OPEN from ThemeSource.Resolve —
 	// the re-resolution against the enumeration it just read — and badges
 	// exist only while the panel is open. An injected record would be a second,
 	// staler source of truth for which slug carries the marker, and the one a
@@ -274,8 +274,8 @@ func Build(deps Deps) Model {
 	// The raw persisted keys are always injected — the zero value is meaningful
 	// (no keys IS the shipped adaptive pair), so there is nothing to guard.
 	opts = append(opts, WithThemeKeys(deps.ThemeKeys))
-	if deps.ThemeEnumerator != nil {
-		opts = append(opts, WithThemeEnumerator(deps.ThemeEnumerator))
+	if deps.ThemeSource != nil {
+		opts = append(opts, WithThemeSource(deps.ThemeSource))
 	}
 	// Async host-terminal detection seams. Always injected via nil-tolerant
 	// options — a nil Detector/Resolve leaves detection unwired, mirroring the

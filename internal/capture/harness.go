@@ -41,7 +41,7 @@ func keyPageDown() tea.KeyPressMsg {
 // passes it: a constant needs no light/dark detection, so the gate is resolved at
 // construction and the frame is un-gated and byte-stable. It is handed to Deps
 // rather than assigned afterwards, because the palette drives TWO seams — the
-// nomination and the panel's faked enumerator, whose Resolve must report the same
+// nomination and the panel's faked ThemeSource, whose Resolve must report the same
 // palette or the panel's open-time apply repaints the frame off `--theme`. See
 // Fixture.Deps.
 //
