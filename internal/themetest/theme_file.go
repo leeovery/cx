@@ -1,5 +1,6 @@
 // Package themetest supports Portal's theme tests: it authors `.theme` fixture
-// files and loads the embedded built-ins by slug.
+// files, loads the embedded built-ins by slug, and builds the synthetic probe
+// palettes a swap guard diffs between.
 //
 // It is the single definition of the fixture format every consumer stages files
 // in — the loader's `key = value` shape, the canonical token order, and the one

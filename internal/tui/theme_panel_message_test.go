@@ -123,7 +123,7 @@ func TestPanelMessage_CommitFailedPinnedCopy(t *testing.T) {
 func TestPanelMessage_SingleSlotExclusion(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
-	m := newArrowPanelModel(t, arrowValidRows(4), arrowValidRows(4)[0].Slug)
+	m := newArrowPanelModel(t, arrowValidRows(t, 4), arrowValidRows(t, 4)[0].Slug)
 	m.themeState.keys = theme.RawKeys{Theme: messageTestConfirmSlug}
 
 	t.Run("a raised confirm is the only live contender", func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestPanelFooter_RevertsAfterConfirm(t *testing.T) {
 	th := testDarkTheme(t)
 	const height = 18
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
-	m := newArrowPanelModel(t, arrowValidRows(6), arrowValidRows(6)[0].Slug)
+	m := newArrowPanelModel(t, arrowValidRows(t, 6), arrowValidRows(t, 6)[0].Slug)
 	m.themeState.keys = theme.RawKeys{Theme: messageTestConfirmSlug}
 	m.themePanel.width = themePanelPreferredWidth
 

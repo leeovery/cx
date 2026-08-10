@@ -205,7 +205,7 @@ func arrowToThemeRow(t *testing.T, m Model, label string) Model {
 // two are distinguishable: with the cursor still on the constant's row a commit of
 // the persisted slug and a commit of the cursor's are the same string.
 func TestPanelEnter_CommitsTheCursorSlug(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug
 	m, persister := newCommitPanelModel(t, rows, persisted)
 
@@ -232,7 +232,7 @@ func TestPanelEnter_CommitsTheCursorSlug(t *testing.T) {
 func TestPanelEnter_DoesNotClose(t *testing.T) {
 	for _, tc := range entryPages {
 		t.Run(tc.name, func(t *testing.T) {
-			rows := arrowValidRows(4)
+			rows := arrowValidRows(t, 4)
 			m, persister := newCommitPanelModelAt(t, rows, rows[0].Slug, tc.page)
 
 			m, cmd := pressCommitKey(t, m)
@@ -258,7 +258,7 @@ func TestPanelEnter_DoesNotClose(t *testing.T) {
 // re-implementing it or reading anything back. Driven from an ADAPTIVE PAIR, so
 // there are two slots there to be cleared.
 func TestPanelEnter_MutatesRawKeysToAConstant(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	m, persister := newCommitPairPanelModel(t, rows)
 	before := m.themeState.keys
 	if before.Light == "" || before.Dark == "" {
@@ -286,7 +286,7 @@ func TestPanelEnter_MutatesRawKeysToAConstant(t *testing.T) {
 // already what is painted — so the structural half below covers it.
 func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 	t.Run("the frame is byte-identical across the keypress", func(t *testing.T) {
-		rows := arrowValidRows(4)
+		rows := arrowValidRows(t, 4)
 		persisted, target := rows[0].Slug, rows[2].Slug
 		m, persister := newCommitPanelModel(t, rows, persisted)
 
@@ -312,7 +312,7 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 	// fixture does change the frame, so "identical" is a commit that re-themed
 	// nothing rather than a frame that never moves.
 	t.Run("an arrow over the same fixture does change the frame", func(t *testing.T) {
-		rows := arrowValidRows(4)
+		rows := arrowValidRows(t, 4)
 		m, _ := newCommitPanelModel(t, rows, rows[0].Slug)
 		before := m.View().Content
 
@@ -421,7 +421,7 @@ func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 // inside the commit, so a path that only logged would recreate the silent "applied but not
 // persisted" state.
 func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug
 
 	t.Run("the keypress mutates nothing", func(t *testing.T) {
@@ -460,7 +460,7 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 // — which is why it mutates nothing either: there is nothing on disk for the
 // in-memory keys to mirror.
 func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug
 
 	m := openCommitPanel(t, newArrowPanelDeps(t, rows, persisted), PageSessions, persisted)
@@ -500,7 +500,7 @@ func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
 // unconditional writes, so pressing `d`/`l`/`Enter` again simply retries — no special
 // retry affordance, and no state to clear first."
 func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	target := rows[2].Slug
 	m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 	m = arrowToThemeRow(t, m, target)
@@ -618,7 +618,7 @@ func TestPanelEnter_NoOtherIO(t *testing.T) {
 // its empty string as a theme name would persist a setting nothing can resolve.
 func TestPanelEnter_UnselectableRowWritesNothing(t *testing.T) {
 	t.Run("an unselectable row", func(t *testing.T) {
-		rows := []theme.Row{arrowValidRow(arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
+		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 		m.themePanel.list.Select(1)
 		if themePanelCursorRow(t, m).Selectable() {
@@ -638,7 +638,7 @@ func TestPanelEnter_UnselectableRowWritesNothing(t *testing.T) {
 	})
 
 	t.Run("a selectable row carrying no slug", func(t *testing.T) {
-		rows := []theme.Row{arrowValidRow(arrowSlug(0), 0), {Source: theme.SourceBuiltin, Theme: arrowPalette(1)}}
+		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), {Source: theme.SourceBuiltin, Theme: arrowPalette(t, 1)}}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 		m.themePanel.list.Select(1)
 		row := themePanelCursorRow(t, m)
@@ -655,7 +655,7 @@ func TestPanelEnter_UnselectableRowWritesNothing(t *testing.T) {
 	// Positive control: the same keypress on a SELECTABLE row does write, so the
 	// two refusals above are a guard rather than an unwired arm.
 	t.Run("a selectable row does write", func(t *testing.T) {
-		rows := []theme.Row{arrowValidRow(arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
+		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 
 		m, _ = pressCommitKey(t, m)
@@ -696,7 +696,7 @@ func TestPanelEnter_NoConfirmOverAPair(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rows := arrowValidRows(4)
+			rows := arrowValidRows(t, 4)
 			m, persister := tc.build(t, rows)
 			footer := renderThemePanelFooter(themePanelKeymap(), themePanelInnerWidth(m.themePanel.width), m.themeState.active, m.colourless)
 

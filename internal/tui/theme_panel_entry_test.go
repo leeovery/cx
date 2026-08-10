@@ -54,14 +54,18 @@ const (
 
 // entryRows are the panel's union for an entry fixture: four selectable rows, so an
 // opened panel has a body to render and a row for the cursor to anchor on.
-func entryRows() []theme.Row { return arrowValidRows(4) }
+func entryRows(t *testing.T) []theme.Row {
+	t.Helper()
+	return arrowValidRows(t, 4)
+}
 
 // newEntryEnumerator is the recording seam an entry fixture reads through. The
 // recorded OPEN COUNT is what discriminates the two refusal shapes: a proactive
 // block reads nothing, while the post-read re-evaluation has already enumerated by
 // the time it refuses.
-func newEntryEnumerator(dirUnusable bool) *fakeThemeSource {
-	rows := entryRows()
+func newEntryEnumerator(t *testing.T, dirUnusable bool) *fakeThemeSource {
+	t.Helper()
+	rows := entryRows(t)
 	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       theme.Union{Rows: rows, Count: len(rows), DirUnusable: dirUnusable},
@@ -102,7 +106,7 @@ func newEntryModel(t *testing.T, e ThemeSource, o entryModelOpts) (Model, *fakeT
 	t.Helper()
 
 	rec, _ := e.(*fakeThemeSource)
-	rows := entryRows()
+	rows := entryRows(t)
 	deps := Deps{
 		Lister:        fakeLister{},
 		Killer:        keymapParityKiller{},
@@ -144,7 +148,7 @@ func newEntryModel(t *testing.T, e ThemeSource, o entryModelOpts) (Model, *fakeT
 // newUnblockedEntryModel is the fixture at the standard unblocked content region.
 func newUnblockedEntryModel(t *testing.T, p page) (Model, *fakeThemeSource) {
 	t.Helper()
-	return newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+	return newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 		page:     p,
 		contentW: entryContentW,
 		contentH: entryContentH,
@@ -284,7 +288,7 @@ func TestPanelEntry_OpensOnSessionsAndProjects(t *testing.T) {
 func TestPanelEntry_NoColorBlocked(t *testing.T) {
 	for _, tc := range entryPages {
 		t.Run(tc.name, func(t *testing.T) {
-			m, rec := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+			m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 				page:       tc.page,
 				colourless: true,
 				contentW:   entryContentW,
@@ -326,7 +330,7 @@ func TestPanelEntry_FloorBlocked(t *testing.T) {
 		{name: "both fail", contentW: themePanelMinWidth - 1, contentH: floor - 1, wantFlash: specNarrowEntryFlash},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m, rec := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+			m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 				page:     PageSessions,
 				contentW: tc.contentW,
 				contentH: tc.contentH,
@@ -361,7 +365,7 @@ func TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor(t *testing.T) {
 			themePanelMinHeight(entries, true), floor)
 	}
 
-	m, rec := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+	m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 		page:     PageSessions,
 		contentW: entryContentW,
 		contentH: floor,
@@ -400,7 +404,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 	floor := themePanelMinHeight(entries, false)
 
 	t.Run("at the non-directory floor it discards the enumeration and refuses", func(t *testing.T) {
-		m, rec := newEntryModel(t, newEntryEnumerator(true), entryModelOpts{
+		m, rec := newEntryModel(t, newEntryEnumerator(t, true), entryModelOpts{
 			page:     PageSessions,
 			contentW: entryContentW,
 			contentH: floor,
@@ -420,7 +424,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 
 	t.Run("one row higher it opens with a list row beneath the warning", func(t *testing.T) {
 		height := themePanelMinHeight(entries, true)
-		m, _ := newEntryModel(t, newEntryEnumerator(true), entryModelOpts{
+		m, _ := newEntryModel(t, newEntryEnumerator(t, true), entryModelOpts{
 			page:     PageSessions,
 			contentW: entryContentW,
 			contentH: height,
@@ -438,7 +442,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 		if got, want := strings.TrimRight(lines[themePanelHeaderRows()], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 			t.Fatalf("the row under the header = %q, want the pinned %q", got, want)
 		}
-		if got, want := lines[themePanelHeaderRows()+1], entryRows()[0].Label(); !strings.Contains(got, want) {
+		if got, want := lines[themePanelHeaderRows()+1], entryRows(t)[0].Label(); !strings.Contains(got, want) {
 			t.Errorf("the row beneath the warning = %q, want the list row %q — §9.5 requires rows BENEATH it", got, want)
 		}
 	})
@@ -520,7 +524,7 @@ func specEntryFlash(dim themePanelDim) string {
 // mustEntryModel is newEntryModel at a content region, discarding the seam.
 func mustEntryModel(t *testing.T, contentW, contentH int) Model {
 	t.Helper()
-	m, _ := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+	m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 		page:     PageSessions,
 		contentW: contentW,
 		contentH: contentH,
@@ -648,7 +652,7 @@ func TestPanelEntry_BlockedFlashLifecycle(t *testing.T) {
 	for _, tc := range entryPages {
 		blocked := func(t *testing.T) Model {
 			t.Helper()
-			m, _ := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+			m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 				page:       tc.page,
 				colourless: true,
 				contentW:   entryContentW,

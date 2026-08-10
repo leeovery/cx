@@ -379,7 +379,7 @@ func themeGuardModel(t *testing.T, m Model) Model {
 	if m.colourless {
 		t.Fatal("the guard seed must not be colourless — §9.10 would block t and the probe would assert a refusal")
 	}
-	m.themeState.source = newEntryEnumerator(false)
+	m.themeState.source = newEntryEnumerator(t, false)
 	return m
 }
 

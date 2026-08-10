@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -66,21 +67,23 @@ const (
 )
 
 // arrowPaletteReds are the leading red bytes of the distinct synthetic palettes
-// the arrow fixtures paint their rows from. Every channel of syntheticProbePalette
+// the arrow fixtures paint their rows from. Every channel of a synthetic palette
 // is three decimal digits, so one palette's rendered SGR core can never be a
 // substring of another's — the property the "the stale colour is absent" half of
 // each assertion rests on.
 var arrowPaletteReds = []uint8{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}
 
 // arrowPalette returns the i-th distinct synthetic palette.
-func arrowPalette(i int) theme.Theme {
-	return syntheticProbePalette(arrowPaletteReds[i%len(arrowPaletteReds)])
+func arrowPalette(t *testing.T, i int) theme.Theme {
+	t.Helper()
+	return themetest.SyntheticPalette(t, arrowPaletteReds[i%len(arrowPaletteReds)])
 }
 
 // arrowValidRow is one SELECTABLE union row carrying its own distinct palette, so
 // landing on it is observable as a whole-frame colour change.
-func arrowValidRow(slug string, palette int) theme.Row {
-	return theme.Row{Slug: slug, Source: theme.SourceBuiltin, Theme: arrowPalette(palette)}
+func arrowValidRow(t *testing.T, slug string, palette int) theme.Row {
+	t.Helper()
+	return theme.Row{Slug: slug, Source: theme.SourceBuiltin, Theme: arrowPalette(t, palette)}
 }
 
 // arrowInvalidRow is one UNSELECTABLE union row — a drop-in the loader rejected.
@@ -95,10 +98,11 @@ func arrowInvalidRow(slug string) theme.Row {
 }
 
 // arrowValidRows returns n selectable rows, each with its own palette.
-func arrowValidRows(n int) []theme.Row {
+func arrowValidRows(t *testing.T, n int) []theme.Row {
+	t.Helper()
 	rows := make([]theme.Row, 0, n)
 	for i := range n {
-		rows = append(rows, arrowValidRow(arrowSlug(i), i))
+		rows = append(rows, arrowValidRow(t, arrowSlug(i), i))
 	}
 	return rows
 }
@@ -240,7 +244,7 @@ func requireArrowCursorAt(t *testing.T, m Model, want int) {
 // the paging keys perfectly and still steps a single row, which is indistinguishable
 // from `↓` on the screen.
 func TestPanelArrow_NavigationBindings(t *testing.T) {
-	rows := arrowValidRows(6)
+	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModelAt(t, rows, arrowSlug(0), arrowPagingTermH)
 	requireArrowPanelPageSize(t, m, arrowPagingPerPage)
 	requireArrowCursorAt(t, m, 0)
@@ -286,7 +290,7 @@ func TestPanelArrow_NavigationBindings(t *testing.T) {
 // move to: on a single-page list every banned page key is a no-op whatever it is
 // bound to, and the behavioural half would pass for the wrong reason.
 func TestPanelArrow_ArrowOnlyNavigation(t *testing.T) {
-	rows := arrowValidRows(6)
+	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModelAt(t, rows, arrowSlug(2), arrowPagingTermH)
 	requireArrowPanelPageSize(t, m, arrowPagingPerPage)
 
@@ -372,7 +376,7 @@ func arrowMainColumn(m Model) int {
 // cell inside the panel and a cell of the main screen both carry the newly-selected
 // row's canvas and neither carries the previous row's.
 func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	before, after := rows[0].Theme, rows[1].Theme
 	m := newArrowPanelModel(t, rows, rows[0].Slug)
 
@@ -417,11 +421,11 @@ func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 // one directory ARE — so a single step is not enough and the skip loops.
 func TestPanelArrow_SkipsConsecutiveInvalidRows(t *testing.T) {
 	rows := []theme.Row{
-		arrowValidRow("aaa", 0),
+		arrowValidRow(t, "aaa", 0),
 		arrowInvalidRow("bbb"),
 		arrowInvalidRow("ccc"),
 		arrowInvalidRow("ddd"),
-		arrowValidRow("eee", 1),
+		arrowValidRow(t, "eee", 1),
 	}
 	m := newArrowPanelModel(t, rows, "aaa")
 
@@ -458,8 +462,8 @@ func TestPanelArrow_SkipReversesAtTheBoundary(t *testing.T) {
 		rows := []theme.Row{
 			arrowInvalidRow("aaa"),
 			arrowInvalidRow("bbb"),
-			arrowValidRow("ccc", 0),
-			arrowValidRow("ddd", 1),
+			arrowValidRow(t, "ccc", 0),
+			arrowValidRow(t, "ddd", 1),
 		}
 		m := newArrowPanelModel(t, rows, "ccc")
 		requireArrowUnskippedLandingAt(t, m, arrowUp, 1)
@@ -476,8 +480,8 @@ func TestPanelArrow_SkipReversesAtTheBoundary(t *testing.T) {
 
 	t.Run("downward into a trailing invalid block", func(t *testing.T) {
 		rows := []theme.Row{
-			arrowValidRow("aaa", 0),
-			arrowValidRow("bbb", 1),
+			arrowValidRow(t, "aaa", 0),
+			arrowValidRow(t, "bbb", 1),
 			arrowInvalidRow("ccc"),
 			arrowInvalidRow("ddd"),
 		}
@@ -516,10 +520,10 @@ func requireArrowMoves(t *testing.T, m Model, press tea.KeyPressMsg, want int) {
 // compose with anything, which is why the page is pinned rather than installed.
 func TestPanelArrow_SkipComposesWithPaging(t *testing.T) {
 	rows := []theme.Row{
-		arrowValidRow("aaa", 0),
-		arrowValidRow("bbb", 1),
+		arrowValidRow(t, "aaa", 0),
+		arrowValidRow(t, "bbb", 1),
 		arrowInvalidRow("ccc"),
-		arrowValidRow("ddd", 2),
+		arrowValidRow(t, "ddd", 2),
 	}
 	m := newArrowPanelModelAt(t, rows, "aaa", arrowPagingTermH)
 	requireArrowPanelPageSize(t, m, arrowPagingPerPage)
@@ -633,7 +637,7 @@ func newArrowRebuildProbeModel(t *testing.T, rows []theme.Row, reader *fakeStamp
 // The positive control is what makes the zero an absence of reads rather than an
 // absence of counting.
 func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	reader := &fakeStamper{path: t.TempDir()}
 	m := newArrowRebuildProbeModel(t, rows, reader)
 
@@ -671,7 +675,7 @@ func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 // WRITES the hex moves it once, while one that re-derives it drifts only under
 // repetition.
 func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
-	rows := arrowValidRows(6)
+	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModel(t, rows, rows[0].Slug)
 
 	startup := m.themeState.startupCanvasHex
@@ -778,7 +782,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 // large enough to paginate and the RENDERED dot row is diffed, which is the only
 // observation a re-point of the styles alone cannot satisfy.
 func TestPanelArrow_PanelListStylesRepointed(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	rows := make([]theme.Row, 0, 20)
 	for i := range 20 {
 		palette := before
@@ -845,7 +849,7 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 		fgTruecolor = "38;2;"
 		bgTruecolor = "48;2;"
 	)
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 
 	build := func(colourless bool) Model {
 		deps := newArrowPanelDeps(t, rows, rows[0].Slug)
@@ -891,7 +895,7 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 // repeated swap must render exactly what the first one rendered — the restyle
 // carries no accumulating state.
 func TestPanelArrow_SameRowIsANoOp(t *testing.T) {
-	rows := arrowValidRows(3)
+	rows := arrowValidRows(t, 3)
 	m := newArrowPanelModel(t, rows, rows[0].Slug)
 	first := m.View().Content
 

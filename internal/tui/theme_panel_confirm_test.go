@@ -93,8 +93,9 @@ var (
 // slotConfirmRows is the confirm fixture's union: six selectable rows, each with
 // its own palette, so a cursor move is observable as a whole-frame colour change
 // and the paging fixture below has three pages to move between.
-func slotConfirmRows() []theme.Row {
-	return arrowValidRows(6)
+func slotConfirmRows(t *testing.T) []theme.Row {
+	t.Helper()
+	return arrowValidRows(t, 6)
 }
 
 // newSlotConfirmModel opens the panel over a CONSTANT (rows[0]) with the cursor
@@ -115,7 +116,7 @@ func newSlotConfirmModel(t *testing.T) (Model, *fakeThemePersister) {
 func newSlotConfirmModelAt(t *testing.T, termH int) (Model, *fakeThemePersister) {
 	t.Helper()
 
-	rows := slotConfirmRows()
+	rows := slotConfirmRows(t)
 	m := newArrowPanelModelAt(t, rows, rows[0].Slug, termH)
 	persister := &fakeThemePersister{}
 	WithThemePersister(persister)(&m)
@@ -379,7 +380,7 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 	}
 
 	t.Run("an unselectable row", func(t *testing.T) {
-		rows := []theme.Row{arrowValidRow(arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
+		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 		m.themePanel.list.Select(1)
 		if themePanelCursorRow(t, m).Selectable() {
@@ -395,7 +396,7 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 	})
 
 	t.Run("a selectable row carrying no slug", func(t *testing.T) {
-		rows := []theme.Row{arrowValidRow(arrowSlug(0), 0), {Source: theme.SourceBuiltin, Theme: arrowPalette(1)}}
+		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), {Source: theme.SourceBuiltin, Theme: arrowPalette(t, 1)}}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 		m.themePanel.list.Select(1)
 		row := themePanelCursorRow(t, m)
@@ -411,7 +412,7 @@ func TestSlotConfirm_UnselectableRowAsksNothing(t *testing.T) {
 	// Positive control: the same keypress on a SELECTABLE row DOES ask, so the two
 	// refusals above are a guard rather than an unwired arm.
 	t.Run("a selectable row does ask", func(t *testing.T) {
-		rows := []theme.Row{arrowValidRow(arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
+		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
 
 		m, _ = pressSlotKey(t, m, slotDarkPress)
@@ -963,7 +964,7 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 // while this pins the property the guard exists for.
 func TestSlotConfirm_NilPersisterIsInert(t *testing.T) {
 	t.Run("the answer writes and moves nothing", func(t *testing.T) {
-		rows := arrowValidRows(4)
+		rows := arrowValidRows(t, 4)
 		persisted, target := rows[0].Slug, rows[2].Slug
 
 		m := openCommitPanel(t, newArrowPanelDeps(t, rows, persisted), PageSessions, persisted)
@@ -1077,7 +1078,7 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 // ask).
 func TestSlotConfirm_NotRaisedByEnter(t *testing.T) {
 	t.Run("over a pair", func(t *testing.T) {
-		rows := arrowValidRows(4)
+		rows := arrowValidRows(t, 4)
 		m, persister := newCommitPairPanelModel(t, rows)
 
 		m, _ = pressCommitKey(t, arrowToThemeRow(t, m, rows[2].Slug))

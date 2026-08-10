@@ -47,8 +47,9 @@ import (
 // this is the shape a real themes directory reaches the moment anyone edits a file.
 // It sorts last, leaving the pair the seed's slots name (rows[0] / rows[1]) and the
 // rows the cursor steps and pages onto all selectable.
-func themePanelGuardRows() []theme.Row {
-	return append(arrowValidRows(4), arrowInvalidRow(arrowSlug(4)))
+func themePanelGuardRows(t *testing.T) []theme.Row {
+	t.Helper()
+	return append(arrowValidRows(t, 4), arrowInvalidRow(arrowSlug(4)))
 }
 
 // themePanelGuardModel is the panel scope's seed — sessionsGuardModel's counterpart
@@ -72,7 +73,7 @@ func themePanelGuardRows() []theme.Row {
 func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
-	rows := themePanelGuardRows()
+	rows := themePanelGuardRows(t)
 	persister := &fakeThemePersister{}
 	deps := commitPairPanelDeps(t, rows)
 	deps.ThemePersister = persister

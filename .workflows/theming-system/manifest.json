@@ -358,8 +358,8 @@
             ".claude/skills/golang-spf13-cobra",
             ".claude/skills/golang-dependency-management"
           ],
-          "current_phase": 13,
-          "current_task": null,
+          "current_phase": 14,
+          "current_task": "theming-system-14-2",
           "completed_tasks": [
             "theming-system-1-1",
             "theming-system-1-2",
@@ -489,7 +489,8 @@
             "theming-system-13-11",
             "theming-system-13-12",
             "theming-system-13-13",
-            "theming-system-13-14"
+            "theming-system-13-14",
+            "theming-system-14-1"
           ],
           "completed_phases": [
             1,

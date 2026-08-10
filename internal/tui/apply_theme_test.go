@@ -114,7 +114,7 @@ func swapProbeGroupingModes() []swapProbeMode {
 // rebuildSessionList immediately after the swap DOES pay the reads. Without it
 // the zero would be indistinguishable from a dead seam.
 func TestApplyTheme_RestylesWithoutRebuild(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 
 	for _, tc := range swapProbeGroupingModes() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -292,7 +292,7 @@ func newCountingStores() countingStores {
 // which is the only shape through which a swap path could grow a theme file read
 // of its own.
 func TestApplyTheme_PerformsNoFileRead(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 
 	t.Run("no seam reaches disk across fifty swaps", func(t *testing.T) {
 		stores := newCountingStores()
@@ -410,7 +410,7 @@ func newSwapFrameModel(t *testing.T, before theme.Theme, colourless bool) Model 
 // writes it moves it once, while a swap that merely re-derives it would drift only
 // under repetition.
 func TestApplyTheme_DoesNotMoveStartupCanvasHex(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newSwapFrameModel(t, before, false)
 
 	startup := m.themeState.startupCanvasHex
@@ -437,7 +437,7 @@ func TestApplyTheme_DoesNotMoveStartupCanvasHex(t *testing.T) {
 // pre-swap one. The panel reaches this on every arrow keypress that lands back on
 // the active row, and on a close that discards nothing.
 func TestApplyTheme_SameThemeIsANoOp(t *testing.T) {
-	before := probeThemeBefore()
+	before := probeThemeBefore(t)
 	m := newSwapFrameModel(t, before, false)
 
 	frameBefore := m.View().Content
@@ -454,7 +454,7 @@ func TestApplyTheme_SameThemeIsANoOp(t *testing.T) {
 // ONE model, because that is the only shape in which "repeated" means anything —
 // two models would each be a first swap.
 func TestApplyTheme_RepeatedSwapsAreIdempotent(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newSwapFrameModel(t, before, false)
 
 	m.ApplyTheme(after)
@@ -480,7 +480,7 @@ func TestApplyTheme_ColourlessStaysColourless(t *testing.T) {
 		fgTruecolor = "38;2;"
 		bgTruecolor = "48;2;"
 	)
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 
 	colourless := newSwapFrameModel(t, before, true)
 	colourless.ApplyTheme(after)

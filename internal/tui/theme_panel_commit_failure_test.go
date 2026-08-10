@@ -205,7 +205,7 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 // a drop-in, which would make the message's own accent.attention run
 // indistinguishable from the canvas and the colour comparison below vacuous.
 func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	m, persister := newCommitPairPanelModel(t, rows)
 	m = arrowToThemeRow(t, m, rows[2].Slug)
 	previewed := m.themeState.active
@@ -391,7 +391,7 @@ func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 	})
 
 	t.Run("a page", func(t *testing.T) {
-		rows := arrowValidRows(30)
+		rows := arrowValidRows(t, 30)
 		m, persister := newCommitPairPanelModel(t, rows)
 		if got := m.themePanel.list.Paginator.TotalPages; got < 2 {
 			t.Fatalf("fixture: the panel's list is %d page(s), want it paginating so `Ctrl+↓` has somewhere to go", got)
@@ -681,7 +681,7 @@ func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
 // discrimination is kept explicit so a capture model can never enter the reported
 // state — which would put the copy on a frame no user could have caused.
 func TestCommitFailure_NilPersisterRaisesNothing(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	m := openCommitPanel(t, commitPairPanelDeps(t, rows), PageSessions, rows[1].Slug)
 	if m.themeState.persister != nil {
 		t.Fatalf("fixture: the model holds persister %#v, want none", m.themeState.persister)

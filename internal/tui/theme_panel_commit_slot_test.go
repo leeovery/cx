@@ -193,7 +193,7 @@ func requireBothBadge(t *testing.T, m Model, label string) {
 // distinguishable — with the cursor still on the dark slot's row the two are the
 // same string and the test would say nothing about which one was taken.
 func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	light, target := rows[0].Slug, rows[2].Slug
 	m, persister := newCommitPairPanelModel(t, rows)
 
@@ -218,7 +218,7 @@ func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 // separately rather than as a table row because the two keys are the one place a
 // transposed slot argument would be invisible in either direction.
 func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	dark, target := rows[1].Slug, rows[2].Slug
 	m, persister := newCommitPairPanelModel(t, rows)
 
@@ -352,7 +352,7 @@ func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 // implemented rather than through a route that does not exist yet.
 func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 	t.Run("one call, not two", func(t *testing.T) {
-		rows := arrowValidRows(4)
+		rows := arrowValidRows(t, 4)
 		m, persister := newCommitPairPanelModel(t, rows)
 
 		m, _ = pressSlotKey(t, m, slotDarkPress)
@@ -421,7 +421,7 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 		{name: "l", press: slotLightPress, member: theme.MemberLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rows := arrowValidRows(4)
+			rows := arrowValidRows(t, 4)
 			persisted, target := rows[0].Slug, rows[2].Slug
 			m, persister := newCommitPanelModel(t, rows, persisted)
 			m = arrowToThemeRow(t, m, target)
@@ -713,8 +713,8 @@ func isPackageSelector(expr ast.Expr, pkg, sel string) bool {
 // report's own behaviour — its copy, its lifetime and the outstanding state behind
 // it — is covered by the failure suite.
 func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
-	opened := arrowValidRows(4)
-	reassembled := arrowValidRows(2)
+	opened := arrowValidRows(t, 4)
+	reassembled := arrowValidRows(t, 2)
 
 	t.Run("the keypress mutates nothing", func(t *testing.T) {
 		m, enumerator, persister := newSlotSplitPanelModel(t, opened, reassembled)
@@ -808,7 +808,7 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 // for the in-memory keys to mirror, and a panel claiming a slot nothing persisted
 // is what `Esc` would then resolve to.
 func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	target := rows[2].Slug
 
 	m := openCommitPanel(t, commitPairPanelDeps(t, rows), PageSessions, rows[1].Slug)

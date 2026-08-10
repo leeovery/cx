@@ -376,7 +376,7 @@ func TestPanelFixture_Registered(t *testing.T) {
 // this fails, RAISE the pinned render size rather than weakening the assertion,
 // and record the panel floor among the reasons the value is what it is.
 func TestPanelFixture_PanelIsCompositedUnderTheGuard(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 
 	for _, name := range capturePanelFixtureNames() {
 		t.Run(name, func(t *testing.T) {

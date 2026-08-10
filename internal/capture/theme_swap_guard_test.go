@@ -1,7 +1,6 @@
 package capture_test
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -15,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/capture"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -94,56 +94,10 @@ const (
 	syntheticRedB = 0xD2 // 210
 )
 
-// syntheticGreenBase / syntheticBlueBase are the per-token ramps: token i takes
-// green base+i and blue base+i, so the 19 values within one palette are unique and
-// every component stays three digits (green 129–147, blue 201–219).
-const (
-	syntheticGreenBase = 0x80 // 128
-	syntheticBlueBase  = 0xC8 // 200
-)
-
-// syntheticTheme builds one whole 19-token palette from a fixed red channel.
-//
-// theme.Theme is an ordinary struct, so the guard's palettes need no
-// loader, no file and no embedded set — which is what keeps them independent of
-// anything done to the shipped ones.
-//
-// SHIPPED PALETTES ARE DELIBERATELY NOT USED. Two shipped themes fail two
-// ways, both a matter of time: a hex both palettes happen to set identically
-// survives the swap LEGITIMATELY, so the guard fails permanently for a non-bug;
-// and — worse because it is silent — a token with the same value either side
-// renders identically before and after, so the guard cannot tell whether that site
-// updated. It passes either way and the site is uncovered with no signal.
-func syntheticTheme(red int) theme.Theme {
-	v := func(i int) theme.Token {
-		return theme.Token{Value: fmt.Sprintf("#%02X%02X%02X", red, syntheticGreenBase+i, syntheticBlueBase+i)}
-	}
-	return theme.Theme{
-		TextPrimary:      v(1),
-		TextSecondary:    v(2),
-		TextTertiary:     v(3),
-		TextMuted:        v(4),
-		TextSubtle:       v(5),
-		TextFaint:        v(6),
-		TextOnSelection:  v(7),
-		AccentPrimary:    v(8),
-		AccentKey:        v(9),
-		AccentMode:       v(10),
-		AccentAttention:  v(11),
-		StatePositive:    v(12),
-		StateDestructive: v(13),
-		Canvas:           v(14),
-		BgSelection:      v(15),
-		BgAttention:      v(16),
-		BgSubtle:         v(17),
-		Border:           v(18),
-		TextOnAttention:  v(19),
-	}
-}
-
 // syntheticPalettes returns the two palettes every assertion here swaps between.
-func syntheticPalettes() (a, b theme.Theme) {
-	return syntheticTheme(syntheticRedA), syntheticTheme(syntheticRedB)
+func syntheticPalettes(t *testing.T) (a, b theme.Theme) {
+	t.Helper()
+	return themetest.SyntheticPair(t, syntheticRedA, syntheticRedB)
 }
 
 // tokenForm is one token's name paired with BOTH of its rendered truecolor
@@ -458,7 +412,7 @@ func fixtureByNameCases(t *testing.T) []string {
 // palette or across the pair. A value shared across the pair renders identically
 // before and after, so the guard could not tell whether that site updated.
 func TestSyntheticThemes_AllValuesUnique(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	tokens := append(a.All(), b.All()...)
 
 	t.Run("all 38 values are unique", func(t *testing.T) {
@@ -541,7 +495,7 @@ func rgbComponents(t *testing.T, value string) [3]int {
 // mis-sliced run and a truncating one, including the front slip nothing else here
 // reports at all.
 func TestThemeSwapGuard_TokenFormsAreWellFormed(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	for _, palette := range []struct {
 		name  string
 		theme theme.Theme
@@ -608,7 +562,7 @@ func assertParameterRun(t *testing.T, token, role, run, introducer string, want 
 // slip on TestThemeSwapGuard_TokenFormsAreWellFormed, which is the assertion that
 // closes the shape for every wrong form, and the only one that does.
 func TestThemeSwapGuard_RenderIsTruecolor(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	aForms := tokenForms(t, a)
 	for _, fx := range guardedFixtures(t) {
 		t.Run(fx.Name(), func(t *testing.T) {
@@ -636,7 +590,7 @@ func TestThemeSwapGuard_RenderIsTruecolor(t *testing.T) {
 // per theme would assign every cached style correctly in each and pass green while
 // live swap was broken.
 func TestThemeSwapGuard_NoStaleValueSurvives(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	aForms := tokenForms(t, a)
 
 	for _, fx := range guardedFixtures(t) {
@@ -699,7 +653,7 @@ func TestThemeSwapGuard_NoStaleValueSurvives(t *testing.T) {
 // CONSTANT nomination. Swapping the palette therefore cannot change which
 // sites paint, only what they paint with.
 func TestThemeSwapGuard_EveryBValuePresentInUnion(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	aForms, bForms := tokenForms(t, a), tokenForms(t, b)
 
 	seenUnderA := make(map[string][]string, len(aForms))
@@ -831,7 +785,7 @@ func uncoveredTokens(loci map[string][]string) []string {
 // fixture set is enumerated rather than named, so it covers the whole vocabulary
 // and the harness contract's panel fixtures enrol with no edit here.
 func TestThemeSwapGuard_EveryTokenExercisedByAFixture(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	bForms := tokenForms(t, b)
 	frames := swappedFrames(guardedFixtures(t), a, b)
 
@@ -864,7 +818,7 @@ func TestThemeSwapGuard_EveryTokenExercisedByAFixture(t *testing.T) {
 // Tea diffs it and emits OSC 11 only on change — and it is not part of Content, so
 // no amount of scanning the frame string would notice it holding the old canvas.
 func TestThemeSwapGuard_ViewBackgroundColourFollowsSwap(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	for _, fx := range guardedFixtures(t) {
 		t.Run(fx.Name(), func(t *testing.T) {
 			got := swapModel(fx, a, b).View().BackgroundColor
@@ -952,7 +906,7 @@ func backgroundOnlyForms(forms []tokenForm) []tokenForm {
 // an expectation the measurement contradicts, which is worth an assertion rather
 // than a comment.
 func TestTokenCoverage_MatchesBackgroundForm(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	bForms := tokenForms(t, b)
 	frames := swappedFrames(guardedFixtures(t), a, b)
 
@@ -994,7 +948,7 @@ func TestTokenCoverage_MatchesBackgroundForm(t *testing.T) {
 // guarded fixture renders today — cited, not measured. Scanning backgrounds alone
 // would report it missing on every screen that draws a rule.
 func TestTokenCoverage_MatchesForegroundForm(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	bForms := tokenForms(t, b)
 	frames := swappedFrames(guardedFixtures(t), a, b)
 
@@ -1027,7 +981,7 @@ func TestTokenCoverage_MatchesForegroundForm(t *testing.T) {
 // token's run, which a real colourless render never would: that is what makes the
 // resulting gap attributable to the filter rather than to an empty frame.
 func TestTokenCoverage_IgnoresExcludedFixtures(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	forms := tokenForms(t, b)
 	// Taken by position: any two distinct tokens do, since what is under test is
 	// the filter rather than which token happens to be carried.
@@ -1073,7 +1027,7 @@ func frameCarrying(run string) string {
 // thinnest edge of the set — the role table gives it exactly one role, the warning-flash
 // message, so only a fixture seeding that flash can carry it at all.
 func TestTokenCoverage_TransientStatesHaveALocus(t *testing.T) {
-	a, b := syntheticPalettes()
+	a, b := syntheticPalettes(t)
 	frames := swappedFrames(guardedFixtures(t), a, b)
 	loci := coveredTokens(frames, tokenForms(t, b))
 

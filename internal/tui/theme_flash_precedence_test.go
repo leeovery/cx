@@ -151,7 +151,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				name: "the NO_COLOR block",
 				raise: func(t *testing.T) Model {
 					t.Helper()
-					m, _ := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+					m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 						page:       PageSessions,
 						colourless: true,
 						contentW:   entryContentW,
@@ -449,7 +449,7 @@ var themeFlashFilterStates = []struct {
 // it cannot claim the slot.
 func themeFlashModel(t *testing.T, p page) Model {
 	t.Helper()
-	m, _ := newEntryModel(t, newEntryEnumerator(false), entryModelOpts{
+	m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
 		page:       p,
 		colourless: true,
 		contentW:   entryContentW,

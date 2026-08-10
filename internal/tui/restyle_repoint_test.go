@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -9,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -33,52 +33,26 @@ import (
 // against the class returning is the behavioural swap-and-diff guard, not this
 // file.
 
-// syntheticProbePalette builds a whole 19-token palette whose values are unique
-// within the palette and — for two different `red` bytes — disjoint across a pair
-// of palettes.
-//
-// Two shipped themes would not do: a hex both palettes happen to share survives a
-// swap legitimately, and a token with the same value either side of the swap
-// renders identically, so the assertion passes whether or not the site updated
-// (§13.4 makes the same argument for the completeness guard).
-//
-// Every channel is deliberately THREE decimal digits (red ≥ 0xAA, green 0x81…,
-// blue 0xC9…), so a rendered SGR core is fixed-width `38;2;RRR;GGG;BBB` and one
-// token's core can never be a substring of another's — which would otherwise make
-// the "the stale value is absent" half of each assertion pass vacuously.
-func syntheticProbePalette(red uint8) theme.Theme {
-	v := func(i int) theme.Token {
-		return theme.Token{Value: fmt.Sprintf("#%02X%02X%02X", red, 0x80+i, 0xC8+i)}
-	}
-	return theme.Theme{
-		TextPrimary:      v(1),
-		TextSecondary:    v(2),
-		TextTertiary:     v(3),
-		TextMuted:        v(4),
-		TextSubtle:       v(5),
-		TextFaint:        v(6),
-		TextOnSelection:  v(7),
-		AccentPrimary:    v(8),
-		AccentKey:        v(9),
-		AccentMode:       v(10),
-		AccentAttention:  v(11),
-		StatePositive:    v(12),
-		StateDestructive: v(13),
-		Canvas:           v(14),
-		BgSelection:      v(15),
-		BgAttention:      v(16),
-		BgSubtle:         v(17),
-		Border:           v(18),
-		TextOnAttention:  v(19),
-	}
-}
+// probeRedBefore / probeRedAfter are the fixed red channel each probe palette is
+// generated from — the single byte that makes the pair disjoint.
+const (
+	probeRedBefore = 0xAA
+	probeRedAfter  = 0xBB
+)
 
 // probeThemeBefore / probeThemeAfter are the two disjoint palettes every
 // assertion in this file swaps between: the model is built and rendered under
 // "before" (which is what populates the once-assigned caches) and then restyled
 // to "after".
-func probeThemeBefore() theme.Theme { return syntheticProbePalette(0xAA) }
-func probeThemeAfter() theme.Theme  { return syntheticProbePalette(0xBB) }
+func probeThemeBefore(t *testing.T) theme.Theme {
+	t.Helper()
+	return themetest.SyntheticPalette(t, probeRedBefore)
+}
+
+func probeThemeAfter(t *testing.T) theme.Theme {
+	t.Helper()
+	return themetest.SyntheticPalette(t, probeRedAfter)
+}
 
 // newRestyleProbeModel builds a production-shaped model painted from `before`,
 // with enough sessions and projects for BOTH lists to paginate, and renders both
@@ -185,7 +159,7 @@ func assertRepointed(t *testing.T, what, rendered, want, stale string) {
 // reads off those styles once at construction and never re-reads), the title bar
 // and the title box — on the Sessions and the Projects list alike.
 func TestRestylePath_RepointsListOwnedStyles(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
 	restyleTo(&m, after)
 
@@ -259,7 +233,7 @@ func TestRestylePath_RepointsListOwnedStyles(t *testing.T) {
 // write-back of a whole struct read off the input — so a list left out of
 // styleFilterInput keeps typing in the previous theme's accent.
 func TestRestylePath_RepointsBothFilterInputs(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
 	restyleTo(&m, after)
 
@@ -288,7 +262,7 @@ func TestRestylePath_RepointsBothFilterInputs(t *testing.T) {
 // consumers on these two screens, so a hit is unambiguously a delegate-painted
 // run rather than surrounding chrome.
 func TestRestylePath_RepointsBothDelegates(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
 	restyleTo(&m, after)
 
@@ -308,7 +282,7 @@ func TestRestylePath_RepointsBothDelegates(t *testing.T) {
 // it — so the preview's chrome would keep painting the theme that was active when
 // it was opened.
 func TestRestylePath_RepointsPreviewChrome(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestyleProbeModel(t, before)
 
 	pv := newPreviewModelForHelpers("alpha", []tmux.WindowGroup{{WindowIndex: 0, PaneIndices: []int{0}}}, 0, 0)
@@ -410,7 +384,7 @@ func restyledSurfaces(t *testing.T, m *Model) []restyledSurface {
 // not a navigation (§9.2) — it recomputes rows and badges and never re-themes — so
 // driving one here would assert over a frame nothing had swapped.
 func TestRestylePath_NoStaleColourSurvivesOnAnyList(t *testing.T) {
-	before, after := probeThemeBefore(), probeThemeAfter()
+	before, after := probeThemeBefore(t), probeThemeAfter(t)
 	m := newRestylePanelProbeModel(t, before)
 
 	for _, surface := range restyledSurfaces(t, &m) {

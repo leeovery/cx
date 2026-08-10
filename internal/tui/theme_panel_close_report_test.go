@@ -446,7 +446,7 @@ func TestCloseReport_RevertStands(t *testing.T) {
 // failed-commit rule closes, reached by another route — and worse than a missing band, because
 // the discharge happens whether or not one rendered.
 func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	persister := &fakeThemePersister{err: errThemeCommitFailed}
 	deps := commitPairPanelDeps(t, rows)
 	deps.ThemePersister = persister

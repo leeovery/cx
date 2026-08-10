@@ -96,7 +96,7 @@ func newClosePanelStubModel(t *testing.T, rows []theme.Row) (Model, *fakeThemeSo
 // unchanged.
 func newClosePanelLayoutModel(t *testing.T) Model {
 	t.Helper()
-	m, _ := newClosePanelStubModel(t, arrowValidRows(4))
+	m, _ := newClosePanelStubModel(t, arrowValidRows(t, 4))
 	projects := []project.Project{{Path: "/p/one", Name: "one"}, {Path: "/p/two", Name: "two"}}
 	m.setProjects(projects)
 	m.projectList.SetItems(ProjectsToListItems(projects))
@@ -119,7 +119,7 @@ func newClosePanelLayoutModel(t *testing.T) Model {
 // counter pins the arrows as pure preview: they resolve nothing, previewing from
 // the parse already in hand.
 func TestPanelClose_DiscardsThePreview(t *testing.T) {
-	rows := arrowValidRows(6)
+	rows := arrowValidRows(t, 6)
 	m, stub := newClosePanelStubModel(t, rows)
 	before := m.View().Content
 
@@ -659,7 +659,7 @@ func TestPanelClose_ForcedCloseUsesTheSameFunction(t *testing.T) {
 	})
 
 	t.Run("a direct call is the whole close", func(t *testing.T) {
-		rows := arrowValidRows(4)
+		rows := arrowValidRows(t, 4)
 		open := func() Model {
 			m, _ := newClosePanelStubModel(t, rows)
 			m = pressThemeKey(t, m)

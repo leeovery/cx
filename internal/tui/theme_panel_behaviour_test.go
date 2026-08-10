@@ -112,8 +112,9 @@ func (e *behaviourEnumerator) Open(keys theme.RawKeys) (theme.Enumeration, theme
 
 // behaviourFile is one VALID candidate the themes directory would have held: a
 // slug, its own palette, no rejection.
-func behaviourFile(slug string, palette int) theme.Entry {
-	return theme.Entry{Filename: slug + ".theme", Slug: slug, Theme: arrowPalette(palette)}
+func behaviourFile(t *testing.T, slug string, palette int) theme.Entry {
+	t.Helper()
+	return theme.Entry{Filename: slug + ".theme", Slug: slug, Theme: arrowPalette(t, palette)}
 }
 
 // behaviourRejected is one candidate the reason vocabulary ladder rejected, keeping the slug
@@ -462,7 +463,7 @@ func TestThemePanelBehaviour_Ordering(t *testing.T) {
 		// appending the files, prepending them, or leaving the built-ins leading all
 		// produce a different list from this one.
 		m, _ := behaviourPanel(t, []theme.Entry{
-			behaviourFile("aurora", 0),
+			behaviourFile(t, "aurora", 0),
 			behaviourRejected("zebra", theme.ReasonBadSyntax),
 		}, theme.RawKeys{})
 
@@ -526,7 +527,7 @@ func TestThemePanelBehaviour_RowComposition(t *testing.T) {
 	const narrowContentW = 40
 
 	entries := []theme.Entry{
-		behaviourFile(behaviourLongSlug, 0),
+		behaviourFile(t, behaviourLongSlug, 0),
 		behaviourRejected("sunset", theme.ReasonBadColour),
 	}
 	order := []string{"nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug}
@@ -653,7 +654,7 @@ func TestThemePanelBehaviour_Badges(t *testing.T) {
 	t.Run("a never-set slot badges the shipped default", func(t *testing.T) {
 		// The virgin install: no prefs.json at all, so both slots arrive as the shipped
 		// defaults and the panel opens carrying `● light` and `● dark`.
-		m, _ := behaviourPanel(t, []theme.Entry{behaviourFile("aurora", 0)}, theme.RawKeys{})
+		m, _ := behaviourPanel(t, []theme.Entry{behaviourFile(t, "aurora", 0)}, theme.RawKeys{})
 
 		requireRenderedBadge(t, m, theme.DefaultDarkSlug, theme.BadgeDark)
 		requireRenderedBadge(t, m, theme.DefaultLightSlug, theme.BadgeLight)
@@ -686,7 +687,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	// legal and resolves as a CONSTANT — the one shape in which a persisted slot names
 	// something the open-time union is blind to.
 	keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
-	m, persister := behaviourPanel(t, []theme.Entry{behaviourFile("sunset", 0)}, keys)
+	m, persister := behaviourPanel(t, []theme.Entry{behaviourFile(t, "sunset", 0)}, keys)
 
 	requireRenderedOrder(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireRenderedCursorOn(t, m, "sunset")
@@ -834,8 +835,8 @@ func behaviourConfirmModel(t *testing.T) Model {
 	t.Helper()
 
 	m, _ := behaviourPanel(t, []theme.Entry{
-		behaviourFile("aurora", 0),
-		behaviourFile("sunset", 1),
+		behaviourFile(t, "aurora", 0),
+		behaviourFile(t, "sunset", 1),
 	}, theme.RawKeys{Theme: "aurora"})
 	m = arrowToThemeRow(t, m, "sunset")
 
@@ -970,8 +971,8 @@ func behaviourFailureModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
 	m, persister := behaviourPanel(t, []theme.Entry{
-		behaviourFile("aurora", 0),
-		behaviourFile("sunset", 1),
+		behaviourFile(t, "aurora", 0),
+		behaviourFile(t, "sunset", 1),
 	}, theme.RawKeys{Light: "aurora", Dark: "sunset"})
 	if m.themeSetting().IsConstant {
 		t.Fatal("fixture: the setting resolved as a constant, so `d`/`l` would ask rather than write")

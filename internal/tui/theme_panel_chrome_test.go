@@ -43,7 +43,7 @@ func chromeSessionNames() []string {
 // region and opens the panel through the production `t` keypress.
 func newChromePanelModel(t *testing.T) Model {
 	t.Helper()
-	rows := arrowValidRows(6)
+	rows := arrowValidRows(t, 6)
 	m := Build(newArrowPanelDeps(t, rows, rows[0].Slug))
 
 	sessions := make([]tmux.Session, 0, len(chromeSessionNames()))
@@ -451,7 +451,7 @@ func TestPanelChrome_EntryGateFollowsTheFloor(t *testing.T) {
 // content HEIGHT, with the panel unopened.
 func newChromeGateModel(t *testing.T, contentH int) Model {
 	t.Helper()
-	rows := arrowValidRows(6)
+	rows := arrowValidRows(t, 6)
 	m := Build(newArrowPanelDeps(t, rows, rows[0].Slug))
 	m.termWidth, m.termHeight = geometryTerm(chromeContentW, contentH)
 	m.applySessions([]tmux.Session{{Name: chromeSessionNames()[0], Windows: 1}})

@@ -496,11 +496,11 @@ func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlu
 // the reassembly leads with an unselectable one — landing on index 0 would put the
 // cursor somewhere the arrows, which skip unselectable rows, cannot return to.
 func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
-	opened := arrowValidRows(4)
+	opened := arrowValidRows(t, 4)
 	reassembled := []theme.Row{
 		arrowInvalidRow(arrowSlug(0)),
-		arrowValidRow(arrowSlug(1), 1),
-		arrowValidRow(arrowSlug(3), 3),
+		arrowValidRow(t, arrowSlug(1), 1),
+		arrowValidRow(t, arrowSlug(3), 3),
 	}
 	m, _, persister := newSplitPanelModel(t, opened, reassembled, arrowSlug(2))
 
@@ -530,11 +530,11 @@ func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
 // rendered IN ITS OWN ORDER (deliberately not alphabetical here, so a caller-side
 // sort would show up) and the cursor is re-anchored by identity.
 func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
-	opened := arrowValidRows(4)
+	opened := arrowValidRows(t, 4)
 	reassembled := []theme.Row{
-		arrowValidRow(arrowSlug(1), 1),
-		arrowValidRow(arrowSlug(0), 0),
-		arrowValidRow(arrowSlug(3), 3),
+		arrowValidRow(t, arrowSlug(1), 1),
+		arrowValidRow(t, arrowSlug(0), 0),
+		arrowValidRow(t, arrowSlug(3), 3),
 	}
 	m, enumerator, persister := newSplitPanelModel(t, opened, reassembled, arrowSlug(0))
 	badges := maps.Clone(m.themePanel.badges)
@@ -571,8 +571,8 @@ func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 // count is the recompute genuinely not happening. The positive control is the same
 // fixture with the write succeeding.
 func TestPanelRecompute_SkippedOnFailedCommit(t *testing.T) {
-	opened := arrowValidRows(4)
-	reassembled := arrowValidRows(2)
+	opened := arrowValidRows(t, 4)
+	reassembled := arrowValidRows(t, 2)
 
 	m, enumerator, persister := newSplitPanelModel(t, opened, reassembled, arrowSlug(0))
 	badges := maps.Clone(m.themePanel.badges)
@@ -620,7 +620,7 @@ func TestPanelRecompute_ItemsReplacedNotRebuilt(t *testing.T) {
 		sentinel   = "recompute-instance-probe"
 		dotsHeight = 16
 	)
-	opened := arrowValidRows(20)
+	opened := arrowValidRows(t, 20)
 	m, _, persister := newSplitPanelModel(t, opened, opened[:19], arrowSlug(0))
 	m.themePanel.list.Title = sentinel
 	width, height := m.themePanel.list.Width(), m.themePanel.list.Height()

@@ -1148,7 +1148,7 @@ func TestCommitSlotLoad_RestoreStaysAnchoredAfterACommit(t *testing.T) {
 // The state is unreachable through a real loader (the build-time guarantee), so
 // the seam is the stub that can produce it.
 func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
-	rows := arrowValidRows(4)
+	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug
 	persister := &fakeThemePersister{}
 	deps := newArrowPanelDeps(t, rows, persisted)

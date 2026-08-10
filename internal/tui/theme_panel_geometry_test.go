@@ -360,10 +360,11 @@ func geometryTerm(contentW, contentH int) (termW, termH int) {
 // geometryRows are the panel's union for a geometry fixture: the long-labelled row
 // the cursor lands on (and therefore the one carrying `●`), plus enough plain rows
 // that the list has a body to render.
-func geometryRows() []theme.Row {
-	rows := []theme.Row{arrowValidRow(geometryLabel, 0)}
+func geometryRows(t *testing.T) []theme.Row {
+	t.Helper()
+	rows := []theme.Row{arrowValidRow(t, geometryLabel, 0)}
 	for i := 1; i < 5; i++ {
-		rows = append(rows, arrowValidRow(arrowSlug(i), i))
+		rows = append(rows, arrowValidRow(t, arrowSlug(i), i))
 	}
 	return rows
 }
@@ -372,7 +373,7 @@ func geometryRows() []theme.Row {
 // region and opens the panel through the production `t` keypress.
 func newGeometryPanelModel(t *testing.T, contentW, contentH int) Model {
 	t.Helper()
-	m := Build(newArrowPanelDeps(t, geometryRows(), geometryLabel))
+	m := Build(newArrowPanelDeps(t, geometryRows(t), geometryLabel))
 	return openPanelForTest(t, m, contentW, contentH)
 }
 
@@ -797,7 +798,7 @@ func TestPanelGeometry_ResizeBelowHeightFloorClosesWithFlash(t *testing.T) {
 // leaving it in the comparison would fail this test for a reason it is not about.
 func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 	contentW, contentH := geometryBelowHeightFloor()
-	rows := geometryRows()
+	rows := geometryRows(t)
 
 	previewed := func() Model {
 		m := newGeometryPanelModel(t, geometryWideW, geometryContentH)

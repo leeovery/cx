@@ -619,7 +619,7 @@ func TestDeps_HasNoThemeSlots(t *testing.T) {
 // left to the capture harness because internal/capture renders stills: a still with a
 // mis-seeded cursor looks like a still with a correct one.
 func TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow(t *testing.T) {
-	valid := arrowValidRow("aurora", 0)
+	valid := arrowValidRow(t, "aurora", 0)
 	broken := arrowInvalidRow("half-written")
 	rows := []theme.Row{valid, broken}
 
