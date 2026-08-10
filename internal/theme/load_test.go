@@ -320,6 +320,37 @@ func TestLoadFile_NotFoundIsOutsideTheLadder(t *testing.T) {
 	}
 }
 
+// TestLoadFile_TokensCarriedOnlyByTheReasonsThatNameTokens pins the structured
+// token list against every rung: populated for exactly `missing tokens` and
+// `bad colour`, and empty for every other reason.
+func TestLoadFile_TokensCarriedOnlyByTheReasonsThatNameTokens(t *testing.T) {
+	naming := map[theme.Reason]bool{
+		theme.ReasonMissingTokens: true,
+		theme.ReasonBadColour:     true,
+	}
+
+	for _, tt := range rejectionCorpus() {
+		t.Run(tt.name, func(t *testing.T) {
+			loader, path := tt.setup(t, t.TempDir())
+
+			_, rejection := loader.LoadFile(path)
+
+			if rejection == nil {
+				return
+			}
+			if naming[rejection.Reason] {
+				if len(rejection.Tokens) == 0 {
+					t.Fatalf("reason %q carried no tokens, want the list its detail %q renders", rejection.Reason, rejection.Detail)
+				}
+				return
+			}
+			if len(rejection.Tokens) != 0 {
+				t.Errorf("reason %q carried tokens %v, want none — the reason names no token", rejection.Reason, rejection.Tokens)
+			}
+		})
+	}
+}
+
 // TestLoadFile_DetailNeverSpansTwoReasons pins the reason vocabulary's other half: doctor
 // enumerates WITHIN the reason, never across reasons, so it never reports a file
 // as both `bad colour` and `missing tokens`.

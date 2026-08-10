@@ -183,6 +183,41 @@ func TestValidate_MissingTokensDetailEnumeratesEveryAbsentName(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonMissingTokens, "missing text.primary, bg.subtle")
 }
 
+// TestValidate_MissingTokensCarriesTheAbsentNamesAsData pins that the absent
+// names ride the rejection in structured form, and that the detail is that list
+// rendered — so a consumer wanting the names reads them rather than unpicking
+// the sentence.
+func TestValidate_MissingTokensCarriesTheAbsentNamesAsData(t *testing.T) {
+	declared := reversed(without(wellFormedPairs(), "text.primary", "bg.subtle"))
+
+	built, rejection := themeFromPairs(declared)
+
+	requireRejection(t, built, rejection, ReasonMissingTokens, "missing text.primary, bg.subtle")
+	if got, want := rejection.Tokens, []string{"text.primary", "bg.subtle"}; !slices.Equal(got, want) {
+		t.Errorf("rejection tokens = %v, want %v", got, want)
+	}
+	if got, want := rejection.Detail, "missing "+strings.Join(rejection.Tokens, ", "); got != want {
+		t.Errorf("rejection detail = %q, want %q — the detail is the token list rendered", got, want)
+	}
+}
+
+// TestValidate_BadColourCarriesTheOffendingPairsAsData is the value stage's half
+// of the same claim: the offending `key = value` pairs ride the rejection in
+// structured form, and the detail is those pairs joined.
+func TestValidate_BadColourCarriesTheOffendingPairsAsData(t *testing.T) {
+	declared := valued(valued(wellFormedPairs(), "canvas", "blue"), "text.primary", "#GGGGGG")
+
+	built, rejection := themeFromPairs(declared)
+
+	requireRejection(t, built, rejection, ReasonBadColour, "text.primary = #GGGGGG, canvas = blue")
+	if got, want := rejection.Tokens, []string{"text.primary = #GGGGGG", "canvas = blue"}; !slices.Equal(got, want) {
+		t.Errorf("rejection tokens = %v, want %v", got, want)
+	}
+	if got, want := rejection.Detail, strings.Join(rejection.Tokens, ", "); got != want {
+		t.Errorf("rejection detail = %q, want %q — the detail is the pair list rendered", got, want)
+	}
+}
+
 // TestValidate_BadColourPrecedesMissingTokens pins the reason vocabulary's ladder across the
 // two rungs this file owns: the presence check runs LAST, on a file whose every
 // known value is well-formed, so a file that is both bad-coloured and short of a

@@ -15,11 +15,9 @@ const hexValueLength = len("#RRGGBB")
 // into `text.primary = #GGGGGG, canvas = blue`. detailMissingTokens takes the
 // whole joined list, producing `missing text.primary, bg.subtle`.
 //
-// The lead-in is a constant of its own, and detailMissingTokens is composed from
-// it, because the `theme` log component's `token` attr carries the joined LIST
-// without it (see tokenAttr in events.go). Composing the two rather than writing
-// the word twice is what keeps the render and the one place that reads it back
-// off from ever disagreeing.
+// These are rendering only. Whatever a consumer needs the tokens FOR, it reads
+// them off Rejection.Tokens, so editing the copy here moves nothing but what a
+// human reads.
 const (
 	detailBadColourPair       = "%s = %s"
 	detailMissingTokensLeadIn = "missing "
@@ -96,7 +94,11 @@ func applyPairs(refs []fieldRef, pairs []Pair) *Rejection {
 	if len(offenders) == 0 {
 		return nil
 	}
-	return &Rejection{Reason: ReasonBadColour, Detail: strings.Join(offenders, ", ")}
+	return &Rejection{
+		Reason: ReasonBadColour,
+		Detail: strings.Join(offenders, ", "),
+		Tokens: offenders,
+	}
 }
 
 // requireEveryToken returns the one `missing tokens` rejection enumerating every
@@ -126,6 +128,7 @@ func requireEveryToken(refs []fieldRef) *Rejection {
 	return &Rejection{
 		Reason: ReasonMissingTokens,
 		Detail: fmt.Sprintf(detailMissingTokens, strings.Join(missing, ", ")),
+		Tokens: missing,
 	}
 }
 

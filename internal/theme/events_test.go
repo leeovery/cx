@@ -71,19 +71,29 @@ func TestEventLogger_RejectionsAreWarn(t *testing.T) {
 // This event is that attr's only consumer in the whole vocabulary, so the
 // biconditional is the contract.
 //
-// The value is the pinned copy's comma-separated list, the same one doctor prints, so a
-// grep of the log and a doctor run name the same tokens. `missing tokens` is the
-// one detail carrying a lead-in ("missing …"), and the list is what rides the
-// attr — the reason is already its own attr, so repeating it inside the value
-// would be noise.
+// The value is the comma-separated list doctor prints, so a grep of the log and
+// a doctor run name the same tokens. `missing tokens` is the one detail carrying
+// a lead-in ("missing …"), and the bare list is what rides the attr — the reason
+// is already its own attr, so repeating it inside the value would be noise.
 func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 	tests := []struct {
 		reason    theme.Reason
 		detail    string
+		tokens    []string
 		wantToken string
 	}{
-		{reason: theme.ReasonMissingTokens, detail: "missing text.primary, bg.subtle", wantToken: "text.primary, bg.subtle"},
-		{reason: theme.ReasonBadColour, detail: "text.primary = #GGGGGG, canvas = blue", wantToken: "text.primary = #GGGGGG, canvas = blue"},
+		{
+			reason:    theme.ReasonMissingTokens,
+			detail:    "missing text.primary, bg.subtle",
+			tokens:    []string{"text.primary", "bg.subtle"},
+			wantToken: "text.primary, bg.subtle",
+		},
+		{
+			reason:    theme.ReasonBadColour,
+			detail:    "text.primary = #GGGGGG, canvas = blue",
+			tokens:    []string{"text.primary = #GGGGGG", "canvas = blue"},
+			wantToken: "text.primary = #GGGGGG, canvas = blue",
+		},
 		{reason: theme.ReasonBadName},
 		{reason: theme.ReasonReservedName},
 		{reason: theme.ReasonUnreadable, detail: "open /themes/nord-lee.theme: permission denied"},
@@ -96,7 +106,7 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 			logger, sink := logtest.NewCaptureLogger(t)
 			events := theme.NewEventLogger(logger)
 
-			events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: tt.reason, Detail: tt.detail})
+			events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: tt.reason, Detail: tt.detail, Tokens: tt.tokens})
 
 			record := sink.OnlyRecord(t)
 			if tt.wantToken == "" {
@@ -107,6 +117,51 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 			}
 			if got := record.AttrString(t, "token"); got != tt.wantToken {
 				t.Errorf("reason %q token = %q, want %q", tt.reason, got, tt.wantToken)
+			}
+		})
+	}
+}
+
+// TestEventLogger_TokenAttrRendersFromTokensNotDetail pins where the attr's
+// value comes from: the structured token list, never the rendered detail. Both
+// details below are deliberately worded away from the copy they carry today —
+// the lead-in reworded, the pairs rewrapped — and the attr is unmoved by either,
+// so a copy edit cannot reach a log attr.
+func TestEventLogger_TokenAttrRendersFromTokensNotDetail(t *testing.T) {
+	tests := []struct {
+		name      string
+		rejection theme.Rejection
+		wantToken string
+	}{
+		{
+			name: "missing tokens behind reworded copy",
+			rejection: theme.Rejection{
+				Reason: theme.ReasonMissingTokens,
+				Detail: "absent: text.primary, bg.subtle",
+				Tokens: []string{"text.primary", "bg.subtle"},
+			},
+			wantToken: "text.primary, bg.subtle",
+		},
+		{
+			name: "bad colour behind reworded copy",
+			rejection: theme.Rejection{
+				Reason: theme.ReasonBadColour,
+				Detail: "canvas (blue) and text.primary (#GGGGGG) are not hex",
+				Tokens: []string{"canvas = blue", "text.primary = #GGGGGG"},
+			},
+			wantToken: "canvas = blue, text.primary = #GGGGGG",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, sink := logtest.NewCaptureLogger(t)
+			events := theme.NewEventLogger(logger)
+
+			events.Rejected("nord-lee", "/themes/nord-lee.theme", &tt.rejection)
+
+			if got := sink.OnlyRecord(t).AttrString(t, "token"); got != tt.wantToken {
+				t.Errorf("token = %q, want %q", got, tt.wantToken)
 			}
 		})
 	}

@@ -272,24 +272,18 @@ func slotAttr(slot Slot) (string, bool) {
 // whether the reason names a token at all — true for exactly `missing tokens`
 // and `bad colour`, the two reasons that do.
 //
-// The value is the comma-separated list doctor prints for the same reason: the
-// log and a doctor run then name the same tokens, and the key stays
+// The value is joined from Rejection.Tokens, which is the same list the detail
+// renders: the log and a doctor run then name the same tokens, and the key stays
 // SINGLE-VALUED even when several tokens are missing or several keys carry a bad
-// colour.
+// colour. It carries no lead-in — the reason is already its own attr, so
+// repeating the word "missing" inside the value would only echo it.
 //
-// `bad colour`'s detail IS that list — every offending `key = value` pair — so it
-// rides verbatim. `missing tokens`' detail is the list behind a fixed lead-in,
-// which comes off through the constant that put it there: the reason is already
-// its own attr, so carrying the word "missing" inside the value would only repeat
-// it. Do not re-derive bare token names from `bad colour`'s pairs — that would
-// mean parsing rendered user-facing copy back apart, which is exactly what
-// Rejection.Detail's contract says nothing downstream does.
+// Nothing here reads Detail. Parsing rendered user-facing copy back apart is
+// exactly what Rejection.Detail's contract says nothing downstream does.
 func tokenAttr(r *Rejection) (string, bool) {
 	switch r.Reason {
-	case ReasonMissingTokens:
-		return strings.TrimPrefix(r.Detail, detailMissingTokensLeadIn), true
-	case ReasonBadColour:
-		return r.Detail, true
+	case ReasonMissingTokens, ReasonBadColour:
+		return strings.Join(r.Tokens, ", "), true
 	default:
 		return "", false
 	}

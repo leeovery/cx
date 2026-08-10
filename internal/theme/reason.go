@@ -50,6 +50,12 @@ const (
 // BadNameCause in name.go). It is BadNameNone on every rejection that is not a
 // `bad name` one.
 //
+// Tokens is the same shape of narrowing for the two reasons that name tokens:
+// the absent token names for `missing tokens`, and the offending `key = value`
+// pairs for `bad colour`. It is empty on every other rejection. It is the SOURCE
+// the tokens are carried in and Detail is its rendered form, so a consumer
+// wanting the list reads it here rather than unpicking the sentence.
+//
 // Err carries the underlying OS error for the one reason produced by something
 // other than Portal's own rules (`unreadable`), and is nil for every other. It
 // is the SAME error the Detail renders, kept in structured form because the
@@ -61,6 +67,7 @@ type Rejection struct {
 	Detail       string
 	Line         int
 	BadNameCause BadNameCause
+	Tokens       []string
 	Err          error
 }
 
