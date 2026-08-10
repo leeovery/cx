@@ -28,64 +28,12 @@ import (
 // internal/tui exports no panel accessor — and because the frame is what the
 // tapes screenshot, so a divergence between the two would be invisible.
 
-// panelBorder is the panel layout's left-border-only glyph, the one column that marks where
-// the slide-over starts on every row of the frame. It is a literal here because
-// internal/tui keeps its own copy unexported; the assertions below are what
-// notice if the two ever disagree (the panel would then be unfindable).
-const panelBorder = "│"
-
 // panelEntryRefusalCopy is the pinned blocked-entry copy for the two render
 // floor dimensions. A frame carrying either is a frame where `t` REFUSED, which
 // on a fixture means the render size never cleared the panel's entry gate.
 var panelEntryRefusalCopy = []string{
 	"terminal too narrow for the theme picker",
 	"terminal too short for the theme picker",
-}
-
-// panelRow is one parsed row of the rendered slide-over: whether the cursor bar
-// is on it, its label, and the badge text to its right.
-type panelRow struct {
-	cursor bool
-	label  string
-	badge  string
-}
-
-// panelRows parses the slide-over out of a rendered frame, keyed by label.
-//
-// Every panel line begins with the one `border`-coloured column, so the panel's
-// own text is everything after the FIRST such glyph on the line. Within it a row
-// composes as `[2-cell cursor column][label][pad][badge]` (theme_row.go), so the
-// fields are the cursor bar (when present), the label, and the badge's words.
-//
-// It parses the whole panel rather than only its list, so the header row and the
-// footer rows are keyed too — which is what lets an assertion state that the
-// `Themes` header is on the frame without a second parser.
-func panelRows(t *testing.T, frame string) map[string]panelRow {
-	t.Helper()
-
-	rows := make(map[string]panelRow)
-	for line := range strings.SplitSeq(ansi.Strip(frame), "\n") {
-		_, panel, onPanel := strings.Cut(line, panelBorder)
-		if !onPanel {
-			continue
-		}
-		fields := strings.Fields(panel)
-		if len(fields) == 0 {
-			continue
-		}
-		row := panelRow{cursor: fields[0] == "▌"}
-		if row.cursor {
-			fields = fields[1:]
-		}
-		if len(fields) == 0 {
-			continue
-		}
-		rows[fields[0]] = panelRow{cursor: row.cursor, label: fields[0], badge: strings.Join(fields[1:], " ")}
-	}
-	if len(rows) == 0 {
-		t.Fatalf("no panel rows were parsed out of the frame; the slide-over did not render:\n%s", ansi.Strip(frame))
-	}
-	return rows
 }
 
 // panelFixtureFrame renders one panel fixture at the guard's pinned size, driven
@@ -98,13 +46,12 @@ func panelFixtureFrame(t *testing.T, fixture string, palette theme.Theme) string
 // registeredPanelFixtureNames is every `theme-panel-*` fixture the registry
 // holds, which is the set an assertion about the panel fixtures as a class ranges
 // over: a frame added to the catalogue is covered without being enrolled again by
-// hand. What that set must EQUAL is stated separately, by
-// TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet against
+// hand. What that set must EQUAL is stated separately, against
 // allPanelFixtureNames().
 func registeredPanelFixtureNames() []string {
 	var names []string
 	for _, name := range capture.FixtureNames() {
-		if strings.HasPrefix(name, "theme-panel-") {
+		if strings.HasPrefix(name, panelFixtureNamePrefix) {
 			names = append(names, name)
 		}
 	}
@@ -354,9 +301,13 @@ func labelSet(rows map[string]panelRow) []string {
 	return labels
 }
 
-// capturePanelFixtureNames is the pair this task registers.
+// capturePanelFixtureNames is the setting-state pair, an input to the specified
+// set allPanelFixtureNames() states.
 func capturePanelFixtureNames() []string {
-	return []string{"theme-panel-adaptive-pair", "theme-panel-constant-previewing"}
+	return []string{
+		panelFixtureNamePrefix + "adaptive-pair",
+		panelFixtureNamePrefix + "constant-previewing",
+	}
 }
 
 // panelUnionSlugs is the union's row set both panel fixtures declare — the three
@@ -370,16 +321,31 @@ func panelUnionSlugs() []string {
 	return []string{"catppuccin-latte", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug}
 }
 
-// TestPanelFixture_RegisteredInBothRegistries: it registers in both lists.
+// TestPanelFixture_Registered: every panel fixture is registered in both lists
+// and driven by the swap-and-diff guard.
 //
 // FixtureByName's switch and FixtureNames()'s slice are two hand-maintained
 // lists, and a fixture present in one and absent from the other is INVISIBLE to
 // the enumerating completeness guard — it exists, it renders, and nothing ever swaps
 // it. Absence reads as coverage, which is the shape the fixture drift check exists to
-// close; this is the same claim stated for the two fixtures by name, so a
-// half-registration fails here with the fixture named.
-func TestPanelFixture_RegisteredInBothRegistries(t *testing.T) {
-	for _, name := range capturePanelFixtureNames() {
+// close. A name that is enumerated but does not resolve fails here, named; the
+// reverse omission is carried by the exact-set claim against allPanelFixtureNames().
+//
+// The guard NEVER NAMES A FIXTURE — it iterates the registry — so the third leg is
+// that a panel fixture arrives in the set the guard's assertions range over with no
+// edit to the guard itself.
+//
+// It ranges over the registry rather than over any task's hand-written list, so a
+// frame added to the catalogue is covered without a further test being written to
+// carry it. That the registry holds exactly the specified set is a separate claim,
+// stated against allPanelFixtureNames().
+func TestPanelFixture_Registered(t *testing.T) {
+	guarded := make([]string, 0, len(capture.FixtureNames()))
+	for _, fx := range guardedFixtures(t) {
+		guarded = append(guarded, fx.Name())
+	}
+
+	for _, name := range registeredPanelFixtureNames() {
 		t.Run(name, func(t *testing.T) {
 			if _, err := capture.FixtureByName(name); err != nil {
 				t.Errorf("FixtureByName(%s): %v — the fixture is not resolvable", name, err)
@@ -387,24 +353,10 @@ func TestPanelFixture_RegisteredInBothRegistries(t *testing.T) {
 			if !slices.Contains(capture.FixtureNames(), name) {
 				t.Errorf("FixtureNames() %v omits %s — an unenumerated fixture is never driven by the guard", capture.FixtureNames(), name)
 			}
+			if !slices.Contains(guarded, name) {
+				t.Errorf("%s is not in the guarded set %v; the guard enumerates, so a fixture it never sees is uncovered while reading as covered", name, guarded)
+			}
 		})
-	}
-}
-
-// TestPanelFixture_UnderTheGuard: it is enumerated by the swap-and-diff guard.
-//
-// The completeness guard NEVER NAMES A FIXTURE — it iterates the registry — so the claim
-// worth pinning is that these two arrive in the set the guard's assertions range
-// over, with no edit to the guard itself.
-func TestPanelFixture_UnderTheGuard(t *testing.T) {
-	guarded := make([]string, 0, len(capture.FixtureNames()))
-	for _, fx := range guardedFixtures(t) {
-		guarded = append(guarded, fx.Name())
-	}
-	for _, name := range capturePanelFixtureNames() {
-		if !slices.Contains(guarded, name) {
-			t.Errorf("%s is not in the guarded set %v; the guard enumerates, so a fixture it never sees is uncovered while reading as covered", name, guarded)
-		}
 	}
 }
 

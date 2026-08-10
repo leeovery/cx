@@ -42,15 +42,16 @@ import (
 //
 // No t.Parallel() anywhere — the project bans it outright.
 
-// remainingPanelFixtureNames is the set this task registers, named once so a
-// per-fixture assertion cannot cover four and forget the fifth.
+// remainingPanelFixtureNames is the set of five surfaces above, named once so a
+// per-fixture assertion cannot cover four and forget the fifth, and an input to
+// the specified set allPanelFixtureNames() states.
 func remainingPanelFixtureNames() []string {
 	return []string{
-		"theme-panel-invalid-row",
-		"theme-panel-dir-unreadable",
-		"theme-panel-narrow",
-		"theme-panel-paginated",
-		"theme-panel-projects",
+		panelFixtureNamePrefix + "invalid-row",
+		panelFixtureNamePrefix + "dir-unreadable",
+		panelFixtureNamePrefix + "narrow",
+		panelFixtureNamePrefix + "paginated",
+		panelFixtureNamePrefix + "projects",
 	}
 }
 
@@ -111,70 +112,6 @@ func panelFrameAt(t *testing.T, fixture string, palette theme.Theme, w, h int) s
 		t.Fatalf("FixtureByName(%s): %v", fixture, err)
 	}
 	return fx.ModelAt(palette, w, h).View().Content
-}
-
-// panelLineWith is the ONE panel line whose visible text carries want, with its
-// index in the frame — fataling when there is none or more than one.
-//
-// It reads the PANEL side of each line (everything past the slide-over's one
-// left-border column) rather than the whole frame, because the page behind it
-// renders its own rows: a frame-wide scan for a slug would find the session list's
-// text as readily as the panel's.
-//
-// It matches on SUBSTRING, so it is for the panel's CHROME — the header label, the
-// pinned directory row, the paginator — and never for a row label: `tokyo-night` is
-// a substring of `tokyo-night-day`, so a row lookup goes through panelRowLine.
-func panelLineWith(t *testing.T, frame, want string) (index int, raw string) {
-	t.Helper()
-	return uniquePanelLine(t, frame, want, func(visible string) bool {
-		return strings.Contains(visible, want)
-	})
-}
-
-// panelRowLine is the ONE panel line whose LABEL is exactly label — the row
-// lookup, matching on the first field after the optional cursor bar rather than on
-// a substring.
-//
-// THE UNIQUENESS IS AN ASSERTION, not a convenience. The row-rendering rule's row invariant is
-// that a row NEVER WRAPS — every list row is exactly one delegate line, which is what
-// `bubbles/list` pagination, the invalid-row skip and the geometry rule's paging all rest on —
-// so a label found on two lines is that invariant broken.
-func panelRowLine(t *testing.T, frame, label string) (index int, raw string) {
-	t.Helper()
-	return uniquePanelLine(t, frame, "the row "+label, func(visible string) bool {
-		fields := strings.Fields(visible)
-		if len(fields) > 0 && fields[0] == "▌" {
-			fields = fields[1:]
-		}
-		return len(fields) > 0 && fields[0] == label
-	})
-}
-
-// uniquePanelLine is the shared search both lookups above are: the panel side of
-// each frame line (everything past the slide-over's one left-border column) tested
-// against the predicate, with exactly one match required.
-//
-// It reads the panel side rather than the whole line because the page behind it
-// renders its own rows: a frame-wide scan for a slug would find the session list's
-// text as readily as the panel's.
-func uniquePanelLine(t *testing.T, frame, subject string, matches func(visible string) bool) (index int, raw string) {
-	t.Helper()
-
-	found := -1
-	for i, line := range strings.Split(frame, "\n") {
-		_, panel, onPanel := strings.Cut(line, panelBorder)
-		if !onPanel || !matches(ansi.Strip(panel)) {
-			continue
-		}
-		if found >= 0 {
-			t.Fatalf("%s renders on panel lines %d AND %d; §9.5 puts every row on exactly one delegate line:\n%s", subject, found, i, ansi.Strip(frame))
-		}
-		found, raw = i, panel
-	}
-	if found < 0 {
-		t.Fatalf("no panel line carries %s:\n%s", subject, ansi.Strip(frame))
-	}
-	return found, raw
 }
 
 // fgSeq is a token's rendered FOREGROUND SGR core (`38;2;R;G;B`) — the
@@ -428,13 +365,13 @@ func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
 	frame := panelFixtureFrame(t, "theme-panel-paginated", palette)
 
 	t.Run("a four-row panel draws no dots at the same size", func(t *testing.T) {
-		if panelCarriesDots(panelFixtureFrame(t, "theme-panel-adaptive-pair", palette)) {
+		if panelCarriesDots(t, panelFixtureFrame(t, "theme-panel-adaptive-pair", palette)) {
 			t.Error("the four-row panel already draws pagination dots, so drawing them on the paginating one demonstrates nothing about overflow")
 		}
 	})
 
 	t.Run("the overflowing panel draws them", func(t *testing.T) {
-		if !panelCarriesDots(frame) {
+		if !panelCarriesDots(t, frame) {
 			t.Errorf("the panel draws no pagination dots, so §13.4's guard is blind at the panel's bubbles/list instance:\n%s", ansi.Strip(frame))
 		}
 	})
@@ -456,10 +393,11 @@ func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
 const paginationDot = "•"
 
 // panelCarriesDots reports whether any panel line carries the paginator glyph.
-func panelCarriesDots(frame string) bool {
-	for line := range strings.SplitSeq(ansi.Strip(frame), "\n") {
-		_, panel, onPanel := strings.Cut(line, panelBorder)
-		if onPanel && strings.Contains(panel, paginationDot) {
+func panelCarriesDots(t *testing.T, frame string) bool {
+	t.Helper()
+
+	for _, line := range panelLines(t, frame) {
+		if strings.Contains(line.visible, paginationDot) {
 			return true
 		}
 	}
@@ -545,39 +483,6 @@ func footerLine(t *testing.T, visible string) string {
 	}
 	t.Fatalf("no line carries the Projects footer:\n%s", visible)
 	return ""
-}
-
-// TestPanelFixture_AllRegistered: it registers all five in both lists.
-//
-// FixtureByName's switch and FixtureNames()'s slice are two hand-maintained lists,
-// and a fixture present in one and absent from the other is INVISIBLE to the
-// enumerating completeness guard — it exists, it renders, and nothing ever swaps it. Absence
-// reads as coverage, which is the shape the fixture drift check exists to close;
-// this states the same claim for the five by name, so a half-registration fails
-// here with the fixture named.
-//
-// The third leg is the one that matters most for the completeness risk: the guard NEVER NAMES
-// A FIXTURE, so what is worth pinning is that these five arrive in the set its
-// assertions range over with no edit to the guard itself.
-func TestPanelFixture_AllRegistered(t *testing.T) {
-	guarded := make([]string, 0, len(capture.FixtureNames()))
-	for _, fx := range guardedFixtures(t) {
-		guarded = append(guarded, fx.Name())
-	}
-
-	for _, name := range remainingPanelFixtureNames() {
-		t.Run(name, func(t *testing.T) {
-			if _, err := capture.FixtureByName(name); err != nil {
-				t.Errorf("FixtureByName(%s): %v — the fixture is not resolvable", name, err)
-			}
-			if !slices.Contains(capture.FixtureNames(), name) {
-				t.Errorf("FixtureNames() %v omits %s — an unenumerated fixture is never driven by the guard", capture.FixtureNames(), name)
-			}
-			if !slices.Contains(guarded, name) {
-				t.Errorf("%s is not in the guarded set %v; the guard enumerates, so a fixture it never sees is uncovered while reading as covered", name, guarded)
-			}
-		})
-	}
 }
 
 // TestPanelFixture_RegistryHoldsTheSpecifiedPanelSet: it registers exactly the

@@ -39,13 +39,14 @@ import (
 //
 // No t.Parallel() anywhere — the project bans it outright.
 
-// messagePanelFixtureNames is the set this task registers, named once so a
-// per-fixture assertion cannot cover two and forget the third.
+// messagePanelFixtureNames is the message-slot set, named once so a per-fixture
+// assertion cannot cover two and forget the third, and an input to the specified
+// set allPanelFixtureNames() states.
 func messagePanelFixtureNames() []string {
 	return []string{
-		"theme-panel-confirm",
-		"theme-panel-commit-failed",
-		"theme-panel-min-height-message",
+		panelFixtureNamePrefix + "confirm",
+		panelFixtureNamePrefix + "commit-failed",
+		panelFixtureNamePrefix + "min-height-message",
 	}
 }
 
@@ -70,80 +71,6 @@ const (
 	messagePanelFloorTermHeight = 13
 )
 
-// panelLine is one rendered line of the slide-over: the panel side of a frame
-// line, with and without its SGR runs.
-type panelLine struct {
-	visible string
-	raw     string
-}
-
-// panelLinesOf is every line of the rendered slide-over that carries its left
-// border, top to bottom — the panel's own rows below the header rule.
-//
-// It exists beside panelLineWith because the message frames are about ADJACENCY as
-// much as content: a wrapped message is two CONSECUTIVE rows, and what the slot
-// costs the list body is observable only as a position. A content-matching lookup
-// can state neither.
-func panelLinesOf(t *testing.T, frame string) []panelLine {
-	t.Helper()
-
-	var lines []panelLine
-	for line := range strings.SplitSeq(frame, "\n") {
-		_, panel, onPanel := strings.Cut(line, panelBorder)
-		if !onPanel {
-			continue
-		}
-		lines = append(lines, panelLine{visible: strings.TrimRight(ansi.Strip(panel), " "), raw: panel})
-	}
-	if len(lines) == 0 {
-		t.Fatalf("no frame line carries the panel's left border %q, so the panel did not render:\n%s", panelBorder, ansi.Strip(frame))
-	}
-	return lines
-}
-
-// panelLineIndex is the index within panelLinesOf's slice of the ONE panel line
-// whose visible text carries want — fataling when there is none or more than one.
-func panelLineIndex(t *testing.T, lines []panelLine, want string) int {
-	t.Helper()
-
-	found := -1
-	for i, line := range lines {
-		if !strings.Contains(line.visible, want) {
-			continue
-		}
-		if found >= 0 {
-			t.Fatalf("%q renders on panel lines %d AND %d; the assertions below locate blocks by position, which two matches make meaningless", want, found, i)
-		}
-		found = i
-	}
-	if found < 0 {
-		t.Fatalf("no panel line carries %q:\n%s", want, panelText(lines))
-	}
-	return found
-}
-
-// panelText is the whole rendered slide-over as plain text, for a failure message
-// that shows the frame the assertion was reading.
-func panelText(lines []panelLine) string {
-	visible := make([]string, 0, len(lines))
-	for _, line := range lines {
-		visible = append(visible, line.visible)
-	}
-	return strings.Join(visible, "\n")
-}
-
-// panelFieldText is the same frame with each line's runs of spaces collapsed — the
-// form a footer row is SEARCHED for, since the fixed key column pads every glyph
-// out and a literal `esc close` therefore appears nowhere in the raw text. A
-// search against the raw form would pass whatever the footer said.
-func panelFieldText(lines []panelLine) string {
-	fields := make([]string, 0, len(lines))
-	for _, line := range lines {
-		fields = append(fields, strings.Join(strings.Fields(line.visible), " "))
-	}
-	return strings.Join(fields, "\n")
-}
-
 // themePanelConfirmCopy is the pinned copy's slot-from-constant confirm as the confirm
 // fixture renders it — the pinned format around that fixture's persisted constant.
 //
@@ -160,7 +87,7 @@ var (
 )
 
 // footerBlock is the panel's vertical keymap footer as rendered: the index its
-// first row sits on within panelLinesOf's slice, and the rows themselves.
+// first row sits on within a panelLines slice, and the rows themselves.
 //
 // The footer is the LAST block the panel assembles, so it is located from the
 // BOTTOM — which is what makes "the footer survived" a statement the caller can
@@ -199,7 +126,7 @@ func footerBlock(t *testing.T, lines []panelLine, want []string) (start int, row
 // deliberately NOT the persisted constant `nord` the confirm names.
 func TestPanelFixture_ConfirmFrame(t *testing.T) {
 	palette := themetest.Builtin(t, theme.DefaultLightSlug)
-	lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", palette, messagePanelTermWidth, harnessHeight))
+	lines := panelLines(t, panelFrameAt(t, "theme-panel-confirm", palette, messagePanelTermWidth, harnessHeight))
 	start := panelLineIndex(t, lines, "clear constant")
 	footerStart, footerRows := footerBlock(t, lines, confirmFooterRows)
 
@@ -260,7 +187,7 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 // the user can no longer read the way out of.
 func TestPanelFixture_ConfirmWrapsAtMinWidth(t *testing.T) {
 	palette := themetest.Builtin(t, theme.DefaultLightSlug)
-	lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", palette, messagePanelTermWidth, harnessHeight))
+	lines := panelLines(t, panelFrameAt(t, "theme-panel-confirm", palette, messagePanelTermWidth, harnessHeight))
 	start := panelLineIndex(t, lines, "clear constant")
 	footerStart, _ := footerBlock(t, lines, confirmFooterRows)
 	messageRows := footerStart - start
@@ -272,7 +199,7 @@ func TestPanelFixture_ConfirmWrapsAtMinWidth(t *testing.T) {
 	})
 
 	t.Run("the same copy fits on one row at the preferred width", func(t *testing.T) {
-		wide := panelLinesOf(t, panelFixtureFrame(t, "theme-panel-confirm", palette))
+		wide := panelLines(t, panelFixtureFrame(t, "theme-panel-confirm", palette))
 		wideStart := panelLineIndex(t, wide, "clear constant")
 		wideFooter, _ := footerBlock(t, wide, confirmFooterRows)
 		if got := wideFooter - wideStart; got != 1 {
@@ -328,7 +255,7 @@ func distinctForegrounds(raw string) []string {
 // anchors the cursor to under capturetool's gate-free dark fallback.
 func TestPanelFixture_CommitFailedFrame(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
-	lines := panelLinesOf(t, panelFixtureFrame(t, "theme-panel-commit-failed", palette))
+	lines := panelLines(t, panelFixtureFrame(t, "theme-panel-commit-failed", palette))
 	start := panelLineIndex(t, lines, "couldn't save theme")
 	footerStart, footerRows := footerBlock(t, lines, standingFooterRows)
 
@@ -409,7 +336,7 @@ func TestPanelFixture_CommitFailedBadgeUnmoved(t *testing.T) {
 func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 	frame := panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight)
-	lines := panelLinesOf(t, frame)
+	lines := panelLines(t, frame)
 
 	t.Run("one row shorter the panel refuses to open", func(t *testing.T) {
 		short := ansi.Strip(panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight-1))
@@ -474,7 +401,7 @@ func TestPanelFixture_MinHeightMessageTruncates(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 
 	t.Run("the seeded failure is one line", func(t *testing.T) {
-		lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight))
+		lines := panelLines(t, panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight))
 		start := panelLineIndex(t, lines, "couldn't save theme")
 		footerStart, _ := footerBlock(t, lines, standingFooterRows)
 		if got := footerStart - start; got != 1 {
@@ -483,7 +410,7 @@ func TestPanelFixture_MinHeightMessageTruncates(t *testing.T) {
 	})
 
 	t.Run("the copy that wraps above the floor is truncated at it", func(t *testing.T) {
-		lines := panelLinesOf(t, panelFrameAt(t, "theme-panel-confirm", themetest.Builtin(t, theme.DefaultLightSlug), messagePanelTermWidth, messagePanelFloorTermHeight))
+		lines := panelLines(t, panelFrameAt(t, "theme-panel-confirm", themetest.Builtin(t, theme.DefaultLightSlug), messagePanelTermWidth, messagePanelFloorTermHeight))
 		start := panelLineIndex(t, lines, "clear constant")
 		footerStart, _ := footerBlock(t, lines, confirmFooterRows)
 		if got := footerStart - start; got != 1 {
@@ -593,46 +520,6 @@ func packageSourceFiles(t *testing.T) []string {
 		t.Fatal("the package directory holds no non-test Go files; the scan below would be vacuous")
 	}
 	return paths
-}
-
-// TestPanelFixture_MessageFramesRegistered: it registers all three in both lists.
-//
-// FixtureByName's switch and FixtureNames()'s slice are two hand-maintained lists,
-// and a fixture present in one and absent from the other is INVISIBLE to the
-// enumerating completeness guard — it exists, it renders, and nothing ever swaps it. Absence
-// reads as coverage, which is the shape the fixture drift check exists to close;
-// this states the same claim for the three by name, so a half-registration fails
-// here with the fixture named.
-func TestPanelFixture_MessageFramesRegistered(t *testing.T) {
-	for _, name := range messagePanelFixtureNames() {
-		t.Run(name, func(t *testing.T) {
-			if _, err := capture.FixtureByName(name); err != nil {
-				t.Errorf("FixtureByName(%s): %v — the fixture is not resolvable", name, err)
-			}
-			if !slices.Contains(capture.FixtureNames(), name) {
-				t.Errorf("FixtureNames() %v omits %s — an unenumerated fixture is never driven by the guard", capture.FixtureNames(), name)
-			}
-		})
-	}
-}
-
-// TestPanelFixture_MessageFramesUnderTheGuard: it is enumerated by the
-// swap-and-diff guard.
-//
-// The completeness guard NEVER NAMES A FIXTURE — it iterates the registry — so the claim
-// worth pinning is that these three arrive in the set its assertions range over,
-// with no edit to the guard itself. That is the whole reason the specified frames
-// are ENUMERATED rather than listed.
-func TestPanelFixture_MessageFramesUnderTheGuard(t *testing.T) {
-	guarded := make([]string, 0, len(capture.FixtureNames()))
-	for _, fx := range guardedFixtures(t) {
-		guarded = append(guarded, fx.Name())
-	}
-	for _, name := range messagePanelFixtureNames() {
-		if !slices.Contains(guarded, name) {
-			t.Errorf("%s is not in the guarded set %v; the guard enumerates, so a fixture it never sees is uncovered while reading as covered", name, guarded)
-		}
-	}
 }
 
 // TestPanelFixture_MessageFramesWireNoThemePersister: their seeded states write
