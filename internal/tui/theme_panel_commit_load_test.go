@@ -1131,6 +1131,55 @@ func TestCommitSlotLoad_RestoreStaysAnchoredAfterACommit(t *testing.T) {
 	})
 }
 
+// TestCommitSlotLoad_AnswerIsIndependentOfTheLoad: the classification a conversion
+// records is the terminal's, whether or not the newly-live slot's palette loaded.
+//
+// The answer is a read of the OSC 11 reply already in hand — a fact about the
+// terminal — while the load is a palette resolution that can return the build-time
+// guarantee's fatal. Gating the first on the second leaves a light terminal that has
+// just converted resolving the DARK member for the rest of the session, silently.
+//
+// The light reply is what makes both cases non-vacuous: the answer starts on the
+// constant path's standing dark fallback, so landing on light is the conversion's
+// doing, and the two cases differ only in whether the seam answers the load.
+func TestCommitSlotLoad_AnswerIsIndependentOfTheLoad(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "the slot load lands"},
+		{name: "the slot load returns the fatal", err: errThemeResolveFatal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rows := arrowValidRows(t, 4)
+			persisted, target := rows[0].Slug, rows[2].Slug
+			deps := newArrowPanelDeps(t, rows, persisted)
+			deps.ThemePersister = &fakeThemePersister{}
+			m := openCommitPanel(t, deps, PageSessions, persisted)
+			seam, ok := m.themeState.source.(*fakeThemeSource)
+			if !ok {
+				t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeState.source)
+			}
+			m = deliverBackgroundReply(t, m, lightBg)
+			if m.themeState.canvasMode != appearanceDarkCanvas {
+				t.Fatalf("fixture: the constant launch answers %v before the conversion, want the standing dark fallback", m.themeState.canvasMode)
+			}
+			m = arrowToThemeRow(t, m, target)
+			seam.err = tc.err
+
+			m, _ = pressSlotKey(t, m, slotDarkPress)
+			m, _ = pressConfirmKey(t, m, confirmYes)
+
+			if len(seam.slotLoads) != 1 {
+				t.Fatalf("the conversion asked for %d slot load(s), want 1", len(seam.slotLoads))
+			}
+			if m.themeState.canvasMode != appearanceLightCanvas {
+				t.Errorf("the conversion left the light/dark answer %v, want light — the terminal's classification does not depend on the load", m.themeState.canvasMode)
+			}
+		})
+	}
+}
+
 // TestCommitSlotLoad_BrokenBuiltinDegrades: it moves nothing when the load reports
 // the build-time guarantee's fatal.
 //
@@ -1139,11 +1188,13 @@ func TestCommitSlotLoad_RestoreStaysAnchoredAfterACommit(t *testing.T) {
 // (applyInForceTheme) is to DEGRADE rather than escalate: a settings surface must not
 // become the route by which a broken binary quits Portal mid-session.
 //
-// Degrading has to mean NOTHING MOVES: the light/dark answer and the re-resolved
-// nomination both sit behind a return, because a zero resolution joined into either
-// would put an empty palette in a live slot, and lipgloss resolves that through its
-// no-colour sentinel — a silently colourless render on the next close, with no error
-// anywhere.
+// Degrading has to mean the LOAD moves nothing: the re-resolved nomination sits
+// behind a return, because a zero resolution joined into it would put an empty
+// palette in a live slot, and lipgloss resolves that through its no-colour
+// sentinel — a silently colourless render on the next close, with no error
+// anywhere. The light/dark answer is not the load's to move: it is recorded from
+// the retained reply before the load runs, and this fixture receives no reply, so
+// it stays the dark it already was.
 //
 // The state is unreachable through a real loader (the build-time guarantee), so
 // the seam is the stub that can produce it.

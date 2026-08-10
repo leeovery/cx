@@ -147,20 +147,9 @@ func (m *Model) confirmSlotAssignment() {
 	m.loadNewlyLiveSlot(pending.member)
 }
 
-// loadNewlyLiveSlot loads the slot a constant → adaptive transition just made
-// live, and records the in-force light/dark classification the transition needs.
-//
-// Assigning a slot over a constant makes the slot the user did not assign live in
-// the same keypress, and construction never loaded it — construction loads
-// nominated themes only, and under a constant the slots are not read. This is the
-// one theme load outside construction, and the reason `theme: loaded` has a
-// commit-time cadence.
-//
-// THE LOAD'S PALETTE IS DELIBERATELY DISCARDED, and the load is still required:
-// the commit's own re-resolution (applyCommittedSetting) is what puts both newly
-// live members in the nomination, while this call is what announces the newly-live
-// slot and what surfaces the fatal below. Assigning the palette here as well would
-// give one field two writers deriving it two ways.
+// loadNewlyLiveSlot carries the two independent things a constant → adaptive
+// transition needs: the in-force light/dark classification it records, and the load
+// of the slot it just made live.
 //
 // It hangs off the confirm rather than off commitSlot because only the confirm
 // creates the state: a `d`/`l` over an adaptive pair changes which slug a live
@@ -169,9 +158,27 @@ func (m *Model) confirmSlotAssignment() {
 // setting only — rather than something to re-test against keys the mirror has
 // since cleared.
 //
-// It must run after a write that landed, past commitSlot's own mirror and
-// recompute and never on the nil-persister path: the load needs the mirrored keys
-// to know which slug the opposite slot now names. Nothing renders between the two.
+// THE ANSWER. The conversion records the retained classification of the terminal,
+// which is a read of a reply already in hand: it depends on no load, cannot fail,
+// and is therefore assigned first and unconditionally. A conversion in a light
+// terminal answers light however the load below goes; gating it on the load would
+// let a palette that failed to resolve decide which half of the pair is in force.
+//
+// THE LOAD. Assigning a slot over a constant makes the slot the user did not assign
+// live in the same keypress, and construction never loaded it — construction loads
+// nominated themes only, and under a constant the slots are not read. This is the
+// one theme load outside construction, and the reason `theme: loaded` has a
+// commit-time cadence. ITS PALETTE IS DELIBERATELY DISCARDED and the call is still
+// required: the commit's own re-resolution (applyCommittedSetting) is what puts
+// both newly live members in the nomination, while this call is what announces the
+// newly-live slot and what surfaces the fatal. Assigning the palette here as well
+// would give one field two writers deriving it two ways.
+//
+// The LOAD is what the call site's ordering conditions govern — after a write that
+// landed, past commitSlot's own mirror and recompute, never on the nil-persister
+// path, nothing rendering between the two — because it needs the mirrored keys to
+// know which slug the opposite slot now names. The answer above needs none of them:
+// the conversion having happened is its whole precondition.
 //
 // The assigned slot is deliberately not re-read "for symmetry": its parse is
 // already in hand, so resolving it again would mint a second answer for one slug.
@@ -182,19 +189,19 @@ func (m *Model) confirmSlotAssignment() {
 // rather than arriving empty and being reported as a fallback of a slug nobody
 // set.
 //
-// On the broken-builtin fatal it degrades and the answer is left where it was —
-// the policy applyInForceTheme states for every panel call site of the seam.
+// On the broken-builtin fatal the load degrades — the policy applyInForceTheme
+// states for every panel call site of the seam.
 //
 // It never calls ApplyTheme: a commit is a write, not a navigation, so the screen
 // keeps previewing whatever the cursor is on.
 func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
+	m.themeState.canvasMode = m.retainedCanvasAnswer()
+
 	newlyLive := assigned.Opposite()
 	slot := newlyLive.Slot()
 	if _, err := m.themeState.source.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot)); err != nil {
 		return
 	}
-
-	m.themeState.canvasMode = m.retainedCanvasAnswer()
 }
 
 // persistedSlotSlug is the slug one slot of the mirrored keys nominates, with
