@@ -265,7 +265,22 @@
             "theming-system-13-11": "tick-416417",
             "theming-system-13-12": "tick-9279eb",
             "theming-system-13-13": "tick-6b76a6",
-            "theming-system-13-14": "tick-c72c72"
+            "theming-system-13-14": "tick-c72c72",
+            "theming-system-14": "tick-60a6c3",
+            "theming-system-14-1": "tick-e7492e",
+            "theming-system-14-2": "tick-9129f4",
+            "theming-system-14-3": "tick-61fe2f",
+            "theming-system-14-4": "tick-5ab18d",
+            "theming-system-14-5": "tick-0922bb",
+            "theming-system-14-6": "tick-6ca853",
+            "theming-system-14-7": "tick-e48fbb",
+            "theming-system-14-8": "tick-c856a1",
+            "theming-system-14-9": "tick-e23eda",
+            "theming-system-14-10": "tick-18cb86",
+            "theming-system-14-11": "tick-8f6034",
+            "theming-system-14-12": "tick-c55836",
+            "theming-system-14-13": "tick-ceb988",
+            "theming-system-14-14": "tick-800ed4"
           },
           "storage_paths": [
             ".tick/"
@@ -547,20 +562,20 @@
             },
             "c4": {
               "tasks": {
-                "1": "pending",
-                "2": "pending",
-                "3": "pending",
-                "4": "pending",
-                "5": "pending",
-                "6": "pending",
-                "7": "pending",
-                "8": "pending",
-                "9": "pending",
-                "10": "pending",
-                "11": "pending",
-                "12": "pending",
-                "13": "pending",
-                "14": "pending"
+                "1": "approved",
+                "2": "approved",
+                "3": "approved",
+                "4": "approved",
+                "5": "approved",
+                "6": "approved",
+                "7": "approved",
+                "8": "approved",
+                "9": "approved",
+                "10": "approved",
+                "11": "approved",
+                "12": "approved",
+                "13": "approved",
+                "14": "approved"
               }
             }
           }
