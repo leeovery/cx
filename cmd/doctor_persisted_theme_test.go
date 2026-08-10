@@ -58,7 +58,7 @@ func persistedThemeDeps(t *testing.T, content, themesDir string) *DoctorDeps {
 
 // persistedAdvisoriesFor runs the persisted-theme producer over a seeded
 // prefs.json and a themes directory.
-func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []advisory {
+func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []themeAdvisory {
 	t.Helper()
 
 	return persistedThemeAdvisories(persistedThemeDeps(t, content, themesDir), theme.NewSilentLoader())
@@ -66,7 +66,7 @@ func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []advisory 
 
 // requireNoAdvisories fails unless the producer stayed silent, naming what it
 // produced instead.
-func requireNoAdvisories(t *testing.T, advisories []advisory) {
+func requireNoAdvisories(t *testing.T, advisories []themeAdvisory) {
 	t.Helper()
 
 	if len(advisories) != 0 {

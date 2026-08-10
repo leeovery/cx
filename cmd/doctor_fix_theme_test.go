@@ -353,7 +353,7 @@ func TestDoctorFix_ScanReRunForSecondPass(t *testing.T) {
 		})
 		deps := &DoctorDeps{ThemesDir: dir}
 
-		requireAdvisoryLines(t, collectThemeAdvisories(deps),
+		requireAdvisoryLines(t, themeAdvisoryUnion(deps),
 			"⚠ theme a-missing: missing tokens — missing text.primary",
 			"⚠ theme b-colour: bad colour — canvas = blue",
 		)
@@ -364,7 +364,7 @@ func TestDoctorFix_ScanReRunForSecondPass(t *testing.T) {
 			t.Fatalf("remove the broken drop-in: %v", err)
 		}
 
-		requireAdvisoryLines(t, collectThemeAdvisories(deps),
+		requireAdvisoryLines(t, themeAdvisoryUnion(deps),
 			"⚠ theme a-missing: missing tokens — missing text.primary",
 		)
 	})

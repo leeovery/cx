@@ -89,13 +89,14 @@ type checkResult struct {
 // line is the full pinned copy INCLUDING its leading "⚠ ". The copy table pins
 // each line together with its glyph, so a producer owns the whole string and the
 // renderer only indents it — prefixing the glyph at render time would split one
-// pinned string across two sites. slug and fromPrefs are the identity the
-// one-slug-one-line union dedups on (an unresolvable persisted slug outranks the
-// same slug's file-validity line); the renderer reads neither, only line.
+// pinned string across two sites.
+//
+// The line is all a producer supplies: whatever identity a producer's own
+// grouping or dedup rules turn on stays on that producer's own record and is
+// dropped where its block is handed over (see themeAdvisory in
+// cmd/doctor_theme.go).
 type advisory struct {
-	line      string
-	slug      string
-	fromPrefs bool
+	line string
 }
 
 // DoctorDeps is the DI seam for the doctor command. In production doctorDeps

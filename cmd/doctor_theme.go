@@ -68,6 +68,21 @@ var (
 // beside the pair it joins rather than derived.
 const themeSlotBoth = "both"
 
+// themeAdvisory is one line of doctor's theme block while it is still being
+// assembled — the rendered copy plus the identity the assembly turns on.
+//
+// slug and fromPrefs are the one-slug-one-line union's dedup identity: an
+// unresolvable persisted slug outranks the same slug's file-validity line, so a
+// line must say which slug it is about and which producer it came from. Both
+// live here rather than on advisory so the rule is reachable only from the
+// producers that participate in it — a producer that knows nothing of the union
+// has no identity field to leave unset and therefore cannot defeat it.
+type themeAdvisory struct {
+	line      string
+	slug      string
+	fromPrefs bool
+}
+
 // collectThemeAdvisories is doctor's whole theme-advisory surface: the entry
 // point the report's advisory block is built from, run once per diagnosis pass,
 // over the two producers behind it — the themes-directory scan (what is in a
@@ -100,7 +115,23 @@ const themeSlotBoth = "both"
 // Their two results are assembled rather than concatenated — see
 // assembleThemeAdvisories — so the block the renderer receives is already the
 // deduplicated union, in a pinned order.
+//
+// This is also the boundary where the union's dedup identity is dropped: the
+// renderer prints lines, so it is handed lines.
 func collectThemeAdvisories(deps *DoctorDeps) []advisory {
+	assembled := themeAdvisoryUnion(deps)
+
+	block := make([]advisory, 0, len(assembled))
+	for _, a := range assembled {
+		block = append(block, advisory{line: a.line})
+	}
+	return block
+}
+
+// themeAdvisoryUnion runs both producers and the assembly between them,
+// yielding the union while it still carries the identity that assembly turned
+// on.
+func themeAdvisoryUnion(deps *DoctorDeps) []themeAdvisory {
 	loader := theme.NewSilentLoader()
 
 	return assembleThemeAdvisories(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader))
@@ -138,10 +169,10 @@ func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 //     ResolveByName's step 2, so the persisted producer emits no line for it at
 //     all — the file keeps its own line, and that collision is the entire content
 //     of the reason.
-func assembleThemeAdvisories(scanned, persisted []advisory) []advisory {
+func assembleThemeAdvisories(scanned, persisted []themeAdvisory) []themeAdvisory {
 	covered := persistedSlugs(persisted)
 
-	assembled := make([]advisory, 0, len(scanned)+len(persisted))
+	assembled := make([]themeAdvisory, 0, len(scanned)+len(persisted))
 	for _, a := range scanned {
 		if a.slug != "" && slices.Contains(covered, a.slug) {
 			continue
@@ -154,15 +185,15 @@ func assembleThemeAdvisories(scanned, persisted []advisory) []advisory {
 // persistedSlugs collects the slugs the persisted lines carry — the set a file
 // line is dropped against.
 //
-// Membership is decided by the advisory's own fromPrefs field rather than by
-// which slice it arrived in: fromPrefs and slug are the union's declared dedup
-// identity (see the advisory type in cmd/doctor.go), and a rank read off the
-// argument position would leave that identity unread and free to drift.
+// Membership is decided by the record's own fromPrefs field rather than by which
+// slice it arrived in: fromPrefs and slug are the union's declared dedup
+// identity, and a rank read off the argument position would leave that identity
+// unread and free to drift.
 //
 // A slice rather than a map: the set is at most two entries, and a slice cannot
 // be iterated in a random order the way a map can, which keeps the assembly's
 // determinism a property of its data structures.
-func persistedSlugs(persisted []advisory) []string {
+func persistedSlugs(persisted []themeAdvisory) []string {
 	slugs := make([]string, 0, len(persisted))
 	for _, a := range persisted {
 		if a.fromPrefs && a.slug != "" {
@@ -193,7 +224,7 @@ func persistedSlugs(persisted []advisory) []string {
 // substitutes the mode-matched fallbacks, hiding the very failure being reported,
 // and can raise the broken-built-in fatal, aborting the diagnosis over a state
 // this line exists to describe.
-func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []advisory {
+func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []themeAdvisory {
 	if deps.PrefsStore == nil {
 		return nil
 	}
@@ -201,7 +232,7 @@ func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []advisory 
 	keys, _ := deps.PrefsStore.LoadThemeKeys()
 	raw := theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark)
 
-	var advisories []advisory
+	var advisories []themeAdvisory
 	for _, nomination := range persistedThemeNominations(raw) {
 		if a, reported := persistedThemeAdvisory(loader, nomination, deps.ThemesDir); reported {
 			advisories = append(advisories, a)
@@ -278,13 +309,13 @@ func persistedThemeSlotLabel(key theme.InForceKey) string {
 //
 // slug and fromPrefs ride alongside the line for the one-slug-one-line union,
 // where a persisted line outranks the same slug's file-validity line.
-func persistedThemeAdvisory(loader theme.Loader, nomination persistedThemeNomination, themesDir string) (advisory, bool) {
+func persistedThemeAdvisory(loader theme.Loader, nomination persistedThemeNomination, themesDir string) (themeAdvisory, bool) {
 	_, rejection := loader.ResolveByName(nomination.slug, themesDir)
 	if rejection == nil {
-		return advisory{}, false
+		return themeAdvisory{}, false
 	}
 
-	return advisory{
+	return themeAdvisory{
 		line:      fmt.Sprintf(persistedThemeAdvisoryFormat, nomination.slug, persistedThemeSlotSuffix(nomination.slot), rejection.Reason),
 		slug:      nomination.slug,
 		fromPrefs: true,
@@ -321,17 +352,17 @@ func persistedThemeSlotSuffix(slot string) string {
 //     drop-ins is not an error and Portal never creates or seeds the directory.
 //   - a usable directory → one line per rejected entry, in the enumeration's own
 //     deterministic filename order.
-func scanThemesDirectory(loader theme.Loader, dir string) []advisory {
+func scanThemesDirectory(loader theme.Loader, dir string) []themeAdvisory {
 	if dir == "" {
 		return nil
 	}
 
 	entries, dirRejection := loader.Enumerate(dir)
 	if dirRejection != nil {
-		return []advisory{{line: fmt.Sprintf(themesDirUnreadableFormat, dir)}}
+		return []themeAdvisory{{line: fmt.Sprintf(themesDirUnreadableFormat, dir)}}
 	}
 
-	var advisories []advisory
+	var advisories []themeAdvisory
 	for _, entry := range entries {
 		if a, reported := themeFileAdvisory(entry); reported {
 			advisories = append(advisories, a)
@@ -362,28 +393,27 @@ func scanThemesDirectory(loader theme.Loader, dir string) []advisory {
 // one, and that is precisely what collided.
 //
 // slug and fromPrefs are populated alongside the line because they are the
-// identity the one-slug-one-line union dedups on. A producer setting `line` alone
-// would silently defeat that dedup.
-func themeFileAdvisory(entry theme.Entry) (advisory, bool) {
+// identity the one-slug-one-line union dedups on.
+func themeFileAdvisory(entry theme.Entry) (themeAdvisory, bool) {
 	if entry.Rejection == nil {
-		return advisory{}, false
+		return themeAdvisory{}, false
 	}
 
 	switch entry.Rejection.Reason {
 	case theme.ReasonMissingTokens, theme.ReasonBadColour, theme.ReasonBadSyntax, theme.ReasonUnreadable:
-		return advisory{
+		return themeAdvisory{
 			line:      fmt.Sprintf(themeFileAdvisoryFormat, entry.Slug, entry.Rejection.Reason, rejectionDetail(entry.Rejection)),
 			slug:      entry.Slug,
 			fromPrefs: false,
 		}, true
 	case theme.ReasonBadName:
-		return advisory{
+		return themeAdvisory{
 			line:      badNameAdvisoryLine(entry),
 			slug:      "",
 			fromPrefs: false,
 		}, true
 	case theme.ReasonReservedName:
-		return advisory{
+		return themeAdvisory{
 			line:      fmt.Sprintf(reservedNameAdvisoryFormat, entry.Filename, entry.Slug, entry.Slug),
 			slug:      entry.Slug,
 			fromPrefs: false,
@@ -391,7 +421,7 @@ func themeFileAdvisory(entry theme.Entry) (advisory, bool) {
 	default:
 		// `not found` is persistedThemeAdvisories' line, below: it applies to a
 		// persisted slug with no file, which nothing enumerated here can be.
-		return advisory{}, false
+		return themeAdvisory{}, false
 	}
 }
 

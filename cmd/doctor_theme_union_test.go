@@ -26,18 +26,26 @@ import (
 // unionAdvisoriesFor runs doctor's WHOLE theme-advisory surface — both producers
 // and the assembly between them — over a seeded prefs.json and themes directory,
 // through the production entry point every test here must drive: the union is
-// only observable where the two producers meet.
-func unionAdvisoriesFor(t *testing.T, content, themesDir string) []advisory {
+// only observable where the two producers meet. It yields the assembled form,
+// which still carries the identity the union turned on; collectThemeAdvisories
+// drops it on the way to the renderer.
+func unionAdvisoriesFor(t *testing.T, content, themesDir string) []themeAdvisory {
 	t.Helper()
 
-	return collectThemeAdvisories(persistedThemeDeps(t, content, themesDir))
+	return themeAdvisoryUnion(persistedThemeDeps(t, content, themesDir))
 }
+
+// A line-only advisory cannot reach the union: the assembly takes the
+// theme-local record, so a producer of the renderer's advisory class has no way
+// into the dedup — nor any identity field to leave unset. Widening the signature
+// stops this file compiling.
+var _ func([]themeAdvisory, []themeAdvisory) []themeAdvisory = assembleThemeAdvisories
 
 // requireAdvisoryLines fails unless the advisories rendered are exactly these
 // lines, in this order. Order is asserted everywhere in this file rather than
 // membership: half of what the assembly promises is that a report over an
 // unchanged directory reads the same way twice.
-func requireAdvisoryLines(t *testing.T, got []advisory, want ...string) {
+func requireAdvisoryLines(t *testing.T, got []themeAdvisory, want ...string) {
 	t.Helper()
 
 	lines := advisoryLines(got)
@@ -118,16 +126,16 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 	})
 
 	t.Run("the rank is the fromPrefs field, not the argument position", func(t *testing.T) {
-		// The union's rank is DECLARED on the advisory (see the type in
-		// cmd/doctor.go) and must be read from there, not inferred from which
-		// producer's slice a line arrived in — otherwise the declared identity is
-		// unread, and a test asserting `fromPrefs: true` on a persisted line would
-		// be asserting a field nothing consults. Only a hand-built value can
-		// separate the two, since the real producer always sets it.
-		file := advisory{line: "⚠ theme nord-lee: bad colour — canvas = blue", slug: "nord-lee"}
-		unranked := advisory{line: "⚠ theme nord-lee does not resolve: bad colour", slug: "nord-lee"}
+		// The union's rank is DECLARED on the themeAdvisory record and must be read
+		// from there, not inferred from which producer's slice a line arrived in —
+		// otherwise the declared identity is unread, and a test asserting
+		// `fromPrefs: true` on a persisted line would be asserting a field nothing
+		// consults. Only a hand-built value can separate the two, since the real
+		// producer always sets it.
+		file := themeAdvisory{line: "⚠ theme nord-lee: bad colour — canvas = blue", slug: "nord-lee"}
+		unranked := themeAdvisory{line: "⚠ theme nord-lee does not resolve: bad colour", slug: "nord-lee"}
 
-		requireAdvisoryLines(t, assembleThemeAdvisories([]advisory{file}, []advisory{unranked}), file.line, unranked.line)
+		requireAdvisoryLines(t, assembleThemeAdvisories([]themeAdvisory{file}, []themeAdvisory{unranked}), file.line, unranked.line)
 	})
 }
 
@@ -158,11 +166,11 @@ func TestThemeAdvisoryUnion_BadNameFileNeverCollides(t *testing.T) {
 		// non-empty slug). A hand-built pair is the only way to pin the defence, and
 		// without it the empty string would be an ordinary key matching every
 		// bad-name row and the directory line at once.
-		directory := advisory{line: "⚠ themes directory unreadable: /themes"}
-		badName := advisory{line: "⚠ theme file Nord.theme: slug must be lowercase letters, digits and hyphens"}
-		slugless := advisory{line: "⚠ theme  does not resolve: not found", fromPrefs: true}
+		directory := themeAdvisory{line: "⚠ themes directory unreadable: /themes"}
+		badName := themeAdvisory{line: "⚠ theme file Nord.theme: slug must be lowercase letters, digits and hyphens"}
+		slugless := themeAdvisory{line: "⚠ theme  does not resolve: not found", fromPrefs: true}
 
-		requireAdvisoryLines(t, assembleThemeAdvisories([]advisory{directory, badName}, []advisory{slugless}),
+		requireAdvisoryLines(t, assembleThemeAdvisories([]themeAdvisory{directory, badName}, []themeAdvisory{slugless}),
 			directory.line, badName.line, slugless.line)
 	})
 }
@@ -253,6 +261,37 @@ func TestThemeAdvisoryUnion_DirectoryLineIsNeverDeduped(t *testing.T) {
 	)
 }
 
+// TestThemeAdvisoryUnion_HandsTheRendererLinesOnly: it converts the assembled
+// block to the renderer's line-only class, and a line from elsewhere passes
+// through beside it untouched.
+//
+// The conversion is where the union's identity stops: what the renderer receives
+// is what it prints. A line contributed by any other producer therefore neither
+// drops a theme line nor is dropped by one, whatever slug its copy happens to
+// name — it never carried the identity the dedup reads.
+func TestThemeAdvisoryUnion_HandsTheRendererLinesOnly(t *testing.T) {
+	requireDropInSlug(t, "nord-lee")
+	dir := themesDirWith(t, map[string][]byte{"nord-lee.theme": sourceBadColours(t, themeOverride{"canvas", "blue"})})
+	deps := persistedThemeDeps(t, `{"theme_dark":"nord-lee"}`, dir)
+
+	themeBlock := collectThemeAdvisories(deps)
+	if want := []advisory{{line: "⚠ theme nord-lee (dark) does not resolve: bad colour"}}; !slices.Equal(themeBlock, want) {
+		t.Fatalf("collected block = %+v; want %+v", themeBlock, want)
+	}
+
+	elsewhere := advisory{line: "⚠ theme nord-lee: reported by another producer"}
+	lines := renderedLines(t, mixedCatalog(), append(themeBlock, elsewhere))
+
+	want := []string{
+		"  " + themeBlock[0].line,
+		"  " + elsewhere.line,
+		"  1 of 2 checks passed · 2 advisories",
+	}
+	if got := lines[len(lines)-3:]; !slices.Equal(got, want) {
+		t.Errorf("report closes with\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	}
+}
+
 // everyRegionFixture seeds the one fixture in which every ordering rule the
 // assembly owns is observable at once: file lines in the enumeration's order
 // (`Nord.theme` sorts above the lowercase names, so the order is provably
@@ -293,7 +332,7 @@ func TestThemeAdvisoryUnion_OrderIsDeterministic(t *testing.T) {
 	t.Run("the regions appear in the pinned order", func(t *testing.T) {
 		deps, want := everyRegionFixture(t)
 
-		got := collectThemeAdvisories(deps)
+		got := themeAdvisoryUnion(deps)
 		requireAdvisoryLines(t, got, want...)
 
 		// The literal lines above already pin the sequence; this states WHY it is
@@ -312,11 +351,10 @@ func TestThemeAdvisoryUnion_OrderIsDeterministic(t *testing.T) {
 		var first string
 		for run := range 10 {
 			var buf bytes.Buffer
-			advisories := collectThemeAdvisories(deps)
-			renderDoctorReport(&buf, mixedCatalog(), advisories)
+			renderDoctorReport(&buf, mixedCatalog(), collectThemeAdvisories(deps))
 
 			if run == 0 {
-				requireAdvisoryLines(t, advisories, want...)
+				requireAdvisoryLines(t, themeAdvisoryUnion(deps), want...)
 				first = buf.String()
 				continue
 			}
@@ -350,7 +388,7 @@ func TestThemeAdvisoryUnion_OrderIsDeterministic(t *testing.T) {
 		// enough for a repeat-run comparison to pass by luck. Declaring no map type
 		// anywhere in the assembly is what makes the determinism structural — there
 		// is nothing that COULD be iterated in a random order.
-		assembly := []string{"collectThemeAdvisories", "assembleThemeAdvisories", "persistedSlugs"}
+		assembly := []string{"collectThemeAdvisories", "themeAdvisoryUnion", "assembleThemeAdvisories", "persistedSlugs"}
 
 		source := parseCmdFiles(t)["doctor_theme.go"]
 		if source == nil {
@@ -429,10 +467,11 @@ func TestThemeAdvisoryUnion_CountMatchesRenderedLines(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			advisories := unionAdvisoriesFor(t, tc.prefs, themesDirWith(t, tc.files))
+			deps := persistedThemeDeps(t, tc.prefs, themesDirWith(t, tc.files))
+			advisories := themeAdvisoryUnion(deps)
 			requireAdvisoryLines(t, advisories, tc.want...)
 
-			lines := renderedLines(t, mixedCatalog(), advisories)
+			lines := renderedLines(t, mixedCatalog(), collectThemeAdvisories(deps))
 
 			var rendered []string
 			for _, line := range lines {
@@ -467,10 +506,11 @@ func TestThemeAdvisoryUnion_CountMatchesRenderedLines(t *testing.T) {
 		// matters: <M> counted as DISTINCT SLUGS rather than as lines would read 1
 		// here — a report claiming one problem while printing two — and every other
 		// fixture in the suite would stay green, since no other pair shares a slug.
-		advisories := unionAdvisoriesFor(t, `{}`, themesDirWith(t, map[string][]byte{
+		deps := persistedThemeDeps(t, `{}`, themesDirWith(t, map[string][]byte{
 			"A-Nord.theme": validThemeSource(t),
 			"B_Nord.theme": validThemeSource(t),
 		}))
+		advisories := themeAdvisoryUnion(deps)
 		if len(advisories) != 2 {
 			t.Fatalf("union produced %d advisories, want 2:\n  %s", len(advisories), strings.Join(advisoryLines(advisories), "\n  "))
 		}
@@ -480,7 +520,7 @@ func TestThemeAdvisoryUnion_CountMatchesRenderedLines(t *testing.T) {
 			}
 		}
 
-		if got, want := doctorSummaryLine(mixedCatalog(), advisories), "1 of 2 checks passed · 2 advisories"; got != want {
+		if got, want := doctorSummaryLine(mixedCatalog(), collectThemeAdvisories(deps)), "1 of 2 checks passed · 2 advisories"; got != want {
 			t.Errorf("doctorSummaryLine = %q; want %q — <M> counts lines, not distinct slugs", got, want)
 		}
 	})

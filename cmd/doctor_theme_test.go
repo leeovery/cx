@@ -41,17 +41,20 @@ func themesDirWith(t *testing.T, files map[string][]byte) string {
 	return dir
 }
 
-// themeAdvisoriesFor runs the scan over dir through the production entry point,
-// with every other doctor seam left nil — the scan reads none of them.
-func themeAdvisoriesFor(t *testing.T, dir string) []advisory {
+// themeAdvisoriesFor runs the scan over dir through the production assembly,
+// with every other doctor seam left nil — the scan reads none of them. The
+// assembled form is what the tests here drive, since it is the last point the
+// union's identity fields are observable; collectThemeAdvisories drops them on
+// the way to the renderer.
+func themeAdvisoriesFor(t *testing.T, dir string) []themeAdvisory {
 	t.Helper()
 
-	return collectThemeAdvisories(&DoctorDeps{ThemesDir: dir})
+	return themeAdvisoryUnion(&DoctorDeps{ThemesDir: dir})
 }
 
 // advisoryLines is the rendered half of a scan result, for assertions that are
 // about the copy rather than the identity fields.
-func advisoryLines(advisories []advisory) []string {
+func advisoryLines(advisories []themeAdvisory) []string {
 	lines := make([]string, 0, len(advisories))
 	for _, a := range advisories {
 		lines = append(lines, a.line)
@@ -63,7 +66,7 @@ func advisoryLines(advisories []advisory) []string {
 // returns it. Cardinality is asserted before content everywhere in this file:
 // "one file, one line" is half of what the scan promises, and a content-only
 // assertion would pass against a second, duplicate line.
-func requireOneAdvisory(t *testing.T, advisories []advisory) advisory {
+func requireOneAdvisory(t *testing.T, advisories []themeAdvisory) themeAdvisory {
 	t.Helper()
 
 	if len(advisories) != 1 {

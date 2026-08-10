@@ -13,6 +13,7 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -31,10 +32,8 @@ var _ func([]checkResult) bool = doctorUnhealthy
 func themeAdvisories(n int) []advisory {
 	out := make([]advisory, 0, n)
 	for i := range n {
-		slug := fmt.Sprintf("theme%d", i)
 		out = append(out, advisory{
-			line: fmt.Sprintf("⚠ theme %s: bad colour — token text.primary", slug),
-			slug: slug,
+			line: fmt.Sprintf("⚠ theme theme%d: bad colour — token text.primary", i),
 		})
 	}
 	return out
@@ -62,6 +61,26 @@ func mixedCatalog() []checkResult {
 		{name: "daemon", status: checkPass, detail: "running (pid 1, version v1.0.0)"},
 		{name: "saver", status: checkFail, detail: "_portal-saver not running"},
 		{name: "host terminal", status: checkInfo, detail: "Ghostty (supported)"},
+	}
+}
+
+// TestAdvisories_CarryOnlyTheRenderedLine pins the class to what the renderer
+// reads. Any further field would be identity a producer has to remember to
+// populate for a rule it knows nothing about — the shape that lets an unrelated
+// producer silently defeat the theme union's one-slug-one-line dedup by setting
+// the line alone.
+func TestAdvisories_CarryOnlyTheRenderedLine(t *testing.T) {
+	typ := reflect.TypeFor[advisory]()
+
+	if got := typ.NumField(); got != 1 {
+		var names []string
+		for i := range got {
+			names = append(names, typ.Field(i).Name)
+		}
+		t.Fatalf("advisory carries %d fields (%s); want only the line the renderer prints", got, strings.Join(names, ", "))
+	}
+	if got := typ.Field(0).Name; got != "line" {
+		t.Errorf("advisory's only field is %q; want %q", got, "line")
 	}
 }
 
@@ -299,7 +318,7 @@ func TestAdvisories_FailingCheckAndAdvisoriesShareOneSummary(t *testing.T) {
 // no name column, nothing appended. Its text leads with the ⚠ glyph the producers
 // bake in, so the class survives a colourless terminal.
 func TestAdvisories_GlyphBackedNoMarker(t *testing.T) {
-	a := advisory{line: "⚠ themes directory unreadable: /home/u/.config/portal/themes", slug: "", fromPrefs: false}
+	a := advisory{line: "⚠ themes directory unreadable: /home/u/.config/portal/themes"}
 
 	lines := renderedLines(t, nil, []advisory{a})
 	got := lines[1]
@@ -315,15 +334,6 @@ func TestAdvisories_GlyphBackedNoMarker(t *testing.T) {
 			t.Errorf("advisory line = %q; must carry no pass/fail marker (%q)", got, marker)
 		}
 	}
-
-	t.Run("the renderer reads only line", func(t *testing.T) {
-		// slug and fromPrefs are the producers' dedup identity, not render input:
-		// two advisories differing only there must render identically.
-		other := advisory{line: a.line, slug: "nord-lee", fromPrefs: true}
-		if got, want := renderedLines(t, nil, []advisory{other})[1], "  "+a.line; got != want {
-			t.Errorf("advisory line = %q; want %q — slug and fromPrefs must not reach the rendered line", got, want)
-		}
-	})
 }
 
 // TestAdvisories_EmptyBlockRendersNothing pins zero bytes between the last check

@@ -30,9 +30,10 @@ import (
 // from open — not bootstrap exemption — is the whole basis of both.
 //
 // An exempt file hides every helper it declares, so this half backstops its own
-// exemption by TRACKING that file's entry point as a local helper:
-// collectThemeAdvisories sits in the `local` map below, which leaves the scan's
-// internals unguarded but fails the moment the scan itself is wired into the open
+// exemption by TRACKING that file's entry points as local helpers:
+// collectThemeAdvisories and themeAdvisoryUnion sit in the `local` map below,
+// which leaves the scan's internals unguarded but fails the moment the scan
+// itself is wired into the open
 // path ("open.go: openResolved calls collectThemeAdvisories"). The runtime half
 // below does NOT back the exemption up and must not be read as doing so: doctor
 // hands its loader log.Discard() by design, so a doctor-side helper
@@ -198,18 +199,24 @@ func themeCallSites(t *testing.T) map[string]map[string]string {
 		"buildThemeLoader":   true,
 		"newThemeLoader":     true,
 		"newThemeEnumerator": true,
-		// Tracked because its FILE is exempt in full: exempting the file would
+		// Tracked because their FILE is exempt in full: exempting the file would
 		// otherwise make every helper declared in it invisible to this scan, so a
 		// doctor-side helper called from the exec path would read as no call at
-		// all. Tracking the entry point puts the exempt file's ONE production
-		// caller back under the guard — see the exemption note on the test.
+		// all. Tracking the entry points puts the exempt file's production callers
+		// back under the guard — see the exemption note on the test.
 		//
-		// That one caller is invisible here only because it sits in doctorCmd's
+		// Both names below are entry points into the same scan: collectThemeAdvisories
+		// hands the renderer its line-only block, themeAdvisoryUnion yields that scan
+		// while it still carries the union's identity. An entry point reached from the
+		// exec path is a themes-directory read there, so none may be left untracked.
+		//
+		// doctor's own caller is invisible here only because it sits in doctorCmd's
 		// composite-literal RunE, which is not an *ast.FuncDecl. Extracting it into
 		// a named function in doctor.go trips this guard; keep the call in the
 		// literal rather than widening `allowed`, whose names are matched in every
 		// file including open.go.
 		"collectThemeAdvisories": true,
+		"themeAdvisoryUnion":     true,
 	}
 	sites := map[string]map[string]string{}
 
