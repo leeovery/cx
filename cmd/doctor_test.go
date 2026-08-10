@@ -942,6 +942,60 @@ func staleDeps(dir string, lister AllPaneLister, hookStore *hooks.Store, project
 	})
 }
 
+// seedStalePruneFixture seeds the shared `--fix` stale-prune scenario over
+// stateDir: a healthy runtime, one hook entry that no live pane claims, and two
+// project records of which one directory is gone. It returns the wired deps plus
+// the paths a caller needs to read back — the hooks and projects files, and the
+// live and gone project directories.
+func seedStalePruneFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hooksPath, projectsPath, liveDir, goneDir string) {
+	t.Helper()
+
+	seedHealthyStateDir(t, stateDir)
+	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
+	liveDir = t.TempDir()
+	goneDir = filepath.Join(t.TempDir(), "gone")
+	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
+
+	// A live-pane set that excludes sessA:0.0 makes it stale (prunable); the
+	// non-empty set means the hazard guard does NOT defer.
+	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
+
+	return staleDeps(stateDir, lister, hookStore, projectStore), hooksPath, projectsPath, liveDir, goneDir
+}
+
+// assertStalePrunesApplied checks the on-disk and reported outcome of a `--fix`
+// run over seedStalePruneFixture: the stale hook and the stale project are gone,
+// the live project survives, and both prunes left their breadcrumb in out.
+func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, goneDir, out string) {
+	t.Helper()
+
+	hooksAfter, err := os.ReadFile(hooksPath)
+	if err != nil {
+		t.Fatalf("read hooks.json: %v", err)
+	}
+	if strings.Contains(string(hooksAfter), "sessA:0.0") {
+		t.Errorf("stale hook sessA:0.0 not pruned from hooks.json:\n%s", hooksAfter)
+	}
+
+	projectsAfter, err := os.ReadFile(projectsPath)
+	if err != nil {
+		t.Fatalf("read projects.json: %v", err)
+	}
+	if strings.Contains(string(projectsAfter), goneDir) {
+		t.Errorf("stale project %q not pruned from projects.json:\n%s", goneDir, projectsAfter)
+	}
+	if !strings.Contains(string(projectsAfter), liveDir) {
+		t.Errorf("live project %q wrongly pruned:\n%s", liveDir, projectsAfter)
+	}
+
+	if !strings.Contains(out, "Pruned stale hook: sessA:0.0") {
+		t.Errorf("missing pruned-hook breadcrumb:\n%s", out)
+	}
+	if !strings.Contains(out, "Pruned stale project: proj1 ("+goneDir+")") {
+		t.Errorf("missing pruned-project breadcrumb:\n%s", out)
+	}
+}
+
 func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("persisted key with no live pane fails", func(t *testing.T) {
 		dir := t.TempDir()
@@ -1295,49 +1349,16 @@ func TestDoctorExecuteStaleEntryReturnsUnhealthy(t *testing.T) {
 // `--fix` both are pruned from disk, the post-repair diagnosis reports them
 // clean, and the command exits 0.
 func TestDoctorFixPrunesStaleEntriesThenRediagnosesClean(t *testing.T) {
-	dir := t.TempDir()
-	seedHealthyStateDir(t, dir)
+	deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, t.TempDir())
 
-	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
-	liveDir := t.TempDir()
-	goneDir := filepath.Join(t.TempDir(), "gone")
-	projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
-
-	// A live-pane set that excludes sessA:0.0 makes it stale (prunable); the
-	// non-empty set means the hazard guard does NOT defer.
-	lister := fakeHookLister{keys: []string{"sessB:0.0"}}
-
-	outBuf, _, err := runDoctorFixCmd(t, staleDeps(dir, lister, hookStore, projectStore))
+	outBuf, _, err := runDoctorFixCmd(t, deps)
 	if err != nil {
 		t.Fatalf("Execute err = %v; want nil (healthy post-repair)", err)
 	}
 
-	hooksAfter, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("read hooks.json: %v", err)
-	}
-	if strings.Contains(string(hooksAfter), "sessA:0.0") {
-		t.Errorf("stale hook sessA:0.0 not pruned from hooks.json:\n%s", hooksAfter)
-	}
-
-	projectsAfter, err := os.ReadFile(projectsPath)
-	if err != nil {
-		t.Fatalf("read projects.json: %v", err)
-	}
-	if strings.Contains(string(projectsAfter), goneDir) {
-		t.Errorf("stale project %q not pruned from projects.json:\n%s", goneDir, projectsAfter)
-	}
-	if !strings.Contains(string(projectsAfter), liveDir) {
-		t.Errorf("live project %q wrongly pruned:\n%s", liveDir, projectsAfter)
-	}
-
 	out := outBuf.String()
-	if !strings.Contains(out, "Pruned stale hook: sessA:0.0") {
-		t.Errorf("missing pruned-hook breadcrumb:\n%s", out)
-	}
-	if !strings.Contains(out, "Pruned stale project: proj1 ("+goneDir+")") {
-		t.Errorf("missing pruned-project breadcrumb:\n%s", out)
-	}
+	assertStalePrunesApplied(t, hooksPath, projectsPath, liveDir, goneDir, out)
+
 	// The initial (pre-fix) report AND the post-repair report both render.
 	if n := strings.Count(out, "Portal doctor:"); n != 2 {
 		t.Errorf("report count = %d; want 2 (initial + post-repair):\n%s", n, out)

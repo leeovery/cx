@@ -26,13 +26,26 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// themesDirWith writes each named file into a fresh temp directory and returns
-// it. Names are FILENAMES rather than slugs, so a fixture can carry a
-// non-`.theme` file the enumeration must ignore entirely.
+// themesDirWith writes each named file into a fresh `themes` directory under a
+// temp dir and returns it. Names are FILENAMES rather than slugs, so a fixture
+// can carry a non-`.theme` file the enumeration must ignore entirely.
 func themesDirWith(t *testing.T, files map[string][]byte) string {
 	t.Helper()
 
-	dir := t.TempDir()
+	return themesDirIn(t, t.TempDir(), files)
+}
+
+// themesDirIn seeds the same files into a `themes` directory under parent, for a
+// fixture whose claim is about the whole config root: a snapshot of parent then
+// covers the themes directory's own metadata and the space beside it, neither of
+// which is visible when the themes directory is itself the snapshot root.
+func themesDirIn(t *testing.T, parent string, files map[string][]byte) string {
+	t.Helper()
+
+	dir := filepath.Join(parent, "themes")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
+	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
 			t.Fatalf("seed %s: %v", name, err)

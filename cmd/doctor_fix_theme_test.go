@@ -19,8 +19,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"go/ast"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -206,10 +208,13 @@ func TestDoctorFix_AdvisoryOnlyExitsZero(t *testing.T) {
 		"  7 checks passed · 3 advisories")
 }
 
-// fixThemeFixture seeds a config root holding a themes directory with one file
-// per reason class beside a valid drop-in and a non-theme neighbour, plus a
-// prefs.json, and points the production resolutions at both. It returns the root
-// to fingerprint and the prefs path to byte-compare.
+// fixThemeFixture seeds a themes directory holding one file per reason class
+// beside a valid drop-in and a non-theme neighbour, plus a prefs.json, and
+// points the production resolutions at both. It returns the config root to
+// fingerprint and the prefs path to byte-compare. Both files live under that one
+// root, so a snapshot of it covers the themes directory's own metadata, the
+// space beside it, and any write to prefs.json — including one whose bytes come
+// back identical.
 //
 // Every class is present because they are the ones a repair surface would be
 // tempted by in different ways — a junk file to delete, a name to rewrite, a
@@ -238,23 +243,15 @@ func fixThemeFixture(t *testing.T) (root, prefsPath string) {
 	syncPersistTranslation(t)
 	requireBuiltinSlug(t, "nord")
 	root = t.TempDir()
-	dir := filepath.Join(root, "themes")
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", dir, err)
-	}
-	for name, data := range map[string][]byte{
+	themesDir := themesDirIn(t, root, map[string][]byte{
 		"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 		"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
 		"c-valid.theme":   validThemeSource(t),
 		"D_bad.theme":     validThemeSource(t),
 		"nord.theme":      validThemeSource(t),
 		"notes.txt":       []byte("not a theme file\n"),
-	} {
-		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
-			t.Fatalf("seed %s: %v", name, err)
-		}
-	}
-	t.Setenv("PORTAL_THEMES_DIR", dir)
+	})
+	t.Setenv("PORTAL_THEMES_DIR", themesDir)
 
 	prefsPath = filepath.Join(root, "prefs.json")
 	if err := os.WriteFile(prefsPath, []byte(`{"session_list_mode":"by-tag","appearance":"light"}`), 0o600); err != nil {
@@ -274,6 +271,12 @@ func fixThemeFixture(t *testing.T) (root, prefsPath string) {
 func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 	root, prefsPath := fixThemeFixture(t)
 	before := treeFingerprint(t, root)
+	// The fixture seeds prefs.json, the themes directory and a file per reason
+	// class, so a snapshot this small means most of that never landed in it and
+	// the comparison below would be vacuous.
+	if len(before) < 3 {
+		t.Fatalf("snapshot of the config root holds %d entries: %v", len(before), slices.Sorted(maps.Keys(before)))
+	}
 	prefsBefore, err := os.ReadFile(prefsPath)
 	if err != nil {
 		t.Fatalf("read prefs.json: %v", err)
@@ -523,53 +526,25 @@ func TestDoctorFix_RemainsBootstrapExempt(t *testing.T) {
 func TestDoctorFix_ExistingRepairsUnchanged(t *testing.T) {
 	t.Run("the two prunes and the log sweep still run", func(t *testing.T) {
 		dir := t.TempDir()
-		seedHealthyStateDir(t, dir)
+		deps, hooksPath, projectsPath, liveDir, goneDir := seedStalePruneFixture(t, dir)
+		deps.ThemesDir = themesDirWith(t, map[string][]byte{
+			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
+		})
 		staleLog := filepath.Join(dir, "portal.log.2000-01-01")
 		if err := os.WriteFile(staleLog, []byte("old\n"), 0o600); err != nil {
 			t.Fatalf("seed stale rotated log: %v", err)
 		}
-
-		hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
-		liveDir := t.TempDir()
-		goneDir := filepath.Join(t.TempDir(), "gone")
-		projectStore, projectsPath := seedProjectsJSON(t, liveDir, goneDir)
-		deps := staleDeps(dir, fakeHookLister{keys: []string{"sessB:0.0"}}, hookStore, projectStore)
-		deps.ThemesDir = themesDirWith(t, map[string][]byte{
-			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
-		})
 
 		outBuf, _, err := runDoctorFixCmd(t, deps)
 		if err != nil {
 			t.Fatalf("Execute err = %v; want nil (healthy post-repair)", err)
 		}
 
-		hooksAfter, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("read hooks.json: %v", err)
-		}
-		if strings.Contains(string(hooksAfter), "sessA:0.0") {
-			t.Errorf("stale hook sessA:0.0 not pruned from hooks.json:\n%s", hooksAfter)
-		}
-		projectsAfter, err := os.ReadFile(projectsPath)
-		if err != nil {
-			t.Fatalf("read projects.json: %v", err)
-		}
-		if strings.Contains(string(projectsAfter), goneDir) {
-			t.Errorf("stale project %q not pruned from projects.json:\n%s", goneDir, projectsAfter)
-		}
-		if !strings.Contains(string(projectsAfter), liveDir) {
-			t.Errorf("live project %q wrongly pruned:\n%s", liveDir, projectsAfter)
-		}
+		out := outBuf.String()
+		assertStalePrunesApplied(t, hooksPath, projectsPath, liveDir, goneDir, out)
+
 		if _, statErr := os.Stat(staleLog); !os.IsNotExist(statErr) {
 			t.Errorf("stale rotated log not swept (stat err = %v); the log sweep did not run", statErr)
-		}
-
-		out := outBuf.String()
-		if !strings.Contains(out, "Pruned stale hook: sessA:0.0") {
-			t.Errorf("missing pruned-hook breadcrumb:\n%s", out)
-		}
-		if !strings.Contains(out, "Pruned stale project: proj1 ("+goneDir+")") {
-			t.Errorf("missing pruned-project breadcrumb:\n%s", out)
 		}
 
 		const advisory = "  ⚠ theme a-missing: missing tokens — missing text.primary\n"
