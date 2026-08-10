@@ -255,11 +255,22 @@ func TestEnumerate_SkipsDirectoryValuedEntriesSilently(t *testing.T) {
 // leaves no precedence rule or ordering tie-break to define.
 //
 // The empty slug is asserted for that reason: it is the mechanism, not a detail.
+//
+// `Nord.THEME` carries the slug cause rather than the extension one: its stem is
+// illegal too, and the extension message claims the stem is fine.
 func TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName(t *testing.T) {
-	for _, base := range []string{"Nord.THEME", "nord.Theme"} {
-		t.Run(base, func(t *testing.T) {
+	cases := []struct {
+		base      string
+		wantCause theme.BadNameCause
+	}{
+		{base: "Nord.THEME", wantCause: theme.BadNameSlug},
+		{base: "nord.Theme", wantCause: theme.BadNameExtension},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.base, func(t *testing.T) {
 			dir := t.TempDir()
-			themetest.Write(t, dir, base, themetest.Lines())
+			themetest.Write(t, dir, tc.base, themetest.Lines())
 
 			entries, rejection := theme.Loader{}.Enumerate(dir)
 
@@ -267,12 +278,12 @@ func TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName(t *testing.T) {
 				t.Fatalf("Enumerate(%q) reported the directory unusable: %v", dir, rejection)
 			}
 			entry := requireSingleEntry(t, entries)
-			if entry.Filename != base {
-				t.Errorf("entry filename = %q, want %q — the file must be visible", entry.Filename, base)
+			if entry.Filename != tc.base {
+				t.Errorf("entry filename = %q, want %q — the file must be visible", entry.Filename, tc.base)
 			}
 			requireRejectedEntry(t, entry, theme.ReasonBadName)
-			if entry.Rejection.BadNameCause != theme.BadNameExtension {
-				t.Errorf("entry cause = %v, want %v", entry.Rejection.BadNameCause, theme.BadNameExtension)
+			if entry.Rejection.BadNameCause != tc.wantCause {
+				t.Errorf("entry cause = %v, want %v", entry.Rejection.BadNameCause, tc.wantCause)
 			}
 			if entry.Slug != "" {
 				t.Errorf("entry slug = %q, want empty — a non-exact extension contributes no slug", entry.Slug)

@@ -120,20 +120,20 @@ func TestSlugFromFilename_DerivesStem(t *testing.T) {
 // never contributes a slug — which is what keeps the filename-is-identity rule's structural
 // uniqueness true without a precedence rule.
 //
-// `Nord.THEME` reports the extension cause even though its stem is illegal too:
-// a name that is not a theme filename at all is decided first, so the stem is
-// never reached.
+// `Nord.THEME` is refused the same way, and reports the slug cause: its stem is
+// illegal too, so the single fix its message names is the stem.
 func TestSlugFromFilename_RejectsNonLowercaseExtension(t *testing.T) {
 	tests := []struct {
-		name string
-		base string
+		name      string
+		base      string
+		wantCause theme.BadNameCause
 	}{
-		{name: "shouted extension", base: "nord.THEME"},
-		{name: "title-cased extension", base: "nord.Theme"},
-		{name: "shouted stem and extension", base: "Nord.THEME"},
-		{name: "a second extension after it", base: "nord.theme.bak"},
-		{name: "no extension at all", base: "nord"},
-		{name: "extension without the dot", base: "nordtheme"},
+		{name: "shouted extension", base: "nord.THEME", wantCause: theme.BadNameExtension},
+		{name: "title-cased extension", base: "nord.Theme", wantCause: theme.BadNameExtension},
+		{name: "shouted stem and extension", base: "Nord.THEME", wantCause: theme.BadNameSlug},
+		{name: "a second extension after it", base: "nord.theme.bak", wantCause: theme.BadNameExtension},
+		{name: "no extension at all", base: "nord", wantCause: theme.BadNameExtension},
+		{name: "extension without the dot", base: "nordtheme", wantCause: theme.BadNameExtension},
 	}
 
 	for _, tt := range tests {
@@ -149,8 +149,66 @@ func TestSlugFromFilename_RejectsNonLowercaseExtension(t *testing.T) {
 			if rejection.Reason != theme.ReasonBadName {
 				t.Errorf("SlugFromFilename(%q) reason = %q, want %q", tt.base, rejection.Reason, theme.ReasonBadName)
 			}
-			if rejection.BadNameCause != theme.BadNameExtension {
-				t.Errorf("SlugFromFilename(%q) cause = %v, want BadNameExtension (%v)", tt.base, rejection.BadNameCause, theme.BadNameExtension)
+			if rejection.BadNameCause != tt.wantCause {
+				t.Errorf("SlugFromFilename(%q) cause = %v, want %v", tt.base, rejection.BadNameCause, tt.wantCause)
+			}
+		})
+	}
+}
+
+// TestSlugFromFilename_ExtensionCauseOnlyWhenStemIsLegal pins which cause a
+// wrong-cased extension reports, which is what decides the single fix doctor
+// names.
+//
+// The extension message asserts something specific — that the slug portion is
+// already legal and only the extension is not — so it is claimed only where the
+// stem has been checked and passed. A name that is wrong in two ways gets the
+// general slug message instead, which asserts nothing that the name falsifies.
+//
+// The stem is judged by stripping the extension case-insensitively, which is a
+// judgement and never a derivation: no slug is minted from a non-exact
+// extension, so every rejecting row returns the empty slug.
+func TestSlugFromFilename_ExtensionCauseOnlyWhenStemIsLegal(t *testing.T) {
+	tests := []struct {
+		name      string
+		base      string
+		wantSlug  string
+		wantCause theme.BadNameCause
+	}{
+		{name: "legal stem, shouted extension", base: "nord.THEME", wantCause: theme.BadNameExtension},
+		{name: "legal stem, title-cased extension", base: "sunset.Theme", wantCause: theme.BadNameExtension},
+		{name: "illegal stem, shouted extension", base: "Nord.THEME", wantCause: theme.BadNameSlug},
+		{name: "spaced stem, shouted extension", base: "My Theme.THEME", wantCause: theme.BadNameSlug},
+		{name: "illegal stem, exact extension", base: "My Theme.theme", wantCause: theme.BadNameSlug},
+		{name: "no .theme-shaped suffix", base: "nord.txt", wantCause: theme.BadNameExtension},
+		{name: "legal stem, exact extension", base: "nord.theme", wantSlug: "nord"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, rejection := theme.SlugFromFilename(tt.base)
+
+			if tt.wantSlug != "" {
+				if rejection != nil {
+					t.Fatalf("SlugFromFilename(%q) rejected with %v, want the slug %q", tt.base, rejection, tt.wantSlug)
+				}
+				if got != tt.wantSlug {
+					t.Errorf("SlugFromFilename(%q) = %q, want %q", tt.base, got, tt.wantSlug)
+				}
+				return
+			}
+
+			if rejection == nil {
+				t.Fatalf("SlugFromFilename(%q) = %q with no rejection, want a bad name rejection", tt.base, got)
+			}
+			if got != "" {
+				t.Errorf("SlugFromFilename(%q) = %q alongside a rejection, want no slug", tt.base, got)
+			}
+			if rejection.Reason != theme.ReasonBadName {
+				t.Errorf("SlugFromFilename(%q) reason = %q, want %q", tt.base, rejection.Reason, theme.ReasonBadName)
+			}
+			if rejection.BadNameCause != tt.wantCause {
+				t.Errorf("SlugFromFilename(%q) cause = %v, want %v", tt.base, rejection.BadNameCause, tt.wantCause)
 			}
 		})
 	}

@@ -277,8 +277,12 @@ type caseVariant struct {
 }
 
 // caseVariants renders the ways a built-in's filename is most plausibly typed
-// with the wrong case: a shouted stem, a capitalised stem, and a shouted
-// extension.
+// with the wrong case: a shouted stem, a capitalised stem, either of those with
+// a shouted extension as well, and a shouted extension alone.
+//
+// A mis-cased stem carries the slug cause whatever its extension does, because
+// the extension message would claim the stem is already fine — which for these
+// variants is the very thing that is not true.
 //
 // A stem that does not change under upper-casing — a slug of digits alone —
 // contributes no variant, because it would stage the canonical filename and
@@ -295,7 +299,10 @@ func caseVariants(t *testing.T, slug string) []caseVariant {
 		if stem == slug {
 			continue
 		}
-		variants = append(variants, caseVariant{base: stem + ".theme", cause: theme.BadNameSlug})
+		variants = append(variants,
+			caseVariant{base: stem + ".theme", cause: theme.BadNameSlug},
+			caseVariant{base: stem + ".THEME", cause: theme.BadNameSlug},
+		)
 	}
 	return append(variants, caseVariant{base: slug + ".THEME", cause: theme.BadNameExtension})
 }

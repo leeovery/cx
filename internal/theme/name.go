@@ -41,7 +41,9 @@ const (
 	BadNameNone BadNameCause = iota
 	// BadNameSlug — the stem does not match the slug charset.
 	BadNameSlug
-	// BadNameExtension — the extension is not exactly lowercase `.theme`.
+	// BadNameExtension — the extension is not exactly lowercase `.theme`, over a
+	// stem that is otherwise a legal slug or that no `.theme`-shaped suffix
+	// leaves to judge. A stem that is illegal too is BadNameSlug.
 	BadNameExtension
 )
 
@@ -122,12 +124,19 @@ func StripControl(s string) string {
 // SlugFromFilename derives a theme's slug from one directory entry's base name,
 // or returns the one `bad name` rejection saying which rule the name broke.
 //
-// The two rules are checked in this order because a name that is not a theme
-// filename at all is decided before anything is asked of its stem: the
-// extension must be EXACTLY lowercase `.theme`, compared by bytes and never
-// case-folded, and only then must the remaining stem satisfy ValidSlug.
+// The extension must be EXACTLY lowercase `.theme`, compared by bytes and never
+// case-folded, and the remaining stem must satisfy ValidSlug.
 //
-// NOTHING IS EVER NORMALISED — not lowercased, not trimmed. That is a safety
+// When the extension is not exact, WHICH cause is reported still depends on the
+// stem, because the extension cause carries a claim about it: the surfaces that
+// render it say the extension alone is wrong, so it is claimed only where the
+// stem has been checked and passed. A name wrong in both is therefore the slug
+// cause — the general statement about a name that is not usable as an identity,
+// which asserts nothing the name falsifies. A base name with no `.theme`-shaped
+// suffix at all is the extension cause, having no stem to judge.
+//
+// NOTHING IS EVER NORMALISED — not lowercased, not trimmed; the mis-cased
+// suffix stripped to judge a stem is discarded with it. That is a safety
 // property, not a style choice: lowercasing `Nord.theme` to `nord` would let a
 // user file shadow the built-in `nord`, and since an invalid theme falls back to
 // a built-in, a typo'd drop-in could break the very thing Portal falls back to.
@@ -148,13 +157,32 @@ func StripControl(s string) string {
 func SlugFromFilename(base string) (string, *Rejection) {
 	stem, exact := strings.CutSuffix(base, FileExtension)
 	if !exact {
-		return "", badName(BadNameExtension)
+		return "", badName(misCasedExtensionCause(base))
 	}
 	if !ValidSlug(stem) {
 		return "", badName(BadNameSlug)
 	}
 
 	return stem, nil
+}
+
+// misCasedExtensionCause says which cause a name whose extension is not exactly
+// lowercase `.theme` reports, by judging what precedes that extension.
+//
+// The stripped stem is a judgement only — it is never returned and never becomes
+// a slug, so a non-exact extension still mints nothing.
+func misCasedExtensionCause(base string) BadNameCause {
+	if len(base) < len(FileExtension) {
+		return BadNameExtension
+	}
+	split := len(base) - len(FileExtension)
+	if !strings.EqualFold(base[split:], FileExtension) {
+		return BadNameExtension
+	}
+	if !ValidSlug(base[:split]) {
+		return BadNameSlug
+	}
+	return BadNameExtension
 }
 
 // badName builds the one rejection a name failure produces.

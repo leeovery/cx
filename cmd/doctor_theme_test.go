@@ -704,6 +704,32 @@ func TestThemeAdvisories_BadNameExtensionFrame(t *testing.T) {
 	}
 }
 
+// TestThemeAdvisories_DoublyIllegalNameRendersTheSlugLine: a name that is wrong
+// in both its stem and its extension gets the slug line, not the extension one.
+//
+// The extension line asserts the slug portion is already legal, so it must not
+// appear over a name where it is not — it would name a fix that leaves the file
+// still rejected, and the user would rename twice to learn one thing. The slug
+// line is the general statement, so it is what a doubly-illegal name reads.
+func TestThemeAdvisories_DoublyIllegalNameRendersTheSlugLine(t *testing.T) {
+	cases := []struct{ name, filename string }{
+		{name: "an uppercase stem", filename: "Nord.THEME"},
+		{name: "a space in the stem", filename: "My Theme.THEME"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := themesDirWith(t, map[string][]byte{tc.filename: validThemeSource(t)})
+
+			got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
+			want := "⚠ theme file " + tc.filename + ": slug must be lowercase letters, digits and hyphens"
+			if got.line != want {
+				t.Errorf("advisory line = %q; want %q", got.line, want)
+			}
+		})
+	}
+}
+
 // TestThemeAdvisories_FilenameReasonsLabelledByFilename: it labels a
 // filename-reason row by filename.
 //
