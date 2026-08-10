@@ -815,7 +815,7 @@ func TestThemePanel_OverlayCutsMidLabel(t *testing.T) {
 func TestThemePanel_ViewCompositesWhenOpen(t *testing.T) {
 	const termW, termH = 90, 24
 
-	m := newCanvasTestModel(t, termW, termH, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, termW, termH, theme.MemberDark)
 	closed := m.View().Content
 
 	m.themePanel = newThemePanelFixture(themePanelFixtureOpts{

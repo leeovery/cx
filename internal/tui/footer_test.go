@@ -283,7 +283,7 @@ func TestSessionsFooterHeight_SubtractedFromListBudget(t *testing.T) {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
 
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -316,7 +316,7 @@ func TestSessionsFooterHeight_CountedAtEverySizeApplySite(t *testing.T) {
 
 	// Construction seed (New → applySessionListSize(80,24)) then a resize, then a
 	// rebuild.
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m = updated.(Model)
 	m.applySessions(sessions)

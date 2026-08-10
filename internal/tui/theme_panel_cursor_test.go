@@ -29,7 +29,7 @@ import (
 
 // themeCursorModel is the dir-backed panel model for the cursor fixtures, which
 // need nothing off the enumerator itself.
-func themeCursorModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) Model {
+func themeCursorModel(t *testing.T, dir string, keys theme.RawKeys, mode theme.Member) Model {
 	t.Helper()
 	m, _ := newDirBackedPanelModel(t, dir, keys, mode)
 	return m
@@ -74,7 +74,7 @@ func requireBadge(t *testing.T, m Model, label string, want theme.Badge) {
 // The degenerate case, and the one that fixes the reference point for every other
 // one: with a single slug there is exactly one row the screen can be painted from.
 func TestPanelOpenCursor_Constant(t *testing.T) {
-	m := themeCursorModel(t, t.TempDir(), theme.RawKeys{Theme: "nord"}, appearanceDarkCanvas)
+	m := themeCursorModel(t, t.TempDir(), theme.RawKeys{Theme: "nord"}, theme.MemberDark)
 
 	m = pressThemeKey(t, m)
 
@@ -93,21 +93,21 @@ func TestPanelOpenCursor_InForceSlot(t *testing.T) {
 
 	for _, tc := range []struct {
 		name       string
-		mode       canvasAppearance
+		mode       theme.Member
 		wantCursor string
 		wantOther  string
 		otherBadge theme.Badge
 	}{
 		{
 			name:       "a light terminal previews the light slot",
-			mode:       appearanceLightCanvas,
+			mode:       theme.MemberLight,
 			wantCursor: theme.DefaultLightSlug,
 			wantOther:  "nord",
 			otherBadge: theme.BadgeDark,
 		},
 		{
 			name:       "a dark terminal previews the dark slot",
-			mode:       appearanceDarkCanvas,
+			mode:       theme.MemberDark,
 			wantCursor: "nord",
 			wantOther:  theme.DefaultLightSlug,
 			otherBadge: theme.BadgeLight,
@@ -132,7 +132,7 @@ func TestPanelOpenCursor_InForceSlot(t *testing.T) {
 func TestPanelOpenCursor_BothSlotsSameSlug(t *testing.T) {
 	keys := theme.RawKeys{Light: "nord", Dark: "nord"}
 
-	for _, mode := range []canvasAppearance{appearanceLightCanvas, appearanceDarkCanvas} {
+	for _, mode := range []theme.Member{theme.MemberLight, theme.MemberDark} {
 		m := themeCursorModel(t, t.TempDir(), keys, mode)
 
 		m = pressThemeKey(t, m)
@@ -165,7 +165,7 @@ func countLabel(labels []string, want string) int {
 func TestPanelOpenCursor_FallbackRow(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
-	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 
 	m = pressThemeKey(t, m)
 
@@ -189,7 +189,7 @@ func TestPanelOpenCursor_FallbackRow(t *testing.T) {
 // LOADED would sit on the fallback and silently claim it was the user's choice.
 func TestPanelOpenCursor_BadgeStaysOnPersisted(t *testing.T) {
 	keys := theme.RawKeys{Light: "gone-light", Dark: "nord"}
-	m := themeCursorModel(t, t.TempDir(), keys, appearanceLightCanvas)
+	m := themeCursorModel(t, t.TempDir(), keys, theme.MemberLight)
 
 	m = pressThemeKey(t, m)
 
@@ -208,7 +208,7 @@ func TestPanelOpenCursor_BadgeStaysOnPersisted(t *testing.T) {
 func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	before := m.themeState.active
 
 	m = pressThemeKey(t, m)
@@ -231,7 +231,7 @@ func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
@@ -253,7 +253,7 @@ func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
@@ -283,7 +283,7 @@ func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
-	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	if want := testDarkTheme(t); m.themeState.active != want {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the fallback's %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
@@ -453,28 +453,28 @@ func TestPanelOpen_CursorInvariant(t *testing.T) {
 		name  string
 		write func(*testing.T, string)
 		keys  theme.RawKeys
-		mode  canvasAppearance
+		mode  theme.Member
 	}{
 		{
 			name: "a constant",
 			keys: theme.RawKeys{Theme: "nord"},
-			mode: appearanceDarkCanvas,
+			mode: theme.MemberDark,
 		},
 		{
 			name: "the in-force slot of a pair",
 			keys: theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"},
-			mode: appearanceLightCanvas,
+			mode: theme.MemberLight,
 		},
 		{
 			name: "both slots on one slug",
 			keys: theme.RawKeys{Light: "nord", Dark: "nord"},
-			mode: appearanceDarkCanvas,
+			mode: theme.MemberDark,
 		},
 		{
 			name:  "a fallback",
 			write: func(t *testing.T, dir string) { writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour") },
 			keys:  theme.RawKeys{Theme: "sunset"},
-			mode:  appearanceDarkCanvas,
+			mode:  theme.MemberDark,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -503,7 +503,7 @@ func TestPanelOpen_CursorInvariant(t *testing.T) {
 // standing dark no-answer fallback. Re-querying would reopen the race the
 // resolve-once rule closes, a second after the user is already reading the picker.
 func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
-	m := themeCursorModel(t, t.TempDir(), theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}, appearanceLightCanvas)
+	m := themeCursorModel(t, t.TempDir(), theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}, theme.MemberLight)
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
 	m = updated.(Model)
@@ -524,8 +524,8 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	if !m.modeResolved() {
 		t.Error("opening the panel reopened the first-paint gate")
 	}
-	if m.themeState.canvasMode != appearanceLightCanvas {
-		t.Errorf("canvasMode = %v after opening, want the gate's own answer %v", m.themeState.canvasMode, appearanceLightCanvas)
+	if m.themeState.canvasMode != theme.MemberLight {
+		t.Errorf("canvasMode = %v after opening, want the gate's own answer %v", m.themeState.canvasMode, theme.MemberLight)
 	}
 }
 
@@ -545,7 +545,7 @@ func TestPanelOpen_WritesNothing(t *testing.T) {
 		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
-		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 
 		pressThemeKey(t, m)
 
@@ -563,7 +563,7 @@ func TestPanelOpen_WritesNothing(t *testing.T) {
 		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 
 		pressThemeKey(t, m)
 

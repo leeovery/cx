@@ -239,11 +239,11 @@ func (m Model) persistedSlotSlug(slot theme.Slot) string {
 // empty hex and no colour to classify — which is why the read is keyed on the
 // arrival rather than on a non-empty originalBg; IsDark reports a nil colour as
 // dark either way.
-func (m Model) retainedCanvasAnswer() canvasAppearance {
+func (m Model) retainedCanvasAnswer() theme.Member {
 	if m.themeState.bgReplyArrived && !m.themeState.bgReplyDark {
-		return appearanceLightCanvas
+		return theme.MemberLight
 	}
-	return appearanceDarkCanvas
+	return theme.MemberDark
 }
 
 // The two answer letters, as the dispatch matches them. They must stay in step

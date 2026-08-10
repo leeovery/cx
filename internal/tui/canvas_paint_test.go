@@ -23,7 +23,7 @@ func canvasSeq(t *testing.T, th theme.Theme) string {
 // canvas it was tuned for.
 func TestCanvasMode_DefaultsToDark(t *testing.T) {
 	m := New(fakeLister{})
-	if m.themeState.canvasMode != appearanceDarkCanvas {
+	if m.themeState.canvasMode != theme.MemberDark {
 		t.Errorf("canvasMode = %v, want testDarkTheme(t) (default)", themeLabel(m.themeState.active))
 	}
 }
@@ -32,15 +32,15 @@ func TestCanvasMode_DefaultsToDark(t *testing.T) {
 // mode in here without touching the View() wrap point.
 func TestWithCanvasMode(t *testing.T) {
 	t.Run("injects Light", func(t *testing.T) {
-		m := New(fakeLister{}, WithCanvasMode(appearanceLightCanvas))
-		if m.themeState.canvasMode != appearanceLightCanvas {
+		m := New(fakeLister{}, WithCanvasMode(theme.MemberLight))
+		if m.themeState.canvasMode != theme.MemberLight {
 			t.Errorf("canvasMode = %v, want testLightTheme(t)", themeLabel(m.themeState.active))
 		}
 	})
 
 	t.Run("injects Dark explicitly", func(t *testing.T) {
-		m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
-		if m.themeState.canvasMode != appearanceDarkCanvas {
+		m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
+		if m.themeState.canvasMode != theme.MemberDark {
 			t.Errorf("canvasMode = %v, want testDarkTheme(t)", themeLabel(m.themeState.active))
 		}
 	})
@@ -53,10 +53,10 @@ func TestWithCanvasMode(t *testing.T) {
 func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
-		appearance canvasAppearance
+		appearance theme.Member
 	}{
-		{"dark", appearanceDarkCanvas},
-		{"light", appearanceLightCanvas},
+		{"dark", theme.MemberDark},
+		{"light", theme.MemberLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w, h = 90, 24
@@ -87,7 +87,7 @@ func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
 // painting.
 func TestOuterFill_OutsideListHeightBudget(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	// The inner composed view (no outer fill) and the list's page item count
 	// are the budget the paginator computed. Applying the outer fill must not
@@ -119,7 +119,7 @@ func TestOuterFill_OutsideListHeightBudget(t *testing.T) {
 // text is present.
 func TestOuterFill_RePadsToTermHOnVerticalChange(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	baseFrame := lipgloss.Height(m.View().Content)
 
@@ -154,7 +154,7 @@ func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
 	for i := range 40 {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -177,7 +177,7 @@ func TestOuterFill_PaginationInvariantPreserved(t *testing.T) {
 // case falls back to exactly 80x24 (matching viewLoading) so the fill never
 // sizes to zero and blanks the screen.
 func TestOuterFill_ZeroSizeFallback(t *testing.T) {
-	m := newCanvasTestModel(t, 0, 0, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, 0, 0, theme.MemberDark)
 
 	view := m.View().Content
 
@@ -196,7 +196,7 @@ func TestOuterFill_ZeroSizeFallback(t *testing.T) {
 // terminal size and canvas answer, loaded with the deterministic flat session set
 // through the production applySessions path (SetItems → re-size) so pagination
 // is sized exactly as it is in production.
-func newCanvasTestModel(t *testing.T, w, h int, appearance canvasAppearance) Model {
+func newCanvasTestModel(t *testing.T, w, h int, appearance theme.Member) Model {
 	t.Helper()
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 3, Attached: true},

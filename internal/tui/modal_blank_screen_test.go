@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -26,7 +27,7 @@ func openKillModal(m *Model, name string) {
 // it. This is the visible effect of the plumbing task.
 func TestModalBlankScreen_ClearsListRowsBehindModal(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	// Sanity: the live (no-modal) view DOES show the list rows and header, so the
 	// assertions below prove the modal cleared them (not that they were never
@@ -64,7 +65,7 @@ func TestModalBlankScreen_ClearsListRowsBehindModal(t *testing.T) {
 // border sits roughly centred, not flush at the top-left.
 func TestModalBlankScreen_CentresPanelUsingTerminalDims(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 	openKillModal(&m, "alpha")
 
 	frame := m.View().Content
@@ -103,10 +104,10 @@ func TestModalBlankScreen_CentresPanelUsingTerminalDims(t *testing.T) {
 func TestModalBlankScreen_PaintsOwnedCanvasBackdrop(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
-		appearance canvasAppearance
+		appearance theme.Member
 	}{
-		{"dark", appearanceDarkCanvas},
-		{"light", appearanceLightCanvas},
+		{"dark", theme.MemberDark},
+		{"light", theme.MemberLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w, h = 90, 24
@@ -165,7 +166,7 @@ func TestModalBlankScreen_ColourlessClearsToNativeBg(t *testing.T) {
 // WindowSizeMsg the cached terminal dimensions are 0, and the cleared canvas must
 // fall back to 80×24 (never zero-sized) just like every other owned-canvas page.
 func TestModalBlankScreen_ZeroDimsFallback(t *testing.T) {
-	m := newCanvasTestModel(t, 0, 0, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, 0, 0, theme.MemberDark)
 	openKillModal(&m, "alpha")
 
 	frame := m.View().Content
@@ -185,7 +186,7 @@ func TestModalBlankScreen_ZeroDimsFallback(t *testing.T) {
 // view (the page behind the modal is gone, band and all).
 func TestModalBlankScreen_NoFlashBandLeaksIntoClearedView(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 	const flash = "session \"x\" no longer exists"
 	m.setFlash(flash)
 	if !strings.Contains(m.viewSessionList(), flash) {
@@ -204,7 +205,7 @@ func TestModalBlankScreen_NoFlashBandLeaksIntoClearedView(t *testing.T) {
 // modal inherits): the project list rows behind it are cleared.
 func TestModalBlankScreen_ProjectsDeleteClearsList(t *testing.T) {
 	const w, h = 90, 24
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	m.termWidth = w
 	m.termHeight = h
 	m.activePage = PageProjects

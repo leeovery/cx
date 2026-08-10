@@ -197,7 +197,7 @@ func TestGate_ConstantRetainsReplyWithoutClassifying(t *testing.T) {
 	if !after.themeState.bgReplyArrived {
 		t.Errorf("bgReplyArrived = false, want true (a reply did arrive, whatever it said)")
 	}
-	if after.themeState.canvasMode != appearanceDarkCanvas {
+	if after.themeState.canvasMode != theme.MemberDark {
 		t.Errorf("canvasMode = %v, want the standing dark fallback — a constant derives no light/dark answer from the reply", after.themeState.canvasMode)
 	}
 	assertActiveTheme(t, after, dark.Canvas.Value)

@@ -208,7 +208,7 @@ func TestSectionHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 // to filter` hint — while the title FIELD (m.sessionList.Title) keeps its
 // parity value.
 func TestViewSessionList_ReplacesTitleWithSectionHeader(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas) // 3 sessions (alpha/bravo/charlie)
+	m := newCanvasTestModel(t, 90, 24, theme.MemberDark) // 3 sessions (alpha/bravo/charlie)
 	view := m.viewSessionList()
 
 	// The section header's count (3) renders in a state.positive run.
@@ -257,7 +257,7 @@ func TestViewSessionList_SectionHeaderCountMatchesVisible(t *testing.T) {
 // overwrite the filter input row while the filter is being typed (FilterState ==
 // Filtering): the title row is the live filter input then, not the section header.
 func TestViewSessionList_FilterInputNotReplaced(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, 90, 24, theme.MemberDark)
 	m.sessionList.SetFilterState(list.Filtering)
 	view := m.viewSessionList()
 
@@ -322,7 +322,7 @@ func TestSectionHeader_AlignsWithHeaderWordmark(t *testing.T) {
 // (they sit after the ▌ bar column); that is correct and is not what this guard
 // measures.
 func TestViewSessionList_HeaderSectionCursorShareLeftEdge(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, 90, 24, theme.MemberDark)
 	view := m.viewSessionList()
 
 	var wordmarkCol, sectionCol, cursorCol = -1, -1, -1
@@ -365,7 +365,7 @@ func isBlankRow(line string) bool {
 // sees it. It exists because a flush-chrome spacing miss slipped through the
 // element-scoped checks; locking the composed sequence stops a silent regress.
 func TestViewSessionList_HeaderZoneVerticalRhythm(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas) // 3 sessions: alpha/bravo/charlie
+	m := newCanvasTestModel(t, 90, 24, theme.MemberDark) // 3 sessions: alpha/bravo/charlie
 	lines := strings.Split(m.viewSessionList(), "\n")
 
 	// Locate each landmark row by its visible content.

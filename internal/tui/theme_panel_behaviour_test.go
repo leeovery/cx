@@ -191,7 +191,7 @@ func behaviourNomination(t *testing.T, e *behaviourEnumerator, keys theme.RawKey
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 	}
-	inForce, ok := inForceSlot(resolution, appearanceDarkCanvas)
+	inForce, ok := inForceSlot(resolution, theme.MemberDark)
 	if !ok {
 		t.Fatalf("construction-time resolution %+v names no slot in force", resolution)
 	}

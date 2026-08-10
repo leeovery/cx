@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -70,7 +71,7 @@ func stripSGRForTest(s string) string {
 // with exactly Hinset blank cells (content is no longer flush to the edges).
 func TestContentInset_AppliedToSessions(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	view := m.View().Content
 	lines := strings.Split(view, "\n")
@@ -112,7 +113,7 @@ func TestContentInset_AppliedToSessions(t *testing.T) {
 // is exactly termH.
 func TestContentInset_FrameDimensionsUnchanged(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	view := m.View().Content
 	if got := lipgloss.Height(view); got != h {
@@ -130,7 +131,7 @@ func TestContentInset_FrameDimensionsUnchanged(t *testing.T) {
 // the canvas SGR is present on the top gutter row.
 func TestContentInset_GutterPaintedCanvas(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	view := m.View().Content
 	topGutter := nthLine(t, view, 0)
@@ -177,7 +178,7 @@ func TestContentInset_NoColorGutterNativeBg(t *testing.T) {
 // also subtracts the vertical inset (2·Vinset) on top of the header/footer band.
 func TestContentInset_FoldedIntoBudgets(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	if got, want := m.sessionList.Width(), m.contentWidth(); got != want {
 		t.Errorf("session list width = %d, want content width %d (Hinset folded in)", got, want)
@@ -209,7 +210,7 @@ func TestContentInset_PaginationInvariantPreserved(t *testing.T) {
 	for i := range 40 {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -246,7 +247,7 @@ func TestContentInset_GroupedPaginationInvariant(t *testing.T) {
 	for i := range 30 {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas), WithInitialMode(prefs.ModeByProject))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark), WithInitialMode(prefs.ModeByProject))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -271,14 +272,14 @@ func TestContentInset_AppliesOnProjectsLoading(t *testing.T) {
 	const w, h = 90, 24
 
 	t.Run("projects", func(t *testing.T) {
-		m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+		m := newCanvasTestModel(t, w, h, theme.MemberDark)
 		m.activePage = PageProjects
 		view := m.View().Content
 		assertFramedAndInset(t, view, w, h)
 	})
 
 	t.Run("loading", func(t *testing.T) {
-		m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+		m := newCanvasTestModel(t, w, h, theme.MemberDark)
 		m.activePage = PageLoading
 		view := m.View().Content
 		assertFramedAndInset(t, view, w, h)
@@ -327,7 +328,7 @@ func TestContentInset_ClampsAtTinyTerminal(t *testing.T) {
 		{3, 2},
 		{4, 2}, // w == 2·Hinset (4) → width inset clamps to 0
 	} {
-		m := newCanvasTestModel(t, tc.w, tc.h, appearanceDarkCanvas)
+		m := newCanvasTestModel(t, tc.w, tc.h, theme.MemberDark)
 
 		// The inset clamps to 0: the content region is the full terminal dim,
 		// never negative.
@@ -383,7 +384,7 @@ func TestContentInset_ClampHoldsWhereContentFits(t *testing.T) {
 		{60, 12},
 		{50, 8},
 	} {
-		m := newCanvasTestModel(t, tc.w, tc.h, appearanceDarkCanvas)
+		m := newCanvasTestModel(t, tc.w, tc.h, theme.MemberDark)
 		view := m.View().Content
 		if got := lipgloss.Height(view); got != tc.h {
 			t.Errorf("[%dx%d] frame height = %d, want %d", tc.w, tc.h, got, tc.h)
@@ -404,7 +405,7 @@ func TestContentInset_ClampHoldsWhereContentFits(t *testing.T) {
 // 80×24 first, THEN inset — so the content region is (80−2·Hinset)×(24−2·Vinset)
 // and the frame is exactly 80×24.
 func TestContentInset_ZeroSizeFallback(t *testing.T) {
-	m := newCanvasTestModel(t, 0, 0, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, 0, 0, theme.MemberDark)
 
 	if got, want := m.contentWidth(), 80-2*Hinset; got != want {
 		t.Errorf("zero-size contentWidth() = %d, want %d (80 fallback then inset)", got, want)
@@ -428,7 +429,7 @@ func TestContentInset_ZeroSizeFallback(t *testing.T) {
 // the selection exactly as before — the inset does not perturb nav/selection.
 func TestContentInset_NavigationUnchanged(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	before, ok := m.selectedSessionItem()
 	if !ok {

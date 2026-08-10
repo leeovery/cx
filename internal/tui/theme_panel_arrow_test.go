@@ -722,7 +722,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 		persister := &countingModePersister{}
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 		WithModePersister(persister)(&m)
 
 		m = pressThemeKey(t, m)
@@ -751,7 +751,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 	t.Run("the themes directory is untouched", func(t *testing.T) {
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, appearanceDarkCanvas)
+		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 
 		m = pressThemeKey(t, m)
 		launch := m.themeState.active

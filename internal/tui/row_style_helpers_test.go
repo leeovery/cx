@@ -178,8 +178,8 @@ func TestRenderLeftBarGlyphColumn_MatchesPreRefactorGolden(t *testing.T) {
 //
 // Dark and Light coincide under colourless (no colour SGR is emitted), which is
 // itself a property worth pinning.
-var sessionRowGoldens = map[canvasAppearance]map[bool]struct{ sel, uns string }{
-	appearanceDarkCanvas: {
+var sessionRowGoldens = map[theme.Member]map[bool]struct{ sel, uns string }{
+	theme.MemberDark: {
 		false: {
 			sel: "\x1b[48;2;40;36;58m\x1b[m\x1b[38;2;187;154;247;48;2;40;36;58m▌\x1b[m\x1b[48;2;40;36;58m \x1b[m\x1b[1;38;2;255;255;255;48;2;40;36;58malpha\x1b[m\x1b[48;2;40;36;58m                                                \x1b[m\x1b[48;2;40;36;58m  \x1b[m\x1b[38;2;169;177;214;48;2;40;36;58m3 windows\x1b[m\x1b[48;2;40;36;58m  \x1b[m\x1b[38;2;158;206;106;48;2;40;36;58m● attached\x1b[m\x1b[48;2;40;36;58m\x1b[m\x1b[48;2;40;36;58m  \x1b[m",
 			uns: "\x1b[48;2;11;12;20m\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;192;202;245;48;2;11;12;20mbravo\x1b[m\x1b[48;2;11;12;20m                                                \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m1 window\x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[48;2;11;12;20m          \x1b[m\x1b[48;2;11;12;20m  \x1b[m",
@@ -189,7 +189,7 @@ var sessionRowGoldens = map[canvasAppearance]map[bool]struct{ sel, uns string }{
 			uns: "  \x1b[1mbravo\x1b[m                                                  1 window               ",
 		},
 	},
-	appearanceLightCanvas: {
+	theme.MemberLight: {
 		false: {
 			sel: "\x1b[48;2;208;198;240m\x1b[m\x1b[38;2;138;63;209;48;2;208;198;240m▌\x1b[m\x1b[48;2;208;198;240m \x1b[m\x1b[1;38;2;26;27;46;48;2;208;198;240malpha\x1b[m\x1b[48;2;208;198;240m                                                \x1b[m\x1b[48;2;208;198;240m  \x1b[m\x1b[38;2;63;71;96;48;2;208;198;240m3 windows\x1b[m\x1b[48;2;208;198;240m  \x1b[m\x1b[38;2;59;94;24;48;2;208;198;240m● attached\x1b[m\x1b[48;2;208;198;240m\x1b[m\x1b[48;2;208;198;240m  \x1b[m",
 			uns: "\x1b[48;2;225;226;231m\x1b[m\x1b[48;2;225;226;231m  \x1b[m\x1b[1;38;2;46;60;100;48;2;225;226;231mbravo\x1b[m\x1b[48;2;225;226;231m                                                \x1b[m\x1b[48;2;225;226;231m  \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231m1 window\x1b[m\x1b[48;2;225;226;231m   \x1b[m\x1b[48;2;225;226;231m          \x1b[m\x1b[48;2;225;226;231m  \x1b[m",
@@ -201,8 +201,8 @@ var sessionRowGoldens = map[canvasAppearance]map[bool]struct{ sel, uns string }{
 	},
 }
 
-var projectRowGoldens = map[canvasAppearance]map[bool]struct{ sel, uns string }{
-	appearanceDarkCanvas: {
+var projectRowGoldens = map[theme.Member]map[bool]struct{ sel, uns string }{
+	theme.MemberDark: {
 		false: {
 			sel: "\x1b[38;2;187;154;247;48;2;40;36;58m▌\x1b[m\x1b[48;2;40;36;58m \x1b[m\x1b[1;38;2;255;255;255;48;2;40;36;58mportal\x1b[m\x1b[48;2;40;36;58m                                                                        \x1b[m\n\x1b[38;2;187;154;247;48;2;40;36;58m▌\x1b[m\x1b[48;2;40;36;58m \x1b[m\x1b[38;2;130;139;184;48;2;40;36;58m/home/user/code/portal\x1b[m\x1b[48;2;40;36;58m                                                        \x1b[m",
 			uns: "\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;192;202;245;48;2;11;12;20mother\x1b[m\x1b[48;2;11;12;20m                                                                         \x1b[m\n\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m/home/user/code/other\x1b[m\x1b[48;2;11;12;20m                                                         \x1b[m",
@@ -212,7 +212,7 @@ var projectRowGoldens = map[canvasAppearance]map[bool]struct{ sel, uns string }{
 			uns: "  \x1b[1mother\x1b[m                                                                         \n  /home/user/code/other                                                         ",
 		},
 	},
-	appearanceLightCanvas: {
+	theme.MemberLight: {
 		false: {
 			sel: "\x1b[38;2;138;63;209;48;2;208;198;240m▌\x1b[m\x1b[48;2;208;198;240m \x1b[m\x1b[1;38;2;26;27;46;48;2;208;198;240mportal\x1b[m\x1b[48;2;208;198;240m                                                                        \x1b[m\n\x1b[38;2;138;63;209;48;2;208;198;240m▌\x1b[m\x1b[48;2;208;198;240m \x1b[m\x1b[38;2;76;84;120;48;2;208;198;240m/home/user/code/portal\x1b[m\x1b[48;2;208;198;240m                                                        \x1b[m",
 			uns: "\x1b[48;2;225;226;231m  \x1b[m\x1b[1;38;2;46;60;100;48;2;225;226;231mother\x1b[m\x1b[48;2;225;226;231m                                                                         \x1b[m\n\x1b[48;2;225;226;231m  \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231m/home/user/code/other\x1b[m\x1b[48;2;225;226;231m                                                         \x1b[m",
@@ -249,7 +249,7 @@ func TestRenderSessionRow_ByteIdenticalAcrossRefactor(t *testing.T) {
 		tmux.Session{Name: "alpha", Windows: 3, Attached: true},
 		tmux.Session{Name: "bravo", Windows: 1, Attached: false},
 	)
-	for _, appearance := range []canvasAppearance{appearanceDarkCanvas, appearanceLightCanvas} {
+	for _, appearance := range []theme.Member{theme.MemberDark, theme.MemberLight} {
 		for _, colourless := range []bool{false, true} {
 			d := SessionDelegate{Theme: themeForAppearance(t, appearance), Colourless: colourless}
 			golden := sessionRowGoldens[appearance][colourless]
@@ -276,7 +276,7 @@ func TestRenderRowLine_ByteIdenticalAcrossRefactor(t *testing.T) {
 		project.Project{Name: "portal", Path: "/home/user/code/portal"},
 		project.Project{Name: "other", Path: "/home/user/code/other"},
 	)
-	for _, appearance := range []canvasAppearance{appearanceDarkCanvas, appearanceLightCanvas} {
+	for _, appearance := range []theme.Member{theme.MemberDark, theme.MemberLight} {
 		for _, colourless := range []bool{false, true} {
 			d := ProjectDelegate{Theme: themeForAppearance(t, appearance), Colourless: colourless}
 			golden := projectRowGoldens[appearance][colourless]

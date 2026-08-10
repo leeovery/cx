@@ -15,7 +15,7 @@ import (
 // deterministic sessions to span >1 page at the given terminal size, so the
 // height-driven paginator renders the dot row. The session set is built through
 // the production applySessions path so pagination is sized exactly as in prod.
-func newMultiPageSessionModel(t *testing.T, w, h int, appearance canvasAppearance, colourless bool) Model {
+func newMultiPageSessionModel(t *testing.T, w, h int, appearance theme.Member, colourless bool) Model {
 	t.Helper()
 	var sessions []tmux.Session
 	for i := range 60 {
@@ -84,7 +84,7 @@ func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 // the run preceding the first dot glyph must be accent.primary — distinct from the
 // text.faint used by the inactive dots that follow.
 func TestSessionsPaginationDots_ActiveDotIsViolet(t *testing.T) {
-	m := newMultiPageSessionModel(t, 120, 24, appearanceDarkCanvas, false)
+	m := newMultiPageSessionModel(t, 120, 24, theme.MemberDark, false)
 	row, _ := dotRowLine(t, m.viewSessionList())
 	violet := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 
@@ -109,7 +109,7 @@ func TestSessionsPaginationDots_ActiveDotIsViolet(t *testing.T) {
 // edge by a non-trivial leading pad, not flush-left.
 func TestSessionsPaginationDots_CentredAboveFooter(t *testing.T) {
 	const w, h = 120, 24
-	m := newMultiPageSessionModel(t, w, h, appearanceDarkCanvas, false)
+	m := newMultiPageSessionModel(t, w, h, theme.MemberDark, false)
 	view := m.viewSessionList()
 	lines := strings.Split(view, "\n")
 
@@ -150,7 +150,7 @@ func TestSessionsPaginationDots_SuppressedOnSinglePage(t *testing.T) {
 		{Name: "bravo", Windows: 1},
 		{Name: "charlie", Windows: 1},
 	}
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -177,7 +177,7 @@ func TestSessionsPaginationDots_SuppressedOnSinglePage(t *testing.T) {
 // restyle is glyph styling only, never a count/behaviour change.
 func TestSessionsPaginationDots_PageCountAndPagingUnchanged(t *testing.T) {
 	const w, h = 120, 24
-	m := newMultiPageSessionModel(t, w, h, appearanceDarkCanvas, false)
+	m := newMultiPageSessionModel(t, w, h, theme.MemberDark, false)
 
 	// The dot count equals the paginator's TotalPages (one dot per page).
 	row, _ := dotRowLine(t, m.viewSessionList())
@@ -205,7 +205,7 @@ func TestSessionsPaginationDots_PageCountAndPagingUnchanged(t *testing.T) {
 // corners / the vertical/horizontal box rules) wraps the composed view.
 func TestSessionsPaginationDots_NoFullScreenFrame(t *testing.T) {
 	const w, h = 120, 24
-	m := newMultiPageSessionModel(t, w, h, appearanceDarkCanvas, false)
+	m := newMultiPageSessionModel(t, w, h, theme.MemberDark, false)
 	vis := ansi.Strip(m.viewSessionList())
 	// Box-drawing corners / sides that a full-screen frame would introduce.
 	for _, frameGlyph := range []string{"┌", "┐", "└", "┘", "│", "├", "┤"} {
@@ -232,7 +232,7 @@ func TestSessionsPaginationDots_PaintsCanvasNoEdgeBleed(t *testing.T) {
 // carve-out (§2.5): the dot row carries no canvas background SGR and no
 // foreground hue — the dots render on the terminal's native fg/bg, glyphs intact.
 func TestSessionsPaginationDots_ColourlessDropsHueAndCanvas(t *testing.T) {
-	m := newMultiPageSessionModel(t, 120, 24, appearanceDarkCanvas, true)
+	m := newMultiPageSessionModel(t, 120, 24, theme.MemberDark, true)
 	row, _ := dotRowLine(t, m.viewSessionList())
 
 	// Structure preserved: the dot glyphs still print (one per page).

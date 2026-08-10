@@ -57,7 +57,7 @@ func assertBlankFrame(t *testing.T, m Model) {
 // painted the member that answer names. It is adaptive-only by construction: a
 // constant derives no answer, so its canvasMode stays at the dark zero value
 // whatever palette it paints (assertActiveTheme is that path's assertion).
-func assertPaintedCanvas(t *testing.T, m Model, appearance canvasAppearance) {
+func assertPaintedCanvas(t *testing.T, m Model, appearance theme.Member) {
 	t.Helper()
 	if !m.modeResolved() {
 		t.Fatalf("modeResolved = false, want true (the canvas must be resolved before the real paint)")
@@ -76,34 +76,38 @@ func assertPaintedCanvas(t *testing.T, m Model, appearance canvasAppearance) {
 
 // themeForAppearance returns the built-in the gate's answer selects out of the
 // shipped pair — the test-side mirror of theme.Nomination.Select.
-func themeForAppearance(t *testing.T, appearance canvasAppearance) theme.Theme {
+func themeForAppearance(t *testing.T, appearance theme.Member) theme.Theme {
 	t.Helper()
-	if appearance == appearanceLightCanvas {
+	if appearance == theme.MemberLight {
 		return testLightTheme(t)
 	}
 	return testDarkTheme(t)
 }
 
-// TestCanvasAppearance_NamesThePairMember pins the ONE conversion between the
-// gate's light/dark answer and the theme package's two-valued member: the light
-// canvas names the light member, and the dark canvas — which is also the
-// no-answer fallback — the dark one.
-//
-// It is asserted on the conversion itself because that is the single site the
-// correspondence is stated at. The active palette's selection and the panel's
-// in-force slot both read it, so a second statement at either would be invisible
-// until one terminal painted the other terminal's theme.
-func TestCanvasAppearance_NamesThePairMember(t *testing.T) {
-	for _, tc := range []struct {
-		appearance canvasAppearance
-		want       theme.Member
-	}{
-		{appearance: appearanceLightCanvas, want: theme.MemberLight},
-		{appearance: appearanceDarkCanvas, want: theme.MemberDark},
-	} {
-		if got := tc.appearance.member(); got != tc.want {
-			t.Errorf("canvasAppearance(%v).member() = %v, want %v", tc.appearance, got, tc.want)
-		}
+// TestUnresolvedGateCarriesDarkFallback pins the load-bearing zero value: a
+// gate nobody resolved — a bare struct, an armed and still-open adaptive gate,
+// and the model built over one — already carries the dark member Portal falls
+// back to when no answer arrives, so a timeout resolves to the answer that was
+// standing all along.
+func TestUnresolvedGateCarriesDarkFallback(t *testing.T) {
+	var bare appearanceGate
+	if bare.appearance != theme.MemberDark {
+		t.Errorf("zero appearanceGate answer = %v, want %v", bare.appearance, theme.MemberDark)
+	}
+
+	g := newNominationGate(testBuiltinPair(t))
+	g.arm()
+
+	if g.resolved() {
+		t.Fatalf("an armed adaptive gate reports resolved, want an open window")
+	}
+	if g.appearance != theme.MemberDark {
+		t.Errorf("unresolved gate answer = %v, want %v (the no-answer fallback)", g.appearance, theme.MemberDark)
+	}
+
+	m := detectModel(t, testBuiltinPair(t))
+	if m.themeState.canvasMode != theme.MemberDark {
+		t.Errorf("unresolved model canvasMode = %v, want %v", m.themeState.canvasMode, theme.MemberDark)
 	}
 }
 
@@ -115,7 +119,7 @@ func TestAdaptiveDetectsDark(t *testing.T) {
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(darkBg)
-	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
+	assertPaintedCanvas(t, updated.(Model), theme.MemberDark)
 }
 
 // TestAdaptiveDetectsLight: an adaptive pair + a light BackgroundColorMsg
@@ -125,7 +129,7 @@ func TestAdaptiveDetectsLight(t *testing.T) {
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(lightBg)
-	assertPaintedCanvas(t, updated.(Model), appearanceLightCanvas)
+	assertPaintedCanvas(t, updated.(Model), theme.MemberLight)
 }
 
 // TestNoPaintThenFlip: before resolution the View is the neutral blank frame
@@ -138,18 +142,18 @@ func TestNoPaintThenFlip(t *testing.T) {
 	// OSC 11 answers dark first → resolves dark, paints.
 	updated, _ := m.Update(darkBg)
 	resolved := updated.(Model)
-	assertPaintedCanvas(t, resolved, appearanceDarkCanvas)
+	assertPaintedCanvas(t, resolved, theme.MemberDark)
 
 	// A late timeout (the loser of the race) must be ignored — the mode is
 	// already resolved, so it must not flip to anything.
 	after, _ := resolved.Update(appearanceTimeoutMsg{})
-	if after.(Model).themeState.canvasMode != appearanceDarkCanvas {
+	if after.(Model).themeState.canvasMode != theme.MemberDark {
 		t.Errorf("a late timeout flipped canvasMode to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).themeState.canvasMode)
 	}
 
 	// And a late, conflicting BackgroundColorMsg (light) must not flip either.
 	after2, _ := after.(Model).Update(lightBg)
-	if after2.(Model).themeState.canvasMode != appearanceDarkCanvas {
+	if after2.(Model).themeState.canvasMode != theme.MemberDark {
 		t.Errorf("a late light BackgroundColorMsg flipped canvasMode to %v, want it pinned at the dark canvas (no flip)", after2.(Model).themeState.canvasMode)
 	}
 }
@@ -161,7 +165,7 @@ func TestTimeoutFallsBackToDark(t *testing.T) {
 	assertBlankFrame(t, m)
 
 	updated, _ := m.Update(appearanceTimeoutMsg{})
-	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
+	assertPaintedCanvas(t, updated.(Model), theme.MemberDark)
 }
 
 // TestColorFGBGNeverOverridesOSC11: even with COLORFGBG advertising a light
@@ -172,7 +176,7 @@ func TestColorFGBGNeverOverridesOSC11(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 
 	updated, _ := m.Update(darkBg)
-	assertPaintedCanvas(t, updated.(Model), appearanceDarkCanvas)
+	assertPaintedCanvas(t, updated.(Model), theme.MemberDark)
 }
 
 // TestMisdetectionLegibleNotBroken: a mis-detected terminal resolves to the
@@ -186,7 +190,7 @@ func TestMisdetectionLegibleNotBroken(t *testing.T) {
 	// mode but fully legible, not blank, not crashed.
 	updated, _ := m.Update(lightBg)
 	resolved := updated.(Model)
-	assertPaintedCanvas(t, resolved, appearanceLightCanvas)
+	assertPaintedCanvas(t, resolved, theme.MemberLight)
 	view := resolved.View().Content
 	if strings.TrimSpace(view) == "" {
 		t.Errorf("mis-detected canvas rendered blank, want a legible (wrong-mode) screen")

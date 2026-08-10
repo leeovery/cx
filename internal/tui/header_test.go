@@ -290,7 +290,7 @@ func TestHeaderHeight_EqualsThreeRows(t *testing.T) {
 		{"colourless", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+			m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 			m.colourless = tc.colourless
 			if got := m.headerHeight(w); got != 3 {
 				t.Errorf("headerHeight(%d) = %d, want 3 (band, rule, 1 blank)", w, got)
@@ -303,7 +303,7 @@ func TestHeaderHeight_EqualsThreeRows(t *testing.T) {
 // header block ABOVE the bubbles/list title — the header is the first visible
 // chrome, the list title sits below it.
 func TestViewSessionList_ComposesHeaderFirst(t *testing.T) {
-	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, 90, 24, theme.MemberDark)
 	view := m.viewSessionList()
 
 	portalIdx := strings.Index(view, "P O R T A L")
@@ -330,7 +330,7 @@ func TestHeaderHeight_SubtractedFromListBudget(t *testing.T) {
 		sessions = append(sessions, tmux.Session{Name: nameN(i), Windows: 1})
 	}
 
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	m.termWidth = w
 	m.termHeight = h
 	m.applySessions(sessions)
@@ -361,7 +361,7 @@ func TestHeaderHeight_CountedAtEverySizeApplySite(t *testing.T) {
 	}
 
 	// Construction seed (New → applySessionListSize(80,24)) then a resize.
-	m := New(fakeLister{}, WithCanvasMode(appearanceDarkCanvas))
+	m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m = updated.(Model)
 	m.applySessions(sessions) // rebuild path

@@ -885,7 +885,7 @@ func WithThemeNomination(n theme.Nomination) Option {
 // detection (the appearance gate). It pins the ANSWER, not the palette: paired
 // with an adaptive nomination it selects that member, and paired with a constant
 // it changes nothing at all (a constant ignores the answer by design).
-func WithCanvasMode(appearance canvasAppearance) Option {
+func WithCanvasMode(appearance theme.Member) Option {
 	return func(m *Model) {
 		m.themeState.canvasMode = appearance
 		// pinned=true (and pending=false, the zero value) so the gate is resolved
@@ -1404,7 +1404,7 @@ func (m Model) hasNomination() bool {
 func (m *Model) syncResolvedMode() {
 	m.themeState.canvasMode = m.themeState.gate.appearance
 	if m.hasNomination() {
-		m.themeState.active = m.themeState.nomination.Select(m.themeState.canvasMode.member())
+		m.themeState.active = m.themeState.nomination.Select(m.themeState.canvasMode)
 	}
 	m.captureStartupCanvasHex()
 	m.applyCanvasMode()

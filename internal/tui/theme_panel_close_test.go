@@ -49,7 +49,7 @@ func newClosePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *c
 	t.Helper()
 
 	loader, sink := themeOpenTestLoader(t)
-	m, enumerator := newDirBackedPanelModelOver(t, dir, keys, appearanceDarkCanvas, loader)
+	m, enumerator := newDirBackedPanelModelOver(t, dir, keys, theme.MemberDark, loader)
 	return m, enumerator, sink
 }
 

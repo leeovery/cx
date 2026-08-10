@@ -58,15 +58,15 @@ type themeState struct {
 	gate appearanceGate
 
 	// canvasMode is the light/dark answer in force and selects the active member
-	// out of an adaptive nomination. appearanceDarkCanvas is the zero value, the
-	// standing no-answer fallback.
+	// out of an adaptive nomination. Its zero value is the standing no-answer
+	// fallback, because that is theme.Member's.
 	//
 	// It mirrors gate.appearance (synced by Model.syncResolvedMode) until the
 	// mid-session constant → adaptive conversion, which writes
 	// Model.retainedCanvasAnswer straight into it while the pinned gate keeps its
 	// fallback. See the type's first invariant for why that divergence must not be
 	// "fixed".
-	canvasMode canvasAppearance
+	canvasMode theme.Member
 
 	// active is the palette every renderer paints from, passed where a light/dark
 	// mode used to be so everything re-derives per frame.

@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -270,7 +271,7 @@ func TestColourless_NavigationParity(t *testing.T) {
 // NO_COLOR changes only rendering, never the filter engine.
 func TestColourless_FilterParity(t *testing.T) {
 	colourless := colourlessTestModel(t, 90, 24)
-	coloured := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas)
+	coloured := newCanvasTestModel(t, 90, 24, theme.MemberDark)
 
 	// "charl" is a contiguous prefix of charlie only, so the applied filter
 	// genuinely narrows the list to a single row.
@@ -316,7 +317,7 @@ func equalStrings(a, b []string) bool {
 // (the canvas background sequence is present and View sets the OSC 11 bg).
 func TestColourless_ColouredPathUnaffected(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 	v := m.View()
 	if v.BackgroundColor == nil {
 		t.Errorf("coloured View.BackgroundColor = nil, want the canvas colour set (coloured path must still paint)")

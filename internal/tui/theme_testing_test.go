@@ -63,7 +63,7 @@ func openPanelForTestWithSessions(t *testing.T, m Model, contentW, contentH int,
 // the appearance gate resolves exactly once and the panel must read THAT answer
 // rather than ask again. Pinning it is what lets one fixture drive the in-force slot in both
 // terminals without touching the async race.
-func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance) (Model, *countingThemeSource) {
+func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode theme.Member) (Model, *countingThemeSource) {
 	t.Helper()
 	return newDirBackedPanelModelOver(t, dir, keys, mode, theme.NewLoader(nil))
 }
@@ -74,7 +74,7 @@ func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode c
 // Construction always resolves through a loader of its own, so a caller passing a
 // sink-backed one gets a sink holding the PANEL's emissions alone rather than a
 // delta against construction's.
-func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mode canvasAppearance, panelLoader theme.Loader) (Model, *countingThemeSource) {
+func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mode theme.Member, panelLoader theme.Loader) (Model, *countingThemeSource) {
 	t.Helper()
 
 	setting, _ := theme.ResolveSetting(keys)
@@ -306,7 +306,7 @@ func tokenNamed(t *testing.T, th theme.Theme, name string) theme.Token {
 // appearance to pin: a constant skips the gate entirely, so the model is
 // resolved at construction and the frame is un-gated — the same property the
 // capture harness relies on.
-func testConstantFor(t *testing.T, appearance canvasAppearance) theme.Nomination {
+func testConstantFor(t *testing.T, appearance theme.Member) theme.Nomination {
 	t.Helper()
 	return theme.ConstantNomination(themeForAppearance(t, appearance))
 }
@@ -315,14 +315,14 @@ func testConstantFor(t *testing.T, appearance canvasAppearance) theme.Nomination
 // pair — the inverse of themeForAppearance, for the tests that drive a model
 // through WithCanvasMode (which pins the ANSWER, from which the model re-derives
 // the palette) while asserting against a palette.
-func appearanceForTheme(t *testing.T, th theme.Theme) canvasAppearance {
+func appearanceForTheme(t *testing.T, th theme.Theme) theme.Member {
 	t.Helper()
 	switch th.Canvas.Value {
 	case testLightTheme(t).Canvas.Value:
-		return appearanceLightCanvas
+		return theme.MemberLight
 	case testDarkTheme(t).Canvas.Value:
-		return appearanceDarkCanvas
+		return theme.MemberDark
 	}
 	t.Fatalf("theme with canvas %q is neither built-in", th.Canvas.Value)
-	return appearanceDarkCanvas
+	return theme.MemberDark
 }

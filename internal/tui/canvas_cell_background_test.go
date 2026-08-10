@@ -141,10 +141,10 @@ func splitSGRParams(seq string) []string {
 func TestCanvasCellBackground_EveryInGridCellIsCanvas(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
-		appearance canvasAppearance
+		appearance theme.Member
 	}{
-		{"dark", appearanceDarkCanvas},
-		{"light", appearanceLightCanvas},
+		{"dark", theme.MemberDark},
+		{"light", theme.MemberLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const w, h = 90, 24
@@ -185,7 +185,7 @@ func TestCanvasCellBackground_EveryInGridCellIsCanvas(t *testing.T) {
 // grid width.
 func TestCanvasCellBackground_TitleAndFooterGaps(t *testing.T) {
 	const w, h = 90, 24
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 
 	view := m.View().Content
 	lines := strings.Split(view, "\n")

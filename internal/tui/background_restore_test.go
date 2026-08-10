@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/theme"
 )
 
 // initCmds executes a tea.Cmd and returns every leaf message it produces,
@@ -140,7 +141,7 @@ func TestBackgroundColorMsg_NilColorLeavesEmpty(t *testing.T) {
 // asserted byte-identical before and after a BackgroundColorMsg is routed
 // through Update.
 func TestBackgroundColorMsg_DoesNotChangeRenderedFrame(t *testing.T) {
-	for _, appearance := range []canvasAppearance{appearanceDarkCanvas, appearanceLightCanvas} {
+	for _, appearance := range []theme.Member{theme.MemberDark, theme.MemberLight} {
 		const w, h = 90, 24
 		base := newCanvasTestModel(t, w, h, appearance)
 		before := base.View().Content
@@ -165,10 +166,10 @@ func TestFirstPaint_NotGatedOnBackgroundQuery(t *testing.T) {
 	const w, h = 90, 24
 
 	// No response ever arrives.
-	noResponse := newCanvasTestModel(t, w, h, appearanceDarkCanvas).View().Content
+	noResponse := newCanvasTestModel(t, w, h, theme.MemberDark).View().Content
 
 	// A response arrives (the only difference is originalBg is captured).
-	m := newCanvasTestModel(t, w, h, appearanceDarkCanvas)
+	m := newCanvasTestModel(t, w, h, theme.MemberDark)
 	updated, _ := m.Update(tea.BackgroundColorMsg{
 		Color: color.RGBA{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff},
 	})

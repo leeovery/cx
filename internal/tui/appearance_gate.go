@@ -30,45 +30,6 @@ const appearanceDetectTimeout = 50 * time.Millisecond
 // re-resolves — no flip).
 type appearanceTimeoutMsg struct{}
 
-// canvasAppearance is the gate's light/dark answer — which of the two canvases
-// Portal paints.
-//
-// It is an unexported internal/tui concept rather than anything the token layer
-// carries: a theme is ONE palette and is itself light or dark, so
-// there is no variant for a theme to resolve and nothing for the token package to
-// name. What survives is the QUESTION the detect-or-timeout gate answers, and it
-// belongs where the gate lives.
-//
-// Its ZERO VALUE is dark, deliberately and load-bearingly: dark is the
-// no-answer fallback, so an unresolved gate — and any directly constructed model —
-// already carries the answer Portal falls back to. A bare bool would invert that
-// silently, making the fallback "light" the moment anyone forgot to set it.
-type canvasAppearance int
-
-const (
-	// appearanceDarkCanvas is the no-answer fallback and MUST stay first, so it is
-	// the zero value.
-	appearanceDarkCanvas canvasAppearance = iota
-	// appearanceLightCanvas is the answer an OSC 11 reply reporting a light
-	// terminal background resolves to.
-	appearanceLightCanvas
-)
-
-// member is the answer as the theme package names it — the ONE conversion
-// between this package's appearance enum and the pair member a Nomination is
-// selected by.
-//
-// It is a single site rather than a rule restated wherever the theme side is
-// needed: reading the correspondence the wrong way round at one call site paints
-// a light terminal the dark theme with every palette still loading and nothing
-// failing anywhere.
-func (a canvasAppearance) member() theme.Member {
-	if a == appearanceLightCanvas {
-		return theme.MemberLight
-	}
-	return theme.MemberDark
-}
-
 // appearanceGate is the reusable detect-or-timeout first-paint mechanism. It owns
 // the resolved canvas appearance and the "may the real canvas
 // paint yet?" flag, so a page that gates its first paint (the foundation Sessions
@@ -88,10 +49,10 @@ func (a canvasAppearance) member() theme.Member {
 // is resolved and unarmable — like a constant, but for a different reason (no hue
 // at all, rather than a chosen palette).
 type appearanceGate struct {
-	// appearance is the resolved light/dark canvas the owned canvas is
-	// painted for. appearanceDarkCanvas is the zero value (the no-answer
-	// fallback), so an unresolved adaptive gate already carries the fallback
-	// answer; it is simply not painted until the gate resolves.
+	// appearance is the resolved light/dark canvas the owned canvas is painted
+	// for. An unresolved adaptive gate already carries the no-answer fallback,
+	// because that is theme.Member's zero value; it is simply not painted until
+	// the gate resolves.
 	//
 	// On a gate that was never armed — a constant nomination, a nomination-less
 	// model — the value is that standing fallback and NOTHING ELSE. It is not
@@ -100,7 +61,7 @@ type appearanceGate struct {
 	// separately on the model (originalBg, the arrival flag and the reply's own
 	// classification), which is what the mid-session conversion classifies —
 	// see Model.retainedCanvasAnswer, and its warning against reading this field.
-	appearance canvasAppearance
+	appearance theme.Member
 	// pending reports whether the detect-or-timeout window is OPEN (the first real
 	// paint must wait). It is named negatively on purpose: the zero value (false)
 	// means "not pending" = resolved, so a zero-value gate (a struct-literal test
@@ -198,7 +159,7 @@ func (g appearanceGate) timeoutCmd() tea.Cmd {
 // It is a no-op (returning false) once already resolved, so a late timeout that
 // lost the race never re-resolves — no second resolution, no flip.
 func (g *appearanceGate) resolveDark() bool {
-	return g.resolve(appearanceDarkCanvas)
+	return g.resolve(theme.MemberDark)
 }
 
 // resolveFromDark resolves an open gate from an OSC 11 reply: a dark terminal
@@ -208,16 +169,16 @@ func (g *appearanceGate) resolveDark() bool {
 // painted canvas.
 func (g *appearanceGate) resolveFromDark(isDark bool) bool {
 	if isDark {
-		return g.resolve(appearanceDarkCanvas)
+		return g.resolve(theme.MemberDark)
 	}
-	return g.resolve(appearanceLightCanvas)
+	return g.resolve(theme.MemberLight)
 }
 
 // resolve is the single-resolution core: it sets the appearance and closes the
 // window on the FIRST call only (i.e. while the window is open / pending),
 // returning true when it performed the resolution and false otherwise. This is the
 // no-flip invariant — the canvas is fixed exactly once per open window.
-func (g *appearanceGate) resolve(appearance canvasAppearance) bool {
+func (g *appearanceGate) resolve(appearance theme.Member) bool {
 	if g.resolved() {
 		return false
 	}

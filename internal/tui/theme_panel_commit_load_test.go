@@ -887,17 +887,17 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		reply   tea.BackgroundColorMsg
-		want    canvasAppearance
+		want    theme.Member
 		inForce string
 	}{
-		{name: "a light terminal", reply: lightBg, want: appearanceLightCanvas, inForce: theme.DefaultLightSlug},
-		{name: "a dark terminal", reply: darkBg, want: appearanceDarkCanvas, inForce: "nord"},
+		{name: "a light terminal", reply: lightBg, want: theme.MemberLight, inForce: theme.DefaultLightSlug},
+		{name: "a dark terminal", reply: darkBg, want: theme.MemberDark, inForce: "nord"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := newConversionThemesDir(t)
 			m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 			m = deliverBackgroundReply(t, m, tc.reply)
-			if m.themeState.canvasMode != appearanceDarkCanvas {
+			if m.themeState.canvasMode != theme.MemberDark {
 				t.Fatalf("fixture: the constant launch starts on %v, want the standing dark fallback so the answer is the conversion's", m.themeState.canvasMode)
 			}
 			m = openConversionPanel(t, m)
@@ -939,13 +939,13 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 		if !m.themeState.bgReplyArrived {
 			t.Fatal("the reply was not retained with the panel open; the arm must sit ahead of every panel route")
 		}
-		if m.themeState.canvasMode != appearanceDarkCanvas {
+		if m.themeState.canvasMode != theme.MemberDark {
 			t.Fatalf("fixture: the reply moved the answer to %v before any conversion, want the constant's standing dark fallback", m.themeState.canvasMode)
 		}
 
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-		if m.themeState.canvasMode != appearanceLightCanvas {
+		if m.themeState.canvasMode != theme.MemberLight {
 			t.Errorf("the conversion left the light/dark answer %v, want light — a reply retained with the panel open classifies exactly as an early one (§9.3)", m.themeState.canvasMode)
 		}
 		closed := closeThemePanelForTest(t, m)
@@ -984,7 +984,7 @@ func TestCommitSlotLoad_ConversionIssuesNoQuery(t *testing.T) {
 	if m.originalBg != original || m.themeState.bgReplyArrived != arrived {
 		t.Errorf("the conversion moved the retained reply to (%q, %v), want the untouched (%q, %v)", m.originalBg, m.themeState.bgReplyArrived, original, arrived)
 	}
-	if m.themeState.canvasMode != appearanceLightCanvas {
+	if m.themeState.canvasMode != theme.MemberLight {
 		t.Fatalf("the conversion answered %v, want light", m.themeState.canvasMode)
 	}
 	if m.themeState.gate.appearance == m.themeState.canvasMode {
@@ -1011,14 +1011,14 @@ func TestCommitSlotLoad_ConversionWithNoReplyIsDark(t *testing.T) {
 
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
-	if m.themeState.canvasMode != appearanceDarkCanvas {
+	if m.themeState.canvasMode != theme.MemberDark {
 		t.Errorf("a conversion with no reply answered %v, want dark (§8.8's no-answer fallback)", m.themeState.canvasMode)
 	}
 	active, nomination := m.themeState.active, m.themeState.nomination
 
 	late := deliverBackgroundReply(t, m, lightBg)
 
-	if late.themeState.canvasMode != appearanceDarkCanvas {
+	if late.themeState.canvasMode != theme.MemberDark {
 		t.Errorf("a late reply moved the answer to %v; §8.8 resolves exactly once", late.themeState.canvasMode)
 	}
 	if late.themeState.active != active {
@@ -1161,7 +1161,7 @@ func TestCommitSlotLoad_AnswerIsIndependentOfTheLoad(t *testing.T) {
 				t.Fatalf("fixture: the seam is %T, want the recording fake", m.themeState.source)
 			}
 			m = deliverBackgroundReply(t, m, lightBg)
-			if m.themeState.canvasMode != appearanceDarkCanvas {
+			if m.themeState.canvasMode != theme.MemberDark {
 				t.Fatalf("fixture: the constant launch answers %v before the conversion, want the standing dark fallback", m.themeState.canvasMode)
 			}
 			m = arrowToThemeRow(t, m, target)
@@ -1173,7 +1173,7 @@ func TestCommitSlotLoad_AnswerIsIndependentOfTheLoad(t *testing.T) {
 			if len(seam.slotLoads) != 1 {
 				t.Fatalf("the conversion asked for %d slot load(s), want 1", len(seam.slotLoads))
 			}
-			if m.themeState.canvasMode != appearanceLightCanvas {
+			if m.themeState.canvasMode != theme.MemberLight {
 				t.Errorf("the conversion left the light/dark answer %v, want light — the terminal's classification does not depend on the load", m.themeState.canvasMode)
 			}
 		})

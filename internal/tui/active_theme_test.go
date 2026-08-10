@@ -7,26 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// TestCanvasAppearance_ZeroValueIsDark pins the gate's light/dark answer as an
-// unexported internal/tui concept whose ZERO VALUE is dark — the §8.8 no-answer
-// fallback. A bare bool would invert this silently (false meaning "light"), which
-// is exactly why the answer is a named enum with dark declared first.
-func TestCanvasAppearance_ZeroValueIsDark(t *testing.T) {
-	var zero canvasAppearance
-	if zero != appearanceDarkCanvas {
-		t.Errorf("zero canvasAppearance = %v, want appearanceDarkCanvas (the no-answer fallback)", zero)
-	}
-	if appearanceDarkCanvas == appearanceLightCanvas {
-		t.Fatal("appearanceDarkCanvas and appearanceLightCanvas are the same value; the two canvases are indistinguishable")
-	}
-	// A zero-value gate carries the dark answer, so a directly constructed model
-	// paints the canvas the palette was tuned for.
-	var g appearanceGate
-	if g.appearance != appearanceDarkCanvas {
-		t.Errorf("zero appearanceGate.appearance = %v, want appearanceDarkCanvas", g.appearance)
-	}
-}
-
 // testDarkThemeCanvas / testLightThemeCanvas are the two built-ins' canvas values,
 // restated here so the table above can name an expectation without a *testing.T.
 // They are asserted against the loaded built-ins by TestBuiltinCanvasValuesPinned.
