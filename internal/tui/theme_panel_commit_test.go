@@ -3,8 +3,6 @@ package tui
 import (
 	"errors"
 	"go/ast"
-	"os"
-	"path/filepath"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -529,82 +527,16 @@ func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
 
 // TestPanelEnter_NoOtherIO: it reads nothing and writes nothing else.
 //
-// The prefs call is the ONE write this keypress may make. Everything else is
-// asserted absent: no directory read and no fresh enumeration (a commit
-// changes prefs, not the directory, and a read here would produce a third parse of
-// the same slug that can disagree with the row the user is looking at), no other
-// file-touching seam, and no deferred write riding a tea.Cmd.
-//
-// internal/tui resolves no config path and reads no PORTAL_* env var, so every
-// route from this package to disk runs through one of the counted seams; the
-// package's tmux writers are neither wired to the panel nor reachable from it.
+// The constant commit's half of the shared contract — a persisted constant on the
+// way in, `Enter` as the keypress, and the one recorded write is a CommitTheme of
+// the cursor's slug.
 func TestPanelEnter_NoOtherIO(t *testing.T) {
-	configDir := t.TempDir()
-	t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
-	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-
-	stores := newCountingStores()
-	// The theme persister is deliberately the RECORDING fake rather than the
-	// counted one: it is the single write `Enter` is allowed to make, so the
-	// counted set covers everything else and this records what the one write was.
-	persister := &fakeThemePersister{}
-	loader := theme.NewLoader(nil)
-	enumerator := countingEnumeratorOver(loader, dir)
-	keys := theme.RawKeys{Theme: "sunset"}
-	setting, _ := theme.ResolveSetting(keys)
-	resolution, err := loader.ResolveNomination(setting, dir)
-	if err != nil {
-		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
-	}
-
-	m := Build(Deps{
-		Lister:         stores.lister,
-		Theme:          resolution.Nomination,
-		ProjectStore:   stores.projectStore,
-		ProjectEditor:  stores.projectEditor,
-		AliasEditor:    stores.aliasEditor,
-		ModePersister:  stores.modePersister,
-		Reader:         stores.scrollback,
-		ThemeSource:    enumerator,
-		ThemeKeys:      keys,
-		ThemePersister: persister,
-	})
-	m.termWidth, m.termHeight = arrowTermW, arrowTermH
-	m.applySessions(closePanelSessions())
-	m = pressThemeKey(t, m)
-	if !m.themePanel.open {
-		t.Fatal("fixture: the panel did not open")
-	}
-	// The OPEN's own read is not what this measures — the re-read-on-open rule pins one directory
-	// read per open, and the question here is what the COMMIT adds to it.
-	stores.reset()
-	opens := enumerator.opens
-
-	m, cmd := pressCommitKey(t, m)
-
-	requireCommitted(t, persister, "sunset")
-	if got := stores.calls(); got != 0 {
-		t.Errorf("the commit made %d file-touching seam call(s) — the prefs write is the only one (project store %d, project editor %d, alias editor %d, mode persister %d, theme persister %d, scrollback %d, lister %d)",
-			got, stores.projectStore.calls, stores.projectEditor.calls, stores.aliasEditor.calls,
-			stores.modePersister.calls, stores.themePersister.calls, stores.scrollback.calls, stores.lister.calls)
-	}
-	if enumerator.opens != opens {
-		t.Errorf("the commit ran %d enumerations in total, want the open's %d — a commit re-derives from the retained parse and never re-reads the directory (§8.4)", enumerator.opens, opens)
-	}
-	if cmd != nil {
-		t.Errorf("the commit scheduled %T; a deferred write is the one shape the counters above cannot see", cmd)
-	}
-	if entries, err := os.ReadDir(configDir); err != nil || len(entries) != 0 {
-		t.Errorf("the commit left %d entries in the config directory (err %v), want none — the model writes through the seam and touches no path of its own", len(entries), err)
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read %s: %v", dir, err)
-	}
-	if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
-		t.Errorf("the themes directory holds %d entries after a commit, want only the seeded drop-in", len(entries))
-	}
+	requireCommitDoesNoOtherIO(t,
+		theme.RawKeys{Theme: "sunset"},
+		"the commit",
+		pressCommitKey,
+		func(t *testing.T, p *fakeThemePersister) { requireCommitted(t, p, "sunset") },
+	)
 }
 
 // TestPanelEnter_UnselectableRowWritesNothing: it refuses a non-selectable row.

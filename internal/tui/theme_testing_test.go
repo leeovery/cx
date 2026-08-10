@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
@@ -87,6 +90,97 @@ func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mo
 		WithCanvasMode(mode),
 	)
 	return m, enumerator
+}
+
+// requireCommitDoesNoOtherIO fails unless the commit press reads nothing and
+// writes nothing but the prefs call.
+//
+// The prefs call is the ONE write a commit keypress may make. Everything else is
+// asserted absent: no directory read and no fresh enumeration (a commit
+// changes prefs, not the directory, and a read here would produce a third parse of
+// the same slug that can disagree with the row the user is looking at), no other
+// file-touching seam, and no deferred write riding a tea.Cmd.
+//
+// internal/tui resolves no config path and reads no PORTAL_* env var, so every
+// route from this package to disk runs through one of the counted seams; the
+// package's tmux writers are neither wired to the panel nor reachable from it.
+//
+// subject names the commit under test in every assertion message, so a shared
+// failure still says which keypress broke the contract.
+func requireCommitDoesNoOtherIO(
+	t *testing.T,
+	keys theme.RawKeys,
+	subject string,
+	press func(*testing.T, Model) (Model, tea.Cmd),
+	assertCommitted func(*testing.T, *fakeThemePersister),
+) {
+	t.Helper()
+
+	configDir := t.TempDir()
+	t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
+	dir := t.TempDir()
+	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+
+	stores := newCountingStores()
+	// The theme persister is deliberately the RECORDING fake rather than the
+	// counted one: it is the single write the keypress is allowed to make, so the
+	// counted set covers everything else and this records what the one write was.
+	persister := &fakeThemePersister{}
+	loader := theme.NewLoader(nil)
+	enumerator := countingEnumeratorOver(loader, dir)
+	setting, _ := theme.ResolveSetting(keys)
+	resolution, err := loader.ResolveNomination(setting, dir)
+	if err != nil {
+		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
+	}
+
+	m := Build(Deps{
+		Lister:         stores.lister,
+		Theme:          resolution.Nomination,
+		ProjectStore:   stores.projectStore,
+		ProjectEditor:  stores.projectEditor,
+		AliasEditor:    stores.aliasEditor,
+		ModePersister:  stores.modePersister,
+		Reader:         stores.scrollback,
+		ThemeSource:    enumerator,
+		ThemeKeys:      keys,
+		ThemePersister: persister,
+	})
+	m.termWidth, m.termHeight = arrowTermW, arrowTermH
+	m.applySessions(closePanelSessions())
+	m = pressThemeKey(t, m)
+	if !m.themePanel.open {
+		t.Fatal("fixture: the panel did not open")
+	}
+	// The OPEN's own read is not what this measures — the re-read-on-open rule pins one directory
+	// read per open, and the question here is what the COMMIT adds to it.
+	stores.reset()
+	opens := enumerator.opens
+
+	m, cmd := press(t, m)
+
+	assertCommitted(t, persister)
+	if got := stores.calls(); got != 0 {
+		t.Errorf("%s made %d file-touching seam call(s) — the prefs write is the only one (project store %d, project editor %d, alias editor %d, mode persister %d, theme persister %d, scrollback %d, lister %d)",
+			subject, got, stores.projectStore.calls, stores.projectEditor.calls, stores.aliasEditor.calls,
+			stores.modePersister.calls, stores.themePersister.calls, stores.scrollback.calls, stores.lister.calls)
+	}
+	if enumerator.opens != opens {
+		t.Errorf("%s ran %d enumerations in total, want the open's %d — a commit re-derives from the retained parse and never re-reads the directory (§8.4)", subject, enumerator.opens, opens)
+	}
+	if cmd != nil {
+		t.Errorf("%s scheduled %T; a deferred write is the one shape the counters above cannot see", subject, cmd)
+	}
+	if entries, err := os.ReadDir(configDir); err != nil || len(entries) != 0 {
+		t.Errorf("%s left %d entries in the config directory (err %v), want none — the model writes through the seam and touches no path of its own", subject, len(entries), err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
+		t.Errorf("the themes directory holds %d entries after %s, want only the seeded drop-in", len(entries), subject)
+	}
 }
 
 // sgrParams renders a one-cell probe through style and returns the SGR parameter
