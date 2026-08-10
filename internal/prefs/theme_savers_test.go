@@ -369,23 +369,22 @@ func TestThemeSavers_InheritWritePathRules(t *testing.T) {
 	t.Run("abort-on-undecodable", func(t *testing.T) {
 		// A stray comma must not become an overwrite: merging into the tolerant
 		// decode's zero-valued record would erase every other key in one commit.
-		for _, c := range themeSaverCases() {
-			t.Run(c.name, func(t *testing.T) {
-				path := seedPrefsFile(t, `{"session_list_mode":"flat","theme":"gruvbox",}`)
-				before := readRaw(t, path)
+		for _, saver := range themeSaverCases() {
+			t.Run(saver.name, func(t *testing.T) {
+				for _, c := range undecodablePrefsCases() {
+					t.Run(c.name, func(t *testing.T) {
+						path := seedPrefsFile(t, c.content)
+						before := readRaw(t, path)
 
-				err := c.save(NewStore(path), "nord")
-				if err == nil {
-					t.Fatalf("save returned nil, want an abort error")
+						err := saver.save(NewStore(path), "nord")
+						if err == nil {
+							t.Fatalf("save returned nil, want an abort error")
+						}
+						c.assertErr(t, err)
+
+						assertUntouched(t, path, before)
+					})
 				}
-
-				// Returned verbatim: prefs is a leaf and reports by returning.
-				var syntaxErr *json.SyntaxError
-				if !errors.As(err, &syntaxErr) {
-					t.Errorf("error = %v (%T), want the decoder's *json.SyntaxError", err, err)
-				}
-
-				assertUntouched(t, path, before)
 			})
 		}
 	})

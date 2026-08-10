@@ -95,6 +95,68 @@ func assertUntouched(t *testing.T, path string, before []byte) {
 	assertNoTempFiles(t, filepath.Dir(path))
 }
 
+// undecodableErrClass names the decoder error one corrupt shape produces, so an
+// abort test can assert the class rather than only that some error came back.
+type undecodableErrClass int
+
+const (
+	// classSyntax is encoding/json's *json.SyntaxError.
+	classSyntax undecodableErrClass = iota
+	// classTopLevelTypeMismatch is a *json.UnmarshalTypeError whose Field is
+	// empty: the whole document is the wrong JSON type, so the decode yields a
+	// wholly zero-valued record. A non-empty Field is a declared field's wrong
+	// type, which the write path absorbs instead of aborting.
+	classTopLevelTypeMismatch
+)
+
+// undecodableCase is one corrupt prefs.json shape paired with the decoder error
+// it produces.
+type undecodableCase struct {
+	name     string
+	content  string
+	errClass undecodableErrClass
+}
+
+// assertErr asserts err is the decoder's own error for this shape, returned
+// verbatim — prefs is a leaf, so it reports by returning rather than
+// re-classifying.
+func (c undecodableCase) assertErr(t *testing.T, err error) {
+	t.Helper()
+
+	switch c.errClass {
+	case classSyntax:
+		var syntaxErr *json.SyntaxError
+		if !errors.As(err, &syntaxErr) {
+			t.Errorf("error = %v (%T), want the decoder's *json.SyntaxError", err, err)
+		}
+	case classTopLevelTypeMismatch:
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			t.Fatalf("error = %v (%T), want a *json.UnmarshalTypeError", err, err)
+		}
+		if typeErr.Field != "" {
+			t.Errorf("UnmarshalTypeError.Field = %q, want empty — the top-level discriminator", typeErr.Field)
+		}
+	}
+}
+
+// undecodablePrefsCases is the single statement of the shapes a save aborts on.
+// Every save method routes through mutate, so each saver's abort test ranges
+// over this table and a shape added here is proven against all of them at once.
+func undecodablePrefsCases() []undecodableCase {
+	return []undecodableCase{
+		{name: "a truncated object", content: `{`, errClass: classSyntax},
+		{name: "a trailing comma", content: `{"session_list_mode":"flat",}`, errClass: classSyntax},
+		{name: "junk that is not JSON at all", content: `not json`, errClass: classSyntax},
+		{name: "an unterminated object carrying real values", content: `{"session_list_mode":"flat","theme":"nord"`, errClass: classSyntax},
+		{name: "a zero-byte file", content: ``, errClass: classSyntax},
+		{name: "a top-level array", content: `[1,2]`, errClass: classTopLevelTypeMismatch},
+		{name: "a top-level bare string", content: `"x"`, errClass: classTopLevelTypeMismatch},
+		{name: "a top-level bare number", content: `3`, errClass: classTopLevelTypeMismatch},
+		{name: "a top-level bare boolean", content: `true`, errClass: classTopLevelTypeMismatch},
+	}
+}
+
 // TestSave_CreatesAbsentFile pins the create-on-absent half of §8.9: an absent
 // prefs.json has nothing to merge and nothing to lose, so the write proceeds.
 // This is the most common write in the product — a brand-new user's first
@@ -124,23 +186,15 @@ func TestSave_CreatesAbsentFile(t *testing.T) {
 	}
 }
 
-// TestSave_AbortsOnMalformedJSON pins the abort-on-undecodable half of §8.9.
-// Under the tolerant load decode a stray comma collapses to a zero-valued record
-// with no error, so the writer merges into it and one keypress erases every
-// other key — the exact silent, permanent destruction this split exists to
-// prevent.
-func TestSave_AbortsOnMalformedJSON(t *testing.T) {
-	cases := []struct {
-		name    string
-		content string
-	}{
-		{name: "a truncated object", content: `{`},
-		{name: "a trailing comma", content: `{"session_list_mode":"flat",}`},
-		{name: "junk that is not JSON at all", content: `not json`},
-		{name: "an unterminated object carrying real values", content: `{"session_list_mode":"flat","theme":"nord"`},
-	}
-
-	for _, c := range cases {
+// TestSave_AbortsOnUndecodable pins the abort-on-undecodable half of the write
+// path. Under the tolerant load decode a stray comma collapses to a zero-valued
+// record with no error, so the writer merges into it and one keypress erases
+// every other key — the exact silent, permanent destruction this split exists to
+// prevent. A zero-byte file is present and is not valid JSON, and a top-level
+// type mismatch decodes to a wholly zero-valued record, so both abort by the
+// same rule.
+func TestSave_AbortsOnUndecodable(t *testing.T) {
+	for _, c := range undecodablePrefsCases() {
 		t.Run(c.name, func(t *testing.T) {
 			path := seedPrefsFile(t, c.content)
 			before := readRaw(t, path)
@@ -150,32 +204,11 @@ func TestSave_AbortsOnMalformedJSON(t *testing.T) {
 			if err == nil {
 				t.Fatalf("Save returned nil, want an abort error")
 			}
-
-			// Returned verbatim: the decoder's own syntax error, not a
-			// re-classified one — prefs is a leaf and reports by returning.
-			var syntaxErr *json.SyntaxError
-			if !errors.As(err, &syntaxErr) {
-				t.Errorf("error = %v (%T), want the decoder's *json.SyntaxError", err, err)
-			}
+			c.assertErr(t, err)
 
 			assertUntouched(t, path, before)
 		})
 	}
-}
-
-// TestSave_AbortsOnEmptyFile pins the zero-byte case deliberately rather than
-// letting it fall out: the file is present and is not valid JSON, and the rule
-// is syntax-driven, so it aborts.
-func TestSave_AbortsOnEmptyFile(t *testing.T) {
-	path := seedPrefsFile(t, "")
-	before := readRaw(t, path)
-	store := NewStore(path)
-
-	if err := store.Save(ModeByTag); err == nil {
-		t.Fatalf("Save returned nil for a zero-byte file, want an abort error")
-	}
-
-	assertUntouched(t, path, before)
 }
 
 // TestSave_AbortsOnReadError pins the I/O half of "present but unusable": a
@@ -254,45 +287,6 @@ func TestSave_WrongTypedFieldDoesNotAbort(t *testing.T) {
 			t.Errorf("written JSON carries theme = %v, want the wrong-typed value normalised away", value)
 		}
 	})
-}
-
-// TestSave_TopLevelTypeMismatchAborts is why the discriminator is `Field != ""`
-// and not the error type alone: a top-level mismatch also yields an
-// UnmarshalTypeError, but with an empty Field and a wholly zero-valued struct.
-// Absorbing that would merge into an empty record and commit it.
-func TestSave_TopLevelTypeMismatchAborts(t *testing.T) {
-	cases := []struct {
-		name    string
-		content string
-	}{
-		{name: "an array", content: `[1,2]`},
-		{name: "a bare string", content: `"x"`},
-		{name: "a bare number", content: `3`},
-		{name: "a bare boolean", content: `true`},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			path := seedPrefsFile(t, c.content)
-			before := readRaw(t, path)
-			store := NewStore(path)
-
-			err := store.Save(ModeByTag)
-			if err == nil {
-				t.Fatalf("Save returned nil, want an abort error")
-			}
-
-			var typeErr *json.UnmarshalTypeError
-			if !errors.As(err, &typeErr) {
-				t.Fatalf("error = %v (%T), want a *json.UnmarshalTypeError", err, err)
-			}
-			if typeErr.Field != "" {
-				t.Errorf("UnmarshalTypeError.Field = %q, want empty — the top-level discriminator", typeErr.Field)
-			}
-
-			assertUntouched(t, path, before)
-		})
-	}
 }
 
 // TestSave_UnrecognisedValueIsNotUnusable pins that the strict decode judges

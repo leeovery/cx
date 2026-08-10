@@ -370,18 +370,7 @@ func TestSaveTranslation_SkipStillRecordsTheMarker(t *testing.T) {
 // because nothing was. The marker stays unset, so the condition is still true
 // and the next launch retries, which is what makes a best-effort write safe.
 func TestSaveTranslation_AbortsOnUndecodable(t *testing.T) {
-	cases := []struct {
-		name    string
-		content string
-	}{
-		{name: "a truncated object", content: `{`},
-		{name: "a trailing comma", content: `{"session_list_mode":"flat",}`},
-		{name: "junk that is not JSON at all", content: `not json`},
-		{name: "a zero-byte file", content: ``},
-		{name: "a top-level array", content: `[1,2]`},
-	}
-
-	for _, c := range cases {
+	for _, c := range undecodablePrefsCases() {
 		t.Run(c.name, func(t *testing.T) {
 			path := seedPrefsFile(t, c.content)
 			before := readRaw(t, path)
@@ -393,20 +382,11 @@ func TestSaveTranslation_AbortsOnUndecodable(t *testing.T) {
 			if persisted {
 				t.Errorf("persisted = true, want false alongside the abort")
 			}
+			c.assertErr(t, err)
 
 			assertUntouched(t, path, before)
 		})
 	}
-
-	t.Run("the decoder's error is returned verbatim", func(t *testing.T) {
-		path := seedPrefsFile(t, `{"session_list_mode":"flat","theme":"gruvbox",}`)
-
-		_, err := NewStore(path).SaveTranslation("tokyo-night")
-		var syntaxErr *json.SyntaxError
-		if !errors.As(err, &syntaxErr) {
-			t.Errorf("error = %v (%T), want the decoder's *json.SyntaxError", err, err)
-		}
-	})
 }
 
 // TestSaveTranslation_ReportsPersisted pins the result as a first-class answer

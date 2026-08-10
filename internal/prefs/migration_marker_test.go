@@ -438,25 +438,16 @@ func TestSaveMigrationMarker_DoesNotCreateAbsentFile(t *testing.T) {
 // simply retries next launch (§10.5). prefs is a leaf, so the abort is reported
 // by returning.
 func TestSaveMigrationMarker_AbortsOnUndecodable(t *testing.T) {
-	cases := []struct {
-		name    string
-		content string
-	}{
-		{name: "a truncated object", content: `{`},
-		{name: "a trailing comma", content: `{"session_list_mode":"flat",}`},
-		{name: "junk that is not JSON at all", content: `not json`},
-		{name: "a zero-byte file", content: ``},
-		{name: "a top-level array", content: `[1,2]`},
-	}
-
-	for _, c := range cases {
+	for _, c := range undecodablePrefsCases() {
 		t.Run(c.name, func(t *testing.T) {
 			path := seedPrefsFile(t, c.content)
 			before := readRaw(t, path)
 
-			if err := NewStore(path).SaveMigrationMarker(); err == nil {
+			err := NewStore(path).SaveMigrationMarker()
+			if err == nil {
 				t.Fatalf("SaveMigrationMarker returned nil, want an abort error")
 			}
+			c.assertErr(t, err)
 
 			assertUntouched(t, path, before)
 		})
