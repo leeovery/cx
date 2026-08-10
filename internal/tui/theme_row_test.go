@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -666,6 +667,9 @@ func TestThemeRow_NoCachedStyles(t *testing.T) {
 // the NO_COLOR panel block already blocks the panel from reaching: no canvas background, no
 // hue, and the row's state carried by its GLYPHS — the `⚠` invalidity signal, the `●`
 // badge and the `▌` cursor bar all survive on the terminal's native fg/bg.
+//
+// The carve-out drops COLOUR, not the non-colour attributes: the cursor row's
+// bold label survives it, exactly as the Sessions delegate's selected name does.
 func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	d := themeRowDelegate{Theme: testDarkTheme(t), Colourless: true, Width: themeRowTestPreferredWidth}
 	items := []list.Item{themeRowItem{
@@ -674,12 +678,164 @@ func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	}}
 	out := renderThemeRow(d, items, 0, 0)
 
-	if strings.Contains(out, "\x1b") {
-		t.Errorf("a colourless row emitted an escape sequence: %q", escSeq(out))
-	}
+	assertThemeRowHasNoColour(t, out)
 	for _, glyph := range []string{flashWarningGlyph, multiSelectMarker, selectorBar} {
 		if !strings.Contains(out, glyph) {
 			t.Errorf("a colourless row dropped the %q glyph: %q", glyph, out)
 		}
+	}
+}
+
+// assertThemeRowHasNoColour fails when the row paints any foreground hue or any
+// background — the NO_COLOR carve-out's whole content. It walks the row's SGR
+// parameters rather than banning escape sequences outright, so the non-colour
+// attributes the carve-out deliberately keeps (the cursor row's bold label) are
+// not mistaken for colour.
+func assertThemeRowHasNoColour(t *testing.T, out string) {
+	t.Helper()
+	for _, params := range themeRowSGRRuns(out) {
+		for _, p := range params {
+			if p != "1" {
+				t.Errorf("a colourless row emitted the non-bold SGR parameter %q: %q", p, escSeq(out))
+			}
+		}
+	}
+}
+
+// themeRowSGRRuns returns the parameter list of every SGR sequence on the row.
+func themeRowSGRRuns(out string) [][]string {
+	var runs [][]string
+	rest := out
+	for {
+		at := strings.Index(rest, "\x1b[")
+		if at < 0 {
+			return runs
+		}
+		rest = rest[at:]
+		end := strings.IndexByte(rest, 'm')
+		if end < 0 {
+			return runs
+		}
+		runs = append(runs, splitSGRParams(rest[:end+1]))
+		rest = rest[end+1:]
+	}
+}
+
+// themeRowOpeningParams returns the parameter list of the SGR sequence that opened
+// the run holding text — how a run's NON-colour attributes are told apart, where
+// themeRowRunAfter tells its colour apart.
+func themeRowOpeningParams(t *testing.T, out, text string) []string {
+	t.Helper()
+	at := strings.Index(out, text)
+	if at < 0 {
+		t.Fatalf("row holds no run rendering %q: %q", text, escSeq(out))
+	}
+	start := strings.LastIndex(out[:at], "\x1b[")
+	if start < 0 {
+		t.Fatalf("the run rendering %q opened with no SGR sequence: %q", text, escSeq(out))
+	}
+	seq := out[start:]
+	end := strings.IndexByte(seq, 'm')
+	if end < 0 {
+		t.Fatalf("the SGR sequence opening %q is unterminated: %q", text, escSeq(out))
+	}
+	return splitSGRParams(seq[:end+1])
+}
+
+// themeRowRunIsBold reports whether the run holding text carries the bold SGR
+// parameter.
+func themeRowRunIsBold(t *testing.T, out, text string) bool {
+	t.Helper()
+	return slices.Contains(themeRowOpeningParams(t, out, text), "1")
+}
+
+// TestThemeRow_CursorRowLabelIsBold pins the third element of the shipped
+// selection treatment the panel reproduces: alongside the `▌` and the tint, the
+// cursor row's LABEL is bold, so the panel's list reads as the same kind of list
+// as Sessions rather than as a lighter lookalike. An unselected row's label
+// carries no weight of its own.
+func TestThemeRow_CursorRowLabelIsBold(t *testing.T) {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
+		items := []list.Item{
+			themeRowItem{Row: validThemeRow("nord")},
+			themeRowItem{Row: validThemeRow("gruvbox")},
+		}
+
+		selected := renderThemeRow(d, items, 0, 0)
+		if !themeRowRunIsBold(t, selected, "nord") {
+			t.Errorf("[%v] the cursor row's label is not bold: %q", themeLabel(th), escSeq(selected))
+		}
+
+		unselected := renderThemeRow(d, items, 1, 0)
+		if themeRowRunIsBold(t, unselected, "gruvbox") {
+			t.Errorf("[%v] an unselected row's label is bold: %q", themeLabel(th), escSeq(unselected))
+		}
+	}
+}
+
+// TestThemeRow_CursorRowBoldsOnlyTheLabel pins the bold to the label alone: the
+// Sessions treatment bolds the name, so the cursor row's trailing elements — the
+// `●` badge, the `⚠` and its reason — keep the weight they carry on every other
+// row.
+func TestThemeRow_CursorRowBoldsOnlyTheLabel(t *testing.T) {
+	th := testDarkTheme(t)
+	d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
+
+	badged := []list.Item{themeRowItem{Row: validThemeRow("nord"), Badge: theme.BadgeDark}}
+	out := renderThemeRow(d, badged, 0, 0)
+	if themeRowRunIsBold(t, out, themePanelBadgeText(theme.BadgeDark)) {
+		t.Errorf("the cursor row bolded its ● badge: %q", escSeq(out))
+	}
+
+	invalid := []list.Item{themeRowItem{Row: invalidThemeRow("nord", theme.ReasonBadColour)}}
+	out = renderThemeRow(d, invalid, 0, 0)
+	if themeRowRunIsBold(t, out, flashWarningGlyph) {
+		t.Errorf("the cursor row bolded its ⚠ and reason: %q", escSeq(out))
+	}
+}
+
+// TestThemeRow_CursorRowLabelStyleMatchesSessionName is the parity the treatment
+// is specified against: the panel's selected label is painted by the SAME style
+// the Sessions delegate paints its selected name with — the shared bold base over
+// text.on-selection on the selection tint — so the two cursor rows cannot drift
+// into two different weights.
+func TestThemeRow_CursorRowLabelStyleMatchesSessionName(t *testing.T) {
+	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
+		for _, colourless := range []bool{false, true} {
+			panel := themeRowDelegate{Theme: th, Colourless: colourless, Width: themeRowTestPreferredWidth}
+			session := SessionDelegate{Theme: th, Colourless: colourless}
+
+			it := themeRowItem{Row: validThemeRow("nord")}
+			want := session.rowToken(nameBase, th.TextOnSelection, true).Render("sample")
+			if got := panel.labelStyle(it, true).Render("sample"); got != want {
+				t.Errorf("[%v colourless=%v] the panel's selected label style renders %q, want the Sessions selected name's %q",
+					themeLabel(th), colourless, escSeq(got), escSeq(want))
+			}
+		}
+	}
+}
+
+// TestThemeRow_ColourlessCursorRowKeepsBoldWithoutHue decides the NO_COLOR path
+// for the cursor row's weight: bold is a non-colour attribute, so it survives the
+// carve-out exactly as the Sessions delegate's selected name does, and the two
+// lists stay the same kind of list with no colour at all.
+func TestThemeRow_ColourlessCursorRowKeepsBoldWithoutHue(t *testing.T) {
+	d := themeRowDelegate{Theme: testDarkTheme(t), Colourless: true, Width: themeRowTestPreferredWidth}
+	items := []list.Item{
+		themeRowItem{Row: validThemeRow("nord")},
+		themeRowItem{Row: validThemeRow("gruvbox")},
+	}
+
+	selected := renderThemeRow(d, items, 0, 0)
+	assertThemeRowHasNoColour(t, selected)
+	if !themeRowRunIsBold(t, selected, "nord") {
+		t.Errorf("a colourless cursor row dropped the label's bold: %q", escSeq(selected))
+	}
+
+	unselected := renderThemeRow(d, items, 1, 0)
+	assertThemeRowHasNoColour(t, unselected)
+	if strings.Contains(unselected, "\x1b") {
+		t.Errorf("a colourless unselected row emitted an escape sequence: %q", escSeq(unselected))
 	}
 }

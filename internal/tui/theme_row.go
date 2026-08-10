@@ -115,7 +115,7 @@ func (d themeRowDelegate) renderRow(it themeRowItem, selected bool) string {
 	visible := ansi.Truncate(it.Row.Label(), budget, themeRowEllipsis)
 	runs := []string{
 		d.cursorColumn(bg, selected),
-		d.rowToken(d.labelToken(it, selected), selected).Render(visible),
+		d.labelStyle(it, selected).Render(visible),
 		bg.Render(padTo("", budget-lipgloss.Width(visible))),
 	}
 	for _, segment := range trailing {
@@ -257,10 +257,30 @@ func (d themeRowDelegate) rowBg(selected bool) lipgloss.Style {
 	return rowBgStyle(d.Theme, selected, d.Colourless)
 }
 
+// labelStyle paints the row's label: the label role over the row's background,
+// carrying the shared bold base (session_item.go) on the cursor row. The cursor
+// row reproduces all three elements of the shipped selection treatment — `▌`,
+// tint, bold label — so the panel's list reads as the same kind of list as
+// Sessions. The bold is the LABEL's alone; the trailing segments keep the weight
+// they carry on every other row.
+//
+// Bold is a non-colour attribute, so it survives the NO_COLOR carve-out (which
+// drops only hue and background), exactly as the Sessions delegate's selected
+// name does.
+func (d themeRowDelegate) labelStyle(it themeRowItem, selected bool) lipgloss.Style {
+	base := lipgloss.Style{}
+	if selected {
+		base = nameBase
+	}
+	return rowTokenStyle(base, d.labelToken(it, selected), d.Theme, selected, d.Colourless)
+}
+
 // rowToken delegates to the shared rowTokenStyle free function (session_item.go):
 // the role token's foreground over the row's own background (bg.selection on the
-// cursor row, canvas otherwise), and no colour at all under NO_COLOR. Panel rows
-// carry no non-colour attribute of their own, so there is no base style to pass.
+// cursor row, canvas otherwise), and no colour at all under NO_COLOR. It renders
+// the cursor column and the trailing segments, which carry no non-colour
+// attribute of their own; the label goes through labelStyle, which owns the
+// cursor row's bold.
 func (d themeRowDelegate) rowToken(fg theme.Token, selected bool) lipgloss.Style {
 	return rowTokenStyle(lipgloss.Style{}, fg, d.Theme, selected, d.Colourless)
 }
