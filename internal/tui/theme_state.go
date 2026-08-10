@@ -22,9 +22,14 @@ type themeState struct {
 	// under an adaptive pair. Its zero value is neither state, the "nothing was
 	// injected" sentinel that leaves New's dark-built-in seed in place.
 	//
-	// CONTRACT: it describes the setting CURRENTLY IN FORCE, not only the one
-	// injected at construction — every commit that lands re-resolves it
-	// (applyCommittedSetting), so a reader past the gate may trust it.
+	// It is kept consistent with the PERSISTED setting at one site: every commit
+	// that lands re-resolves it (applyCommittedSetting), so it describes what is
+	// persisted rather than only what was injected at construction.
+	//
+	// It is NOT a live input to rendering. The palette in force is
+	// themeState.active, which a preview moves and a commit deliberately does not.
+	// The nomination's readers are the appearance gate and syncResolvedMode, both
+	// of which run before or at the gate's single resolution.
 	nomination theme.Nomination
 
 	// keys are prefs.json's three theme keys as read (control-stripped,

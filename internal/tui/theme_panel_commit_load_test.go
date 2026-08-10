@@ -1093,6 +1093,44 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 	})
 }
 
+// TestCommitSlotLoad_RestoreStaysAnchoredAfterACommit: the exit-time restore still
+// compares against the retained startup canvas hex after a REAL commit.
+//
+// The commit is driven through the panel's own keypress path, so the anchor and the
+// exit comparison compose as production composes them: the anchor stays frozen at
+// gate resolution while the commit leaves the previewed palette active — the
+// composition a reader might mistake the nomination's post-commit re-resolution for
+// supporting.
+//
+// The two originals discriminate the anchored comparison from one re-derived at
+// exit, in opposite directions: the startup canvas must be SKIPPED (a comparison
+// against the active theme sees a difference and re-sticks the startup canvas after
+// Bubble Tea's OSC 111 reset) and the active theme's canvas must be SET BACK (that
+// same comparison would skip a genuine original).
+func TestCommitSlotLoad_RestoreStaysAnchoredAfterACommit(t *testing.T) {
+	dir := newConversionThemesDir(t)
+	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
+	m = deliverBackgroundReply(t, m, lightBg)
+	m = openConversionPanel(t, m)
+
+	m, _ = convertToSlot(t, m, nordSlug, slotDarkPress)
+
+	if got := m.themeState.startupCanvasHex; got != conversionConstantValue {
+		t.Fatalf("startupCanvasHex = %q after the commit, want the constant's %q", got, conversionConstantValue)
+	}
+	if got := m.themeState.active.Canvas.Value; got != nordCanvas {
+		t.Fatalf("active canvas = %q after the commit, want the previewed %q — without the divergence the two originals below assert the same thing", got, nordCanvas)
+	}
+
+	t.Run("an echo of the startup canvas is skipped", func(t *testing.T) {
+		assertSkipped(t, withCapturedOriginal(m, conversionConstantValue))
+	})
+
+	t.Run("the active theme's canvas is a genuine original and is set back", func(t *testing.T) {
+		assertSetBack(t, withCapturedOriginal(m, nordCanvas))
+	})
+}
+
 // TestCommitSlotLoad_BrokenBuiltinDegrades: it moves nothing when the load reports
 // the build-time guarantee's fatal.
 //

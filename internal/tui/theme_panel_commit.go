@@ -323,9 +323,11 @@ func previewedThemeIdentity(l list.Model) string {
 // enumeration and takes both of its products: the `●` table and the loaded
 // nomination the setting now names.
 //
-// The nomination rides the badges' own resolution so the two cannot disagree about
-// what is set, and so themeState.nomination keeps its contract through one site
-// rather than one per kind of commit.
+// The nomination rides the badges' own resolution so the two cannot disagree
+// about what is set, and so the nomination tracks the persisted setting through
+// one site rather than one per kind of commit. It stays a description of what is
+// persisted — the palette in force is themeState.active, which this function
+// leaves alone.
 //
 // The re-resolution never selects a new active member and never calls
 // Model.ApplyTheme, because a commit is a write rather than a navigation and
