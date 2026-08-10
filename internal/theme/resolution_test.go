@@ -27,15 +27,13 @@ import (
 // directory would resolve to it under a hand-built Loader and prove the opposite
 // of what the assertion claims.
 //
-// The seam is NIL — the silent one — because these fixtures assert the RESOLUTION
-// RECORD, and a resolution now emits `theme: loaded` and `theme: fallback applied`
-// per slot. Those events are asserted where they belong, against a capturing seam
-// in events_test.go; a loader here that emitted into the process handler would
-// only add noise to assertions about the record's shape. It doubles as the
-// standing proof that the nil seam is safe on the path every TUI construction
-// runs.
+// The seam is SILENT — the discard-backed one — because these fixtures assert the
+// RESOLUTION RECORD, and a resolution emits `theme: loaded` and `theme: fallback
+// applied` per slot. Those events are asserted where they belong, against a
+// capturing seam in events_test.go; a loader here that emitted into the process
+// handler would only add noise to assertions about the record's shape.
 func nominationLoader() theme.Loader {
-	return theme.NewLoader(nil)
+	return theme.NewSilentLoader()
 }
 
 // dropInTheme returns the palette the theme file at path parses to, loaded

@@ -101,7 +101,7 @@ type behaviourEnumerator struct {
 // own Dir, which nothing on this path reads.
 func newBehaviourEnumerator(entries []theme.Entry) *behaviourEnumerator {
 	return &behaviourEnumerator{
-		DirThemeSource: theme.DirThemeSource{Loader: theme.NewLoader(nil)},
+		DirThemeSource: theme.DirThemeSource{Loader: theme.NewSilentLoader()},
 		enumeration:    theme.Enumeration{Entries: entries},
 	}
 }

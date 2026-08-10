@@ -22,8 +22,10 @@ type Loader struct {
 	// exercised with a synthetic set.
 	//
 	// The zero value — a nil map — reserves nothing, which is why the production
-	// constructor exists: anything resolving a user's theme goes through NewLoader
-	// or it has no shadowing protection.
+	// constructors exist: anything resolving a user's theme goes through NewLoader
+	// or NewSilentLoader, which populate it identically, or it has no shadowing
+	// protection. A zero-value Loader is a test shape for driving the ladder with a
+	// synthetic set.
 	ReservedSlugs map[string]struct{}
 
 	// BuiltinSource is where LoadBuiltin gets a built-in's bytes. Nil — the
@@ -56,7 +58,16 @@ type Loader struct {
 // built-in Portal falls back to must never be a file the user can supply. A
 // `tokyo-night.theme` with a typo'd hex is rejected before it is opened, and the
 // fallback stays the embedded one.
+//
+// A nil seam panics. It would otherwise produce a loader indistinguishable from
+// NewSilentLoader's, and silence is a decision that must be readable at the call
+// site: with one named route to it, "where does Portal deliberately write no
+// `theme` records" is answered by a single grep.
 func NewLoader(events *EventLogger) Loader {
+	if events == nil {
+		panic("theme.NewLoader: nil event seam — a deliberately silent loader must be built with theme.NewSilentLoader")
+	}
+
 	return Loader{ReservedSlugs: builtinSlugSet(), events: events}
 }
 

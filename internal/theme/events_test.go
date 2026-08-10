@@ -892,26 +892,28 @@ func TestEvents_AttrKeysAreInTheClosedSet(t *testing.T) {
 }
 
 // TestEvents_DiscardSilencesResolution pins the diagnose-shaped callers' contract
-// over a WHOLE resolution — every setting state, fallbacks included: a seam
-// constructed with log.Discard() writes nothing, and neither does a nil one.
+// over a WHOLE resolution — every setting state, fallbacks included: a loader
+// whose seam discards writes nothing, and neither does one carrying no seam at
+// all.
 //
-// That is what `portal doctor`, `portal theme export` and capturetool are
-// constructed with, and it is what leaves their per-process dedup state owned
-// rather than dangling. The nil cases are the same silence reached two other
-// ways: a nil *slog.Logger (log.OrDiscard at the constructor) and a nil
-// *EventLogger (the zero-value Loader's own seam), neither of which may panic on
-// a path that runs at every TUI construction.
+// NewSilentLoader is what `portal doctor`, `portal theme export` and capturetool
+// take, and it is what leaves their per-process dedup state owned rather than
+// dangling. The others are the same silence reached three more ways: a seam over
+// log.Discard(), a seam over a nil *slog.Logger (log.OrDiscard at the
+// constructor) and the zero-value Loader's own nil *EventLogger, which must not
+// panic on the paths a test drives the ladder through.
 //
 // The process handler captures everything for the duration, so a record reaching
 // the sink would mean the silence had been bypassed rather than merely quiet.
 func TestEvents_DiscardSilencesResolution(t *testing.T) {
 	tests := []struct {
 		name   string
-		events *theme.EventLogger
+		loader theme.Loader
 	}{
-		{name: "a discard-backed seam", events: theme.NewEventLogger(log.Discard())},
-		{name: "a nil logger", events: theme.NewEventLogger(nil)},
-		{name: "a nil seam", events: nil},
+		{name: "the silent constructor", loader: theme.NewSilentLoader()},
+		{name: "a discard-backed seam", loader: theme.NewLoader(theme.NewEventLogger(log.Discard()))},
+		{name: "a nil logger", loader: theme.NewLoader(theme.NewEventLogger(nil))},
+		{name: "a zero-value loader's nil seam", loader: theme.Loader{}},
 	}
 
 	for _, tt := range tests {
@@ -921,7 +923,7 @@ func TestEvents_DiscardSilencesResolution(t *testing.T) {
 
 			// Asserted so the silence cannot be vacuous: the sequence really did
 			// include the fallbacks a silenced seam must stay quiet through.
-			if fellBack := resolveEverySettingState(t, theme.NewLoader(tt.events)); fellBack != wantFallbacks {
+			if fellBack := resolveEverySettingState(t, tt.loader); fellBack != wantFallbacks {
 				t.Fatalf("the resolution set produced %d fallbacks, want %d", fellBack, wantFallbacks)
 			}
 

@@ -306,7 +306,7 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 		ast.Inspect(source.File, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.CallExpr:
-				if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == "panic" {
+				if ident, ok := node.Fun.(*ast.Ident); ok && ident.Name == "panic" && !inNilSeamConstructor(source.File, node.Pos()) {
 					t.Errorf("%s:%d panics — a broken embedded file is an ordinary *Rejection here, and a broken fallback is an ordinary returned error", source.Name, source.Fset.Position(node.Pos()).Line)
 				}
 			case *ast.SelectorExpr:
@@ -344,4 +344,29 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 	if owners != 1 {
 		t.Errorf("%s declares §14A's fatal copy %d times, want exactly 1 — the sentence is single-sourced", fatalCopyOwner, owners)
 	}
+}
+
+// nilSeamConstructor is the ONE function permitted to raise: NewLoader, on the
+// nil event seam, which is a caller assembling the package wrongly rather than
+// anything about a theme.
+const nilSeamConstructor = "NewLoader"
+
+// inNilSeamConstructor reports whether pos falls inside nilSeamConstructor.
+//
+// The exemption is by NAME and by exactly one name. Anything broader would rest
+// on a claim the check cannot test — that a function reads no theme — and a
+// later constructor that parses one would inherit the licence to raise on it,
+// which is the whole fault this guard exists to prevent. Every read, parse and
+// resolve path still reports its verdict as a *Rejection or a returned error.
+func inNilSeamConstructor(file *ast.File, pos token.Pos) bool {
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		if pos >= fn.Body.Pos() && pos <= fn.Body.End() {
+			return fn.Name.Name == nilSeamConstructor
+		}
+	}
+	return false
 }

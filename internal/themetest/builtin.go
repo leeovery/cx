@@ -20,7 +20,7 @@ import (
 func Builtin(t *testing.T, slug string) theme.Theme {
 	t.Helper()
 
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
+	loaded, rejection, found := theme.NewSilentLoader().LoadBuiltin(slug)
 	if !found {
 		t.Fatalf("built-in %q not found in the embedded set", slug)
 	}

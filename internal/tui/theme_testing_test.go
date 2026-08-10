@@ -65,7 +65,7 @@ func openPanelForTestWithSessions(t *testing.T, m Model, contentW, contentH int,
 // terminals without touching the async race.
 func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode theme.Member) (Model, *countingThemeSource) {
 	t.Helper()
-	return newDirBackedPanelModelOver(t, dir, keys, mode, theme.NewLoader(nil))
+	return newDirBackedPanelModelOver(t, dir, keys, mode, theme.NewSilentLoader())
 }
 
 // newDirBackedPanelModelOver is newDirBackedPanelModel with the PANEL's loader
@@ -78,7 +78,7 @@ func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mo
 	t.Helper()
 
 	setting, _ := theme.ResolveSetting(keys)
-	resolution, err := theme.NewLoader(nil).ResolveNomination(setting, dir)
+	resolution, err := theme.NewSilentLoader().ResolveNomination(setting, dir)
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 	}
@@ -126,7 +126,7 @@ func requireCommitDoesNoOtherIO(
 	// counted one: it is the single write the keypress is allowed to make, so the
 	// counted set covers everything else and this records what the one write was.
 	persister := &fakeThemePersister{}
-	loader := theme.NewLoader(nil)
+	loader := theme.NewSilentLoader()
 	enumerator := countingEnumeratorOver(loader, dir)
 	setting, _ := theme.ResolveSetting(keys)
 	resolution, err := loader.ResolveNomination(setting, dir)
@@ -273,7 +273,7 @@ func themeLabel(th theme.Theme) string {
 // there is no failing to be done — so a broken embedded file degrades to "",
 // which themeLabel has already ruled out as a candidate value before it asks.
 func builtinCanvasValue(slug string) string {
-	loaded, rejection, found := theme.NewLoader(nil).LoadBuiltin(slug)
+	loaded, rejection, found := theme.NewSilentLoader().LoadBuiltin(slug)
 	if !found || rejection != nil {
 		return ""
 	}

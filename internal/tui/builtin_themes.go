@@ -16,8 +16,12 @@ import "github.com/leeovery/portal/internal/theme"
 // It resolves NO PATH and reads no config: LoadBuiltin serves the embedded set,
 // which is what keeps TUI construction free of config discovery (and keeps the
 // offline capture harness reachable under its no-real-config import guard).
+//
+// It writes no `theme` records, which is why it takes the silent loader: the
+// component records where a theme is USED, and priming a model with the shipped
+// palette before any nomination is applied is a seed rather than a use.
 func defaultDarkTheme() theme.Theme {
-	return loadBuiltinTheme(theme.NewLoader(nil), theme.DefaultDarkSlug)
+	return loadBuiltinTheme(theme.NewSilentLoader(), theme.DefaultDarkSlug)
 }
 
 // loadBuiltinTheme loads one built-in by slug, returning the zero Theme if the

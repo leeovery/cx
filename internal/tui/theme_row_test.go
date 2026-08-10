@@ -510,7 +510,7 @@ func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 
-	_, union := theme.Assembler{Loader: theme.NewLoader(nil)}.Open(dir, theme.RawKeys{Theme: "nord"})
+	_, union := theme.Assembler{Loader: theme.NewSilentLoader()}.Open(dir, theme.RawKeys{Theme: "nord"})
 	badges := theme.Badges([]theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord"}})
 	items := themeRowItemsFor(union, badges)
 

@@ -2,6 +2,7 @@ package theme_test
 
 import (
 	"maps"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/portal/internal/log"
@@ -45,6 +46,50 @@ func TestNewSilentLoader_JudgesIdenticallyAndWritesNothing(t *testing.T) {
 	if !maps.Equal(silent, loud) {
 		t.Errorf("silent loader verdicts = %v, want the emitting loader's %v", silent, loud)
 	}
+}
+
+// TestNewSilentLoader_ReservesEveryBuiltinSlug pins the half of the silent
+// constructor that has nothing to do with silence: it carries the DERIVED
+// reserved set, so no user file can shadow any built-in under it — not just the
+// one built-in the mixed-verdict fixture happens to stage.
+//
+// It matters because the silent loader is what every diagnose-shaped surface
+// judges with. A diagnosis that let a drop-in shadow a built-in would report a
+// verdict the launch it is diagnosing would never reach.
+func TestNewSilentLoader_ReservesEveryBuiltinSlug(t *testing.T) {
+	loader := theme.NewSilentLoader()
+
+	for _, slug := range requireBuiltinSlugs(t) {
+		t.Run(slug, func(t *testing.T) {
+			path := themetest.Write(t, t.TempDir(), slug+".theme", themetest.Lines())
+
+			got, rejection := loader.LoadFile(path)
+
+			requireLoadRejection(t, got, rejection, theme.ReasonReservedName, "")
+		})
+	}
+}
+
+// TestNewLoader_NilSeamPanics pins the one route to a silent loader: the emitting
+// constructor refuses the omission rather than quietly producing a loader
+// identical to NewSilentLoader's.
+//
+// The panic is what makes the emission policy auditable — every loader Portal
+// itself runs silently is a NewSilentLoader call site, so "where does Portal
+// write no `theme` records" is one grep — and it names the constructor to take
+// instead, because a caller reaching NewLoader(nil) wanted silence.
+func TestNewLoader_NilSeamPanics(t *testing.T) {
+	defer func() {
+		raised := recover()
+		if raised == nil {
+			t.Fatal("NewLoader(nil) returned a loader, want a panic naming the silent constructor")
+		}
+		if message, ok := raised.(string); !ok || !strings.Contains(message, "NewSilentLoader") {
+			t.Errorf("panic value = %v, want a string naming NewSilentLoader", raised)
+		}
+	}()
+
+	theme.NewLoader(nil)
 }
 
 // stagedVerdicts is the verdict stageMixedVerdictDir's directory must produce,

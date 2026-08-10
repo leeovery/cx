@@ -114,7 +114,7 @@ func newLoadPanelModel(t *testing.T, dir string, keys theme.RawKeys, loader them
 	t.Helper()
 
 	setting, _ := theme.ResolveSetting(keys)
-	resolution, err := theme.NewLoader(nil).ResolveNomination(setting, dir)
+	resolution, err := theme.NewSilentLoader().ResolveNomination(setting, dir)
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
 	}
