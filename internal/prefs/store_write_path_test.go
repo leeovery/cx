@@ -95,6 +95,28 @@ func assertUntouched(t *testing.T, path string, before []byte) {
 	assertNoTempFiles(t, filepath.Dir(path))
 }
 
+// assertNothingCreated asserts a saver that declined to write left path absent
+// and dir wholly empty — not the file, not the tree above it, not a temp file.
+func assertNothingCreated(t *testing.T, dir, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("os.Stat(%s) error = %v, want the file still absent", path, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("failed to read temp dir: %v", err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("temp dir %s contains %v, want none — the save must create nothing", dir, names)
+	}
+	assertNoTempFiles(t, dir)
+}
+
 // undecodableErrClass names the decoder error one corrupt shape produces, so an
 // abort test can assert the class rather than only that some error came back.
 type undecodableErrClass int
@@ -157,23 +179,38 @@ func undecodablePrefsCases() []undecodableCase {
 	}
 }
 
+// absentPathCase is one shape of "the prefs file is not there", named for the
+// subtest and carrying the path segments to join onto a fresh temp dir.
+type absentPathCase struct {
+	name string
+	rel  []string
+}
+
+// path joins the case's segments onto dir.
+func (c absentPathCase) path(dir string) string {
+	return filepath.Join(append([]string{dir}, c.rel...)...)
+}
+
+// absentPathCases is the single statement of the absent-path shapes every saver
+// is judged on, whether it creates the file or declines to. A shape added here
+// is exercised against both outcomes at once, so the inputs that decide
+// create-versus-decline cannot drift apart.
+func absentPathCases() []absentPathCase {
+	return []absentPathCase{
+		{name: "the file is absent", rel: []string{"prefs.json"}},
+		{name: "the parent directory is absent too", rel: []string{"sub", "nested", "prefs.json"}},
+	}
+}
+
 // TestSave_CreatesAbsentFile pins the create-on-absent half of §8.9: an absent
 // prefs.json has nothing to merge and nothing to lose, so the write proceeds.
 // This is the most common write in the product — a brand-new user's first
 // keypress — and an abort here would be permanent, since nothing else creates
 // the file.
 func TestSave_CreatesAbsentFile(t *testing.T) {
-	cases := []struct {
-		name string
-		rel  []string
-	}{
-		{name: "the file is absent", rel: []string{"prefs.json"}},
-		{name: "the parent directory is absent too", rel: []string{"sub", "nested", "prefs.json"}},
-	}
-
-	for _, c := range cases {
+	for _, c := range absentPathCases() {
 		t.Run(c.name, func(t *testing.T) {
-			path := filepath.Join(append([]string{t.TempDir()}, c.rel...)...)
+			path := c.path(t.TempDir())
 			store := NewStore(path)
 
 			if err := store.Save(ModeByTag); err != nil {

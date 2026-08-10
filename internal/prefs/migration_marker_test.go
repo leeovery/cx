@@ -394,35 +394,16 @@ func TestSaveMigrationMarker_PreservesEveryOtherField(t *testing.T) {
 // Re-evaluating next launch costs an absent-field check on a read that is
 // already happening, and the file appears the moment the user changes anything.
 func TestSaveMigrationMarker_DoesNotCreateAbsentFile(t *testing.T) {
-	cases := []struct {
-		name string
-		rel  []string
-	}{
-		{name: "the file is absent", rel: []string{"prefs.json"}},
-		{name: "the parent directory is absent too", rel: []string{"sub", "nested", "prefs.json"}},
-	}
-
-	for _, c := range cases {
+	for _, c := range absentPathCases() {
 		t.Run(c.name, func(t *testing.T) {
 			dir := t.TempDir()
-			path := filepath.Join(append([]string{dir}, c.rel...)...)
+			path := c.path(dir)
 
 			if err := NewStore(path).SaveMigrationMarker(); err != nil {
 				t.Fatalf("unexpected SaveMigrationMarker error: %v — declining to write is not a failure", err)
 			}
 
-			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-				t.Errorf("os.Stat error = %v, want the file still absent", err)
-			}
-			// Nothing at all is created — not the file, not the tree above it.
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				t.Fatalf("failed to read temp dir: %v", err)
-			}
-			if len(entries) != 0 {
-				t.Errorf("temp dir contains %d entries, want none — the save must create nothing", len(entries))
-			}
-			assertNoTempFiles(t, dir)
+			assertNothingCreated(t, dir, path)
 		})
 	}
 }

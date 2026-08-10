@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -159,18 +158,10 @@ func TestSaveTranslation_ExistingKeySkipsThemeKeys(t *testing.T) {
 // Declining is not a failure — nil is returned and persisted is false, because
 // an error would invite the caller to treat an ordinary fresh install as one.
 func TestSaveTranslation_DoesNotCreateAbsentFile(t *testing.T) {
-	cases := []struct {
-		name string
-		rel  []string
-	}{
-		{name: "the file is absent", rel: []string{"prefs.json"}},
-		{name: "the parent directory is absent too", rel: []string{"sub", "nested", "prefs.json"}},
-	}
-
-	for _, c := range cases {
+	for _, c := range absentPathCases() {
 		t.Run(c.name, func(t *testing.T) {
 			dir := t.TempDir()
-			path := filepath.Join(append([]string{dir}, c.rel...)...)
+			path := c.path(dir)
 
 			persisted, err := NewStore(path).SaveTranslation("tokyo-night")
 			if err != nil {
@@ -180,17 +171,7 @@ func TestSaveTranslation_DoesNotCreateAbsentFile(t *testing.T) {
 				t.Errorf("persisted = true, want false — nothing was written")
 			}
 
-			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-				t.Errorf("os.Stat error = %v, want the file still absent", err)
-			}
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				t.Fatalf("failed to read temp dir: %v", err)
-			}
-			if len(entries) != 0 {
-				t.Errorf("temp dir contains %d entries, want none — the translation must create nothing", len(entries))
-			}
-			assertNoTempFiles(t, dir)
+			assertNothingCreated(t, dir, path)
 		})
 	}
 }
