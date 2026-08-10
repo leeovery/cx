@@ -110,7 +110,7 @@ func TestBadges_FallbackDoesNotMoveTheBadge(t *testing.T) {
 // is precisely that ResolveSetting's default substitution reaches Requested.
 func TestBadges_UnsetSlotBadgesShippedDefault(t *testing.T) {
 	requireDistinctDefaults(t)
-	setting, _ := theme.ResolveSetting("", "", "")
+	setting, _ := theme.ResolveSetting(theme.RawKeys{})
 
 	resolution, err := nominationLoader().ResolveNomination(setting, t.TempDir())
 	if err != nil {
@@ -135,7 +135,7 @@ func TestBadges_UnsetSlotBadgesShippedDefault(t *testing.T) {
 func TestBadges_CharsetRejectedValueKeepsItsBadge(t *testing.T) {
 	const illegal = "../evil"
 	loader := nominationLoader()
-	setting, keys := theme.ResolveSetting(illegal, "", "")
+	setting, keys := theme.ResolveSetting(theme.RawKeys{Theme: illegal})
 
 	_, union := theme.Assembler{Loader: loader}.Open(t.TempDir(), keys)
 	resolution, err := loader.ResolveNomination(setting, t.TempDir())
@@ -405,7 +405,7 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 		dir := t.TempDir()
 		themetest.Write(t, dir, "nord.theme", themetest.Lines())
 		loader := nominationLoader()
-		setting, _ := theme.ResolveSetting("nord", "", "")
+		setting, _ := theme.ResolveSetting(theme.RawKeys{Theme: "nord"})
 
 		_, union := theme.Assembler{Loader: loader}.Open(dir, theme.RawKeys{Theme: "nord"})
 		resolution, err := loader.ResolveNomination(setting, dir)

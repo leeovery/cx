@@ -457,7 +457,7 @@ func TestPanelClose_EventCadence(t *testing.T) {
 	if got := countThemeEvents(sink, "enumerated"); got != cycles {
 		t.Fatalf("%d opens emitted %d `theme: enumerated` records, want %d — the sink is not recording this loader", cycles, got, cycles)
 	}
-	setting, _ := theme.ResolveSetting("sunset", "", "")
+	setting, _ := theme.ResolveSetting(theme.RawKeys{Theme: "sunset"})
 	if _, err := enumerator.Loader.ResolveNomination(setting, dir); err != nil {
 		t.Fatalf("positive-control by-name resolution: %v", err)
 	}

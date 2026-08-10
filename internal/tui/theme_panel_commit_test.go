@@ -552,7 +552,7 @@ func TestPanelEnter_NoOtherIO(t *testing.T) {
 	loader := theme.NewLoader(nil)
 	enumerator := countingEnumeratorOver(loader, dir)
 	keys := theme.RawKeys{Theme: "sunset"}
-	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	setting, _ := theme.ResolveSetting(keys)
 	resolution, err := loader.ResolveNomination(setting, dir)
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)

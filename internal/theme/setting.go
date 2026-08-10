@@ -10,21 +10,44 @@ import "cmp"
 // left unread, and a value no theme file answers to are all invisible in a
 // Setting, and all three have to be reportable.
 //
-// They are control-stripped at the point they are read rather than at the point
-// they are drawn, which makes the removal a property of the value inherited by
-// every consumer alike. A pasted newline, tab or ANSI escape would otherwise
-// corrupt whichever surface the user is reading in order to find the problem.
-//
 // Truncation is separate and stays panel-local: it is a geometry concern of one
 // surface, and doctor has full width and wants the whole value.
-//
-// Nothing else is normalised — no trimming, no lowercasing. A value that is
-// merely wrong reaches the charset check as the user typed it, so it is reported
-// as `bad name` rather than quietly resolved to a different theme.
 type RawKeys struct {
 	Theme string
 	Light string
 	Dark  string
+}
+
+// NewRawKeys builds the raw keys from prefs.json's three values, control-stripped.
+//
+// Stripping belongs to constructing the value rather than to drawing it, which
+// makes the removal a property every consumer inherits. A pasted newline, tab or
+// ANSI escape would otherwise corrupt whichever surface the user is reading in
+// order to find the problem.
+//
+// A value that is only control characters therefore strips to empty and counts as
+// unset rather than as an illegal slug: treating it as set would mint a panel row
+// labelled with an empty string.
+//
+// Nothing else is normalised — no trimming, no lowercasing. A value that is
+// merely wrong reaches the charset check as the user typed it, so it is reported
+// as `bad name` rather than quietly resolved to a different theme.
+//
+// It is idempotent, so already-stripped keys pass through unchanged.
+func NewRawKeys(theme, light, dark string) RawKeys {
+	return RawKeys{Theme: theme, Light: light, Dark: dark}.stripped()
+}
+
+// stripped is these keys with every value control-stripped. Construction and
+// resolution normalise through it rather than taking the keys apart into a
+// positional triple, where light and dark could be handed over the wrong way
+// round.
+func (k RawKeys) stripped() RawKeys {
+	return RawKeys{
+		Theme: StripControl(k.Theme),
+		Light: StripControl(k.Light),
+		Dark:  StripControl(k.Dark),
+	}
 }
 
 // WithConstant is these keys with slug as the constant theme and both slots
@@ -111,16 +134,11 @@ type Setting struct {
 //
 // Every input is legal, including a nonsense one: an unrecognised value is a
 // resolution problem for a later step rather than a decode one here.
-func ResolveSetting(theme, light, dark string) (Setting, RawKeys) {
+func ResolveSetting(keys RawKeys) (Setting, RawKeys) {
 	// Stripped first, before anything is decided, so every rule below reads the
-	// stripped form. A value that is only control characters therefore strips to
-	// empty and counts as unset rather than as an illegal slug: treating it as set
-	// would mint a panel row labelled with an empty string.
-	raw := RawKeys{
-		Theme: StripControl(theme),
-		Light: StripControl(light),
-		Dark:  StripControl(dark),
-	}
+	// stripped form — whether the caller built its keys through NewRawKeys or as a
+	// plain literal.
+	raw := keys.stripped()
 
 	if raw.Theme != "" {
 		return Setting{IsConstant: true, Constant: raw.Theme}, raw
@@ -181,7 +199,7 @@ type InForceKey struct {
 //
 // The order is light then dark, and a constant is the single entry.
 func InForceKeys(keys RawKeys) []InForceKey {
-	setting, raw := ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	setting, raw := ResolveSetting(keys)
 	if setting.IsConstant {
 		return []InForceKey{{Value: setting.Constant, Slot: SlotConstant}}
 	}

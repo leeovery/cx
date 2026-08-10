@@ -657,7 +657,7 @@ func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
 // live. Re-running it on already-stripped keys is safe: stripping is idempotent
 // and the resolution is pure and total.
 func (m Model) themeSetting() theme.Setting {
-	setting, _ := theme.ResolveSetting(m.themeState.keys.Theme, m.themeState.keys.Light, m.themeState.keys.Dark)
+	setting, _ := theme.ResolveSetting(m.themeState.keys)
 	return setting
 }
 

@@ -485,7 +485,7 @@ func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 	requireDistinctDefaults(t)
 
 	t.Run("a fallen-back pair paints what a virgin install paints", func(t *testing.T) {
-		shipped, _ := theme.ResolveSetting("", "", "")
+		shipped, _ := theme.ResolveSetting(theme.RawKeys{})
 
 		fallen, err := nominationLoader().ResolveNomination(theme.Setting{Light: "gone-light", Dark: "gone-dark"}, t.TempDir())
 		if err != nil {
@@ -824,7 +824,7 @@ func TestResolveNomination_UnsetSlotIsNotAFallback(t *testing.T) {
 
 	for _, dir := range dirs {
 		t.Run(dir.name, func(t *testing.T) {
-			setting, _ := theme.ResolveSetting("", "", "")
+			setting, _ := theme.ResolveSetting(theme.RawKeys{})
 
 			got, err := nominationLoader().ResolveNomination(setting, dir.stage(t))
 
@@ -860,8 +860,8 @@ func TestResolveNomination_UnsetSlotIsNotAFallback(t *testing.T) {
 // missing.
 func TestResolveNomination_SetAndUnsetDefaultsAreIndistinguishable(t *testing.T) {
 	t.Run("the two settings resolve to identical records", func(t *testing.T) {
-		unsetSetting, _ := theme.ResolveSetting("", "", "")
-		setSetting, _ := theme.ResolveSetting("", theme.DefaultLightSlug, theme.DefaultDarkSlug)
+		unsetSetting, _ := theme.ResolveSetting(theme.RawKeys{})
+		setSetting, _ := theme.ResolveSetting(theme.RawKeys{Light: theme.DefaultLightSlug, Dark: theme.DefaultDarkSlug})
 		if unsetSetting != setSetting {
 			t.Fatalf("Setting = %+v when unset and %+v when set to the same slugs — the claim below is about resolution, not about the setting", unsetSetting, setSetting)
 		}
@@ -914,7 +914,7 @@ func TestResolveNomination_NeverOverwritesPrefs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadThemeKeys(%s): %v", path, err)
 		}
-		setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+		setting, _ := theme.ResolveSetting(theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark))
 		got, err := nominationLoader().ResolveNomination(setting, t.TempDir())
 		if err != nil {
 			t.Fatalf("ResolveNomination(%+v) = %v", setting, err)

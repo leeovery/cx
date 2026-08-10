@@ -801,7 +801,7 @@ func buildThemeLoader() theme.Loader {
 // ResolveNomination's error is the broken-builtin fatal (the FALLBACK itself did
 // not resolve), which is returned so the caller constructs nothing.
 func themeResolution(keys prefs.ThemeKeys, loader theme.Loader) (theme.Resolution, theme.RawKeys, error) {
-	setting, raw := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	setting, raw := theme.ResolveSetting(theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark))
 
 	// A themes-directory path that cannot be resolved AT ALL degrades to the empty
 	// directory rather than blocking the launch. themesDirPath already answers with

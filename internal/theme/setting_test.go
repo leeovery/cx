@@ -18,7 +18,7 @@ import (
 // file constraint — a hand-edited prefs.json may legally carry every key at once,
 // and the deterministic answer is that the constant is the setting.
 func TestResolveSetting_ConstantWins(t *testing.T) {
-	got, raw := theme.ResolveSetting("nord", "", "")
+	got, raw := theme.ResolveSetting(theme.RawKeys{Theme: "nord"})
 
 	if !got.IsConstant {
 		t.Errorf("IsConstant = false, want true — a non-empty `theme` resolves to the constant state")
@@ -40,7 +40,7 @@ func TestResolveSetting_ConstantWins(t *testing.T) {
 // are on disk and untouched: nothing prunes them, and the surfaces that report
 // what the file says (the union rule's list, the pinned copy's advisory line) need them.
 func TestResolveSetting_ConstantIgnoresSlots(t *testing.T) {
-	got, raw := theme.ResolveSetting("nord", "solarized", "gruvbox")
+	got, raw := theme.ResolveSetting(theme.RawKeys{Theme: "nord", Light: "solarized", Dark: "gruvbox"})
 
 	if !got.IsConstant || got.Constant != "nord" {
 		t.Errorf("Setting = %+v, want the constant %q", got, "nord")
@@ -94,7 +94,7 @@ func TestResolveSetting_UnsetSlotsTakeShippedDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, raw := theme.ResolveSetting("", tt.light, tt.dark)
+			got, raw := theme.ResolveSetting(theme.RawKeys{Light: tt.light, Dark: tt.dark})
 
 			if got.IsConstant {
 				t.Errorf("IsConstant = true, want false — an empty `theme` resolves to the adaptive pair")
@@ -130,7 +130,7 @@ func TestResolveSetting_DefaultsAreTheSharedConstants(t *testing.T) {
 		t.Fatalf("DefaultLightSlug and DefaultDarkSlug are both %q — a swapped substitution would be undetectable", theme.DefaultLightSlug)
 	}
 
-	got, _ := theme.ResolveSetting("", "", "")
+	got, _ := theme.ResolveSetting(theme.RawKeys{})
 
 	if got.Light != theme.DefaultLightSlug {
 		t.Errorf("Light = %q, want DefaultLightSlug (%q)", got.Light, theme.DefaultLightSlug)
@@ -150,21 +150,21 @@ var settingKeyReaders = []struct {
 	{
 		name: "theme",
 		read: func(value string) (string, string) {
-			got, raw := theme.ResolveSetting(value, "", "")
+			got, raw := theme.ResolveSetting(theme.RawKeys{Theme: value})
 			return got.Constant, raw.Theme
 		},
 	},
 	{
 		name: "theme_light",
 		read: func(value string) (string, string) {
-			got, raw := theme.ResolveSetting("", value, "")
+			got, raw := theme.ResolveSetting(theme.RawKeys{Light: value})
 			return got.Light, raw.Light
 		},
 	},
 	{
 		name: "theme_dark",
 		read: func(value string) (string, string) {
-			got, raw := theme.ResolveSetting("", "", value)
+			got, raw := theme.ResolveSetting(theme.RawKeys{Dark: value})
 			return got.Dark, raw.Dark
 		},
 	},
@@ -220,7 +220,7 @@ func TestResolveSetting_ControlStripsAllThree(t *testing.T) {
 // alternative would mint a panel row labelled with an empty string.
 func TestResolveSetting_ControlOnlyValueIsUnset(t *testing.T) {
 	t.Run("a control-only theme does not win the tiebreak", func(t *testing.T) {
-		got, raw := theme.ResolveSetting("\x1b[31m\n\t", "", "")
+		got, raw := theme.ResolveSetting(theme.RawKeys{Theme: "\x1b[31m\n\t"})
 
 		if got.IsConstant {
 			t.Errorf("IsConstant = true (Constant %q), want false — a value that strips to empty is unset, not a constant", got.Constant)
@@ -234,7 +234,7 @@ func TestResolveSetting_ControlOnlyValueIsUnset(t *testing.T) {
 	})
 
 	t.Run("a control-only slot takes the shipped default", func(t *testing.T) {
-		got, raw := theme.ResolveSetting("", "\n", "\x1b[0m")
+		got, raw := theme.ResolveSetting(theme.RawKeys{Light: "\n", Dark: "\x1b[0m"})
 
 		if got.Light != theme.DefaultLightSlug || got.Dark != theme.DefaultDarkSlug {
 			t.Errorf("Setting slots = {light %q, dark %q}, want the shipped pair {%q, %q}", got.Light, got.Dark, theme.DefaultLightSlug, theme.DefaultDarkSlug)
@@ -293,7 +293,7 @@ func TestResolveSetting_NoTrimOrLowercase(t *testing.T) {
 // them separately is what would let the panel's list and its badges drift.
 func TestResolveSetting_ReturnsRawKeysForTheSameEvaluation(t *testing.T) {
 	t.Run("a default substituted into the setting never reaches the raw keys", func(t *testing.T) {
-		got, raw := theme.ResolveSetting("", "", "nord")
+		got, raw := theme.ResolveSetting(theme.RawKeys{Dark: "nord"})
 
 		if got.Light != theme.DefaultLightSlug {
 			t.Errorf("Light = %q, want the shipped default %q", got.Light, theme.DefaultLightSlug)
@@ -307,8 +307,8 @@ func TestResolveSetting_ReturnsRawKeysForTheSameEvaluation(t *testing.T) {
 	})
 
 	t.Run("the raw keys are the same whichever state the setting resolved to", func(t *testing.T) {
-		constant, constantRaw := theme.ResolveSetting("nord", "solarized\n", "gruvbox")
-		adaptive, adaptiveRaw := theme.ResolveSetting("", "solarized\n", "gruvbox")
+		constant, constantRaw := theme.ResolveSetting(theme.RawKeys{Theme: "nord", Light: "solarized\n", Dark: "gruvbox"})
+		adaptive, adaptiveRaw := theme.ResolveSetting(theme.RawKeys{Light: "solarized\n", Dark: "gruvbox"})
 
 		if !constant.IsConstant || adaptive.IsConstant {
 			t.Fatalf("the two calls did not resolve to different states: %+v and %+v", constant, adaptive)
@@ -323,17 +323,17 @@ func TestResolveSetting_ReturnsRawKeysForTheSameEvaluation(t *testing.T) {
 }
 
 // TestResolveSetting_IsPureAndDeterministic pins the property every later phase
-// leans on without re-checking: resolution is a total function of its three
-// inputs.
+// leans on without re-checking: resolution is a total function of the keys it is
+// handed.
 //
 // It reads no file, no environment and no clock, returns no error, and answers
 // the same triple identically every time — so a surface may resolve whenever it
 // needs to, and two surfaces resolving the same keys cannot disagree.
 func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	t.Run("it answers the same triple identically", func(t *testing.T) {
-		first, firstRaw := theme.ResolveSetting("\x1b[31mno\trd", "", "gruvbox")
-		theme.ResolveSetting("solarized", "a", "b")
-		second, secondRaw := theme.ResolveSetting("\x1b[31mno\trd", "", "gruvbox")
+		first, firstRaw := theme.ResolveSetting(theme.RawKeys{Theme: "\x1b[31mno\trd", Dark: "gruvbox"})
+		theme.ResolveSetting(theme.RawKeys{Theme: "solarized", Light: "a", Dark: "b"})
+		second, secondRaw := theme.ResolveSetting(theme.RawKeys{Theme: "\x1b[31mno\trd", Dark: "gruvbox"})
 
 		if first != second {
 			t.Errorf("Setting = %+v then %+v for the same input, want identical", first, second)
@@ -350,7 +350,7 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 				t.Fatalf("unquote import %s: %v", spec.Path.Value, err)
 			}
 			if why, impure := impureSettingImports[path]; impure {
-				t.Errorf("setting.go imports %q, which %s — resolution is a pure function of its three inputs", path, why)
+				t.Errorf("setting.go imports %q, which %s — resolution is a pure function of the keys it is handed", path, why)
 			}
 		}
 	})
@@ -369,10 +369,10 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 		})
 
 		signature := reflect.TypeOf(theme.ResolveSetting)
-		for i := range signature.NumIn() {
-			if got := signature.In(i).Kind(); got != reflect.String {
-				t.Errorf("ResolveSetting parameter %d is a %s, want a string — the function is handed slugs, never palettes", i, got)
-			}
+		wantIn := []reflect.Type{reflect.TypeFor[theme.RawKeys]()}
+		gotIn := slices.Collect(signature.Ins())
+		if !slices.Equal(gotIn, wantIn) {
+			t.Errorf("ResolveSetting takes %v, want %v — the whole value, so no call site can hand the slots over transposed", gotIn, wantIn)
 		}
 		wantOut := []reflect.Type{reflect.TypeFor[theme.Setting](), reflect.TypeFor[theme.RawKeys]()}
 		gotOut := slices.Collect(signature.Outs())
@@ -462,7 +462,7 @@ func TestInForceKeys_SelectsTheKeysInForce(t *testing.T) {
 // its absence from the keys in force is evidence that the RAW value is what was
 // read rather than the resolved slot.
 func TestInForceKeys_UnsetSlotIsNeverInForce(t *testing.T) {
-	setting, _ := theme.ResolveSetting("", "", "gruv")
+	setting, _ := theme.ResolveSetting(theme.RawKeys{Dark: "gruv"})
 	if setting.Light != theme.DefaultLightSlug {
 		t.Fatalf("Setting.Light = %q, want the substituted default %q — the assertion below would be vacuous", setting.Light, theme.DefaultLightSlug)
 	}
@@ -483,7 +483,7 @@ func TestInForceKeys_UnsetSlotIsNeverInForce(t *testing.T) {
 // same function — stripping is idempotent, and the resolution is pure and total.
 func TestInForceKeys_AcceptsAlreadyResolvedKeys(t *testing.T) {
 	asRead := theme.RawKeys{Light: "\x1b[31msolar\n", Dark: "gruv\t"}
-	_, resolved := theme.ResolveSetting(asRead.Theme, asRead.Light, asRead.Dark)
+	_, resolved := theme.ResolveSetting(asRead)
 
 	if resolved == asRead {
 		t.Fatalf("the fixture strips to itself (%+v) — the assertion below would not be about stripping at all", resolved)
@@ -590,6 +590,68 @@ func TestRawKeys_TransformationsLeaveTheReceiverAlone(t *testing.T) {
 	}
 	if constant == original || slotted == original {
 		t.Errorf("WithConstant returned %+v and WithMember %+v over %+v; neither moved, so an untouched receiver says nothing", constant, slotted, original)
+	}
+}
+
+// TestNewRawKeys_StripsControlFromEveryKey pins that the removal is a property of
+// CONSTRUCTING the value: a caller building keys at the prefs boundary gets the
+// stripped form without running a step of its own.
+func TestNewRawKeys_StripsControlFromEveryKey(t *testing.T) {
+	got := theme.NewRawKeys("\x1b[31mnord\x1b[0m", "so\tlar", "gruv\n")
+
+	if want := (theme.RawKeys{Theme: "nord", Light: "solar", Dark: "gruv"}); got != want {
+		t.Errorf("NewRawKeys = %+v, want %+v", got, want)
+	}
+}
+
+// TestNewRawKeys_ControlOnlyValueStripsToEmpty pins the resolution of an
+// ambiguity: a value that is ONLY control characters is unset rather than an
+// illegal slug, because stripping happens as the value is built and the empty
+// string is the unset sentinel every later rule reads.
+func TestNewRawKeys_ControlOnlyValueStripsToEmpty(t *testing.T) {
+	keys := theme.NewRawKeys("\x1b[31m\n\t", "\r", "\x1b[0m")
+
+	if want := (theme.RawKeys{}); keys != want {
+		t.Errorf("NewRawKeys = %+v, want %+v — a control-only value is unset", keys, want)
+	}
+
+	setting, raw := theme.ResolveSetting(keys)
+
+	if setting.IsConstant {
+		t.Errorf("IsConstant = true (Constant %q), want false — a value that strips to empty is unset, not a constant", setting.Constant)
+	}
+	if setting.Light != theme.DefaultLightSlug || setting.Dark != theme.DefaultDarkSlug {
+		t.Errorf("Setting slots = {light %q, dark %q}, want the shipped pair {%q, %q}", setting.Light, setting.Dark, theme.DefaultLightSlug, theme.DefaultDarkSlug)
+	}
+	if want := (theme.RawKeys{}); raw != want {
+		t.Errorf("RawKeys = %+v, want %+v", raw, want)
+	}
+}
+
+// TestNewRawKeys_IsIdempotent pins that construction over already-stripped values
+// is a no-op, which is what lets a caller holding either form hand its keys to
+// ResolveSetting and get the same answer.
+func TestNewRawKeys_IsIdempotent(t *testing.T) {
+	once := theme.NewRawKeys("\x1b[31mnord", "so\tlar", "gruv\n")
+
+	if twice := theme.NewRawKeys(once.Theme, once.Light, once.Dark); twice != once {
+		t.Errorf("NewRawKeys over the stripped %+v = %+v, want it unchanged", once, twice)
+	}
+}
+
+// TestResolveSetting_StripsKeysItIsHandedUnstripped pins that the collapse owns
+// the normalisation: keys built as a plain literal from bytes off disk resolve
+// exactly as constructed ones do.
+func TestResolveSetting_StripsKeysItIsHandedUnstripped(t *testing.T) {
+	asRead := theme.RawKeys{Light: "so\tlar", Dark: "\x1b[31mgruv\n"}
+
+	setting, raw := theme.ResolveSetting(asRead)
+
+	if want := (theme.RawKeys{Light: "solar", Dark: "gruv"}); raw != want {
+		t.Errorf("RawKeys = %+v, want the stripped %+v", raw, want)
+	}
+	if setting.Light != "solar" || setting.Dark != "gruv" {
+		t.Errorf("Setting slots = {light %q, dark %q}, want the stripped {%q, %q}", setting.Light, setting.Dark, "solar", "gruv")
 	}
 }
 

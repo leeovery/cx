@@ -196,11 +196,14 @@ func TestTokenColor_ResolvesHexThroughLipgloss(t *testing.T) {
 // definition of those two words, which the persister and doctor read across the
 // package boundary rather than restating, and single-sourcing the silenced
 // loader added NewSilentLoader beside NewLoader — the diagnose-shaped
-// callers assembled that seam themselves until it had one definition here.
+// callers assembled that seam themselves until it had one definition here, and
+// taking the raw keys as a value added NewRawKeys — which control-strips the
+// three keys as it builds them, so ResolveSetting takes that value rather than
+// three interchangeable strings.
 // Nothing on the removed list ever returns to it.
 //
-// InForceKeys and the InForceKey it yields are the latest such addition, and
-// they are exported for a REASON RATHER THAN FOR A CALLER'S CONVENIENCE: which
+// InForceKeys and the InForceKey it yields are exported for a REASON RATHER THAN
+// FOR A CALLER'S CONVENIENCE: which
 // persisted keys Portal is actually reading — the constant-or-pair rule's tiebreak, then the
 // slots the user really set, then two slots naming one value collapsed — is one rule
 // that the union rule's panel rows and the pinned copy's doctor lines must answer identically,
@@ -319,6 +322,7 @@ var wantExports = []string{
 	"MemberPalette",
 	"NewEventLogger",
 	"NewLoader",
+	"NewRawKeys",
 	"NewSilentLoader",
 	"Nomination",
 	"Nomination.Constant",

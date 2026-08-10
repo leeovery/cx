@@ -764,7 +764,7 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 
 		// Vacuity guard: the staged loader really does raise the fatal on the
 		// resolver this producer refuses to use.
-		setting, _ := theme.ResolveSetting("", "solar", "gruv")
+		setting, _ := theme.ResolveSetting(theme.RawKeys{Light: "solar", Dark: "gruv"})
 		if _, err := loader.ResolveNomination(setting, dir); err == nil {
 			t.Fatal("the staged loader raises no fatal through ResolveNomination — the assertion below would be vacuous")
 		}

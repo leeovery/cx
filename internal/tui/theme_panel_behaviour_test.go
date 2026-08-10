@@ -185,7 +185,7 @@ func behaviourPanelAt(t *testing.T, entries []theme.Entry, keys theme.RawKeys, c
 func behaviourNomination(t *testing.T, e *behaviourEnumerator, keys theme.RawKeys) theme.Nomination {
 	t.Helper()
 
-	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	setting, _ := theme.ResolveSetting(keys)
 	resolution, err := e.Resolve(e.enumeration, setting)
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)

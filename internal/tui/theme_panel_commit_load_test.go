@@ -113,7 +113,7 @@ func newAdaptivePanelModel(t *testing.T, dir string, keys theme.RawKeys, reply t
 func newLoadPanelModel(t *testing.T, dir string, keys theme.RawKeys, loader theme.Loader) (Model, *fakeThemePersister) {
 	t.Helper()
 
-	setting, _ := theme.ResolveSetting(keys.Theme, keys.Light, keys.Dark)
+	setting, _ := theme.ResolveSetting(keys)
 	resolution, err := theme.NewLoader(nil).ResolveNomination(setting, dir)
 	if err != nil {
 		t.Fatalf("construction-time resolution of %+v: %v", setting, err)
