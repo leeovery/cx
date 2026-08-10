@@ -2,6 +2,7 @@ package theme_test
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,7 +22,7 @@ const builtinsDir = "builtins"
 const tokyoNightSlug = "tokyo-night"
 
 // tokyoNightPath is the committed source of the first built-in.
-var tokyoNightPath = filepath.Join(builtinsDir, tokyoNightSlug+".theme")
+var tokyoNightPath = builtinPath(tokyoNightSlug)
 
 // TestTokyoNightFile_HasNineteenKeysAndNoBorderFooter pins the shipped file's
 // SHAPE, as distinct from the palette its values name.
@@ -34,12 +35,7 @@ var tokyoNightPath = filepath.Join(builtinsDir, tokyoNightSlug+".theme")
 // format was chosen to carry and which `portal theme export` ships
 // verbatim to a user copying it.
 func TestTokyoNightFile_HasNineteenKeysAndNoBorderFooter(t *testing.T) {
-	data, err := os.ReadFile(tokyoNightPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", tokyoNightPath, err)
-	}
-
-	text := string(data)
+	text := readBuiltinFile(t, tokyoNightSlug)
 	if first := firstNonBlankLine(text); !strings.HasPrefix(first, "#") {
 		t.Errorf("%s opens with %q, want a # header comment naming the palette and its source", tokyoNightPath, first)
 	}
@@ -71,10 +67,7 @@ func TestTokyoNightFile_HasNineteenKeysAndNoBorderFooter(t *testing.T) {
 // bytes it is handed, so mutating them can corrupt neither the embedded set nor
 // the next caller's read.
 func TestBuiltinBytes_MatchesCommittedFile(t *testing.T) {
-	committed, err := os.ReadFile(tokyoNightPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", tokyoNightPath, err)
-	}
+	committed := []byte(readBuiltinFile(t, tokyoNightSlug))
 
 	t.Run("byte-identical to the committed file", func(t *testing.T) {
 		got, found := theme.BuiltinBytes(tokyoNightSlug)
@@ -138,6 +131,35 @@ func TestBuiltinSlugs_DerivedAndSorted(t *testing.T) {
 	}
 	if !slices.Contains(got, tokyoNightSlug) {
 		t.Errorf("BuiltinSlugs() = %v, want it to contain %q", got, tokyoNightSlug)
+	}
+}
+
+// TestBuiltins_AreEnrolledInFloorChecks pins every embedded built-in into the
+// contrast gate's auto-enumerated floor set.
+//
+// Enrolment is what makes each floor a statement about EVERY shipped palette
+// rather than about one reference theme: no floor is relaxed per built-in, and
+// every leg is measured against that theme's own canvas by the same code. A
+// palette that silently stopped being measured is the failure the bundled tier
+// exists to prevent — it would look fine and could read badly, most acutely on a
+// light theme, whose floors only mean anything against its own near-white, and
+// on a mid-dark canvas, where several legs clear by hundredths.
+//
+// The expectation is read off the COMMITTED directory rather than off the same
+// enumeration the floor set is built from, which is what leaves the assertion
+// able to fail: a .theme file that is committed but never reaches the floor set
+// — an embed pattern narrowed to a subset, say — is named here. Reading the
+// enumerated set on both sides would compare it against itself.
+//
+// It names no theme, so a built-in added to builtins/ is enrolled here with no
+// test edit — the same property that makes adding a theme adding a file.
+func TestBuiltins_AreEnrolledInFloorChecks(t *testing.T) {
+	enrolled := embeddedThemes(t)
+
+	for _, slug := range committedBuiltinSlugs(t) {
+		if _, isEnrolled := enrolled[slug]; !isEnrolled {
+			t.Errorf("the floor tests enrol %v, want %q among them", slices.Sorted(maps.Keys(enrolled)), slug)
+		}
 	}
 }
 
@@ -258,10 +280,7 @@ func TestLoadBuiltin_TokyoNightValuesAreUppercaseCanonical(t *testing.T) {
 // bytes that were parsed, comments and trailing newline included, on either
 // route in.
 func TestLoadBuiltin_UsesTheSharedParsePath(t *testing.T) {
-	committed, err := os.ReadFile(tokyoNightPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", tokyoNightPath, err)
-	}
+	committed := []byte(readBuiltinFile(t, tokyoNightSlug))
 
 	embedded, rejection, found := theme.Loader{}.LoadBuiltin(tokyoNightSlug)
 	if rejection != nil || !found {

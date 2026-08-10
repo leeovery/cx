@@ -1,7 +1,7 @@
 package theme_test
 
 import (
-	"maps"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,9 +14,6 @@ import (
 // tokyoNightDaySlug is the light built-in's slug — the stem of its committed
 // filename, which the filename-is-identity rule makes its identity.
 const tokyoNightDaySlug = "tokyo-night-day"
-
-// tokyoNightDayPath is the committed source of the light built-in.
-var tokyoNightDayPath = filepath.Join(builtinsDir, tokyoNightDaySlug+".theme")
 
 // wantTokyoNightDayTokens is the shipped Tokyo Night light table — the values MV carried as
 // its Light variants — in canonical table order and in the hex-only value rule's canonical
@@ -79,25 +76,6 @@ func TestLoadBuiltin_TokyoNightDayIsValid(t *testing.T) {
 	}
 }
 
-// TestTokyoNightDay_IsEnrolledInFloorChecks pins the light built-in into
-// the contrast gate's auto-enumerated floor set.
-//
-// Enrolment is what makes every floor in contrast_test.go a statement about
-// THIS palette rather than about the dark one alone — and it is the property
-// that has to hold for a light theme in particular, since its floors are
-// measured against its own near-white canvas rather than a dark reference. The
-// enumeration is derived, so this cannot fail without the file having gone
-// missing from the embedded set; it is asserted because a light built-in that
-// silently stopped being measured is exactly the failure the bundled tier
-// exists to prevent.
-func TestTokyoNightDay_IsEnrolledInFloorChecks(t *testing.T) {
-	enrolled := slices.Sorted(maps.Keys(embeddedThemes(t)))
-
-	if !slices.Contains(enrolled, tokyoNightDaySlug) {
-		t.Errorf("the floor tests enrol %v, want %q among them", enrolled, tokyoNightDaySlug)
-	}
-}
-
 // sevenCheckedValues is the erratum re-derivation check, as the record the shipped
 // file must carry for each value it covers.
 //
@@ -111,17 +89,14 @@ func TestTokyoNightDay_IsEnrolledInFloorChecks(t *testing.T) {
 // state.positive's original is #4C7A1F rather than the intermediate #456E1C: it
 // was darkened twice, so measuring against the intermediate would understate the
 // loss.
-var sevenCheckedValues = []struct {
-	token, shipped string
-	figures        []string
-}{
-	{"text.tertiary", "#4C5478", []string{"#515A80", "95.6%", "#4C557B", "0.0051", "under the 0.05 threshold"}},
-	{"text.muted", "#586093", []string{"#5A6296", "98.5%", "#596295", "0.0063", "under the 0.05 threshold"}},
-	{"text.subtle", "#767DA2", []string{"#7C84AA", "98.0%", "#7A7FA5", "0.0091", "under the 0.05 threshold"}},
-	{"accent.key", "#2D5CCA", []string{"#2E5FD0", "97.8%", "#2D5ECE", "0.0078", "under the 0.05 threshold"}},
-	{"accent.mode", "#0D6C87", []string{"#0E7490", "95.5%", "#036E8B", "0.0075", "under the 0.05 threshold"}},
-	{"state.positive", "#3B5E18", []string{"#4C7A1F", "81.2%", "#406000", "0.0162", "under the 0.05 threshold"}},
-	{"state.destructive", "#BD2545", []string{"#C32647", "97.5%", "#C12445", "0.0080", "under the 0.05 threshold"}},
+var sevenCheckedValues = []derivationRecord{
+	{kind: "re-derivation", token: "text.tertiary", shipped: "#4C5478", figures: []string{"#515A80", "95.6%", "#4C557B", "0.0051", "under the 0.05 threshold"}},
+	{kind: "re-derivation", token: "text.muted", shipped: "#586093", figures: []string{"#5A6296", "98.5%", "#596295", "0.0063", "under the 0.05 threshold"}},
+	{kind: "re-derivation", token: "text.subtle", shipped: "#767DA2", figures: []string{"#7C84AA", "98.0%", "#7A7FA5", "0.0091", "under the 0.05 threshold"}},
+	{kind: "re-derivation", token: "accent.key", shipped: "#2D5CCA", figures: []string{"#2E5FD0", "97.8%", "#2D5ECE", "0.0078", "under the 0.05 threshold"}},
+	{kind: "re-derivation", token: "accent.mode", shipped: "#0D6C87", figures: []string{"#0E7490", "95.5%", "#036E8B", "0.0075", "under the 0.05 threshold"}},
+	{kind: "re-derivation", token: "state.positive", shipped: "#3B5E18", figures: []string{"#4C7A1F", "81.2%", "#406000", "0.0162", "under the 0.05 threshold"}},
+	{kind: "re-derivation", token: "state.destructive", shipped: "#BD2545", figures: []string{"#C32647", "97.5%", "#C12445", "0.0080", "under the 0.05 threshold"}},
 }
 
 // TestTokyoNightDayFile_SevenValuesCarryDerivationComments is the guard on
@@ -138,41 +113,21 @@ var sevenCheckedValues = []struct {
 // reworded but not hollowed out: drop the re-derivation or the chroma
 // percentage and the test names which one went.
 func TestTokyoNightDayFile_SevenValuesCarryDerivationComments(t *testing.T) {
-	text := readTokyoNightDay(t)
-
-	for _, checked := range sevenCheckedValues {
-		t.Run(checked.token, func(t *testing.T) {
-			if got := valueFor(t, text, checked.token); got != checked.shipped {
-				t.Errorf("%s = %s, want the shipped %s", checked.token, got, checked.shipped)
-			}
-
-			block := commentBlockAbove(t, text, checked.token)
-			if block == "" {
-				t.Fatalf("%s carries no # comment — §7.7's figures have nowhere else to live", checked.token)
-			}
-			for _, figure := range checked.figures {
-				if !strings.Contains(block, figure) {
-					t.Errorf("%s's comment omits %q:\n%s", checked.token, figure, block)
-				}
-			}
-		})
-	}
+	assertDerivationRecords(t, readBuiltinFile(t, tokyoNightDaySlug), sevenCheckedValues, "")
 }
 
-// pinnedTints is the contrast gate's four eyeball-pinned light surface tints, with the dark
-// anchor each was lifted from.
+// pinnedTints is the contrast gate's four eyeball-pinned light surface tints,
+// each carrying as its required figure the dark anchor it was lifted from.
 //
 // The count of four is load-bearing: it is what decides which notes move
 // into the theme file, and it is four rather than three because the border
 // consolidation collapsed border.separator and border.footer into one token that
 // keeps its pin.
-var pinnedTints = []struct {
-	token, value, anchor string
-}{
-	{"bg.selection", "#D0C6F0", "#28243a"},
-	{"bg.attention", "#E8D6A8", "#241B10"},
-	{"bg.subtle", "#D2D4DE", "#26283A"},
-	{"border", "#C9CDDB", "#292E42"},
+var pinnedTints = []derivationRecord{
+	{kind: "eyeball pin", marker: eyeballMarker, token: "bg.selection", shipped: "#D0C6F0", figures: []string{"#28243a"}},
+	{kind: "eyeball pin", marker: eyeballMarker, token: "bg.attention", shipped: "#E8D6A8", figures: []string{"#241B10"}},
+	{kind: "eyeball pin", marker: eyeballMarker, token: "bg.subtle", shipped: "#D2D4DE", figures: []string{"#26283A"}},
+	{kind: "eyeball pin", marker: eyeballMarker, token: "border", shipped: "#C9CDDB", figures: []string{"#292E42"}},
 }
 
 // eyeballMarker is the phrase the four pins carry and nothing else does. It is
@@ -194,35 +149,9 @@ const eyeballMarker = "eyeball-confirmed"
 // derived numerically would make the four-token count — which decides how wide
 // the light-only carve-out has to be — a guess.
 func TestTokyoNightDayFile_PinnedTintsCarryDerivationComments(t *testing.T) {
-	text := readTokyoNightDay(t)
+	marked := fmt.Sprintf("the eyeball-pinned set is the four surface tints %v", recordTokens(pinnedTints))
 
-	pinned := map[string]struct{}{}
-	for _, pin := range pinnedTints {
-		pinned[pin.token] = struct{}{}
-
-		t.Run(pin.token, func(t *testing.T) {
-			if got := valueFor(t, text, pin.token); got != pin.value {
-				t.Errorf("%s = %s, want the pinned %s", pin.token, got, pin.value)
-			}
-
-			block := commentBlockAbove(t, text, pin.token)
-			if !strings.Contains(block, pin.anchor) {
-				t.Errorf("%s's comment omits its dark anchor %s:\n%s", pin.token, pin.anchor, block)
-			}
-			if !strings.Contains(block, eyeballMarker) {
-				t.Errorf("%s's comment omits %q — the pin's whole justification:\n%s", pin.token, eyeballMarker, block)
-			}
-		})
-	}
-
-	for _, token := range theme.TokenNames() {
-		if _, isPin := pinned[token]; isPin {
-			continue
-		}
-		if strings.Contains(commentBlockAbove(t, text, token), eyeballMarker) {
-			t.Errorf("%s claims %q, but the eyeball-pinned set is the four surface tints %v", token, eyeballMarker, pinned)
-		}
-	}
+	assertDerivationRecords(t, readBuiltinFile(t, tokyoNightDaySlug), pinnedTints, marked)
 }
 
 // TestTokyoNightDayFile_AccentPrimaryUnchangedAndMarkedOutOfScope pins the one
@@ -234,7 +163,7 @@ func TestTokyoNightDayFile_PinnedTintsCarryDerivationComments(t *testing.T) {
 // bookkeeping: the alternative is a value sitting silently among six corrected
 // neighbours, indistinguishable from one whose record was forgotten.
 func TestTokyoNightDayFile_AccentPrimaryUnchangedAndMarkedOutOfScope(t *testing.T) {
-	text := readTokyoNightDay(t)
+	text := readBuiltinFile(t, tokyoNightDaySlug)
 
 	if got, want := valueFor(t, text, "accent.primary"), "#8A3FD1"; got != want {
 		t.Errorf("accent.primary = %s, want the unchanged %s", got, want)
@@ -267,7 +196,7 @@ func TestLoadBuiltin_CommentsDoNotAffectParse(t *testing.T) {
 		t.Fatalf("LoadBuiltin(%q) = (rejection %v, found %t), want the embedded built-in", tokyoNightDaySlug, rejection, found)
 	}
 
-	text := readTokyoNightDay(t)
+	text := readBuiltinFile(t, tokyoNightDaySlug)
 	kept := []string{}
 	for line := range strings.SplitSeq(text, "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed == "" || strings.HasPrefix(trimmed, "#") {
@@ -293,20 +222,114 @@ func TestLoadBuiltin_CommentsDoNotAffectParse(t *testing.T) {
 	}
 }
 
-// readTokyoNightDay reads the committed light built-in's source.
+// builtinPath is the path of the built-in's committed source, derived from its
+// slug by the filename-is-identity rule.
+func builtinPath(slug string) string {
+	return filepath.Join(builtinsDir, slug+theme.FileExtension)
+}
+
+// readBuiltinFile reads the committed source of the built-in named slug.
 //
 // The comment guards read the FILE rather than Result.Source so they are
 // assertions about what is committed: the embedding is pinned to the committed
 // bytes separately, and a guard that read through the embed could not tell a
 // missing comment from a stale build.
-func readTokyoNightDay(t *testing.T) string {
+//
+// It is keyed by slug rather than written once per palette, so a built-in added
+// to builtins/ is readable here with no new helper.
+func readBuiltinFile(t *testing.T, slug string) string {
 	t.Helper()
 
-	data, err := os.ReadFile(tokyoNightDayPath)
+	path := builtinPath(slug)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read %s: %v", tokyoNightDayPath, err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(data)
+}
+
+// derivationRecord is one value whose shipped hex the file must justify: the
+// figures its `#` comment carries, and — where the value is not the palette's
+// own — the marker by which the comment names the kind of judgement made.
+//
+// kind labels the record in subtest names and failure messages. A record with
+// no marker still requires its figures; what it does not do is grant its token
+// the right to carry one, so a note about why a palette was read a certain way is
+// not confused with a claim that Portal moved the value.
+type derivationRecord struct {
+	kind    string
+	token   string
+	shipped string
+	figures []string
+	marker  string
+}
+
+// assertDerivationRecords asserts each record's shipped value and the figures
+// its comment block carries, then sweeps every token for a marker no
+// record grants it.
+//
+// The sweep is what keeps a marked set honest: a value lifted straight from a
+// palette cannot quietly acquire a justification it does not need, and the count
+// of marked values stays a fact rather than a guess. markedSet states what the
+// marked set is and is quoted on a false claim.
+//
+// The markers swept are derived from the records, so deleting every record
+// carrying a marker retires that marker's sweep silently — a record slice
+// carrying no markers sweeps nothing and never reads markedSet.
+//
+// The figures rather than the prose are asserted, so a record can be reworded
+// but not hollowed out.
+func assertDerivationRecords(t *testing.T, text string, records []derivationRecord, markedSet string) {
+	t.Helper()
+
+	claimed := map[string]string{}
+	markers := []string{}
+	for _, record := range records {
+		if record.marker != "" {
+			claimed[record.token] = record.marker
+			if !slices.Contains(markers, record.marker) {
+				markers = append(markers, record.marker)
+			}
+		}
+
+		t.Run(record.kind+"/"+record.token, func(t *testing.T) {
+			if got := valueFor(t, text, record.token); got != record.shipped {
+				t.Errorf("%s = %s, want the shipped %s", record.token, got, record.shipped)
+			}
+
+			block := commentBlockAbove(t, text, record.token)
+			if block == "" {
+				t.Fatalf("%s carries no # comment — its %s has nowhere else to live", record.token, record.kind)
+			}
+			if record.marker != "" && !strings.Contains(block, record.marker) {
+				t.Errorf("%s's comment omits the %s marker %q — the value's whole justification:\n%s",
+					record.token, record.kind, record.marker, block)
+			}
+			for _, figure := range record.figures {
+				if !strings.Contains(block, figure) {
+					t.Errorf("%s's comment omits %q:\n%s", record.token, figure, block)
+				}
+			}
+		})
+	}
+
+	for _, token := range theme.TokenNames() {
+		block := commentBlockAbove(t, text, token)
+		for _, marker := range markers {
+			if strings.Contains(block, marker) && claimed[token] != marker {
+				t.Errorf("%s claims %q, but %s", token, marker, markedSet)
+			}
+		}
+	}
+}
+
+// recordTokens returns the token of each record, in record order.
+func recordTokens(records []derivationRecord) []string {
+	tokens := make([]string, 0, len(records))
+	for _, record := range records {
+		tokens = append(tokens, record.token)
+	}
+	return tokens
 }
 
 // declaresKey reports whether one line of the file is the pair declaring key.

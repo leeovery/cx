@@ -1,9 +1,7 @@
 package theme_test
 
 import (
-	"maps"
-	"os"
-	"path/filepath"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -16,7 +14,7 @@ import (
 const nordSlug = "nord"
 
 // nordPath is the committed source of the Nord built-in.
-var nordPath = filepath.Join(builtinsDir, nordSlug+".theme")
+var nordPath = builtinPath(nordSlug)
 
 // wantNordTokens is the Nord port's port table — the 19 values Nord ships — in canonical table
 // order and in the hex-only value rule's canonical upper case.
@@ -86,37 +84,6 @@ func TestLoadBuiltin_NordIsValid(t *testing.T) {
 	}
 }
 
-// TestNord_IsEnrolledInFloorChecks pins the Nord built-in into the contrast gate's
-// auto-enumerated floor set.
-//
-// Enrolment is the whole shape of this port's verification: no test names Nord,
-// no floor is relaxed for it, and every contrast-floor leg is measured against Nord's own
-// canvas #2E3440 by the same code that measures the other built-ins. That
-// matters more here than for either Tokyo Night, because #2E3440 is a MID-dark
-// rather than a near-black — the headroom is materially tighter and several legs
-// clear by hundredths, so a palette that quietly stopped being measured would
-// look fine and read badly.
-//
-// The set is derived from BuiltinSlugs, so this also pins that the file is
-// embedded, enumerated and reserved with no Go edit.
-func TestNord_IsEnrolledInFloorChecks(t *testing.T) {
-	enrolled := slices.Sorted(maps.Keys(embeddedThemes(t)))
-
-	if !slices.Contains(enrolled, nordSlug) {
-		t.Errorf("the floor tests enrol %v, want %q among them", enrolled, nordSlug)
-	}
-}
-
-// nordJudgement is one value the port did not lift straight from the palette,
-// together with the figures its `#` comment must carry.
-//
-// The figures rather than the prose are what the guard asserts, so the record
-// can be reworded but not hollowed out.
-type nordJudgement struct {
-	token, shipped string
-	figures        []string
-}
-
 // nordCorrections is the port's two contrast corrections, as the record the
 // shipped file must carry for each.
 //
@@ -126,9 +93,17 @@ type nordJudgement struct {
 // figure is the load-bearing one: it is what makes the value checkable against
 // the Nord port's derivation rule if it is ever re-derived, and it is the quantity that
 // diagnosed the first, rejected red.
-var nordCorrections = []nordJudgement{
-	{"state.destructive", "#DD8188", []string{"#BF616A", "3.05", "94%", "4.50", "Oklab"}},
-	{"state.positive", "#A7C492", []string{"#A3BE8C", "4.23", "0.018", "100.8%", "4.50", "Oklab"}},
+var nordCorrections = []derivationRecord{
+	{
+		kind: "correction", marker: correctionMarker,
+		token: "state.destructive", shipped: "#DD8188",
+		figures: []string{"#BF616A", "3.05", "94%", "4.50", "Oklab"},
+	},
+	{
+		kind: "correction", marker: correctionMarker,
+		token: "state.positive", shipped: "#A7C492",
+		figures: []string{"#A3BE8C", "4.23", "0.018", "100.8%", "4.50", "Oklab"},
+	},
 }
 
 // nordInventions is the port's three invented values, as the record the shipped
@@ -144,10 +119,22 @@ var nordCorrections = []nordJudgement{
 // precedent for how an invention is settled: its first arithmetic answer
 // (#54524F, a 20% blend) was rejected on sight as far too heavy and as a warm
 // grey outside Nord's cool family.
-var nordInventions = []nordJudgement{
-	{"text.muted", "#939EB2", []string{"nord3", "interpolated", "4.62"}},
-	{"text.subtle", "#73819B", []string{"nord3", "interpolated", "3.18"}},
-	{"bg.attention", "#3D4046", []string{"nord13", "8%", "1.20", "#54524F", "visual gate"}},
+var nordInventions = []derivationRecord{
+	{
+		kind: "invention", marker: inventionMarker,
+		token: "text.muted", shipped: "#939EB2",
+		figures: []string{"nord3", "interpolated", "4.62"},
+	},
+	{
+		kind: "invention", marker: inventionMarker,
+		token: "text.subtle", shipped: "#73819B",
+		figures: []string{"nord3", "interpolated", "3.18"},
+	},
+	{
+		kind: "invention", marker: inventionMarker,
+		token: "bg.attention", shipped: "#3D4046",
+		figures: []string{"nord13", "8%", "1.20", "#54524F", "visual gate"},
+	},
 }
 
 // nordPortNotes is the two findings the Nord port calls worth carrying forward — port
@@ -159,26 +146,22 @@ var nordInventions = []nordJudgement{
 // holds three values for five of Portal's dark-end roles. Written down, each is
 // a decision; unwritten, the first reads as a missed warm tint and the second as
 // a copy-paste.
-var nordPortNotes = []nordJudgement{
-	{"text.on-attention", "#ECEFF4", []string{"nord6", "cool", "9.02"}},
-	{"border", "#4C566A", []string{"nord3", "text.faint"}},
-}
-
-// nordJudgementGroups is the three kinds of note the file carries, each with the
-// marker its members must name themselves by.
 //
 // The port notes carry NO marker, which is the distinction the guard rests on:
 // a marker is a claim that a value is not Nord's own, and text.on-attention and
 // border ARE Nord's own (nord6 and nord3) — what they record is why the palette
 // was read the way it was, not a value Portal invented or moved.
-var nordJudgementGroups = []struct {
-	kind    string
-	marker  string
-	members []nordJudgement
-}{
-	{"correction", correctionMarker, nordCorrections},
-	{"invention", inventionMarker, nordInventions},
-	{"port note", "", nordPortNotes},
+var nordPortNotes = []derivationRecord{
+	{
+		kind:  "port note",
+		token: "text.on-attention", shipped: "#ECEFF4",
+		figures: []string{"nord6", "cool", "9.02"},
+	},
+	{
+		kind:  "port note",
+		token: "border", shipped: "#4C566A",
+		figures: []string{"nord3", "text.faint"},
+	},
 }
 
 // correctionMarker and inventionMarker are the phrases the five judged values
@@ -200,51 +183,17 @@ const (
 // to every user who copies the file.
 //
 // The assertion is on the FIGURES rather than on the prose, so the record can be
-// reworded but not hollowed out. The final loop is the half that keeps the
+// reworded but not hollowed out. The marker sweep is the half that keeps the
 // 13 + 2 + 3 + 1 arithmetic honest: no OTHER value may claim a correction or an
 // invention, so a straight palette lift cannot quietly acquire a justification
 // it does not need, and text.on-selection's functional maximum cannot be
 // mistaken for either.
 func TestNordFile_CorrectionsAndInventionsCarryComments(t *testing.T) {
-	text := readNord(t)
+	marked := fmt.Sprintf("the port is 13 values taken directly, %d corrections and %d inventions",
+		len(nordCorrections), len(nordInventions))
 
-	judged := map[string]string{}
-	for _, group := range nordJudgementGroups {
-		for _, member := range group.members {
-			if group.marker != "" {
-				judged[member.token] = group.marker
-			}
-
-			t.Run(group.kind+"/"+member.token, func(t *testing.T) {
-				if got := valueFor(t, text, member.token); got != member.shipped {
-					t.Errorf("%s = %s, want the shipped %s", member.token, got, member.shipped)
-				}
-
-				block := commentBlockAbove(t, text, member.token)
-				if block == "" {
-					t.Fatalf("%s carries no # comment — its %s has nowhere else to live", member.token, group.kind)
-				}
-				if group.marker != "" && !strings.Contains(block, group.marker) {
-					t.Errorf("%s's comment does not name itself a %s (want %q):\n%s", member.token, group.kind, group.marker, block)
-				}
-				for _, figure := range member.figures {
-					if !strings.Contains(block, figure) {
-						t.Errorf("%s's comment omits %q:\n%s", member.token, figure, block)
-					}
-				}
-			})
-		}
-	}
-
-	for _, token := range theme.TokenNames() {
-		block := commentBlockAbove(t, text, token)
-		for _, marker := range []string{correctionMarker, inventionMarker} {
-			if strings.Contains(block, marker) && judged[token] != marker {
-				t.Errorf("%s claims %q, but the port is 13 values taken directly, %d corrections and %d inventions",
-					token, marker, len(nordCorrections), len(nordInventions))
-			}
-		}
-	}
+	assertDerivationRecords(t, readBuiltinFile(t, nordSlug),
+		slices.Concat(nordCorrections, nordInventions, nordPortNotes), marked)
 }
 
 // TestNordFile_HeaderAttributesThePalette pins the file's header.
@@ -256,7 +205,7 @@ func TestNordFile_CorrectionsAndInventionsCarryComments(t *testing.T) {
 // one-line statement that two values are corrected for Portal's floors — which
 // is the honest form of shipping adapted values under the palette's own name.
 func TestNordFile_HeaderAttributesThePalette(t *testing.T) {
-	header := leadingCommentBlock(t, readNord(t))
+	header := leadingCommentBlock(t, readBuiltinFile(t, nordSlug))
 
 	if first := firstNonBlankLine(header); !strings.HasPrefix(first, "#") {
 		t.Fatalf("%s opens with %q, want a # header comment naming the palette and its source", nordPath, first)
@@ -292,20 +241,4 @@ func leadingCommentBlock(t *testing.T, text string) string {
 		t.Fatalf("%s opens with no # header comment", nordPath)
 	}
 	return strings.Join(block, "\n")
-}
-
-// readNord reads the committed Nord built-in's source.
-//
-// The comment guards read the FILE rather than Result.Source, for the reason the
-// light built-in's do: the embedding is pinned to the committed bytes
-// separately, and a guard that read through the embed could not tell a missing
-// comment from a stale build.
-func readNord(t *testing.T) string {
-	t.Helper()
-
-	data, err := os.ReadFile(nordPath)
-	if err != nil {
-		t.Fatalf("read %s: %v", nordPath, err)
-	}
-	return string(data)
 }
