@@ -5,12 +5,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/portalbintest"
 )
 
 const (
@@ -289,29 +290,14 @@ func exprText(expr ast.Expr) string {
 	}
 }
 
-// allGoFiles returns every .go file under root, skipping dot-directories. The
-// guards above need PATHS — one reads raw bytes, one parses full ASTs — which
-// forEachGoFile's imports-only parse cannot supply.
+// allGoFiles returns every .go file under root. The guards above need PATHS —
+// one reads raw bytes, one parses full ASTs — which forEachGoFile's
+// imports-only parse cannot supply.
 func allGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	var paths []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if strings.HasPrefix(d.Name(), ".") && d.Name() != "." {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if strings.HasSuffix(d.Name(), ".go") {
-			paths = append(paths, path)
-		}
-		return nil
-	})
+	paths, err := portalbintest.GoSourceFiles(root)
 	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
+		t.Fatalf("enumerate .go files: %v", err)
 	}
 	if len(paths) == 0 {
 		t.Fatalf("walk %s matched no .go files", root)

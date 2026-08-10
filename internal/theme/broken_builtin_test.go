@@ -5,13 +5,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -385,32 +384,29 @@ var builtinSourceOwners = map[string]bool{
 // the field is exported: a `loader.BuiltinSource = …` in cmd is the shape this
 // forbids, and it is invisible from inside internal/theme.
 func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
-	root := themeRepoRoot(t)
+	root, err := portalbintest.ProjectRoot()
+	if err != nil {
+		t.Fatalf("resolve project root: %v", err)
+	}
 	fset := token.NewFileSet()
 	found := 0
 
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			if strings.HasPrefix(entry.Name(), ".") && entry.Name() != "." {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			return nil
+	paths, err := portalbintest.GoSourceFiles(root)
+	if err != nil {
+		t.Fatalf("enumerate .go files: %v", err)
+	}
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
 		}
 
 		rel, relErr := filepath.Rel(root, path)
 		if relErr != nil {
-			return relErr
+			t.Fatalf("relativise %s: %v", path, relErr)
 		}
 		if builtinSourceOwners[rel] {
 			found++
-			return nil
+			continue
 		}
 
 		file, parseErr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
@@ -425,34 +421,9 @@ func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
 			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path §7.6's build-time guarantee covers", rel, fset.Position(sel.Pos()).Line)
 			return true
 		})
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
 	}
 
 	if found != len(builtinSourceOwners) {
 		t.Fatalf("found %d of the %d files that own BuiltinSource — the exemption list names a file that no longer exists, so the scan is not covering what it claims", found, len(builtinSourceOwners))
-	}
-}
-
-// themeRepoRoot walks up from the package directory to the module root (the
-// directory holding go.mod).
-func themeRepoRoot(t *testing.T) string {
-	t.Helper()
-
-	dir, err := filepath.Abs(".")
-	if err != nil {
-		t.Fatalf("resolve package dir: %v", err)
-	}
-	for {
-		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("could not locate the module root (no go.mod above the package dir)")
-		}
-		dir = parent
 	}
 }

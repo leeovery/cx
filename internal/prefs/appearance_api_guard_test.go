@@ -55,39 +55,26 @@ func TestPrefs_AppearanceAPIIsGone(t *testing.T) {
 	// — the discard-guard precedent.
 	self := filepath.Join("internal", "prefs", "appearance_api_guard_test.go")
 
-	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "vendor", "node_modules":
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
+	paths, err := portalbintest.GoSourceFiles(root)
+	if err != nil {
+		t.Fatalf("enumerate .go files: %v", err)
+	}
+	for _, path := range paths {
 		rel, relErr := filepath.Rel(root, path)
 		if relErr != nil {
-			return relErr
+			t.Fatalf("relativise %s: %v", path, relErr)
 		}
 		if rel == self {
-			return nil
+			continue
 		}
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
-			return readErr
+			t.Fatalf("read %s: %v", rel, readErr)
 		}
 		for _, identifier := range appearanceAPIIdentifiers {
 			if strings.Contains(string(data), identifier) {
 				t.Errorf("%s still references %s; §8.8 deletes the appearance enum and its API with its last caller (the raw on-disk field stays)", rel, identifier)
 			}
 		}
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk project tree: %v", walkErr)
 	}
 }

@@ -10,6 +10,7 @@
 // Exported surface:
 //
 //   - ProjectRoot — repo-root resolver (walks up from CWD to find go.mod).
+//   - GoSourceFiles — the .go enumeration the repo-wide source guards share.
 //   - BuildPortalBinary — pure error-returning `go build .` wrapper.
 //   - StagePortalBinary — t.Helper-flavoured build + PATH-prepend +
 //     exec.LookPath composition used by real-tmux
@@ -20,9 +21,11 @@ package portalbintest
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -50,6 +53,46 @@ func ProjectRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// GoSourceFiles returns every .go file under root, test sources included,
+// as paths joined onto root.
+//
+// It records in one place what the guards that consume it cover:
+// directories whose name begins with "." are skipped, as are vendor and
+// node_modules. The skipped tree holds only documentation scaffolding that Go's
+// own tooling already ignores (a leading dot keeps a directory out of every
+// build and every ./... pattern), so nothing a guard is written to police can
+// hide there. A guard that walks its own subset is a guard narrower than its
+// siblings by accident.
+func GoSourceFiles(root string) ([]string, error) {
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if excludedGuardDir(entry.Name()) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".go") {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk %s: %w", root, err)
+	}
+	return paths, nil
+}
+
+func excludedGuardDir(name string) bool {
+	if strings.HasPrefix(name, ".") && name != "." {
+		return true
+	}
+	return name == "vendor" || name == "node_modules"
 }
 
 // BuildPortalBinary compiles the portal CLI into dir/portal using the

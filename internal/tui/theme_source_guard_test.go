@@ -4,11 +4,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/portalbintest"
 )
 
 // oldThemeSubpackage is the import path of the retired internal/tui/theme package.
@@ -254,52 +255,25 @@ func (s themeSources) callsThemeSource(expr ast.Expr) bool {
 	return found
 }
 
-// repoRoot walks up from the package directory to the module root (the directory
-// holding go.mod).
+// repoRoot resolves the module root the repo-wide guards walk.
 func repoRoot(t *testing.T) string {
 	t.Helper()
-	dir, err := filepath.Abs(".")
+	root, err := portalbintest.ProjectRoot()
 	if err != nil {
-		t.Fatalf("resolve package dir: %v", err)
+		t.Fatalf("resolve project root: %v", err)
 	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("could not locate the module root (no go.mod above the package dir)")
-		}
-		dir = parent
-	}
+	return root
 }
 
-// forEachGoFile parses every .go file under root (skipping dot-directories) and
-// hands it to fn.
+// forEachGoFile parses every .go file under root and hands it to fn.
 func forEachGoFile(t *testing.T, root string, fn func(path string, file *ast.File)) {
 	t.Helper()
 	fset := token.NewFileSet()
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	for _, path := range allGoFiles(t, root) {
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if strings.HasPrefix(d.Name(), ".") && d.Name() != "." {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(d.Name(), ".go") {
-			return nil
-		}
-		file, perr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", path, perr)
+			t.Fatalf("parse %s: %v", path, err)
 		}
 		fn(path, file)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
 	}
 }
