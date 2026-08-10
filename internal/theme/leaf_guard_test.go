@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/portalbintest"
 )
 
 // themePkg is the import path of the package under test.
@@ -207,25 +209,14 @@ func parseThemeSources(t *testing.T) []parsedThemeSource {
 	return sources
 }
 
-// themeSourceFiles globs every non-test production .go file in the
-// internal/theme package directory. It is a glob rather than a hand-maintained
-// list so a file added by a later phase is covered automatically, and it fails
-// on an empty match so the scan can never pass vacuously.
+// themeSourceFiles enumerates every non-test production .go file in the
+// internal/theme package directory. It is the whole directory rather than a
+// hand-maintained list so a file added later is covered automatically.
 func themeSourceFiles(t *testing.T) []string {
 	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(".", "*.go"))
+	files, err := portalbintest.PackageGoFiles(".", false)
 	if err != nil {
-		t.Fatalf("glob internal/theme package files: %v", err)
-	}
-	files := make([]string, 0, len(matches))
-	for _, m := range matches {
-		if strings.HasSuffix(filepath.Base(m), "_test.go") {
-			continue
-		}
-		files = append(files, m)
-	}
-	if len(files) == 0 {
-		t.Fatal("themeSourceFiles glob matched no production .go files in internal/theme")
+		t.Fatalf("enumerate the internal/theme package sources: %v", err)
 	}
 	return files
 }

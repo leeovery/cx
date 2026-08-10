@@ -4,12 +4,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -315,26 +316,29 @@ func packageCalls(t *testing.T) map[string][]string {
 }
 
 // parsePackageFilesByName parses the package's production sources, keyed by
-// filename. go test runs in the package's source directory, so the relative walk
-// resolves wherever the suite was invoked from.
+// filename.
 func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	return parsePackageFiles(t, token.NewFileSet())
+}
+
+// parsePackageFiles parses the package's production sources against fset, keyed
+// by filename, for the guards that report source positions and so need the file
+// set the positions resolve against. go test runs in the package's source
+// directory, so the enumeration resolves wherever the suite was invoked from.
+func parsePackageFiles(t *testing.T, fset *token.FileSet) map[string]*ast.File {
+	t.Helper()
+	paths, err := portalbintest.PackageGoFiles(".", false)
 	if err != nil {
-		t.Fatalf("read package dir: %v", err)
+		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}
-	fset := token.NewFileSet()
-	files := map[string]*ast.File{}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+	files := make(map[string]*ast.File, len(paths))
+	for _, path := range paths {
+		parsed, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if perr != nil {
+			t.Fatalf("parse %s: %v", path, perr)
 		}
-		parsed, err := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		files[name] = parsed
+		files[filepath.Base(path)] = parsed
 	}
 	return files
 }

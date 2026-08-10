@@ -6,9 +6,10 @@ import (
 	"go/token"
 	"io"
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
 
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/spf13/cobra"
@@ -220,7 +221,7 @@ func themeCallSites(t *testing.T) map[string]map[string]string {
 	}
 	sites := map[string]map[string]string{}
 
-	for name, file := range parseCmdFiles(t) {
+	for name, file := range parsePackageFilesByName(t) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok {
@@ -266,7 +267,7 @@ func record(sites map[string]map[string]string, file, fn, call string) {
 func componentBindings(t *testing.T, component string) []string {
 	t.Helper()
 	var bound []string
-	for _, file := range parseCmdFiles(t) {
+	for _, file := range parsePackageFilesByName(t) {
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.VAR {
@@ -313,7 +314,7 @@ func isLogForCall(expr ast.Expr, component string) bool {
 func logForCalls(t *testing.T, component string) []string {
 	t.Helper()
 	var found []string
-	for name, file := range parseCmdFiles(t) {
+	for name, file := range parsePackageFilesByName(t) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok {
@@ -331,27 +332,23 @@ func logForCalls(t *testing.T, component string) []string {
 	return found
 }
 
-// parseCmdFiles parses the cmd package's production sources, keyed by filename.
-// go test runs in the package's source directory, so the relative walk resolves
-// wherever the suite was invoked from.
-func parseCmdFiles(t *testing.T) map[string]*ast.File {
+// parsePackageFilesByName parses the cmd package's production sources, keyed by
+// filename. go test runs in the package's source directory, so the enumeration
+// resolves wherever the suite was invoked from.
+func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()
-	entries, err := os.ReadDir(".")
+	paths, err := portalbintest.PackageGoFiles(".", false)
 	if err != nil {
-		t.Fatalf("read package dir: %v", err)
+		t.Fatalf("enumerate the cmd package sources: %v", err)
 	}
 	fset := token.NewFileSet()
-	files := map[string]*ast.File{}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+	files := make(map[string]*ast.File, len(paths))
+	for _, path := range paths {
+		parsed, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if perr != nil {
+			t.Fatalf("parse %s: %v", path, perr)
 		}
-		parsed, err := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		files[name] = parsed
+		files[filepath.Base(path)] = parsed
 	}
 	return files
 }

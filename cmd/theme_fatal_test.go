@@ -88,7 +88,7 @@ func TestThemeFatal_TravelsExecuteUnaltered(t *testing.T) {
 func TestThemeCallSites_TerminateNoProcess(t *testing.T) {
 	scanned := 0
 
-	for name, file := range parseCmdFiles(t) {
+	for name, file := range parsePackageFilesByName(t) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || !touchesTheme(fn) {

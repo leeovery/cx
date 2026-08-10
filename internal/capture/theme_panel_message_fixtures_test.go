@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
@@ -510,20 +511,9 @@ func TestPanelFixture_MessageSeedsAreStateOnly(t *testing.T) {
 func packageSourceFiles(t *testing.T) []string {
 	t.Helper()
 
-	entries, err := os.ReadDir(".")
+	paths, err := portalbintest.PackageGoFiles(".", false)
 	if err != nil {
-		t.Fatalf("read the package directory: %v", err)
-	}
-	var paths []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		paths = append(paths, name)
-	}
-	if len(paths) == 0 {
-		t.Fatal("the package directory holds no non-test Go files; the scan below would be vacuous")
+		t.Fatalf("enumerate the internal/capture package sources: %v", err)
 	}
 	return paths
 }

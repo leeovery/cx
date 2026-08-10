@@ -368,7 +368,7 @@ func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 func funcDeclForTest(t *testing.T, file, name string) *ast.FuncDecl {
 	t.Helper()
 
-	parsed, ok := parseCmdFiles(t)[file]
+	parsed, ok := parsePackageFilesByName(t)[file]
 	if !ok {
 		t.Fatalf("cmd/%s is not a production source of the package", file)
 	}
@@ -394,7 +394,7 @@ func funcDeclForTest(t *testing.T, file, name string) *ast.FuncDecl {
 func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 	var callers []string
 
-	for name, file := range parseCmdFiles(t) {
+	for name, file := range parsePackageFilesByName(t) {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok {
@@ -413,7 +413,7 @@ func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 		}
 	}
 
-	// parseCmdFiles is map-ordered, so sort for a stable failure message.
+	// parsePackageFilesByName is map-ordered, so sort for a stable failure message.
 	slices.Sort(callers)
 
 	if len(callers) != 1 || callers[0] != "open.go:openTUI" {

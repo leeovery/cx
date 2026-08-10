@@ -359,7 +359,7 @@
             ".claude/skills/golang-dependency-management"
           ],
           "current_phase": 14,
-          "current_task": "theming-system-14-4",
+          "current_task": "theming-system-14-5",
           "completed_tasks": [
             "theming-system-1-1",
             "theming-system-1-2",
@@ -492,7 +492,8 @@
             "theming-system-13-14",
             "theming-system-14-1",
             "theming-system-14-2",
-            "theming-system-14-3"
+            "theming-system-14-3",
+            "theming-system-14-4"
           ],
           "completed_phases": [
             1,

@@ -3,13 +3,9 @@ package theme_test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"image/color"
-	"os"
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
@@ -395,31 +391,14 @@ func seedValue(row int) string {
 	return fmt.Sprintf("#0000%02d", row)
 }
 
-// exportedSymbols parses the package's non-test sources and returns every
-// exported top-level identifier, sorted. Methods are reported as
-// "Receiver.Method". go test runs the binary in the package's source directory,
-// so the relative walk resolves regardless of where the suite was invoked from.
+// exportedSymbols returns every exported top-level identifier the package's
+// non-test sources declare, sorted. Methods are reported as "Receiver.Method".
 func exportedSymbols(t *testing.T) []string {
 	t.Helper()
 
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read package dir: %v", err)
-	}
-
-	fset := token.NewFileSet()
 	symbols := []string{}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-
-		file, err := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		symbols = append(symbols, exportedDecls(file)...)
+	for _, source := range parseThemeSources(t) {
+		symbols = append(symbols, exportedDecls(source.File)...)
 	}
 
 	slices.Sort(symbols)

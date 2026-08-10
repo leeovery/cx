@@ -626,7 +626,7 @@ func assertDispatched(t *testing.T, dispatched *translationDispatch, store *pref
 func varFuncLitForTest(t *testing.T, file, name string) *ast.FuncLit {
 	t.Helper()
 
-	parsed, ok := parseCmdFiles(t)[file]
+	parsed, ok := parsePackageFilesByName(t)[file]
 	if !ok {
 		t.Fatalf("cmd/%s is not a production source of the package", file)
 	}

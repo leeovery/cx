@@ -680,7 +680,7 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 		// open.go:openTUI, and this pins the other side — doctor reaches only the
 		// inert variant.
 		var migrating, nonMigrating []string
-		for name, file := range parseCmdFiles(t) {
+		for name, file := range parsePackageFilesByName(t) {
 			if !strings.HasPrefix(name, "doctor") {
 				continue
 			}
@@ -782,7 +782,7 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 
 	t.Run("doctor's theme source never calls ResolveNomination", func(t *testing.T) {
 		calls := map[string]int{}
-		ast.Inspect(parseCmdFiles(t)["doctor_theme.go"], func(n ast.Node) bool {
+		ast.Inspect(parsePackageFilesByName(t)["doctor_theme.go"], func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true

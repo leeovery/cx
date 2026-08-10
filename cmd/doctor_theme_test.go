@@ -991,7 +991,7 @@ func cmdLiteralSites(t *testing.T, fragment string) map[string]int {
 	t.Helper()
 
 	sites := map[string]int{}
-	for name, file := range parseCmdFiles(t) {
+	for name, file := range parsePackageFilesByName(t) {
 		ast.Inspect(file, func(n ast.Node) bool {
 			lit, ok := n.(*ast.BasicLit)
 			if !ok || lit.Kind != token.STRING {

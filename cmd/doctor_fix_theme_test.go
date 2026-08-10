@@ -370,7 +370,7 @@ func TestDoctorFix_ScanReRunForSecondPass(t *testing.T) {
 	})
 
 	t.Run("both renders are handed a freshly collected block", func(t *testing.T) {
-		source := parseCmdFiles(t)["doctor.go"]
+		source := parsePackageFilesByName(t)["doctor.go"]
 		if source == nil {
 			t.Fatal("the cmd package declares no doctor.go — the guard has nothing to scan")
 		}

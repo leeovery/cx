@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/portalbintest"
 )
 
 // retiredTokenNames maps every token name the vocabulary retired to the name that
@@ -92,12 +94,9 @@ var renderLayerPackageDirs = []string{".", filepath.Join("..", "capture")}
 // the prose a maintainer learns the vocabulary from.
 func TestNoRetiredTokenNameInComments(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
-		matches, err := filepath.Glob(filepath.Join(dir, "*.go"))
+		matches, err := portalbintest.PackageGoFiles(dir, true)
 		if err != nil {
-			t.Fatalf("glob %s package files: %v", dir, err)
-		}
-		if len(matches) == 0 {
-			t.Fatalf("glob matched no .go files in %s", dir)
+			t.Fatalf("enumerate the %s package sources: %v", dir, err)
 		}
 		for _, path := range matches {
 			name := filepath.Base(path)

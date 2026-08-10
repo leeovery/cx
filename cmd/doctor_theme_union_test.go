@@ -390,7 +390,7 @@ func TestThemeAdvisoryUnion_OrderIsDeterministic(t *testing.T) {
 		// is nothing that COULD be iterated in a random order.
 		assembly := []string{"collectThemeAdvisories", "themeAdvisoryUnion", "assembleThemeAdvisories", "persistedSlugs"}
 
-		source := parseCmdFiles(t)["doctor_theme.go"]
+		source := parsePackageFilesByName(t)["doctor_theme.go"]
 		if source == nil {
 			t.Fatal("the cmd package declares no doctor_theme.go — the guard has nothing to scan")
 		}

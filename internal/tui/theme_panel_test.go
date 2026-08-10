@@ -3,9 +3,8 @@ package tui
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
-	"path/filepath"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -916,23 +915,11 @@ func TestThemePanel_DelegateHasASingleConstructionPoint(t *testing.T) {
 // itself.
 func themeRowDelegateLiteralSites(t *testing.T) []string {
 	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(".", "*.go"))
-	if err != nil {
-		t.Fatalf("glob internal/tui package files: %v", err)
-	}
+	files := parsePackageFilesByName(t)
 
 	var sites []string
-	for _, path := range matches {
-		name := filepath.Base(path)
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		fset := token.NewFileSet()
-		file, perr := parser.ParseFile(fset, path, nil, 0)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", name, perr)
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		ast.Inspect(files[name], func(n ast.Node) bool {
 			lit, ok := n.(*ast.CompositeLit)
 			if !ok {
 				return true

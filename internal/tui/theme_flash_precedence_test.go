@@ -2,9 +2,7 @@ package tui
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -224,7 +222,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 
 	t.Run("no theme copy reaches setFlash directly", func(t *testing.T) {
 		fset := token.NewFileSet()
-		files := themeFlashProductionFiles(t, fset)
+		files := parsePackageFiles(t, fset)
 		vocabulary := themeCopyVocabulary(files)
 		if len(vocabulary) == 0 {
 			t.Fatal("the theme-copy vocabulary is empty, so this guard forbids nothing")
@@ -250,34 +248,6 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 			})
 		}
 	})
-}
-
-// themeFlashProductionFiles parses every NON-test .go file in the package
-// directory, keyed by file name and sharing one FileSet so positions are
-// comparable. It is a GLOB rather than a list so a theme signal added in a new file
-// is covered the day it lands.
-func themeFlashProductionFiles(t *testing.T, fset *token.FileSet) map[string]*ast.File {
-	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(".", "*.go"))
-	if err != nil {
-		t.Fatalf("glob the package's .go files: %v", err)
-	}
-	files := make(map[string]*ast.File, len(matches))
-	for _, match := range matches {
-		name := filepath.Base(match)
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, perr := parser.ParseFile(fset, match, nil, 0)
-		if perr != nil {
-			t.Fatalf("parse %s: %v", name, perr)
-		}
-		files[name] = file
-	}
-	if len(files) == 0 {
-		t.Fatal("the glob matched no production .go files in the package directory")
-	}
-	return files
 }
 
 // themeCopyVocabulary derives the package-level identifiers that YIELD a theme

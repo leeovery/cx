@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/leeovery/portal/internal/portalbintest"
 )
 
 // centralisedColourSites enumerates every NON-test production .go file in the
@@ -16,32 +18,24 @@ import (
 // these render files may construct a colour from a raw hex / ANSI-index literal —
 // every colour must flow from a token on the model's active theme.
 //
-// It is a GLOB (not a hand-maintained list) so no render file can be silently
-// omitted from coverage as later phases add renderers — the guard's coverage grows
-// with the package automatically, closing the Phase 3-5 blind spot the former 11-file
-// allowlist left open.
+// It is the whole package directory (not a hand-maintained list) so no render
+// file can be silently omitted from coverage as renderers are added — the guard's
+// coverage grows with the package automatically.
 func centralisedColourSites(t *testing.T) []string {
 	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(".", "*.go"))
+	paths, err := portalbintest.PackageGoFiles(".", false)
 	if err != nil {
-		t.Fatalf("glob internal/tui package files: %v", err)
+		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}
-	files := make([]string, 0, len(matches))
-	for _, m := range matches {
-		name := filepath.Base(m)
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		files = append(files, name)
-	}
-	if len(files) == 0 {
-		t.Fatal("centralisedColourSites glob matched no production .go files in internal/tui")
+	files := make([]string, 0, len(paths))
+	for _, path := range paths {
+		files = append(files, filepath.Base(path))
 	}
 	return files
 }
 
 // TestNoRawColourLiteralAtCentralisedSites parses every production render file in
-// internal/tui (via the centralisedColourSites glob) and fails if any
+// internal/tui (via centralisedColourSites) and fails if any
 // lipgloss.Color(...) call is passed a raw string/int literal (a hex like "#777777"
 // or an ANSI index like "212"/76). Raw colour values live in the embedded .theme
 // FILES and nowhere in Go at all — every call site must reference a token.
