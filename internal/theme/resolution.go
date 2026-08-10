@@ -250,13 +250,20 @@ func (l Loader) commitPass(e Enumeration) resolutionPass {
 // enumerationLoad is the retained enumeration as a slugLoader — the source both
 // enumeration-backed passes resolve through.
 func (l Loader) enumerationLoad(e Enumeration) slugLoader {
-	return func(slug string) (Result, *Rejection) { return l.resolveFromEnumeration(slug, e) }
+	return func(slug string) (Result, *Rejection) { return l.ResolveByNameFrom(e, slug) }
 }
 
-// resolveFromEnumeration is the panel pass's third rung: the same ladder
-// ResolveByName runs, with the retained enumeration's entries in place of the
-// directory.
-func (l Loader) resolveFromEnumeration(slug string, e Enumeration) (Result, *Rejection) {
+// ResolveByNameFrom resolves one slug through ResolveByName's identical ladder —
+// the charset check, the embedded set first, then the source — with a retained
+// Enumeration's entries in place of the themes directory.
+//
+// It performs no I/O: a directory read here would produce a second parse of the
+// same slug, free to disagree with the one the caller already holds and is
+// showing.
+//
+// It emits nothing, as ResolveByName does not either — the resolution's events
+// belong to the slot report above.
+func (l Loader) ResolveByNameFrom(e Enumeration, slug string) (Result, *Rejection) {
 	return l.resolveNamed(slug, func(s string) (Result, *Rejection) {
 		return entryResult(s, e)
 	})

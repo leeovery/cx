@@ -90,7 +90,8 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 			// so its absence below is the dedup dropping it rather than a producer
 			// that found nothing to drop.
 			const fileLine = "⚠ theme nord-lee: bad colour — canvas = blue"
-			requireAdvisoryLines(t, scanThemesDirectory(theme.NewSilentLoader(), dir), fileLine)
+			loader := theme.NewSilentLoader()
+			requireAdvisoryLines(t, scanThemesDirectory(enumerateThemesDir(loader, dir)), fileLine)
 
 			got := requireOneAdvisory(t, unionAdvisoriesFor(t, tc.prefs, dir))
 			if got.line != tc.want {
@@ -136,6 +137,59 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 		unranked := themeAdvisory{line: "⚠ theme nord-lee does not resolve: bad colour", slug: "nord-lee"}
 
 		requireAdvisoryLines(t, assembleThemeAdvisories([]themeAdvisory{file}, []themeAdvisory{unranked}), file.line, unranked.line)
+	})
+}
+
+// TestThemeAdvisoryUnion_OneParseBehindBothProducers: doctor's two lines about
+// one slug describe one parse of one file, and the directory is read once per
+// diagnosis.
+//
+// The two producers detect the same broken file independently — the scan by
+// enumerating it, the persisted line by resolving the slug the user set — and a
+// producer of its own would re-open and re-parse it. Then the file line for a
+// slug and the persisted line for that same slug would come from different reads,
+// with the first dropped on the strength of the second: doctor would report a
+// reason from one parse under a dedup decided by another.
+//
+// Both fixtures stage that divergence in the only way a single diagnosis can be
+// made to hold still — by moving the file out from under the retained
+// enumeration, so a re-read is the only thing that could produce a different
+// answer.
+func TestThemeAdvisoryUnion_OneParseBehindBothProducers(t *testing.T) {
+	requireDropInSlug(t, "nord-lee")
+
+	const want = "⚠ theme nord-lee does not resolve: bad colour"
+
+	assemble := func(t *testing.T, dir string, disturb func(*testing.T, string)) []themeAdvisory {
+		t.Helper()
+
+		loader := theme.NewSilentLoader()
+		enumeration := enumerateThemesDir(loader, dir)
+		disturb(t, dir)
+
+		deps := persistedThemeDeps(t, `{"theme":"nord-lee"}`, dir)
+		return assembleThemeAdvisories(scanThemesDirectory(enumeration), persistedThemeAdvisories(deps, loader, enumeration))
+	}
+
+	t.Run("a rewritten file cannot change one producer's answer", func(t *testing.T) {
+		dir := themesDirWith(t, map[string][]byte{"nord-lee.theme": sourceBadColours(t, themeOverride{"canvas", "blue"})})
+
+		requireAdvisoryLines(t, assemble(t, dir, func(t *testing.T, dir string) {
+			path := filepath.Join(dir, "nord-lee.theme")
+			if err := os.WriteFile(path, validThemeSource(t), 0o644); err != nil {
+				t.Fatalf("rewrite %s: %v", path, err)
+			}
+		}), want)
+	})
+
+	t.Run("a directory that is gone changes nothing", func(t *testing.T) {
+		dir := themesDirWith(t, map[string][]byte{"nord-lee.theme": sourceBadColours(t, themeOverride{"canvas", "blue"})})
+
+		requireAdvisoryLines(t, assemble(t, dir, func(t *testing.T, dir string) {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Fatalf("remove %s: %v", dir, err)
+			}
+		}), want)
 	})
 }
 

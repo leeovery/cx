@@ -53,19 +53,11 @@ const (
 	persistedThemeSlotFormat     = " (%s)"
 )
 
-// The two slot labels doctor renders, read off theme.Slot's own name mapping
-// rather than restated: the parenthetical a user reads here and the `slot` attr
-// the log carries are one vocabulary, and a literal pair would be free to drift
-// from it silently.
-var (
-	themeSlotLight, _ = theme.SlotLight.AttrName()
-	themeSlotDark, _  = theme.SlotDark.AttrName()
-)
-
 // themeSlotBoth is not a third slot — the setting has exactly two — it is the
 // label for one slug occupying both of them, an ordinary state two keypresses in
 // the theme panel reach. Having no slot to be named by, it is declared here
-// beside the pair it joins rather than derived.
+// rather than derived, unlike the light and dark words, which doctor reads off
+// theme.Slot's own mapping.
 const themeSlotBoth = "both"
 
 // themeAdvisory is one line of doctor's theme block while it is still being
@@ -131,10 +123,35 @@ func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 // themeAdvisoryUnion runs both producers and the assembly between them,
 // yielding the union while it still carries the identity that assembly turned
 // on.
+//
+// The directory is read ONCE here and the retained enumeration drives both
+// producers, so the file line about a slug and the persisted line about that same
+// slug describe one parse of one file — and the drop of the first on the strength
+// of the second is decided within that one parse. A producer reading the
+// directory for itself would re-open and re-parse a file the other has already
+// classified, free to disagree with the line printed beside it.
 func themeAdvisoryUnion(deps *DoctorDeps) []themeAdvisory {
 	loader := theme.NewSilentLoader()
+	enumeration := enumerateThemesDir(loader, deps.ThemesDir)
 
-	return assembleThemeAdvisories(scanThemesDirectory(loader, deps.ThemesDir), persistedThemeAdvisories(deps, loader))
+	return assembleThemeAdvisories(scanThemesDirectory(enumeration), persistedThemeAdvisories(deps, loader, enumeration))
+}
+
+// enumerateThemesDir reads the themes directory once, as the retained
+// enumeration both producers resolve against.
+//
+// An unresolved path — themesDirPath() failed, so resolveDoctorDeps left the
+// field empty — is the empty enumeration, and nothing is read at all: there is no
+// directory to judge, so it is neither unusable nor holding entries. The persisted
+// producer still runs over it and still answers, since a built-in resolves from
+// the embedded set with no directory involved.
+func enumerateThemesDir(loader theme.Loader, dir string) theme.Enumeration {
+	if dir == "" {
+		return theme.Enumeration{}
+	}
+
+	entries, dirRejection := loader.Enumerate(dir)
+	return theme.Enumeration{Entries: entries, DirUnusable: dirRejection != nil, DirPath: dir}
 }
 
 // assembleThemeAdvisories unions doctor's two theme producers into the one block
@@ -166,9 +183,9 @@ func themeAdvisoryUnion(deps *DoctorDeps) []themeAdvisory {
 //     means it can never match a persisted slug and both lines legitimately
 //     stand. The directory line carries no slug either, by the same guard.
 //   - a persisted slug naming a `reserved name` file resolves to the built-in at
-//     ResolveByName's step 2, so the persisted producer emits no line for it at
-//     all — the file keeps its own line, and that collision is the entire content
-//     of the reason.
+//     the by-name ladder's embedded-set rung, so the persisted producer emits no
+//     line for it at all — the file keeps its own line, and that collision is the
+//     entire content of the reason.
 func assembleThemeAdvisories(scanned, persisted []themeAdvisory) []themeAdvisory {
 	covered := persistedSlugs(persisted)
 
@@ -220,11 +237,11 @@ func persistedSlugs(persisted []themeAdvisory) []string {
 // zero keys and therefore zero lines. A diagnosis must not fail to diagnose
 // because one of the files it reads is the broken one.
 //
-// Resolution goes through ResolveByName and never ResolveNomination: the latter
+// Resolution goes BY NAME and never through ResolveNomination: the latter
 // substitutes the mode-matched fallbacks, hiding the very failure being reported,
 // and can raise the broken-built-in fatal, aborting the diagnosis over a state
 // this line exists to describe.
-func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []themeAdvisory {
+func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader, enumeration theme.Enumeration) []themeAdvisory {
 	if deps.PrefsStore == nil {
 		return nil
 	}
@@ -234,7 +251,7 @@ func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader) []themeAdvi
 
 	var advisories []themeAdvisory
 	for _, nomination := range persistedThemeNominations(raw) {
-		if a, reported := persistedThemeAdvisory(loader, nomination, deps.ThemesDir); reported {
+		if a, reported := persistedThemeAdvisory(loader, enumeration, nomination); reported {
 			advisories = append(advisories, a)
 		}
 	}
@@ -271,6 +288,11 @@ func persistedThemeNominations(keys theme.RawKeys) []persistedThemeNomination {
 // persistedThemeSlotLabel is the label one in-force key renders under: `both`
 // where a single value occupies the whole pair, else the slot's own name.
 //
+// The name is the slot's own, never a word restated here: the parenthetical a
+// user reads and the `slot` attr the log carries are one vocabulary, and a slot
+// added to it must arrive here rendered rather than silently labelled with
+// nothing.
+//
 // A constant yields the empty label, which persistedThemeSlotSuffix renders as no
 // parenthetical at all rather than as a placeholder — the constant state has no
 // halves for a label to name.
@@ -279,29 +301,24 @@ func persistedThemeSlotLabel(key theme.InForceKey) string {
 		return themeSlotBoth
 	}
 
-	switch key.Slot {
-	case theme.SlotLight:
-		return themeSlotLight
-	case theme.SlotDark:
-		return themeSlotDark
-	default:
-		return ""
-	}
+	name, _ := key.Slot.AttrName()
+	return name
 }
 
 // persistedThemeAdvisory resolves one nomination and renders its advisory,
 // reporting whether it earns one at all. A nil rejection produces no line — this
 // producer reports problems, not inventory.
 //
-// Every discrimination is ResolveByName's own and none is re-derived here, which
-// keeps doctor's vocabulary identical to the panel's and to the log's: a charset
-// failure is `bad name` and is decided before any path is composed — so a
-// hand-edited `../evil` never becomes a path component — an absent directory or
-// an absent file is `not found`, and an unusable directory is `unreadable`
-// because permissions is the actual problem. An empty themesDir — the
-// unresolved-path degradation — still resolves the embedded set and answers
-// `not found` for a drop-in slug, composing no path, which is why this producer
-// runs where the directory scan skips.
+// Every discrimination is the by-name resolver's own and none is re-derived here,
+// which keeps doctor's vocabulary identical to the panel's and to the log's: a
+// charset failure is `bad name` and is decided before the slug is used to look
+// anything up — so a hand-edited `../evil` is never treated as a name at all — an
+// absent file is `not found`, and an unusable directory is `unreadable` because
+// permissions is the actual problem. The embedded set answers first, so a
+// persisted slug naming a `reserved name` file resolves to the built-in and earns
+// no line — the file keeps its own. The empty enumeration — the unresolved-path
+// degradation — still resolves the embedded set and answers `not found` for a
+// drop-in slug, which is why this producer runs where the directory scan skips.
 //
 // The slug renders control-stripped but untruncated: stripping is a property of
 // the value rather than of the surface, and truncation stays panel-local because
@@ -309,8 +326,8 @@ func persistedThemeSlotLabel(key theme.InForceKey) string {
 //
 // slug and fromPrefs ride alongside the line for the one-slug-one-line union,
 // where a persisted line outranks the same slug's file-validity line.
-func persistedThemeAdvisory(loader theme.Loader, nomination persistedThemeNomination, themesDir string) (themeAdvisory, bool) {
-	_, rejection := loader.ResolveByName(nomination.slug, themesDir)
+func persistedThemeAdvisory(loader theme.Loader, enumeration theme.Enumeration, nomination persistedThemeNomination) (themeAdvisory, bool) {
+	_, rejection := loader.ResolveByNameFrom(enumeration, nomination.slug)
 	if rejection == nil {
 		return themeAdvisory{}, false
 	}
@@ -332,38 +349,28 @@ func persistedThemeSlotSuffix(slot string) string {
 	return fmt.Sprintf(persistedThemeSlotFormat, slot)
 }
 
-// scanThemesDirectory enumerates dir through the loader's rejection ladder and
-// renders one advisory per finding: the directory's own verdict where it has one,
-// else one line per rejected file.
+// scanThemesDirectory renders one advisory per finding in the retained
+// enumeration: the directory's own verdict where it has one, else one line per
+// rejected file.
 //
-// An unresolved path — themesDirPath() failed, so resolveDoctorDeps left the
-// field empty — skips the scan entirely and yields nothing. The advisory class
-// has no not-evaluable form, so degrading to zero lines is the only shape
-// available. The skip is scoped here rather than at collectThemeAdvisories, so
-// producers that need no path still run.
-//
-// The two Enumerate returns separate the three directory states, and each gets a
-// different answer:
+// The enumeration's two halves separate the three directory states, and each gets
+// a different answer:
 //
 //   - an unusable directory (unreadable, or a regular file where a directory
-//     belongs) → its one pinned line. Enumerate returns no entries in that state,
-//     so it is the only theme-file line the scan can produce.
-//   - an absent directory → nothing at all: no line, no error, no log. Zero
-//     drop-ins is not an error and Portal never creates or seeds the directory.
+//     belongs) → its one pinned line. An enumeration holds no entries in that
+//     state, so it is the only theme-file line the scan can produce.
+//   - an absent directory, and an unresolved path with nothing read at all →
+//     nothing: no line, no error, no log. Zero drop-ins is not an error and
+//     Portal never creates or seeds the directory.
 //   - a usable directory → one line per rejected entry, in the enumeration's own
 //     deterministic filename order.
-func scanThemesDirectory(loader theme.Loader, dir string) []themeAdvisory {
-	if dir == "" {
-		return nil
-	}
-
-	entries, dirRejection := loader.Enumerate(dir)
-	if dirRejection != nil {
-		return []themeAdvisory{{line: fmt.Sprintf(themesDirUnreadableFormat, dir)}}
+func scanThemesDirectory(enumeration theme.Enumeration) []themeAdvisory {
+	if enumeration.DirUnusable {
+		return []themeAdvisory{{line: fmt.Sprintf(themesDirUnreadableFormat, enumeration.DirPath)}}
 	}
 
 	var advisories []themeAdvisory
-	for _, entry := range entries {
+	for _, entry := range enumeration.Entries {
 		if a, reported := themeFileAdvisory(entry); reported {
 			advisories = append(advisories, a)
 		}

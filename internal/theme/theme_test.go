@@ -306,6 +306,7 @@ var wantExports = []string{
 	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
 	"Loader.ResolveByName",
+	"Loader.ResolveByNameFrom",
 	"Loader.ResolveNomination",
 	"Loader.ResolveNominationFrom",
 	"Loader.ResolveSlot",

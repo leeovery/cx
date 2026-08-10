@@ -61,7 +61,17 @@ func persistedThemeDeps(t *testing.T, content, themesDir string) *DoctorDeps {
 func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []themeAdvisory {
 	t.Helper()
 
-	return persistedThemeAdvisories(persistedThemeDeps(t, content, themesDir), theme.NewSilentLoader())
+	return persistedAdvisoriesUnder(t, persistedThemeDeps(t, content, themesDir), theme.NewSilentLoader())
+}
+
+// persistedAdvisoriesUnder runs the persisted-theme producer over deps, against
+// the deps' themes directory enumerated the way the union enumerates it — so
+// every fixture here resolves through the same retained parse doctor resolves
+// through.
+func persistedAdvisoriesUnder(t *testing.T, deps *DoctorDeps, loader theme.Loader) []themeAdvisory {
+	t.Helper()
+
+	return persistedThemeAdvisories(deps, loader, enumerateThemesDir(loader, deps.ThemesDir))
 }
 
 // requireNoAdvisories fails unless the producer stayed silent, naming what it
@@ -266,7 +276,7 @@ func TestPersistedThemeAdvisory_VirginInstallIsSilent(t *testing.T) {
 		}
 
 		deps := persistedThemeDeps(t, `{"theme_dark":"solar"}`, dir)
-		got := advisoryLines(persistedThemeAdvisories(deps, loader))
+		got := advisoryLines(persistedAdvisoriesUnder(t, deps, loader))
 		want := []string{"⚠ theme solar (dark) does not resolve: not found"}
 		if !slices.Equal(got, want) {
 			t.Errorf("advisory lines =\n  %s\nwant\n  %s — only a PERSISTED key produces a line", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
@@ -444,17 +454,17 @@ func TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports(t *testing.T) {
 	deps := persistedThemeDeps(t, `{"theme":"nord-lee"}`, "")
 	loader := theme.NewSilentLoader()
 
-	got := requireOneAdvisory(t, persistedThemeAdvisories(deps, loader))
+	got := requireOneAdvisory(t, persistedAdvisoriesUnder(t, deps, loader))
 	if want := "⚠ theme nord-lee does not resolve: not found"; got.line != want {
 		t.Errorf("advisory line = %q; want %q", got.line, want)
 	}
 
-	requireNoAdvisories(t, scanThemesDirectory(loader, deps.ThemesDir))
+	requireNoAdvisories(t, scanThemesDirectory(enumerateThemesDir(loader, deps.ThemesDir)))
 
 	t.Run("a built-in still resolves with no directory", func(t *testing.T) {
 		requireBuiltinSlug(t, "nord")
 
-		requireNoAdvisories(t, persistedThemeAdvisories(persistedThemeDeps(t, `{"theme":"nord"}`, ""), loader))
+		requireNoAdvisories(t, persistedAdvisoriesUnder(t, persistedThemeDeps(t, `{"theme":"nord"}`, ""), loader))
 	})
 }
 
@@ -534,6 +544,59 @@ func TestPersistedThemeAdvisory_ControlOnlyValueIsUnset(t *testing.T) {
 	})
 }
 
+// TestPersistedThemeSlotLabel_ReadsTheSlotsOwnName: the parenthetical is the
+// slot's own word, and `both` is doctor's.
+//
+// The light/dark words are one vocabulary shared with the `theme` component's
+// `slot` attr, so doctor renders whatever theme.Slot names itself rather than a
+// pair of literals kept beside it — a slot added to the vocabulary must arrive
+// here rendered, not silently labelled with nothing.
+//
+// `both` is the exception and is genuinely doctor's own: one slug occupying the
+// whole pair sits in no single slot, so there is nothing for AttrName to name it
+// by.
+func TestPersistedThemeSlotLabel_ReadsTheSlotsOwnName(t *testing.T) {
+	for _, slot := range []theme.Slot{theme.SlotConstant, theme.SlotLight, theme.SlotDark} {
+		want, _ := slot.AttrName()
+		if got := persistedThemeSlotLabel(theme.InForceKey{Slot: slot}); got != want {
+			t.Errorf("persistedThemeSlotLabel(slot %v) = %q; want theme.Slot's own name %q", slot, got, want)
+		}
+	}
+
+	if got := persistedThemeSlotLabel(theme.InForceKey{Slot: theme.SlotLight, Both: true}); got != themeSlotBoth {
+		t.Errorf("persistedThemeSlotLabel(both) = %q; want %q", got, themeSlotBoth)
+	}
+
+	t.Run("the words are declared nowhere in doctor", func(t *testing.T) {
+		// The behavioural half above passes over a switch that restates the two
+		// words, since a restatement agrees with the definition until the day it
+		// does not. What makes the derivation structural is that the words — and a
+		// per-slot branch to render them from — are absent from doctor entirely.
+		light, _ := theme.SlotLight.AttrName()
+		dark, _ := theme.SlotDark.AttrName()
+		for _, word := range []string{light, dark} {
+			if n := cmdLiteralSites(t, word)["doctor_theme.go"]; n != 0 {
+				t.Errorf("doctor_theme.go declares the literal %q %d times; the light/dark words live in internal/theme alone", word, n)
+			}
+		}
+
+		var arms []string
+		ast.Inspect(parsePackageFilesByName(t)["doctor_theme.go"], func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if ident, ok := sel.X.(*ast.Ident); ok && ident.Name == "theme" && strings.HasPrefix(sel.Sel.Name, "Slot") {
+				arms = append(arms, sel.Sel.Name)
+			}
+			return true
+		})
+		if len(arms) != 0 {
+			t.Errorf("doctor_theme.go names %v; a slot added to the vocabulary would compile here and render no label at all", arms)
+		}
+	})
+}
+
 // TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs: it tolerates an absent or
 // corrupt prefs file.
 //
@@ -577,11 +640,11 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 		// theme key and the assertion would be arguing about the wrong run.
 		_ = requireDeniedRead(t, path)
 
-		requireNoAdvisories(t, persistedThemeAdvisories(deps, theme.NewSilentLoader()))
+		requireNoAdvisories(t, persistedAdvisoriesUnder(t, deps, theme.NewSilentLoader()))
 	})
 
 	t.Run("a nil store", func(t *testing.T) {
-		requireNoAdvisories(t, persistedThemeAdvisories(&DoctorDeps{ThemesDir: t.TempDir()}, theme.NewSilentLoader()))
+		requireNoAdvisories(t, persistedAdvisoriesUnder(t, &DoctorDeps{ThemesDir: t.TempDir()}, theme.NewSilentLoader()))
 	})
 
 	t.Run("a corrupt file never aborts the diagnosis", func(t *testing.T) {
@@ -767,7 +830,7 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 		}
 
 		deps := persistedThemeDeps(t, `{"theme_light":"solar","theme_dark":"gruv"}`, dir)
-		got := advisoryLines(persistedThemeAdvisories(deps, loader))
+		got := advisoryLines(persistedAdvisoriesUnder(t, deps, loader))
 		want := []string{
 			"⚠ theme solar (light) does not resolve: not found",
 			"⚠ theme gruv (dark) does not resolve: not found",
@@ -778,25 +841,61 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 	})
 
 	t.Run("doctor's theme source never calls ResolveNomination", func(t *testing.T) {
-		calls := map[string]int{}
-		ast.Inspect(parsePackageFilesByName(t)["doctor_theme.go"], func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
-				calls[sel.Sel.Name]++
-			}
-			return true
-		})
+		calls := doctorThemeCallCounts(t)
 
 		if calls["ResolveNomination"] != 0 {
 			t.Errorf("doctor_theme.go calls ResolveNomination %d times; it resolves fallbacks and can raise the fatal, and neither belongs in a diagnosis", calls["ResolveNomination"])
 		}
-		if calls["ResolveByName"] == 0 {
-			t.Error("doctor_theme.go calls ResolveByName nowhere; the guard above would pass over a producer that resolves nothing at all")
+		if calls["ResolveByNameFrom"] == 0 {
+			t.Error("doctor_theme.go calls no by-name resolver at all; the guard above would pass over a producer that resolves nothing")
 		}
 	})
+}
+
+// doctorThemeCallCounts counts the calls doctor's theme source makes, by the
+// method name each one selects.
+func doctorThemeCallCounts(t *testing.T) map[string]int {
+	t.Helper()
+
+	source := parsePackageFilesByName(t)["doctor_theme.go"]
+	if source == nil {
+		t.Fatal("the cmd package declares no doctor_theme.go — the guard has nothing to scan")
+	}
+
+	calls := map[string]int{}
+	ast.Inspect(source, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+			calls[sel.Sel.Name]++
+		}
+		return true
+	})
+	return calls
+}
+
+// TestThemeAdvisories_DirectoryIsReadOnce: one diagnosis reads the themes
+// directory once and opens no theme file after it.
+//
+// The runtime half of the claim — that neither producer can be made to disagree
+// with the other by a file changing under it — is asserted over the assembled
+// block in doctor_theme_union_test.go. This is the other half: a re-read that
+// happened to AGREE, because nothing disturbed the directory between the two,
+// would leave that fixture green while doctor paid for a second ReadDir and a
+// second parse of every candidate on every run.
+func TestThemeAdvisories_DirectoryIsReadOnce(t *testing.T) {
+	calls := doctorThemeCallCounts(t)
+
+	if calls["Enumerate"] != 1 {
+		t.Errorf("doctor_theme.go calls Enumerate %d times; the directory is read once per diagnosis and the retained enumeration drives both producers", calls["Enumerate"])
+	}
+	for _, reader := range []string{"ResolveByName", "LoadFile", "ReadDir", "ReadFile", "Open"} {
+		if calls[reader] != 0 {
+			t.Errorf("doctor_theme.go calls %s %d times; nothing may open a theme file after the enumeration", reader, calls[reader])
+		}
+	}
 }
 
 // TestPersistedThemeAdvisory_EmitsNoThemeRecords: it emits zero theme log

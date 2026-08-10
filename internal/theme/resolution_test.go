@@ -1214,3 +1214,84 @@ func TestResolveNominationFrom_EmitsNoLoadedRecord(t *testing.T) {
 		t.Errorf("emitted %d `theme: fallback applied` records, want exactly 1 — §12.3 names the panel open as a site that applies one:\n%s", n, sink.Body())
 	}
 }
+
+// TestResolveByNameFrom_MatchesResolveByName pins the enumeration-backed by-name
+// resolver against the by-name one whose ladder it re-runs: over one directory,
+// one slug resolves to one answer whichever source it is read from.
+//
+// The five slugs are the ladder's five outcomes — a valid file, a rejected file,
+// a slug nothing answers to, a built-in and a charset failure — because the whole
+// value of the enumeration-backed route is that it re-runs the SAME rungs. A
+// resolver that skipped the charset check would compose a path from a
+// hand-editable value, and one that skipped the embedded set would let a drop-in
+// shadow a built-in.
+//
+// Source bytes are deliberately outside the comparison: an enumeration retains
+// parses rather than files, so a valid drop-in resolves with a palette and no
+// bytes behind it.
+func TestResolveByNameFrom_MatchesResolveByName(t *testing.T) {
+	loader := nominationLoader()
+	dir := t.TempDir()
+	themetest.Write(t, dir, "sunset.theme", themetest.Lines())
+	themetest.Write(t, dir, "dusk.theme", themetest.WithValue(themetest.Lines(), "canvas", "not-a-colour"))
+	enumeration := enumerationOf(t, loader, dir)
+
+	builtin := theme.DefaultDarkSlug
+	for _, slug := range []string{"sunset", "dusk", "gone", builtin, "Sunset"} {
+		t.Run(slug, func(t *testing.T) {
+			if slug != builtin && slices.Contains(theme.BuiltinSlugs(), slug) {
+				t.Fatalf("%q is a built-in (the embedded set is %v) — it would answer from the embedded set and the case would prove nothing about the source", slug, theme.BuiltinSlugs())
+			}
+
+			wantResult, wantRejection := loader.ResolveByName(slug, dir)
+			gotResult, gotRejection := loader.ResolveByNameFrom(enumeration, slug)
+
+			if gotResult.Slug != wantResult.Slug || gotResult.Theme != wantResult.Theme {
+				t.Errorf("ResolveByNameFrom(%q) resolved slug %q, want %q — the two sources must answer alike", slug, gotResult.Slug, wantResult.Slug)
+			}
+			if (gotRejection == nil) != (wantRejection == nil) {
+				t.Fatalf("ResolveByNameFrom(%q) rejection = %v; ResolveByName's = %v", slug, gotRejection, wantRejection)
+			}
+			if gotRejection != nil && !reflect.DeepEqual(*gotRejection, *wantRejection) {
+				t.Errorf("ResolveByNameFrom(%q) rejection = %+v, want %+v", slug, *gotRejection, *wantRejection)
+			}
+		})
+	}
+}
+
+// TestResolveByNameFrom_ReadsNothing pins the property the entry point exists
+// for: it answers from the retained parse, so a second read of the same slug
+// — free to disagree with what the caller is already showing — never happens.
+func TestResolveByNameFrom_ReadsNothing(t *testing.T) {
+	t.Run("it resolves a drop-in whose directory is gone", func(t *testing.T) {
+		dir := t.TempDir()
+		path := themetest.Write(t, dir, "sunset.theme", themetest.Lines())
+		want := dropInTheme(t, path)
+		loader := nominationLoader()
+		enumeration := enumerationOf(t, loader, dir)
+
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatalf("remove %s: %v", dir, err)
+		}
+
+		got, rejection := loader.ResolveByNameFrom(enumeration, "sunset")
+
+		if rejection != nil {
+			t.Fatalf("ResolveByNameFrom(sunset) = %v, want the retained parse", rejection)
+		}
+		if got.Theme != want {
+			t.Errorf("resolved canvas %s, want the drop-in's %s", got.Theme.Canvas.Value, want.Canvas.Value)
+		}
+	})
+
+	t.Run("it reaches no os call at all", func(t *testing.T) {
+		for name, count := range osCallsReachableFrom(t, "ResolveByNameFrom") {
+			if strings.HasPrefix(name, "os.") {
+				t.Errorf("ResolveByNameFrom reaches %d %s call sites, want 0 — it resolves against the retained enumeration, never the filesystem", count, name)
+			}
+		}
+		if osCallsReachableFrom(t, "ResolveByName")["os.ReadFile"] == 0 {
+			t.Error("the by-name entry point reaches no os.ReadFile call site either — the walk resolved nothing, so the assertion above would be vacuous")
+		}
+	})
+}

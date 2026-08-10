@@ -111,7 +111,7 @@ func persistedAdvisorySlugs(t *testing.T, themesDir string, keys theme.RawKeys) 
 	deps := persistedThemeDeps(t, prefsJSONForKeys(t, keys), themesDir)
 
 	var slugs []string
-	for _, a := range persistedThemeAdvisories(deps, theme.NewSilentLoader()) {
+	for _, a := range persistedAdvisoriesUnder(t, deps, theme.NewSilentLoader()) {
 		slugs = append(slugs, a.slug)
 	}
 	slices.Sort(slugs)
