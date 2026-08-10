@@ -2,14 +2,11 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,6 +18,7 @@ import (
 	"github.com/leeovery/portal/cmd/bootstrap"
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -422,10 +420,10 @@ func TestThemeExport_ExactArgsOne(t *testing.T) {
 // diagnostic on the screen they are reading — so the loader is handed
 // log.Discard() and nothing reaches the log on any path, success or refusal.
 //
-// The last subtest keeps the rest honest: it proves the installed sink DOES
-// capture a `theme` event when the loader is given a real component logger, so
-// the zero-record assertions are evidence about export rather than about a
-// deaf harness.
+// Every case runs under the shared vacuity guard, which proves the installed
+// sink DOES capture a `theme` event when the loader is given a real component
+// logger — so the zero-record assertions are evidence about export rather than
+// about a deaf harness.
 func TestThemeExport_EmitsNoThemeEvents(t *testing.T) {
 	// seed is nil where the case needs no themes directory at all, which is the
 	// state the built-in, unknown-slug and bad-name cases each want.
@@ -460,62 +458,63 @@ func TestThemeExport_EmitsNoThemeEvents(t *testing.T) {
 				tc.seed(t)
 			}
 
-			sink := &logtest.Sink{}
-			log.SetTestHandler(t, sink)
+			records := assertNoThemeRecords(t, func() { execThemeExport(t, tc.slug) })
 
-			execThemeExport(t, tc.slug)
-
-			if records := sink.Records(); len(records) != 0 {
+			if len(records) != 0 {
 				t.Errorf("theme export %s emitted %d log records, want none: %+v", tc.slug, len(records), records)
 			}
 		})
 	}
-
-	t.Run("the sink captures a theme event when one is emitted", func(t *testing.T) {
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
-
-		theme.NewEventLogger(log.For("theme")).Rejected("mine", "", &theme.Rejection{Reason: theme.ReasonBadColour})
-
-		if records := sink.Records(); len(records) != 1 {
-			t.Fatalf("the capture harness recorded %d theme events, want 1 — the assertions above would be vacuous: %+v", len(records), records)
-		}
-	})
 }
 
-// snapshotTree fingerprints every file under root as path -> mode + content
-// hash, so a test can assert a command created, deleted or rewrote nothing.
-func snapshotTree(t *testing.T, root string) map[string]string {
+// treeFingerprint fingerprints every entry under root so a test can assert a
+// command created, deleted or rewrote nothing. Stats are Lstat-based, so a
+// file-to-symlink swap of identical content is a change.
+func treeFingerprint(t *testing.T, root string) map[string]portaltest.Fingerprint {
 	t.Helper()
 
-	tree := map[string]string{}
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, relErr := filepath.Rel(root, path)
-		if relErr != nil {
-			return relErr
-		}
-		info, infoErr := entry.Info()
-		if infoErr != nil {
-			return infoErr
-		}
-		if entry.IsDir() {
-			tree[rel] = fmt.Sprintf("dir %v", info.Mode())
-			return nil
-		}
-		data, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		tree[rel] = fmt.Sprintf("file %v %x", info.Mode(), sha256.Sum256(data))
-		return nil
-	})
+	tree, err := portaltest.SnapshotStateDir(root)
 	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
+		t.Fatalf("snapshot %s: %v", root, err)
 	}
 	return tree
+}
+
+// assertTreeUnchanged re-fingerprints root and reports one line per delta,
+// naming the changed path. subject opens the line and states whose claim broke.
+func assertTreeUnchanged(t *testing.T, root string, before map[string]portaltest.Fingerprint, subject string) {
+	t.Helper()
+
+	for _, delta := range portaltest.DiffFingerprints(before, treeFingerprint(t, root)) {
+		t.Errorf("%s: %s", subject, portaltest.FormatDelta(delta))
+	}
+}
+
+// assertNoThemeRecords runs run under a capture sink and asserts it emitted no
+// `theme` component record, then proves the capture harness live by emitting
+// one through a real component logger into a fresh sink — so the silence is
+// evidence about the run rather than about a deaf harness. The whole capture
+// is returned for callers whose claim is that the run wrote nothing at all.
+func assertNoThemeRecords(t *testing.T, run func()) []logtest.Record {
+	t.Helper()
+
+	sink := &logtest.Sink{}
+	log.SetTestHandler(t, sink)
+
+	run()
+
+	records := sink.Records()
+	if events := themeEvents(t, sink); len(events) != 0 {
+		t.Errorf("the run emitted %d theme records, want none:\n  %s", len(events), strings.Join(events, "\n  "))
+	}
+
+	live := &logtest.Sink{}
+	log.SetTestHandler(t, live)
+	theme.NewEventLogger(log.For("theme")).Rejected("mine", "", &theme.Rejection{Reason: theme.ReasonBadColour})
+	if events := themeEvents(t, live); len(events) != 1 {
+		t.Fatalf("the capture harness recorded %d theme events, want 1 — the assertion above would be vacuous: %v", len(events), events)
+	}
+	return records
 }
 
 // TestThemeExport_ReadsNoPrefs: it never reads prefs.
@@ -598,7 +597,7 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 		}
 		t.Setenv("PORTAL_THEMES_DIR", themes)
 
-		before := snapshotTree(t, root)
+		before := treeFingerprint(t, root)
 		if len(before) == 0 {
 			t.Fatal("snapshot of the config root is empty — the comparison below would be vacuous")
 		}
@@ -607,9 +606,7 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 			execThemeExport(t, slug)
 		}
 
-		if after := snapshotTree(t, root); !maps.Equal(after, before) {
-			t.Errorf("the config tree changed:\nbefore: %v\nafter:  %v", before, after)
-		}
+		assertTreeUnchanged(t, root, before, "the config tree changed")
 	})
 }
 

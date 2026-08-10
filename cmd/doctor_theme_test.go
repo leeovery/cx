@@ -446,9 +446,9 @@ func TestThemeAdvisories_FileLinesCarryTheirSlug(t *testing.T) {
 // loader is handed log.Discard() and the largest possible WARN volume is never
 // written on the surface needing it least.
 //
-// The last subtest keeps the rest honest: it proves the installed sink DOES
-// capture a `theme` event, so the zero-record assertions are evidence about the
-// scan rather than about a deaf harness.
+// Both cases run under the shared vacuity guard, which proves the installed
+// sink DOES capture a `theme` event — so the zero-record assertions are
+// evidence about the scan rather than about a deaf harness.
 func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 	t.Run("a full reject set writes nothing", func(t *testing.T) {
 		skipUnlessModeBitsDeny(t)
@@ -469,13 +469,13 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 		// reject set one short and the record count arguing about the wrong run.
 		_ = requireDeniedRead(t, denied)
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		records := assertNoThemeRecords(t, func() {
+			if got := themeAdvisoriesFor(t, dir); len(got) != 4 {
+				t.Fatalf("scan produced %d advisories, want 4 — the zero-record assertion needs a full reject set:\n  %s", len(got), strings.Join(advisoryLines(got), "\n  "))
+			}
+		})
 
-		if got := themeAdvisoriesFor(t, dir); len(got) != 4 {
-			t.Fatalf("scan produced %d advisories, want 4 — the zero-record assertion needs a full reject set:\n  %s", len(got), strings.Join(advisoryLines(got), "\n  "))
-		}
-		if records := sink.Records(); len(records) != 0 {
+		if len(records) != 0 {
 			t.Errorf("scan emitted %d log records, want none: %+v", len(records), records)
 		}
 	})
@@ -486,23 +486,12 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 			t.Fatalf("seed %s: %v", path, err)
 		}
 
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
+		records := assertNoThemeRecords(t, func() {
+			requireOneAdvisory(t, themeAdvisoriesFor(t, path))
+		})
 
-		requireOneAdvisory(t, themeAdvisoriesFor(t, path))
-		if records := sink.Records(); len(records) != 0 {
+		if len(records) != 0 {
 			t.Errorf("scan emitted %d log records over an unusable directory, want none: %+v", len(records), records)
-		}
-	})
-
-	t.Run("the sink captures a theme event when one is emitted", func(t *testing.T) {
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
-
-		theme.NewEventLogger(log.For("theme")).Rejected("mine", "", &theme.Rejection{Reason: theme.ReasonBadColour})
-
-		if records := sink.Records(); len(records) != 1 {
-			t.Fatalf("the capture harness recorded %d theme events, want 1 — the assertions above would be vacuous: %+v", len(records), records)
 		}
 	})
 }
@@ -537,7 +526,7 @@ func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 	}
 	t.Setenv("PORTAL_PREFS_FILE", prefsPath)
 
-	before := snapshotTree(t, root)
+	before := treeFingerprint(t, root)
 	if len(before) < len(files) {
 		t.Fatalf("snapshot holds %d entries over %d seeded files — the comparison would be vacuous", len(before), len(files))
 	}
@@ -546,9 +535,7 @@ func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 		t.Fatalf("scan produced %d advisories, want 3:\n  %s", len(got), strings.Join(advisoryLines(got), "\n  "))
 	}
 
-	if after := snapshotTree(t, root); !maps.Equal(after, before) {
-		t.Errorf("the config tree changed:\nbefore: %v\nafter:  %v", before, after)
-	}
+	assertTreeUnchanged(t, root, before, "the config tree changed")
 
 	t.Run("it creates no prefs.json when there is none", func(t *testing.T) {
 		absent := filepath.Join(t.TempDir(), "prefs.json")

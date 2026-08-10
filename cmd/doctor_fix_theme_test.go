@@ -19,15 +19,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"go/ast"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/log"
-	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/theme"
 	"github.com/spf13/cobra"
 )
 
@@ -277,7 +273,7 @@ func fixThemeFixture(t *testing.T) (root, prefsPath string) {
 // entry set (so nothing was deleted, renamed or seeded), and prefs.json.
 func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 	root, prefsPath := fixThemeFixture(t)
-	before := snapshotTree(t, root)
+	before := treeFingerprint(t, root)
 	prefsBefore, err := os.ReadFile(prefsPath)
 	if err != nil {
 		t.Fatalf("read prefs.json: %v", err)
@@ -293,9 +289,7 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 		t.Fatalf("report carries %d advisory lines over the two renders, want 8 (4 per pass) — the untouched assertions would be about a scan that found nothing:\n%s", n, outBuf.String())
 	}
 
-	if after := snapshotTree(t, root); !maps.Equal(after, before) {
-		t.Errorf("--fix changed the theme config tree:\nbefore: %v\nafter:  %v", before, after)
-	}
+	assertTreeUnchanged(t, root, before, "--fix changed the theme config tree")
 
 	prefsAfter, err := os.ReadFile(prefsPath)
 	if err != nil {
@@ -439,31 +433,15 @@ func TestDoctorFix_EmitsNoThemeRecords(t *testing.T) {
 		"nord.theme":      validThemeSource(t),
 	})
 
-	sink := &logtest.Sink{}
-	log.SetTestHandler(t, sink)
-
-	outBuf, _, err := runDoctorFixCmd(t, deps)
-	if err != nil {
-		t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
-	}
-	// Vacuity guard: six lines per pass over twelve, so the silence below is about
-	// a run that diagnosed a full reject set twice.
-	if n := strings.Count(outBuf.String(), "⚠"); n != 12 {
-		t.Fatalf("report carries %d advisory lines over the two renders, want 12 (6 per pass) — the zero-record assertion would be about the wrong run:\n%s", n, outBuf.String())
-	}
-
-	if events := themeEvents(t, sink); len(events) != 0 {
-		t.Errorf("--fix emitted %d theme records, want none:\n  %s", len(events), strings.Join(events, "\n  "))
-	}
-
-	t.Run("the sink captures a theme event when one is emitted", func(t *testing.T) {
-		sink := &logtest.Sink{}
-		log.SetTestHandler(t, sink)
-
-		theme.NewEventLogger(log.For("theme")).Rejected("mine", "", &theme.Rejection{Reason: theme.ReasonBadColour})
-
-		if events := themeEvents(t, sink); len(events) != 1 {
-			t.Fatalf("the capture harness recorded %d theme events, want 1 — the assertion above would be vacuous: %v", len(events), events)
+	assertNoThemeRecords(t, func() {
+		outBuf, _, err := runDoctorFixCmd(t, deps)
+		if err != nil {
+			t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
+		}
+		// Vacuity guard: six lines per pass over twelve, so the silence is about
+		// a run that diagnosed a full reject set twice.
+		if n := strings.Count(outBuf.String(), "⚠"); n != 12 {
+			t.Fatalf("report carries %d advisory lines over the two renders, want 12 (6 per pass) — the zero-record assertion would be about the wrong run:\n%s", n, outBuf.String())
 		}
 	})
 }
