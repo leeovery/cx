@@ -910,7 +910,7 @@ func themePanelConfirmFixture() *Fixture {
 // IT IS THE ONLY PLACE THE ABSENCE OF A BAND IS CHECKABLE. The line renders in
 // `accent.attention` for both the `⚠` and the text with NO `bg.attention` band,
 // because the main screen's full-width warning band would read as HEAVY inside a
-// 27–34 column panel — a judgement only an image settles, and one no assertion can
+// 24–30 column panel — a judgement only an image settles, and one no assertion can
 // make for a reviewer.
 //
 // THE BADGES ARE THE OTHER SUBJECT, and the adaptive pair is chosen for it: a
@@ -1173,15 +1173,14 @@ func themePanelDirUnreadableUnion() theme.Union {
 
 // themePanelNarrowFixture builds the deterministic "theme-panel-narrow" fixture:
 // the adaptive-pair frame's list, keys, union and cursor exactly, captured through
-// a tape whose terminal lands the panel in the DEGRADED BAND between the
-// preferred and minimum widths.
+// a tape whose terminal steps the panel DOWN TO ITS MINIMUM width.
 //
-// IT IS THE ONLY OBSERVABLE CHECK ON THE LADDER. The shrink is staged — the
-// panel takes half the content region, clamped to the two ends — and every other
-// panel fixture is captured wide enough to take the preferred width, so without
-// this frame the middle of the ladder is rendered by nothing. A fixture cannot
+// IT IS THE LADDER'S OWN FRAME. The shrink is staged — the preferred width while
+// the content region is at least twice it, the minimum below that — and the panel
+// fixtures whose subject is the panel itself are all captured wide enough to take
+// the preferred width, so the step is what this frame is for. A fixture cannot
 // resize itself either: it opens through captureKeys and is a one-shot render, so
-// the band is reachable ONLY by capturing at a narrower terminal.
+// the narrowed stage is reachable ONLY by capturing at a narrower terminal.
 //
 // THE FIXTURE DATA IS DELIBERATELY IDENTICAL to the adaptive-pair frame's, so the
 // two are a controlled pair: everything that differs between the images is the

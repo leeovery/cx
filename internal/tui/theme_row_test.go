@@ -26,12 +26,13 @@ import (
 // No t.Parallel() — the package-level mock convention and the shared canvas
 // helpers make parallelism unsafe across this package's tests.
 
-// The two ends of the geometry rule's ~27–34 column band. The delegate is HANDED its width and
-// owns neither end of the ladder (the panel declares its own constants), so
-// these are the test's own representatives of the band the rows must survive.
-const (
-	themeRowTestPreferredWidth = 30
-	themeRowTestMinWidth       = 24
+// The two ends of the inner content width the panel's column band leaves the
+// delegate — the ladder's two stages less the border and the inner gutter. They are
+// derived rather than restated so a move of the ladder reaches these assertions
+// instead of leaving them composing against a width no panel renders at.
+var (
+	themeRowTestPreferredWidth = themePanelInnerWidth(themePanelPreferredWidth)
+	themeRowTestMinWidth       = themePanelInnerWidth(themePanelMinWidth)
 )
 
 // renderThemeRow renders one panel row through the delegate with the cursor on
@@ -255,7 +256,7 @@ func TestThemePanelBadgeText_RendersTheFourBadges(t *testing.T) {
 // TestThemePanelBadgeText_BothIsNoWiderThanLight asserts the row-rendering rule's width
 // relation DIRECTLY rather than leaving it to prose: the collapsed badge is no wider than
 // the widest slot badge, so it cannot move the row-composition truncation budget
-// the panel's ~27–34 columns are apportioned by.
+// the panel's ~24–30 columns are apportioned by.
 //
 // The collapse is reachable in two keypresses, so a wider `● both` would steal
 // columns from the label on rows users routinely produce. Width is measured with
@@ -301,14 +302,50 @@ func TestThemeRow_ReasonIsDroppedBeforeBadge(t *testing.T) {
 	}
 }
 
+// TestThemeRow_ShortLabelDropsTheReasonRatherThanOverflow pins the interaction
+// between the truncation floor and the reason's own fit test at the panel's minimum
+// width: the floor is the label's guaranteed cells, so the reason must be charged
+// against it and dropped when the two together exceed the row.
+//
+// A short label is the case that reaches it. The reason is charged against the
+// label's NATURAL width, which for a three-cell slug leaves room the floor then
+// claims back — so a reason that "fits" pushes the composed row one cell past the
+// panel's declared width, widening the whole list body and spilling the slide-over
+// out of its composite position.
+//
+// The longest reason is the one that reaches it, and the `⚠` stays either way: it
+// is the invalidity signal, and the reason is the element the composition drops
+// first.
+func TestThemeRow_ShortLabelDropsTheReasonRatherThanOverflow(t *testing.T) {
+	th := testDarkTheme(t)
+	reason := string(theme.ReasonMissingTokens)
+
+	d := themeRowDelegate{Theme: th, Width: themeRowTestMinWidth}
+	out := renderOneThemeRow(d, themeRowItem{Row: invalidThemeRow("ab", theme.ReasonMissingTokens)})
+	vis := visibleThemeRow(out)
+
+	if got := lipgloss.Width(out); got != themeRowTestMinWidth {
+		t.Errorf("the row renders %d cells at the panel's inner minimum of %d: %q", got, themeRowTestMinWidth, vis)
+	}
+	if strings.Contains(vis, reason) {
+		t.Errorf("the row kept its terse reason %q at a width that cannot hold it and the label's floor together: %q", reason, vis)
+	}
+	if !strings.Contains(vis, flashWarningGlyph) {
+		t.Errorf("the row dropped the ⚠ invalidity signal, which outranks the reason: %q", vis)
+	}
+	if !strings.Contains(vis, "ab") {
+		t.Errorf("the row dropped its label: %q", vis)
+	}
+}
+
 // TestThemeRow_LabelTruncationFloor pins the row-rendering rule's fourth priority and its
 // floor: a label longer than the cells left is truncated with `…`, and it never shrinks
 // below three visible characters plus the ellipsis.
 //
-// The floor is where the row-rendering rule's degradation STOPS: below it the panel is already
-// at the geometry rule's refuse threshold, so there is deliberately no further rule — the
-// label simply stops giving columns back, and a row squeezed that hard belongs to a
-// panel that would have refused to open.
+// The floor is where the row-rendering rule's degradation STOPS: the label simply
+// stops giving columns back, so the floor is its guaranteed share of the row rather
+// than a limit on it. What gives at a width that cannot hold both is the reason,
+// which the composition drops first.
 func TestThemeRow_LabelTruncationFloor(t *testing.T) {
 	th := testDarkTheme(t)
 	longSlug := "a-very-long-user-slug-that-cannot-possibly-fit-the-panel"

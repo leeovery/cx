@@ -22,13 +22,14 @@ import (
 // No t.Parallel() — the package-level mock convention and the shared canvas
 // helpers make parallelism unsafe across this package's tests.
 
-// The two ends of the inner content width the geometry rule's ~27–34 column panel leaves for
-// its footer. The footer owns neither end of the ladder (the panel declares it and
-// its layout subtracts the left border), so these are the test's own representatives
-// of the band every row must survive.
-const (
-	themePanelFooterTestWidth    = 29
-	themePanelFooterTestMinWidth = 23
+// The two ends of the inner content width the panel's column band leaves for its
+// footer — the ladder's two stages less the border and the inner gutter. They are
+// derived rather than restated so a move of the ladder reaches the footer's own
+// assertions instead of leaving them measuring a width the panel no longer renders
+// at.
+var (
+	themePanelFooterTestWidth    = themePanelInnerWidth(themePanelPreferredWidth)
+	themePanelFooterTestMinWidth = themePanelInnerWidth(themePanelMinWidth)
 )
 
 // themePanelFooterPinnedRows is the pinned copy's panel-footer copy, verbatim: "footer
@@ -66,7 +67,7 @@ func themePanelFooterCopy(row string) string {
 // the pinned copy rows, in descriptor order, one line each.
 //
 // The copy is a layout constraint as much as a copy choice — it has to fit
-// 27–34 columns — so it is pinned verbatim rather than paraphrased, and the row
+// 24–30 columns — so it is pinned verbatim rather than paraphrased, and the row
 // count is pinned with it: a fifth row would silently grow the panel's height
 // floor.
 func TestThemePanelFooter_PinnedCopy(t *testing.T) {

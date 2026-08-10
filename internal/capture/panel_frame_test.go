@@ -169,6 +169,57 @@ func panelRowLine(t *testing.T, frame, label string) (index int, raw string) {
 	})
 }
 
+// panelSlugRow is panelRowLine's twin for a width at which the label may have been
+// CUT: it matches the row whose rendered label is the slug, or a prefix of the slug
+// carrying the truncation ellipsis, and returns the row parsed.
+//
+// It makes panelRowLine's uniqueness assertion — a slug found on two lines is the
+// one-delegate-line invariant broken — and is what lets a narrow frame be read by
+// the slug the fixture declares rather than by the string a particular budget
+// happens to leave.
+// An exact label wins over a truncated one, and only then is the truncated set
+// required to hold exactly one row: a cut label is a prefix of every longer slug
+// sharing that prefix, so `tokyo-night…` names `tokyo-night-day` on a frame that
+// also renders `tokyo-night` in full.
+func panelSlugRow(t *testing.T, frame, slug string) panelRow {
+	t.Helper()
+
+	var exact, truncated []panelRow
+	for _, line := range panelLines(t, frame) {
+		fields, cursor := line.fields()
+		if len(fields) == 0 {
+			continue
+		}
+		row := panelRow{cursor: cursor, label: fields[0], badge: strings.Join(fields[1:], " ")}
+		switch {
+		case fields[0] == slug:
+			exact = append(exact, row)
+		case labelTruncates(fields[0], slug):
+			truncated = append(truncated, row)
+		}
+	}
+
+	found := exact
+	if len(found) == 0 {
+		found = truncated
+	}
+	if len(found) != 1 {
+		t.Fatalf("the row %s renders on %d panel lines, want exactly 1 — §9.5 puts every row on exactly one delegate line:\n%s", slug, len(found), ansi.Strip(frame))
+	}
+	return found[0]
+}
+
+// labelTruncates reports whether a rendered label is slug cut short with the
+// truncation ellipsis.
+func labelTruncates(label, slug string) bool {
+	cut, ok := strings.CutSuffix(label, panelEllipsis)
+	return ok && cut != "" && strings.HasPrefix(slug, cut)
+}
+
+// panelEllipsis is the glyph a cut label ends in. It is a literal here for the
+// reason panelBorder is: internal/tui keeps its own copy unexported.
+const panelEllipsis = "…"
+
 // panelRow is one parsed row of the rendered slide-over: whether the cursor bar
 // is on it, its label, and the badge text to its right.
 type panelRow struct {

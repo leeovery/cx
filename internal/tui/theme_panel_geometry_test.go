@@ -19,7 +19,7 @@ import (
 // The doctrine is the point. MV's degrade-never-break governs a space
 // SHORTAGE, which is what a narrow terminal is; the multi-select precedent (a
 // proactive block at entry) governs a capability ABSENCE and deliberately does not
-// transfer. Applying the wrong one either opens a broken frame on a 34-column
+// transfer. Applying the wrong one either opens a broken frame on a 30-column
 // terminal or refuses a panel that would have fitted.
 //
 // No t.Parallel() — the package-level mock convention makes parallelism unsafe
@@ -29,26 +29,24 @@ import (
 // minimum.
 //
 // The geometry rule leaves the exact thresholds to implementation, as MV already does for its
-// own steps, so the table pins them: ≥60 content columns take the preferred width,
-// 48–59 shrink through the band, and 24–47 sit on the minimum. The half-width cap
-// is what keeps the previewed page visible while the terminal is wide enough to
-// afford it.
+// own steps, so the table pins them: a content region of at least twice the
+// preferred width takes the preferred width, anything narrower steps down to the
+// minimum, and below the minimum the panel refuses. The affordance threshold is what
+// keeps half the previewed page visible while the terminal is wide enough to give it.
 //
-// MONOTONICITY IS THE PROPERTY, not the individual rows: a ladder that jumped back
-// up as the terminal narrowed would satisfy every point below and still not be a
-// staged degradation.
+// THE TWO STAGES ARE THE PROPERTY, not the individual rows: a proportional rule
+// satisfies "never widens as the terminal narrows" and still resizes the panel on
+// every terminal column, which is the thing the staging exists to stop.
 func TestPanelGeometry_WidthLadder(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		contentW int
 		want     int
 	}{
-		{name: "far wider than the cap", contentW: 200, want: themePanelPreferredWidth},
-		{name: "exactly twice the preferred width", contentW: 68, want: themePanelPreferredWidth},
-		{name: "one column into the degraded band", contentW: 67, want: 33},
-		{name: "mid band", contentW: 60, want: 30},
-		{name: "the bottom of the degraded band", contentW: 54, want: themePanelMinWidth},
-		{name: "below the band, above the floor", contentW: 40, want: themePanelMinWidth},
+		{name: "far wider than the affordance", contentW: 200, want: themePanelPreferredWidth},
+		{name: "exactly at the affordance", contentW: 2 * themePanelPreferredWidth, want: themePanelPreferredWidth},
+		{name: "one column below the affordance", contentW: 2*themePanelPreferredWidth - 1, want: themePanelMinWidth},
+		{name: "mid range", contentW: 40, want: themePanelMinWidth},
 		{name: "exactly at the floor", contentW: themePanelMinWidth, want: themePanelMinWidth},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -62,30 +60,30 @@ func TestPanelGeometry_WidthLadder(t *testing.T) {
 		})
 	}
 
-	t.Run("it never widens as the terminal narrows", func(t *testing.T) {
+	t.Run("it takes two widths and nothing between them", func(t *testing.T) {
 		prev := themePanelPreferredWidth
-		sawStrictlyBetween := false
+		steps := 0
 		for contentW := 200; contentW >= themePanelMinWidth; contentW-- {
 			got, ok := themePanelWidthFor(contentW)
 			if !ok {
 				t.Fatalf("themePanelWidthFor(%d) refused above the floor", contentW)
 			}
+			if got != themePanelMinWidth && got != themePanelPreferredWidth {
+				t.Fatalf("themePanelWidthFor(%d) = %d, want one of the ladder's two stages %d or %d", contentW, got, themePanelMinWidth, themePanelPreferredWidth)
+			}
 			if got > prev {
-				t.Fatalf("narrowing the content region to %d WIDENED the panel from %d to %d — the ladder is not staged", contentW, prev, got)
+				t.Fatalf("narrowing the content region to %d WIDENED the panel from %d to %d", contentW, prev, got)
 			}
-			if got < themePanelMinWidth || got > themePanelPreferredWidth {
-				t.Fatalf("themePanelWidthFor(%d) = %d, outside the [%d, %d] ladder", contentW, got, themePanelMinWidth, themePanelPreferredWidth)
-			}
-			if got > themePanelMinWidth && got < themePanelPreferredWidth {
-				sawStrictlyBetween = true
+			if got != prev {
+				steps++
 			}
 			prev = got
 		}
 		if prev != themePanelMinWidth {
 			t.Errorf("the bottom of the ladder is %d, want the minimum %d", prev, themePanelMinWidth)
 		}
-		if !sawStrictlyBetween {
-			t.Error("no content width produced a panel strictly between the minimum and the preferred width — the ladder is a switch, not a staged shrink")
+		if steps != 1 {
+			t.Errorf("the panel changed width %d times across the range, want exactly 1 — the ladder is staged, not proportional", steps)
 		}
 	})
 }
@@ -333,22 +331,22 @@ func TestPanelGeometry_FloorReportsWidthFirst(t *testing.T) {
 // a change to the page gutter moves the fixtures rather than silently moving the band
 // they are meant to sit in.
 //
-// geometryDegradedW is chosen so the panel lands STRICTLY between the two ends —
-// the only band in which "the open used the ladder" and "the open used the preferred
-// width" are different answers.
+// geometryDegradedW is a content region below the ladder's affordance threshold, so
+// the panel steps down to the minimum — the stage in which "the open used the
+// ladder" and "the open used the preferred width" are different answers.
 const (
 	geometryWideW         = 96
-	geometryDegradedW     = 56
-	geometryDegradedPanel = 28
+	geometryDegradedW     = 52
+	geometryDegradedPanel = themePanelMinWidth
 	geometryContentH      = 26
 )
 
 // geometryLabel is 24 cells — inside the label budget a BADGED row has at the
-// preferred width (inner 32, less the 2-cell cursor column and the badge's `●` plus
-// its gap = 28) and beyond the 22 it has at geometryDegradedPanel (inner 26).
+// preferred width (inner 28, less the 2-cell cursor column and the badge's `●` plus
+// its gap = 24) and beyond the 18 it has at geometryDegradedPanel (inner 22).
 //
 // That is the whole point of the value: the same row renders untruncated at the
-// preferred width and truncated with `…` in the degraded band, so a delegate still
+// preferred width and truncated with `…` at the stepped-down one, so a delegate still
 // composing against the pre-resize budget is visible as a MISSING ellipsis rather
 // than as an off-by-one nobody reads.
 const geometryLabel = "aurora-midnight-drifting"
@@ -442,7 +440,7 @@ func requireRenderedPanelWidth(t *testing.T, m Model, want int) {
 // the preferred width and narrowed only if the user happened to resize afterwards
 // would contradict the geometry rule's staged shrink — and would make the `theme-panel-narrow`
 // fixture uncapturable, since a fixture opens through `captureKeys` and never
-// resizes, so the degraded band would only ever be entered by a gesture no capture
+// resizes, so the narrowed stage would only ever be entered by a gesture no capture
 // makes.
 //
 // NO tea.WindowSizeMsg IS SENT. The fixture assigns the dimensions directly, so the
@@ -453,13 +451,13 @@ func TestPanelGeometry_OpenUsesTheWidthLadder(t *testing.T) {
 		requireRenderedPanelWidth(t, m, themePanelPreferredWidth)
 	})
 
-	t.Run("a terminal in the degraded band opens already narrowed", func(t *testing.T) {
+	t.Run("a terminal below the affordance opens already narrowed", func(t *testing.T) {
 		want, ok := themePanelWidthFor(geometryDegradedW)
 		if !ok || want != geometryDegradedPanel {
 			t.Fatalf("fixture: a %d-column content region gives a %d-cell panel (ok=%v), want %d", geometryDegradedW, want, ok, geometryDegradedPanel)
 		}
-		if want >= themePanelPreferredWidth || want <= themePanelMinWidth {
-			t.Fatalf("fixture: %d is not strictly between the ladder's ends, so the assertion below cannot fail", want)
+		if want >= themePanelPreferredWidth {
+			t.Fatalf("fixture: %d is not below the preferred width, so the assertion below cannot fail", want)
 		}
 
 		m := newGeometryPanelModel(t, geometryDegradedW, geometryContentH)

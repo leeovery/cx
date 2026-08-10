@@ -140,6 +140,32 @@ func newSlotConfirmModelAt(t *testing.T, termH int) (Model, *fakeThemePersister)
 func slotConfirmConstant() string { return arrowSlug(0) }
 func slotConfirmTarget() string   { return arrowSlug(2) }
 
+// slotConfirmCopy is the confirm as these assertions read it: the pinned leading
+// phrase carrying as much of the slug as ANY width leaves, since the slug is the one
+// element the ladder truncates and the floor guarantees three of its characters.
+//
+// The trailing keys are asserted separately (slotConfirmAnswerKeys), so the two
+// halves of the pinned frame are checked either side of the element that moves.
+// Composing the whole line through the production composer instead would move with
+// the ladder — and would hold just as readily if that composer produced nothing at
+// all.
+func slotConfirmCopy(slug string) string {
+	runes := []rune(slug)
+	return "clear constant " + string(runes[:min(themeRowLabelFloor-1, len(runes))])
+}
+
+// slotConfirmAnswerKeys is the tail of the pinned confirm — the half that says how
+// to answer it, and the half no width truncates.
+const slotConfirmAnswerKeys = "?  y / n"
+
+// slotConfirmLine is the whole confirm line as the panel composes it at the width
+// the model is rendering, for the assertions that compare the message row for
+// EQUALITY — where the composer's own output is a legitimate expectation, since an
+// empty one would fail against a rendered row rather than pass silently.
+func slotConfirmLine(m Model, slug string) string {
+	return themePanelConfirmText(slug, themePanelInnerWidth(m.themePanel.width))
+}
+
 // raiseSlotConfirmForTest drives a slot key through the live Update and fails
 // unless it raised the confirm, so a test whose subject is the ANSWER does not
 // silently start from an un-raised panel.
@@ -302,8 +328,10 @@ func TestSlotConfirm_RaisedByDAndLOverAConstant(t *testing.T) {
 			requireConfirmLive(t, m, themeSlotConfirm{slug: slotConfirmTarget(), member: tc.member})
 			requireConstantKeys(t, m, slotConfirmConstant())
 			requireConfirmFooter(t, m)
-			if want := "clear constant " + slotConfirmConstant() + "?  y / n"; !strings.Contains(slotConfirmPanelText(m), want) {
-				t.Errorf("the message slot does not read %q:\n%s", want, slotConfirmPanelText(m))
+			for _, want := range []string{slotConfirmCopy(slotConfirmConstant()), slotConfirmAnswerKeys} {
+				if !strings.Contains(slotConfirmPanelText(m), want) {
+					t.Errorf("the message slot does not read %q:\n%s", want, slotConfirmPanelText(m))
+				}
 			}
 			if got := m.themePanel.list.Index(); got != index {
 				t.Errorf("raising the confirm moved the cursor to row %d, want it left on %d", got, index)
@@ -1097,8 +1125,10 @@ func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 
 	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 	rendered := slotConfirmPanelText(m)
-	if want := "clear constant aurora?  y / n"; !strings.Contains(rendered, want) {
-		t.Errorf("the confirm does not read %q — it names the CONSTANT being cleared (§8.2)\n%s", want, rendered)
+	for _, want := range []string{slotConfirmCopy("aurora"), slotConfirmAnswerKeys} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("the confirm does not read %q — it names the CONSTANT being cleared (§8.2)\n%s", want, rendered)
+		}
 	}
 	if strings.Contains(rendered, "ghost") {
 		t.Errorf("the confirm mentions the stale light slug; the copy is not extended for it (§8.2)\n%s", rendered)

@@ -103,12 +103,12 @@ func capturedStates() []capturedStateWant {
 		// belongs to nord-lee, which carries `● dark` — while the unbadged row's
 		// `bad syntax` must be present, so the pair states §9.5's priority as a
 		// captured fact rather than as a rendering coincidence.
-		{fixture: "theme-panel-invalid-row", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ bad syntax", "My Gorgeous Midnight Palett…", "● dark"}, absent: []string{"No sessions yet", "bad colour"}},
+		{fixture: "theme-panel-invalid-row", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ bad syntax", "My Gorgeous Midnight Pa…", "● dark"}, absent: []string{"No sessions yet", "bad colour"}},
 		{fixture: "theme-panel-dir-unreadable", page: tui.PageSessions, present: []string{sessionRow, "Themes", "⚠ dir unreadable", "solarized-lee", "● light", "● dark"}, absent: []string{"No sessions yet"}},
 		// The narrow frame's captured state at THIS size is the adaptive pair's, by
 		// construction: its subject is §9.8's width ladder, which is a function of
-		// the terminal rather than of the fixture, so the degraded band is asserted
-		// at its own size by TestPanelFixture_NarrowIsBetweenMinAndPreferred. What
+		// the terminal rather than of the fixture, so the narrowed stage is asserted
+		// at its own size by the narrow fixture's own test. What
 		// belongs here is only that the driver opened the panel at all.
 		{fixture: "theme-panel-narrow", page: tui.PageSessions, present: []string{sessionRow, "Themes", "● light", "● dark"}, absent: []string{"No sessions yet"}},
 		{fixture: "theme-panel-paginated", page: tui.PageSessions, present: []string{sessionRow, "Themes", "vivid-01", "● light", "● dark"}, absent: []string{"No sessions yet"}},

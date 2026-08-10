@@ -603,7 +603,7 @@ func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 	persister.err = errThemeCommitFailed
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
-	requireOnlySlotContender(t, m, "clear constant aurora?  y / n")
+	requireOnlySlotContender(t, m, slotConfirmLine(m, "aurora"))
 
 	m, _ = pressConfirmKey(t, m, confirmYes)
 	requireOnlySlotContender(t, m, messageTestFailedCopy)
@@ -612,7 +612,7 @@ func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 	// and the question takes the slot the report was occupying.
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 
-	requireOnlySlotContender(t, m, "clear constant aurora?  y / n")
+	requireOnlySlotContender(t, m, slotConfirmLine(m, "aurora"))
 	requireConfirmLive(t, m, themeSlotConfirm{slug: "nord", member: theme.MemberDark})
 	if !m.themeState.commitFailed {
 		t.Error("raising the confirm discharged the outstanding failure; only a successful commit does (§9.13)")

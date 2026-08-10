@@ -742,11 +742,11 @@ func TestThemePanel_OverlayDoesNotRelayoutTheBase(t *testing.T) {
 func TestThemePanel_OverlayCutsMidLabel(t *testing.T) {
 	th := testDarkTheme(t)
 	// At this content width the panel's left border lands inside `x projects`,
-	// reproducing the panel layout's own worked example (`x proje▏`) a character earlier. The
-	// width has moved twice: with the re-authored footer row (the amendment this feature
-	// carries to the keymap), and again with the panel's own widening — a wider panel cuts
-	// further left, so the content width had to follow the cut column back into a label.
-	const contentW, contentH = 90, 20
+	// reproducing the panel layout's own worked example (`x proje▏`) a character earlier.
+	// The cut column is the content width less the panel's, so both the re-authored
+	// footer row (the amendment this feature carries to the keymap) and any move of
+	// the width ladder shift it — the content width follows the cut back into a label.
+	const contentW, contentH = 86, 20
 
 	footer := renderSessionsFooter(sessionsKeymap(), contentW, th, false)
 	footerLines := strings.Split(ansi.Strip(footer), "\n")

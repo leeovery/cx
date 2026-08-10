@@ -71,7 +71,7 @@ func messageTestVisible(message themePanelMessage, inner int, wrap bool, th them
 // TestPanelMessage_ConfirmPinnedCopy: it renders the pinned confirm copy.
 //
 // The pinned copy pins `clear constant <slug>?  y / n` — TWO spaces before the `y`. The copy
-// is a layout constraint as much as a copy choice (the panel is 27–34
+// is a layout constraint as much as a copy choice (the panel is 24–30
 // columns), so it is byte-compared against the pinned copy string rather than matched
 // loosely, and the message carries NO FREE TEXT: the contender renders its own
 // pinned copy, so no call site can paraphrase it.
@@ -408,7 +408,7 @@ func TestPanelMessage_ConfirmTokens(t *testing.T) {
 //
 // The panel layout's table: "message slot — failed commit: `⚠` and text in `accent.attention`,
 // NO `bg.attention` band — the warning band is a full-width main-screen flash
-// treatment and would read as heavy inside a 27–34 column panel". The glyph and
+// treatment and would read as heavy inside a 24–30 column panel". The glyph and
 // the text share ONE run, exactly as the pinned directory row's do.
 func TestPanelMessage_CommitFailedTokens(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {

@@ -27,7 +27,7 @@ import (
 //     `y confirm` / `n cancel`, and nothing else on the frame says so;
 //   - the FAILED-COMMIT line is the only place the deliberate absence of a
 //     `bg.attention` band is checkable — the whole point of that decision is that a
-//     full-width main-screen band reads as heavy inside a 27-column panel, which is
+//     full-width main-screen band reads as heavy inside a 24-column panel, which is
 //     a judgement only an image settles;
 //   - the MINIMUM-HEIGHT frame is the only surface on which the geometry rule's floor
 //     arithmetic is observable at all, and the only check that the slot TRUNCATES to one line
@@ -59,9 +59,10 @@ func messagePanelFixtureNames() []string {
 // same numbers on the Go side.
 const (
 	// messagePanelTermWidth lands the panel on the geometry rule's MINIMUM width, which is where
-	// the panel layout's wrap case lives: the ladder is `min(max(contentW/2, minimum),
-	// preferred)` against a content region of termW − 2·tui.Hinset, so 54 columns gives 50
-	// content columns, half of which is below the minimum and clamps to it.
+	// the panel layout's wrap case lives: the ladder takes the preferred width only
+	// while the content region is at least twice it, and against a content region of
+	// termW − 2·tui.Hinset, 54 columns gives 50 content columns — below that
+	// threshold, so the panel steps down to the minimum.
 	messagePanelTermWidth = 54
 
 	// messagePanelFloorTermHeight lands the panel EXACTLY on the geometry rule's height floor —
@@ -131,7 +132,12 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 	footerStart, footerRows := footerBlock(t, lines, confirmFooterRows)
 
 	t.Run("the slot carries §14A's confirm verbatim", func(t *testing.T) {
-		if got, want := joinMessageLines(lines[start:footerStart]), themePanelConfirmCopy; got != want {
+		// The frame is captured at the panel's MINIMUM width, where the copy wraps —
+		// and a wrap breaks on whitespace, so the run of spaces before `y / n` is
+		// consumed by the break it becomes. The comparison is therefore on the words:
+		// the pinned copy's own wording is what has to survive, and the spacing between
+		// its two halves is the wrap's to spend.
+		if got, want := joinMessageLines(lines[start:footerStart]), strings.Join(strings.Fields(themePanelConfirmCopy), " "); got != want {
 			t.Errorf("the message slot reads %q, want §14A's pinned %q", got, want)
 		}
 	})
@@ -246,7 +252,7 @@ func distinctForegrounds(raw string) []string {
 // place the deliberate ABSENCE of a `bg.attention` band is checkable. The panel layout's table
 // gives the failed-commit line `accent.attention` for the `⚠` and the text and NO band —
 // the reasoning being that the band is a full-width main-screen flash treatment
-// that would read as heavy inside a 27–34 column panel, which is a judgement only
+// that would read as heavy inside a 24–30 column panel, which is a judgement only
 // an image settles.
 //
 // # THE COHERENCE RULE: `--theme` MUST NAME THE THEME UNDER THE CURSOR

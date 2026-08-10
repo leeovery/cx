@@ -19,7 +19,7 @@ import (
 // The shape follows from live preview. Portal's modals blank the page to the
 // canvas before drawing, so a modal theme picker would render the canvas plus its
 // own frame and preview nothing. Every downstream constraint inherits from that:
-// the ~27–34 column budget, the row-composition priority, the message slot's
+// the ~24–30 column budget, the row-composition priority, the message slot's
 // truncation rule, and the accepted cost of covering three footer entries and
 // cutting a label mid-word.
 //
@@ -43,8 +43,15 @@ const (
 	// themePanelWidthFor chooses between them for a given terminal, and
 	// themePanelFloor refuses below the minimum; renderThemePanel renders at
 	// whatever width it is handed.
-	themePanelPreferredWidth = 34
-	themePanelMinWidth       = 27
+	themePanelPreferredWidth = 30
+	themePanelMinWidth       = 24
+
+	// themePanelPreferredAffordance is the content width from which the panel takes
+	// its preferred width: twice that width, so at least half the previewed page
+	// stays visible wherever the panel is at its widest. Below it the ladder steps
+	// straight to the minimum — two stages and no intermediate, so the panel holds
+	// its width across a resize instead of re-laying out on every terminal column.
+	themePanelPreferredAffordance = 2 * themePanelPreferredWidth
 
 	// themePanelBorderWidth is the one column the left border occupies. It is not
 	// list space, which is why the inner content width subtracts it — there is no
@@ -198,17 +205,19 @@ const (
 // themePanelWidthFor is the width ladder: the panel's outer width for a given
 // content-region width, and whether the region can hold a panel at all.
 //
-// The panel takes half the content region, clamped to the [minimum, preferred]
-// ends declared above. The half-width cap keeps the previewed page visible while
-// the terminal is wide enough to afford it; the clamp turns that into a staged
-// shrink rather than a proportional one that would shrink forever.
+// The panel renders at its preferred width while the content region affords it
+// (themePanelPreferredAffordance), steps down to the minimum below that, and
+// refuses below the minimum.
 //
 // The width is clamped on the refusing path too. Callers take w and ignore ok
 // because themePanelFloor has already refused by the time either runs; returning
 // an unclamped w would make an impossible state render a sub-minimum panel
 // instead of degrading to the minimum.
 func themePanelWidthFor(contentW int) (w int, ok bool) {
-	return min(max(contentW/2, themePanelMinWidth), themePanelPreferredWidth), contentW >= themePanelMinWidth
+	if contentW >= themePanelPreferredAffordance {
+		return themePanelPreferredWidth, true
+	}
+	return themePanelMinWidth, contentW >= themePanelMinWidth
 }
 
 // themePanelMinHeight is the height floor: header + footer + one list row + one

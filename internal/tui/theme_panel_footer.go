@@ -9,7 +9,7 @@ import (
 // entry, `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`.
 //
 // It is vertical rather than a fifth flavour of Portal's horizontal footer row
-// because a horizontal keymap does not fit a ~34-column panel — that one line of
+// because a horizontal keymap does not fit a ~30-column panel — that one line of
 // copy is ~50 cells. It follows the help modal's key-column body idiom
 // (helpModalRow's fixed key column, one row per binding).
 //
@@ -27,7 +27,7 @@ import (
 // themePanelFooterKeyColumnWidth is the fixed width of the left key-glyph column,
 // so the labels share a left edge regardless of glyph length. It is sized for the
 // panel: the widest glyph in the panel scope is `esc`, and the help body's far
-// wider column would eat nearly half a 27-column panel.
+// wider column would eat nearly half a 24-column panel.
 //
 // It is fixed rather than derived from the widest glyph in the entries it is
 // handed: the confirm footer substitutes `y`/`n` into the same screen position,
@@ -49,9 +49,9 @@ const themePanelFooterKeyColumnWidth = 3
 //
 // width is the panel's inner content width; rows are padded out to it so the
 // canvas covers every cell. A row wider than width is returned unpadded rather
-// than truncated or wrapped: the widest row (`d set as dark`) is 15 cells against
-// a minimum inner width comfortably above it, and below the render floor the
-// panel refuses to open at all (themePanelFloor).
+// than truncated or wrapped: the widest row (`l set as light`) is 16 cells against
+// a minimum inner width above it, and below the render floor the panel refuses to
+// open at all (themePanelFloor).
 func renderThemePanelFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinVertical(lipgloss.Left, themePanelFooterRows(entries, width, th, colourless)...)
 }

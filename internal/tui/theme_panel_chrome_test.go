@@ -349,13 +349,13 @@ func TestPanelChrome_InnerGutter(t *testing.T) {
 	})
 }
 
-// TestPanelChrome_WiderLadder: it widens both ends of the ladder.
+// TestPanelChrome_LadderEnds: it pins the two ends of the ladder.
 //
-// The two ENDS move and nothing else does: the `contentW / 2` cap and the geometry rule's
-// clamp shape are unchanged, so the ladder is still a staged shrink rather than a switch,
-// and it still refuses below the minimum.
-func TestPanelChrome_WiderLadder(t *testing.T) {
-	const wantPreferred, wantMinimum = 34, 27
+// The band is a decided one rather than a derived one — every pinned panel string
+// is written to fit it — so the two constants are asserted against literals here,
+// and the ladder's SHAPE is pinned separately by the geometry suite.
+func TestPanelChrome_LadderEnds(t *testing.T) {
+	const wantPreferred, wantMinimum = 30, 24
 
 	if themePanelPreferredWidth != wantPreferred {
 		t.Errorf("themePanelPreferredWidth = %d, want %d", themePanelPreferredWidth, wantPreferred)
@@ -363,47 +363,6 @@ func TestPanelChrome_WiderLadder(t *testing.T) {
 	if themePanelMinWidth != wantMinimum {
 		t.Errorf("themePanelMinWidth = %d, want %d", themePanelMinWidth, wantMinimum)
 	}
-
-	t.Run("the cap is still half the content region", func(t *testing.T) {
-		for _, contentW := range []int{2 * wantPreferred, 2*wantPreferred - 2, 2 * wantMinimum} {
-			want := min(max(contentW/2, wantMinimum), wantPreferred)
-			if got, ok := themePanelWidthFor(contentW); !ok || got != want {
-				t.Errorf("themePanelWidthFor(%d) = (%d, %v), want (%d, true)", contentW, got, ok, want)
-			}
-		}
-	})
-
-	t.Run("the ladder shape is otherwise unchanged", func(t *testing.T) {
-		prev := wantPreferred
-		sawStrictlyBetween := false
-		for contentW := 200; contentW >= wantMinimum; contentW-- {
-			got, ok := themePanelWidthFor(contentW)
-			if !ok {
-				t.Fatalf("themePanelWidthFor(%d) refused above the minimum", contentW)
-			}
-			if got > prev {
-				t.Fatalf("narrowing to %d WIDENED the panel from %d to %d", contentW, prev, got)
-			}
-			if got > wantMinimum && got < wantPreferred {
-				sawStrictlyBetween = true
-			}
-			prev = got
-		}
-		if prev != wantMinimum {
-			t.Errorf("the bottom of the ladder is %d, want %d", prev, wantMinimum)
-		}
-		if !sawStrictlyBetween {
-			t.Error("no content width lands strictly between the ends — the ladder is a switch, not a staged shrink")
-		}
-	})
-
-	t.Run("it refuses below the minimum", func(t *testing.T) {
-		for contentW := wantMinimum - 1; contentW >= 0; contentW-- {
-			if got, ok := themePanelWidthFor(contentW); ok || got != wantMinimum {
-				t.Errorf("themePanelWidthFor(%d) = (%d, %v), want (%d, false)", contentW, got, ok, wantMinimum)
-			}
-		}
-	})
 }
 
 // chromeMeasuredFloor is the geometry rule's height floor derived INDEPENDENTLY of the

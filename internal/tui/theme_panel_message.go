@@ -223,7 +223,7 @@ func renderThemePanelMessage(message themePanelMessage, inner int, wrap bool, th
 // on the panel's own canvas; the failed-commit line puts BOTH the `⚠` and the text
 // in `accent.attention` — one run, exactly as the pinned directory row does — and
 // deliberately takes NO `bg.attention` band: that is a full-width main-screen flash
-// treatment and would read as heavy inside a 27–34 column panel.
+// treatment and would read as heavy inside a 24–30 column panel.
 //
 // The empty slot returns no text, which is what renderThemePanelMessage reads as
 // "render nothing"; its zero token is never consulted.

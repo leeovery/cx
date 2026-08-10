@@ -24,8 +24,11 @@ const (
 	// the ellipsis. ansi.Truncate counts the tail INSIDE the width it is given, so
 	// four cells is exactly "three visible characters plus the ellipsis".
 	//
-	// Below it the label simply stops shrinking; the panel refuses to open at all
-	// at those widths, so no further degradation rule is needed.
+	// Below it the label simply stops shrinking, so it is the label's guaranteed
+	// share of the row rather than a limit on it: whatever the trailing elements
+	// leave, these cells are spent. Every element charged after the label must
+	// therefore charge the label at least this much (see themeRowReason), or the
+	// composed row renders wider than the width it was handed.
 	themeRowLabelFloor = 4
 )
 
@@ -126,7 +129,7 @@ func (d themeRowDelegate) renderRow(it themeRowItem, selected bool) string {
 // compose applies the fixed element priority against d.Width, returning the
 // cells the label may occupy and the trailing segments to its right.
 //
-// The order is fixed because the elements compete for ~27–34 columns and would
+// The order is fixed because the elements compete for ~24–30 columns and would
 // otherwise collide non-deterministically as the panel narrows:
 //
 //  1. The 2-cell cursor column, which every row pays for so they share a left
@@ -190,6 +193,13 @@ func themePanelBadgeText(badge theme.Badge) string {
 // columns rather than being truncated to make room. `⚠` still says the row is
 // invalid and doctor says why.
 //
+// The label is charged AT LEAST its truncation floor, which matters only for a
+// label shorter than the floor: those cells are guaranteed to the label whether it
+// wants them or not, so a reason measured against the shorter natural width would
+// fit here and then push the composed row past the panel's declared width —
+// widening the whole list body and spilling the slide-over out of its composite
+// position.
+//
 // The value is the Reason constant's own string, rendered verbatim; the caller
 // joins it to the glyph as one accent.attention run.
 func themeRowReason(it themeRowItem, free int, badge string) (string, int) {
@@ -199,7 +209,7 @@ func themeRowReason(it themeRowItem, free int, badge string) (string, int) {
 
 	reason := string(it.Row.Rejection.Reason)
 	cost := lipgloss.Width(reason) + themeRowGap
-	if free-lipgloss.Width(it.Row.Label()) < cost {
+	if free-max(lipgloss.Width(it.Row.Label()), themeRowLabelFloor) < cost {
 		return "", 0
 	}
 	return reason, cost

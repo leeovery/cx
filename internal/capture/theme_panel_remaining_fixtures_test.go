@@ -76,18 +76,18 @@ func allPanelFixtureNames() []string {
 // comment records the count its pixel size resolves to, and these constants are
 // the same numbers on the Go side.
 const (
-	// narrowPanelTermWidth lands the panel in the geometry rule's DEGRADED BAND. The ladder is
-	// `min(max(contentW/2, minimum), preferred)` against a content region of
-	// termW − 2·tui.Hinset, so 64 columns gives 60 content columns and a 30-column
-	// panel — strictly inside the band, which is the only thing this frame exists
-	// to show.
-	narrowPanelTermWidth = 64
+	// narrowPanelTermWidth lands the panel on the geometry rule's NARROWED STAGE. The
+	// ladder takes the preferred width only while the content region is at least
+	// twice it, and steps to the minimum below that; against a content region of
+	// termW − 2·tui.Hinset, 54 columns gives 50 content columns, which is below the
+	// threshold — the stepped-down panel is the only thing this frame exists to show.
+	narrowPanelTermWidth = 54
 
 	// minimumPanelTermWidth is the narrowest terminal that still renders a panel,
 	// used ONLY to derive the ladder's bottom end for comparison (see
-	// TestPanelFixture_NarrowIsBetweenMinAndPreferred). 31 columns leaves 27
-	// content columns, which is the minimum panel width.
-	minimumPanelTermWidth = 31
+	// TestPanelFixture_NarrowRendersTheStepDown). 28 columns leaves 24 content
+	// columns, which is the minimum panel width.
+	minimumPanelTermWidth = 28
 
 	// dirUnreadablePanelTermHeight is short enough that the five-row union
 	// OVERFLOWS the panel body, which is what makes the `Ctrl+↓` in the fixture's
@@ -190,9 +190,9 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 	t.Run("the over-long label is truncated with an ellipsis", func(t *testing.T) {
 		visible := ansi.Strip(frame)
 		// The exact cut: the label flexes to what the row-rendering rule's fixed columns leave,
-		// which at the preferred width is 28 cells — 27 visible characters plus the
+		// which at the preferred width is 24 cells — 23 visible characters plus the
 		// ellipsis, since ansi.Truncate counts the tail inside the width it is given.
-		if !strings.Contains(visible, "My Gorgeous Midnight Palett…") {
+		if !strings.Contains(visible, "My Gorgeous Midnight Pa…") {
 			t.Errorf("the over-long `bad name` label is not truncated to the panel's budget:\n%s", visible)
 		}
 		if strings.Contains(visible, "My Gorgeous Midnight Palette.theme") {
@@ -298,50 +298,49 @@ func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 	})
 }
 
-// TestPanelFixture_NarrowIsBetweenMinAndPreferred: it renders in the degraded
-// width band.
+// TestPanelFixture_NarrowRendersTheStepDown: it renders the ladder's narrowed
+// stage.
 //
-// The geometry rule's ladder is a STAGED shrink — the panel takes half the content region,
-// clamped to the two ends — and this frame is its ONLY observable check: the two
-// setting-state frames render at the preferred width, and nothing else exercises
-// the band between.
+// The geometry rule's ladder is a STAGED shrink — the preferred width while the
+// content region affords it, the minimum below that — and this frame is where the
+// step is checked: the panel fixtures whose subject is the panel itself all render
+// at the preferred width.
 //
 // THE TWO ENDS ARE DERIVED FROM RENDERS RATHER THAN RESTATED. internal/tui keeps
 // both constants unexported, and a literal here would agree with a broken ladder
 // exactly as readily as with a working one — so the same fixture is rendered wide
 // (which takes the preferred width) and at the narrowest terminal that still
-// renders a panel (which takes the minimum), and the narrow frame must sit
-// STRICTLY between them.
-func TestPanelFixture_NarrowIsBetweenMinAndPreferred(t *testing.T) {
+// renders a panel (which takes the minimum), and the narrow frame must measure the
+// minimum rather than the preferred width.
+func TestPanelFixture_NarrowRendersTheStepDown(t *testing.T) {
 	palette := themetest.Builtin(t, "nord")
 
 	preferred := panelOuterWidth(t, panelFixtureFrame(t, "theme-panel-narrow", palette), harnessWidth)
 	minimum := panelOuterWidth(t, panelFrameAt(t, "theme-panel-narrow", palette, minimumPanelTermWidth, harnessHeight), minimumPanelTermWidth)
 	if minimum >= preferred {
-		t.Fatalf("the ladder's ends measure %d (minimum) and %d (preferred); with no band between them nothing can sit strictly inside it", minimum, preferred)
+		t.Fatalf("the ladder's ends measure %d (minimum) and %d (preferred); with no step between them the assertion below cannot fail", minimum, preferred)
 	}
 
 	narrow := panelFrameAt(t, "theme-panel-narrow", palette, narrowPanelTermWidth, harnessHeight)
 	got := panelOuterWidth(t, narrow, narrowPanelTermWidth)
-	if got <= minimum || got >= preferred {
-		t.Errorf("at %d columns the panel renders %d wide, want strictly between the minimum %d and the preferred %d", narrowPanelTermWidth, got, minimum, preferred)
+	if got != minimum {
+		t.Errorf("at %d columns the panel renders %d wide, want the ladder's stepped-down %d (the preferred width is %d)", narrowPanelTermWidth, got, minimum, preferred)
 	}
 
-	// The row-rendering rule's one-delegate-line invariant, restated at the degraded width
+	// The row-rendering rule's one-delegate-line invariant, restated at the narrowed width
 	// because that is where a composition budget miscount would first show: every row still
-	// renders on exactly one line (panelRowLine fatals on a second).
+	// renders on exactly one line (panelSlugRow fatals on a second).
 	t.Run("every row still renders on exactly one line", func(t *testing.T) {
 		for _, slug := range panelUnionSlugs() {
-			panelRowLine(t, narrow, slug)
+			panelSlugRow(t, narrow, slug)
 		}
 	})
 
-	t.Run("the badges survive the degraded width", func(t *testing.T) {
-		rows := panelRows(t, narrow)
-		if got, want := rows["nord"].badge, "● dark"; got != want {
+	t.Run("the badges survive the narrowed width", func(t *testing.T) {
+		if got, want := panelSlugRow(t, narrow, "nord").badge, "● dark"; got != want {
 			t.Errorf("the nord row's badge = %q, want %q — §9.5's priority 2 reserves the badge before anything can crowd it out", got, want)
 		}
-		if got, want := rows["tokyo-night-day"].badge, "● light"; got != want {
+		if got, want := panelSlugRow(t, narrow, "tokyo-night-day").badge, "● light"; got != want {
 			t.Errorf("the tokyo-night-day row's badge = %q, want %q", got, want)
 		}
 	})
