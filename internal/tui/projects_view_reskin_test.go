@@ -9,11 +9,12 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6 composed Projects-page gate. These tests assert viewProjectList composes
-// the §3.1 PORTAL header block, the §6 Projects section header (state.green label +
-// text.detail count + right-aligned `/ to filter` hint), the two-line MV rows, and
-// the §6.3 condensed footer — replacing the legacy plain bubbles/list title + the
-// three-column renderKeymapFooter. Matches testdata/vhs/reference/projects-mv.png.
+// The §6 composed Projects-page gate. These tests assert viewProjectList
+// composes the §3.1 PORTAL header block, the §6 Projects section header
+// (state.positive label + text.muted count + right-aligned `/ to filter` hint),
+// the two-line MV rows, and the §6.3 condensed footer — replacing the legacy
+// plain bubbles/list title + the three-column renderKeymapFooter. Matches
+// testdata/vhs/reference/projects-mv.png.
 //
 // No t.Parallel() — the package's shared canvas/mock helpers make parallelism
 // unsafe across these tests.
@@ -44,7 +45,7 @@ func sampleProjects() []project.Project {
 
 // TestViewProjectList_ComposesHeaderSectionAndFooter asserts the composed Projects
 // view renders the PORTAL wordmark header block, the Projects section header
-// (state.green label + text.detail count + `/ to filter` hint), and the §6.3
+// (state.positive label + text.muted count + `/ to filter` hint), and the §6.3
 // condensed footer — none of the legacy chrome.
 func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
@@ -55,7 +56,7 @@ func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 	if !strings.Contains(visible, "P O R T A L") {
 		t.Errorf("composed Projects view missing the PORTAL wordmark:\n%s", visible)
 	}
-	// §6 section header: `Projects` in state.green, count in text.detail.
+	// §6 section header: `Projects` in state.positive, count in text.muted.
 	if !strings.Contains(visible, "Projects") {
 		t.Errorf("composed Projects view missing the Projects section label:\n%s", visible)
 	}

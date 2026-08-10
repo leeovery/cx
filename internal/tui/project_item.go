@@ -36,10 +36,10 @@ func (i ProjectItem) FilterValue() string {
 // ProjectDelegate implements list.ItemDelegate for rendering project items.
 //
 // Each item renders as TWO lines: the project name (text.primary, heavy) on line
-// 1, the project path (text.detail, dim) on line 2. The selected row
-// carries a full-height accent.violet ▌ left bar spanning BOTH lines over a
+// 1, the project path (text.muted, dim) on line 2. The selected row
+// carries a full-height accent.primary ▌ left bar spanning BOTH lines over a
 // bg.selection tint, with the name in text.on-selection and the path in
-// text.muted-bright; unselected rows carry neither bar nor tint.
+// text.tertiary; unselected rows carry neither bar nor tint.
 //
 // Theme is the ACTIVE PALETTE: every run the delegate emits is painted
 // with a role-token FOREGROUND from this theme over a Background (canvas on a
@@ -88,10 +88,10 @@ func (d ProjectDelegate) rowToken(base lipgloss.Style, fg theme.Token, selected 
 }
 
 // Render renders a project item as two lines: the name (text.primary, heavy) on
-// line 1, the path (text.detail, dim) on line 2. The selected row
-// carries a full-height accent.violet ▌ left bar across BOTH lines over a
+// line 1, the path (text.muted, dim) on line 2. The selected row
+// carries a full-height accent.primary ▌ left bar across BOTH lines over a
 // bg.selection tint, with the name in text.on-selection and the path in
-// text.muted-bright. Each line is exactly the list width: a 2-cell left-bar column
+// text.tertiary. Each line is exactly the list width: a 2-cell left-bar column
 // then the flexing text column, padded so the tint/canvas paints the whole row with
 // no terminal-bg island. Over-long text truncates with an ellipsis so neither
 // line overflows the width and the two-line height stays uniform (pagination parity).
@@ -109,8 +109,8 @@ func (d ProjectDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		selected = false
 	}
 
-	// Name — text.primary (selected: text.on-selection), heavy. Path — text.detail
-	// (selected: text.muted-bright, the path-on-selection token), dim.
+	// Name — text.primary (selected: text.on-selection), heavy. Path — text.muted
+	// (selected: text.tertiary, the path-on-selection token), dim.
 	nameTok := d.Theme.TextPrimary
 	pathTok := d.Theme.TextMuted
 	if selected {
@@ -125,7 +125,7 @@ func (d ProjectDelegate) Render(w io.Writer, m list.Model, index int, item list.
 }
 
 // renderRowLine renders ONE line of a project row: the 2-cell left-bar column (the
-// accent.violet ▌ on the selected row, two blank cells otherwise) followed by the
+// accent.primary ▌ on the selected row, two blank cells otherwise) followed by the
 // text flexing to fill the rest of the list width, truncated with an ellipsis
 // and padded so the line is exactly the width — every cell carrying the row
 // background (bg.selection on the selected row, canvas otherwise). textStyle already

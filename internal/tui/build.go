@@ -161,7 +161,7 @@ type Deps struct {
 // own pinned constants, so no fixture can put a paraphrase on a captured frame.
 type CaptureSeeds struct {
 	// Flash seeds the inline WARNING flash on the first frame (the orange ▌ bar +
-	// ⚠ + message on the bg.warning tint). The flash is otherwise transient (set
+	// ⚠ + message on the bg.attention tint). The flash is otherwise transient (set
 	// only by the preview-bail path). Only the warning variant is seedable — the
 	// success variant is not separately captured.
 	Flash string

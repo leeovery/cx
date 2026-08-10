@@ -11,8 +11,8 @@ import (
 
 // The §6.3 condensed Projects footer gate. These tests pin the restyled Projects
 // footer: the exact §6.3 condensed copy as a single row's left cluster, a
-// right-aligned `? help`, and the per-glyph colour roles (key glyphs accent.blue,
-// labels text.detail, the ? glyph accent.violet) — rendered through the SHARED
+// right-aligned `? help`, and the per-glyph colour roles (key glyphs accent.key,
+// labels text.muted, the ? glyph accent.primary) — rendered through the SHARED
 // condensed-footer machinery (renderProjectsFooter), NOT the legacy three-column
 // renderKeymapFooter. Asserted with exact mode-resolved SGR like the Sessions
 // footer tests, so a token swap is caught, not merely the glyph presence.
@@ -74,8 +74,8 @@ func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
 	}
 }
 
-// TestProjectsFooter_TokenColours asserts key glyphs render in accent.blue, labels
-// in text.detail, and the ? glyph specifically in accent.violet, over a 1px
+// TestProjectsFooter_TokenColours asserts key glyphs render in accent.key, labels
+// in text.muted, and the ? glyph specifically in accent.primary, over a 1px
 // footer top rule — every colour via its role token (matching the
 // reference's per-glyph footer colours).
 func TestProjectsFooter_TokenColours(t *testing.T) {
@@ -95,7 +95,7 @@ func TestProjectsFooter_TokenColours(t *testing.T) {
 			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(footer, seq) {
 				t.Errorf("Projects footer missing text.detail label role sequence %q", seq)
 			}
-			// The ? glyph specifically is accent.violet (the right-aligned help anchor).
+			// The ? glyph specifically is accent.primary (the right-aligned help anchor).
 			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(footer, seq) {
 				t.Errorf("Projects footer missing accent.violet ? glyph role sequence %q", seq)
 			}

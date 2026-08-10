@@ -10,12 +10,12 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for the §11.2 inline-flash band reskin (task 4-2): the full MV warning /
-// success styling routed through the task-4-1 notice-band primitive + single-slot
-// arbiter. The warning flash is an accent.orange left-bar + ⚠ glyph + message on a
-// bg.warning tint in text.on-warning; the success flash swaps to a state.green
-// left-bar + ✓ glyph (glyph-distinct from ⚠, never colour-only — §2.2). The
-// reskin must not perturb the auto-clear lifecycle or the F10 height recompute.
+// Tests for the inline-flash band reskin: the full MV warning / success styling
+// routed through the notice-band primitive + single-slot arbiter. The warning
+// flash is an accent.attention left-bar + ⚠ glyph + message on a bg.attention
+// tint in text.on-attention; the success flash swaps to a state.positive
+// left-bar + ✓ glyph (glyph-distinct from ⚠, never colour-only). The reskin
+// must not perturb the auto-clear lifecycle or the F10 height recompute.
 
 // reskinFlashModel builds a Sessions-page model seeded with the given session
 // names at 80x24 so the rendered band carries predictable substrings.
@@ -42,8 +42,8 @@ func flashBandLine(t *testing.T, m Model, substr string) string {
 }
 
 // TestWarningFlash_OrangeBarWarningGlyphOnWarningTint asserts the §11.2 warning
-// flash: an accent.orange ▌ left-bar, a ⚠ warning glyph, and the message in
-// text.on-warning on a bg.warning tint.
+// flash: an accent.attention ▌ left-bar, a ⚠ warning glyph, and the message in
+// text.on-attention on a bg.attention tint.
 func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 	m := reskinFlashModel("alpha-row")
 	const msg = "folio-Jiz4el closed externally — list updated"
@@ -63,22 +63,22 @@ func TestWarningFlash_OrangeBarWarningGlyphOnWarningTint(t *testing.T) {
 		t.Errorf("warning flash must carry the message %q: %q", msg, stripped)
 	}
 
-	// accent.orange left-bar foreground.
+	// accent.attention left-bar foreground.
 	if barSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention); !strings.Contains(line, barSeq) {
 		t.Errorf("warning flash missing accent.orange bar foreground %q:\n%s", barSeq, line)
 	}
-	// text.on-warning message foreground.
+	// text.on-attention message foreground.
 	if msgSeq := tokenFgSeq(t, testDarkTheme(t).TextOnAttention); !strings.Contains(line, msgSeq) {
 		t.Errorf("warning flash missing text.on-warning message foreground %q:\n%s", msgSeq, line)
 	}
-	// bg.warning tint behind the band.
+	// bg.attention tint behind the band.
 	if tintSeq := tokenBgSeq(t, testDarkTheme(t).BgAttention); !strings.Contains(line, tintSeq) {
 		t.Errorf("warning flash missing bg.warning tint background %q:\n%s", tintSeq, line)
 	}
 }
 
 // TestSuccessFlash_GreenBarSuccessGlyph asserts the §11.2 success variant: a
-// state.green ▌ left-bar and a ✓ success glyph with the message.
+// state.positive ▌ left-bar and a ✓ success glyph with the message.
 func TestSuccessFlash_GreenBarSuccessGlyph(t *testing.T) {
 	m := reskinFlashModel("alpha-row")
 	const msg = "session restored"
@@ -97,7 +97,7 @@ func TestSuccessFlash_GreenBarSuccessGlyph(t *testing.T) {
 		t.Errorf("success flash must carry the message %q: %q", msg, stripped)
 	}
 
-	// state.green left-bar foreground.
+	// state.positive left-bar foreground.
 	if barSeq := tokenFgSeq(t, testDarkTheme(t).StatePositive); !strings.Contains(line, barSeq) {
 		t.Errorf("success flash missing state.green bar foreground %q:\n%s", barSeq, line)
 	}

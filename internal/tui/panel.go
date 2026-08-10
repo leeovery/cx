@@ -10,7 +10,7 @@ import (
 const (
 	// panelRuleGlyph is the horizontal box-drawing glyph for the divider AND every
 	// frame edge run (top / bottom border + the divider). Single-tone: it renders in
-	// border.separator everywhere (the 2-tone footer leg was dropped).
+	// border everywhere (the 2-tone footer leg was dropped).
 	panelRuleGlyph = "─"
 	// panelRowInset is the per-row L/R inset (in cells) the header text and body rows
 	// carry inside the hand-drawn frame. It matches the reference's ~22px
@@ -19,7 +19,7 @@ const (
 	panelRowInset = 2
 
 	// The hand-drawn frame glyphs (a rounded box with real header-divider junctions).
-	// EVERY one renders in border.separator (single-tone). The top/bottom corners and
+	// EVERY one renders in border (single-tone). The top/bottom corners and
 	// the divider tees join the side `│` runs into one continuous frame.
 	panelFrameTopLeft     = "╭"
 	panelFrameTopRight    = "╮"

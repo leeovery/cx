@@ -85,7 +85,7 @@ func TestProjectDelegate(t *testing.T) {
 
 	t.Run("highlights selected item with the full-height bar, not a cursor", func(t *testing.T) {
 		// The §6.2 reskin replaced the legacy "> " pink cursor with a full-height
-		// accent.violet ▌ left bar over a bg.selection tint. The selected row carries
+		// accent.primary ▌ left bar over a bg.selection tint. The selected row carries
 		// the ▌ bar on both lines; an unselected row carries no bar. (The exact SGR
 		// roles are pinned in project_row_anatomy_test.go; this is the behavioural
 		// selected-vs-unselected check that replaces the old cursor assertion.)

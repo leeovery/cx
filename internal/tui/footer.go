@@ -41,7 +41,7 @@ const (
 	// canvas space inline.
 	footerKeyLabelGap = " "
 	// footerEntrySeparator is the " · " dot separator between footer entries in the
-	// left cluster (the dot-separated condensed row). Rendered in text.detail
+	// left cluster (the dot-separated condensed row). Rendered in text.muted
 	// so it reads as quiet chrome between the brighter key glyphs.
 	footerEntrySeparator = " · "
 )
@@ -94,7 +94,7 @@ func renderProjectsFooter(entries []keymapEntry, width int, th theme.Theme, colo
 // `⏎ run here · n run in cwd · esc cancel` (left cluster) + the right-aligned
 // `? help` anchor, over the shared 1px footer top rule. The left cluster
 // entries are derived from the commandPendingKeymap() descriptor — the single binding
-// source — mapped to MV chrome (key glyphs accent.blue, labels text.detail,
+// source — mapped to MV chrome (key glyphs accent.key, labels text.muted,
 // the `enter` binding shown as its declarative HelpKey `⏎` glyph). It routes through
 // the shared renderFilterFooter machinery so the `? help` anchor + the two-row
 // structure stay byte-consistent with the standard / filter footers; only the entries
@@ -108,8 +108,8 @@ func renderCommandPendingFooter(width int, th theme.Theme, colourless bool) stri
 // from helpKeyGlyph (the declarative HelpKey when set — `enter`'s `⏎` — else the terse
 // Key), the SAME glyph resolution the descriptor-driven help path uses. This retires
 // the former inline `enter→⏎` rewrite, folding the command-pending footer into the
-// shared descriptor/entry vocabulary. Every key glyph is accent.blue per the MV footer
-// convention; labels render in text.detail.
+// shared descriptor/entry vocabulary. Every key glyph is accent.key per the MV footer
+// convention; labels render in text.muted.
 func commandPendingFooterEntries(th theme.Theme) []filterFooterEntry {
 	descriptor := commandPendingKeymap()
 	entries := make([]filterFooterEntry, 0, len(descriptor))
@@ -155,7 +155,7 @@ const multiSelectFooterText = multiSelectNavGlyph + footerKeyLabelGap + multiSel
 	footerEntrySeparator + multiSelectCancelGlyph + footerKeyLabelGap + multiSelectCancelLabel
 
 // multiSelectFooterEntries returns the multi-select mode footer entries in frame
-// order. Every key glyph is accent.blue and every label text.detail — the standard MV
+// order. Every key glyph is accent.key and every label text.muted — the standard MV
 // footer colour convention. It mirrors filteringFooterEntries' entry-list shape
 // so the cluster renders through the shared renderFilterCluster machinery.
 func multiSelectFooterEntries(th theme.Theme) []filterFooterEntry {
@@ -291,7 +291,7 @@ func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool)
 
 	// Render the right-aligned ? help hint first — it is the surviving anchor, so
 	// the left cluster is fitted around the space it reserves. Its key glyph is the
-	// only one in accent.violet (the rest are accent.blue).
+	// only one in accent.primary (the rest are accent.key).
 	rightSeg := ""
 	rightWidth := 0
 	if right != nil {
@@ -405,8 +405,8 @@ func fitLeftCluster(core []keymapEntry, w, rightWidth int, th theme.Theme, colou
 }
 
 // renderFooterCluster renders the given Core entries joined by the dot separator
-// into a single left-cluster string. Each entry's key glyph is accent.blue, its
-// label text.detail, and the separators text.detail.
+// into a single left-cluster string. Each entry's key glyph is accent.key, its
+// label text.muted, and the separators text.muted.
 func renderFooterCluster(entries []keymapEntry, th theme.Theme, colourless bool) string {
 	if len(entries) == 0 {
 		return ""
@@ -422,8 +422,8 @@ func renderFooterCluster(entries []keymapEntry, th theme.Theme, colourless bool)
 }
 
 // renderFooterEntry renders one keymap entry as "<key> <label>" with the key glyph
-// in keyTok (accent.blue for left-cluster entries, accent.violet for the ? help
-// hint) and the label in text.detail, with a single canvas-painted gap between
+// in keyTok (accent.key for left-cluster entries, accent.primary for the ? help
+// hint) and the label in text.muted, with a single canvas-painted gap between
 // them. It routes through the shared renderKeyHint helper (the single canvas space
 // renderKeyHint paints matches footerKeyLabelGap, so the output is byte-identical).
 func renderFooterEntry(e keymapEntry, keyTok theme.Token, th theme.Theme, colourless bool) string {
@@ -431,7 +431,7 @@ func renderFooterEntry(e keymapEntry, keyTok theme.Token, th theme.Theme, colour
 }
 
 // renderFooterDetail renders a chrome run (a separator or the ellipsis marker) in
-// text.detail over the owned canvas.
+// text.muted over the owned canvas.
 func renderFooterDetail(s string, th theme.Theme, colourless bool) string {
 	return headerStyle(th.TextMuted, th, colourless).Render(s)
 }

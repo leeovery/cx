@@ -11,7 +11,7 @@ import (
 // matches zero sessions, the Sessions body renders a centred empty state in place
 // of the (empty) bubbles/list body: a dim null-set glyph (text.faint), the
 // query-interpolated `No sessions match "<query>"` message (text.primary), and the
-// `⌫ to widen the search · esc to clear the filter` hint (text.detail). The footer
+// `⌫ to widen the search · esc to clear the filter` hint (text.muted). The footer
 // stays in the input-active form, reduced (no `browse results` entry — there are no
 // results to browse).
 //
@@ -26,7 +26,7 @@ import (
 const noMatchesGlyph = "∅"
 
 // noMatchesHint is the widen/clear hint rendered beneath the message in
-// text.detail. The widen key is the ⌫ backspace GLYPH (per the reference), not the
+// text.muted. The widen key is the ⌫ backspace GLYPH (per the reference), not the
 // literal word "backspace" — backspace deletes a query char (= widen the search),
 // Esc clears the filter. The hint only documents the engine's existing behaviour;
 // it changes nothing.
@@ -58,7 +58,7 @@ func (m Model) sessionListNoMatches() bool {
 
 // renderNoMatchesBody renders the centred empty state into a width×height
 // block: the null-set glyph (text.faint) over the query-interpolated message
-// (text.primary) over the widen/clear hint (text.detail). It routes through the
+// (text.primary) over the widen/clear hint (text.muted). It routes through the
 // SHARED renderEmptyStateBody centred-empty-state helper (the SAME centring +
 // sizing + token treatment the empty states use), so the no-matches and
 // empty surfaces can never drift in layout while staying DISTINCT in content.
@@ -72,7 +72,7 @@ func renderNoMatchesBody(query string, width, height int, th theme.Theme, colour
 // input-active footer machinery (filteringFooterEntries) and drops the
 // browse-results entry STRUCTURALLY via dropBrowseResults (the BrowseResults flag,
 // not the display copy — so rewording that label cannot silently re-admit it), so
-// the per-glyph colours (the accent.orange `type` action word, the text.detail `esc`
+// the per-glyph colours (the accent.attention `type` action word, the text.muted `esc`
 // key + labels) stay byte-consistent with the input-active footer.
 func noMatchesFooterEntries(th theme.Theme) []filterFooterEntry {
 	return dropBrowseResults(filteringFooterEntries(th))

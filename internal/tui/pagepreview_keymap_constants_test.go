@@ -34,7 +34,7 @@ func TestPreviewFooterNoMiddots(t *testing.T) {
 }
 
 // TestPreviewFooterCompactGlyphsOnly pins the narrow-width cascade: when the
-// labelled form does not fit, the footer compacts to accent.blue glyphs only,
+// labelled form does not fit, the footer compacts to accent.key glyphs only,
 // dropping the labels but keeping every nav-hint glyph present.
 func TestPreviewFooterCompactGlyphsOnly(t *testing.T) {
 	// A content width too narrow for the labelled form (~38 cells) but wide

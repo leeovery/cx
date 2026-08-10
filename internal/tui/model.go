@@ -41,7 +41,7 @@ const (
 )
 
 // paginationDotGlyph is the bubbles/list built-in paginator dot glyph (•). The
-// restyle recolours it (active accent.violet / inactive text.faint) and centres
+// restyle recolours it (active accent.primary / inactive text.faint) and centres
 // the row without changing the glyph or the engine's page count.
 const paginationDotGlyph = "•"
 
@@ -210,7 +210,7 @@ type BootstrapProgressMsg struct {
 // (EnsureServer, RegisterPortalHooks, SetRestoring, ClearRestoring) aborts the
 // boot. It is terminal — like BootstrapCompleteMsg it is NOT re-issued — but
 // instead of dismissing the loading page it drives the in-TUI error state: the
-// failed step's row gets a state.red ✗ marker, the one-line Message renders
+// failed step's row gets a state.destructive ✗ marker, the one-line Message renders
 // beneath the step-list, and the model awaits a q/Esc quit (never transitioning
 // to the picker).
 //
@@ -303,7 +303,7 @@ type Model struct {
 
 	// Fatal cold-boot error state. fatalActive flips true on a
 	// BootstrapFatalMsg; once set the model stays on the loading page rendering
-	// the error frame (failed step ✗ in state.red + the one-line fatalMessage),
+	// the error frame (failed step ✗ in state.destructive + the one-line fatalMessage),
 	// stops gating on BootstrapCompleteMsg (it will never arrive), and binds
 	// q/Esc → tea.Quit. fatalStep is the 1-based aborting step index (drives the
 	// failed-label overlay), and fatalErr is the underlying *bootstrap.FatalError
@@ -1018,7 +1018,7 @@ func WithDirResolver(reader session.PaneCurrentPathReader, runner resolver.Comma
 }
 
 // WithInitialFlash seeds the inline WARNING flash on the model at
-// construction — the orange left-bar + ⚠ + message on the bg.warning tint. It is
+// construction — the orange left-bar + ⚠ + message on the bg.attention tint. It is
 // the capture-harness entry point for the otherwise-transient flash (production's
 // only flash source is the preview-bail path). It sets the state fields directly
 // (no flashGen bump, no layout resync — dimensions are still zero at construction;
@@ -1171,7 +1171,7 @@ func colourlessNoItemsStyle(l *list.Model) {
 // canvasPaginationDots re-points the height-driven paginator's dot glyph styles
 // onto the theme's role tokens AND paints each (plus the dot row's wrapper)
 // through Background(canvas) from the active theme: the active page dot in
-// accent.violet, the inactive dots in text.faint. The bubbles/list paginator is
+// accent.primary, the inactive dots in text.faint. The bubbles/list paginator is
 // kept as the engine — only the dot glyph styling and the centred, canvas-painted
 // placement change; the page count / per-page / paging keys are untouched.
 //
@@ -1694,12 +1694,13 @@ func (m *Model) applyProjectCanvasMode() {
 
 // styleFilterInput restyles BOTH the Sessions and Projects bubbles/list
 // FilterInputs to the filter treatment, routing each through the shared
-// styleListFilterInput helper so the two pages can never drift: an accent.orange
-// `/ ` prompt, the live query text in accent.orange, and an accent.orange block
-// cursor (input-active). It is the input-active counterpart of
-// renderFilterQueryHeader (the list-active locked-query render): the same
-// accent.orange `/ query` reads in both modes, the only difference being the
-// cursor, which the live bubbles/list FilterInput owns while Filtering.
+// styleListFilterInput helper so the two pages can never drift: an
+// accent.attention `/ ` prompt, the live query text in accent.attention, and an
+// accent.attention block cursor (input-active). It is the input-active
+// counterpart of renderFilterQueryHeader (the list-active locked-query render):
+// the same accent.attention `/ query` reads in both modes, the only difference
+// being the cursor, which the live bubbles/list FilterInput owns while
+// Filtering.
 func (m *Model) styleFilterInput() {
 	m.styleListFilterInput(&m.sessionList)
 	m.styleListFilterInput(&m.projectList)
@@ -1725,7 +1726,7 @@ func (m *Model) styleListFilterInput(l *list.Model) {
 		// No canvas, no hue: the `/ ` prompt + query render on the terminal's native
 		// fg, and the cursor falls back to a bare (non-coloured) block. The colour is
 		// stripped FREE by the writer layer under NO_COLOR, but pin a hue-free style
-		// here too so no accent.orange SGR is emitted at all.
+		// here too so no accent.attention SGR is emitted at all.
 		styles.Focused.Prompt = lipgloss.NewStyle()
 		styles.Focused.Text = lipgloss.NewStyle()
 		styles.Cursor.Color = lipgloss.NoColor{}
@@ -2330,7 +2331,7 @@ func (m *Model) setThemeFlash(text string) {
 }
 
 // setSuccessFlash records an inline flash styled as the SUCCESS variant — a
-// state.green left-bar + ✓ glyph (glyph-distinct from the warning ⚠, never
+// state.positive left-bar + ✓ glyph (glyph-distinct from the warning ⚠, never
 // colour-only). It is setFlash PLUS the kind, and it delegates rather than
 // restating the assignments so the two can never fork: a success flash bumps the
 // same generation, carries the same default precedence tier, rides the same
@@ -4817,7 +4818,7 @@ func (m Model) viewString() string {
 }
 
 // viewLoading renders the honest loading interstitial: the locked block
-// PORTAL wordmark + violet caret bar, a thick violet progress bar on the bg.track
+// PORTAL wordmark + violet caret bar, a thick violet progress bar on the bg.subtle
 // track, and a real 5-row tick-list, all driven live from the
 // loadingProgress accumulator (folded per BootstrapProgressMsg). It composes into
 // the INSET content region (contentW × contentH) so View()→fillCanvas paints the
@@ -4827,7 +4828,7 @@ func (m Model) viewString() string {
 func (m Model) viewLoading() string {
 	view := m.loadingProgress.View()
 	if m.fatalActive {
-		// Error frame: the failed step's row flips to a state.red ✗, the bar
+		// Error frame: the failed step's row flips to a state.destructive ✗, the bar
 		// freezes at the fraction reached at fatal time, and the one-line message +
 		// quit hint render beneath the step-list (renderLoadingScreen folds Message
 		// in). No page transition — the model stays on PageLoading awaiting q/Esc.
@@ -4843,7 +4844,7 @@ func (m Model) viewLoading() string {
 }
 
 // viewProjectList renders the Projects page: the shared PORTAL header block, the
-// Projects section header (state.green label + text.detail count + right-aligned
+// Projects section header (state.positive label + text.muted count + right-aligned
 // `/ to filter` hint) swapped in place of the plain bubbles/list title, the
 // two-line rows, and the condensed footer — all composed exactly the way
 // viewSessionList composes the Sessions page. When a modal is open the page is
@@ -4880,7 +4881,7 @@ func (m Model) viewProjectList() string {
 	}
 	listView := m.projectList.View()
 	// Replace the plain bubbles/list title line with the restyled
-	// Projects section header (state.green `Projects` label + text.detail count +
+	// Projects section header (state.positive `Projects` label + text.muted count +
 	// right-aligned `/ to filter` hint). Like the Sessions page, swapping the title
 	// row's CONTENT (not adding a row) keeps the one-row-per-delegate pagination
 	// invariant exact. While the filter input is active the title row IS that input —
@@ -4908,7 +4909,7 @@ func (m Model) viewProjectList() string {
 	header := m.renderHeader()
 	// The Projects notice slot: the transient flash, else the
 	// command-pending banner (the violet `▌` left-bar + `▸` caret + `Pick a project
-	// to run` + the joined command in an accent.orange chip, on a subtle tinted
+	// to run` + the joined command in an accent.attention chip, on a subtle tinted
 	// band) — ARBITRATED to one band by activeProjectNoticeBand, never co-rendered.
 	// Like the Sessions notice band it sits DIRECTLY under the
 	// title separator, ABOVE the section header (line 0 of listView), full-width —
@@ -4947,14 +4948,15 @@ func (m Model) renderProjectBandSlot() string {
 	return lipgloss.JoinVertical(lipgloss.Left, band, blank)
 }
 
-// applyProjectsSectionHeader swaps the restyled Projects section header in place
-// of the plain bubbles/list title line (the FIRST line of listView), mirroring
-// applySectionHeader for the Sessions page. Replacing the title row's content
-// (rather than inserting a row) keeps the one-row-per-delegate pagination invariant
-// exact. While the filter input is active (FilterState == Filtering) the first line
-// is the live filter input — leave it untouched. In the list-active mode
-// (FilterState == FilterApplied) swap in the locked accent.orange `/ query` header
-// the same way the Sessions page does, so the filtered Projects list reads identically.
+// applyProjectsSectionHeader swaps the restyled Projects section header in
+// place of the plain bubbles/list title line (the FIRST line of listView),
+// mirroring applySectionHeader for the Sessions page. Replacing the title row's
+// content (rather than inserting a row) keeps the one-row-per-delegate
+// pagination invariant exact. While the filter input is active (FilterState ==
+// Filtering) the first line is the live filter input — leave it untouched. In
+// the list-active mode (FilterState == FilterApplied) swap in the locked
+// accent.attention `/ query` header the same way the Sessions page does, so the
+// filtered Projects list reads identically.
 func (m Model) applyProjectsSectionHeader(listView string) string {
 	if m.projectList.FilterState() == list.Filtering {
 		return listView
@@ -5057,7 +5059,7 @@ func (m Model) viewSessionList() string {
 	}
 	listView := m.sessionList.View()
 	// Replace the plain bubbles/list title line with the restyled
-	// section header (Sessions label + state.green count + mode suffix + the
+	// section header (Sessions label + state.positive count + mode suffix + the
 	// right-aligned `/ to filter` hint). The title row already costs exactly one
 	// line in the list's height budget, so swapping its CONTENT (not adding a row)
 	// keeps the one-row-per-delegate pagination invariant exact. While the
@@ -5309,12 +5311,12 @@ func replaceHeaderLine(listView, header string) string {
 // the live filter input, NOT the title — leave it untouched so the user sees what
 // they type (the section header is suppressed for that frame, matching the
 // pre-reskin behaviour where the input replaced the title). The bubbles/list
-// FilterInput is restyled (accent.orange `/ ` prompt + query + cursor) in
+// FilterInput is restyled (accent.attention `/ ` prompt + query + cursor) in
 // applyCanvasMode, so the live input already reads as the styled filter input.
 //
 // In the list-active mode (FilterState == FilterApplied) bubbles/list renders
 // the TITLE (not the input) on the first line; the committed query lives only in
-// the (un-rendered) FilterInput value. Swap in the LOCKED accent.orange `/ query`
+// the (un-rendered) FilterInput value. Swap in the LOCKED accent.attention `/ query`
 // header (no cursor, no bg tint) so the section-header position shows the live
 // query the same way it did while typing — the cursor-less locked query is what
 // signals the list is filtered.
@@ -5462,7 +5464,7 @@ func (m Model) replaceListBodyWithNoMatches(listView string) string {
 // at where to add tags (the per-project editor: press x for projects, then e to
 // edit). Placement: the single-slot info notice band inserted directly beneath
 // the title separator, above the section header (the arbiter funnels it through
-// renderNoticeBand as the persistent accent.violet info band). The per-band tint /
+// renderNoticeBand as the persistent accent.primary info band). The per-band tint /
 // on-band text token / left-bar colour are owned by the band primitive, NOT a
 // per-row ad-hoc style.
 const byTagSignpostText = "No tags yet — add tags in a project's editor: press x for projects, then e to edit"

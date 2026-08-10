@@ -18,7 +18,7 @@ import (
 // bar)`). Top-to-bottom, all CENTRED as a column relative to one another
 // (lipgloss.JoinVertical(Center) — never left-flushed to the widest element): the
 // locked 5-row solid-block PORTAL wordmark + a flush 5-row violet caret bar, a
-// 2-row gap, a thick violet progress bar on the bg.track track spanning the FULL
+// 2-row gap, a thick violet progress bar on the bg.subtle track spanning the FULL
 // rendered wordmark width, a 2-row gap, and a real 5-row tick-list whose rows stay
 // left-aligned within the centred list block. On the error frame the message
 // and quit hint are appended as further centred elements.
@@ -57,7 +57,7 @@ const (
 	// loadingCaretGlyph is the violet caret block. renderBlockWordmark builds a
 	// 5-row caret column from it and joins it ONCE (a loadingCaretGap-cell gap)
 	// against the padded wordmark stack, so the caret is a single flush 5-row-tall
-	// accent.violet bar beside the wordmark — not appended per-row (which jogged on
+	// accent.primary bar beside the wordmark — not appended per-row (which jogged on
 	// the ragged bottom row, breaking the caret into a detached comma).
 	loadingCaretGlyph = "█"
 
@@ -73,14 +73,14 @@ const (
 	loadingGlyphDone    = "✓"
 	loadingGlyphActive  = "◐"
 	loadingGlyphPending = "·"
-	// loadingGlyphFailed is the fatal-step marker — a state.red ✗ on the
+	// loadingGlyphFailed is the fatal-step marker — a state.destructive ✗ on the
 	// step that aborted the boot. It is glyph-distinct from ✓/◐/· so the failure
 	// reads under NO_COLOR without relying on the red hue.
 	loadingGlyphFailed = "✗"
 
 	// loadingBarFilledGlyph / loadingBarTrackGlyph are the thick bar's cells — one
-	// row of solid blocks. The filled run carries the accent.violet background, the
-	// track the bg.track background, so the bar reads as one clean thick solid bar
+	// row of solid blocks. The filled run carries the accent.primary background, the
+	// track the bg.subtle background, so the bar reads as one clean thick solid bar
 	// (a full-block glyph over the matching background renders a flush solid cell).
 	loadingBarFilledGlyph = "█"
 	loadingBarTrackGlyph  = "█"
@@ -298,7 +298,7 @@ func renderLoadingWordmark(w, h, belowHeight int, th theme.Theme, colourless boo
 //     (the old
 //     path) jogged it on the wider bottom row, breaking it into a detached comma.
 //
-// The letters carry text.primary (bold); the caret carries accent.violet.
+// The letters carry text.primary (bold); the caret carries accent.primary.
 func renderBlockWordmark(th theme.Theme, colourless bool) string {
 	lettersStyle := loadingFg(th.TextPrimary, th, colourless).Bold(true)
 	caretStyle := loadingFg(th.AccentPrimary, th, colourless)
@@ -336,8 +336,8 @@ func renderSingleRowWordmark(wordmark string, th theme.Theme, colourless bool) s
 }
 
 // renderLoadingBar renders the thick block progress bar: one row of solid cells,
-// the filled prefix (driven by fraction) carrying the accent.violet background
-// and the track the bg.track background, so it reads as one clean thick solid
+// the filled prefix (driven by fraction) carrying the accent.primary background
+// and the track the bg.subtle background, so it reads as one clean thick solid
 // bar. The target width is barWidth — the rendered wordmark width, so the bar
 // spans the full length of the logo — clamped to the content width w on a
 // narrow terminal so it never overflows. Under NO_COLOR the bar drops both
@@ -390,13 +390,14 @@ func renderTickList(labels []LoadingLabel, w int, th theme.Theme, colourless boo
 // centred elements (a slice the caller appends to the JoinVertical(Center)
 // column, so each element centres independently — the wide message becomes a
 // centred caption, the hint a centred line beneath it). Within a row budget:
-// ideally a blank spacer row, the one-line fatal message in state.red, and a quit
-// hint in text.faint (all clamped to w). The message reads as red/error
-// (paired with the failed row's red ✗ above it, so red is never the only signal —
-// without colour); the hint tells the user q/Esc quits. When budget is too small to fit all
-// three, rows are SHED in increasing priority — spacer first, then the hint, then
-// the message — so the footer never overflows the height budget. A budget < 1
-// returns nil (the red ✗ on the failed step row carries the failure on its own).
+// ideally a blank spacer row, the one-line fatal message in state.destructive,
+// and a quit hint in text.faint (all clamped to w). The message reads as
+// red/error (paired with the failed row's red ✗ above it, so red is never the
+// only signal — without colour); the hint tells the user q/Esc quits. When
+// budget is too small to fit all three, rows are SHED in increasing priority —
+// spacer first, then the hint, then the message — so the footer never overflows
+// the height budget. A budget < 1 returns nil (the red ✗ on the failed step row
+// carries the failure on its own).
 func renderErrorFooter(message string, w, budget int, th theme.Theme, colourless bool) []string {
 	if budget < 1 {
 		return nil
@@ -427,12 +428,12 @@ func clampRow(row string, w int) string {
 // a two-space gap, the friendly label, and (active "Restoring sessions" only) the
 // spaced `N / M` counter. Token + weight per the mapping:
 //
-//	✓ done    → glyph state.green,  label text.muted-bright (regular)
-//	◐ active  → glyph accent.cyan,  label text.primary (BOLD)
-//	· pending → glyph text.faint,   label text.dim (regular)
+//	✓ done    → glyph state.positive,  label text.tertiary (regular)
+//	◐ active  → glyph accent.mode,  label text.primary (BOLD)
+//	· pending → glyph text.faint,   label text.subtle (regular)
 //
 // The active row's counter is the accumulator's "N/M" reformatted to the frame's
-// spaced "N / M" and painted text.detail.
+// spaced "N / M" and painted text.muted.
 func renderTickRow(l LoadingLabel, th theme.Theme, colourless bool) string {
 	glyph, glyphTok, labelTok, bold := tickRowTokens(l.State, th)
 
@@ -451,11 +452,11 @@ func renderTickRow(l LoadingLabel, th theme.Theme, colourless bool) string {
 	return row
 }
 
-// tickRowTokens maps a label state to its (glyph, glyph token, label token, bold)
-// per the table — the single mapping site so no row drifts. The fatal
-// LabelFailed row is the error-frame failed step: a state.red ✗ glyph with the
-// label ALSO in state.red so the failure reads as red/error (and stays
-// glyph-distinct under NO_COLOR via the ✗).
+// tickRowTokens maps a label state to its (glyph, glyph token, label token,
+// bold) per the table — the single mapping site so no row drifts. The fatal
+// LabelFailed row is the error-frame failed step: a state.destructive ✗ glyph
+// with the label ALSO in state.destructive so the failure reads as red/error
+// (and stays glyph-distinct under NO_COLOR via the ✗).
 func tickRowTokens(state LabelState, th theme.Theme) (glyph string, glyphTok, labelTok theme.Token, bold bool) {
 	switch state {
 	case LabelDone:

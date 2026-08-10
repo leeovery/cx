@@ -15,14 +15,14 @@ func killModalContains(content, s string) bool {
 }
 
 // TestKillModal_Header asserts the §8.3 header `▲ Kill session?` — the ▲ triangle
-// glyph AND the title text both render in state.red (glyph + colour, §2.2).
+// glyph AND the title text both render in state.destructive (glyph + colour, §2.2).
 func TestKillModal_Header(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		content := renderKillModalContent("aviva-proxy-qNyfEO", 1, th, false)
 		if !killModalContains(content, "▲ Kill session?") {
 			t.Errorf("[%v] header must read '▲ Kill session?'; got:\n%s", themeLabel(th), content)
 		}
-		// The ▲ and title both carry state.red.
+		// The ▲ and title both carry state.destructive.
 		if seq := tokenFgSeq(t, th.StateDestructive); !strings.Contains(content, seq) {
 			t.Errorf("[%v] header ▲ + title must render in state.red SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
@@ -30,8 +30,8 @@ func TestKillModal_Header(t *testing.T) {
 }
 
 // TestKillModal_BodyNameAndWindows asserts the body line 1: the session name in
-// state.red, then `· N window(s)` in text.detail on the same line, with correct
-// pluralisation.
+// state.destructive, then `· N window(s)` in text.muted on the same line, with
+// correct pluralisation.
 func TestKillModal_BodyNameAndWindows(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -67,8 +67,8 @@ func TestKillModal_BodyNameAndWindows(t *testing.T) {
 }
 
 // TestKillModal_BodyColourRoles asserts the body colour wiring: the name in
-// state.red, the `· N window(s)` count in text.detail, and the consequence line in
-// text.detail.
+// state.destructive, the `· N window(s)` count in text.muted, and the
+// consequence line in text.muted.
 func TestKillModal_BodyColourRoles(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		content := renderKillModalContent("aviva-proxy-qNyfEO", 1, th, false)
@@ -81,7 +81,7 @@ func TestKillModal_BodyColourRoles(t *testing.T) {
 	}
 }
 
-// TestKillModal_ConsequenceLine asserts the consequence copy renders (text.detail),
+// TestKillModal_ConsequenceLine asserts the consequence copy renders (text.muted),
 // the §8.3 "Ends the tmux session…" warning.
 func TestKillModal_ConsequenceLine(t *testing.T) {
 	content := renderKillModalContent("aviva-proxy-qNyfEO", 1, testDarkTheme(t), false)
@@ -96,7 +96,7 @@ func TestKillModal_ConsequenceLine(t *testing.T) {
 }
 
 // TestKillModal_Footer asserts the §8.3 footer `y kill   esc cancel`: the y and esc
-// key glyphs in accent.blue, the kill/cancel labels in text.detail. The dismiss key
+// key glyphs in accent.key, the kill/cancel labels in text.muted. The dismiss key
 // lives in the footer as `esc cancel` (§8.1).
 func TestKillModal_Footer(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -106,7 +106,7 @@ func TestKillModal_Footer(t *testing.T) {
 				t.Errorf("[%v] footer must contain %q; got:\n%s", themeLabel(th), frag, content)
 			}
 		}
-		// Key glyphs (y, esc) in accent.blue.
+		// Key glyphs (y, esc) in accent.key.
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
 			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
@@ -115,7 +115,7 @@ func TestKillModal_Footer(t *testing.T) {
 
 // TestKillModal_SingleToneJoinedPanel asserts the kill modal composes through the
 // shared single-tone joined panel: the dividers start ├ and end ┤, every frame
-// glyph in border.separator (the same frame the help modal uses). Three
+// glyph in border (the same frame the help modal uses). Three
 // compartments → two dividers.
 func TestKillModal_SingleToneJoinedPanel(t *testing.T) {
 	content := renderKillModalContent("aviva-proxy-qNyfEO", 1, testDarkTheme(t), false)
@@ -168,14 +168,14 @@ func TestKillModal_BodyRowLayout(t *testing.T) {
 
 // TestKillModal_Colourless asserts the §2.5 NO_COLOR carve-out: destructive state
 // is carried by the ▲ glyph + bold (NOT colour) — the frame keeps its glyphs but
-// paints no state.red hue, and the title run is bold.
+// paints no state.destructive hue, and the title run is bold.
 func TestKillModal_Colourless(t *testing.T) {
 	content := renderKillModalContent("aviva-proxy-qNyfEO", 1, testDarkTheme(t), true)
 	// The ▲ destructive glyph survives.
 	if !killModalContains(content, "▲ Kill session?") {
 		t.Errorf("colourless kill modal must keep the ▲ destructive glyph + title; got:\n%s", content)
 	}
-	// No state.red hue painted.
+	// No state.destructive hue painted.
 	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); strings.Contains(content, seq) {
 		t.Errorf("colourless kill modal must NOT paint the state.red hue %q (state via glyph+bold, not colour)", seq)
 	}

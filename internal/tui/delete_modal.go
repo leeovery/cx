@@ -17,15 +17,15 @@ import (
 // untouched. This disambiguates a record delete from a session kill.
 
 const (
-	// deleteTitle is the header title text (state.red): `Delete project?`.
+	// deleteTitle is the header title text (state.destructive): `Delete project?`.
 	deleteTitle = "Delete project?"
 	// deleteConsequence is the RECORD-ONLY consequence line — distinct from
-	// kill's session-ending warning. Rendered in text.detail, word-wrapped within the
+	// kill's session-ending warning. Rendered in text.muted, word-wrapped within the
 	// panel body width.
 	deleteConsequence = "Removes this project from Portal (name, aliases, tags). Your sessions and files are untouched."
 
-	// Footer confirm copy. The y key glyph renders in accent.blue, the delete label in
-	// text.detail. The cancel hint (`esc cancel`) is owned by destructive_confirm.go.
+	// Footer confirm copy. The y key glyph renders in accent.key, the delete label in
+	// text.muted. The cancel hint (`esc cancel`) is owned by destructive_confirm.go.
 	deleteKeyConfirm   = "y"
 	deleteLabelConfirm = "delete"
 )
@@ -35,12 +35,12 @@ const (
 // destructive-confirm renderer. The project path is passed as an extra body row
 // (below the name), not a forked render path.
 //
-//	header:  ▲ Delete project?          (▲ + title, state.red + bold)
-//	body:    <name>                      (project name, state.red + bold)
-//	         <path>                       (project path, text.detail)
+//	header:  ▲ Delete project?          (▲ + title, state.destructive + bold)
+//	body:    <name>                      (project name, state.destructive + bold)
+//	         <path>                       (project path, text.muted)
 //	         <blank>                      (the single "what" → "warning" separator)
-//	         Removes this project …       (record-only consequence, text.detail, wrapped)
-//	footer:  y delete   esc cancel        (glyphs accent.blue, labels text.detail)
+//	         Removes this project …       (record-only consequence, text.muted, wrapped)
+//	footer:  y delete   esc cancel        (glyphs accent.key, labels text.muted)
 func renderDeleteModalContent(name, path string, th theme.Theme, colourless bool) string {
 	spec := destructiveConfirmSpec{
 		title:         deleteTitle,
@@ -53,7 +53,7 @@ func renderDeleteModalContent(name, path string, th theme.Theme, colourless bool
 	return renderDestructiveConfirm(spec, th, colourless)
 }
 
-// deleteModalPathRow renders the project path in text.detail, truncated with an
+// deleteModalPathRow renders the project path in text.muted, truncated with an
 // ellipsis to destructiveBodyWidth so an over-long path never overflows the panel (the
 // an edge case mirroring the rename modal's `was:` truncation). This is the delete
 // modal's distinct extra body row.

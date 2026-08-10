@@ -11,7 +11,7 @@ import (
 // The empty states. When a list is GENUINELY empty — zero items AND no active
 // filter — the body renders a centred empty state in place of the (empty)
 // bubbles/list body: a dim block glyph (text.faint), a message (text.primary), and
-// a hint (text.detail), and the footer is FULLY REPLACED by the keys relevant with
+// a hint (text.muted), and the footer is FULLY REPLACED by the keys relevant with
 // no items, drawn from the page's keymap descriptor.
 //
 // This state is DISTINCT from the over-filtered no-matches state (items exist,
@@ -30,7 +30,7 @@ const emptySessionsGlyph = "▌ ▌ ▌"
 // emptySessionsMessage is the pinned empty-sessions message (text.primary).
 const emptySessionsMessage = "No sessions yet"
 
-// emptySessionsHint is the pinned empty-sessions hint (text.detail). Note
+// emptySessionsHint is the pinned empty-sessions hint (text.muted). Note
 // the `·` middot separator and `x for projects` (NOT `/` and NOT `p`).
 const emptySessionsHint = "Press n to start one in the current directory · x for projects"
 
@@ -40,13 +40,13 @@ const emptyProjectsGlyph = "▌ ▌ ▌"
 // emptyProjectsMessage is the pinned empty-projects message (text.primary).
 const emptyProjectsMessage = "No projects yet"
 
-// emptyProjectsHint is the open-a-directory hint (text.detail) — a sensible
+// emptyProjectsHint is the open-a-directory hint (text.muted) — a sensible
 // mirror of the empty-sessions hint (no design frame pins one for projects).
 const emptyProjectsHint = "Press n to start one in the current directory · x for sessions"
 
 // renderEmptyStateBody is the SHARED centred-empty-state renderer: a
 // dim glyph (text.faint) over a message (text.primary, bold) over a hint
-// (text.detail), centred both ways via lipgloss.Place into a width×height block.
+// (text.muted), centred both ways via lipgloss.Place into a width×height block.
 // Every run carries the owned canvas Background (headerStyle), and the surrounding
 // placed gap is canvas-painted (headerCanvasBg) so no terminal-bg island bleeds
 // through. Under the NO_COLOR carve-out the hues and the canvas drop, leaving
@@ -145,8 +145,8 @@ func emptyFooterDescriptor(keymap []keymapEntry) []keymapEntry {
 // renderEmptySessionsFooter renders the empty-sessions footer:
 // `n new in cwd · x projects · / filter · ? help` — the four relevant Sessions
 // bindings selected from the Sessions keymap descriptor and rendered through
-// the SAME condensed-footer machinery (key glyphs accent.blue, labels text.detail,
-// the ? glyph accent.violet, over the 1px footer rule). It FULLY REPLACES the
+// the SAME condensed-footer machinery (key glyphs accent.key, labels text.muted,
+// the ? glyph accent.primary, over the 1px footer rule). It FULLY REPLACES the
 // standard footer for the empty-sessions state.
 func renderEmptySessionsFooter(width int, th theme.Theme, colourless bool) string {
 	return renderCondensedFooter(emptyFooterDescriptor(sessionsKeymap()), width, th, colourless)

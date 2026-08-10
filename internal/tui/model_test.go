@@ -19,7 +19,7 @@ import (
 )
 
 // editFieldFocused reports whether the edit-modal field label renders with the
-// §13.1 focused colour (accent.violet) in the given view — the MV focus signal that
+// §13.1 focused colour (accent.primary) in the given view — the MV focus signal that
 // replaced the legacy `> ` indicator. The probe builds the violet foreground SGR
 // core (the dark built-in, the harness canvas) and asserts the label line carries
 // it. label is the uppercase field label (NAME / ALIASES / TAGS).
@@ -4715,7 +4715,7 @@ func TestEditProject(t *testing.T) {
 		model, _ = model.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 		// Open lands on Name in navigate mode — the §13.1 focus signal is the NAME
-		// label rendered in accent.violet (the legacy `> ` indicator is gone).
+		// label rendered in accent.primary (the legacy `> ` indicator is gone).
 		if !editFieldFocused(t, model.View().Content, "NAME") {
 			t.Fatalf("open should focus Name, got:\n%s", model.View().Content)
 		}

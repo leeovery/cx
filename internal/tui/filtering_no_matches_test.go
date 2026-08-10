@@ -15,7 +15,7 @@ import (
 // treatment of the Sessions body when an active filter query matches zero
 // sessions: a centred dim null-set glyph (text.faint) over
 // `No sessions match "<query>"` (text.primary) over the
-// `⌫ to widen the search · esc to clear the filter` hint (text.detail), on the
+// `⌫ to widen the search · esc to clear the filter` hint (text.muted), on the
 // owned canvas, while the footer stays in the input-active form WITHOUT the
 // browse-results entry (there are no results to browse — §7.3 / reference).
 //
@@ -269,7 +269,7 @@ func TestNoMatchesFooterEntries_DecoupledFromBrowseResultsCopy(t *testing.T) {
 }
 
 // TestNoMatches_ColourRoles asserts §2.9: the glyph reads text.faint, the message
-// text.primary, and the hint text.detail — pinned in exact mode-resolved SGR.
+// text.primary, and the hint text.muted — pinned in exact mode-resolved SGR.
 func TestNoMatches_ColourRoles(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		body := renderNoMatchesBody("zzqx", filteringReskinWidth, 20, th, false)

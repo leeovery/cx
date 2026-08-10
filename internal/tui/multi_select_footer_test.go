@@ -15,7 +15,7 @@ import (
 // fixed by the delivered Paper frame (design/sessions-multi-select-active.png):
 // `↑↓ navigate · m toggle · ␣ preview · ⏎ open · esc cancel` — five entries, NO
 // right-aligned `? help` anchor. It reuses the filter-footer entry machinery for
-// per-glyph colouring and the shared 1px border.footer top rule, so it is
+// per-glyph colouring and the shared 1px border top rule, so it is
 // height-neutral against the reserved sessionFooterHeight budget.
 //
 // No t.Parallel() — the package's shared canvas/mock helpers make parallelism
@@ -59,7 +59,7 @@ func TestMultiSelectFooter_CopyConstant(t *testing.T) {
 
 // TestMultiSelectFooter_NoHelpAnchor asserts the multi-select footer carries NO
 // right-aligned `? help` anchor (unlike the standard/filter footers) — the delivered
-// frame has none, so neither the `? help` text nor the accent.violet `?` glyph appears.
+// frame has none, so neither the `? help` text nor the accent.primary `?` glyph appears.
 func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	vis := footerVisible(footer)
@@ -69,15 +69,15 @@ func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 	if strings.Contains(vis, "help") {
 		t.Errorf("multi-select footer must NOT contain the help hint at all:\n%s", vis)
 	}
-	// The ? help glyph is the only accent.violet run in the standard footer; the
-	// multi-select footer drops the anchor, so no accent.violet must appear.
+	// The ? help glyph is the only accent.primary run in the standard footer; the
+	// multi-select footer drops the anchor, so no accent.primary must appear.
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(footer, seq) {
 		t.Errorf("multi-select footer must NOT carry the accent.violet ? glyph role sequence %q", seq)
 	}
 }
 
 // TestMultiSelectFooter_HeightNeutral asserts the footer is exactly two rows (the 1px
-// border.footer top rule + the entry row) — the SAME height as the standard Sessions
+// border top rule + the entry row) — the SAME height as the standard Sessions
 // footer, so swapping it in is height-neutral against the reserved sessionFooterHeight
 // budget (the swap must not change the list height).
 func TestMultiSelectFooter_HeightNeutral(t *testing.T) {
@@ -147,8 +147,8 @@ func TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_TokenColours asserts key glyphs render in accent.blue and
-// labels in text.detail (the standard MV footer convention), over a border.footer top
+// TestMultiSelectFooter_TokenColours asserts key glyphs render in accent.key and
+// labels in text.muted (the standard MV footer convention), over a border top
 // rule — every colour via its §2.9 token, in both canvas modes.
 func TestMultiSelectFooter_TokenColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {

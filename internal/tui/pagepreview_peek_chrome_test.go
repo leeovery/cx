@@ -11,10 +11,10 @@ import (
 )
 
 // These tests pin the §9.1 cyan "peek mode" preview chrome (the full-screen
-// joined panel): a `◉ preview` marker (accent.cyan) + the session name
-// (text.primary) + `Window x/y · Pane x/y` counters (text.detail) in the header
+// joined panel): a `◉ preview` marker (accent.mode) + the session name
+// (text.primary) + `Window x/y · Pane x/y` counters (text.muted) in the header
 // compartment, the footer nav hints `←→ window  ⇥ pane  ⏎ attach  ␣ back`
-// (accent.blue glyphs + text.detail labels), all framed by the accent.cyan
+// (accent.key glyphs + text.muted labels), all framed by the accent.mode
 // border + dividers. The captured ANSI content stays untouched.
 
 // newPeekPreviewModel builds a previewModel with the given session name,
@@ -81,7 +81,7 @@ func TestPreviewPeekChrome_OrdinalsAreOneBasedSlashTotals(t *testing.T) {
 }
 
 // TestPreviewPeekChrome_MarkerStyledAccentCyan pins that the `◉ preview` marker
-// carries the accent.cyan foreground SGR (the mode-resolved dark hex).
+// carries the accent.mode foreground SGR (the mode-resolved dark hex).
 func TestPreviewPeekChrome_MarkerStyledAccentCyan(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -109,7 +109,7 @@ func TestPreviewPeekChrome_SessionStyledTextPrimary(t *testing.T) {
 }
 
 // TestPreviewPeekChrome_CountersStyledTextDetail pins that the counters carry
-// the text.detail foreground SGR.
+// the text.muted foreground SGR.
 func TestPreviewPeekChrome_CountersStyledTextDetail(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -123,8 +123,8 @@ func TestPreviewPeekChrome_CountersStyledTextDetail(t *testing.T) {
 }
 
 // TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail pins the §9.1
-// footer colour roles: each nav-hint glyph carries the accent.blue foreground
-// and each label the text.detail foreground.
+// footer colour roles: each nav-hint glyph carries the accent.key foreground
+// and each label the text.muted foreground.
 func TestPreviewPeekChrome_FooterGlyphsAccentBlueLabelsTextDetail(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},
@@ -160,7 +160,7 @@ func segmentCarriesForeground(row, segment string, c color.Color) bool {
 }
 
 // TestPreviewPeekChrome_ContentFramedByAccentCyanBorder pins that the content
-// frame border (corners + body) carries the accent.cyan foreground.
+// frame border (corners + body) carries the accent.mode foreground.
 func TestPreviewPeekChrome_ContentFramedByAccentCyanBorder(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "editor", PaneIndices: []int{0}},

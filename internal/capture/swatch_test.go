@@ -142,9 +142,8 @@ func TestSwatch_UsesThemeOwnCanvas(t *testing.T) {
 // token name AND that theme's value, so the human can read exactly what they are
 // judging.
 //
-// The count is four, not five: the §2.2 consolidation collapsed
-// border.separator / border.footer into the single `border`, and §13.5 makes the
-// count load-bearing.
+// The count is four, not five: the consolidation collapsed the two former frame
+// roles into the single `border`, and that count is load-bearing.
 func TestSwatchBandsCoverEveryPinnedTint(t *testing.T) {
 	th := swatchTestPalette("#E1E2E7", "CC")
 	out := renderSwatch(th)

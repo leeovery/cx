@@ -167,12 +167,13 @@ func TestLoadingScreenFixture(t *testing.T) {
 }
 
 // TestLoadingErrorFixture verifies the §10.5 fatal cold-boot error fixture
-// (MOCKED — no §15.1 Paper oracle): it parks the production model on PageLoading
-// (serverStarted), and driving its seeded receiver events (steps 1–2 done, then a
-// terminal fatal at step 3) through the real Update path enters the in-TUI error
-// state — the failed step's row renders the state.red ✗, the one-line message + a
-// quit hint render beneath the step-list, and the page never transitions to the
-// picker. It is registered in the discoverable name list.
+// (MOCKED — no §15.1 Paper oracle): it parks the production model on
+// PageLoading (serverStarted), and driving its seeded receiver events (steps
+// 1–2 done, then a terminal fatal at step 3) through the real Update path
+// enters the in-TUI error state — the failed step's row renders the
+// state.destructive ✗, the one-line message + a quit hint render beneath the
+// step-list, and the page never transitions to the picker. It is registered in
+// the discoverable name list.
 func TestLoadingErrorFixture(t *testing.T) {
 	fx, err := capture.FixtureByName("loading-error")
 	if err != nil {
@@ -473,7 +474,7 @@ func TestSessionsInlineFlashFixture(t *testing.T) {
 
 	// The §11.2 warning flash is seeded into the Deps seam (the only way to render
 	// the otherwise-transient band in the inert harness). The render assertion (band
-	// styling, ⚠ glyph, bg.warning tint) lives in internal/tui; here we pin that the
+	// styling, ⚠ glyph, bg.attention tint) lives in internal/tui; here we pin that the
 	// fixture wires the message through to Build.
 	const msg = "folio-Jiz4el closed externally — list updated"
 	if got := fx.Deps(darkBuiltinTheme(t)).Capture.Flash; got != msg {

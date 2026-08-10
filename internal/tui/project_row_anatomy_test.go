@@ -14,9 +14,9 @@ import (
 
 // The §6 / §6.2 Projects two-line row anatomy gate. These tests pin the restyled
 // ProjectDelegate: two-line rows (name text.primary heavy on line 1, path
-// text.detail dim on line 2), a full-height accent.violet left bar spanning BOTH
+// text.muted dim on line 2), a full-height accent.primary left bar spanning BOTH
 // lines over a bg.selection tint on the selected row (name text.on-selection, path
-// text.muted-bright), no bar/tint on unselected rows, and uniform two-line height
+// text.tertiary), no bar/tint on unselected rows, and uniform two-line height
 // for pagination parity. Colour roles are asserted in exact mode-resolved SGR (like
 // the §4.1 session-row tests), so a token swap is caught, not merely glyph
 // presence. Matches testdata/vhs/reference/projects-mv.png.
@@ -42,7 +42,7 @@ func projectItems(specs ...project.Project) []list.Item {
 }
 
 // TestProjectRow_TwoLinesNamePrimaryPathDetail asserts each row renders as TWO
-// lines — the name (text.primary, heavy/bold) on line 1, the path (text.detail,
+// lines — the name (text.primary, heavy/bold) on line 1, the path (text.muted,
 // dim) on line 2 — on an UNSELECTED row (so the base, non-selection tokens apply).
 func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -64,7 +64,7 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 		if !strings.Contains(ansi.Strip(lines[1]), "/home/user/code/portal") {
 			t.Errorf("[%v] line 2 missing the project path: %q", themeLabel(th), ansi.Strip(lines[1]))
 		}
-		// Name in text.primary, path in text.detail.
+		// Name in text.primary, path in text.muted.
 		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(lines[0], seq) {
 			t.Errorf("[%v] name line missing text.primary fg %q", themeLabel(th), seq)
 		}
@@ -83,7 +83,7 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 }
 
 // TestProjectRow_SelectedFullHeightBarTintAcrossBothLines asserts the §6.2
-// selection treatment: a full-height accent.violet ▌ left bar on BOTH lines of the
+// selection treatment: a full-height accent.primary ▌ left bar on BOTH lines of the
 // selected row, every structural cell tinted with bg.selection on BOTH lines.
 func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -98,7 +98,7 @@ func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 		violet := tokenFgSeq(t, th.AccentPrimary)
 		bgParams := selectionBgParams(t, th)
 		for i, line := range lines {
-			// The ▌ bar is present on BOTH lines (the full-height bar), in accent.violet.
+			// The ▌ bar is present on BOTH lines (the full-height bar), in accent.primary.
 			if !strings.Contains(ansi.Strip(line), "▌") {
 				t.Errorf("[%v] selected line %d missing the ▌ full-height bar: %q", themeLabel(th), i, ansi.Strip(line))
 			}
@@ -115,7 +115,7 @@ func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 
 // TestProjectRow_SelectedNameOnSelectionPathMutedBright asserts the §6.2 / §2.9
 // selected-row foreground roles: the name becomes text.on-selection and the path
-// becomes text.muted-bright (the path-on-selection token).
+// becomes text.tertiary (the path-on-selection token).
 func TestProjectRow_SelectedNameOnSelectionPathMutedBright(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := ProjectDelegate{Theme: th}

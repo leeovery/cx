@@ -61,8 +61,8 @@ func TestRenderEditProjectContent_EachTagRendersAsChip(t *testing.T) {
 }
 
 func TestRenderEditProjectContent_FocusedTagBorderViolet(t *testing.T) {
-	// The focused chip (cursor 1 → "personal") renders in accent.violet; the
-	// unfocused field's chips are border.separator grey. We assert that both the
+	// The focused chip (cursor 1 → "personal") renders in accent.primary; the
+	// unfocused field's chips are border grey. We assert that both the
 	// violet and grey border tokens appear (the focused chip violet, the others grey
 	// — Aliases is unfocused). The precise per-chip colour scoping is covered by
 	// TestEditModal_ChipFocusedVioletNoCross.
@@ -123,7 +123,7 @@ func TestRenderEditProjectContent_NewChipShowsLiveBuffer(t *testing.T) {
 }
 
 func TestRenderEditProjectContent_TagsHeadingFocusScoped(t *testing.T) {
-	// Name focused: NAME label is accent.violet, TAGS label is text.detail.
+	// Name focused: NAME label is accent.primary, TAGS label is text.muted.
 	m := renderTagsModel(t, editFieldName, []string{"work"}, 0)
 	content := m.renderEditProjectContent()
 	violet := tokenFgSeq(t, m.themeState.active.AccentPrimary)
@@ -137,7 +137,7 @@ func TestRenderEditProjectContent_TagsHeadingFocusScoped(t *testing.T) {
 		t.Errorf("TAGS label should NOT be accent.violet when Name focused; seg=%q", tagsSeg)
 	}
 
-	// Tags focused: TAGS label is accent.violet.
+	// Tags focused: TAGS label is accent.primary.
 	tagsFocused := renderTagsModel(t, editFieldTags, []string{"work"}, 0).renderEditProjectContent()
 	if seg := labelSegment(t, tagsFocused, "TAGS"); !strings.Contains(seg, violet) {
 		t.Errorf("TAGS label should be accent.violet when Tags focused; seg=%q", seg)

@@ -33,7 +33,7 @@ func markedSet(names ...string) map[string]struct{} {
 
 // TestSessionRow_MarkedShowsVioletBulletInLeftBar asserts a marked (multi-select)
 // row renders the ● at the far-left of the fixed 2-cell left-bar column in
-// accent.violet (dark canvas), while an unmarked row in the same set renders no ●.
+// accent.primary (dark canvas), while an unmarked row in the same set renders no ●.
 func TestSessionRow_MarkedShowsVioletBulletInLeftBar(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, Selected: markedSet("alpha")}
 	items := flatItems(

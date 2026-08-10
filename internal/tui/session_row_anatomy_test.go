@@ -157,7 +157,7 @@ func TestSessionRow_EmptyAttachedSlotPreservesAlignment(t *testing.T) {
 
 // TestSessionRow_SelectedShowsVioletBarTintAndOnSelectionName asserts the §3.3
 // selection treatment in exact SGR: the selected row carries a violet ▌ bar
-// (accent.violet foreground), every structural cell tints with bg.selection, and
+// (accent.primary foreground), every structural cell tints with bg.selection, and
 // the name renders in text.on-selection.
 func TestSessionRow_SelectedShowsVioletBarTintAndOnSelectionName(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -165,7 +165,7 @@ func TestSessionRow_SelectedShowsVioletBarTintAndOnSelectionName(t *testing.T) {
 		items := flatItems(tmux.Session{Name: "selected-row", Windows: 2, Attached: false})
 		out := renderRow(d, 80, items, 0, 0)
 
-		// The ▌ selector bar glyph is present and rendered in accent.violet.
+		// The ▌ selector bar glyph is present and rendered in accent.primary.
 		if !strings.Contains(ansi.Strip(out), "▌") {
 			t.Errorf("[%v] selected row missing the ▌ selector bar: %q", themeLabel(th), ansi.Strip(out))
 		}
@@ -209,13 +209,14 @@ func TestSessionRow_UnselectedHasNoBarOrTint(t *testing.T) {
 	}
 }
 
-// TestSessionRow_AttachedKeepsStateGreenWhenSelected is the §4.1 attached-marker
-// colour gate: the ● attached marker renders in the SINGLE state.green token on
-// BOTH the selected and the unselected row (the marker keeps state.green on the
-// selected row — it is NOT recoloured to text.on-selection). The light state.green
-// (#3B5E18) clears the contrast floor against the bg.selection tint as well as the
-// canvas (the numeric floor is gated in theme/contrast_test.go), so no per-context
-// on-selection override is needed.
+// TestSessionRow_AttachedKeepsStateGreenWhenSelected is the §4.1
+// attached-marker colour gate: the ● attached marker renders in the SINGLE
+// state.positive token on BOTH the selected and the unselected row (the marker
+// keeps state.positive on the selected row — it is NOT recoloured to
+// text.on-selection). The light state.positive (#3B5E18) clears the contrast
+// floor against the bg.selection tint as well as the canvas (the numeric floor
+// is gated in theme/contrast_test.go), so no per-context on-selection override
+// is needed.
 func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := SessionDelegate{Theme: th}
@@ -227,7 +228,7 @@ func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
 		green := tokenFgSeq(t, th.StatePositive)
 		onSelName := tokenFgSeq(t, th.TextOnSelection)
 
-		// Selected row (cursor on row 0): attached marker in state.green, NOT
+		// Selected row (cursor on row 0): attached marker in state.positive, NOT
 		// recoloured to the text.on-selection name colour.
 		sel := renderRow(d, 80, items, 0, 0)
 		if !strings.Contains(sel, green) {
@@ -238,7 +239,7 @@ func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
 			t.Fatalf("[light] test precondition broken: state.green == text.on-selection")
 		}
 
-		// Unselected attached row (cursor on row 0, render row 1): same state.green.
+		// Unselected attached row (cursor on row 0, render row 1): same state.positive.
 		uns := renderRow(d, 80, items, 1, 0)
 		if !strings.Contains(uns, green) {
 			t.Errorf("[%v] unselected attached marker missing state.green fg %q", themeLabel(th), green)
@@ -247,7 +248,7 @@ func TestSessionRow_AttachedKeepsStateGreenWhenSelected(t *testing.T) {
 }
 
 // TestSessionRow_SelectedCountInTextStrong asserts the §4.1 selected-row count
-// role: the window count renders in text.strong on the selected row (text.detail
+// role: the window count renders in text.secondary on the selected row (text.muted
 // on unselected).
 func TestSessionRow_SelectedCountInTextStrong(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {

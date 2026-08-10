@@ -284,7 +284,7 @@ func TestBurstInputLock_OpeningBandPrecedence(t *testing.T) {
 }
 
 // TestOpeningBand_RendersVioletCounter pins the render contract: the band reads
-// `Opening n/N…` (with the U+2026 ellipsis) in accent.violet, exactly one row, at
+// `Opening n/N…` (with the U+2026 ellipsis) in accent.primary, exactly one row, at
 // the full content width (a canvas-painted flex spacer pads the right).
 func TestOpeningBand_RendersVioletCounter(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {

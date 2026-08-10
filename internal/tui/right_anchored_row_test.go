@@ -207,7 +207,7 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 }
 
 // lastLine returns the final \n-separated line of a rendered footer (the key row;
-// line 0 is the border.footer top rule).
+// line 0 is the border top rule).
 func lastLine(s string) string {
 	lines := strings.Split(s, "\n")
 	return lines[len(lines)-1]

@@ -19,7 +19,7 @@ import (
 
 // This file is the §5.1 grouped-reskin gate (task 2-9). It pins the RENDER-ONLY
 // reskin of the group HeaderItem and the grouped-row indent: the heading text in
-// text.detail with the `··· N` count in text.dim (two separately-styled runs),
+// text.muted with the `··· N` count in text.subtle (two separately-styled runs),
 // and grouped session rows nested one indent level further than flat (cursor at
 // col 2, name at col 4) while flat rows sit flush at col 2. The grouping
 // MACHINERY (items / order / catch-alls / cursor-skip / signpost path) is
@@ -40,7 +40,7 @@ func renderHeaderRow(d SessionDelegate, width int, h HeaderItem) string {
 }
 
 // TestGroupHeading_TextDetailHeadingWithTextDimCount asserts §5.1: the heading
-// label renders in text.detail and the `··· N` count in text.dim (dimmer) — two
+// label renders in text.muted and the `··· N` count in text.subtle (dimmer) — two
 // separately-styled runs, not one faint run. Pinned in exact mode-resolved SGR so
 // a token swap (or a regression back to a single faint run) is caught.
 func TestGroupHeading_TextDetailHeadingWithTextDimCount(t *testing.T) {
@@ -72,7 +72,7 @@ func TestGroupHeading_TextDetailHeadingWithTextDimCount(t *testing.T) {
 }
 
 // TestGroupHeading_HeadingRunCarriesDetailCountRunCarriesDim asserts the SPLIT is
-// per-run: the text.detail SGR sits before the heading word and the text.dim SGR
+// per-run: the text.muted SGR sits before the heading word and the text.subtle SGR
 // sits before the count digits — so the heading word is detail and the count is
 // dim, not the reverse and not one run spanning both.
 func TestGroupHeading_HeadingRunCarriesDetailCountRunCarriesDim(t *testing.T) {
@@ -83,7 +83,7 @@ func TestGroupHeading_HeadingRunCarriesDetailCountRunCarriesDim(t *testing.T) {
 	dim := tokenFgSeq(t, testDarkTheme(t).TextSubtle)
 
 	// In the raw (un-stripped) output the heading glyphs must appear under a
-	// text.detail SGR and the count digit under a text.dim SGR.
+	// text.muted SGR and the count digit under a text.subtle SGR.
 	detailIdx := strings.Index(out, detail)
 	dimIdx := strings.Index(out, dim)
 	if detailIdx < 0 || dimIdx < 0 {
@@ -199,7 +199,7 @@ func TestGroupHeading_IndentsToColTwo(t *testing.T) {
 
 // TestCatchAllHeadings_UseSameHeadingStyle asserts §5.1 / the acceptance criterion:
 // the catch-all (Unknown / Untagged) headings render with the SAME two-run
-// heading style (text.detail heading + text.dim count) as a resolvable group's
+// heading style (text.muted heading + text.subtle count) as a resolvable group's
 // heading — they are HeaderItems too.
 func TestCatchAllHeadings_UseSameHeadingStyle(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {

@@ -22,13 +22,13 @@ var (
 const (
 	// selectorBar is the thick block selection glyph (U+258C LEFT HALF
 	// BLOCK), the single, consistent left-bar selection signal. It renders in
-	// accent.violet at the far-left of the selected row; the leftBarColumnWidth
+	// accent.primary at the far-left of the selected row; the leftBarColumnWidth
 	// column it occupies replaces the former "> " / "  " cursor prefix so the name
 	// keeps the same left edge whether or not the row is selected.
 	selectorBar = "▌"
 	// multiSelectMarker is the multi-select selection glyph (U+25CF BLACK
 	// CIRCLE — the SAME bullet the attached badge uses). It renders in
-	// accent.violet at the far-left of a MARKED row, occupying the same fixed
+	// accent.primary at the far-left of a MARKED row, occupying the same fixed
 	// leftBarColumnWidth column the ▌ selector would and taking PRECEDENCE over it
 	// (a selected+marked cursor row shows ●, not ▌).
 	multiSelectMarker = "●"
@@ -62,12 +62,12 @@ const (
 // keeping the bullets column-aligned down the list.
 const attachedMarker = "● attached"
 
-// goneBadge is the pre-flight abort badge text, rendered in state.red in place
-// of the attached badge on a GONE-flagged row (the session vanished between marking
-// and Enter). It is exactly attachedSlotWidth + rowRightMargin cells wide, so it
-// fills the SAME fixed trailing region (attached slot + right margin) with no
-// padding — the row width stays byte-unchanged and the badge's left edge aligns with
-// the attached ● column.
+// goneBadge is the pre-flight abort badge text, rendered in state.destructive
+// in place of the attached badge on a GONE-flagged row (the session vanished
+// between marking and Enter). It is exactly attachedSlotWidth + rowRightMargin
+// cells wide, so it fills the SAME fixed trailing region (attached slot + right
+// margin) with no padding — the row width stays byte-unchanged and the badge's
+// left edge aligns with the attached ● column.
 const goneBadge = "session gone"
 
 // attachedSlotWidth is the FIXED width of the attached trailing slot, derived
@@ -167,13 +167,13 @@ type HeaderItem struct {
 func (HeaderItem) FilterValue() string { return "" }
 
 // headingText is the group label run: the heading word, plus a trailing space so
-// the dots-count run abuts it with a single gap. Rendered in text.detail.
+// the dots-count run abuts it with a single gap. Rendered in text.muted.
 func (h HeaderItem) headingText() string {
 	return h.Heading + " "
 }
 
 // countText is the dots-count run: the `··· N` count. Rendered in
-// text.dim (dimmer than the heading) as a SEPARATE run, so the count reads as a
+// text.subtle (dimmer than the heading) as a SEPARATE run, so the count reads as a
 // quieter tally beside the heading rather than one uniform faint separator.
 func (h HeaderItem) countText() string {
 	return fmt.Sprintf("%s %d", groupSeparator, h.Count)
@@ -296,8 +296,8 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	switch it := item.(type) {
 	case HeaderItem:
 		// Group heading: TWO separately-styled runs over the owned canvas —
-		// the heading word in text.detail (the group-heading role) and the
-		// "··· N" count in text.dim (dimmer), so the count reads as a quieter tally
+		// the heading word in text.muted (the group-heading role) and the
+		// "··· N" count in text.subtle (dimmer), so the count reads as a quieter tally
 		// rather than one uniform faint separator. No Faint(true) and no literal
 		// hex at the call site — both colours flow from role tokens. The same style
 		// renders a catch-all heading (Unknown / Untagged): they are HeaderItems too.
@@ -364,8 +364,8 @@ func rowTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, selected
 // a fixed 2-cell column keeping the row text at the same left edge whether or
 // not the row is selected. bg is the caller's rowBgStyle result (so the blank
 // cells carry the row's canvas / selection tint); selectorStyle is the caller's
-// rowTokenStyle(lipgloss.Style{}, AccentViolet, true, …) result (so the bar
-// renders in accent.violet over the selection tint). Homed here so the 2-cell
+// rowTokenStyle(lipgloss.Style{}, AccentPrimary, true, …) result (so the bar
+// renders in accent.primary over the selection tint). Homed here so the 2-cell
 // selector-column width and the selected/unselected grammar live in one place
 // for both delegates.
 func renderLeftBarColumn(bg, selectorStyle lipgloss.Style, selected bool) string {
@@ -396,7 +396,7 @@ func renderLeftBarGlyphColumn(glyph string, glyphStyle, bg lipgloss.Style) strin
 // and no downstream column shifts. It takes PRECEDENCE over
 // renderLeftBarColumn's ▌ selector — a selected+marked cursor row shows the ●,
 // not the bar. markerStyle is the caller's rowToken(lipgloss.Style{},
-// AccentViolet, selected) result, so the ● carries the bg.selection tint on a
+// AccentPrimary, selected) result, so the ● carries the bg.selection tint on a
 // selected row and the canvas otherwise (and drops hue under NO_COLOR); bg is the
 // caller's rowBg result, so the trailing cell carries the same tint.
 func renderMarkedLeftBarColumn(bg, markerStyle lipgloss.Style) string {
@@ -409,7 +409,7 @@ func renderMarkedLeftBarColumn(bg, markerStyle lipgloss.Style) string {
 // the ● marker, so the name keeps its left edge and no downstream column shifts
 // unchanged. It takes PRECEDENCE over BOTH the ● marker and the ▌ selector — a
 // gone row shows the ⚠, never a ●/▌. markerStyle is the caller's rowToken(
-// lipgloss.Style{}, StateRed, selected) result, so the ⚠ carries the bg.selection
+// lipgloss.Style{}, StateDestructive, selected) result, so the ⚠ carries the bg.selection
 // tint on the cursor/banded row and the canvas otherwise (and drops hue under
 // NO_COLOR); bg is the caller's rowBg result, so the trailing cell carries the same
 // tint.
@@ -497,7 +497,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	if selected {
 		nameTok = d.Theme.TextOnSelection
 	}
-	// Window count — text.detail (selected: text.strong).
+	// Window count — text.muted (selected: text.secondary).
 	countTok := d.Theme.TextMuted
 	if selected {
 		countTok = d.Theme.TextSecondary
@@ -544,7 +544,7 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 		trailing = badge + bg.Render(padTo("", attachedSlotWidth+rowRightMargin-lipgloss.Width(goneBadge)))
 	} else {
 		// Attached marker — a fixed-width slot right of the count. "● attached" in
-		// state.green when attached (the single state.green token clears the floor on
+		// state.positive when attached (the single state.positive token clears the floor on
 		// both the canvas and the bg.selection tint, so the selected row keeps the same
 		// green — no per-context override), an EMPTY slot of the SAME width when not, so
 		// the bullets and the counts stay column-aligned regardless of name length.

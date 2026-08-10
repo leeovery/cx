@@ -10,16 +10,15 @@ import (
 
 // borderFgSeq returns the bare `38;2;r;g;b` foreground SGR parameter substring a
 // border drawn in tok renders with. lipgloss paints a border glyph's colour as a
-// FOREGROUND, so the panel frame's border.separator colour appears as that
-// token's foreground SGR core in the rendered modal — the same probe shape as
-// tokenFgSeq.
+// FOREGROUND, so the panel frame's border colour appears as that token's
+// foreground SGR core in the rendered modal — the same probe shape as tokenFgSeq.
 func borderFgSeq(t *testing.T, tok theme.Token) string {
 	t.Helper()
 	return tokenFgSeq(t, tok)
 }
 
 // TestHelpModalPanelBorderColour asserts FIX 3 for the help modal specifically:
-// its own panel frame is drawn in border.separator (not white), dark + light.
+// its own panel frame is drawn in the border token (not white), dark + light.
 func TestHelpModalPanelBorderColour(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -38,9 +37,10 @@ func TestHelpModalPanelBorderColour(t *testing.T) {
 }
 
 // TestHelpModalDividerToken asserts the SINGLE-TONE frame: the header divider
-// under `? Keybindings` and the whole frame are drawn in THE border token — and,
-// since §2.2 consolidated border.separator and border.footer into that one role,
-// no second border hue exists for any frame glyph to drift onto.
+// under `? Keybindings` and the whole frame are drawn in THE border token — the
+// separate roles once named `border.separator` and `border.footer` were removed
+// and folded into it, so no second border hue exists for any frame glyph to drift
+// onto.
 func TestHelpModalDividerToken(t *testing.T) {
 	content := renderHelpModalContent(sessionsKeymap(), testDarkTheme(t), false)
 	sepSeq := tokenFgSeq(t, testDarkTheme(t).Border)

@@ -487,7 +487,7 @@ func TestNoticeBand_ContinuationLinesAlignUnderMessage(t *testing.T) {
 	}
 }
 
-// TestNoticeBand_FlashTintSpansEveryWrappedLine asserts the flash tint (bg.warning)
+// TestNoticeBand_FlashTintSpansEveryWrappedLine asserts the flash tint (bg.attention)
 // is painted on EVERY wrapped line and each line is padded to the full width — no
 // terminal-bg island on any line (the §11.2 tint must span the multi-line band).
 func TestNoticeBand_FlashTintSpansEveryWrappedLine(t *testing.T) {

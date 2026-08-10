@@ -45,7 +45,7 @@ func placeModalOnClearedCanvas(panel string, width, height int) string {
 // whole bordered frame itself (top/bottom borders, side `│`, the joined `├`/`┤`
 // divider, and the flush content rows) — there is NO lipgloss auto-border wrap, so
 // the divider can carry real junctions into the side frame and the vertical spacing
-// is flush (zero blank rows). The frame is SINGLE-TONE border.separator, mode- and
+// is flush (zero blank rows). The frame is SINGLE-TONE border, mode- and
 // colourless-aware. The same lipgloss.Place centres it on the inset region.
 func renderHelpModalOnClearedCanvas(entries []keymapEntry, width, height int, th theme.Theme, colourless bool) string {
 	panel := renderHelpModalContent(entries, th, colourless)

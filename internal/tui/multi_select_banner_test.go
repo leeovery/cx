@@ -15,7 +15,7 @@ import (
 
 // The §5 multi-select banner: a filter-line analogue that REPLACES the standard
 // `Sessions ··· N` section header while multi-select mode is active — `N selected`
-// (accent.violet) on the left, a right-aligned `esc cancel` hint (text.detail) on
+// (accent.primary) on the left, a right-aligned `esc cancel` hint (text.muted) on
 // the same row, the gap filled with a canvas-painted flex spacer to the content
 // width. NO `▌` left-bar (it is a section-header analogue, not a notice band).
 // These tests pin the colour roles, the right-alignment, the N=0 render, the
@@ -25,7 +25,7 @@ import (
 // make parallelism unsafe across this package's tests.
 
 // TestMultiSelectHeader_CountVioletCancelDetail asserts the banner renders the
-// `N selected` cluster in accent.violet and the `esc cancel` hint in text.detail
+// `N selected` cluster in accent.primary and the `esc cancel` hint in text.muted
 // (the SAME dim chrome token the standard `/ to filter` hint uses), on both the
 // dark and light canvas.
 func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
@@ -45,8 +45,8 @@ func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
 			if !strings.Contains(header, multiSelectCancelHint) {
 				t.Errorf("banner missing the %q hint:\n%s", multiSelectCancelHint, header)
 			}
-			// The `N selected` cluster is accent.violet, the `esc cancel` hint is
-			// text.detail — assert the exact styled runs appear verbatim.
+			// The `N selected` cluster is accent.primary, the `esc cancel` hint is
+			// text.muted — assert the exact styled runs appear verbatim.
 			violetRun := headerStyle(tc.th.AccentPrimary, tc.th, false).Render("3 selected")
 			if !strings.Contains(header, violetRun) {
 				t.Errorf("banner missing the accent.violet %q run:\n%s", "3 selected", header)
@@ -98,7 +98,7 @@ func TestMultiSelectHeader_ZeroSelected(t *testing.T) {
 	if !strings.Contains(ansi.Strip(header), "0 selected") {
 		t.Errorf("banner for N=0 must read %q:\n%s", "0 selected", ansi.Strip(header))
 	}
-	// Still accent.violet, still right-anchored with the hint.
+	// Still accent.primary, still right-anchored with the hint.
 	violetRun := headerStyle(testDarkTheme(t).AccentPrimary, testDarkTheme(t), false).Render("0 selected")
 	if !strings.Contains(header, violetRun) {
 		t.Errorf("N=0 banner missing the accent.violet %q run:\n%s", "0 selected", header)
@@ -192,7 +192,7 @@ func bannerFirstLine(m Model) string {
 }
 
 // TestApplySectionHeader_MultiSelectShowsBanner asserts that in multi-select mode
-// the section-header row swaps to the `N selected` banner (accent.violet), and the
+// the section-header row swaps to the `N selected` banner (accent.primary), and the
 // standard `Sessions` section header is NOT shown on that row.
 func TestApplySectionHeader_MultiSelectShowsBanner(t *testing.T) {
 	m := multiSelectBannerModel([]string{"alpha", "bravo", "charlie"}, "alpha", "bravo", "charlie")

@@ -372,7 +372,7 @@ func sessionsFlatFixture() *Fixture {
 // sessionsEmptyFixture builds the deterministic "sessions-empty" fixture: ZERO
 // sessions (an empty Lister) opened in Flat mode, so the empty-sessions state
 // renders — the centred `▌ ▌ ▌` block glyph (text.faint) + `No sessions yet`
-// (text.primary) + the hint (text.detail), with the FULLY-REPLACED footer
+// (text.primary) + the hint (text.muted), with the FULLY-REPLACED footer
 // (`n new in cwd · x projects · / filter · ? help`). It drives the empty-sessions
 // reskin capture (mirrors testdata/vhs/reference/sessions-empty-mv.png).
 //
@@ -397,7 +397,7 @@ func sessionsEmptyFixture() *Fixture {
 // paths match most session dirs, plus one session whose directory matches NO
 // project so it lands in the pinned Unknown catch-all. This drives the
 // By-Project grouped capture so the `— by project` mode suffix and the restyled
-// group headings + nested rows (heading text.detail, `··· N` count text.dim,
+// group headings + nested rows (heading text.muted, `··· N` count text.subtle,
 // rows indented one level under their heading) are visible in the screenshot.
 //
 // By-Project is Pattern A — ONE row per session under its project, the key being
@@ -482,7 +482,7 @@ func sessionsByTagFixture() *Fixture {
 // sessionsPagedFixture builds the deterministic "sessions-paged" fixture: a fixed
 // set of 100 sessions — enough to span SEVERAL pages at the 1280×800 capture size
 // (the measured per-page capacity there is ≤ 31, so ~4 pages), so the
-// height-driven paginator renders a multi-dot centred row (one active accent.violet
+// height-driven paginator renders a multi-dot centred row (one active accent.primary
 // dot + several inactive text.faint dots) the restyle task captures. It opens in
 // Flat mode (the dots are a Flat-list concern; By-Tag has its own fixture).
 //
@@ -528,7 +528,7 @@ func sessionsPagedFixture() *Fixture {
 // fixture: a small Flat-mode session set with the inline WARNING flash band
 // seeded on the first frame, mirroring testdata/vhs/reference/sessions-inline-flash-mv.png.
 // The flash band (orange ▌ left-bar + ⚠ + "folio-Jiz4el closed externally — list
-// updated" on the bg.warning tint, text.on-warning message) sits directly under
+// updated" on the bg.attention tint, text.on-attention message) sits directly under
 // the title separator, above the `Sessions 4` section header.
 //
 // The flash is otherwise transient (production sets it only on the preview-bail
@@ -660,7 +660,7 @@ func sessionsMultiSelectPreflightAbortFixture() *Fixture {
 // sessionsBurstOpeningFixture builds the deterministic "sessions-burst-opening"
 // fixture: the sessions-flat set (same 12 sessions, same order) opened in Flat
 // multi-select mode with the same three sessions marked, and the in-burst Opening
-// band seeded as (2, 3). So the `Opening 2/3…` band (accent.violet — the HIGHEST
+// band seeded as (2, 3). So the `Opening 2/3…` band (accent.primary — the HIGHEST
 // section-header claimant) owns the section-header row while the three marked rows keep
 // their violet ● beneath it. No design mock exists for this frame, so this capture is
 // its own reference.
@@ -1318,8 +1318,8 @@ func themePanelProjectsFixture() *Fixture {
 // projectsFixture builds the deterministic "projects" fixture: a rich project
 // store (14 projects with real-looking absolute paths, mirroring the reference
 // frame testdata/vhs/reference/projects-mv.png) so the Projects page reskin — the
-// PORTAL header, the state.green `Projects 14` section header, the two-line rows
-// (name text.primary heavy / path text.detail dim), the full-height accent.violet
+// PORTAL header, the state.positive `Projects 14` section header, the two-line rows
+// (name text.primary heavy / path text.muted dim), the full-height accent.primary
 // left-bar selection over the bg.selection tint, and the condensed footer — is
 // visible in the screenshot.
 //
@@ -1386,7 +1386,7 @@ func projectsFixture() *Fixture {
 // pending command so m.commandPending is true — the model opens directly on the
 // command-pending Projects page (WithCommand sets PageProjects), rendering the
 // banner (violet `▌` left-bar + `▸ Pick a project to run` + the command in an
-// accent.orange chip) over the FULL Projects chrome (green `Projects 14` header +
+// accent.attention chip) over the FULL Projects chrome (green `Projects 14` header +
 // `/ to filter`), with the swapped `⏎ run here · n run in cwd · esc cancel` footer.
 // Mirrors testdata/vhs/reference/projects-command-pending-mv.png.
 //
@@ -1409,7 +1409,7 @@ func projectsCommandPendingFixture() *Fixture {
 // pressing Space on it opens the preview overlay onto a single-window
 // single-pane session (Window 1/1 · Pane 1/1) seeded with generic canned
 // scrollback. This drives the cyan peek-mode chrome reskin capture — the
-// accent.cyan top bar (◉ preview marker + session + counters + right-aligned nav
+// accent.mode top bar (◉ preview marker + session + counters + right-aligned nav
 // hints) framing the untouched captured ANSI content — mirroring
 // testdata/vhs/reference/preview-screen-mv.png.
 //
@@ -1487,14 +1487,15 @@ func loadingScreenFixture() *Fixture {
 	}
 }
 
-// loadingErrorFixture builds the deterministic "loading-error" fixture: the fatal
-// cold-boot error frame, MOCKED at implementation (no design mock exists — the
-// capture IS the mock). Steps 1–2 complete (✓ Started tmux server,
+// loadingErrorFixture builds the deterministic "loading-error" fixture: the
+// fatal cold-boot error frame, MOCKED at implementation (no design mock exists
+// — the capture IS the mock). Steps 1–2 complete (✓ Started tmux server,
 // ✓ Registered hooks), then a fatal aborts at step 3 (SetRestoring) — so that
-// step's row carries the state.red ✗ marker, the trailing labels stay pending (·,
-// they never ran), the one-line FatalError.UserMessage renders beneath the
-// step-list in state.red, and a `q quit · esc quit` hint sits at the bottom. The
-// bar freezes at the fraction reached at fatal time (2/11) — not completed.
+// step's row carries the state.destructive ✗ marker, the trailing labels stay
+// pending (·, they never ran), the one-line FatalError.UserMessage renders
+// beneath the step-list in state.destructive, and a `q quit · esc quit` hint
+// sits at the bottom. The bar freezes at the fraction reached at fatal time
+// (2/11) — not completed.
 //
 // The mid-then-fatal state is reached by folding a real BootstrapProgressMsg
 // sequence (steps 1–2) through the model's accumulator, then a terminal

@@ -60,11 +60,12 @@ func assertActiveTheme(t *testing.T, m Model, wantCanvas string) {
 	}
 }
 
-// TestFooterTopRule_UsesBorderToken pins §2.2's border consolidation: `border.footer`
-// is dropped, so the footer rule renders with the SAME token as the title rule. The
-// accepted visual change is that the dark footer rule becomes marginally more
-// prominent — #292E42 rather than #20232E — and the retired shade must appear
-// nowhere in the frame.
+// TestFooterTopRule_UsesBorderToken pins the border consolidation: the separate
+// footer-rule role once named `border.footer` was removed from the vocabulary, so
+// the footer rule renders with the SAME token as the title rule. The accepted
+// visual change is that the dark footer rule becomes marginally more prominent —
+// #292E42 rather than #20232E — and the shade that removed name carried must
+// appear nowhere in the frame.
 func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 	dark := testDarkTheme(t)
 	rule := footerTopRule(referenceFooterWidth, dark, false)
@@ -76,7 +77,8 @@ func TestFooterTopRule_UsesBorderToken(t *testing.T) {
 		t.Errorf("dark border token = %q, want #292E42 (the consolidated title/footer rule)", got)
 	}
 
-	// The retired border.footer shade must not survive anywhere in the frame.
+	// The shade the removed `border.footer` role carried must not survive
+	// anywhere in the frame.
 	retired := sgrParams(t, lipgloss.NewStyle().Foreground(lipgloss.Color("#20232E")))
 	frame := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, dark, false)
 	if strings.Contains(frame, retired) {

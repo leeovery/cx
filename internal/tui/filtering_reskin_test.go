@@ -14,7 +14,7 @@ import (
 
 // This file is the §7 / §7.1 / §7.2 filtering-reskin gate (task 2-8). It pins the
 // MV treatment of the bubbles/list filter input: the `/` prompt + the live query
-// in accent.orange, the two mutually-exclusive modes (input-active = typing,
+// in accent.attention, the two mutually-exclusive modes (input-active = typing,
 // cursor at end, NO selected row; list-active = locked cursor-less query, selected
 // row, no input bg tint), the two contextual footers driven by the filter mode,
 // and the §5.1 flatten-on-filter behaviour (grouped headings vanish the instant a
@@ -117,7 +117,7 @@ func enterListActive(t *testing.T, th theme.Theme) Model {
 }
 
 // TestFiltering_InputActiveQueryOrange asserts §7: while typing (input-active) the
-// `/` prompt and the query text render in accent.orange. Pinned in exact
+// `/` prompt and the query text render in accent.attention. Pinned in exact
 // mode-resolved SGR so a token swap is caught.
 func TestFiltering_InputActiveQueryOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -184,8 +184,8 @@ func TestFiltering_InputActiveFooter(t *testing.T) {
 }
 
 // TestFiltering_InputActiveFooterColours asserts §7.1 per-word colours: the
-// filter-specific action word reads in accent.orange, the nav glyphs in
-// accent.blue, the labels in text.detail.
+// filter-specific action word reads in accent.attention, the nav glyphs in
+// accent.key, the labels in text.muted.
 func TestFiltering_InputActiveFooterColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderFilteringFooter(filteringReskinWidth, th, false)
@@ -203,7 +203,7 @@ func TestFiltering_InputActiveFooterColours(t *testing.T) {
 }
 
 // TestFiltering_ListActiveLockedQueryOrange asserts §7.1: after committing
-// (list-active) the query renders as a locked accent.orange `/ query` with NO
+// (list-active) the query renders as a locked accent.attention `/ query` with NO
 // cursor — the cursor-less locked query signals the list is filtered.
 func TestFiltering_ListActiveLockedQueryOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -256,7 +256,7 @@ func TestFiltering_ListActiveFooter(t *testing.T) {
 }
 
 // TestFiltering_ListActiveFooterClearIsOrange asserts §7.1: the `esc` clear-filter
-// key reads accent.orange in the list-active footer.
+// key reads accent.attention in the list-active footer.
 func TestFiltering_ListActiveFooterClearIsOrange(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderFilterAppliedFooter(filteringReskinWidth, th, false)

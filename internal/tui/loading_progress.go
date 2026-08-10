@@ -53,7 +53,7 @@ const (
 	// LabelDone: every constituent step of this label has completed.
 	LabelDone
 	// LabelFailed: a fatal bootstrap step in this label's group aborted the
-	// boot (§10.5). It renders the state.red ✗ marker. Only ever set on the
+	// boot (§10.5). It renders the state.destructive ✗ marker. Only ever set on the
 	// error-frame view (FailedView), never reached by the normal accumulator
 	// projection (View).
 	LabelFailed

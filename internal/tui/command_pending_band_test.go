@@ -27,7 +27,7 @@ func (c *recordingCreator) CreateFromDir(dir string, command []string) (string, 
 // Tests for task 4-4: the §11.4 command-pending banner reskin. The plain
 // `Select project to run: <cmd>` status line is replaced by a §11 violet INFO
 // band — a violet `▌` left-bar + a `▸` caret + the fixed text `Pick a project to
-// run` + the joined command in an accent.orange chip — on a subtle tinted band,
+// run` + the joined command in an accent.attention chip — on a subtle tinted band,
 // over the FULL Projects chrome (green `Projects N` header + `/ to filter`). The
 // footer swaps to `enter run here · n run in cwd · esc cancel`. Dispatch is
 // unchanged (Enter → run here, n → run in cwd, Esc → cancel).
@@ -51,7 +51,7 @@ func newCommandPendingTestModel(t *testing.T, w, h int, projects []project.Proje
 
 // TestCommandBand_VioletBarCaretTextAndOrangeChip asserts the command band renders
 // as a violet `▌` left-bar + a `▸` caret + the fixed `Pick a project to run` text +
-// the joined command in an accent.orange chip.
+// the joined command in an accent.attention chip.
 func TestCommandBand_VioletBarCaretTextAndOrangeChip(t *testing.T) {
 	const w = 80
 	band := renderCommandBand([]string{"npm", "run", "dev"}, w, testDarkTheme(t), false)
@@ -74,12 +74,12 @@ func TestCommandBand_VioletBarCaretTextAndOrangeChip(t *testing.T) {
 		t.Errorf("command band missing the joined command %q: %q", "npm run dev", stripped)
 	}
 
-	// Bar colour = accent.violet (§2.9).
+	// Bar colour = accent.primary (§2.9).
 	violetSeq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
 		t.Errorf("command band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
 	}
-	// Chip command colour = accent.orange (§2.9 / §11.4).
+	// Chip command colour = accent.attention (§2.9 / §11.4).
 	orangeSeq := tokenFgSeq(t, testDarkTheme(t).AccentAttention)
 	if !strings.Contains(band, orangeSeq) {
 		t.Errorf("command band missing the accent.orange chip foreground sequence %q:\n%s", orangeSeq, band)
@@ -148,7 +148,7 @@ func TestCommandBand_NoColorKeepsBarCaretAndChip(t *testing.T) {
 }
 
 // TestCommandBandRole_BarAndTintTokens asserts the bandCommand role selects the
-// accent.violet bar token and the bg.selection tint token from the closed §2.9
+// accent.primary bar token and the bg.selection tint token from the closed §2.9
 // vocabulary (no literal hex at the call site).
 func TestCommandBandRole_BarAndTintTokens(t *testing.T) {
 	if got := bandCommand.barToken(testDarkTheme(t)).Name; got != testDarkTheme(t).AccentPrimary.Name {
@@ -361,11 +361,12 @@ func TestCommandPendingKeymap_Copy(t *testing.T) {
 // the inline enter→⏎ rewrite) is proven byte-identical to the former []key.Binding
 // path. A single byte drift in any cell — glyph, colour, separator, spacer — fails.
 //
-// The DARK golden's top-rule foreground moved once, deliberately: §2.2 dropped
-// border.footer, so the rule now renders with the same token as the title rule —
-// 38;2;41;46;66 (#292E42) rather than 38;2;32;35;46 (#20232E). That is the whole
-// accepted visual change of the consolidation. The LIGHT golden is untouched: both
-// border tokens already carried the same light value.
+// The DARK golden's top-rule foreground moved once, deliberately: the separate
+// footer-rule role was dropped, so the rule now renders with the same token as
+// the title rule — 38;2;41;46;66 (#292E42) rather than 38;2;32;35;46 (#20232E).
+// That is the whole accepted visual change of the consolidation. The LIGHT
+// golden is untouched: the two former border roles already carried the same
+// light value.
 func TestCommandPendingFooter_ByteExact(t *testing.T) {
 	const wantDark = "\x1b[38;2;41;46;66;48;2;11;12;20m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\x1b[m\n\x1b[38;2;122;162;247;48;2;11;12;20m⏎\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mrun here\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mn\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mrun in cwd\x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m · \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mesc\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mcancel\x1b[m\x1b[48;2;11;12;20m                                                                                                                    \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m?\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mhelp\x1b[m"
 	const wantLight = "\x1b[38;2;201;205;219;48;2;225;226;231m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\x1b[m\n\x1b[38;2;45;92;202;48;2;225;226;231m⏎\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mrun here\x1b[m\x1b[38;2;88;96;147;48;2;225;226;231m · \x1b[m\x1b[38;2;45;92;202;48;2;225;226;231mn\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mrun in cwd\x1b[m\x1b[38;2;88;96;147;48;2;225;226;231m · \x1b[m\x1b[38;2;45;92;202;48;2;225;226;231mesc\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mcancel\x1b[m\x1b[48;2;225;226;231m                                                                                                                    \x1b[m\x1b[38;2;138;63;209;48;2;225;226;231m?\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mhelp\x1b[m"

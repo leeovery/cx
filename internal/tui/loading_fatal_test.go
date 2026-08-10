@@ -3,12 +3,12 @@ package tui_test
 // Task spectrum-tui-design-5-6 — fatal cold-boot error contract (§10.5 / §10.2).
 //
 // On the concurrent cold/TUI path a fatal bootstrap step (EnsureServer,
-// RegisterPortalHooks, SetRestoring, ClearRestoring) can no longer return through
-// PersistentPreRunE — the orchestrator runs in a goroutine while Bubble Tea is
-// live on the loading page. §10.5 mandates the fatal becomes an in-TUI error
-// state on the loading page: the failed step row gets a state.red ✗ marker + a
-// one-line message, the page never transitions to the picker, and q/Esc quits
-// with a non-zero exit (openTUI returns the *bootstrap.FatalError).
+// RegisterPortalHooks, SetRestoring, ClearRestoring) can no longer return
+// through PersistentPreRunE — the orchestrator runs in a goroutine while Bubble
+// Tea is live on the loading page. §10.5 mandates the fatal becomes an in-TUI
+// error state on the loading page: the failed step row gets a state.destructive
+// ✗ marker + a one-line message, the page never transitions to the picker, and
+// q/Esc quits with a non-zero exit (openTUI returns the *bootstrap.FatalError).
 //
 // These tests pin the model behaviour: the error-state render, the
 // no-transition-to-picker invariant, the q/Esc → tea.Quit binding, the fatal
@@ -48,8 +48,9 @@ func fatalModelOnLoading(t *testing.T) tea.Model {
 }
 
 // TestFatalMsg_RendersErrorState asserts a BootstrapFatalMsg drives the
-// loading-page error state: the failed step's friendly label carries the state.red
-// ✗ marker and the one-line message renders beneath the step-list.
+// loading-page error state: the failed step's friendly label carries the
+// state.destructive ✗ marker and the one-line message renders beneath the
+// step-list.
 func TestFatalMsg_RendersErrorState(t *testing.T) {
 	model := fatalModelOnLoading(t)
 

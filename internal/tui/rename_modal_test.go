@@ -68,7 +68,7 @@ func TestRenameModal_Header(t *testing.T) {
 }
 
 // TestRenameModal_EditModeBadge asserts the always-on `◉ EDIT MODE` badge in the
-// header's right corner, rendered in accent.orange — the rename input is always
+// header's right corner, rendered in accent.attention — the rename input is always
 // editing (§13.1), so the badge is always present (unlike the edit modal, which
 // gates it on editMode).
 func TestRenameModal_EditModeBadge(t *testing.T) {
@@ -122,7 +122,7 @@ func TestRenameModal_EditModeBadgeRightAligned(t *testing.T) {
 }
 
 // TestRenameModal_NewNameLabel asserts the §8.4/§13.1 `NEW NAME` field label in
-// accent.violet (the focused-field label colour — the input is the live editing
+// accent.primary (the focused-field label colour — the input is the live editing
 // element).
 func TestRenameModal_NewNameLabel(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -152,7 +152,7 @@ func TestRenameModal_InputValue(t *testing.T) {
 
 // TestRenameModal_OrangeBlockCursor asserts the §13.1 input cursor is an orange
 // block: the input is always editing, so the cursor renders Reverse over an
-// accent.orange foreground (so the block fills orange), making the input the live
+// accent.attention foreground (so the block fills orange), making the input the live
 // editing element.
 func TestRenameModal_OrangeBlockCursor(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -170,7 +170,7 @@ func TestRenameModal_OrangeBlockCursor(t *testing.T) {
 }
 
 // TestRenameModal_OrangeInputBoxOutline asserts the input value sits inside a
-// border-defined box whose outline is accent.orange — the always-editing state of
+// border-defined box whose outline is accent.attention — the always-editing state of
 // the shared renderInputBox helper (§13.1: transparent fill, no recessed-input
 // token — the outline is the only treatment).
 func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
@@ -201,7 +201,7 @@ func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
 		if !strings.ContainsAny(bottom, "╰─╯") {
 			t.Errorf("[%v] row below the input value must be the box bottom edge (rounded outline); got %q", themeLabel(th), bottom)
 		}
-		// The box outline is accent.orange (the editing state of the shared helper).
+		// The box outline is accent.attention (the editing state of the shared helper).
 		if seq := tokenFgSeq(t, th.AccentAttention); !strings.Contains(content, seq) {
 			t.Errorf("[%v] input box outline must render in accent.orange SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
@@ -209,7 +209,7 @@ func TestRenameModal_OrangeInputBoxOutline(t *testing.T) {
 }
 
 // TestRenameModal_WasLine asserts the `was: <old name>` context line renders in
-// text.detail from the rename target.
+// text.muted from the rename target.
 func TestRenameModal_WasLine(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", th, false)
@@ -223,7 +223,7 @@ func TestRenameModal_WasLine(t *testing.T) {
 }
 
 // TestRenameModal_Footer asserts the §8.4 footer `⏎ rename   esc cancel`: the ⏎ and
-// esc key glyphs in accent.blue, the rename/cancel labels in text.detail. The
+// esc key glyphs in accent.key, the rename/cancel labels in text.muted. The
 // dismiss key lives in the footer as `esc cancel` (§8.1).
 func TestRenameModal_Footer(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -253,7 +253,7 @@ func TestRenameModal_NoLitralEnterArrow(t *testing.T) {
 
 // TestRenameModal_SingleToneJoinedPanel asserts the rename modal composes through
 // the shared single-tone joined panel: three compartments (header / body / footer)
-// → two joined ├───┤ dividers, every frame glyph in border.separator.
+// → two joined ├───┤ dividers, every frame glyph in border.
 func TestRenameModal_SingleToneJoinedPanel(t *testing.T) {
 	content := renderRenameModalContent(newRenameInput("aviva-proxy"), "aviva-proxy-qNyfEO", testDarkTheme(t), false)
 
@@ -330,8 +330,8 @@ func TestRenameModal_Colourless(t *testing.T) {
 	if !strings.ContainsAny(content, "╭╮╰╯├┤") {
 		t.Errorf("colourless rename modal must keep the frame/box glyphs; got:\n%s", content)
 	}
-	// No role hues painted: not accent.orange, accent.violet, accent.blue,
-	// text.detail, or text.primary.
+	// No role hues painted: not accent.attention, accent.primary, accent.key,
+	// text.muted, or text.primary.
 	for _, tok := range []theme.Token{testDarkTheme(t).AccentAttention, testDarkTheme(t).AccentPrimary, testDarkTheme(t).AccentKey, testDarkTheme(t).TextMuted, testDarkTheme(t).TextPrimary, testDarkTheme(t).Border} {
 		if seq := tokenFgSeq(t, tok); strings.Contains(content, seq) {
 			t.Errorf("colourless rename modal must NOT paint the %s hue %q", tok.Name, seq)

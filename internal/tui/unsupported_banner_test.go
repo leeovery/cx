@@ -38,10 +38,10 @@ func unsupportedResolvedModel(t *testing.T, identity spawn.Identity) Model {
 }
 
 // TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs asserts the named-identity
-// render: the `⚠ unsupported terminal` cluster in accent.orange, the dim
-// `— <name> · <bundleID>` identity in text.detail (the exact em-dash / middot
+// render: the `⚠ unsupported terminal` cluster in accent.attention, the dim
+// `— <name> · <bundleID>` identity in text.muted (the exact em-dash / middot
 // separators from the delivered frame), and the right-anchored `see docs` hint in
-// accent.blue — on both the dark and light canvas.
+// accent.key — on both the dark and light canvas.
 func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -66,17 +66,17 @@ func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 				t.Errorf("banner must not carry the %q notice-bar glyph:\n%s", noticeBarGlyph, ansi.Strip(header))
 			}
 
-			// The `⚠ unsupported terminal` label run is accent.orange (amber).
+			// The `⚠ unsupported terminal` label run is accent.attention (amber).
 			amberRun := headerStyle(tc.th.AccentAttention, tc.th, false).Render(flashWarningGlyph + " " + "unsupported terminal")
 			if !strings.Contains(header, amberRun) {
 				t.Errorf("banner missing the accent.orange label run:\n%s", header)
 			}
-			// The identity run is dim text.detail.
+			// The identity run is dim text.muted.
 			dimRun := headerStyle(tc.th.TextMuted, tc.th, false).Render(" — Apple Terminal · com.apple.Terminal")
 			if !strings.Contains(header, dimRun) {
 				t.Errorf("banner missing the text.detail identity run:\n%s", header)
 			}
-			// The `see docs` hint is accent.blue and carries the OSC 8 hyperlink wrapper.
+			// The `see docs` hint is accent.key and carries the OSC 8 hyperlink wrapper.
 			blueRun := headerStyle(tc.th.AccentKey, tc.th, false).Hyperlink(unsupportedDocsURL).Render("see docs")
 			if !strings.Contains(header, blueRun) {
 				t.Errorf("banner missing the hyperlinked accent.blue %q run:\n%s", "see docs", header)
@@ -207,7 +207,7 @@ func TestApplySectionHeader_UnsupportedShowsBanner(t *testing.T) {
 	if strings.Contains(first, "Sessions") {
 		t.Errorf("unsupported section-header row must NOT show the standard %q header:\n%s", "Sessions", first)
 	}
-	// The label cluster is painted amber (accent.orange).
+	// The label cluster is painted amber (accent.attention).
 	if seq := tokenFgSeq(t, m.themeState.active.AccentAttention); !strings.Contains(bannerFirstLine(m), seq) {
 		t.Errorf("unsupported banner missing the accent.orange fg sequence %q:\n%s", seq, bannerFirstLine(m))
 	}

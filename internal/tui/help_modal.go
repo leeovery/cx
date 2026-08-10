@@ -24,7 +24,7 @@ import (
 // shell, but HAND-DRAWS its OWN bordered panel (no lipgloss auto-border) so the
 // header divider uses real `├`/`┤` junctions into the side frame and the vertical
 // spacing is FLUSH (zero blank rows). The whole frame — corners, sides, divider,
-// and every `─` run — is SINGLE-TONE border.separator (the 2-tone footer leg was
+// and every `─` run — is SINGLE-TONE border (the 2-tone footer leg was
 // dropped). The header text + body rows carry their own per-row inset
 // (panelRowInset).
 //
@@ -36,12 +36,12 @@ import (
 
 const (
 	// helpTitleGlyph is the violet `?` glyph that opens the header title row,
-	// mirroring the footer's accent.violet `?` hint — colour reinforces
+	// mirroring the footer's accent.primary `?` hint — colour reinforces
 	// that this is the help surface.
 	helpTitleGlyph = "?"
 	// helpTitle is the header title text (text.primary), the `? Keybindings`.
 	helpTitle = "Keybindings"
-	// helpDismissHint is the right-aligned header dismiss hint (text.detail) — the
+	// helpDismissHint is the right-aligned header dismiss hint (text.muted) — the
 	// The help-modal exception: the dismiss copy lives in the HEADER, not a
 	// contextual footer. The verb has no "to" (the shared modal dismiss grammar).
 	helpDismissHint = "esc close"
@@ -58,7 +58,7 @@ const (
 
 // renderHelpModalContent composes the help modal as a fully HAND-DRAWN
 // bordered panel (no lipgloss auto-border). The vertical spacing is FLUSH — ZERO
-// blank rows anywhere — and the frame is SINGLE-TONE border.separator (corners,
+// blank rows anywhere — and the frame is SINGLE-TONE border (corners,
 // sides, divider, and all `─` runs alike). Top to bottom, the panel is:
 //
 //	top-border · title · divider · ...bodyRows · bottom-border
@@ -91,13 +91,13 @@ func renderHelpModalContent(entries []keymapEntry, th theme.Theme, colourless bo
 	// Two compartments — the header band over the contiguous keymap rows — drawn by
 	// the shared single-tone joined panel (the SAME frame the kill modal uses): one
 	// joined ├───┤ divider between them, FLUSH vertical spacing, single-tone
-	// border.separator throughout.
+	// border throughout.
 	return renderJoinedPanel([][]string{{title}, bodyRows}, th.Border, th, colourless)
 }
 
 // helpModalHeader renders the header row: `? Keybindings` on the LEFT (the `?`
-// glyph in accent.violet, "Keybindings" in text.primary) and a right-aligned
-// `esc close` in text.detail, filled to width. This is the help-modal
+// glyph in accent.primary, "Keybindings" in text.primary) and a right-aligned
+// `esc close` in text.muted, filled to width. This is the help-modal
 // exception — the dismiss hint lives here, not a contextual footer. When width is
 // at or below the header's natural width (e.g. width 0, the natural-width probe),
 // it renders at its natural width with a single canvas spacer between the title and
@@ -131,13 +131,14 @@ func helpModalBody(entries []keymapEntry, th theme.Theme, colourless bool) strin
 	return lipgloss.JoinVertical(lipgloss.Left, helpModalBodyRows(entries, th, colourless)...)
 }
 
-// helpModalBodyRows renders the two-column keymap body from the descriptor as one
-// string per row: a fixed-width key-glyph column (accent.blue, the destructive
-// `kill` key in state.red) then the action label (text.strong). It lists EVERY
-// descriptor entry — footer-core AND help-only, the full reference —
-// EXCEPT the `?` help self-entry (a help modal does not list its own open key; the
-// dismiss hint is in the header). The longer HelpAction label is preferred, falling
-// back to the terse footer Action when absent.
+// helpModalBodyRows renders the two-column keymap body from the descriptor as
+// one string per row: a fixed-width key-glyph column (accent.key, the
+// destructive `kill` key in state.destructive) then the action label
+// (text.secondary). It lists EVERY descriptor entry — footer-core AND
+// help-only, the full reference — EXCEPT the `?` help self-entry (a help modal
+// does not list its own open key; the dismiss hint is in the header). The
+// longer HelpAction label is preferred, falling back to the terse footer Action
+// when absent.
 func helpModalBodyRows(entries []keymapEntry, th theme.Theme, colourless bool) []string {
 	rows := make([]string, 0, len(entries))
 	for _, e := range entries {
@@ -150,10 +151,10 @@ func helpModalBodyRows(entries []keymapEntry, th theme.Theme, colourless bool) [
 	return rows
 }
 
-// helpModalRow renders one keymap entry as a two-column line: the key glyph in a
-// fixed-width left column (accent.blue, or state.red for the destructive kill/
-// delete key — red is reserved for destructive actions), a fixed gap, then the
-// action label in text.strong.
+// helpModalRow renders one keymap entry as a two-column line: the key glyph in
+// a fixed-width left column (accent.key, or state.destructive for the
+// destructive kill/delete key — red is reserved for destructive actions), a
+// fixed gap, then the action label in text.secondary.
 func helpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
 	keyTok := th.AccentKey
 	if isDestructiveHelpKey(e) {
@@ -192,7 +193,7 @@ func helpKeyGlyph(e keymapEntry) string {
 }
 
 // isDestructiveHelpKey reports whether the entry is a destructive action whose key
-// glyph renders in state.red in the help body (red is destructive-only). It
+// glyph renders in state.destructive in the help body (red is destructive-only). It
 // reads the structural keymapEntry.Destructive flag (set on the Sessions `k` kill
 // and Projects `d` delete entries) rather than matching key glyphs, so a future
 // non-destructive `d`/`k` binding cannot accidentally render red.

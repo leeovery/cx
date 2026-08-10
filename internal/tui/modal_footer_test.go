@@ -9,13 +9,13 @@ import (
 // The golden strings below were CAPTURED from the PRE-refactor render functions (the
 // per-modal key-hint / footer-row clones and the edit/preview footer hints) before the
 // shared renderKeyHint / renderBlueKeyHint / renderConfirmCancelFooter helpers existed.
-// They pin the exact rendered bytes — SGR colour runs (accent.blue key, text.detail
+// They pin the exact rendered bytes — SGR colour runs (accent.key key, text.muted
 // label), the owned canvas background on every cell, and the canvas-painted gaps — so
 // the consolidation is proven byte-identical in both modes AND under the colourless
 // carve-out. Do NOT regenerate these to match new behaviour: they ARE the regression
 // contract.
 
-// renderKeyHint(key=y, label=kill, AccentBlue): the canonical single footer hint.
+// renderKeyHint(key=y, label=kill, AccentKey): the canonical single footer hint.
 const (
 	goldenKeyHintYKillDark  = "\x1b[38;2;122;162;247;48;2;11;12;20my\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mkill\x1b[m"
 	goldenKeyHintYKillLight = "\x1b[38;2;45;92;202;48;2;225;226;231my\x1b[m\x1b[48;2;225;226;231m \x1b[m\x1b[38;2;88;96;147;48;2;225;226;231mkill\x1b[m"
@@ -63,7 +63,7 @@ const (
 
 // TestRenderKeyHint asserts the shared renderKeyHint helper renders the canonical
 // `<key> <label>` footer-hint shape (key glyph in keyTok over the owned canvas, a
-// single canvas-painted gap, label in text.detail) byte-identically across both
+// single canvas-painted gap, label in text.muted) byte-identically across both
 // modes and the colourless carve-out, AND that the empty-key path collapses to the
 // label-only render.
 func TestRenderKeyHint(t *testing.T) {
@@ -125,7 +125,7 @@ func TestRenderBlueKeyHint(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("renderBlueKeyHint(%q,%q) golden mismatch\n got: %q\nwant: %q", tc.key, tc.label, got, tc.want)
 			}
-			// Pins AccentBlue: identical to the explicit-token renderKeyHint path.
+			// Pins AccentKey: identical to the explicit-token renderKeyHint path.
 			if pinned := renderKeyHint(tc.key, tc.label, tc.th.AccentKey, tc.th, tc.colourless); got != pinned {
 				t.Errorf("renderBlueKeyHint(%q,%q) does not pin AccentBlue\n got: %q\nwant: %q", tc.key, tc.label, got, pinned)
 			}

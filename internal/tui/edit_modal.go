@@ -14,30 +14,30 @@ import (
 // VISUAL GRAMMAR (the revised design — it supersedes the older fill/✕
 // wording). NOTHING FILLS: every editable element (the NAME input AND the chips)
 // is a glyph-drawn bordered box whose STATE is carried by the BORDER COLOUR, never
-// a background fill — grey (border.separator) idle/unfocused → accent.violet
-// focused → accent.orange editing (+ a live block cursor). Inputs render ROUNDED
+// a background fill — grey (border) idle/unfocused → accent.primary
+// focused → accent.attention editing (+ a live block cursor). Inputs render ROUNDED
 // corners, chips render SQUARE corners (the element-type differentiator). Chips are
 // text.primary, never green, with NO inline ✕ (removal is `x` on a focused chip,
-// carried by the footer). The `◉ EDIT MODE` header indicator is accent.orange,
+// carried by the footer). The `◉ EDIT MODE` header indicator is accent.attention,
 // shown ONLY while editing in place.
 //
 // The panel chrome reuses the shared single-tone hand-drawn joined panel
 // (renderJoinedPanel) — the SAME frame the help/kill/rename modals use, three
 // compartments (header / body / footer) with joined ├───┤ dividers in
-// border.separator. Under the NO_COLOR carve-out every hue drops to the native fg;
+// border. Under the NO_COLOR carve-out every hue drops to the native fg;
 // state survives via the border PRESENCE + the live cursor + the `◉ EDIT MODE`
 // text + bold/dim — state is never colour-only.
 
 const (
 	// editHeaderPrefix opens the header — `Edit Project ` in text.primary, with the
-	// project name trailing in text.detail.
+	// project name trailing in text.muted.
 	editHeaderPrefix = "Edit Project "
-	// editModeIndicator is the accent.orange `◉ EDIT MODE` header badge, shown ONLY
+	// editModeIndicator is the accent.attention `◉ EDIT MODE` header badge, shown ONLY
 	// while editing in place (glyph + colour + text).
 	editModeIndicator = "◉ EDIT MODE"
 
-	// Field labels: the focused field's label is accent.violet, the others
-	// text.detail.
+	// Field labels: the focused field's label is accent.primary, the others
+	// text.muted.
 	editLabelName    = "NAME"
 	editLabelAliases = "ALIASES"
 	editLabelTags    = "TAGS"
@@ -69,9 +69,9 @@ const (
 type inputBoxState int
 
 const (
-	inputBoxIdle    inputBoxState = iota // grey border (border.separator) — unfocused/normal
-	inputBoxFocused                      // accent.violet border — focused, not editing
-	inputBoxEditing                      // accent.orange border + live cursor — editing in place
+	inputBoxIdle    inputBoxState = iota // border token — unfocused/normal
+	inputBoxFocused                      // accent.primary border — focused, not editing
+	inputBoxEditing                      // accent.attention border + live cursor — editing in place
 )
 
 // inputBoxBorderToken maps a box state to its border role token: grey →
@@ -136,7 +136,7 @@ func editChipContent(value string, editing bool, cursor int, th theme.Theme, col
 }
 
 // renderEditableValue renders a live-edited value (the NAME input value or a chip
-// value being edited) in text.primary with an accent.orange block cursor at the
+// value being edited) in text.primary with an accent.attention block cursor at the
 // rune index. The cursor is a reverse-video block (SGR 7) over the orange
 // foreground, so under the NO_COLOR carve-out the reverse block survives as the
 // editing signal even with no hue.
@@ -184,14 +184,14 @@ func renderEditableValue(value string, cursor int, th theme.Theme, colourless bo
 // renderEditProjectContent composes the MV edit-project modal: three
 // compartments drawn by the shared single-tone joined panel —
 //
-//	header:  Edit Project <name>        [◉ EDIT MODE]   (prefix text.primary, name text.detail, badge accent.orange while editing)
-//	body:    NAME                                        (focused-field label accent.violet, others text.detail)
+//	header:  Edit Project <name>        [◉ EDIT MODE]   (prefix text.primary, name text.muted, badge accent.attention while editing)
+//	body:    NAME                                        (focused-field label accent.primary, others text.muted)
 //	         ╭ <value>▌ ╮                                (rounded box; grey/violet/orange border, no fill)
 //	         ALIASES
 //	         ┌ fapi ┐ ┌ v1 ┐ + add                       (square chip boxes + faint `+ add`)
 //	         TAGS
 //	         ┌ Fabric ┐ ┌ api ┐ + add
-//	footer:  contextual keymap                           (key glyphs accent.blue, labels text.detail)
+//	footer:  contextual keymap                           (key glyphs accent.key, labels text.muted)
 //
 // The render reads the live editBuffer/editCursor for the one live element so an
 // in-progress edit shows; everything else comes from the persisted edit state.
@@ -253,8 +253,8 @@ func editFooterWidestWidth() int {
 const editHeaderBadgeGap = 3
 
 // editModalHeaderRow renders the header as a FIXED full-content-width row:
-// `Edit Project <name>` (prefix text.primary, name text.detail) left-aligned, and
-// the `◉ EDIT MODE` badge (accent.orange) RIGHT-aligned in the far corner — shown
+// `Edit Project <name>` (prefix text.primary, name text.muted) left-aligned, and
+// the `◉ EDIT MODE` badge (accent.attention) RIGHT-aligned in the far corner — shown
 // ONLY while editing in place. In navigate mode the badge's slot is rendered as a
 // same-width blank, so the header (and therefore the whole panel) is byte-for-byte
 // the SAME width in both modes — entering edit never resizes the panel.
@@ -267,7 +267,7 @@ func (m Model) editModalHeaderRow(th theme.Theme, colourless bool) string {
 
 // renderHeaderWithBadge lays out a modal header as a FIXED full-content-width row:
 // the pre-rendered left title segment left-aligned, a flexible canvas spacer, then
-// the `◉ EDIT MODE` badge (accent.orange, bold) RIGHT-aligned in the far corner.
+// the `◉ EDIT MODE` badge (accent.attention, bold) RIGHT-aligned in the far corner.
 // When showBadge is false the badge's slot is rendered as a same-width blank, so the
 // header (and therefore the whole panel) is byte-for-byte the SAME width whether the
 // badge shows or not. Shared by the edit modal (badge gated on edit mode) and the
@@ -310,7 +310,7 @@ func (m Model) editModalBodyRows(th theme.Theme, colourless bool) []string {
 }
 
 // editFieldLabelRow renders a field label: the focused field's label in
-// accent.violet, the others in text.detail.
+// accent.primary, the others in text.muted.
 func (m Model) editFieldLabelRow(label string, field editField, th theme.Theme, colourless bool) string {
 	token := th.TextMuted
 	if m.editFocus == field {
@@ -320,9 +320,9 @@ func (m Model) editFieldLabelRow(label string, field editField, th theme.Theme, 
 }
 
 // editNameInputRows renders the NAME input as a ROUNDED bordered box: grey
-// border when unfocused, accent.violet when focused (navigate), accent.orange + a
-// live cursor when editing. The value is the persisted name in navigate mode, the
-// live editBuffer while editing.
+// border when unfocused, accent.primary when focused (navigate),
+// accent.attention + a live cursor when editing. The value is the persisted
+// name in navigate mode, the live editBuffer while editing.
 func (m Model) editNameInputRows(th theme.Theme, colourless bool) []string {
 	focused := m.editFocus == editFieldName
 	editing := focused && m.editMode == editModeEdit
@@ -400,7 +400,7 @@ func (m Model) chipBoxRows(value string, focused, editing bool, th theme.Theme, 
 // addSlotRows renders the trailing `+ add` slot as three rows — inline faint text
 // (text.faint) on the MIDDLE row so it aligns with the chip boxes' value row, blank
 // canvas rows above and below. It is NOT a bordered box (the reference shows a bare
-// faint slot). When focused in navigate mode it shows in accent.violet so the cursor
+// faint slot). When focused in navigate mode it shows in accent.primary so the cursor
 // is visible on it.
 func (m Model) addSlotRows(focused bool, th theme.Theme, colourless bool) []string {
 	token := th.TextFaint
@@ -437,7 +437,7 @@ func joinChipRowBands(segments [][]string, th theme.Theme, colourless bool) []st
 }
 
 // editModalFooterRow renders the contextual footer for the current mode/focus
-// with key glyphs in accent.blue and labels in text.detail. The ⏎ glyph is U+23CE
+// with key glyphs in accent.key and labels in text.muted. The ⏎ glyph is U+23CE
 // (NOT the legacy ↵); ⇥ tab, ←→ arrows, esc.
 //
 // The editing-in-place footer is the one exception to the left-packed ` · ` layout:

@@ -33,9 +33,9 @@ import (
 type flashKind int
 
 const (
-	// flashWarning is the default warning flash variant — accent.orange bar + ⚠.
+	// flashWarning is the default warning flash variant — accent.attention bar + ⚠.
 	flashWarning flashKind = iota
-	// flashSuccess is the success flash variant — state.green bar + ✓.
+	// flashSuccess is the success flash variant — state.positive bar + ✓.
 	flashSuccess
 )
 

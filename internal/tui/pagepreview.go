@@ -14,7 +14,7 @@ import (
 )
 
 // previewMarker is the peek-mode marker rendered at the left of the header
-// compartment in accent.cyan — a `◉` filled circle + the word `preview`. It
+// compartment in accent.mode — a `◉` filled circle + the word `preview`. It
 // signals "peek mode" (read-only scrollback), deliberately distinct from the
 // violet main UI. Matches the Preview Screen (MV) reference frame glyph.
 const previewMarker = "◉ preview"
@@ -139,8 +139,8 @@ func previewCounters(windowIdx, windowCount, paneIdx, paneCount int) string {
 // compartment after the width cascade: the `◉ preview` marker (always present),
 // the session name (possibly truncated), and the `Window x/y · Pane x/y`
 // counters ("" when the cascade drops them at narrow widths). View() styles each
-// segment with its role token (marker accent.cyan, session text.primary,
-// counters text.detail).
+// segment with its role token (marker accent.mode, session text.primary,
+// counters text.muted).
 type previewHeaderSegments struct {
 	marker   string
 	session  string
@@ -191,8 +191,8 @@ func selectPreviewHeaderTier(width int, session string, windowIdx, windowCount, 
 }
 
 // composePreviewHeaderRow composes the STYLED header compartment row at the
-// given panel content width: the accent.cyan `◉ preview` marker + text.primary
-// session name + text.detail `Window x/y · Pane x/y` counters, joined by single
+// given panel content width: the accent.mode `◉ preview` marker + text.primary
+// session name + text.muted `Window x/y · Pane x/y` counters, joined by single
 // spaces. Under the NO_COLOR carve-out every segment renders
 // colourless (no foreground SGR) but the structure stays present. The row's
 // natural width is <= contentWidth (the cascade fits it); renderJoinedPanel's
@@ -246,7 +246,7 @@ func previewFooterGroups() []footerHintGroup {
 // never overflows the full-screen panel:
 //
 //   - Full labelled form: `←→ window  ⇥ pane  ⏎ attach  ␣ back` (each glyph
-//     accent.blue, each label text.detail, groups space-separated).
+//     accent.key, each label text.muted, groups space-separated).
 //   - When that exceeds contentWidth: compact glyphs only (`←→  ⇥  ⏎  ␣`).
 //   - When even the compact form exceeds contentWidth: drop trailing groups,
 //     keeping the leading nav glyphs that fit (degrade-never-break at degenerate
@@ -279,8 +279,8 @@ func composePreviewFooterRow(contentWidth int, th theme.Theme, colourless bool) 
 }
 
 // previewFooterFromGroups renders the footer groups joined by previewFooterGap.
-// When labelled is true each group is `<glyph accent.blue> <label text.detail>`;
-// when false only the accent.blue glyph renders (the compact cascade form).
+// When labelled is true each group is `<glyph accent.key> <label text.muted>`;
+// when false only the accent.key glyph renders (the compact cascade form).
 func previewFooterFromGroups(groups []footerHintGroup, labelled bool, th theme.Theme, colourless bool) string {
 	gap := headerCanvasBg(th, colourless).Render(previewFooterGap)
 	rendered := make([]string, 0, len(groups))
@@ -295,7 +295,7 @@ func previewFooterFromGroups(groups []footerHintGroup, labelled bool, th theme.T
 }
 
 // previewModel renders a single tmux pane's saved scrollback inside a
-// viewport, wrapped in the full-screen accent.cyan joined panel (header,
+// viewport, wrapped in the full-screen accent.mode joined panel (header,
 // body, footer compartments) composed by View().
 //
 // Construction is performed via NewPreviewModel — the type is intentionally
@@ -658,19 +658,19 @@ func (m previewModel) cyclePane(delta int) previewModel {
 }
 
 // View renders the full-screen "peek mode" preview as a single-tone
-// accent.cyan joined panel (the same hand-drawn rounded shape as the modals,
+// accent.mode joined panel (the same hand-drawn rounded shape as the modals,
 // via renderJoinedPanel) with THREE compartments:
 //
-//   - Header: `◉ preview` (accent.cyan) + session (text.primary) +
-//     `Window x/y · Pane x/y` (text.detail), width-cascaded to fit.
+//   - Header: `◉ preview` (accent.mode) + session (text.primary) +
+//     `Window x/y · Pane x/y` (text.muted), width-cascaded to fit.
 //   - Body: the untouched captured ANSI scrollback — passed through
 //     injectSGRResets so unterminated SGR sequences cannot bleed into the right
 //     border, and NEVER themed. The viewport is sized to innerHeight so the body
 //     fills the available height (footer flush at the bottom).
-//   - Footer: the nav hints — glyphs accent.blue, labels text.detail,
+//   - Footer: the nav hints — glyphs accent.key, labels text.muted,
 //     space-separated (`←→ window  ⇥ pane  ⏎ attach  ␣ back`).
 //
-// The border AND the two compartment dividers all render in accent.cyan (the
+// The border AND the two compartment dividers all render in accent.mode (the
 // "peek mode" hue, threaded into renderJoinedPanel as the border token). The
 // chrome is recomposed every tick (no cached field) so resize and window/pane
 // navigation propagate without cache invalidation. contentWidth is innerWidth()

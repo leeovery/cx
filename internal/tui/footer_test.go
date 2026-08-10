@@ -26,7 +26,7 @@ func footerVisible(s string) string {
 // TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp asserts the §14.2
 // condensed footer renders exactly the Sessions Core keys as a single row's left
 // cluster, with a right-aligned ? help pinned to the width. The footer is two
-// lines (the 1px border.footer top rule + the single key row), so the key row is
+// lines (the 1px border top rule + the single key row), so the key row is
 // the LAST line — the ? help must sit at its right edge.
 func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
 	footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
@@ -70,9 +70,9 @@ func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
 	}
 }
 
-// TestSessionsFooter_TokenColours asserts key glyphs render in accent.blue, labels
-// in text.detail, and the ? glyph specifically in accent.violet, over a 1px
-// border.footer top rule — every colour via its §2.9 token.
+// TestSessionsFooter_TokenColours asserts key glyphs render in accent.key, labels
+// in text.muted, and the ? glyph specifically in accent.primary, over a 1px
+// border top rule — every colour via its §2.9 token.
 func TestSessionsFooter_TokenColours(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -84,22 +84,22 @@ func TestSessionsFooter_TokenColours(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, tc.th, false)
 
-			// Left-cluster key glyphs: accent.blue.
+			// Left-cluster key glyphs: accent.key.
 			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing accent.blue key-glyph role sequence %q", seq)
 			}
-			// Labels (and separators): text.detail.
+			// Labels (and separators): text.muted.
 			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing text.detail label role sequence %q", seq)
 			}
-			// The ? glyph: accent.violet.
+			// The ? glyph: accent.primary.
 			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing accent.violet ? role sequence %q", seq)
 			}
-			// The 1px top rule: THE border token. §2.2 dropped border.footer, so the
-			// footer rule renders with the same token as the title rule — the one
-			// intended render delta of the consolidation (in dark it moves from
-			// #20232E to #292E42).
+			// The 1px top rule: THE border token. The separate footer-rule role was
+			// dropped, so the footer rule renders with the same token as the title
+			// rule — the one intended render delta of the consolidation (in dark it
+			// moves from #20232E to #292E42).
 			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(footer, seq) {
 				t.Errorf("footer missing the border rule role sequence %q", seq)
 			}
@@ -108,15 +108,15 @@ func TestSessionsFooter_TokenColours(t *testing.T) {
 }
 
 // TestSessionsFooter_HelpGlyphIsViolet pins the §3.4 requirement that the ? glyph
-// is rendered specifically in accent.violet — distinct from the accent.blue used
+// is rendered specifically in accent.primary — distinct from the accent.key used
 // by the left-cluster key glyphs. The ? glyph SGR run must carry the violet
-// foreground, and there must be no accent.blue run on the "?" glyph itself.
+// foreground, and there must be no accent.key run on the "?" glyph itself.
 func TestSessionsFooter_HelpGlyphIsViolet(t *testing.T) {
 	footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
 	violet := tokenFgSeq(t, testDarkTheme(t).AccentPrimary)
 
 	// Locate the "?" glyph in the styled string; the immediately-preceding SGR run
-	// opening must be the accent.violet foreground.
+	// opening must be the accent.primary foreground.
 	qIdx := strings.IndexByte(footer, '?')
 	if qIdx < 0 {
 		t.Fatalf("footer does not contain the ? glyph:\n%s", footer)

@@ -10,7 +10,7 @@ import (
 
 // TestJoinedPanel_SingleToneJoinedFrame asserts the shared single-tone joined
 // panel: a hand-drawn rounded frame (╭─╮ / │…│ / ╰─╯) whose every glyph — corners,
-// sides, dividers — renders in border.separator (single-tone), with the
+// sides, dividers — renders in border (single-tone), with the
 // compartment dividers joined to the side borders via real ├/┤ junctions. The
 // help modal and the kill modal both compose through this helper.
 func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
@@ -33,7 +33,7 @@ func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
 			if !strings.ContainsAny(panel, "╭╮╰╯") {
 				t.Errorf("panel must carry the rounded corner glyphs; got:\n%s", panel)
 			}
-			// Single-tone: every frame glyph is border.separator.
+			// Single-tone: every frame glyph is border.
 			sepSeq := tokenFgSeq(t, tc.th.Border)
 			if !strings.Contains(panel, sepSeq) {
 				t.Errorf("panel frame must be drawn in border.separator SGR core %q; missing in:\n%s", sepSeq, panel)
@@ -46,9 +46,9 @@ func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
 }
 
 // TestJoinedPanel_BorderTokenParameterised asserts the borderToken parameter is
-// threaded through every frame glyph: passing accent.cyan (the §9.1 preview hue)
-// paints the corners/sides/dividers in accent.cyan and NOT border.separator, while
-// the modal default (border.separator) is unaffected — proving the preview and the
+// threaded through every frame glyph: passing accent.mode (the §9.1 preview hue)
+// paints the corners/sides/dividers in accent.mode and NOT border, while
+// the modal default (border) is unaffected — proving the preview and the
 // modals can share the helper with distinct single-tone frames.
 func TestJoinedPanel_BorderTokenParameterised(t *testing.T) {
 	compartments := [][]string{{"header"}, {"body"}, {"footer"}}
@@ -144,7 +144,7 @@ func TestJoinedPanel_RowsAreInsetDividersAreNot(t *testing.T) {
 }
 
 // TestJoinedPanel_Colourless asserts the NO_COLOR carve-out: the frame keeps its
-// glyphs but paints no border.separator hue (native fg).
+// glyphs but paints no border hue (native fg).
 func TestJoinedPanel_Colourless(t *testing.T) {
 	compartments := [][]string{{"header"}, {"body"}, {"footer"}}
 	panel := renderJoinedPanel(compartments, testDarkTheme(t).Border, testDarkTheme(t), true)

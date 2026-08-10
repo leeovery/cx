@@ -3,10 +3,11 @@ package tui
 // Task spectrum-tui-design-5-6 — fatal cold-boot error frame render (§10.5).
 //
 // Internal (package tui) tests for the loading-page error overlay: the failed
-// step's row carries the ✗ glyph in state.red, the steps before it stay done (✓),
-// the steps after stay pending (·), and the one-line message renders in state.red.
-// They drive renderLoadingScreen directly with a failed view so the colour
-// sequences (which need the package-internal tokenFgSeq) are assertable.
+// step's row carries the ✗ glyph in state.destructive, the steps before it stay
+// done (✓), the steps after stay pending (·), and the one-line message renders
+// in state.destructive. They drive renderLoadingScreen directly with a failed
+// view so the colour sequences (which need the package-internal tokenFgSeq) are
+// assertable.
 
 import (
 	"strings"
@@ -26,7 +27,8 @@ func failedAtRegisteredHooks() LoadingProgressView {
 }
 
 // TestErrorFrame_FailedRowIsRedCross asserts the failed step row carries the ✗
-// glyph painted state.red, and the one-line message is painted state.red.
+// glyph painted state.destructive, and the one-line message is painted
+// state.destructive.
 func TestErrorFrame_FailedRowIsRedCross(t *testing.T) {
 	view := failedAtRegisteredHooks()
 	out := renderLoadingScreen(view, 80, 24, testDarkTheme(t), false)
@@ -35,7 +37,7 @@ func TestErrorFrame_FailedRowIsRedCross(t *testing.T) {
 	if !strings.Contains(visible, loadingGlyphFailed) {
 		t.Errorf("error frame missing the ✗ failed glyph:\n%s", visible)
 	}
-	// The failed row's ✗ glyph + label + the message line all carry state.red.
+	// The failed row's ✗ glyph + label + the message line all carry state.destructive.
 	redSeq := tokenFgSeq(t, testDarkTheme(t).StateDestructive)
 	if !strings.Contains(out, redSeq) {
 		t.Errorf("error frame did not paint anything state.red:\n%q", out)

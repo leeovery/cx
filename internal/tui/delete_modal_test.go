@@ -15,15 +15,15 @@ func deleteModalContains(content, s string) bool {
 }
 
 // TestDeleteModal_Header asserts the §8.6 header `▲ Delete project?` — the ▲
-// triangle glyph AND the title text both render in state.red (glyph + colour,
-// §2.2), mirroring the kill modal's destructive header treatment.
+// triangle glyph AND the title text both render in state.destructive (glyph +
+// colour, §2.2), mirroring the kill modal's destructive header treatment.
 func TestDeleteModal_Header(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		content := renderDeleteModalContent("flow-v1-api", "/Users/leeovery/Code/fabric", th, false)
 		if !deleteModalContains(content, "▲ Delete project?") {
 			t.Errorf("[%v] header must read '▲ Delete project?'; got:\n%s", themeLabel(th), content)
 		}
-		// The ▲ and title both carry state.red.
+		// The ▲ and title both carry state.destructive.
 		if seq := tokenFgSeq(t, th.StateDestructive); !strings.Contains(content, seq) {
 			t.Errorf("[%v] header ▲ + title must render in state.red SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
@@ -31,7 +31,7 @@ func TestDeleteModal_Header(t *testing.T) {
 }
 
 // TestDeleteModal_BodyNameAndPath asserts the body: line 1 = the project name in
-// state.red, line 2 = its path in text.detail, on separate lines.
+// state.destructive, line 2 = its path in text.muted, on separate lines.
 func TestDeleteModal_BodyNameAndPath(t *testing.T) {
 	const name = "flow-v1-api"
 	const path = "/Users/leeovery/Code/fabric/flowv1/flow-v1-api"
@@ -63,7 +63,7 @@ func TestDeleteModal_BodyNameAndPath(t *testing.T) {
 }
 
 // TestDeleteModal_BodyColourRoles asserts the body colour wiring: the name in
-// state.red, the path + consequence line in text.detail.
+// state.destructive, the path + consequence line in text.muted.
 func TestDeleteModal_BodyColourRoles(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		content := renderDeleteModalContent("flow-v1-api", "/Users/leeovery/Code/fabric", th, false)
@@ -77,7 +77,7 @@ func TestDeleteModal_BodyColourRoles(t *testing.T) {
 }
 
 // TestDeleteModal_ConsequenceLine asserts the §8.6 RECORD-ONLY consequence copy
-// renders (text.detail) and is DISTINCT from the kill modal's session-ending
+// renders (text.muted) and is DISTINCT from the kill modal's session-ending
 // consequence: it must NOT mention ending the tmux session, and it MUST state the
 // sessions/files are untouched (the disambiguation requirement — deleting a project
 // record ≠ killing a session).
@@ -104,7 +104,7 @@ func TestDeleteModal_ConsequenceLine(t *testing.T) {
 }
 
 // TestDeleteModal_Footer asserts the §8.6 footer `y delete   esc cancel`: the y and
-// esc key glyphs in accent.blue, the delete/cancel labels in text.detail. The
+// esc key glyphs in accent.key, the delete/cancel labels in text.muted. The
 // dismiss key lives in the footer as `esc cancel` (§8.1).
 func TestDeleteModal_Footer(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -114,7 +114,7 @@ func TestDeleteModal_Footer(t *testing.T) {
 				t.Errorf("[%v] footer must contain %q; got:\n%s", themeLabel(th), frag, content)
 			}
 		}
-		// Key glyphs (y, esc) in accent.blue.
+		// Key glyphs (y, esc) in accent.key.
 		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(content, seq) {
 			t.Errorf("[%v] footer key glyphs must render in accent.blue SGR core %q; missing in:\n%s", themeLabel(th), seq, content)
 		}
@@ -123,8 +123,8 @@ func TestDeleteModal_Footer(t *testing.T) {
 
 // TestDeleteModal_SingleToneJoinedPanel asserts the delete modal composes through
 // the shared single-tone joined panel: dividers start ├ / end ┤, every frame glyph
-// in border.separator (the same frame the kill modal uses). Three compartments →
-// two dividers. No fill (border.separator-only frame).
+// in border (the same frame the kill modal uses). Three compartments →
+// two dividers. No fill (border-only frame).
 func TestDeleteModal_SingleToneJoinedPanel(t *testing.T) {
 	content := renderDeleteModalContent("flow-v1-api", "/Users/leeovery/Code/fabric", testDarkTheme(t), false)
 
@@ -142,9 +142,9 @@ func TestDeleteModal_SingleToneJoinedPanel(t *testing.T) {
 	if dividerCount != 2 {
 		t.Errorf("delete modal must carry exactly 2 joined dividers (3 compartments); got %d", dividerCount)
 	}
-	// Single-tone: every frame glyph carries the one border token (§2.2 consolidated
-	// border.separator and border.footer into it, so there is no second border hue
-	// left for the frame to drift onto).
+	// Single-tone: every frame glyph carries the one border token (the frame roles
+	// were consolidated into it, so there is no second border hue left for the
+	// frame to drift onto).
 	if seq := tokenFgSeq(t, testDarkTheme(t).Border); !strings.Contains(content, seq) {
 		t.Errorf("delete modal frame must be drawn in the border SGR core %q; missing", seq)
 	}
@@ -152,14 +152,14 @@ func TestDeleteModal_SingleToneJoinedPanel(t *testing.T) {
 
 // TestDeleteModal_Colourless asserts the §2.5 NO_COLOR carve-out: destructive state
 // is carried by the ▲ glyph + bold (NOT colour) — the frame keeps its glyphs but
-// paints no state.red hue, and the title run is bold.
+// paints no state.destructive hue, and the title run is bold.
 func TestDeleteModal_Colourless(t *testing.T) {
 	content := renderDeleteModalContent("flow-v1-api", "/Users/leeovery/Code/fabric", testDarkTheme(t), true)
 	// The ▲ destructive glyph survives.
 	if !deleteModalContains(content, "▲ Delete project?") {
 		t.Errorf("colourless delete modal must keep the ▲ destructive glyph + title; got:\n%s", content)
 	}
-	// No state.red hue painted.
+	// No state.destructive hue painted.
 	if seq := tokenFgSeq(t, testDarkTheme(t).StateDestructive); strings.Contains(content, seq) {
 		t.Errorf("colourless delete modal must NOT paint the state.red hue %q (state via glyph+bold, not colour)", seq)
 	}

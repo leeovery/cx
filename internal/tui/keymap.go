@@ -53,7 +53,7 @@ type keymapEntry struct {
 	// RightAligned marks the single trailing entry the footer pins to the right
 	// (the "? help" hint). At most one entry sets this.
 	RightAligned bool
-	// Destructive marks an entry whose key glyph renders in state.red in the ? help
+	// Destructive marks an entry whose key glyph renders in state.destructive in the ? help
 	// body (red is destructive-only — the kill / delete actions). Modelled
 	// structurally so a future non-destructive `d`/`k` binding cannot render red.
 	Destructive bool

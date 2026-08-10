@@ -134,8 +134,8 @@ func TestBurstPreflightAbort_BannerNamesGoneSessionWithEscDismiss(t *testing.T) 
 }
 
 // TestPreflightAbortHeader_RedGlyphMessageDimHint pins the colour roles of the
-// standalone renderer: the ⚠ + message in state.red, the `esc dismiss` hint in
-// text.detail, on both the dark and light canvas.
+// standalone renderer: the ⚠ + message in state.destructive, the `esc dismiss`
+// hint in text.muted, on both the dark and light canvas.
 func TestPreflightAbortHeader_RedGlyphMessageDimHint(t *testing.T) {
 	const msg = "'fab-flowx-explore' is gone — nothing opened"
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -277,9 +277,9 @@ func TestSessionRow_GoneFlaggedWidthByteUnchanged(t *testing.T) {
 	}
 }
 
-// TestSessionRow_GoneFlaggedColourlessSurvives asserts the NO_COLOR carve-out for
-// the row: the ⚠ glyph and the `session gone` badge text survive with no state.red
-// hue and no canvas background.
+// TestSessionRow_GoneFlaggedColourlessSurvives asserts the NO_COLOR carve-out
+// for the row: the ⚠ glyph and the `session gone` badge text survive with no
+// state.destructive hue and no canvas background.
 func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), Colourless: true, MultiSelect: true, GoneFlagged: markedSet("fab-flowx-explore")}
 	items := flatItems(tmux.Session{Name: "fab-flowx-explore", Windows: 2, Attached: false})

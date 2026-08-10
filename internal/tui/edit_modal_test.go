@@ -46,7 +46,7 @@ func editModalModel(t *testing.T, focus editField, aliasCur, tagCur int) Model {
 }
 
 // TestEditModal_Header asserts the `Edit Project <name>` header: "Edit Project" in
-// text.primary, the project name in text.detail.
+// text.primary, the project name in text.muted.
 func TestEditModal_Header(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := editModalModel(t, editFieldName, 0, 0)
@@ -82,7 +82,7 @@ func TestEditModal_SingleBundledModal(t *testing.T) {
 }
 
 // TestEditModal_FocusedFieldLabelViolet asserts the focused field's label renders
-// in accent.violet while the others render in text.detail.
+// in accent.primary while the others render in text.muted.
 func TestEditModal_FocusedFieldLabelViolet(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		violet := tokenFgSeq(t, th.AccentPrimary)
@@ -94,7 +94,7 @@ func TestEditModal_FocusedFieldLabelViolet(t *testing.T) {
 		if seg := labelSegment(t, m.renderEditProjectContent(), "NAME"); !strings.Contains(seg, violet) {
 			t.Errorf("[%v] focused NAME label must be accent.violet; seg=%q", themeLabel(th), seg)
 		}
-		// And the unfocused ALIASES label is text.detail (not violet).
+		// And the unfocused ALIASES label is text.muted (not violet).
 		if seg := labelSegment(t, m.renderEditProjectContent(), "ALIASES"); !strings.Contains(seg, detail) || strings.Contains(seg, violet) {
 			t.Errorf("[%v] unfocused ALIASES label must be text.detail (not violet); seg=%q", themeLabel(th), seg)
 		}
@@ -122,7 +122,7 @@ func labelSegment(t *testing.T, content, label string) string {
 }
 
 // TestEditModal_NameInputNeverFilled_GreyUnfocused asserts the NAME input box, when
-// the Name field is NOT focused, draws a border.separator (grey) rounded box with no
+// the Name field is NOT focused, draws a border (grey) rounded box with no
 // background fill.
 func TestEditModal_NameInputNeverFilled_GreyUnfocused(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -137,7 +137,7 @@ func TestEditModal_NameInputNeverFilled_GreyUnfocused(t *testing.T) {
 }
 
 // TestEditModal_NameInputFocusedViolet asserts the NAME input box border is
-// accent.violet when the Name field is focused in navigate mode, with no fill.
+// accent.primary when the Name field is focused in navigate mode, with no fill.
 func TestEditModal_NameInputFocusedViolet(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := editModalModel(t, editFieldName, 0, 0)
@@ -151,7 +151,7 @@ func TestEditModal_NameInputFocusedViolet(t *testing.T) {
 }
 
 // TestEditModal_NameInputEditingOrangeWithCursor asserts the NAME input box border
-// is accent.orange + a live cursor when the Name field is being edited in place.
+// is accent.attention + a live cursor when the Name field is being edited in place.
 func TestEditModal_NameInputEditingOrangeWithCursor(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := editModalModel(t, editFieldName, 0, 0)
@@ -171,7 +171,7 @@ func TestEditModal_NameInputEditingOrangeWithCursor(t *testing.T) {
 }
 
 // TestEditModal_ChipNormalGreyNoCross asserts a normal (non-focused) chip is a
-// border.separator (grey) bordered box, never filled, never green, with NO inline ✕.
+// border (grey) bordered box, never filled, never green, with NO inline ✕.
 func TestEditModal_ChipNormalGreyNoCross(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		// Name focused so the chips are unfocused/normal.
@@ -191,7 +191,7 @@ func TestEditModal_ChipNormalGreyNoCross(t *testing.T) {
 	}
 }
 
-// TestEditModal_ChipFocusedVioletNoCross asserts a focused chip is an accent.violet
+// TestEditModal_ChipFocusedVioletNoCross asserts a focused chip is an accent.primary
 // bordered box, never filled, no ✕.
 func TestEditModal_ChipFocusedVioletNoCross(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -208,7 +208,7 @@ func TestEditModal_ChipFocusedVioletNoCross(t *testing.T) {
 }
 
 // TestEditModal_ChipEditingOrangeCursorNoCross asserts an editing chip is an
-// accent.orange bordered box + live cursor, no ✕.
+// accent.attention bordered box + live cursor, no ✕.
 func TestEditModal_ChipEditingOrangeCursorNoCross(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := editModalModel(t, editFieldTags, 0, 0)
@@ -258,7 +258,7 @@ func addSlotSegment(t *testing.T, content string) string {
 }
 
 // TestEditModal_EditModeIndicatorOnlyWhileEditing asserts `◉ EDIT MODE`
-// (accent.orange) renders ONLY while editing, and is absent in navigate mode.
+// (accent.attention) renders ONLY while editing, and is absent in navigate mode.
 func TestEditModal_EditModeIndicatorOnlyWhileEditing(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		// Navigate: no indicator.
@@ -268,7 +268,7 @@ func TestEditModal_EditModeIndicatorOnlyWhileEditing(t *testing.T) {
 			t.Errorf("[%v] navigate mode must NOT show `◉ EDIT MODE`", themeLabel(th))
 		}
 
-		// Editing: indicator present in accent.orange.
+		// Editing: indicator present in accent.attention.
 		ed := editModalModel(t, editFieldTags, 0, 0)
 		ed.editMode = editModeEdit
 		ed.editBuffer = "Fabric"
@@ -501,8 +501,8 @@ func footerLineOf(t *testing.T, content string) string {
 	return ""
 }
 
-// TestEditModal_FooterKeyGlyphsBlue asserts footer key glyphs render in accent.blue
-// and labels in text.detail.
+// TestEditModal_FooterKeyGlyphsBlue asserts footer key glyphs render in accent.key
+// and labels in text.muted.
 func TestEditModal_FooterKeyGlyphsBlue(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := editModalModel(t, editFieldName, 0, 0)
@@ -642,7 +642,7 @@ func TestEditModal_SinglePanelOnClearedCanvas(t *testing.T) {
 	}
 }
 
-// TestEditModal_NoGreenEver asserts state.green is never used on a chip in any
+// TestEditModal_NoGreenEver asserts state.positive is never used on a chip in any
 // state (normal / focused / editing).
 func TestEditModal_NoGreenEver(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -692,7 +692,7 @@ func assertNoCross(t *testing.T, content string) {
 	}
 }
 
-// assertNoGreen fails if state.green is present anywhere in the rendered content
+// assertNoGreen fails if state.positive is present anywhere in the rendered content
 // (chips are never green).
 func assertNoGreen(t *testing.T, content string, th theme.Theme) {
 	t.Helper()
@@ -702,7 +702,7 @@ func assertNoGreen(t *testing.T, content string, th theme.Theme) {
 // TestEditModalFooterRow_ByteExact pins the full-ANSI rendered output of the edit
 // modal footer for the navigate-name and editing-in-place states so the separator-
 // constant consolidation (editFooterSep → the shared footerEntrySeparator) is proven
-// byte-identical: both constants are the same " · " value rendered in text.detail, so
+// byte-identical: both constants are the same " · " value rendered in text.muted, so
 // the footer must render byte-for-byte unchanged. The ANSI-stripped layout is already
 // pinned by TestRenderEditProjectContent_ByteExact; this oracle additionally locks the
 // colour bytes around the shared separator.

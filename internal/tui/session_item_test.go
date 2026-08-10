@@ -321,8 +321,8 @@ func TestSessionDelegateGroupHeadings(t *testing.T) {
 		d := tui.SessionDelegate{}
 		m := list.New(nil, d, 80, 10)
 
-		// The §5.1 reskin renders the heading word (text.detail) and the "··· N"
-		// count (text.dim) as TWO separately-styled SGR runs, so the contiguous
+		// The §5.1 reskin renders the heading word (text.muted) and the "··· N"
+		// count (text.subtle) as TWO separately-styled SGR runs, so the contiguous
 		// "Heading ··· N" string spans the VISIBLE (ANSI-stripped) output rather
 		// than the raw bytes — strip before asserting the visible text.
 		var portal bytes.Buffer

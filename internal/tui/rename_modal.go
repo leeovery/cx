@@ -12,25 +12,25 @@ import (
 // only the MV rendering. It composes through the SAME shared single-tone joined
 // panel the help + kill modals use (renderJoinedPanel) — three compartments
 // (header / body / footer) separated by two joined ├───┤ dividers, all in
-// border.separator.
+// border.
 //
 // The body's input is a SEPARATE nested element drawn by the shared renderInputBox
 // helper in its ALWAYS-EDITING variant: a thin rounded box whose outline is
-// accent.orange over a TRANSPARENT interior (no fill). The rename input is
+// accent.attention over a TRANSPARENT interior (no fill). The rename input is
 // always focused AND always editing — there is no navigate state — so it carries the
 // orange editing treatment (border + live block cursor) and the header shows the
 // `◉ EDIT MODE` badge. The value renders in text.primary with an orange block cursor;
 // the orange outline + cursor + badge are the editing signal, distinct from the
-// panel's border.separator frame. (No fill: a flush fill can't coexist with a thin
+// panel's border frame. (No fill: a flush fill can't coexist with a thin
 // rounded outline in a terminal — see renderInputBox.)
 
 const (
 	// renameTitle is the header title text (text.primary), the `Rename session`.
 	renameTitle = "Rename session"
 	// renameFieldLabel is the field label for the focused input —
-	// accent.violet (the focused-field label colour).
+	// accent.primary (the focused-field label colour).
 	renameFieldLabel = "NEW NAME"
-	// renameWasPrefix opens the `was: <old name>` context line (text.detail).
+	// renameWasPrefix opens the `was: <old name>` context line (text.muted).
 	renameWasPrefix = "was: "
 
 	// renameInputInnerWidth is the input box's inner content width (in cells) — the
@@ -41,8 +41,8 @@ const (
 	// comfortably hold a `{project}-{nanoid}` name with room to grow.
 	renameInputInnerWidth = 44
 
-	// Footer copy + the per-group gap. The ⏎/esc key glyphs render in accent.blue,
-	// the rename/cancel labels in text.detail. The ⏎ glyph matches the help
+	// Footer copy + the per-group gap. The ⏎/esc key glyphs render in accent.key,
+	// the rename/cancel labels in text.muted. The ⏎ glyph matches the help
 	// modal + Projects footer (NOT the legacy ↵).
 	renameKeyConfirm   = "⏎"
 	renameLabelConfirm = "rename"
@@ -53,13 +53,13 @@ const (
 // renderRenameModalContent composes the rename-session modal for the given
 // input + old name. Three compartments drawn by the shared joined panel:
 //
-//	header:  Rename session              ◉ EDIT MODE   (title text.primary, badge accent.orange right-aligned)
-//	body:    NEW NAME                     (accent.violet field label)
+//	header:  Rename session              ◉ EDIT MODE   (title text.primary, badge accent.attention right-aligned)
+//	body:    NEW NAME                     (accent.primary field label)
 //	         ╭──────────────────────╮     (orange input-box outline)
 //	         │ <value>▌             │     (value text.primary, orange block cursor)
 //	         ╰──────────────────────╯
-//	         was: <old name>             (text.detail, truncated to fit)
-//	footer:  ⏎ rename   esc cancel        (glyphs accent.blue, labels text.detail)
+//	         was: <old name>             (text.muted, truncated to fit)
+//	footer:  ⏎ rename   esc cancel        (glyphs accent.key, labels text.muted)
 //
 // Vertical spacing is terminal-native FLUSH (the help/kill modal convention): every
 // body row is flush to its dividers; the input box's three rows are its own outline,
@@ -74,7 +74,7 @@ func renderRenameModalContent(input textinput.Model, oldName string, th theme.Th
 
 // renameModalHeaderRow renders `Rename session` (text.primary, the non-destructive
 // modal-title colour) left-aligned, with the always-on `◉ EDIT MODE` badge
-// (accent.orange) right-aligned in the far corner — the rename input is always
+// (accent.attention) right-aligned in the far corner — the rename input is always
 // editing, so the badge is always shown (via the shared renderHeaderWithBadge,
 // matching the edit modal's right-align technique). The header is pinned to the
 // panel content width so the badge sits in the panel's right corner.
@@ -102,7 +102,7 @@ func renameModalBodyRows(input textinput.Model, oldName string, th theme.Theme, 
 	return rows
 }
 
-// renameModalLabelRow renders the `NEW NAME` field label in accent.violet (the
+// renameModalLabelRow renders the `NEW NAME` field label in accent.primary (the
 // focused-field label colour — the input is the live editing element).
 func renameModalLabelRow(th theme.Theme, colourless bool) string {
 	return headerStyle(th.AccentPrimary, th, colourless).Render(renameFieldLabel)
@@ -110,10 +110,10 @@ func renameModalLabelRow(th theme.Theme, colourless bool) string {
 
 // renameModalInputBoxRows renders the border-defined input box through the SHARED
 // renderInputBox helper in its always-EDITING variant: a thin ROUNDED outline in
-// accent.orange over a TRANSPARENT interior — no fill. The value renders in
+// accent.attention over a TRANSPARENT interior — no fill. The value renders in
 // text.primary with an orange block cursor; the orange outline + cursor are the
 // editing signal — the rename input is always editing, so the outline is
-// always accent.orange and the header carries the `◉ EDIT MODE` badge. The
+// always accent.attention and the header carries the `◉ EDIT MODE` badge. The
 // textinput's own View (with its live cursor) is the content; the box border is the
 // shared helper's, not a bespoke one.
 //
@@ -124,15 +124,16 @@ func renameModalInputBoxRows(input textinput.Model, th theme.Theme, colourless b
 	return renderInputBox(value, inputBoxEditing, true, renameInputInnerWidth, th, colourless)
 }
 
-// renameInputView styles the textinput to the MV palette (value text.primary, orange
-// block cursor, NO fill) and returns its rendered View. The input's SEMANTICS are
-// untouched — only its Styles + Prompt change. The inline prompt is cleared so the
-// value renders alone inside the box (the `NEW NAME` label carries the field
-// name, so a textinput prompt would double up). Cursor blink is disabled so the
-// captured frame is deterministic (the cursor is always the solid orange block, never
-// a blinked-off gap). The cursor is accent.orange to match the box's editing state
-// (the editing colour). Under the NO_COLOR carve-out every hue drops: the value
-// renders on the native fg and the cursor falls back to a bare reverse block.
+// renameInputView styles the textinput to the MV palette (value text.primary,
+// orange block cursor, NO fill) and returns its rendered View. The input's
+// SEMANTICS are untouched — only its Styles + Prompt change. The inline prompt
+// is cleared so the value renders alone inside the box (the `NEW NAME` label
+// carries the field name, so a textinput prompt would double up). Cursor blink
+// is disabled so the captured frame is deterministic (the cursor is always the
+// solid orange block, never a blinked-off gap). The cursor is accent.attention
+// to match the box's editing state (the editing colour). Under the NO_COLOR
+// carve-out every hue drops: the value renders on the native fg and the cursor
+// falls back to a bare reverse block.
 func renameInputView(input textinput.Model, th theme.Theme, colourless bool) string {
 	input.Prompt = ""
 	styles := input.Styles()
@@ -150,7 +151,7 @@ func renameInputView(input textinput.Model, th theme.Theme, colourless bool) str
 	return input.View()
 }
 
-// renameModalWasRow renders the `was: <old name>` context line in text.detail. The
+// renameModalWasRow renders the `was: <old name>` context line in text.muted. The
 // old name is truncated with an ellipsis to the box's inner width so an over-long
 // name never overflows the panel (the edge case).
 func renameModalWasRow(oldName string, th theme.Theme, colourless bool) string {
@@ -162,7 +163,7 @@ func renameModalWasRow(oldName string, th theme.Theme, colourless bool) string {
 }
 
 // renameModalFooterRow renders `⏎ rename   esc cancel` — the ⏎/esc key glyphs in
-// accent.blue, the rename/cancel labels in text.detail. The dismiss key
+// accent.key, the rename/cancel labels in text.muted. The dismiss key
 // lives in the footer as `esc cancel`. The ⏎ glyph matches the help modal +
 // Projects footer.
 func renameModalFooterRow(th theme.Theme, colourless bool) string {

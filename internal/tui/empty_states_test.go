@@ -12,7 +12,7 @@ import (
 
 // This file is the §11.1 empty-states gate (task 4-5). It pins the MV treatment of
 // the genuinely-empty Sessions and Projects lists: a centred dim block glyph
-// `▌ ▌ ▌` (text.faint) over the message (text.primary) over the hint (text.detail)
+// `▌ ▌ ▌` (text.faint) over the message (text.primary) over the hint (text.muted)
 // on the owned canvas, with a FULLY-REPLACED footer drawn from the page's keymap
 // descriptor (§12.1).
 //
@@ -128,8 +128,8 @@ func TestEmptySessions_FooterCopyFromDescriptor(t *testing.T) {
 }
 
 // TestEmptySessions_FooterTokenColours asserts §3.4 / §11.1: key glyphs render in
-// accent.blue, labels in text.detail, the ? glyph in accent.violet, over a 1px
-// border.footer top rule — every colour via its §2.9 token.
+// accent.key, labels in text.muted, the ? glyph in accent.primary, over a 1px
+// border top rule — every colour via its §2.9 token.
 func TestEmptySessions_FooterTokenColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderEmptySessionsFooter(referenceFooterWidth, th, false)
@@ -254,7 +254,7 @@ func TestEmptyStates_NotRenderedWhileFiltering(t *testing.T) {
 }
 
 // TestEmptyStates_ColourRoles asserts §2.9: the glyph reads text.faint, the message
-// text.primary, and the hint text.detail — pinned in exact mode-resolved SGR.
+// text.primary, and the hint text.muted — pinned in exact mode-resolved SGR.
 func TestEmptyStates_ColourRoles(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, th, false)

@@ -7,22 +7,23 @@ import (
 )
 
 // The kill-confirm modal. A reskin (not a rewrite): the confirm/cancel LOGIC
-// is unchanged (handled in updateKillConfirmModal); this file owns only the kill
-// modal's DATA. The destructive-confirm panel grammar (the state.red ▲ <Title>
-// header, the state.red+bold target name row, the canvas blank separator, the
-// text.detail consequence word-wrapped at body-width 52, and the y <verb> · esc
-// cancel footer) lives once in destructive_confirm.go; this file supplies only the
-// kill title / consequence / window-count / footer verb and calls the shared renderer.
+// is unchanged (handled in updateKillConfirmModal); this file owns only the
+// kill modal's DATA. The destructive-confirm panel grammar (the
+// state.destructive ▲ <Title> header, the state.destructive+bold target name
+// row, the canvas blank separator, the text.muted consequence word-wrapped at
+// body-width 52, and the y <verb> · esc cancel footer) lives once in
+// destructive_confirm.go; this file supplies only the kill title / consequence
+// / window-count / footer verb and calls the shared renderer.
 
 const (
-	// killTitle is the header title text (state.red): `Kill session?`.
+	// killTitle is the header title text (state.destructive): `Kill session?`.
 	killTitle = "Kill session?"
 	// killConsequence is the consequence line — the irreversibility warning,
-	// rendered in text.detail and word-wrapped within the panel body width.
+	// rendered in text.muted and word-wrapped within the panel body width.
 	killConsequence = "Ends the tmux session and all its panes. Can't be undone."
 
-	// Footer confirm copy. The y key glyph renders in accent.blue, the kill label in
-	// text.detail. The cancel hint (`esc cancel`) is owned by destructive_confirm.go.
+	// Footer confirm copy. The y key glyph renders in accent.key, the kill label in
+	// text.muted. The cancel hint (`esc cancel`) is owned by destructive_confirm.go.
 	killKeyConfirm   = "y"
 	killLabelConfirm = "kill"
 )
@@ -32,11 +33,11 @@ const (
 // destructive-confirm renderer. The window count rides the name row via nameTrailer
 // (`<name>  · N window(s)`); kill has no extra body rows.
 //
-//	header:  ▲ Kill session?            (▲ + title, state.red + bold)
-//	body:    <name>  · N window(s)      (name state.red+bold, count text.detail)
+//	header:  ▲ Kill session?            (▲ + title, state.destructive + bold)
+//	body:    <name>  · N window(s)      (name state.destructive+bold, count text.muted)
 //	         <blank>                     (the single "what" → "warning" separator)
-//	         Ends the tmux session …     (consequence, text.detail, word-wrapped)
-//	footer:  y kill   esc cancel         (glyphs accent.blue, labels text.detail)
+//	         Ends the tmux session …     (consequence, text.muted, word-wrapped)
+//	footer:  y kill   esc cancel         (glyphs accent.key, labels text.muted)
 func renderKillModalContent(name string, windows int, th theme.Theme, colourless bool) string {
 	spec := destructiveConfirmSpec{
 		title:        killTitle,

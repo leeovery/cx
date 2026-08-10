@@ -7,15 +7,15 @@ import (
 
 // modal_footer.go owns the SINGLE canonical implementation of the footer key-hint
 // shape and the confirm/cancel footer row — the shared footer contract. Before
-// this file the `<key/glyph> <label>` primitive (key glyph in accent.blue, a one-cell
-// canvas-painted gap, label in text.detail, joined horizontally) was independently
+// this file the `<key/glyph> <label>` primitive (key glyph in accent.key, a one-cell
+// canvas-painted gap, label in text.muted, joined horizontally) was independently
 // re-authored across the kill/delete/rename modals, the Preview nav footer and the
 // contextual edit footer; the three modal footer rows each hand-assembled confirm-hint +
 // fixed gap + cancel-hint. They now all route through renderKeyHint /
 // renderConfirmCancelFooter so the convention (key-glyph colour role, gap width) lives in
 // exactly one place and the modals can never silently drift from the footer.
 //
-// renderBlueKeyHint is the named accent.blue pin every contextual footer hint (the edit
+// renderBlueKeyHint is the named accent.key pin every contextual footer hint (the edit
 // footer + the Preview nav footer) shares — the ONE canonical blue-key-hint path, after
 // the five superseded per-modal wrappers were removed.
 //
@@ -34,9 +34,9 @@ type footerHintGroup struct {
 }
 
 // renderKeyHint renders one `<key> <label>` footer hint: the key glyph in keyTok over
-// the owned canvas, a single canvas-painted gap, then the label in text.detail — joined
+// the owned canvas, a single canvas-painted gap, then the label in text.muted — joined
 // horizontally. It is the ONE place the footer key-hint shape is authored;
-// every modal/footer hint routes through it (callers default keyTok to accent.blue).
+// every modal/footer hint routes through it (callers default keyTok to accent.key).
 //
 // An empty key takes the label-only fast path (no glyph, no gap) — the form the edit
 // footer's `empty on save = delete` consequence note collapses onto.
@@ -51,9 +51,9 @@ func renderKeyHint(key, label string, keyTok theme.Token, th theme.Theme, colour
 }
 
 // renderBlueKeyHint renders one `<key> <label>` footer hint with the key glyph pinned
-// to accent.blue — the SINGLE canonical accent.blue key-hint path. It is a thin pin over
+// to accent.key — the SINGLE canonical accent.key key-hint path. It is a thin pin over
 // renderKeyHint that fixes keyTok to the theme's accent.key token so the contextual edit footer
-// and the Preview nav footer (the two live accent.blue call sites) share one seam rather
+// and the Preview nav footer (the two live accent.key call sites) share one seam rather
 // than each re-authoring the token. An empty key takes renderKeyHint's label-only path.
 func renderBlueKeyHint(key, label string, th theme.Theme, colourless bool) string {
 	return renderKeyHint(key, label, th.AccentKey, th, colourless)
@@ -85,7 +85,7 @@ func keyColumnRow(glyph, label string, keyStyle, labelStyle lipgloss.Style, colu
 
 // renderConfirmCancelFooter renders the two-hint modal footer row: the confirm hint,
 // the fixed canvas-painted gap (modalFooterGap, "   "), then the cancel hint — both
-// hints via renderKeyHint with accent.blue key glyphs. The three modal footer rows
+// hints via renderKeyHint with accent.key key glyphs. The three modal footer rows
 // (kill y/kill·esc/cancel, delete y/delete·esc/cancel, rename ⏎/rename·esc/cancel)
 // route through here, passing their per-modal key/label constants as arguments.
 func renderConfirmCancelFooter(confirmKey, confirmLabel, cancelKey, cancelLabel string, th theme.Theme, colourless bool) string {

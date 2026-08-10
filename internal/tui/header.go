@@ -30,11 +30,11 @@ const (
 	// width without overflowing.
 	headerCompactWordmark = "PORTAL"
 	// headerCaret is the one retained retro flourish — a solid block caret in
-	// accent.violet, immediately right of the wordmark.
+	// accent.primary, immediately right of the wordmark.
 	headerCaret = "▌"
-	// headerSubtitle is the right-aligned subtitle in text.detail.
+	// headerSubtitle is the right-aligned subtitle in text.muted.
 	headerSubtitle = "session manager"
-	// headerRuleGlyph is the full-width separator rule glyph (border.separator).
+	// headerRuleGlyph is the full-width separator rule glyph (border).
 	// The lower-block sits at the BOTTOM edge of its cell (not the vertical middle
 	// like the box-drawing `─`), so the rule does not "float" with whitespace above
 	// AND below it — the line lands low in its row, balancing the space above and
@@ -121,7 +121,7 @@ func headerShowsSubtitle(width int) bool {
 
 // headerSeparatorRule renders the full-width separator rule beneath the header
 // band. It is one row of the heavy box-drawing horizontal in
-// border.separator (terminal 2px ≈ a heavy/thick horizontal rule, matching the
+// border (terminal 2px ≈ a heavy/thick horizontal rule, matching the
 // design's rule weight). Under the NO_COLOR carve-out the rule keeps its glyphs but
 // drops the colour and the canvas, rendering on the terminal's native fg/bg.
 func headerSeparatorRule(width int, th theme.Theme, colourless bool) string {

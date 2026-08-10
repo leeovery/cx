@@ -12,17 +12,17 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// The §3.2/§4.2 Sessions section header: `Sessions` (accent.cyan) + count
-// (state.green, same font size, dim-by-colour §13.6) + optional mode suffix
-// (text.detail), with a right-aligned `/ to filter` hint (text.detail) on the
+// The §3.2/§4.2 Sessions section header: `Sessions` (accent.mode) + count
+// (state.positive, same font size, dim-by-colour §13.6) + optional mode suffix
+// (text.muted), with a right-aligned `/ to filter` hint (text.muted) on the
 // same row. These tests pin the colour roles, the parity with
 // sessionListTitleForMode, the persistent hint, the inside-tmux decoration, and
 // the §2.7 narrow degrade.
 
 const sectionHeaderWidth = 90
 
-// TestSectionHeader_LabelCyanCountGreen asserts the label renders in accent.cyan
-// and the count in state.green — at the same font size (no smaller/superscript
+// TestSectionHeader_LabelCyanCountGreen asserts the label renders in accent.mode
+// and the count in state.positive — at the same font size (no smaller/superscript
 // glyph), distinguished only by colour (§13.6). Both are plain runs, so the
 // count digits sit on the same baseline as the label letters.
 func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
@@ -42,7 +42,7 @@ func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
 			if !strings.Contains(header, "7") {
 				t.Errorf("section header missing the count %q:\n%s", "7", header)
 			}
-			// Label is accent.cyan, count is state.green — each via its token.
+			// Label is accent.mode, count is state.positive — each via its token.
 			if seq := tokenFgSeq(t, tc.th.AccentMode); !strings.Contains(header, seq) {
 				t.Errorf("section header missing the accent.cyan label role sequence %q", seq)
 			}
@@ -54,7 +54,7 @@ func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
 }
 
 // TestSectionHeader_ModeSuffixFromTitleFn asserts the mode suffix renders in
-// text.detail and is byte-identical (as a substring) to the suffix
+// text.muted and is byte-identical (as a substring) to the suffix
 // sessionListTitleForMode produces — the single source of truth for parity.
 func TestSectionHeader_ModeSuffixFromTitleFn(t *testing.T) {
 	for _, mode := range []prefs.SessionListMode{prefs.ModeByProject, prefs.ModeByTag} {
@@ -67,7 +67,7 @@ func TestSectionHeader_ModeSuffixFromTitleFn(t *testing.T) {
 		if !strings.Contains(header, strings.TrimSpace(suffix)) {
 			t.Errorf("section header for %v missing the suffix %q from sessionListTitleForMode:\n%s", mode, suffix, header)
 		}
-		// The suffix is rendered in text.detail.
+		// The suffix is rendered in text.muted.
 		if seq := tokenFgSeq(t, testDarkTheme(t).TextMuted); !strings.Contains(header, seq) {
 			t.Errorf("section header for %v missing the text.detail suffix role sequence %q", mode, seq)
 		}
@@ -75,7 +75,7 @@ func TestSectionHeader_ModeSuffixFromTitleFn(t *testing.T) {
 }
 
 // TestSectionHeader_RightAlignedFilterHint asserts a `/ to filter` hint renders
-// in text.detail, right-aligned (the left cluster and the hint are separated by
+// in text.muted, right-aligned (the left cluster and the hint are separated by
 // a flex spacer to the content width), on flat, by-project, and by-tag.
 func TestSectionHeader_RightAlignedFilterHint(t *testing.T) {
 	for _, mode := range []prefs.SessionListMode{prefs.ModeFlat, prefs.ModeByProject, prefs.ModeByTag} {
@@ -160,8 +160,8 @@ func TestSectionHeader_CountValueAndSuffixByteIdentical(t *testing.T) {
 		if suffix := strings.TrimSpace(strings.TrimPrefix(title, "Sessions")); suffix != "" && !strings.Contains(header, suffix) {
 			t.Errorf("section header for %v missing the parity suffix %q from title %q:\n%s", tc.mode, suffix, title, header)
 		}
-		// The exact count value is rendered inside its own state.green run — build
-		// the same run the implementation emits (state.green fg over the canvas) and
+		// The exact count value is rendered inside its own state.positive run — build
+		// the same run the implementation emits (state.positive fg over the canvas) and
 		// assert it appears verbatim, so the count value is byte-identical and green.
 		countRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render(itoa(tc.count))
 		if !strings.Contains(header, countRun) {
@@ -202,15 +202,16 @@ func TestSectionHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 }
 
 // TestViewSessionList_ReplacesTitleWithSectionHeader asserts the composed
-// Sessions view renders the §3.2 section header in place of the plain bubbles/list
-// title: the `Sessions` label (accent.cyan), the live count (state.green) matching
-// the visible session count, and the right-aligned `/ to filter` hint — while the
-// title FIELD (m.sessionList.Title) keeps its parity value.
+// Sessions view renders the §3.2 section header in place of the plain
+// bubbles/list title: the `Sessions` label (accent.mode), the live count
+// (state.positive) matching the visible session count, and the right-aligned `/
+// to filter` hint — while the title FIELD (m.sessionList.Title) keeps its
+// parity value.
 func TestViewSessionList_ReplacesTitleWithSectionHeader(t *testing.T) {
 	m := newCanvasTestModel(t, 90, 24, appearanceDarkCanvas) // 3 sessions (alpha/bravo/charlie)
 	view := m.viewSessionList()
 
-	// The section header's count (3) renders in a state.green run.
+	// The section header's count (3) renders in a state.positive run.
 	countRun := headerStyle(testDarkTheme(t).StatePositive, testDarkTheme(t), false).Render("3")
 	if !strings.Contains(view, countRun) {
 		t.Errorf("composed Sessions view missing the state.green count run for 3 visible sessions:\n%s", view)
@@ -219,7 +220,7 @@ func TestViewSessionList_ReplacesTitleWithSectionHeader(t *testing.T) {
 	if !strings.Contains(view, sectionFilterHint) {
 		t.Errorf("composed Sessions view missing the %q hint:\n%s", sectionFilterHint, view)
 	}
-	// The `Sessions` label is painted in accent.cyan (the replaced title line).
+	// The `Sessions` label is painted in accent.mode (the replaced title line).
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentMode); !strings.Contains(view, seq) {
 		t.Errorf("composed Sessions view missing the accent.cyan label role sequence %q", seq)
 	}

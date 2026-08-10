@@ -13,8 +13,8 @@ import (
 
 // TestHeaderBlock_RendersWordmarkCaretSubtitleRule asserts the §3.1 header block
 // renders the PORTAL wordmark (letter-spaced text.primary), an immediately-right
-// violet block caret, a right-aligned "session manager" subtitle (text.detail),
-// over a full-width 2px (two-row, heavy) border.separator rule — all via tokens.
+// violet block caret, a right-aligned "session manager" subtitle (text.muted),
+// over a full-width 2px (two-row, heavy) border rule — all via tokens.
 func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -40,8 +40,8 @@ func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
 				t.Errorf("header does not contain the subtitle %q:\n%s", "session manager", header)
 			}
 
-			// Colour roles: wordmark text.primary, caret accent.violet, subtitle
-			// text.detail, the rule border.separator — each via its token.
+			// Colour roles: wordmark text.primary, caret accent.primary, subtitle
+			// text.muted, the rule border — each via its token.
 			for _, want := range []struct {
 				role string
 				tok  theme.Token
@@ -54,7 +54,7 @@ func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
 					t.Errorf("header missing the %s foreground role sequence %q", want.role, seq)
 				}
 			}
-			// The 2px rule is drawn with the border.separator colour (used as a
+			// The 2px rule is drawn with the border colour (used as a
 			// foreground for the heavy rule glyphs).
 			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(header, seq) {
 				t.Errorf("header missing the border.separator rule role sequence %q", seq)

@@ -52,7 +52,7 @@ func dotRowLine(t *testing.T, view string) (string, int) {
 }
 
 // TestSessionsPaginationDots_ActiveVioletInactiveFaint asserts the §3.5/§2.9
-// requirement: the active page dot renders in accent.violet and the inactive
+// requirement: the active page dot renders in accent.primary and the inactive
 // dots in text.faint — the exact mode-resolved foreground SGR for each token.
 func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 	for _, tc := range []struct {
@@ -66,7 +66,7 @@ func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 			m := newMultiPageSessionModel(t, 120, 24, appearanceForTheme(t, tc.th), false)
 			row, _ := dotRowLine(t, m.viewSessionList())
 
-			// Active dot: accent.violet foreground role sequence present.
+			// Active dot: accent.primary foreground role sequence present.
 			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(row, seq) {
 				t.Errorf("dot row missing active-dot accent.violet role sequence %q:\n%q", seq, row)
 			}
@@ -79,9 +79,9 @@ func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
 }
 
 // TestSessionsPaginationDots_ActiveDotIsViolet pins the active page dot
-// specifically to accent.violet: the SGR run opening the active (current-page)
+// specifically to accent.primary: the SGR run opening the active (current-page)
 // dot glyph carries the violet foreground. On page 0 the FIRST dot is active, so
-// the run preceding the first dot glyph must be accent.violet — distinct from the
+// the run preceding the first dot glyph must be accent.primary — distinct from the
 // text.faint used by the inactive dots that follow.
 func TestSessionsPaginationDots_ActiveDotIsViolet(t *testing.T) {
 	m := newMultiPageSessionModel(t, 120, 24, appearanceDarkCanvas, false)

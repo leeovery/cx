@@ -71,7 +71,7 @@ func TestPreviewView_HeaderContainsMarkerSessionCounters_FooterContainsHints(t *
 }
 
 // TestPreviewView_HeaderSegmentsCarryRoleForegrounds pins the §9.1 colour
-// application: the header counters segment is styled text.detail and the session
+// application: the header counters segment is styled text.muted and the session
 // text.primary — the chrome content IS themed (only the captured CONTENT is left
 // untouched, §9.2).
 func TestPreviewView_HeaderSegmentsCarryRoleForegrounds(t *testing.T) {

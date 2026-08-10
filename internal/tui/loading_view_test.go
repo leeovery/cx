@@ -4,7 +4,7 @@ package tui
 //
 // These tests pin the honest loading screen: the locked 5-row bold solid-block
 // PORTAL wordmark + a flush 5-row violet caret bar, a thick violet progress bar
-// on the bg.track track, and a real 5-row tick-list that ticks off
+// on the bg.subtle track, and a real 5-row tick-list that ticks off
 // done/active/pending from the live LoadingProgress accumulator (task 5-4) with
 // the §2.9 token+weight mapping and the spaced `N / M` counter on the active
 // "Restoring sessions" row. They also pin the narrow/short degrade, the NO_COLOR
@@ -39,7 +39,7 @@ func midRestoreProgress() LoadingProgress {
 
 // TestLoadingScreen_RendersBlockBannerCaretBarAndList asserts the §10.3
 // composition: the 5-row bold solid-block PORTAL banner, a flush 5-row violet
-// caret bar to its right, a thick violet bar on the bg.track track, and the 5-row
+// caret bar to its right, a thick violet bar on the bg.subtle track, and the 5-row
 // step-list.
 func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 	view := midRestoreProgress().View()
@@ -70,8 +70,8 @@ func TestLoadingScreen_RendersBlockBannerCaretBarAndList(t *testing.T) {
 	}
 
 	// The wordmark block letters carry text.primary; the caret bar carries
-	// accent.violet; the filled bar carries the accent.violet background; the
-	// track carries the bg.track background.
+	// accent.primary; the filled bar carries the accent.primary background; the
+	// track carries the bg.subtle background.
 	if !strings.Contains(out, tokenFgSeq(t, testDarkTheme(t).TextPrimary)) {
 		t.Error("loading screen does not paint the wordmark in text.primary")
 	}
@@ -476,7 +476,7 @@ func TestLoadingScreen_TickStatesUseSpecdTokens(t *testing.T) {
 }
 
 // TestLoadingScreen_CounterSpacedOnlyOnActiveRestore asserts the spaced `N / M`
-// counter renders ONLY on the active "Restoring sessions" row, in text.detail,
+// counter renders ONLY on the active "Restoring sessions" row, in text.muted,
 // and never on any other label.
 func TestLoadingScreen_CounterSpacedOnlyOnActiveRestore(t *testing.T) {
 	view := midRestoreProgress().View()

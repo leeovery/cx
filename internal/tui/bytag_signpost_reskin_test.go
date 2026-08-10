@@ -12,7 +12,7 @@ import (
 
 // Tests for task 4-3: the "No tags yet" signpost reskin. The By-Tag zero-tags
 // signpost now routes through the §11 single-slot notice-band primitive as a
-// persistent violet INFO band — an accent.violet `▌` left-bar + the message in
+// persistent violet INFO band — an accent.primary `▌` left-bar + the message in
 // text.on-selection on the SAME bg.selection tint as the §11.4 command-pending
 // banner (the two are one info-message element) — owning the slot while m.byTagSignpost
 // holds, yielding it to a transient flash (§11.2) for the flash's duration, then
@@ -41,9 +41,9 @@ func signpostModel(t *testing.T) Model {
 }
 
 // TestSignpostReskin_VioletInfoBand asserts the signpost renders as the §11.3
-// persistent INFO band: an accent.violet `▌` left-bar + the message in
+// persistent INFO band: an accent.primary `▌` left-bar + the message in
 // text.on-selection, on the bg.selection info-band tint (the SAME tint as the §11.4
-// command-pending banner — NOT the bg.warning flash tint).
+// command-pending banner — NOT the bg.attention flash tint).
 func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 	m := signpostModel(t)
 
@@ -62,7 +62,7 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 	if flat := flattenNoticeBand(band); !strings.Contains(flat, byTagSignpostText) {
 		t.Errorf("signpost band missing the message %q: %q", byTagSignpostText, flat)
 	}
-	// Bar colour = accent.violet (§2.9).
+	// Bar colour = accent.primary (§2.9).
 	violetSeq := tokenFgSeq(t, m.themeState.active.AccentPrimary)
 	if !strings.Contains(band, violetSeq) {
 		t.Errorf("signpost band missing the accent.violet bar foreground sequence %q:\n%s", violetSeq, band)
@@ -80,7 +80,7 @@ func TestSignpostReskin_VioletInfoBand(t *testing.T) {
 	if !strings.Contains(band, selectionBgSeq) {
 		t.Errorf("signpost band missing the bg.selection info-band tint %q (must not be flat):\n%s", selectionBgSeq, band)
 	}
-	// NOT the bg.warning flash tint (§11.3 info band is NOT a flash): the bg.warning
+	// NOT the bg.attention flash tint (§11.3 info band is NOT a flash): the bg.attention
 	// background colour sequence must be ABSENT.
 	warnBgSeq := tokenBgSeq(t, m.themeState.active.BgAttention)
 	if strings.Contains(band, warnBgSeq) {

@@ -9,9 +9,9 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6 / §3.2 / §13.6 Projects section header: `Projects` (state.green) + a
-// text.detail count at the SAME cap-height as the label (dim by colour, not a
-// smaller glyph), with a right-aligned `/ to filter` hint (text.detail). These
+// The §6 / §3.2 / §13.6 Projects section header: `Projects` (state.positive) + a
+// text.muted count at the SAME cap-height as the label (dim by colour, not a
+// smaller glyph), with a right-aligned `/ to filter` hint (text.muted). These
 // tests pin the colour roles in exact mode-resolved SGR, the same-cap-height count
 // (a plain run, no superscript), the persistent hint, and the §2.7 narrow degrade —
 // matching testdata/vhs/reference/projects-mv.png.
@@ -19,7 +19,7 @@ import (
 const projectsHeaderWidth = 90
 
 // TestProjectsHeader_LabelGreenCountDetail asserts the label renders in
-// state.green and the count in text.detail — at the same font size (no
+// state.positive and the count in text.muted — at the same font size (no
 // smaller/superscript glyph), distinguished only by colour (§13.6). Both are plain
 // runs so the count digits sit on the same baseline/cap-height as the label.
 func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
@@ -39,11 +39,11 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 			if !strings.Contains(ansi.Strip(header), "14") {
 				t.Errorf("Projects header missing the count %q:\n%s", "14", header)
 			}
-			// Label is state.green.
+			// Label is state.positive.
 			if seq := tokenFgSeq(t, tc.th.StatePositive); !strings.Contains(header, seq) {
 				t.Errorf("Projects header missing the state.green label role sequence %q", seq)
 			}
-			// The count VALUE renders verbatim inside its own text.detail run (so it is
+			// The count VALUE renders verbatim inside its own text.muted run (so it is
 			// byte-identical and dim, at the same cap-height as the label).
 			countRun := headerStyle(tc.th.TextMuted, tc.th, false).Render("14")
 			if !strings.Contains(header, countRun) {
@@ -54,7 +54,7 @@ func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
 }
 
 // TestProjectsHeader_RightAlignedFilterHint asserts a `/ to filter` hint renders in
-// text.detail, right-aligned (left cluster + flex spacer + hint to the content
+// text.muted, right-aligned (left cluster + flex spacer + hint to the content
 // width), and the row is exactly the content width.
 func TestProjectsHeader_RightAlignedFilterHint(t *testing.T) {
 	header := renderProjectsSectionHeader(8, projectsHeaderWidth, testDarkTheme(t), false)

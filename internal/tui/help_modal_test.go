@@ -331,8 +331,8 @@ func TestHelpModalHeader(t *testing.T) {
 }
 
 // TestHelpModalColourRoles asserts the two-column colour wiring (§2.9): key-hint
-// glyphs in accent.blue, action labels in text.strong, the header `? Keybindings`
-// in text.primary, and `esc close` in text.detail. Verified by the presence of
+// glyphs in accent.key, action labels in text.secondary, the header `? Keybindings`
+// in text.primary, and `esc close` in text.muted. Verified by the presence of
 // each token's mode-resolved SGR in the rendered body.
 func TestHelpModalColourRoles(t *testing.T) {
 	for _, tc := range []struct {
@@ -368,8 +368,8 @@ func TestHelpModalColourRoles(t *testing.T) {
 }
 
 // TestHelpModalDestructiveKill asserts the kill (k) key glyph renders in the
-// state.red destructive role per the reference (the k glyph is the one destructive
-// glyph in the Sessions help). Glyph + colour, not colour alone (§2.2).
+// state.destructive role per the reference (the k glyph is the one destructive
+// glyph in the Sessions help). Glyph + colour, not colour alone.
 func TestHelpModalDestructiveKill(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		body := helpModalBody(sessionsKeymap(), th, false)

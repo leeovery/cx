@@ -17,8 +17,8 @@ import (
 // separator, the canvas-painted flex spacer, the right-aligned `? help` anchor)
 // so the rendered chrome stays byte-consistent with the standard footer — only
 // the entries and the per-entry key colours differ. Each filter footer
-// carries ONE accent.orange action word (`type` for input-active, `esc` for
-// list-active), the nav glyphs in accent.blue, and the labels in text.detail.
+// carries ONE accent.attention action word (`type` for input-active, `esc` for
+// list-active), the nav glyphs in accent.key, and the labels in text.muted.
 //
 // Every cell carries the owned canvas background (leaf .Background(canvas))
 // via the shared header helpers, so the spacer gap is canvas-painted with no
@@ -27,8 +27,8 @@ import (
 
 // keyGlyph is one coloured run inside a filter-footer entry's key cluster: the
 // glyph text and the token it renders in. A key may be ONE glyph (e.g. `esc`,
-// `↑↓`) or several (e.g. `↵ / ↓`, where the arrows are accent.blue and the `/`
-// separator is text.detail) — matching the references where the
+// `↑↓`) or several (e.g. `↵ / ↓`, where the arrows are accent.key and the `/`
+// separator is text.muted) — matching the references where the
 // "browse results" commit key reads as blue arrows around a quiet `/`.
 type keyGlyph struct {
 	Text string
@@ -36,10 +36,10 @@ type keyGlyph struct {
 }
 
 // filterFooterEntry is one entry in a contextual filter footer: a key cluster (one
-// or more coloured glyphs) and the action label (text.detail). It mirrors the
+// or more coloured glyphs) and the action label (text.muted). It mirrors the
 // shape renderFooterEntry consumes but lets each entry pin its OWN per-glyph key
-// colour (the accent.orange action word, the accent.blue nav glyphs, the quiet
-// text.detail `/` separator), which the descriptor-driven sessionsKeymap path does
+// colour (the accent.attention action word, the accent.key nav glyphs, the quiet
+// text.muted `/` separator), which the descriptor-driven sessionsKeymap path does
 // not need.
 //
 // BrowseResults structurally tags the input-active footer's `browse results` entry
@@ -54,9 +54,9 @@ type filterFooterEntry struct {
 }
 
 // filteringFooterEntries returns the input-active footer entries:
-// `type to filter` (the `type` action word in accent.orange) · `↵ / ↓ browse
-// results` (the commit glyphs ↵ and ↓ in accent.blue, the `/` separator in
-// text.detail) · `esc clear` (the dismiss key in text.detail — a plain key, not
+// `type to filter` (the `type` action word in accent.attention) · `↵ / ↓ browse
+// results` (the commit glyphs ↵ and ↓ in accent.key, the `/` separator in
+// text.muted) · `esc clear` (the dismiss key in text.muted — a plain key, not
 // the action word). The exact per-glyph colours match the input-active reference.
 func filteringFooterEntries(th theme.Theme) []filterFooterEntry {
 	return []filterFooterEntry{
@@ -88,9 +88,9 @@ func dropBrowseResults(src []filterFooterEntry) []filterFooterEntry {
 }
 
 // filterAppliedFooterEntries returns the list-active footer entries:
-// `↵ attach` · `↑↓ navigate` (both glyphs accent.blue) · `esc clear filter` (the
-// `esc` clear-filter key in accent.orange — the action word that exits the filter).
-// The exact per-glyph colours match the list-active reference.
+// `↵ attach` · `↑↓ navigate` (both glyphs accent.key) · `esc clear filter` (the
+// `esc` clear-filter key in accent.attention — the action word that exits the
+// filter). The exact per-glyph colours match the list-active reference.
 func filterAppliedFooterEntries(th theme.Theme) []filterFooterEntry {
 	return []filterFooterEntry{
 		{Key: []keyGlyph{{"↵", th.AccentKey}}, Label: "attach"},
@@ -168,9 +168,9 @@ func filterFooterRow(entries []filterFooterEntry, w int, th theme.Theme, colourl
 }
 
 // renderFilterCluster renders the given filter-footer entries joined by the
-// dot separator (text.detail) into a single left-cluster string. Each entry's key
+// dot separator (text.muted) into a single left-cluster string. Each entry's key
 // cluster renders via renderKeyGlyphs (per-glyph colours) and its label in
-// text.detail, with a canvas-painted gap between — the SAME per-entry shape as
+// text.muted, with a canvas-painted gap between — the SAME per-entry shape as
 // renderFooterEntry.
 func renderFilterCluster(entries []filterFooterEntry, th theme.Theme, colourless bool) string {
 	if len(entries) == 0 {
