@@ -3,6 +3,7 @@ package capture
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -1249,16 +1250,13 @@ func themePanelSyntheticSlug(i int) string {
 	return fmt.Sprintf("vivid-%02d", i+1)
 }
 
-// themePanelPaginatedUnion is the row set the paginating frame lists: the one
-// shared drop-in and the three built-ins, then the synthetic drop-ins — in display
-// order throughout.
+// themePanelPaginatedUnion is the row set the paginating frame lists: the base
+// panel union, then the synthetic drop-ins — in display order throughout.
+//
+// The base set is DERIVED rather than restated, so a row added to it reaches this
+// frame too; the clone keeps the base's backing array out of the append's reach.
 func themePanelPaginatedUnion() theme.Union {
-	rows := []theme.Row{
-		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + theme.FileExtension, Source: theme.SourceFile},
-		{Slug: "nord", Source: theme.SourceBuiltin},
-		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
-		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
-	}
+	rows := slices.Clone(themePanelUnion().Rows)
 	for i := range themePanelSyntheticDropIns {
 		slug := themePanelSyntheticSlug(i)
 		rows = append(rows, theme.Row{Slug: slug, Filename: slug + theme.FileExtension, Source: theme.SourceFile})
@@ -1268,8 +1266,12 @@ func themePanelPaginatedUnion() theme.Union {
 
 // themePanelPaginatedEntries is the retained parse behind that union: every file
 // row it lists, in the directory order a real read produces.
+//
+// It extends the base panel enumeration's entries for the same reason the union
+// extends the base rows — one declaration of the shared drop-in, cloned so the
+// append cannot reach the base.
 func themePanelPaginatedEntries() []theme.Entry {
-	entries := []theme.Entry{themePanelDirEntry(themePanelDropInSlug+theme.FileExtension, themePanelDropInSlug)}
+	entries := slices.Clone(themePanelEnumeration().Entries)
 	for i := range themePanelSyntheticDropIns {
 		slug := themePanelSyntheticSlug(i)
 		entries = append(entries, themePanelDirEntry(slug+theme.FileExtension, slug))

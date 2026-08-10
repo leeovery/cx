@@ -676,3 +676,82 @@ func backgroundSGR(t *testing.T, tok theme.Token) string {
 	}
 	return probe[start+1 : end]
 }
+
+// TestPanelPaginatedUnion_DerivesFromBase: the paginating union and its retained
+// parse are the base panel set plus synthetics, not a second declaration of it.
+//
+// The base row set and the shared drop-in entry are declared once, so a built-in
+// added to the embedded set reaches the paginating frame without a second edit.
+// A re-declared list would drift silently: both frames would still render, and
+// the paginating one would list the stale set.
+func TestPanelPaginatedUnion_DerivesFromBase(t *testing.T) {
+	base := themePanelUnion()
+	paginated := themePanelPaginatedUnion()
+
+	// Parent-level, because the ordering legs below slice the rows against the
+	// base's length: a Fatal inside one sub-test does not stop its siblings, so a
+	// short derivation would panic the binary rather than fail by name.
+	if len(paginated.Rows) <= len(base.Rows) {
+		t.Fatalf("the paginating union carries %d rows against the base's %d; it must carry the base set and then the synthetics", len(paginated.Rows), len(base.Rows))
+	}
+
+	t.Run("the base rows lead the paginating union in order", func(t *testing.T) {
+		if got := paginated.Rows[:len(base.Rows)]; !slices.Equal(got, base.Rows) {
+			t.Errorf("the paginating union leads with rows %v, want the base set %v", rowSlugs(got), rowSlugs(base.Rows))
+		}
+	})
+
+	t.Run("the synthetics follow the base rows", func(t *testing.T) {
+		for i, row := range paginated.Rows[len(base.Rows):] {
+			if want := themePanelSyntheticSlug(i); row.Slug != want {
+				t.Errorf("synthetic row %d is %q, want %q — the synthetics sort after every built-in, which is what keeps the badged rows on page 1", i, row.Slug, want)
+			}
+		}
+	})
+
+	t.Run("the count is re-derived from the rows", func(t *testing.T) {
+		if got, want := paginated.Count, len(paginated.Rows); got != want {
+			t.Errorf("the paginating union counts %d rows and carries %d", got, want)
+		}
+	})
+
+	// What the derivation's safety rests on: a base builder handing back a shared
+	// value — a package-level var, say — is the one arrangement in which the
+	// derived append could reach a set another fixture holds.
+	t.Run("the base builders mint a fresh row set per call", func(t *testing.T) {
+		first := themePanelUnion()
+		first.Rows[0] = theme.Row{Slug: "mutated"}
+		if themePanelUnion().Rows[0].Slug == "mutated" {
+			t.Error("themePanelUnion hands back a shared row set, so every fixture derived from it would alias the others")
+		}
+	})
+
+	t.Run("the base enumeration mints fresh entries per call", func(t *testing.T) {
+		first := themePanelEnumeration()
+		first.Entries[0] = theme.Entry{Filename: "mutated"}
+		if themePanelEnumeration().Entries[0].Filename == "mutated" {
+			t.Error("themePanelEnumeration hands back shared entries, so every fixture derived from it would alias the others")
+		}
+	})
+
+	t.Run("the retained parse leads with the base enumeration's entries", func(t *testing.T) {
+		baseEntries := themePanelEnumeration().Entries
+		entries := themePanelPaginatedEntries()
+		if len(entries) <= len(baseEntries) {
+			t.Fatalf("the paginating parse carries %d entries against the base's %d", len(entries), len(baseEntries))
+		}
+		if got := entries[:len(baseEntries)]; !slices.Equal(got, baseEntries) {
+			t.Errorf("the paginating parse leads with entries %+v, want the base entries %+v", got, baseEntries)
+		}
+	})
+}
+
+// rowSlugs is a union row set as its slugs, so a mismatch reads as a list of
+// names rather than as a wall of zero-valued palettes.
+func rowSlugs(rows []theme.Row) []string {
+	slugs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		slugs = append(slugs, row.Slug)
+	}
+	return slugs
+}
