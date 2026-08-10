@@ -24,6 +24,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // themesDirWith writes each named file into a fresh `themes` directory under a
@@ -386,10 +387,8 @@ func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
 // over a whole directory: every entry contributes at most one line.
 func TestThemeAdvisories_OneReasonPerFile(t *testing.T) {
 	t.Run("a doubly-broken file reports the ladder's first reason only", func(t *testing.T) {
-		lines := slices.Clone(themeKeyLines(t))
-		lines[themeLineIndex(t, lines, "canvas")] = "canvas = blue"
-		lines = slices.Delete(lines, themeLineIndex(t, lines, "bg.subtle"), themeLineIndex(t, lines, "bg.subtle")+1)
-		dir := themesDirWith(t, map[string][]byte{"mine.theme": themeSourceFromLines(lines)})
+		lines := missingTokenLines(t, badColourLines(t, themeKeyLines(t), themeOverride{"canvas", "blue"}), "bg.subtle")
+		dir := themesDirWith(t, map[string][]byte{"mine.theme": themetest.Render(lines)})
 
 		got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
 		if want := "⚠ theme mine: bad colour — canvas = blue"; got.line != want {
@@ -520,10 +519,6 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 // seam, not this scan's — must be neither written nor created.
 func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "themes")
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", dir, err)
-	}
 	files := map[string][]byte{
 		"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 		"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
@@ -531,11 +526,7 @@ func TestThemeAdvisories_ScanIsReadOnly(t *testing.T) {
 		"d-valid.theme":   validThemeSource(t),
 		"notes.txt":       []byte("not a theme file\n"),
 	}
-	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
-			t.Fatalf("seed %s: %v", name, err)
-		}
-	}
+	dir := themesDirIn(t, root, files)
 	prefsPath := filepath.Join(root, "prefs.json")
 	if err := os.WriteFile(prefsPath, []byte(`{"session_list_mode":"by-tag","appearance":"light"}`), 0o600); err != nil {
 		t.Fatalf("seed prefs.json: %v", err)
@@ -823,11 +814,9 @@ func TestThemeAdvisories_ReservedSetIsTheEmbeddedSet(t *testing.T) {
 func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
 	skipUnlessModeBitsDeny(t)
 
-	lines := slices.Clone(themeKeyLines(t))
-	lines[themeLineIndex(t, lines, "canvas")] = "canvas = blue"
-	lines = append(lines, lines[themeLineIndex(t, lines, "text.primary")])
+	lines := duplicateKeyLines(t, badColourLines(t, themeKeyLines(t), themeOverride{"canvas", "blue"}), "text.primary", len(themeKeyLines(t))+1)
 
-	dir := themesDirWith(t, map[string][]byte{"Bad_Name.theme": themeSourceFromLines(lines)})
+	dir := themesDirWith(t, map[string][]byte{"Bad_Name.theme": themetest.Render(lines)})
 	path := filepath.Join(dir, "Bad_Name.theme")
 	if err := os.Chmod(path, 0o000); err != nil {
 		t.Fatalf("chmod 0000 %s: %v", path, err)

@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/portaltest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // themeExportRun is one `portal theme export` invocation's whole observable
@@ -116,10 +117,8 @@ func useThemesDir(t *testing.T) string {
 func seedThemesDir(t *testing.T, slug string, source []byte) string {
 	t.Helper()
 
-	dir := useThemesDir(t)
-	if err := os.WriteFile(filepath.Join(dir, slug+".theme"), source, 0o644); err != nil {
-		t.Fatalf("seed %s.theme: %v", slug, err)
-	}
+	dir := themesDirWith(t, map[string][]byte{slug + ".theme": source})
+	t.Setenv("PORTAL_THEMES_DIR", dir)
 	return dir
 }
 
@@ -588,13 +587,7 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 		t.Setenv("HOME", root)
 		t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "xdg"))
 		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(root, "prefs.json"))
-		themes := filepath.Join(root, "themes")
-		if err := os.MkdirAll(themes, 0o755); err != nil {
-			t.Fatalf("create themes dir: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(themes, "nord-lee.theme"), validThemeSource(t), 0o644); err != nil {
-			t.Fatalf("seed nord-lee.theme: %v", err)
-		}
+		themes := themesDirIn(t, root, map[string][]byte{"nord-lee.theme": validThemeSource(t)})
 		t.Setenv("PORTAL_THEMES_DIR", themes)
 
 		before := treeFingerprint(t, root)
@@ -608,11 +601,6 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 
 		assertTreeUnchanged(t, root, before, "the config tree changed")
 	})
-}
-
-// themeSourceFromLines renders a set of `key = value` lines as one theme file.
-func themeSourceFromLines(lines []string) []byte {
-	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
 // themeLineIndex returns the index of the `key = …` line declaring key, failing
@@ -635,59 +623,91 @@ func themeLineIndex(t *testing.T, lines []string, key string) int {
 // offender order predictable, since offenders are enumerated in file order.
 type themeOverride struct{ key, value string }
 
-// sourceMissingTokens is a `missing tokens` drop-in with the named keys' lines
-// removed. Everything it still declares is well-formed, so it clears rungs 4
-// and 5 and fails at the presence check.
-func sourceMissingTokens(t *testing.T, keys ...string) []byte {
+// missingTokenLines removes the named keys' lines. Everything the result still
+// declares is well-formed, so it clears rungs 4 and 5 and fails at the presence
+// check.
+//
+// The shared mutators leave an undeclared key alone rather than failing, so the
+// removal is checked here: a key the built-in stopped declaring would otherwise
+// turn the fixture back into a valid file and every assertion made with it into
+// an argument about a theme that loads.
+func missingTokenLines(t *testing.T, lines []string, keys ...string) []string {
 	t.Helper()
 
-	lines := slices.Clone(themeKeyLines(t))
 	for _, key := range keys {
-		at := themeLineIndex(t, lines, key)
-		lines = slices.Delete(lines, at, at+1)
+		shorter := themetest.WithoutKey(lines, key)
+		if len(shorter) == len(lines) {
+			t.Fatalf("the built-in declares no %q line, so a fixture missing it would prove nothing:\n  %s", key, strings.Join(lines, "\n  "))
+		}
+		lines = shorter
 	}
-	return themeSourceFromLines(lines)
+	return lines
 }
 
-// sourceBadColours is a `bad colour` drop-in with the named keys' values
-// replaced by ones that still lex as a well-formed `key = value` pair, so the
-// file reaches rung 5 intact and fails on its values.
-func sourceBadColours(t *testing.T, overrides ...themeOverride) []byte {
+// badColourLines replaces the named keys' values with ones that still lex as a
+// well-formed `key = value` pair, so the file reaches rung 5 intact and fails on
+// its values. The substitution is checked for the same reason removal is.
+func badColourLines(t *testing.T, lines []string, overrides ...themeOverride) []string {
 	t.Helper()
 
-	lines := slices.Clone(themeKeyLines(t))
 	for _, o := range overrides {
-		lines[themeLineIndex(t, lines, o.key)] = o.key + " = " + o.value
+		lines = themetest.WithValue(lines, o.key, o.value)
+		if !slices.Contains(lines, o.key+" = "+o.value) {
+			t.Fatalf("the built-in declares no %q line, so a fixture overriding its value would prove nothing:\n  %s", o.key, strings.Join(lines, "\n  "))
+		}
 	}
-	return themeSourceFromLines(lines)
+	return lines
 }
 
-// sourceDuplicateKeyAt is a `bad syntax` drop-in in which the line declaring key
-// is repeated on the given 1-based line, which the reason vocabulary's rung 4 refuses at that
-// SECOND occurrence — the one the user has to delete.
+// duplicateKeyLines repeats the line declaring key on the given 1-based line,
+// which the reason vocabulary's rung 4 refuses at that SECOND occurrence — the
+// one the user has to delete.
 //
 // Both halves of a caller's expectation are verified against the ASSEMBLED
-// source: that key really is declared first above the duplicate, and that the
+// lines: that key really is declared first above the duplicate, and that the
 // duplicate really lands on that line. So the `line N: duplicate key <key>`
 // detail a test pins is a fact about the fixture rather than a coincidence of
 // the built-in it was derived from.
-func sourceDuplicateKeyAt(t *testing.T, line int, key string) []byte {
+func duplicateKeyLines(t *testing.T, lines []string, key string, at int) []string {
 	t.Helper()
 
-	lines := slices.Clone(themeKeyLines(t))
 	first := themeLineIndex(t, lines, key)
-	if line < first+2 || line > len(lines)+1 {
-		t.Fatalf("line %d cannot carry a duplicate of %q, first declared on line %d of %d", line, key, first+1, len(lines))
+	if at < first+2 || at > len(lines)+1 {
+		t.Fatalf("line %d cannot carry a duplicate of %q, first declared on line %d of %d", at, key, first+1, len(lines))
 	}
 
-	assembled := slices.Insert(lines, line-1, lines[first])
+	assembled := themetest.WithDuplicateKeyAt(lines, key, at)
 	if got := themeLineIndex(t, assembled, key); got != first {
 		t.Fatalf("assembled fixture declares %q first on line %d, want line %d", key, got+1, first+1)
 	}
-	if assembled[line-1] != lines[first] {
-		t.Fatalf("assembled fixture carries %q on line %d, want the duplicate %q", assembled[line-1], line, lines[first])
+	if assembled[at-1] != lines[first] {
+		t.Fatalf("assembled fixture carries %q on line %d, want the duplicate %q", assembled[at-1], at, lines[first])
 	}
-	return themeSourceFromLines(assembled)
+	return assembled
+}
+
+// sourceMissingTokens is a `missing tokens` drop-in with the named keys' lines
+// removed.
+func sourceMissingTokens(t *testing.T, keys ...string) []byte {
+	t.Helper()
+
+	return themetest.Render(missingTokenLines(t, themeKeyLines(t), keys...))
+}
+
+// sourceBadColours is a `bad colour` drop-in with the named keys' values
+// replaced.
+func sourceBadColours(t *testing.T, overrides ...themeOverride) []byte {
+	t.Helper()
+
+	return themetest.Render(badColourLines(t, themeKeyLines(t), overrides...))
+}
+
+// sourceDuplicateKeyAt is a `bad syntax` drop-in in which the line declaring key
+// is repeated on the given 1-based line.
+func sourceDuplicateKeyAt(t *testing.T, line int, key string) []byte {
+	t.Helper()
+
+	return themetest.Render(duplicateKeyLines(t, themeKeyLines(t), key, line))
 }
 
 // unreadableThemeFile seeds a valid drop-in and then makes THE FILE unreadable,
@@ -934,11 +954,7 @@ func TestThemeExport_BadNameFrame(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, "evil.theme"), escaped, 0o644); err != nil {
 			t.Fatalf("seed evil.theme: %v", err)
 		}
-		nested := filepath.Join(root, "themes")
-		if err := os.MkdirAll(nested, 0o755); err != nil {
-			t.Fatalf("create nested themes dir: %v", err)
-		}
-		t.Setenv("PORTAL_THEMES_DIR", nested)
+		t.Setenv("PORTAL_THEMES_DIR", themesDirIn(t, root, nil))
 
 		run := execThemeExport(t, "--", "../evil")
 

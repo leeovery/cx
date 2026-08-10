@@ -339,7 +339,7 @@ func withoutBuiltin(omit string) func(string) ([]byte, bool) {
 // invalid, rather than absent — the other half of the build-time guarantee's broken-binary
 // state, and the one that proves the outcome does not vary by cause.
 func corruptBuiltin(corrupt string) func(string) ([]byte, bool) {
-	broken := []byte(strings.Join(themetest.WithoutKey(themetest.Lines(), "canvas"), "\n") + "\n")
+	broken := themetest.Render(themetest.WithoutKey(themetest.Lines(), "canvas"))
 	return func(slug string) ([]byte, bool) {
 		if slug == corrupt {
 			return broken, true

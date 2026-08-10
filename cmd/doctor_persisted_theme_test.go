@@ -348,10 +348,7 @@ func TestPersistedThemeAdvisory_CharsetFailureIsBadName(t *testing.T) {
 
 	t.Run("a traversal composes no path", func(t *testing.T) {
 		root := t.TempDir()
-		dir := filepath.Join(root, "themes")
-		if err := os.Mkdir(dir, 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", dir, err)
-		}
+		dir := themesDirIn(t, root, nil)
 		// Exactly where filepath.Join(dir, "../evil.theme") lands.
 		planted := filepath.Join(root, "evil.theme")
 		if err := os.WriteFile(planted, validThemeSource(t), 0o644); err != nil {

@@ -8,10 +8,11 @@
 // one edit rather than a hunt across the packages that test against it.
 //
 // The helpers compose: Lines() is a complete, valid file, and WithValue /
-// WithoutKey derive the broken variants from it (a bad colour, a missing token),
-// each returning a fresh slice so one base can seed several fixtures. Write
-// stages a set of lines as a file; Body() is the same bytes for a consumer that
-// stages the file itself.
+// WithoutKey / WithDuplicateKeyAt derive the broken variants from it (a bad
+// colour, a missing token, bad syntax), each returning a fresh slice so one base
+// can seed several fixtures. Write stages a set of lines as a file; Render is
+// the same bytes for a consumer that stages the file itself, and Body() is
+// Render over the whole valid file.
 //
 // Test-only: production code MUST NOT import this package (mirroring the
 // precedent for logtest / spawntest / transienttest). Enforcement is contributor
@@ -53,11 +54,12 @@ func Lines() []string {
 // Body renders Lines() as one complete file body — the same bytes Write puts on
 // disk, for a consumer that stages the file itself.
 func Body() []byte {
-	return body(Lines())
+	return Render(Lines())
 }
 
-// body renders lines as a file: newline-separated, newline-terminated.
-func body(lines []string) []byte {
+// Render renders lines as a file body — newline-separated, newline-terminated —
+// for a consumer that derived its own lines and stages the file itself.
+func Render(lines []string) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
@@ -81,12 +83,31 @@ func WithoutKey(lines []string, key string) []string {
 	})
 }
 
+// WithDuplicateKeyAt returns the lines with a copy of the named key's line
+// spliced in, so the duplicate is the at-th line (1-based) of the result — a
+// file the loader refuses for bad syntax, naming that line. Lines that declare
+// the key nowhere are returned unchanged. The input is left untouched.
+//
+// The position is a parameter because the rejection detail carries it: a
+// consumer pinning `line N: duplicate key <key>` has to choose N. Splicing
+// outside the result panics, which is a fixture that could not have been staged.
+func WithDuplicateKeyAt(lines []string, key string, at int) []string {
+	spliced := slices.Clone(lines)
+	first := slices.IndexFunc(spliced, func(line string) bool {
+		return strings.HasPrefix(line, key+" = ")
+	})
+	if first < 0 {
+		return spliced
+	}
+	return slices.Insert(spliced, at-1, spliced[first])
+}
+
 // Write writes lines as a file named base inside dir and returns its path.
 func Write(t *testing.T, dir, base string, lines []string) string {
 	t.Helper()
 
 	path := filepath.Join(dir, base)
-	if err := os.WriteFile(path, body(lines), fixtureMode); err != nil {
+	if err := os.WriteFile(path, Render(lines), fixtureMode); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 	return path

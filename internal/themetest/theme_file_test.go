@@ -110,15 +110,52 @@ func TestWithoutKey_ProducesTheMissingTokenRejection(t *testing.T) {
 	}
 }
 
-// TestMutatorsLeaveTheirInputAlone pins the copy-on-write both mutators promise.
-// Consumers derive several fixtures from one base slice, so a mutator that wrote
-// through would silently corrupt every later file built from it.
+// TestWithDuplicateKeyAt_ProducesTheBadSyntaxRejection is the third class
+// consumers name, and the one whose detail is positional: the file is refused at
+// the SECOND occurrence — the line the user has to delete — so the requested
+// position has to be the one the loader reports.
+func TestWithDuplicateKeyAt_ProducesTheBadSyntaxRejection(t *testing.T) {
+	const at = 12
+	lines := themetest.WithDuplicateKeyAt(themetest.Lines(), "text.primary", at)
+	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", lines)
+
+	_, rejection := theme.Loader{}.LoadFile(path)
+
+	requireReason(t, rejection, theme.ReasonBadSyntax)
+	if want := "line 12: duplicate key text.primary"; rejection.Detail != want {
+		t.Errorf("rejection detail = %q, want %q", rejection.Detail, want)
+	}
+	if got, want := len(lines), len(themetest.Lines())+1; got != want {
+		t.Errorf("WithDuplicateKeyAt returned %d lines, want %d — it must add exactly the one line", got, want)
+	}
+	if names := tokenNamesFrom(t, lines); names[at-1] != "text.primary" {
+		t.Errorf("line %d declares %q, want the duplicated text.primary", at, names[at-1])
+	}
+}
+
+// TestWithDuplicateKeyAt_LeavesAnUndeclaredKeyAlone pins the no-op the siblings
+// share: a key the lines never declared cannot be duplicated, and the result is
+// the input rather than a file with a bare key spliced into it.
+func TestWithDuplicateKeyAt_LeavesAnUndeclaredKeyAlone(t *testing.T) {
+	lines := themetest.Lines()
+
+	got := themetest.WithDuplicateKeyAt(lines, "no.such.token", 3)
+
+	if !slices.Equal(got, lines) {
+		t.Errorf("duplicating an undeclared key changed the lines:\n got %v\nwant %v", got, lines)
+	}
+}
+
+// TestMutatorsLeaveTheirInputAlone pins the copy-on-write every mutator
+// promises. Consumers derive several fixtures from one base slice, so a mutator
+// that wrote through would silently corrupt every later file built from it.
 func TestMutatorsLeaveTheirInputAlone(t *testing.T) {
 	base := themetest.Lines()
 	before := slices.Clone(base)
 
 	themetest.WithValue(base, "canvas", "blue")
 	themetest.WithoutKey(base, "bg.subtle")
+	themetest.WithDuplicateKeyAt(base, "text.primary", 12)
 
 	if !slices.Equal(base, before) {
 		t.Errorf("the mutators wrote through to their input:\n got %v\nwant %v", base, before)
@@ -159,6 +196,30 @@ func TestBody_IsTheBytesWriteStages(t *testing.T) {
 
 	if got := string(themetest.Body()); got != string(staged) {
 		t.Errorf("Body() =\n%q\nwant what Write stages:\n%q", got, staged)
+	}
+}
+
+// TestRender_IsTheBytesWriteStages is the same claim as Body()'s, over lines a
+// consumer derived itself: a fixture staged by hand is byte-for-byte the one
+// Write would have staged, whatever mutations produced it.
+func TestRender_IsTheBytesWriteStages(t *testing.T) {
+	lines := themetest.WithValue(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "canvas", "blue")
+	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", lines)
+	staged, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read the written fixture: %v", err)
+	}
+
+	if got := string(themetest.Render(lines)); got != string(staged) {
+		t.Errorf("Render() =\n%q\nwant what Write stages:\n%q", got, staged)
+	}
+}
+
+// TestBody_IsRenderOfLines pins the two renderers as one: Body() is the whole
+// valid file, so a consumer reaching for either gets the same bytes.
+func TestBody_IsRenderOfLines(t *testing.T) {
+	if got, want := string(themetest.Body()), string(themetest.Render(themetest.Lines())); got != want {
+		t.Errorf("Body() =\n%q\nwant Render(Lines()):\n%q", got, want)
 	}
 }
 
