@@ -25,6 +25,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -744,29 +745,19 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 			if !strings.HasPrefix(name, "doctor") {
 				continue
 			}
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
+			portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+				ident, ok := call.Fun.(*ast.Ident)
 				if !ok {
-					continue
-				}
-				ast.Inspect(fn, func(n ast.Node) bool {
-					call, ok := n.(*ast.CallExpr)
-					if !ok {
-						return true
-					}
-					ident, ok := call.Fun.(*ast.Ident)
-					if !ok {
-						return true
-					}
-					switch ident.Name {
-					case "loadPrefsStore":
-						migrating = append(migrating, name+":"+fn.Name.Name)
-					case "loadPrefsStoreNoMigrate":
-						nonMigrating = append(nonMigrating, name+":"+fn.Name.Name)
-					}
 					return true
-				})
-			}
+				}
+				switch ident.Name {
+				case "loadPrefsStore":
+					migrating = append(migrating, name+":"+funcName)
+				case "loadPrefsStoreNoMigrate":
+					nonMigrating = append(nonMigrating, name+":"+funcName)
+				}
+				return true
+			})
 		}
 
 		if len(migrating) != 0 {

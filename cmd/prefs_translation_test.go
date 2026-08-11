@@ -10,6 +10,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
@@ -395,22 +396,12 @@ func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 	var callers []string
 
 	for name, file := range parsePackageFilesByName(t) {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok {
-				continue
+		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+			if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "loadPrefsStore" {
+				callers = append(callers, name+":"+funcName)
 			}
-			ast.Inspect(fn, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "loadPrefsStore" {
-					callers = append(callers, name+":"+fn.Name.Name)
-				}
-				return true
-			})
-		}
+			return true
+		})
 	}
 
 	// parsePackageFilesByName is map-ordered, so sort for a stable failure message.

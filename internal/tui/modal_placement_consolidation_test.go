@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/leeovery/portal/internal/portalbintest"
 )
 
 // Task spectrum-tui-design-8-6 consolidation gate. The §8.1/§13.5 cleared-canvas
@@ -73,22 +74,12 @@ func TestModalCentringAppearsInExactlyOnePlace(t *testing.T) {
 	}
 
 	var hosts []string
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Body == nil {
-			continue
+	portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+		if isClearedCanvasPlaceCall(call) {
+			hosts = append(hosts, funcName)
 		}
-		ast.Inspect(fn.Body, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			if isClearedCanvasPlaceCall(call) {
-				hosts = append(hosts, fn.Name.Name)
-			}
-			return true
-		})
-	}
+		return true
+	})
 
 	if len(hosts) != 1 {
 		t.Fatalf("cleared-canvas centring lipgloss.Place(width, height, Center, Center, panel) must appear in exactly one function; found in %v", hosts)

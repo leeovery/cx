@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/theme"
 )
@@ -350,22 +351,12 @@ func applyThemeCallSitesIn(t *testing.T, file string) []string {
 		t.Fatalf("the package holds no %s, so scanning it proves nothing", file)
 	}
 	var sites []string
-	for _, decl := range parsed.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Body == nil {
-			continue
+	portalbintest.ForEachFuncCall(parsed, func(funcName string, call *ast.CallExpr) bool {
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "ApplyTheme" {
+			sites = append(sites, funcName)
 		}
-		ast.Inspect(fn.Body, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return true
-			}
-			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "ApplyTheme" {
-				sites = append(sites, fn.Name.Name)
-			}
-			return true
-		})
-	}
+		return true
+	})
 	return sites
 }
 

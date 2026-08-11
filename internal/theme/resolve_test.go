@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -815,37 +816,31 @@ type themeCallNode struct {
 // A call is stdlib when its receiver names an IMPORTED PACKAGE in that file, and
 // local otherwise — which covers both a bare `helper()` and a method call like
 // `l.LoadFile(path)`, the latter keyed by the method name alone.
+//
+// A function that calls nothing holds no node: it has no edge to record, and a
+// walk that reached it would end there in either case. A root that makes no call
+// therefore trips osCallsReachableFrom's unknown-root failure.
 func themeCallGraph(t *testing.T) map[string]themeCallNode {
 	t.Helper()
 
 	graph := map[string]themeCallNode{}
 	for _, source := range parseThemeSources(t) {
 		imports := importedPackageNames(source.File)
-		for _, decl := range source.File.Decls {
-			fn, isFunc := decl.(*ast.FuncDecl)
-			if !isFunc || fn.Body == nil {
-				continue
+		portalbintest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
+			node := graph[funcName]
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				node.local = append(node.local, fun.Name)
+			case *ast.SelectorExpr:
+				if pkg, isIdent := fun.X.(*ast.Ident); isIdent && imports[pkg.Name] {
+					node.stdlib = append(node.stdlib, pkg.Name+"."+fun.Sel.Name)
+				} else {
+					node.local = append(node.local, fun.Sel.Name)
+				}
 			}
-			node := graph[fn.Name.Name]
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				call, isCall := n.(*ast.CallExpr)
-				if !isCall {
-					return true
-				}
-				switch fun := call.Fun.(type) {
-				case *ast.Ident:
-					node.local = append(node.local, fun.Name)
-				case *ast.SelectorExpr:
-					if pkg, isIdent := fun.X.(*ast.Ident); isIdent && imports[pkg.Name] {
-						node.stdlib = append(node.stdlib, pkg.Name+"."+fun.Sel.Name)
-					} else {
-						node.local = append(node.local, fun.Sel.Name)
-					}
-				}
-				return true
-			})
-			graph[fn.Name.Name] = node
-		}
+			graph[funcName] = node
+			return true
+		})
 	}
 	return graph
 }

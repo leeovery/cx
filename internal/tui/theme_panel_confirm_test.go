@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -1207,22 +1208,12 @@ func themePanelSeamCallers(t *testing.T, name string) []string {
 
 	var callers []string
 	for _, file := range parsePackageFilesByName(t) {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
+		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
+				callers = append(callers, funcName)
 			}
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
-					callers = append(callers, fn.Name.Name)
-				}
-				return true
-			})
-		}
+			return true
+		})
 	}
 	slices.Sort(callers)
 	return slices.Compact(callers)

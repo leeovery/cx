@@ -12,6 +12,7 @@
 //   - ProjectRoot — repo-root resolver (walks up from CWD to find go.mod).
 //   - GoSourceFiles — the .go enumeration the repo-wide source guards share.
 //   - PackageGoFiles — the .go enumeration the package-local source guards share.
+//   - ForEachFuncCall — the call-expression walk the source guards share.
 //   - BuildPortalBinary — pure error-returning `go build .` wrapper.
 //   - StagePortalBinary — t.Helper-flavoured build + PATH-prepend +
 //     exec.LookPath composition used by real-tmux

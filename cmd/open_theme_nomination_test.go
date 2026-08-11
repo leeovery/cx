@@ -222,31 +222,21 @@ func themeCallSites(t *testing.T) map[string]map[string]string {
 	sites := map[string]map[string]string{}
 
 	for name, file := range parsePackageFilesByName(t) {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok {
-				continue
-			}
-			ast.Inspect(fn, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
+		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+			switch target := call.Fun.(type) {
+			case *ast.SelectorExpr:
+				pkg, ok := target.X.(*ast.Ident)
+				if !ok || pkg.Name != "theme" {
 					return true
 				}
-				switch target := call.Fun.(type) {
-				case *ast.SelectorExpr:
-					pkg, ok := target.X.(*ast.Ident)
-					if !ok || pkg.Name != "theme" {
-						return true
-					}
-					record(sites, name, fn.Name.Name, "theme."+target.Sel.Name)
-				case *ast.Ident:
-					if local[target.Name] {
-						record(sites, name, fn.Name.Name, target.Name)
-					}
+				record(sites, name, funcName, "theme."+target.Sel.Name)
+			case *ast.Ident:
+				if local[target.Name] {
+					record(sites, name, funcName, target.Name)
 				}
-				return true
-			})
-		}
+			}
+			return true
+		})
 	}
 	return sites
 }
@@ -315,19 +305,12 @@ func logForCalls(t *testing.T, component string) []string {
 	t.Helper()
 	var found []string
 	for name, file := range parsePackageFilesByName(t) {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok {
-				continue
+		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+			if isLogForCall(call, component) {
+				found = append(found, name+":"+funcName)
 			}
-			ast.Inspect(fn, func(n ast.Node) bool {
-				expr, ok := n.(ast.Expr)
-				if ok && isLogForCall(expr, component) {
-					found = append(found, name+":"+fn.Name.Name)
-				}
-				return true
-			})
-		}
+			return true
+		})
 	}
 	return found
 }
