@@ -7,7 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// listerMock satisfies state.ServerOptionLister with a canned output/err.
 type listerMock struct {
 	out string
 	err error
@@ -17,10 +16,6 @@ func (m *listerMock) ShowAllServerOptions() (string, error) {
 	return m.out, m.err
 }
 
-// checkerMock satisfies state.RestoringChecker. The found flag and value are
-// returned verbatim so individual tests can exercise the absent vs. set vs.
-// empty-value paths independently. gotName records the last option name read
-// so tests can assert exactly which server option was queried.
 type checkerMock struct {
 	val     string
 	found   bool
@@ -33,8 +28,6 @@ func (m *checkerMock) TryGetServerOption(name string) (string, bool, error) {
 	return m.val, m.found, m.err
 }
 
-// writerMock satisfies state.ServerOptionWriter. It records every Set/Unset
-// call so tests can assert exact option names and values.
 type writerMock struct {
 	setCalls   []writerSetCall
 	unsetCalls []string
@@ -126,8 +119,6 @@ func TestListSkeletonMarkers(t *testing.T) {
 	})
 
 	t.Run("parses lines with quoted values correctly", func(t *testing.T) {
-		// Quoted form is the default tmux output. Verify the surrounding
-		// double-quotes are stripped.
 		out := "@portal-skeleton-foo__0.0 \"1\""
 		got, err := state.ListSkeletonMarkers(&listerMock{out: out})
 		if err != nil {

@@ -24,7 +24,6 @@ func TestCountPanes_SumsPanesAcrossSessionsAndWindows(t *testing.T) {
 			},
 		},
 	}
-	// 2 + 1 + 3 = 6 panes total.
 	if got := state.CountPanes(idx); got != 6 {
 		t.Errorf("CountPanes = %d; want 6", got)
 	}

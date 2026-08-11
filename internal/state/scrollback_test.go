@@ -13,13 +13,10 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// captureFunc is a tiny PaneCapturer impl used for CaptureAndHashPane tests.
 type captureFunc func(target string) (string, error)
 
 func (f captureFunc) CapturePane(target string) (string, error) { return f(target) }
 
-// openTempLogger returns a capturing *slog.Logger plus the logtest.Sink so
-// callers can inspect the rendered log body after the call under test.
 func openTempLogger(t *testing.T) (*slog.Logger, *logtest.Sink) {
 	t.Helper()
 	return logtest.NewCaptureLogger(t)
@@ -28,7 +25,7 @@ func openTempLogger(t *testing.T) (*slog.Logger, *logtest.Sink) {
 func TestSeedHashMap(t *testing.T) {
 	t.Run("returns empty HashMap when scrollback directory is missing", func(t *testing.T) {
 		dir := t.TempDir()
-		// Note: do NOT call EnsureDir — the scrollback subdir must be absent.
+		// Deliberately no EnsureDir: the scrollback subdir must be absent.
 		logger, _ := openTempLogger(t)
 
 		hm := state.SeedHashMap(dir, logger)
@@ -105,7 +102,6 @@ func TestSeedHashMap(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(sb, "work__0.0.bin"), []byte("kept"), 0o600); err != nil {
 			t.Fatalf("write kept: %v", err)
 		}
-		// Subdirectory should also be skipped (it's a directory, not a .bin file).
 		if err := os.MkdirAll(filepath.Join(sb, "subdir"), 0o700); err != nil {
 			t.Fatalf("MkdirAll subdir: %v", err)
 		}
@@ -123,7 +119,7 @@ func TestSeedHashMap(t *testing.T) {
 	})
 
 	t.Run("logs a warning and continues when a .bin file is unreadable", func(t *testing.T) {
-		// Skip when running as root (chmod 0o000 cannot make a file unreadable for root).
+		// chmod 0o000 cannot make a file unreadable for root.
 		if os.Geteuid() == 0 {
 			t.Skip("cannot test unreadable file as root")
 		}
@@ -143,14 +139,13 @@ func TestSeedHashMap(t *testing.T) {
 		if err := os.Chmod(unreadable, 0o000); err != nil {
 			t.Fatalf("chmod 0o000: %v", err)
 		}
-		// Restore mode so t.TempDir cleanup can remove the file.
+		// Restore mode so t.TempDir's cleanup can remove the file.
 		t.Cleanup(func() { _ = os.Chmod(unreadable, 0o600) })
 
 		logger, sink := openTempLogger(t)
 
 		hm := state.SeedHashMap(dir, logger)
 
-		// Readable file must still be hashed.
 		want := xxhash.Sum64([]byte("readable"))
 		if got, ok := hm["good__0.0"]; !ok || got != want {
 			t.Errorf("hm[good__0.0] = (%d, %v), want (%d, true)", got, ok, want)
@@ -159,8 +154,6 @@ func TestSeedHashMap(t *testing.T) {
 			t.Errorf("hm contains entry for unreadable file: %v", hm)
 		}
 
-		// Logger must have produced a warning mentioning the file (via the
-		// path attr).
 		log := sink.Body()
 		if !strings.Contains(log, "WARN") {
 			t.Errorf("log does not contain WARN: %q", log)
@@ -180,7 +173,6 @@ func TestSeedHashMap(t *testing.T) {
 			t.Fatalf("write fixture: %v", err)
 		}
 
-		// Must not panic with a nil logger (the Logger doc promises nil-safe methods).
 		hm := state.SeedHashMap(dir, nil)
 
 		if len(hm) != 1 {
@@ -402,7 +394,6 @@ func TestWriteScrollbackIfChanged(t *testing.T) {
 			t.Errorf("hm[%s] = %d, want %d", paneB, hm[paneB], hashB)
 		}
 
-		// A second identical write to paneA must skip; an updated paneB must write.
 		wrote, err := state.WriteScrollbackIfChanged(dir, paneA, dataA, hashA, hm)
 		if err != nil {
 			t.Fatalf("re-write A: %v", err)
@@ -419,7 +410,6 @@ func TestWriteScrollbackIfChanged(t *testing.T) {
 		if !wrote {
 			t.Error("update B wrote = false, want true")
 		}
-		// paneA hash unchanged; paneB hash updated.
 		if hm[paneA] != hashA {
 			t.Errorf("hm[%s] mutated to %d, want %d", paneA, hm[paneA], hashA)
 		}
@@ -429,8 +419,7 @@ func TestWriteScrollbackIfChanged(t *testing.T) {
 	})
 
 	t.Run("propagates AtomicWrite errors with paneKey context", func(t *testing.T) {
-		// Force an AtomicWrite failure by pointing at a path whose parent
-		// cannot be created (parent component is an existing regular file).
+		// An existing regular file as a parent component makes AtomicWrite fail.
 		root := t.TempDir()
 		blocker := filepath.Join(root, "scrollback")
 		if err := os.WriteFile(blocker, []byte("blocker"), 0o600); err != nil {
@@ -448,7 +437,6 @@ func TestWriteScrollbackIfChanged(t *testing.T) {
 		if !strings.Contains(err.Error(), paneKey) {
 			t.Errorf("error %q does not contain paneKey %q", err.Error(), paneKey)
 		}
-		// Hash must NOT be updated when the write fails.
 		if _, ok := hm[paneKey]; ok {
 			t.Errorf("hm updated despite write failure: %v", hm)
 		}

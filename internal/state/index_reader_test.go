@@ -227,7 +227,7 @@ func TestReadIndex_ReturnsSkipWithWrappedPermissionErrorWhenUnreadable(t *testin
 		t.Fatalf("chmod 0o000: %v", err)
 	}
 	t.Cleanup(func() {
-		// Restore mode so t.TempDir cleanup can remove the file.
+		// Restore mode so t.TempDir's cleanup can remove the file.
 		_ = os.Chmod(path, 0o600)
 	})
 
@@ -320,7 +320,6 @@ func TestReadIndex_DoesNotWrapAbsentFileWithErrCorruptIndex(t *testing.T) {
 func TestReadIndex_PerformsNoStdoutOrStderrWrites(t *testing.T) {
 	dir := t.TempDir()
 
-	// Cover all branches: missing file, valid file, parse error.
 	cases := []struct {
 		name  string
 		setup func(t *testing.T, d string)

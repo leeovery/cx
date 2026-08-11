@@ -11,9 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// captureMock is a Commander that dispatches to a per-command handler. Using a
-// dispatch table keeps each test's intent local — callers configure only the
-// commands their scenario exercises and the mock fails fast on anything else.
 type captureMock struct {
 	listSessions  string
 	listSessionsE error
@@ -23,9 +20,6 @@ type captureMock struct {
 	envErrs       map[string]error
 	t             *testing.T
 
-	// Call counters — zero-valued by default so existing tests are unaffected.
-	// Used by TestCaptureStructurePreLoopFailFatal to assert which pre-loop
-	// commands run (and which do not) after each fail-fatal path.
 	listSessionsCalls int
 	listPanesCalls    int
 	showEnvCalls      int
@@ -44,7 +38,6 @@ func (m *captureMock) Run(args ...string) (string, error) {
 		return m.listPanes, m.listPanesE
 	case "show-environment":
 		m.showEnvCalls++
-		// args == [show-environment, -t, <session>]
 		if len(args) < 3 {
 			m.t.Fatalf("show-environment called with insufficient args: %v", args)
 		}
@@ -55,7 +48,6 @@ func (m *captureMock) Run(args ...string) (string, error) {
 		if out, ok := m.envBySession[session]; ok {
 			return out, nil
 		}
-		// Default to empty environment for sessions not configured explicitly.
 		return "", nil
 	default:
 		m.t.Fatalf("captureMock: unexpected command %v", args)
@@ -63,17 +55,11 @@ func (m *captureMock) Run(args ...string) (string, error) {
 	}
 }
 
-// RunRaw satisfies tmux.Commander; CaptureStructure never invokes it, so any
-// call here indicates a test-setup mismatch.
 func (m *captureMock) RunRaw(args ...string) (string, error) {
 	m.t.Fatalf("captureMock.RunRaw unexpectedly called with %v", args)
 	return "", nil
 }
 
-// listSessionsFor returns a list-sessions output line for the given names. The
-// numeric fields and the trailing @portal-dir field are placeholders;
-// CaptureStructure only consumes the names. The trailing empty field matches
-// the 4-field "name|windows|attached|@portal-dir" format ListSessions emits.
 func listSessionsFor(names ...string) string {
 	lines := make([]string, 0, len(names))
 	for _, n := range names {
@@ -82,19 +68,10 @@ func listSessionsFor(names ...string) string {
 	return strings.Join(lines, "\n")
 }
 
-// paneLine renders one un-stamped pane row (empty trailing @portal-id column)
-// in the structural list-panes output format CaptureStructure expects. The
-// bulk of the suite exercises legacy/un-stamped sessions, so this delegates to
-// paneLineWithID with an empty id — the append-only 11th field is present but
-// blank, matching a session created before @portal-id shipped.
 func paneLine(session string, windowIdx int, windowName, layout string, zoomed, windowActive bool, paneIdx int, cwd string, paneActive bool, currentCommand string) string {
 	return paneLineWithID(session, windowIdx, windowName, layout, zoomed, windowActive, paneIdx, cwd, paneActive, currentCommand, "")
 }
 
-// paneLineWithID renders one pane row with an explicit trailing @portal-id
-// column — the 11th and final |||-separated field of captureFormat. The id is
-// session-scoped in tmux (repeated on every pane row of the same session); the
-// parser consumes it from the first row when assembling Session.PortalID.
 func paneLineWithID(session string, windowIdx int, windowName, layout string, zoomed, windowActive bool, paneIdx int, cwd string, paneActive bool, currentCommand, portalID string) string {
 	bool01 := func(b bool) string {
 		if b {
@@ -312,7 +289,6 @@ func TestCaptureStructure(t *testing.T) {
 	})
 
 	t.Run("captures zoomed and active flags per window", func(t *testing.T) {
-		// Two windows: w0 active+not-zoomed, w1 not-active+zoomed.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes: strings.Join([]string{
@@ -367,7 +343,6 @@ func TestCaptureStructure(t *testing.T) {
 	})
 
 	t.Run("sets scrollback_file via the canonical sanitizer", func(t *testing.T) {
-		// Session name with a forward slash exercises sanitization + collision suffix.
 		const session = "foo/bar"
 		mock := &captureMock{
 			listSessions: listSessionsFor(session),
@@ -419,7 +394,6 @@ func TestCaptureStructure(t *testing.T) {
 	})
 
 	t.Run("sorts windows by index and panes by index ascending", func(t *testing.T) {
-		// Emit out-of-order to verify the sort, not the input order.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes: strings.Join([]string{
@@ -523,13 +497,6 @@ func TestCaptureStructure(t *testing.T) {
 	})
 }
 
-// TestCaptureStructurePortalID pins the Cross-Reboot Persistence capture leg:
-// captureFormat appends #{@portal-id} as its 11th and final column, the parser
-// reads it into paneRow.portalID (parts[10]), and CaptureStructure lifts it
-// from the FIRST row of a session's grouped pane rows into Session.PortalID.
-// sessions.json is the only durable record of a session's immutable id across
-// a reboot, so a stamped session must round-trip its id into the snapshot while
-// an un-stamped (legacy) session yields "".
 func TestCaptureStructurePortalID(t *testing.T) {
 	t.Run("it captures a stamped session's @portal-id into Session.PortalID", func(t *testing.T) {
 		mock := &captureMock{
@@ -554,8 +521,6 @@ func TestCaptureStructurePortalID(t *testing.T) {
 	})
 
 	t.Run("it captures an un-stamped session as an empty PortalID", func(t *testing.T) {
-		// paneLine emits an empty trailing @portal-id column — the legacy
-		// pre-stamp session shape.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes:    paneLine("work", 0, "main", "L", false, true, 0, "/tmp", true, "zsh"),
@@ -576,9 +541,6 @@ func TestCaptureStructurePortalID(t *testing.T) {
 	})
 
 	t.Run("it lifts PortalID from the first pane row for a multi-pane session", func(t *testing.T) {
-		// @portal-id is session-scoped: every pane row of the same session
-		// carries the identical value. The lift takes it once, from the first
-		// row of grouped[name].
 		const id = "sessionScoped1"
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
@@ -604,10 +566,6 @@ func TestCaptureStructurePortalID(t *testing.T) {
 	})
 
 	t.Run("it rejects a wrong-arity pane row after the field-count bump", func(t *testing.T) {
-		// A 10-field row (the pre-bump arity) is now short by one column. The
-		// len(parts) != captureFieldCount guard — now enforcing arity 11 — must
-		// reject it with the canonical field-count error, and CaptureStructure
-		// must propagate it as a pre-loop fail-fatal (no partial index).
 		tenFieldRow := "work|||0|||main|||L|||0|||1|||0|||/tmp|||1|||zsh"
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
@@ -629,10 +587,6 @@ func TestCaptureStructurePortalID(t *testing.T) {
 	})
 
 	t.Run("it leaves every existing field index unchanged after the append", func(t *testing.T) {
-		// The append is index-preserving: fields 0..9 must parse into exactly
-		// the same Session/Window/Pane shape as before the @portal-id column
-		// existed. Stamp an id to prove the new column does not bleed into any
-		// earlier field.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes: paneLineWithID(
@@ -670,22 +624,16 @@ func TestCaptureStructurePortalID(t *testing.T) {
 		if p.Index != 5 || p.CWD != "/Users/leeovery/Code/portal" || !p.Active || p.CurrentCommand != "nvim" {
 			t.Errorf("pane = %+v, want index 5 / portal cwd / active / nvim", p)
 		}
-		// And the appended column still lands in PortalID, not any earlier field.
 		if s.PortalID != "keepIndex" {
 			t.Errorf("PortalID = %q, want %q", s.PortalID, "keepIndex")
 		}
 	})
 
 	t.Run("it yields an empty PortalID and no windows for a zero-row session without panicking", func(t *testing.T) {
-		// A session enumerated by list-sessions but contributing zero pane
-		// rows (grouped[name] is empty) must lift PortalID == "" without
-		// panicking on the empty first-row read, and produce empty Windows.
-		// Restore rejects such an entry downstream — capture adds no guard.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
-			// No pane rows for "work": list-panes returns empty output.
-			listPanes: "",
-			t:         t,
+			listPanes:    "",
+			t:            t,
 		}
 		client := tmux.NewClient(mock)
 
@@ -706,12 +654,6 @@ func TestCaptureStructurePortalID(t *testing.T) {
 	})
 }
 
-// noSuchSessionErr returns a *tmux.CommandError whose stderr carries tmux's
-// canonical lowercase "no such session" phrasing. The tmux client's
-// ShowEnvironment wraps such errors via wrapNoSuchSession so callers see an
-// errors.Is(err, tmux.ErrNoSuchSession) match. Anomalous failures (any other
-// shape) are not wrapped and must fall into the non-natural-churn branch of
-// the per-session loop.
 func noSuchSessionErr(session string) error {
 	return &tmux.CommandError{
 		Stderr: "no such session: " + session,
@@ -719,13 +661,6 @@ func noSuchSessionErr(session string) error {
 	}
 }
 
-// TestCaptureStructurePerSessionLogAndContinue exercises the per-session
-// log-and-continue behaviour introduced by spec § Component E: a single
-// failing session must not abort the whole capture. The post-loop
-// discriminator returns the partial index unchanged when at least one session
-// succeeded, the empty index with nil err when every failure was natural
-// churn, and a wrapped error only when zero sessions succeeded and at least
-// one failure was anomalous.
 func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 	t.Run("it skips a failing session and captures the survivors", func(t *testing.T) {
 		mock := &captureMock{
@@ -841,7 +776,6 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 			envErrs: map[string]error{
 				"alpha": noSuchSessionErr("alpha"),
 				"bravo": errors.New("anomalous"),
-				// charlie succeeds
 			},
 			t: t,
 		}
@@ -881,13 +815,10 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 		}
 
 		log := sink.Body()
-		// Exactly two WARN entries: one per failing session.
 		warnCount := strings.Count(log, "WARN ")
 		if warnCount != 2 {
 			t.Errorf("WARN entries = %d, want 2; log:\n%s", warnCount, log)
 		}
-		// Each warn line names its session (via the session attr) and includes
-		// the underlying error.
 		if !strings.Contains(log, "session=alpha") {
 			t.Errorf("expected WARN for session alpha; log:\n%s", log)
 		}
@@ -900,9 +831,6 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 	})
 
 	t.Run("it does not invoke the per-session loop when keep is empty", func(t *testing.T) {
-		// keep is empty because the only session is internal-prefixed. The
-		// per-session loop must not run (so any envErr for the internal session
-		// would never fire); the result is the existing empty-Sessions slice.
 		mock := &captureMock{
 			listSessions: listSessionsFor("_portal-saver"),
 			envErrs: map[string]error{
@@ -925,9 +853,6 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 	})
 
 	t.Run("it preserves canonical ordering of surviving sessions", func(t *testing.T) {
-		// Skipping "bravo" must not perturb the alpha→charlie ordering. Mock
-		// returns listSessions out of order to confirm the survivor set itself
-		// is canonicalised.
 		mock := &captureMock{
 			listSessions: listSessionsFor("zeta", "alpha", "mike"),
 			listPanes: strings.Join([]string{
@@ -956,9 +881,6 @@ func TestCaptureStructurePerSessionLogAndContinue(t *testing.T) {
 	})
 }
 
-// findPane locates the pane in idx by session name, window index, and pane
-// index. Returns nil when the path is missing — tests use that to assert
-// presence/absence after the merge.
 func findPane(idx state.Index, session string, window, pane int) *state.Pane {
 	for si := range idx.Sessions {
 		s := &idx.Sessions[si]
@@ -982,7 +904,6 @@ func findPane(idx state.Index, session string, window, pane int) *state.Pane {
 
 func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	t.Run("preserves prior pane data when its key is in the skip set", func(t *testing.T) {
-		// prev has a pane with CWD /old; fresh has a pane at the same key with /new.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1024,15 +945,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("merges hydrate-in-progress pane from prev at matching coords", func(t *testing.T) {
-		// Phase A of restore creates the session in tmux BEFORE setting the
-		// @portal-skeleton-<paneKey> marker, so a marker-protected pane in the
-		// legitimate hydrate-in-progress flow has its session, window, and pane
-		// all present in the fresh enumeration. The structural live-set filter
-		// must NOT regress this case: prev's authoritative pane state
-		// (CWD/CurrentCommand captured pre-boot) must still win at matching
-		// coords, and a session present in BOTH fresh and prev must not be
-		// duplicated by the merge. See specification → Fix Component A →
-		// Preserved Behavior; Acceptance Criteria #6.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1065,8 +977,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Prev wins at matching coords: CWD/CurrentCommand are prev's, not
-		// fresh's.
 		p := findPane(idx, "work", 0, 0)
 		if p == nil {
 			t.Fatalf("missing pane work:0.0 in result")
@@ -1075,8 +985,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			t.Errorf("pane = %+v, want prev's /old + vim (skip-set wins at matching coords)", p)
 		}
 
-		// No session duplication: the same session present in BOTH fresh and
-		// prev appears exactly once.
 		if len(idx.Sessions) != 1 {
 			t.Errorf("len(idx.Sessions) = %d, want 1 (no duplication when session is in both fresh and prev)", len(idx.Sessions))
 		}
@@ -1084,8 +992,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			t.Errorf("Sessions[0].Name = %q, want %q", idx.Sessions[0].Name, "work")
 		}
 
-		// Canonical ordering survives the merge: one window at index 0, one
-		// pane at index 0.
 		work := idx.Sessions[0]
 		if len(work.Windows) != 1 || work.Windows[0].Index != 0 {
 			t.Errorf("work.Windows = %+v, want one window at index 0 (canonical ordering)", work.Windows)
@@ -1097,12 +1003,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("does not merge a skipped pane whose session is absent from fresh", func(t *testing.T) {
-		// prev has session "old"; fresh capture lists only "new". Skip set
-		// marks the prev pane. Even though the marker is present, "old" must
-		// NOT be reintroduced into the result because tmux no longer
-		// acknowledges the session — a stale skeleton marker cannot resurrect
-		// a killed session. See specification → Fix Component A → Filtering
-		// Levels.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1134,11 +1034,9 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// "new" still present.
 		if findPane(idx, "new", 0, 0) == nil {
 			t.Errorf("fresh pane new:0.0 missing")
 		}
-		// "old" must NOT be merged — its session is absent from fresh.
 		if p := findPane(idx, "old", 1, 2); p != nil {
 			t.Errorf("dead session pane old:1.2 was reintroduced via merge: %+v", p)
 		}
@@ -1185,7 +1083,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			t:            t,
 		}
 		client := tmux.NewClient(mock)
-		// Skip set non-empty but prev is nil — merge has no source data.
 		skip := map[string]struct{}{"work__0.0": {}}
 
 		idx, err := state.CaptureStructure(client, skip, nil, nil)
@@ -1202,12 +1099,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("does not merge a skipped pane whose window is absent from a live fresh session", func(t *testing.T) {
-		// prev session "work" has windows 0 and 5, each with one pane. Fresh
-		// has session "work" with only window 0. The skipSet marks window 5's
-		// pane. Even though the session is live, the window has been killed
-		// (e.g. via tmux kill-window) so the prev pane must NOT be merged
-		// — see specification → Fix Component A → Filtering Levels (window
-		// level).
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1251,7 +1142,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// Stale window 5 must not appear in the merged result.
 		if p := findPane(idx, "work", 5, 0); p != nil {
 			t.Errorf("dead window pane work:5.0 was reintroduced via merge: %+v", p)
 		}
@@ -1265,9 +1155,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("drops only stale windows from a mixed prev session", func(t *testing.T) {
-		// prev session "work" has windows 0 (live in fresh) and 7 (absent).
-		// Both panes are in skipSet. Window 0's pane must merge with prev's
-		// authoritative CWD/CurrentCommand; window 7 must be dropped entirely.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1312,7 +1199,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// Live-window pane retains prev's authoritative data.
 		p0 := findPane(idx, "work", 0, 0)
 		if p0 == nil {
 			t.Fatalf("live-window pane work:0.0 missing from merge")
@@ -1320,7 +1206,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		if p0.CWD != "/prev0" || p0.CurrentCommand != "vim" {
 			t.Errorf("work:0.0 = %+v, want prev's /prev0 + vim", p0)
 		}
-		// Stale-window pane must not be reintroduced.
 		if p7 := findPane(idx, "work", 7, 0); p7 != nil {
 			t.Errorf("dead window pane work:7.0 was reintroduced via merge: %+v", p7)
 		}
@@ -1334,9 +1219,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("canonical ordering preserved after window-level drop", func(t *testing.T) {
-		// prev contributes panes for two live windows out-of-order plus a
-		// stale window that must be dropped. After merge, surviving windows
-		// must be sorted ascending by index.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1367,7 +1249,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 				},
 			}},
 		}
-		// Fresh has live windows 0 and 2 only; window 9 is dead.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes: strings.Join([]string{
@@ -1401,11 +1282,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("does not merge a skipped pane whose pane index is absent from a live fresh window", func(t *testing.T) {
-		// prev session "work" window 0 has panes 0 and 1. Fresh has session
-		// "work" window 0 with only pane 0. The skipSet marks pane 1. Even
-		// though session and window are live, pane 1 has been killed (e.g.
-		// via tmux kill-pane) so prev's pane 1 must NOT be merged — see
-		// specification → Fix Component A → Filtering Levels (pane level).
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1446,7 +1322,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// Stale pane 1 must not appear in the merged result.
 		if p := findPane(idx, "work", 0, 1); p != nil {
 			t.Errorf("dead pane work:0.1 was reintroduced via merge: %+v", p)
 		}
@@ -1464,10 +1339,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("canonical ordering preserved after pane-level drop", func(t *testing.T) {
-		// prev contributes panes for one live window: pane 0 (live in fresh),
-		// pane 2 (live in fresh) out-of-order, plus pane 9 (absent from
-		// fresh). After merge, surviving panes must be sorted ascending by
-		// index and the dead pane must be dropped.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1492,7 +1363,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 				}},
 			}},
 		}
-		// Fresh has live panes 0 and 2 only; pane 9 is dead.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes: strings.Join([]string{
@@ -1530,26 +1400,9 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("self-heals after a killed mid-flight session leaks into prev", func(t *testing.T) {
-		// Empirical-scenario regression test mirroring the live-in-the-wild
-		// case (e.g. agentic-workflows-XXrJ3J): a session is captured into
-		// prev, has a stale @portal-skeleton-* marker (its paneKey is in
-		// skipSet), and is then killed in tmux. The next daemon tick sees
-		// the marker but the fresh enumeration omits the session. The merge
-		// must NOT reintroduce the killed session — see specification →
-		// Empirical Confirmation; Acceptance Criteria #1.
-		//
-		// Prev-population is LOAD-BEARING: mergeSkippedPanes is gated on
-		// `prev != nil` and only resurrects sessions present in
-		// prev.Sessions. Without seeding prev with the killed session this
-		// test would pass on the buggy code (false-green). Seeding it forces
-		// the merge layer to make the structural live-set decision.
-		//
-		// Tick 2 then threads the just-returned (clean) idx back in as prev
-		// with the same skipSet, mirroring the daemon's
-		// `deps.PrevIndex = &idx` line at cmd/state_daemon.go:156. This
-		// asserts the self-healing behaviour: even if the marker persists,
-		// once the dead session is gone from prev it stays gone — see
-		// specification → Self-Healing Behavior; Acceptance Criteria #3.
+		// Seeding prev with the killed session is load-bearing: mergeSkippedPanes
+		// only resurrects sessions present in prev, so without it this test would
+		// pass against the buggy code.
 		const killed = "agentic-workflows-XXrJ3J"
 		const survivor = "survivor"
 
@@ -1580,8 +1433,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			state.SanitizePaneKey(killed, 1, 1): {},
 		}
 
-		// Tick 1: marker is set, session has been killed in tmux, prev still
-		// contains it. Fresh enumeration omits the killed session.
 		idx, err := state.CaptureStructure(client, skip, &prev, nil)
 		if err != nil {
 			t.Fatalf("tick 1: unexpected error: %v", err)
@@ -1596,12 +1447,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 			t.Fatalf("tick 1: Sessions = %+v, want only %q", idx.Sessions, survivor)
 		}
 
-		// Tick 2: re-use the just-returned clean idx as prev (same skipSet).
-		// The mock is reused unchanged, so tmux's reported state is
-		// identical between ticks — only prev differs. Even with the marker
-		// still present, the killed session must remain absent —
-		// sessions.json self-heals on the next tick because the polluted
-		// prev was discarded.
 		idx2, err := state.CaptureStructure(client, skip, &idx, nil)
 		if err != nil {
 			t.Fatalf("tick 2: unexpected error: %v", err)
@@ -1618,13 +1463,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 
 	t.Run("re-sorts sessions, windows, and panes after merge", func(t *testing.T) {
-		// Fresh emits "zeta" before "alpha" and out-of-order windows/panes
-		// within each session. Prev contributes prev-authoritative pane data
-		// at one set of coords (zeta:0.0) so the merge mutates fresh; the
-		// canonical post-merge ordering must be sessions ascending by name,
-		// windows ascending by index, panes ascending by index. Both sessions
-		// are live in fresh so the session-level filter does not drop the
-		// merge — the test exercises sort-order, not the filter.
 		prev := state.Index{
 			Version: state.SchemaVersion,
 			Sessions: []state.Session{{
@@ -1642,7 +1480,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		mock := &captureMock{
 			listSessions: listSessionsFor("zeta", "alpha"),
 			listPanes: strings.Join([]string{
-				// Out-of-order window indices and pane indices to verify sort.
 				paneLine("zeta", 1, "z1", "L", false, false, 1, "/z1.1", false, "zsh"),
 				paneLine("zeta", 1, "z1", "L", false, false, 0, "/z1.0", true, "zsh"),
 				paneLine("zeta", 0, "z0", "L", false, true, 0, "/z0.0", true, "zsh"),
@@ -1674,8 +1511,6 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 		if len(w1.Panes) != 2 || w1.Panes[0].Index != 0 || w1.Panes[1].Index != 1 {
 			t.Errorf("zeta window 1 pane order = %+v, want indices [0, 1]", w1.Panes)
 		}
-		// Skip-set authority is preserved at matching coords: prev's CWD wins
-		// for zeta:0.0.
 		p := findPane(idx, "zeta", 0, 0)
 		if p == nil || p.CWD != "/prev" || p.CurrentCommand != "vim" {
 			t.Errorf("zeta:0.0 = %+v, want prev's /prev + vim", p)
@@ -1683,11 +1518,8 @@ func TestCaptureStructureMergeSkippedPanes(t *testing.T) {
 	})
 }
 
-// failFastCaptureClient is a CaptureClient implementation that lets a test
-// drive an error from ListSessionNames without going through *tmux.Client
-// (which swallows list-sessions exec errors). ListAllPanesWithFormat and
-// ShowEnvironment t.Fatalf if invoked — they MUST NOT run after a pre-loop
-// fail-fatal on ListSessionNames.
+// *tmux.Client swallows list-sessions exec errors, so only a bespoke fake can
+// drive a ListSessionNames failure. The other two methods fail the test.
 type failFastCaptureClient struct {
 	t                   *testing.T
 	listSessionNames    []string
@@ -1708,23 +1540,8 @@ func (f *failFastCaptureClient) ShowEnvironment(session string) (string, error) 
 	return "", nil
 }
 
-// TestCaptureStructurePreLoopFailFatal pins the invariant from spec § Component
-// E (lines 315, 339): the pre-loop tmux calls — ListSessionNames,
-// ListAllPanesWithFormat, and parsePaneRows — MUST remain fail-fatal. A
-// regression that relaxed any of these to log-and-continue would silently
-// produce partial or empty indexes that the daemon would then Commit, wiping
-// scrollback. These tests are orthogonal to the per-session log-and-continue
-// behaviour exercised by TestCaptureStructurePerSessionLogAndContinue: they
-// assert the pre-loop discipline that protects the per-session loop from ever
-// running on a broken capture.
 func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 	t.Run("it returns an error when ListSessionNames fails and does not call show-environment", func(t *testing.T) {
-		// Bypass tmux.NewClient — *tmux.Client.ListSessions swallows the
-		// underlying exec error (returns []Session{}, nil) so it cannot
-		// drive a ListSessionNames failure path. The CaptureStructure /
-		// CaptureClient contract is what we're pinning here: if the client
-		// returns an error from ListSessionNames, CaptureStructure must
-		// fail-fatal and skip downstream commands.
 		client := &failFastCaptureClient{
 			t:                   t,
 			listSessionNamesErr: errors.New("exec: tmux broken"),
@@ -1737,9 +1554,6 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 		if len(idx.Sessions) != 0 {
 			t.Errorf("expected empty Sessions on pre-loop fail-fatal, got %d", len(idx.Sessions))
 		}
-		// Pre-loop fail-fatal on dispatch: tmux is broken, so no downstream
-		// commands run. The failFastCaptureClient t.Fatalfs if either is
-		// invoked.
 	})
 
 	t.Run("it returns an error when ListAllPanesWithFormat fails with non-empty keep", func(t *testing.T) {
@@ -1757,8 +1571,6 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 		if len(idx.Sessions) != 0 {
 			t.Errorf("expected empty Sessions on pre-loop fail-fatal, got %d", len(idx.Sessions))
 		}
-		// list-panes was attempted (and failed); the per-session loop must
-		// not have been entered.
 		if mock.listPanesCalls != 1 {
 			t.Errorf("list-panes calls = %d, want 1", mock.listPanesCalls)
 		}
@@ -1768,9 +1580,6 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 	})
 
 	t.Run("it returns an error when parsePaneRows hits a malformed row", func(t *testing.T) {
-		// Malformed row: too few "|||"-separated fields. captureFormat
-		// expects 11; this emits 3. parsePaneRows must return an error and
-		// CaptureStructure must propagate it before the per-session loop.
 		mock := &captureMock{
 			listSessions: listSessionsFor("work"),
 			listPanes:    "work|||0|||main",
@@ -1791,10 +1600,6 @@ func TestCaptureStructurePreLoopFailFatal(t *testing.T) {
 	})
 
 	t.Run("it returns an empty index with nil error when keep is empty after filtering", func(t *testing.T) {
-		// Only internal-prefixed sessions present: keep is empty after the
-		// internalSessionPrefix filter. The pre-loop list-panes call is
-		// skipped (gated on len(keep) > 0) and the per-session loop never
-		// runs. Result is the canonical empty index with nil err.
 		mock := &captureMock{
 			listSessions: listSessionsFor("_portal-saver"),
 			t:            t,

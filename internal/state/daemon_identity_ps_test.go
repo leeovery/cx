@@ -7,11 +7,6 @@ import (
 	"testing"
 )
 
-// TestDefaultIdentifyPS_NonExistentPIDReturnsEmptyStdout verifies the
-// IdentifyDaemon pid-not-found contract holds through defaultIdentifyPS: a
-// virtually-guaranteed-nonexistent pid makes ps exit non-zero with empty
-// stdout, so the returned stdout is empty (which IdentifyDaemon classifies as
-// IdentifyDead).
 func TestDefaultIdentifyPS_NonExistentPIDReturnsEmptyStdout(t *testing.T) {
 	out, err := defaultIdentifyPS(0x7FFFFFFE)
 	if err == nil {
@@ -22,9 +17,6 @@ func TestDefaultIdentifyPS_NonExistentPIDReturnsEmptyStdout(t *testing.T) {
 	}
 }
 
-// TestDefaultIdentifyPS_ErrorEmbedsPSArgv verifies the wrapped error carries the
-// ps binary path and argv on non-zero exit, and remains errors.As-recoverable
-// to *exec.ExitError.
 func TestDefaultIdentifyPS_ErrorEmbedsPSArgv(t *testing.T) {
 	_, err := defaultIdentifyPS(0x7FFFFFFE)
 	if err == nil {

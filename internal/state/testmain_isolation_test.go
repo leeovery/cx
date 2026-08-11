@@ -1,12 +1,8 @@
 package state_test
 
-// TestMain poisons every PORTAL_*_FILE / PORTAL_STATE_DIR env var to a
-// deliberately-invalid path before any test in this package binary runs. See
-// cmd/testmain_isolation_test.go for the full rationale. Tests that correctly
-// isolate via t.Setenv (or portaltest.IsolateStateForTest) override the
-// poison normally; tests that forget to isolate fail loudly against the
-// /nonexistent paths instead of silently mutating the developer's real
-// ~/.config/portal/ configuration.
+// TestMain poisons every PORTAL_* path env var before any test runs, so a test
+// that forgets to isolate fails loudly instead of quietly mutating the
+// developer's real configuration.
 
 import (
 	"os"

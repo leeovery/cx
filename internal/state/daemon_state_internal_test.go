@@ -27,8 +27,8 @@ func TestReadDaemonFile(t *testing.T) {
 
 	t.Run("wraps other I/O errors with read <basename> prefix", func(t *testing.T) {
 		dir := t.TempDir()
-		// A directory cannot be read as a regular file — os.ReadFile returns a
-		// non-ENOENT error here, exercising the generic-error branch.
+		// A directory read as a file gives a non-ENOENT error, which is the
+		// generic-error branch.
 		path := filepath.Join(dir, "subdir")
 		if err := os.Mkdir(path, 0o755); err != nil {
 			t.Fatalf("mkdir: %v", err)
@@ -51,10 +51,6 @@ func TestReadDaemonFile(t *testing.T) {
 	})
 
 	t.Run("preserves the *os.PathError so errors.Is(fs.ErrPermission) traverses the %w wrap", func(t *testing.T) {
-		// Boundary class 3 contract: a non-ENOENT os.ReadFile failure must wrap
-		// with %w so the underlying *os.PathError stays reachable. A 0o000 file
-		// yields EACCES → errors.Is(err, fs.ErrPermission) must traverse the
-		// "read <basename>: %w" wrap. (An errors.New or %s wrap would drop it.)
 		if runtime.GOOS == "windows" {
 			t.Skip("0o000 perm semantics differ on Windows")
 		}

@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/xdg"
 )
 
-// Filenames inside the state directory. Kept private — callers should compose
-// paths via the accessor functions below so the layout stays in one place.
 const (
 	sessionsJSONName  = "sessions.json"
 	saveRequestedName = "save.requested"
@@ -23,16 +21,8 @@ const (
 	scrollbackSubdir  = "scrollback"
 )
 
-// Dir resolves the absolute path to Portal's state directory.
-//
-// Resolution order:
-//  1. $PORTAL_STATE_DIR — used verbatim, no suffix appended.
-//  2. $XDG_CONFIG_HOME/portal/state — when XDG_CONFIG_HOME is set.
-//  3. $HOME/.config/portal/state — fallback.
-//
-// Unlike the cmd-package config helpers, Dir does not perform any one-shot
-// migration from legacy macOS paths: the state directory is new in this
-// feature and has no prior location to migrate from.
+// Dir resolves the absolute path to Portal's state directory: $PORTAL_STATE_DIR
+// verbatim when set, otherwise <XDG config base>/portal/state.
 func Dir() (string, error) {
 	if envPath := os.Getenv("PORTAL_STATE_DIR"); envPath != "" {
 		return envPath, nil
@@ -45,9 +35,9 @@ func Dir() (string, error) {
 	return filepath.Join(base, "portal", "state"), nil
 }
 
-// EnsureDir resolves and creates the state directory and its scrollback
-// subdirectory with mode 0700, returning the resolved state directory path.
-// It is idempotent: existing directories are left in place.
+// EnsureDir creates the state directory and its scrollback subdirectory with
+// mode 0700 and returns the state directory path. Existing directories are
+// left in place.
 func EnsureDir() (string, error) {
 	dir, err := Dir()
 	if err != nil {
@@ -73,17 +63,9 @@ func SessionsJSON(dir string) string { return filepath.Join(dir, sessionsJSONNam
 // `portal state notify`.
 func SaveRequested(dir string) string { return filepath.Join(dir, saveRequestedName) }
 
-// TouchSaveRequested creates-or-truncates save.requested under dir and bumps
-// its mtime to wall-clock now. It is the single source of truth for the
-// dirty-flag touch sequence consumed by `portal state notify` and by
-// commit-now's @portal-restoring short-circuit / failure-path fallback.
-//
-// The open+truncate step is the load-bearing one (the daemon's tick polls
-// for the file's presence on every loop iteration). The Chtimes call is
-// best-effort: a save.requested that exists but failed an mtime bump still
-// satisfies the daemon's dirty-flag check on the next tick. The open/close
-// errors are wrapped with a "touch save.requested" prefix; Chtimes errors
-// are deliberately swallowed.
+// TouchSaveRequested creates-or-truncates the save.requested dirty flag under
+// dir and bumps its mtime. The mtime bump is best-effort and its error is
+// swallowed: the daemon's tick only checks the file's presence.
 func TouchSaveRequested(dir string) error {
 	path := SaveRequested(dir)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -104,9 +86,7 @@ func DaemonPID(dir string) string { return filepath.Join(dir, daemonPIDName) }
 // DaemonVersion returns the path to the daemon's version-marker file.
 func DaemonVersion(dir string) string { return filepath.Join(dir, daemonVersionName) }
 
-// DaemonLock returns the path to the daemon's advisory-lock file. The file
-// itself is created and flocked by AcquireDaemonLock; this accessor only
-// composes the path so the layout stays in one place.
+// DaemonLock returns the path to the daemon's advisory-lock file.
 func DaemonLock(dir string) string { return filepath.Join(dir, daemonLockName) }
 
 // PortalLog returns the path to the current portal log file.
@@ -130,12 +110,8 @@ func FIFOPath(dir, paneKey string) string {
 	return filepath.Join(dir, "hydrate-"+paneKey+".fifo")
 }
 
-// PaneKeyFromFIFOPath is the inverse of FIFOPath's filename component: it
-// recovers the canonical paneKey embedded in a hydration FIFO path. It accepts
-// either an absolute path or a bare basename — filepath.Base is idempotent on
-// a basename. Inputs that lack the "hydrate-" prefix and/or ".fifo" suffix are
-// returned with whichever fixtures are present trimmed; an input that has
-// neither is returned unchanged.
+// PaneKeyFromFIFOPath recovers the paneKey from a hydration FIFO path or bare
+// basename. An absent prefix or suffix is simply not trimmed.
 func PaneKeyFromFIFOPath(path string) string {
 	name := filepath.Base(path)
 	name = strings.TrimSuffix(name, ".fifo")
