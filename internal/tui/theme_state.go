@@ -143,13 +143,6 @@ type themeState struct {
 	// failed write (see commitConstant). Capture fixtures declare it directly.
 	commitFailed bool
 
-	// flashOrigin is the precedence tier of the active inline flash: a
-	// theme-origin flash claims the notice slot even while the filter line is
-	// live, while every other flash keeps today's order. It is reset to
-	// flashOriginDefault by setFlash / setSuccessFlash and stamped only by
-	// setThemeFlash, so the tier can never be inherited by an unrelated message.
-	flashOrigin flashOrigin
-
 	// The three capture-only seeds below let the offline harness render frames a
 	// one-shot render cannot otherwise reach. Each is a no-op at its zero value and
 	// production never sets any of them.

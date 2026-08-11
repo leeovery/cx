@@ -65,8 +65,8 @@ func requireReportRaised(t *testing.T, m Model) {
 	if got := m.flashText; got != specThemeNotSavedFlash {
 		t.Errorf("the close raised %q, want §14A's %q", got, specThemeNotSavedFlash)
 	}
-	if m.themeState.flashOrigin != flashOriginTheme {
-		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line (§14A)", m.themeState.flashOrigin)
+	if m.flashOrigin != flashOriginTheme {
+		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line (§14A)", m.flashOrigin)
 	}
 	if m.flashKind != flashWarning {
 		t.Errorf("the report carries kind %v, want the ordinary warning flash", m.flashKind)

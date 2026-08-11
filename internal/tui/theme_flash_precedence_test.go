@@ -34,8 +34,8 @@ func TestThemeFlash_OriginDiscriminator(t *testing.T) {
 	t.Run("a fresh model carries the default origin", func(t *testing.T) {
 		m := noticeBandModel("alpha-row")
 
-		if m.themeState.flashOrigin != flashOriginDefault {
-			t.Errorf("a fresh model's flash origin = %v, want the default origin", m.themeState.flashOrigin)
+		if m.flashOrigin != flashOriginDefault {
+			t.Errorf("a fresh model's flash origin = %v, want the default origin", m.flashOrigin)
 		}
 	})
 
@@ -48,8 +48,8 @@ func TestThemeFlash_OriginDiscriminator(t *testing.T) {
 		if got := m.flashText; got != themePanelNoColorFlash {
 			t.Errorf("flashText = %q, want the raised copy %q", got, themePanelNoColorFlash)
 		}
-		if m.themeState.flashOrigin != flashOriginTheme {
-			t.Errorf("flash origin = %v, want the theme origin", m.themeState.flashOrigin)
+		if m.flashOrigin != flashOriginTheme {
+			t.Errorf("flash origin = %v, want the theme origin", m.flashOrigin)
 		}
 		if m.flashKind != flashWarning {
 			t.Errorf("flash kind = %v, want flashWarning — a theme flash is an ordinary warning band", m.flashKind)
@@ -80,8 +80,8 @@ func TestThemeFlash_OriginDiscriminator(t *testing.T) {
 
 		m.setFlash("__ORDINARY__")
 
-		if m.themeState.flashOrigin != flashOriginDefault {
-			t.Errorf("flash origin after setFlash = %v, want the default — an ordinary flash never inherits the theme tier", m.themeState.flashOrigin)
+		if m.flashOrigin != flashOriginDefault {
+			t.Errorf("flash origin after setFlash = %v, want the default — an ordinary flash never inherits the theme tier", m.flashOrigin)
 		}
 	})
 
@@ -91,8 +91,8 @@ func TestThemeFlash_OriginDiscriminator(t *testing.T) {
 
 		m.setSuccessFlash("__ORDINARY__")
 
-		if m.themeState.flashOrigin != flashOriginDefault {
-			t.Errorf("flash origin after setSuccessFlash = %v, want the default — an ordinary flash never inherits the theme tier", m.themeState.flashOrigin)
+		if m.flashOrigin != flashOriginDefault {
+			t.Errorf("flash origin after setSuccessFlash = %v, want the default — an ordinary flash never inherits the theme tier", m.flashOrigin)
 		}
 		if m.flashKind != flashSuccess {
 			t.Errorf("flash kind after setSuccessFlash = %v, want flashSuccess", m.flashKind)
@@ -213,8 +213,8 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				if got := m.flashText; got != tc.want {
 					t.Fatalf("the raised copy is %q, want §14A's %q", got, tc.want)
 				}
-				if m.themeState.flashOrigin != flashOriginTheme {
-					t.Errorf("%q carries origin %v, want the theme origin — it must be raised through setThemeFlash", tc.want, m.themeState.flashOrigin)
+				if m.flashOrigin != flashOriginTheme {
+					t.Errorf("%q carries origin %v, want the theme origin — it must be raised through setThemeFlash", tc.want, m.flashOrigin)
 				}
 			})
 		}
@@ -531,8 +531,8 @@ func raiseBlockedThemeFlash(t *testing.T, m Model) Model {
 	t.Helper()
 	m, cmd := pressThemeKeyCmd(t, m)
 	requireBlocked(t, m, cmd, specNoColorEntryFlash)
-	if m.themeState.flashOrigin != flashOriginTheme {
-		t.Fatalf("the blocked `t` raised a flash with origin %v, want the theme origin", m.themeState.flashOrigin)
+	if m.flashOrigin != flashOriginTheme {
+		t.Fatalf("the blocked `t` raised a flash with origin %v, want the theme origin", m.flashOrigin)
 	}
 	return m
 }
@@ -653,8 +653,8 @@ func TestThemeFlash_NonThemeFlashUnchanged(t *testing.T) {
 
 				m.setFlash(ordinary)
 
-				if m.themeState.flashOrigin != flashOriginDefault {
-					t.Errorf("an ordinary flash carries origin %v, want the default", m.themeState.flashOrigin)
+				if m.flashOrigin != flashOriginDefault {
+					t.Errorf("an ordinary flash carries origin %v, want the default", m.flashOrigin)
 				}
 				requireBandOwnsTheSlot(t, s, m, ordinary)
 				requireFilterRowUnaffected(t, s, m, baseline, s.query)

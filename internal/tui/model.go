@@ -405,6 +405,12 @@ type Model struct {
 	// notice-band primitive paints the matching bar colour + glyph. It is reset to
 	// flashWarning by every setFlash and is irrelevant once flashText is empty.
 	flashKind flashKind
+	// flashOrigin is the precedence tier of the active inline flash: a
+	// theme-origin flash claims the notice slot even while the filter line is
+	// live, while every other flash keeps today's order. It is reset to
+	// flashOriginDefault by setFlash / setSuccessFlash and stamped only by
+	// setThemeFlash, so the tier can never be inherited by an unrelated message.
+	flashOrigin flashOrigin
 	// byTagSignpost is the persistent "No tags yet" signpost flag — By Tag with
 	// zero tags anywhere. It is set true by rebuildSessionList whenever
 	// ModeByTag is active AND no project carries any tag — the zero-tags-anywhere
@@ -2311,7 +2317,7 @@ func (m *Model) setFlash(text string) {
 	// the previous flash stamped — is what keeps the theme flashes' precedence over
 	// the filter line SCOPED to them: an ordinary flash raised after a theme one
 	// must not inherit the tier.
-	m.themeState.flashOrigin = flashOriginDefault
+	m.flashOrigin = flashOriginDefault
 	m.resyncPageLayouts()
 }
 
@@ -2327,7 +2333,7 @@ func (m *Model) setFlash(text string) {
 // into it.
 func (m *Model) setThemeFlash(text string) {
 	m.setFlash(text)
-	m.themeState.flashOrigin = flashOriginTheme
+	m.flashOrigin = flashOriginTheme
 }
 
 // setSuccessFlash records an inline flash styled as the SUCCESS variant — a
