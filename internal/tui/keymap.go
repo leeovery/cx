@@ -59,6 +59,20 @@ type keymapEntry struct {
 	Destructive bool
 }
 
+// navKeymapEntries returns the nav and page rows the list descriptors open with,
+// declared once so the arrow glyphs and their help labels cannot disagree between
+// the surfaces that render them. Both are non-Core: arrows in a list are a given,
+// so the footers omit them.
+//
+// previewKeymap deliberately does not lead with these: its page row carries its own
+// help label, so it is a different row that merely shares a glyph.
+func navKeymapEntries() []keymapEntry {
+	return []keymapEntry{
+		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
+		{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
+	}
+}
+
 // sessionsKeymap returns the ordered Sessions keymap descriptor. It enumerates
 // every Sessions binding exactly once and classifies each as a footer-core key or
 // a help-only key.
@@ -102,9 +116,7 @@ type keymapEntry struct {
 // parity check probes THIS descriptor with detection unwired and `colourless`
 // false, so a filter re-homed into it is precisely what breaks that parity.
 func sessionsKeymap() []keymapEntry {
-	return []keymapEntry{
-		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
-		{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
+	return append(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", HelpKey: "⏎", Action: "attach", HelpAction: "Open / attach session", Core: true},
 		{Key: "/", Action: "filter", HelpAction: "Filter sessions", Core: true},
 		{Key: "␣", HelpKey: "␣", Action: "preview", HelpAction: "Preview scrollback", Core: true},
@@ -117,7 +129,7 @@ func sessionsKeymap() []keymapEntry {
 		{Key: "t", Action: "theme", HelpAction: "Theme picker", Core: true},
 		{Key: "m", Action: "multi", HelpAction: "Multi-select mode", Core: true},
 		{Key: "?", Action: "help", HelpAction: "Show this help", Core: true, RightAligned: true},
-	}
+	}...)
 }
 
 // projectsKeymap returns the ordered Projects keymap descriptor. It enumerates
@@ -149,9 +161,7 @@ func sessionsKeymap() []keymapEntry {
 // is applied at the call site (Model.projectsHelpKeymap), so the descriptor↔dispatch
 // parity check keeps probing the full descriptor.
 func projectsKeymap() []keymapEntry {
-	return []keymapEntry{
-		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
-		{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
+	return append(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", Action: "new session", HelpAction: "New session from project", Core: true},
 		{Key: "x", Action: "sessions", HelpAction: "Switch to Sessions", Core: true},
 		{Key: "e", Action: "edit", HelpAction: "Edit project", Core: true},
@@ -162,7 +172,7 @@ func projectsKeymap() []keymapEntry {
 		{Key: "q", Action: "quit", HelpAction: "Quit"},
 		{Key: "esc", Action: "back", HelpAction: "Back / quit"},
 		{Key: "?", Action: "help", HelpAction: "Show this help", Core: true, RightAligned: true},
-	}
+	}...)
 }
 
 // themePanelKeymap returns the theme-panel keymap scope — the panel's own
@@ -202,14 +212,12 @@ func projectsKeymap() []keymapEntry {
 // never calls this function: the shape must admit substitution rather than assume
 // one footer per panel.
 func themePanelKeymap() []keymapEntry {
-	return []keymapEntry{
-		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
-		{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
+	return append(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", Action: "set theme", HelpAction: "Set as the theme", Core: true},
 		{Key: "d", Action: "set as dark", HelpAction: "Assign to the dark slot", Core: true},
 		{Key: "l", Action: "set as light", HelpAction: "Assign to the light slot", Core: true},
 		{Key: "esc", Action: "close", HelpAction: "Close the theme picker", Core: true},
-	}
+	}...)
 }
 
 // themePanelConfirmKeymap returns the NESTED CONFIRM SCOPE — the keys the

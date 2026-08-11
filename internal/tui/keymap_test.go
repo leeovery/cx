@@ -139,3 +139,48 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 	})
 }
+
+// TestNavKeymapEntries locks the shared nav/page pair as the ONE declaration the
+// three list descriptors lead with. Sessions, Projects and the theme panel all open
+// on the same two rows, so a copy edit to the arrow glyph or its help label must be
+// a single edit — three restatements of the same literal is how one surface silently
+// starts disagreeing with the others about the arrows.
+//
+// previewKeymap is deliberately NOT in scope: its page entry carries a different
+// HelpAction ("Page up / down"), so it is not the same row.
+func TestNavKeymapEntries(t *testing.T) {
+	shared := navKeymapEntries()
+
+	t.Run("it declares the non-core nav and page rows in that order", func(t *testing.T) {
+		want := []keymapEntry{
+			{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
+			{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
+		}
+		if len(shared) != len(want) {
+			t.Fatalf("shared nav entries = %d, want %d: %+v", len(shared), len(want), shared)
+		}
+		for i, w := range want {
+			if shared[i] != w {
+				t.Errorf("entry[%d] = %+v, want %+v", i, shared[i], w)
+			}
+		}
+	})
+
+	t.Run("every list descriptor leads with the shared pair", func(t *testing.T) {
+		descriptors := map[string][]keymapEntry{
+			"sessionsKeymap":   sessionsKeymap(),
+			"projectsKeymap":   projectsKeymap(),
+			"themePanelKeymap": themePanelKeymap(),
+		}
+		for name, entries := range descriptors {
+			if len(entries) < len(shared) {
+				t.Fatalf("%s has %d entries, want at least %d", name, len(entries), len(shared))
+			}
+			for i, w := range shared {
+				if entries[i] != w {
+					t.Errorf("%s entry[%d] = %+v, want the shared %+v", name, i, entries[i], w)
+				}
+			}
+		}
+	})
+}
