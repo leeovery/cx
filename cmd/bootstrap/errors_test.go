@@ -99,8 +99,6 @@ func TestSaverDownWarning_returnsExactSpecCopy(t *testing.T) {
 	assertRepointedToDoctor(t, got)
 }
 
-// assertRepointedToDoctor asserts a soft-bootstrap warning points the user at
-// `portal doctor` and never at the removed `portal state status` command.
 func assertRepointedToDoctor(t *testing.T, w Warning) {
 	t.Helper()
 	body := strings.Join(w.Lines, "\n")
