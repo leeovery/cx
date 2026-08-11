@@ -81,7 +81,7 @@ func TestApplyTheme_RestylesWithoutRebuild(t *testing.T) {
 			m.ApplyTheme(after)
 
 			if len(reader.reads) != 0 {
-				t.Errorf("ApplyTheme performed %d lazy pane read(s) %v — a swap is the O(1) restyle (§11.1), never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
+				t.Errorf("ApplyTheme performed %d lazy pane read(s) %v — a swap is the O(1) restyle, never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
 			}
 
 			frame := m.viewSessionList()
@@ -252,7 +252,7 @@ func TestApplyTheme_PerformsNoFileRead(t *testing.T) {
 
 	t.Run("the model holds no theme loader", func(t *testing.T) {
 		for _, path := range loaderFields(reflect.TypeFor[Model](), "Model") {
-			t.Errorf("%s is a theme.Loader — a swap takes a LOADED palette (§5.8); a loader on the model is the shape through which one would grow a file read", path)
+			t.Errorf("%s is a theme.Loader — a swap takes a LOADED palette; a loader on the model is the shape through which one would grow a file read", path)
 		}
 	})
 }
@@ -315,7 +315,7 @@ func TestApplyTheme_DoesNotMoveStartupCanvasHex(t *testing.T) {
 
 	m.ApplyTheme(after)
 	if m.themeState.startupCanvasHex != startup {
-		t.Errorf("after one swap startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4), never re-derived from the active theme", m.themeState.startupCanvasHex, startup)
+		t.Errorf("after one swap startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution, never re-derived from the active theme", m.themeState.startupCanvasHex, startup)
 	}
 
 	for range 50 {

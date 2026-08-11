@@ -52,7 +52,7 @@ func TestAssembleRightAnchoredRow_NarrowDegradeKeepsAnchorDropsCluster(t *testin
 		t.Errorf("narrow-degrade row != headerPadLeft(rightSeg, …):\n got=%q\nwant=%q", row, want)
 	}
 	if !strings.Contains(footerVisible(row), "? help") {
-		t.Errorf("narrow-degrade row must KEEP the ? help anchor (§14.4):\n%q", footerVisible(row))
+		t.Errorf("narrow-degrade row must KEEP the ? help anchor:\n%q", footerVisible(row))
 	}
 	if strings.Contains(footerVisible(row), "left") {
 		t.Errorf("narrow-degrade row must drop the left cluster beneath the anchor:\n%q", footerVisible(row))
@@ -124,7 +124,7 @@ func TestFooters_RouteThroughSharedAssembler_NarrowDegradeIdentical(t *testing.T
 			t.Errorf("[%s w=%d] assembler degrade != headerPadLeft(rightSeg, …):\n got=%q\nwant=%q", name, w, got, want)
 		}
 		if !strings.Contains(footerVisible(got), "? help") {
-			t.Errorf("[%s w=%d] assembler degrade must KEEP the ? help anchor (§14.4):\n%q", name, w, footerVisible(got))
+			t.Errorf("[%s w=%d] assembler degrade must KEEP the ? help anchor:\n%q", name, w, footerVisible(got))
 		}
 	}
 

@@ -356,7 +356,7 @@ func TestPersistTranslation_EventShape(t *testing.T) {
 		t.Errorf("level = %v, want INFO — the migration is a forensic trail, not a warning", rec.Level)
 	}
 	if want := "appearance migrated"; rec.Msg != want {
-		t.Errorf("message = %q, want %q verbatim from §12.3's catalogue", rec.Msg, want)
+		t.Errorf("message = %q, want %q verbatim from the event catalogue", rec.Msg, want)
 	}
 	if want := []string{"component", "slug"}; !slices.Equal(rec.Keys, want) {
 		t.Errorf("attr keys = %v, want %v (the bound component plus slug alone)", rec.Keys, want)
@@ -374,7 +374,7 @@ func TestPersistTranslation_EventShape(t *testing.T) {
 			continue
 		}
 		if !closed[key] {
-			t.Errorf("attr %q is outside §12.3's closed key set %v", key, slices.Sorted(maps.Keys(closed)))
+			t.Errorf("attr %q is outside the theme component's closed key set %v", key, slices.Sorted(maps.Keys(closed)))
 		}
 	}
 }

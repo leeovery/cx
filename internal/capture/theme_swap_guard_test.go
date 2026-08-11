@@ -425,7 +425,7 @@ func TestThemeSwapGuard_EveryTokenExercisedByAFixture(t *testing.T) {
 
 	t.Run("every token in the vocabulary is rendered by some fixture", func(t *testing.T) {
 		for _, name := range uncoveredTokens(coveredTokens(frames, bForms)) {
-			t.Errorf("token %s renders on no included fixture, so it is absent from BOTH of assertion 2's unions, they balance, and nothing reports it — ADD A FIXTURE that renders %s. Do NOT exempt the token: an exemption is the permanent render-layer carve-out this guard exists to catch (§9.11). Do NOT weaken this to the tokens observed under theme A: that is assertion 2, and its A/B balance is exactly what hides the gap", name, name)
+			t.Errorf("token %s renders on no included fixture, so it is absent from BOTH of assertion 2's unions, they balance, and nothing reports it — ADD A FIXTURE that renders %s. Do NOT exempt the token: an exemption is the permanent render-layer carve-out this guard exists to catch. Do NOT weaken this to the tokens observed under theme A: that is assertion 2, and its A/B balance is exactly what hides the gap", name, name)
 		}
 	})
 

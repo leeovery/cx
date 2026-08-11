@@ -188,7 +188,7 @@ func TestRenderSwapRender_MutatesASingleModel(t *testing.T) {
 	t.Run("exactly one model is constructed", func(t *testing.T) {
 		body := harnessFuncBody(t, "RenderSwapRender")
 		if got := countCalls(body, "ModelAt"); got != 1 {
-			t.Errorf("RenderSwapRender makes %d ModelAt call(s), want exactly 1 — building one model per theme is §13.4's vacuous-pass shape", got)
+			t.Errorf("RenderSwapRender makes %d ModelAt call(s), want exactly 1 — building one model per theme is the vacuous-pass shape", got)
 		}
 		if got := countCalls(body, "Build"); got != 0 {
 			t.Errorf("RenderSwapRender makes %d tui.Build call(s), want 0 — the second frame comes from swapping the first model, never from a second one", got)

@@ -50,7 +50,7 @@ func TestResolveAdapter(t *testing.T) {
 			}
 
 			if resolution == ResolutionConfig {
-				t.Errorf("resolution = %q, want never ResolutionConfig in Phase 2", resolution)
+				t.Errorf("resolution = %q, want never ResolutionConfig with no config loaded", resolution)
 			}
 			if resolution == ResolutionUnsupported && adapter != nil {
 				t.Errorf("adapter = %T with ResolutionUnsupported, want nil", adapter)

@@ -50,7 +50,7 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 				t.Error("input 3b: the fixture declares no slot resolutions, so no row carries a ● at all")
 			}
 			if fx.initialThemeCursor == "" {
-				t.Error("input 4: the fixture declares no cursor row; §13.3 makes the cursor position a declared input precisely because a one-shot render cannot arrow to it")
+				t.Error("input 4: the fixture declares no cursor row; the cursor position is a declared input precisely because a one-shot render cannot arrow to it")
 			}
 
 			deps := fx.Deps(theme.Theme{})
@@ -112,7 +112,7 @@ func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 
 	t.Run("the nomination reports the injected palette", func(t *testing.T) {
 		if !resolution.Nomination.IsConstant() {
-			t.Fatal("Resolve's nomination is not the constant shape capturetool pins (§13.3)")
+			t.Fatal("Resolve's nomination is not the constant shape capturetool pins")
 		}
 		if active := resolution.Nomination.Constant(); active != injected {
 			t.Errorf("the nomination carries canvas %q, want the injected %q", active.Canvas.Value, injected.Canvas.Value)

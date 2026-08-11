@@ -44,8 +44,7 @@ func TestNotifyCommand_TouchesSaveRequestedAndWritesNoSessionsJSON(t *testing.T)
 				blob, _ := os.ReadFile(sessionsJSONPath)
 				t.Fatalf(
 					"notify wrote sessions.json within %s of exit "+
-						"(spec § Acceptance Criteria items 9 and 13 "+
-						"require zero sessions.json writes from notify):\n"+
+						"(notify must make zero sessions.json writes):\n"+
 						"--- sessions.json contents ---\n%s\n"+
 						"--- state dir listing ---\n%s",
 					sixEventFiringWindow, string(blob), dumpStateDirForNotifyTest(dir),

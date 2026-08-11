@@ -131,7 +131,7 @@ func TestCompositeBootstrap_ExternalSaverKillTriggersSelfEject(t *testing.T) {
 	if !exited {
 		logBlob := portaltest.ReadPortalLogSafe(h.StateDir)
 		t.Fatalf("daemon (PID %d) did not exit within %s of external mismatch event; "+
-			"spec § Component D requires self-eject within (N+1)*TickerPeriod "+
+			"the daemon must self-eject within (N+1)*TickerPeriod "+
 			"= %s for N=%d (TickerPeriod=%s) plus slack\n"+
 			"  elapsed: %s\n"+
 			"  budget: %s\n"+
@@ -150,15 +150,15 @@ func TestCompositeBootstrap_ExternalSaverKillTriggersSelfEject(t *testing.T) {
 
 	if ejectIdx := strings.LastIndex(logBlob, selfEjectComposite_LogMarker); ejectIdx >= 0 &&
 		strings.Contains(logBlob[ejectIdx:], "capture: tick complete") {
-		t.Fatalf("a capture ran AFTER daemon: self-eject — spec § Component D requires "+
-			"NO final flush on self-eject (the eject tick MUST osExit(0) before tick())\n"+
+		t.Fatalf("a capture ran AFTER daemon: self-eject — the self-eject path must "+
+			"perform NO final flush (the eject tick MUST osExit(0) before tick())\n"+
 			"--- portal.log from the self-eject marker onward ---\n%s", logBlob[ejectIdx:])
 	}
 
 	pidPath := state.DaemonPID(h.StateDir)
 	if _, statErr := os.Stat(pidPath); statErr != nil {
 		t.Fatalf("daemon.pid missing post-eject: %v\n"+
-			"  spec § Component D bullet 4.iii: the stale daemon.pid is "+
+			"  the stale daemon.pid is "+
 			"intentional — os.Exit(0) MUST NOT trigger any cleanup defer\n"+
 			"--- portal.log ---\n%s", statErr, logBlob)
 	}
@@ -169,14 +169,15 @@ func TestCompositeBootstrap_ExternalSaverKillTriggersSelfEject(t *testing.T) {
 	if postEjectDaemonPID != survivorPID {
 		t.Fatalf("post-eject daemon.pid = %d; want survivor PID %d (stale-stays-stale)\n"+
 			"  the file was rewritten by some other writer between the daemon's "+
-			"WritePIDFile and its self-eject — Component D bullet 4.iii violation\n"+
+			"WritePIDFile and its self-eject — the stale pidfile must retain "+
+			"the ejecting daemon's PID\n"+
 			"--- portal.log ---\n%s",
 			postEjectDaemonPID, survivorPID, logBlob)
 	}
 
 	if !strings.Contains(logBlob, selfEjectComposite_LogMarker) {
 		t.Errorf("portal.log missing self-eject marker %q\n"+
-			"  spec § Component D bullet 4.i: the eject path MUST emit this INFO line\n"+
+			"  the eject path MUST emit this INFO line\n"+
 			"  observed eject (PID %d gone within %s), but the marker is absent — "+
 			"the daemon may have exited via a different path (SIGHUP, lock loss, ...)\n"+
 			"--- portal.log ---\n%s",

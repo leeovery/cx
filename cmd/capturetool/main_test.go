@@ -32,7 +32,7 @@ func TestFlags_AreFixtureAndThemeOnly(t *testing.T) {
 	slices.Sort(names)
 
 	if want := []string{"fixture", "theme"}; !slices.Equal(names, want) {
-		t.Errorf("registered flags = %v, want %v — a theme IS the mode, so there is no appearance left to pin (§13.3)", names, want)
+		t.Errorf("registered flags = %v, want %v — a theme IS the mode, so there is no appearance left to pin", names, want)
 	}
 	if got, want := flags["theme"], "defaultThemeSlug"; got != want {
 		t.Errorf("--theme default = %s, want the %s constant", got, want)
@@ -228,7 +228,7 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 				t.Fatalf("resolveTheme(%q) returned nil error, want the hard error %q", path, tt.wantReason)
 			}
 			if !strings.Contains(err.Error(), string(tt.wantReason)) {
-				t.Errorf("error %q does not carry the §6.2 reason %q", err.Error(), tt.wantReason)
+				t.Errorf("error %q does not carry the rejection reason %q", err.Error(), tt.wantReason)
 			}
 			if got != (theme.Theme{}) {
 				t.Error("resolveTheme returned a palette alongside its error")

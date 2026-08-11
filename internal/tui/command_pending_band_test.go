@@ -201,7 +201,7 @@ func TestCommandPendingFooter_SwappedCopy(t *testing.T) {
 
 	for _, want := range []string{"run here", "run in cwd", "cancel", "help"} {
 		if !strings.Contains(visible, want) {
-			t.Errorf("command-pending footer missing the §11.4 entry %q:\n%s", want, visible)
+			t.Errorf("command-pending footer missing the entry %q:\n%s", want, visible)
 		}
 	}
 	if strings.Contains(visible, "quit") {
@@ -209,7 +209,7 @@ func TestCommandPendingFooter_SwappedCopy(t *testing.T) {
 	}
 	for _, banned := range []string{"new session", "new in cwd"} {
 		if strings.Contains(visible, banned) {
-			t.Errorf("command-pending footer leaked non-§11.4 copy %q:\n%s", banned, visible)
+			t.Errorf("command-pending footer leaked non-command-pending copy %q:\n%s", banned, visible)
 		}
 	}
 }

@@ -146,7 +146,7 @@ func TestInlineFlashAttentionPairClearsFloor(t *testing.T) {
 	for _, slug := range slices.Sorted(maps.Keys(themes)) {
 		th := themes[slug]
 		t.Run(slug+"/text.on-attention", func(t *testing.T) {
-			assertAtLeast(t, slug+" §11.2 inline-flash message text.on-attention on bg.attention",
+			assertAtLeast(t, slug+" inline-flash message text.on-attention on bg.attention",
 				th.TextOnAttention.Value, th.BgAttention.Value, floorNormal)
 		})
 	}
@@ -168,7 +168,7 @@ func TestPreviewPeekChromeClearsFloorAgainstCanvas(t *testing.T) {
 
 		for _, part := range chrome {
 			t.Run(slug+"/"+part.token, func(t *testing.T) {
-				assertAtLeast(t, slug+" §9.1 preview chrome "+part.role+" ("+part.token+") vs canvas",
+				assertAtLeast(t, slug+" preview chrome "+part.role+" ("+part.token+") vs canvas",
 					part.value, th.Canvas.Value, floorNormal)
 			})
 		}

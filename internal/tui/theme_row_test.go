@@ -161,7 +161,7 @@ func TestThemeRow_ReasonLabelsAreTheSevenTerseStrings(t *testing.T) {
 		theme.ReasonNotFound,
 	}
 	if len(reasons) != 7 {
-		t.Fatalf("the table covers %d reasons, want all 7 of §6.2's vocabulary", len(reasons))
+		t.Fatalf("the table covers %d reasons, want all 7 of the rejection vocabulary", len(reasons))
 	}
 
 	for _, reason := range reasons {

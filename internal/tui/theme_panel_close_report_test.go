@@ -33,16 +33,16 @@ func requireReportRaised(t *testing.T, m Model) {
 	t.Helper()
 
 	if got := m.flashText; got != specThemeNotSavedFlash {
-		t.Errorf("the close raised %q, want §14A's %q", got, specThemeNotSavedFlash)
+		t.Errorf("the close raised %q, want %q", got, specThemeNotSavedFlash)
 	}
 	if m.flashOrigin != flashOriginTheme {
-		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line (§14A)", m.flashOrigin)
+		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line", m.flashOrigin)
 	}
 	if m.flashKind != flashWarning {
 		t.Errorf("the report carries kind %v, want the ordinary warning flash", m.flashKind)
 	}
 	if m.themeState.commitFailed {
-		t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state (§9.13)")
+		t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state")
 	}
 }
 
@@ -68,7 +68,7 @@ func requireReportTick(t *testing.T, m Model, cmd tea.Cmd) {
 
 	tick, ok := flashTickFrom(cmd)
 	if !ok {
-		t.Fatalf("no auto-clear tick reached Update's return (the close returned nothing at all: %t); the report inherits the standard flash lifecycle (§9.13)", cmd == nil)
+		t.Fatalf("no auto-clear tick reached Update's return (the close returned nothing at all: %t); the report inherits the standard flash lifecycle", cmd == nil)
 	}
 	if tick.Gen != m.flashGen {
 		t.Errorf("the tick carries generation %d, want the live %d — a stale generation is dropped by the guard and the report never clears", tick.Gen, m.flashGen)
@@ -87,7 +87,7 @@ func TestCloseReport_RaisesTheFlash(t *testing.T) {
 	requireReportRaised(t, m)
 	requireFlashBandVisible(t, m, specThemeNotSavedFlash)
 	if got := themeNotSavedFlash; got != specThemeNotSavedFlash {
-		t.Errorf("the pinned constant is %q, want §14A's %q", got, specThemeNotSavedFlash)
+		t.Errorf("the pinned constant is %q, want %q", got, specThemeNotSavedFlash)
 	}
 	if got, want := m.flashGen, gen+1; got != want {
 		t.Errorf("the report left the flash generation at %d, want %d — it rides the shared counter", got, want)
@@ -127,7 +127,7 @@ func TestCloseReport_ForcedCloseCommitFlashWins(t *testing.T) {
 			requireReportRaised(t, m)
 			requireReportTick(t, m, cmd)
 			if got := m.flashText; got == tc.wantGeometry {
-				t.Errorf("the forced close raised the geometry copy %q, want the report — the band has ONE slot and the report is the one the user must act on (§9.13)", got)
+				t.Errorf("the forced close raised the geometry copy %q, want the report — the band has ONE slot and the report is the one the user must act on", got)
 			}
 		})
 	}
@@ -146,7 +146,7 @@ func TestCloseReport_ForcedCloseGeometryFlashSurvives(t *testing.T) {
 
 			requireForcedClose(t, m, tc.wantGeometry)
 			if tick, ok := flashTickFrom(cmd); ok {
-				t.Errorf("the geometry flash scheduled the auto-clear tick %+v; it clears on the next actionable key instead (§9.8)", tick)
+				t.Errorf("the geometry flash scheduled the auto-clear tick %+v; it clears on the next actionable key instead", tick)
 			}
 			if m.themeState.commitFailed {
 				t.Error("the forced close left a failure outstanding where none was")
@@ -162,7 +162,7 @@ func requireCloseIsSilent(t *testing.T, m Model, cmd tea.Cmd, gen uint64) {
 		t.Fatal("Esc left the panel open")
 	}
 	if got := m.flashText; got != "" {
-		t.Errorf("the close raised %q, want nothing — only an OUTSTANDING failure is reported (§9.13)", got)
+		t.Errorf("the close raised %q, want nothing — only an OUTSTANDING failure is reported", got)
 	}
 	if m.flashGen != gen {
 		t.Errorf("the close moved the flash generation to %d, want the untouched %d — it raised no flash", m.flashGen, gen)
@@ -234,7 +234,7 @@ func TestCloseReport_CtrlCIsAnUndeliveredReport(t *testing.T) {
 	})
 
 	if !isQuitCmd(cmd) {
-		t.Fatalf("Ctrl-C returned %T, want tea.Quit — it is the one exit §9.7 keeps live inside the panel", cmd)
+		t.Fatalf("Ctrl-C returned %T, want tea.Quit — it is the one exit kept live inside the panel", cmd)
 	}
 	if !m.themePanel.open {
 		t.Error("Ctrl-C closed the panel; it quits from inside it, which is why no close hook runs and nothing is discharged")
@@ -293,7 +293,7 @@ func TestCloseReport_RevertStands(t *testing.T) {
 
 	requireReportRaised(t, m)
 	if m.themeState.active != persisted {
-		t.Errorf("the close rendered %s, want the resolved persisted %s — the write did not land, so `Esc` resolving to persisted state is right (§9.13)", themeLabel(m.themeState.active), themeLabel(persisted))
+		t.Errorf("the close rendered %s, want the resolved persisted %s — the write did not land, so `Esc` resolving to persisted state is right", themeLabel(m.themeState.active), themeLabel(persisted))
 	}
 	if m.themeState.keys != keys {
 		t.Errorf("the close left keys %+v, want the untouched %+v", m.themeState.keys, keys)

@@ -297,7 +297,7 @@ func TestListSessions_PortalSaverExclusionRefactorPin(t *testing.T) {
 	mustExclude := []string{tmux.PortalSaverName, tmux.PortalBootstrapName, "_foo"}
 	for _, name := range mustExclude {
 		if rendered[name] {
-			t.Errorf("rendered Sessions list contains %q; must be excluded at list-population source per spec § Cross-cutting Seams > _portal-saver Self-Reference", name)
+			t.Errorf("rendered Sessions list contains %q; underscore-prefixed internal sessions must be excluded at the list-population source", name)
 		}
 	}
 

@@ -117,7 +117,7 @@ func TestSessionsFooter_ListsMultiOnlyWhenFunctional(t *testing.T) {
 
 			footer := ansi.Strip(renderSessionsFooter(m.sessionsHelpKeymap(), referenceFooterWidth, m.themeState.active, m.colourless))
 			if got := strings.Contains(footer, multiSelectFooterLabel); got != tc.wantMulti {
-				t.Errorf("the condensed Sessions footer carries %q = %v, want %v (§14.1 lists it, §14.3 filters it where blocked):\n%s", multiSelectFooterLabel, got, tc.wantMulti, footer)
+				t.Errorf("the condensed Sessions footer carries %q = %v, want %v (help lists it, the footer filters it where blocked):\n%s", multiSelectFooterLabel, got, tc.wantMulti, footer)
 			}
 		})
 	}

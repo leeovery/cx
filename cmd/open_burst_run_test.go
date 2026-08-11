@@ -364,7 +364,7 @@ func TestRunOpenBurst_AllAttachWithCommand_UsageError(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *UsageError (exit 2)", err, err)
 	}
 	if want := "a command (-e/--) can only run in a newly-created session, not an existing one"; err.Error() != want {
-		t.Errorf("error = %q, want %q (Task 2-6's message)", err.Error(), want)
+		t.Errorf("error = %q, want %q verbatim", err.Error(), want)
 	}
 	if bursterBuilt {
 		t.Error("NewBurster must not be built on the zero-mint-command usage-error path")

@@ -49,7 +49,7 @@ func TestSessionsKeymapRevision(t *testing.T) {
 		}
 		m = pressSession(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 		if m.activePage != PageSessions {
-			t.Errorf("p must NOT navigate to Projects (§12.2 drops the p alias); active page = %d", m.activePage)
+			t.Errorf("p must NOT navigate to Projects (the p alias is dropped); active page = %d", m.activePage)
 		}
 	})
 
@@ -100,7 +100,7 @@ func TestSessionsKeymapRevision(t *testing.T) {
 			t.Errorf("? must not change the active page; got %d", after.activePage)
 		}
 		if after.modal != modalHelp {
-			t.Errorf("? must open the help modal (§8.5); modal = %v, want modalHelp", after.modal)
+			t.Errorf("? must open the help modal; modal = %v, want modalHelp", after.modal)
 		}
 	})
 
@@ -125,7 +125,7 @@ func TestSessionsKeymapRevision(t *testing.T) {
 			start := m.sessionList.Index()
 			m = pressSession(t, m, k)
 			if m.sessionList.Index() != start {
-				t.Errorf("key %+v must not move the Sessions cursor (§12.2: arrows only); index %d → %d", k, start, m.sessionList.Index())
+				t.Errorf("key %+v must not move the Sessions cursor (arrows only); index %d → %d", k, start, m.sessionList.Index())
 			}
 			if m.activePage != PageSessions {
 				t.Errorf("key %+v must not change the page; got %d", k, m.activePage)

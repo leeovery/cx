@@ -43,8 +43,7 @@ func TestRegisterPortalHooks_NonSessionClosedEventsRouteToNotifyCommand(t *testi
 			if got == expectedCommitNowCommand {
 				t.Errorf(
 					"event %q was REGRESSION-routed onto commitNowCommand %q; "+
-						"only session-closed may carry commitNowCommand per spec § "+
-						"Registration Redesign — \"Ensure Exactly One\"",
+						"only session-closed may carry commitNowCommand",
 					ev, expectedCommitNowCommand,
 				)
 			}

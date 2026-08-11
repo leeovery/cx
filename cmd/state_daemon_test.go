@@ -700,13 +700,12 @@ func TestStateDaemon_EmitsWarnOnLockContention(t *testing.T) {
 func TestSelfSupervisionHysteresisTicks_ClampInvariant(t *testing.T) {
 	if selfSupervisionHysteresisTicks < 3 {
 		t.Errorf("selfSupervisionHysteresisTicks=%d below clamp floor of 3 "+
-			"(spec § Component D rationale: N=1 would risk single-tmux-hiccup "+
-			"false-positive self-eject; spec floor is 3)",
+			"(N=1 would risk a single-tmux-hiccup false-positive self-eject)",
 			selfSupervisionHysteresisTicks)
 	}
 	if selfSupervisionHysteresisTicks > 9 {
 		t.Errorf("selfSupervisionHysteresisTicks=%d above clamp ceiling of 9 "+
-			"(spec § Risk Summary: max × 2 > 9 indicates upstream defect, "+
+			"(a measured max × 2 above 9 indicates an upstream defect, "+
 			"not a tuning-knob increase)",
 			selfSupervisionHysteresisTicks)
 	}

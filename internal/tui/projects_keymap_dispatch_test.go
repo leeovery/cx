@@ -83,7 +83,7 @@ func TestProjectsKeymapRevision(t *testing.T) {
 		}
 		m, _ = pressProject(t, m, tea.KeyPressMsg{Code: 's', Text: "s"})
 		if m.activePage != PageProjects {
-			t.Errorf("s must NOT toggle to Sessions (§12.2 drops the s alias); active page = %d", m.activePage)
+			t.Errorf("s must NOT toggle to Sessions (the s alias is dropped); active page = %d", m.activePage)
 		}
 	})
 
@@ -115,7 +115,7 @@ func TestProjectsKeymapRevision(t *testing.T) {
 			m := projectsDispatchModel(t)
 			m, _ = pressProject(t, m, k)
 			if m.activePage != PageProjects {
-				t.Errorf("uppercase key %+v must not toggle the page (§12.2: no uppercase); active page = %d", k, m.activePage)
+				t.Errorf("uppercase key %+v must not toggle the page (no uppercase); active page = %d", k, m.activePage)
 			}
 		}
 	})
@@ -141,7 +141,7 @@ func TestProjectsKeymapRevision(t *testing.T) {
 			start := m.projectList.Index()
 			m, _ = pressProject(t, m, k)
 			if m.projectList.Index() != start {
-				t.Errorf("key %+v must not move the Projects cursor (§12.2: arrows only); index %d → %d", k, start, m.projectList.Index())
+				t.Errorf("key %+v must not move the Projects cursor (arrows only); index %d → %d", k, start, m.projectList.Index())
 			}
 			if m.activePage != PageProjects {
 				t.Errorf("key %+v must not change the page; got %d", k, m.activePage)
@@ -269,7 +269,7 @@ func TestProjectsRetainedActionParity(t *testing.T) {
 			t.Errorf("? must not change the active page; got %d", after.activePage)
 		}
 		if after.modal != modalHelp {
-			t.Errorf("? must open the help modal (§8.5); modal = %v, want modalHelp", after.modal)
+			t.Errorf("? must open the help modal; modal = %v, want modalHelp", after.modal)
 		}
 	})
 }

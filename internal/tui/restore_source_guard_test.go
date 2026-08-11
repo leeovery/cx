@@ -70,7 +70,7 @@ func TestRestorePath_ReadsNoTheme(t *testing.T) {
 			root, rest, _ := strings.Cut(path, ".")
 			switch root {
 			case "theme":
-				t.Errorf("%s reads %s; the comparison must never be re-derived from a theme at exit (§11.4)",
+				t.Errorf("%s reads %s; the comparison must never be re-derived from a theme at exit",
 					restoreHelperName, path)
 			case model:
 				if !slices.Contains(restoreComparisonReads, rest) {
@@ -101,7 +101,7 @@ func TestRestorePath_ReadsNoTheme(t *testing.T) {
 			}
 			if strings.Contains(string(source), retiredCanvasHexHelper) {
 				rel, _ := filepath.Rel(root, goFile)
-				t.Errorf("%s still mentions %s; §11.4 deletes it outright so nothing can re-derive the comparison from a theme",
+				t.Errorf("%s still mentions %s; it is deleted outright so nothing can re-derive the comparison from a theme",
 					rel, retiredCanvasHexHelper)
 			}
 		}

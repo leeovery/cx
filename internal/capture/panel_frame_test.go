@@ -87,7 +87,7 @@ func uniquePanelLine(t *testing.T, frame, subject string, matches func(line pane
 			continue
 		}
 		if found >= 0 {
-			t.Fatalf("%s renders on panel lines %d AND %d; §9.5 puts every row on exactly one delegate line:\n%s", subject, found, i, ansi.Strip(frame))
+			t.Fatalf("%s renders on panel lines %d AND %d; every row must render on exactly one delegate line:\n%s", subject, found, i, ansi.Strip(frame))
 		}
 		found, raw = i, line.raw
 	}
@@ -135,7 +135,7 @@ func panelSlugRow(t *testing.T, frame, slug string) panelRow {
 		found = truncated
 	}
 	if len(found) != 1 {
-		t.Fatalf("the row %s renders on %d panel lines, want exactly 1 — §9.5 puts every row on exactly one delegate line:\n%s", slug, len(found), ansi.Strip(frame))
+		t.Fatalf("the row %s renders on %d panel lines, want exactly 1 — every row must render on exactly one delegate line:\n%s", slug, len(found), ansi.Strip(frame))
 	}
 	return found[0]
 }

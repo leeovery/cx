@@ -41,10 +41,10 @@ func TestTokenCount_IsNineteen(t *testing.T) {
 		t.Fatalf("wantTokenNames holds %d names, want %d — the guard's own table is wrong", got, tokenCount)
 	}
 	if got := len(theme.Theme{}.All()); got != tokenCount {
-		t.Errorf("len(Theme{}.All()) = %d, want %d (closed §2.4 vocabulary)", got, tokenCount)
+		t.Errorf("len(Theme{}.All()) = %d, want %d (closed token vocabulary)", got, tokenCount)
 	}
 	if got := len(theme.TokenNames()); got != tokenCount {
-		t.Errorf("len(TokenNames()) = %d, want %d (closed §2.4 vocabulary)", got, tokenCount)
+		t.Errorf("len(TokenNames()) = %d, want %d (closed token vocabulary)", got, tokenCount)
 	}
 }
 

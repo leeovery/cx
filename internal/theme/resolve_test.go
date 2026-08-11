@@ -485,7 +485,7 @@ func TestResolveByName_NoReadDirAndSingleRead(t *testing.T) {
 		reads := osCallsReachableFrom(t, "ResolveByName")
 
 		if got := reads["os.ReadFile"]; got != 1 {
-			t.Errorf("ResolveByName reaches %d os.ReadFile call sites, want exactly 1 (§5.7: one file read per nominated theme)", got)
+			t.Errorf("ResolveByName reaches %d os.ReadFile call sites, want exactly 1 (one file read per nominated theme)", got)
 		}
 		if got := reads["os.ReadDir"]; got != 0 {
 			t.Errorf("ResolveByName reaches %d os.ReadDir call sites, want 0 — enumeration belongs to panel open", got)

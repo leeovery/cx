@@ -80,19 +80,19 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 		t.Fatal("fixture: three arrows previewed nothing, so the close below restores nothing")
 	}
 	if len(stub.resolves) != 1 {
-		t.Errorf("three arrows ran %d resolutions in total, want the open's 1 — an arrow previews from the retained parse (§5.8)", len(stub.resolves))
+		t.Errorf("three arrows ran %d resolutions in total, want the open's 1 — an arrow previews from the retained parse", len(stub.resolves))
 	}
 
 	m, cmd := closePanelForTest(t, m)
 
 	if cmd != nil {
-		t.Errorf("Esc scheduled %T; closing is ONE frame — no animation, no transition, no intermediate width (§9.1)", cmd)
+		t.Errorf("Esc scheduled %T; closing is ONE frame — no animation, no transition, no intermediate width", cmd)
 	}
 	if m.themePanel.open {
 		t.Fatal("Esc left the panel open")
 	}
 	if len(stub.resolves) != 2 {
-		t.Errorf("the close ran %d resolutions in total, want 2 — `Esc` RE-RESOLVES persisted state rather than restoring a snapshot (§9.2)", len(stub.resolves))
+		t.Errorf("the close ran %d resolutions in total, want 2 — `Esc` RE-RESOLVES persisted state rather than restoring a snapshot", len(stub.resolves))
 	}
 	if m.themeState.active != rows[0].Theme {
 		t.Errorf("the close left canvas %s, want the resolved persisted %s", m.themeState.active.Canvas.Value, rows[0].Theme.Canvas.Value)
@@ -113,7 +113,7 @@ func TestPanelClose_ResolvesEditedValues(t *testing.T) {
 	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
 	m = pressThemeKey(t, m)
 	if got := m.themeState.active.Canvas.Value; got != "#202020" {
-		t.Fatalf("precondition: the open rendered canvas %s, want the edited #202020 (§9.2)", got)
+		t.Fatalf("precondition: the open rendered canvas %s, want the edited #202020", got)
 	}
 	m = pressPanelKey(t, m, arrowDown)
 	if m.themeState.active.Canvas.Value == "#202020" {
@@ -139,7 +139,7 @@ func TestPanelClose_ResolvesToFallback(t *testing.T) {
 	m = pressThemeKey(t, m)
 	fallback := testDarkTheme(t)
 	if m.themeState.active != fallback {
-		t.Fatalf("precondition: the open rendered canvas %s, want the §8.5 fallback's %s", m.themeState.active.Canvas.Value, fallback.Canvas.Value)
+		t.Fatalf("precondition: the open rendered canvas %s, want the fallback's %s", m.themeState.active.Canvas.Value, fallback.Canvas.Value)
 	}
 	m = pressPanelKey(t, m, arrowUp)
 	if m.themeState.active == fallback {
@@ -149,7 +149,7 @@ func TestPanelClose_ResolvesToFallback(t *testing.T) {
 	m = closeThemePanelForTest(t, m)
 
 	if m.themeState.active != fallback {
-		t.Errorf("the close rendered canvas %s, want the §8.5 fallback's %s — the persisted `sunset` no longer resolves, and Portal shows what the config NOW says", m.themeState.active.Canvas.Value, fallback.Canvas.Value)
+		t.Errorf("the close rendered canvas %s, want the fallback's %s — the persisted `sunset` no longer resolves, and Portal shows what the config NOW says", m.themeState.active.Canvas.Value, fallback.Canvas.Value)
 	}
 }
 
@@ -173,7 +173,7 @@ func TestPanelClose_ReadsNothing(t *testing.T) {
 	m = closeThemePanelForTest(t, m)
 
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
-		t.Errorf("with the themes directory gone the close rendered canvas %s, want the RETAINED parse's #101010 — the close resolves against the panel's enumeration, never the filesystem (§8.4)", got)
+		t.Errorf("with the themes directory gone the close rendered canvas %s, want the RETAINED parse's #101010 — the close resolves against the panel's enumeration, never the filesystem", got)
 	}
 	if enumerator.opens != 1 {
 		t.Errorf("the close ran %d enumerations in total, want the single one the open performed", enumerator.opens)
@@ -236,7 +236,7 @@ func TestPanelClose_EnumerationDiscarded(t *testing.T) {
 
 	themePanelRowFor(t, m, "sunset")
 	if enumerator.opens != 2 {
-		t.Errorf("two opens ran %d enumerations, want 2 — the discard is what makes the next open re-read (§5.8)", enumerator.opens)
+		t.Errorf("two opens ran %d enumerations, want 2 — the discard is what makes the next open re-read", enumerator.opens)
 	}
 }
 
@@ -255,10 +255,10 @@ func TestPanelClose_WritesNothing(t *testing.T) {
 		m, cmd := closePanelForTest(t, m)
 
 		if mode.calls != 0 {
-			t.Errorf("closing persisted %d preference(s); every write is an explicit keypress (§9.2)", mode.calls)
+			t.Errorf("closing persisted %d preference(s); every write is an explicit keypress", mode.calls)
 		}
 		if len(committer.slugs) != 0 {
-			t.Errorf("closing committed %v; nothing writes on close (§9.2)", committer.slugs)
+			t.Errorf("closing committed %v; nothing writes on close", committer.slugs)
 		}
 		if cmd != nil {
 			t.Errorf("closing scheduled %T; a deferred write is the one shape the counters above cannot see", cmd)
@@ -297,10 +297,10 @@ func TestPanelClose_EventCadence(t *testing.T) {
 	}
 
 	if got := countThemeEvents(sink, "fallback applied"); got != 1 {
-		t.Errorf("%d open/close cycles emitted %d `theme: fallback applied` records, want exactly 1 — the WARN dedups per process on slug+reason (§12.3)", cycles, got)
+		t.Errorf("%d open/close cycles emitted %d `theme: fallback applied` records, want exactly 1 — the WARN dedups per process on slug+reason", cycles, got)
 	}
 	if got := countThemeEvents(sink, "loaded"); got != 0 {
-		t.Errorf("%d open/close cycles emitted %d `theme: loaded` records, want 0 — its cadence is construction plus the one commit-time load (§12.3)", cycles, got)
+		t.Errorf("%d open/close cycles emitted %d `theme: loaded` records, want 0 — its cadence is construction plus the one commit-time load", cycles, got)
 	}
 
 	if got := countThemeEvents(sink, "enumerated"); got != cycles {
@@ -335,7 +335,7 @@ func TestPanelClose_DoesNotClearTheFilter(t *testing.T) {
 		t.Fatal("Esc left the panel open")
 	}
 	if got := m.sessionList.FilterState(); got != list.FilterApplied {
-		t.Errorf("the sessions filter state is %v after the close, want it left FilterApplied — Esc is consumed by the panel (§9.7)", got)
+		t.Errorf("the sessions filter state is %v after the close, want it left FilterApplied — Esc is consumed by the panel", got)
 	}
 	if got := m.sessionList.FilterValue(); got != "a" {
 		t.Errorf("the sessions filter query = %q after the close, want the applied %q", got, "a")
@@ -369,7 +369,7 @@ func TestPanelClose_NestsOverMultiSelect(t *testing.T) {
 		t.Fatal("Esc left the panel open")
 	}
 	if !m.MultiSelectActive() {
-		t.Error("the close exited multi-select; Esc resolves innermost-first (§9.7)")
+		t.Error("the close exited multi-select; Esc resolves innermost-first")
 	}
 	if got := m.SelectedSessionCount(); got != marked {
 		t.Errorf("the marked set holds %d session(s) after the close, want the %d marked before", got, marked)
@@ -463,7 +463,7 @@ func TestPanelClose_ForcedCloseUsesTheSameFunction(t *testing.T) {
 	t.Run("the panel is discarded in exactly one place", func(t *testing.T) {
 		sites := panelDiscardSites(t)
 		if len(sites) != 1 || sites[0] != "closeThemePanel" {
-			t.Errorf("the panel struct is zeroed in %v, want exactly [closeThemePanel] — §9.8's forced close and Phase 9's hooks must have one close to route through, not a second to drift from", sites)
+			t.Errorf("the panel struct is zeroed in %v, want exactly [closeThemePanel] — the forced close and the page hooks must have one close to route through, not a second to drift from", sites)
 		}
 	})
 
@@ -490,7 +490,7 @@ func TestPanelClose_ForcedCloseUsesTheSameFunction(t *testing.T) {
 			t.Fatal("the direct call left the panel open")
 		}
 		if direct.themeState.active != viaEsc.themeState.active {
-			t.Errorf("the direct call rendered canvas %s and Esc rendered %s; §9.8's forced close takes the Esc path EXACTLY", direct.themeState.active.Canvas.Value, viaEsc.themeState.active.Canvas.Value)
+			t.Errorf("the direct call rendered canvas %s and Esc rendered %s; the forced close takes the Esc path EXACTLY", direct.themeState.active.Canvas.Value, viaEsc.themeState.active.Canvas.Value)
 		}
 		if got, want := direct.View().Content, viaEsc.View().Content; got != want {
 			t.Errorf("the direct call's frame is not Esc's\ndirect: %q\nesc:    %q", escSeq(got), escSeq(want))

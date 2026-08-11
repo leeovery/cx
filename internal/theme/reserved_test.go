@@ -172,7 +172,7 @@ func TestLoadFile_RenamedCopyIsAccepted(t *testing.T) {
 			got, rejection := loader.LoadFile(path)
 
 			if rejection != nil {
-				t.Fatalf("LoadFile(%q) rejected §5.4's published workaround: %v", path, rejection)
+				t.Fatalf("LoadFile(%q) rejected the published rename workaround: %v", path, rejection)
 			}
 			if got.Slug != renamed {
 				t.Errorf("slug = %q, want %q", got.Slug, renamed)

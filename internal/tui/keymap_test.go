@@ -5,7 +5,7 @@ import "testing"
 func TestSessionsKeymap(t *testing.T) {
 	entries := sessionsKeymap()
 
-	t.Run("it enumerates exactly the §12.1 Sessions bindings in the reference help order", func(t *testing.T) {
+	t.Run("it enumerates exactly the Sessions bindings in the reference help order", func(t *testing.T) {
 		want := []keymapEntry{
 			{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
 			{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
@@ -32,7 +32,7 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 	})
 
-	t.Run("it marks the §14.2 core-footer keys as Core and the rest as help-only", func(t *testing.T) {
+	t.Run("it marks the core-footer keys as Core and the rest as help-only", func(t *testing.T) {
 		core := map[string]bool{}
 		for _, e := range entries {
 			core[e.Key] = e.Core
@@ -60,7 +60,7 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 	})
 
-	t.Run("it carries the §14.2 Core relative order the footer reads", func(t *testing.T) {
+	t.Run("it carries the Core relative order the footer reads", func(t *testing.T) {
 		var coreKeys []string
 		for _, e := range entries {
 			if e.Core {
@@ -73,7 +73,7 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 		for i, k := range wantCoreOrder {
 			if coreKeys[i] != k {
-				t.Errorf("Core entry %d = %q, want %q (§14.2's row is pinned)", i, coreKeys[i], k)
+				t.Errorf("Core entry %d = %q, want %q (the row is pinned)", i, coreKeys[i], k)
 			}
 		}
 	})
@@ -101,7 +101,7 @@ func TestSessionsKeymap(t *testing.T) {
 		}
 		for _, e := range entries {
 			if banned[e.Key] {
-				t.Errorf("descriptor contains banned key %q (§12.2: no vim/uppercase/page-jump aliases)", e.Key)
+				t.Errorf("descriptor contains banned key %q (no vim/uppercase/page-jump aliases)", e.Key)
 			}
 		}
 	})

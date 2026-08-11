@@ -164,7 +164,7 @@ func TestPanelArrow_NavigationBindings(t *testing.T) {
 	requireArrowCursorAt(t, m, 0)
 
 	if !m.themePanel.open {
-		t.Error("navigating closed the panel; arrows leave it open (§9.2)")
+		t.Error("navigating closed the panel; arrows leave it open")
 	}
 }
 
@@ -189,7 +189,7 @@ func TestPanelArrow_ArrowOnlyNavigation(t *testing.T) {
 		{name: "GoToEnd", binding: km.GoToEnd, want: nil},
 	} {
 		if got := tc.binding.Keys(); strings.Join(got, ",") != strings.Join(tc.want, ",") {
-			t.Errorf("the panel list's %s binds %v, want %v — the panel is arrow-only (§12.2)", tc.name, got, tc.want)
+			t.Errorf("the panel list's %s binds %v, want %v — the panel is arrow-only", tc.name, got, tc.want)
 		}
 	}
 
@@ -274,7 +274,7 @@ func TestPanelArrow_PreviewsThroughApplyTheme(t *testing.T) {
 			t.Fatalf("fixture: %s was painted %q before the arrow, want the pre-swap canvas %q", tc.name, got, beforeParams)
 		}
 		if got := afterCells[row][tc.col].params; got != afterParams {
-			t.Errorf("%s is painted %q after the arrow, want the previewed canvas %q — every surface re-themes (§9.11)", tc.name, got, afterParams)
+			t.Errorf("%s is painted %q after the arrow, want the previewed canvas %q — every surface re-themes", tc.name, got, afterParams)
 		}
 	}
 }
@@ -461,7 +461,7 @@ func TestPanelArrow_DoesNotRebuildSessionList(t *testing.T) {
 	}
 
 	if len(reader.reads) != 0 {
-		t.Errorf("twenty arrow presses performed %d lazy pane read(s) %v — a preview is the O(1) restyle (§11.1), never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
+		t.Errorf("twenty arrow presses performed %d lazy pane read(s) %v — a preview is the O(1) restyle, never the rebuild's dir-resolution pass", len(reader.reads), reader.reads)
 	}
 	if got := m.View().Content; !strings.Contains(got, tokenBgSeq(t, m.themeState.active.Canvas)) {
 		t.Errorf("the post-arrow frame does not carry the previewed canvas, so the zero above is a swap that never happened")
@@ -490,7 +490,7 @@ func TestPanelArrow_StartupCanvasHexUnmoved(t *testing.T) {
 		t.Fatal("fixture: one arrow did not change the active theme, so the assertion below is vacuous")
 	}
 	if m.themeState.startupCanvasHex != startup {
-		t.Errorf("after one arrow startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution (§11.4)", m.themeState.startupCanvasHex, startup)
+		t.Errorf("after one arrow startupCanvasHex = %q, want %q unchanged — it is frozen at gate resolution", m.themeState.startupCanvasHex, startup)
 	}
 
 	for range 25 {
@@ -521,7 +521,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 		}
 
 		if persister.calls != 0 {
-			t.Errorf("sixteen arrows persisted %d preference(s); every write is an explicit commit keypress (§9.2)", persister.calls)
+			t.Errorf("sixteen arrows persisted %d preference(s); every write is an explicit commit keypress", persister.calls)
 		}
 
 		// `s` is swallowed while the panel is open, so it is closed first.

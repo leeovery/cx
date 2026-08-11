@@ -132,7 +132,7 @@ func requireCommitDoesNoOtherIO(
 			stores.modePersister.calls, stores.themePersister.calls, stores.scrollback.calls, stores.lister.calls)
 	}
 	if enumerator.opens != opens {
-		t.Errorf("%s ran %d enumerations in total, want the open's %d — a commit re-derives from the retained parse and never re-reads the directory (§8.4)", subject, enumerator.opens, opens)
+		t.Errorf("%s ran %d enumerations in total, want the open's %d — a commit re-derives from the retained parse and never re-reads the directory", subject, enumerator.opens, opens)
 	}
 	if cmd != nil {
 		t.Errorf("%s scheduled %T; a deferred write is the one shape the counters above cannot see", subject, cmd)

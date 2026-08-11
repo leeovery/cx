@@ -70,7 +70,7 @@ func commitSlotForTest(t *testing.T, m Model, slug string, member theme.Member) 
 		t.Fatalf("commitSlot(%s, %v): %v", slug, member, err)
 	}
 	if m.themeState.keys.Theme != "" {
-		t.Fatalf("the slot commit left the constant %q set; §8.2 clears it in the SAME write", m.themeState.keys.Theme)
+		t.Fatalf("the slot commit left the constant %q set; it is cleared in the SAME write", m.themeState.keys.Theme)
 	}
 	return m
 }
@@ -89,10 +89,10 @@ func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	ghost := themePanelRowFor(t, m, "ghost")
 	if ghost.Row.Selectable() {
-		t.Error("the minted `ghost` row is selectable; a slug with no file and no built-in is unselectable with its reason (§9.4)")
+		t.Error("the minted `ghost` row is selectable; a slug with no file and no built-in is unselectable with its reason")
 	}
 	if got := ghost.Row.Rejection.Reason; got != theme.ReasonNotFound {
-		t.Errorf("the minted `ghost` row carries reason %q, want %q — the slug resolves to nothing (§9.4)", got, theme.ReasonNotFound)
+		t.Errorf("the minted `ghost` row carries reason %q, want %q — the slug resolves to nothing", got, theme.ReasonNotFound)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		requireCommitted(t, persister, "sunset")
 		requireRowLabels(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 		if enumerator.opens != 1 {
-			t.Errorf("the commit ran %d enumerations in total, want the single one the open performed — §5.8 pins enumeration to panel OPEN, and a commit changes prefs rather than the directory", enumerator.opens)
+			t.Errorf("the commit ran %d enumerations in total, want the single one the open performed — enumeration is pinned to panel OPEN, and a commit changes prefs rather than the directory", enumerator.opens)
 		}
 		if _, err := os.Stat(dir); !os.IsNotExist(err) {
 			t.Errorf("the themes directory exists again after the commit (err %v); nothing on this path touches it", err)
@@ -229,7 +229,7 @@ func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	requireCommitted(t, persister, "sunset")
 	requireRowLabels(t, m, "aurora", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	if m.themeState.active != previewed {
-		t.Errorf("the recompute rendered canvas %s, want the previewed %s left alone — the re-resolution is for the badges, never for selecting a new active member (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+		t.Errorf("the recompute rendered canvas %s, want the previewed %s left alone — the re-resolution is for the badges, never for selecting a new active member", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 	if got := frameColours(m.View().Content); !slices.Equal(got, colours) {
 		t.Errorf("the recompute changed the frame's colours\nbefore: %v\nafter:  %v", colours, got)
@@ -257,7 +257,7 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 		t.Errorf("the cursor sits at index %d, want %d — the inserted row pushed `sunset` down and the anchor followed the IDENTITY", got, before+1)
 	}
 	if m.themeState.active != previewed {
-		t.Errorf("the recompute rendered canvas %s, want the previewed %s — the cursor's row is always what is painted behind the panel (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+		t.Errorf("the recompute rendered canvas %s, want the previewed %s — the cursor's row is always what is painted behind the panel", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 	}
 }
 
@@ -381,7 +381,7 @@ func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
 	requireRowLabels(t, m, arrowSlug(0), arrowSlug(1), arrowSlug(3))
 	requireCursorOn(t, m, arrowSlug(1))
 	if row := themePanelCursorRow(t, m); !row.Selectable() {
-		t.Errorf("the clamp landed the cursor on the unselectable %q; §9.2's invariant is that the cursor is always on a SELECTABLE row", row.Label())
+		t.Errorf("the clamp landed the cursor on the unselectable %q; the invariant is that the cursor is always on a SELECTABLE row", row.Label())
 	}
 }
 
@@ -430,10 +430,10 @@ func TestPanelRecompute_SkippedOnFailedCommit(t *testing.T) {
 	requireCommitted(t, persister, arrowSlug(0))
 	requireRowLabels(t, m, arrowSlug(0), arrowSlug(1), arrowSlug(2), arrowSlug(3))
 	if got := m.themePanel.badges; !maps.Equal(got, badges) {
-		t.Errorf("the failed commit left badges %v, want the untouched %v — a failed commit does not move the `●` (§9.13)", got, badges)
+		t.Errorf("the failed commit left badges %v, want the untouched %v — a failed commit does not move the `●`", got, badges)
 	}
 	if enumerator.reassembles != 0 {
-		t.Errorf("the failed commit ran %d reassemblies, want 0 — only a SUCCESSFUL commit recomputes (§9.2)", enumerator.reassembles)
+		t.Errorf("the failed commit ran %d reassemblies, want 0 — only a SUCCESSFUL commit recomputes", enumerator.reassembles)
 	}
 
 	wired, control, _ := newSplitPanelModel(t, opened, reassembled, arrowSlug(0))

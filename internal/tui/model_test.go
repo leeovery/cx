@@ -913,7 +913,7 @@ func TestInitialFilter(t *testing.T) {
 
 		visible := ansi.Strip(updatedModel.View().Content)
 		if !strings.Contains(visible, "Pick a project to run") {
-			t.Errorf("expected the §11.4 command-pending banner, got:\n%s", visible)
+			t.Errorf("expected the command-pending banner, got:\n%s", visible)
 		}
 		if !strings.Contains(visible, "claude") {
 			t.Errorf("expected the command in the banner chip, got:\n%s", visible)
@@ -1494,7 +1494,7 @@ func TestSessionListHelpBar(t *testing.T) {
 		}
 		for _, desc := range []string{"navigate", "rename", "kill", "new in cwd", "quit"} {
 			if strings.Contains(view, desc) {
-				t.Errorf("condensed footer must NOT contain help-only key %q (§3.4), got:\n%s", desc, view)
+				t.Errorf("condensed footer must NOT contain help-only key %q, got:\n%s", desc, view)
 			}
 		}
 	})
@@ -1922,7 +1922,7 @@ func TestCommandPendingMode(t *testing.T) {
 
 		visible := ansi.Strip(model.View().Content)
 		if !strings.Contains(visible, "Pick a project to run") {
-			t.Errorf("expected the §11.4 banner text 'Pick a project to run', got:\n%s", visible)
+			t.Errorf("expected the banner text 'Pick a project to run', got:\n%s", visible)
 		}
 		if !strings.Contains(visible, "claude") {
 			t.Errorf("expected the command 'claude' in the banner chip, got:\n%s", visible)
@@ -2147,7 +2147,7 @@ func TestCommandPendingMode(t *testing.T) {
 
 		visible := ansi.Strip(model.View().Content)
 		if !strings.Contains(visible, "Pick a project to run") {
-			t.Errorf("expected the §11.4 banner text in empty state, got:\n%s", visible)
+			t.Errorf("expected the banner text in empty state, got:\n%s", visible)
 		}
 		if !strings.Contains(visible, "claude") {
 			t.Errorf("expected the command in the banner chip in empty state, got:\n%s", visible)
@@ -2278,7 +2278,7 @@ func TestCommandPendingMode(t *testing.T) {
 		}
 	})
 
-	t.Run("command-pending footer swaps to the §11.4 copy", func(t *testing.T) {
+	t.Run("command-pending footer swaps to its own copy", func(t *testing.T) {
 		store := &mockProjectStore{
 			projects: []project.Project{
 				{Path: "/code/myapp", Name: "myapp"},
@@ -2301,12 +2301,12 @@ func TestCommandPendingMode(t *testing.T) {
 		visible := ansi.Strip(model.View().Content)
 		for _, want := range []string{"run here", "run in cwd", "cancel", "help"} {
 			if !strings.Contains(visible, want) {
-				t.Errorf("command-pending footer missing §11.4 entry %q, got:\n%s", want, visible)
+				t.Errorf("command-pending footer missing entry %q, got:\n%s", want, visible)
 			}
 		}
 		for _, banned := range []string{"new session", "new in cwd", "quit"} {
 			if strings.Contains(visible, banned) {
-				t.Errorf("command-pending footer leaked non-§11.4 copy %q, got:\n%s", banned, visible)
+				t.Errorf("command-pending footer leaked non-command-pending copy %q, got:\n%s", banned, visible)
 			}
 		}
 	})
@@ -2337,7 +2337,7 @@ func TestCommandPendingMode(t *testing.T) {
 		view := model.View().Content
 		for _, want := range []string{"new session", "sessions", "edit", "filter", "help"} {
 			if !strings.Contains(view, want) {
-				t.Errorf("condensed footer missing §6.3 entry %q in normal mode, got:\n%s", want, view)
+				t.Errorf("condensed footer missing entry %q in normal mode, got:\n%s", want, view)
 			}
 		}
 	})
@@ -3323,7 +3323,7 @@ func TestProjectsPage(t *testing.T) {
 		}
 		for _, desc := range expectedDescs {
 			if !strings.Contains(view, desc) {
-				t.Errorf("projects footer should contain §6.3 entry %q, got:\n%s", desc, view)
+				t.Errorf("projects footer should contain entry %q, got:\n%s", desc, view)
 			}
 		}
 		if strings.Contains(view, "new in cwd") {
@@ -3756,7 +3756,7 @@ func TestDeleteProject(t *testing.T) {
 }
 
 func TestSessionsPageEmptyText(t *testing.T) {
-	t.Run("empty sessions page shows the §11.1 empty-sessions message", func(t *testing.T) {
+	t.Run("empty sessions page shows the empty-sessions message", func(t *testing.T) {
 		m := tui.NewModelWithSessions(nil)
 		view := m.View().Content
 		if !strings.Contains(view, "No sessions yet") {
@@ -4810,7 +4810,7 @@ func TestPageSwitchingFilterIndependence(t *testing.T) {
 		}
 	})
 
-	t.Run("projects footer shows the §6.3 condensed copy (x sessions, edit, filter)", func(t *testing.T) {
+	t.Run("projects footer shows the condensed copy (x sessions, edit, filter)", func(t *testing.T) {
 		store := &mockProjectStore{
 			projects: []project.Project{
 				{Path: "/code/portal", Name: "portal"},
@@ -4839,7 +4839,7 @@ func TestPageSwitchingFilterIndependence(t *testing.T) {
 		}
 		for _, desc := range expectedDescs {
 			if !strings.Contains(view, desc) {
-				t.Errorf("projects footer should contain §6.3 entry %q, got:\n%s", desc, view)
+				t.Errorf("projects footer should contain entry %q, got:\n%s", desc, view)
 			}
 		}
 		if strings.Contains(view, "delete") {
@@ -5268,7 +5268,7 @@ func TestCommandPendingStatusLine(t *testing.T) {
 
 		visible := ansi.Strip(model.View().Content)
 		if !strings.Contains(visible, "Pick a project to run") {
-			t.Errorf("expected the §11.4 banner text, got:\n%s", visible)
+			t.Errorf("expected the banner text, got:\n%s", visible)
 		}
 		if !strings.Contains(visible, "claude") {
 			t.Errorf("expected the command in the banner chip, got:\n%s", visible)
@@ -5409,7 +5409,7 @@ func TestCommandPendingStatusLine(t *testing.T) {
 			t.Fatalf("title 'Projects' not found in view:\n%s", visible)
 		}
 		if bannerIdx > titleIdx {
-			t.Errorf("banner (pos %d) must appear before the Projects section header (pos %d) — §11.4 places it above the header.\nView:\n%s",
+			t.Errorf("banner (pos %d) must appear before the Projects section header (pos %d) — it belongs above the header.\nView:\n%s",
 				bannerIdx, titleIdx, visible)
 		}
 	})
@@ -6327,7 +6327,7 @@ func TestHelpBarQuitBinding(t *testing.T) {
 
 		view := updated.View().Content
 		if strings.Contains(view, "quit") {
-			t.Errorf("Sessions condensed footer must NOT contain 'quit' (help-only, §3.4), got:\n%s", view)
+			t.Errorf("Sessions condensed footer must NOT contain 'quit' (help-only), got:\n%s", view)
 		}
 		if !strings.Contains(view, "help") {
 			t.Errorf("Sessions condensed footer must show the right-aligned '? help' hint, got:\n%s", view)
@@ -6419,7 +6419,7 @@ func TestLoadingPage(t *testing.T) {
 		}
 	})
 
-	t.Run("loading view shows the honest §10.3 screen (wordmark + step-list)", func(t *testing.T) {
+	t.Run("loading view shows the honest loading screen (wordmark + step-list)", func(t *testing.T) {
 		lister := &mockSessionLister{sessions: []tmux.Session{}}
 		m := tui.New(lister, tui.WithServerStarted(true))
 		var model tea.Model = m

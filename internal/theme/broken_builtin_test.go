@@ -38,7 +38,7 @@ func TestBrokenBuiltinError_CopyIsPinned(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := theme.BrokenBuiltinError(tt.slug)
 			if err == nil {
-				t.Fatalf("BrokenBuiltinError(%q) = nil, want §14A's pinned sentence", tt.slug)
+				t.Fatalf("BrokenBuiltinError(%q) = nil, want the pinned sentence", tt.slug)
 			}
 			if got := err.Error(); got != tt.want {
 				t.Errorf("BrokenBuiltinError(%q) =\n %q\nwant %q", tt.slug, got, tt.want)
@@ -82,7 +82,7 @@ func TestFallback_MissingBuiltinIsFatal(t *testing.T) {
 			got, err := loader.ResolveNomination(tt.setting, t.TempDir())
 
 			if err == nil {
-				t.Fatalf("ResolveNomination(%+v) = %+v, want §14A's fatal — the fallback itself did not resolve", tt.setting, got)
+				t.Fatalf("ResolveNomination(%+v) = %+v, want the pinned fatal — the fallback itself did not resolve", tt.setting, got)
 			}
 			if err.Error() != tt.want {
 				t.Errorf("message =\n %q\nwant %q", err.Error(), tt.want)
@@ -105,7 +105,7 @@ func TestFallback_CorruptBuiltinIsFatal(t *testing.T) {
 	got, err := loader.ResolveNomination(setting, t.TempDir())
 
 	if err == nil {
-		t.Fatalf("ResolveNomination(%+v) = %+v, want §14A's fatal — the fallback parsed as invalid", setting, got)
+		t.Fatalf("ResolveNomination(%+v) = %+v, want the pinned fatal — the fallback parsed as invalid", setting, got)
 	}
 	if err.Error() != want {
 		t.Errorf("message =\n %q\nwant %q — the sentence does not vary by reason", err.Error(), want)
@@ -209,7 +209,7 @@ func TestTheme_NoCompiledInFallbackPalette(t *testing.T) {
 			if !isThemeTypeExpr(lit.Type) {
 				return true
 			}
-			t.Errorf("%s:%d declares a populated Theme literal — there is no runtime last-resort palette beneath the built-in fallback; §7.6 replaced that crutch with a build-time guarantee", source.Name, source.Fset.Position(lit.Pos()).Line)
+			t.Errorf("%s:%d declares a populated Theme literal — there is no runtime last-resort palette beneath the built-in fallback; a build-time guarantee replaced that crutch", source.Name, source.Fset.Position(lit.Pos()).Line)
 			return true
 		})
 	}
@@ -286,7 +286,7 @@ func TestBuiltinSource_HasNoProductionCallSite(t *testing.T) {
 			if !ok || sel.Sel.Name != "BuiltinSource" {
 				return true
 			}
-			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path §7.6's build-time guarantee covers", rel, fset.Position(sel.Pos()).Line)
+			t.Errorf("%s:%d references Loader.BuiltinSource — the seam is test-only; a production call site would redefine what \"built-in\" means on the very path the build-time guarantee covers", rel, fset.Position(sel.Pos()).Line)
 			return true
 		})
 	}

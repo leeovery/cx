@@ -183,7 +183,7 @@ func TestDaemon_ThrottledHookCleanup_ReapsStaleRetainsLiveOnIdleServer(t *testin
 	if !reaped {
 		finalKeys := readHookKeys(t, env)
 		t.Fatalf("stale key %q was NOT reaped within %s of daemon start on an idle server\n"+
-			"  spec § Daemon-Owned Hooks Cleanup: the daemon's throttled (~%s) idle-branch "+
+			"  the daemon's throttled (~%s) idle-branch "+
 			"cleanup MUST reap entries whose paneKey is not in the live pane set\n"+
 			"  remaining hooks.json keys: %v\n"+
 			"--- hooks.json (%s) ---\n%s\n--- portal.log ---\n%s",

@@ -119,7 +119,7 @@ func TestCommitFailed_SingleEmissionSite(t *testing.T) {
 				return true
 			}
 			if strings.Contains(value, commitFailedEvent) {
-				t.Errorf("%s carries the %q message; §8.9 keeps it single-sited on cmd's theme persister, which also returns the error for the panel to report", name, commitFailedEvent)
+				t.Errorf("%s carries the %q message; it is single-sited on cmd's theme persister, which also returns the error for the panel to report", name, commitFailedEvent)
 			}
 			return true
 		})

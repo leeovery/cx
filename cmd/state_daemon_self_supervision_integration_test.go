@@ -108,8 +108,8 @@ func TestSelfEject_PortalSaverAbsent_ExitsCleanly(t *testing.T) {
 		exitInstant = time.Now()
 	case <-deadline.C:
 		logBlob := portaltest.ReadPortalLogSafe(stateDir)
-		t.Fatalf("daemon did not exit within %s of Start (pid=%d); spec § Component D "+
-			"requires self-eject within (N+1)*TickerPeriod = ~4 s for N=3, "+
+		t.Fatalf("daemon did not exit within %s of Start (pid=%d); the daemon must "+
+			"self-eject within (N+1)*TickerPeriod = ~4 s for N=3, "+
 			"TickerPeriod=1 s\n--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			selfEjectExitBudget, daemonPID, logBlob, stderr.String())
 	}
@@ -132,8 +132,8 @@ func TestSelfEject_PortalSaverAbsent_ExitsCleanly(t *testing.T) {
 			stateStr = daemon.ProcessState.String()
 			exitCode = daemon.ProcessState.ExitCode()
 		}
-		t.Errorf("daemon ProcessState not successful: %s (ExitCode=%d); spec § Component D "+
-			"requires osExit(0) on self-eject\n"+
+		t.Errorf("daemon ProcessState not successful: %s (ExitCode=%d); the self-eject "+
+			"path must exit(0)\n"+
 			"--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			stateStr, exitCode, logBlob, stderr.String())
 	}
@@ -155,7 +155,7 @@ func TestSelfEject_PortalSaverAbsent_ExitsCleanly(t *testing.T) {
 
 	if !strings.Contains(logBlob, selfEjectLogMarker) {
 		t.Errorf("portal.log missing self-eject marker %q\n"+
-			"  spec § Component D bullet 4.i: the eject path MUST emit this INFO line\n"+
+			"  the eject path MUST emit this INFO line\n"+
 			"--- portal.log ---\n%s",
 			selfEjectLogMarker, logBlob)
 	}
@@ -168,8 +168,8 @@ func TestSelfEject_PortalSaverAbsent_ExitsCleanly(t *testing.T) {
 	switch {
 	case errors.Is(readErr, os.ErrNotExist):
 		t.Logf("daemon.pid absent post-exit (acceptable: daemon may have ejected "+
-			"before WritePIDFile completed); spec § Component D bullet 4.iii "+
-			"invariant satisfied trivially\n  pidPath=%s", pidPath)
+			"before WritePIDFile completed); the stale-pidfile invariant is "+
+			"satisfied trivially\n  pidPath=%s", pidPath)
 	case readErr != nil:
 		t.Errorf("read daemon.pid post-exit: %v\n"+
 			"  unexpected stat failure other than ENOENT — staging may be corrupted\n"+
@@ -181,21 +181,21 @@ func TestSelfEject_PortalSaverAbsent_ExitsCleanly(t *testing.T) {
 			t.Errorf("parse daemon.pid contents %q: %v\n"+
 				"--- portal.log ---\n%s", string(pidData), parseErr, logBlob)
 		} else if recordedPID != daemonPID {
-			t.Errorf("daemon.pid post-exit = %d; want subprocess PID %d (spec § Component D "+
-				"bullet 4.iii: the stale pidfile MUST retain the ejecting daemon's PID, "+
+			t.Errorf("daemon.pid post-exit = %d; want subprocess PID %d (the stale "+
+				"pidfile MUST retain the ejecting daemon's PID, "+
 				"NOT be rewritten by any cleanup logic)\n"+
 				"--- portal.log ---\n%s",
 				recordedPID, daemonPID, logBlob)
 		} else {
 			t.Logf("daemon.pid post-exit = %d (stale-stays-stale, matches subprocess PID); "+
-				"spec § Component D bullet 4.iii satisfied", recordedPID)
+				"the stale-pidfile invariant is satisfied", recordedPID)
 		}
 	}
 
 	// Floor, not just a ceiling: a sub-2 s exit would mean the hysteresis
 	// counter incremented faster than the ticker fires.
 	if exitLatency < 2*time.Second {
-		t.Errorf("daemon exit latency %s < 2 s floor; spec § Component D requires "+
+		t.Errorf("daemon exit latency %s < 2 s floor; the daemon requires "+
 			"N=3 consecutive failing ticks before eject, so exit cannot fire "+
 			"in less than ~2-3 s of Start\n--- portal.log ---\n%s",
 			exitLatency, logBlob)
@@ -288,8 +288,8 @@ func TestSelfEject_PortalSaverPaneMismatch_ExitsCleanly(t *testing.T) {
 	}
 	if recordedPID != daemonPID {
 		t.Fatalf("daemon did not write its PID %d into %s within %s "+
-			"(post-poll recorded=%d); spec § Component D requires the daemon "+
-			"to reach its tick loop before self-eject can fire\n"+
+			"(post-poll recorded=%d); the daemon must reach its tick loop "+
+			"before self-eject can fire\n"+
 			"--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			daemonPID, pidPath, lockAcquireBudget, recordedPID,
 			portaltest.ReadPortalLogSafe(stateDir), stderr.String())
@@ -297,7 +297,7 @@ func TestSelfEject_PortalSaverPaneMismatch_ExitsCleanly(t *testing.T) {
 
 	if daemonPID == panePID {
 		t.Fatalf("PID coincidence: daemon subprocess PID (%d) == _portal-saver "+
-			"pane PID (%d); spec § Component D's pid-mismatch path requires "+
+			"pane PID (%d); the pid-mismatch path requires "+
 			"structural divergence between daemon PID and saver pane PID "+
 			"(re-run the test to break the coincidence)", daemonPID, panePID)
 	}
@@ -317,7 +317,7 @@ func TestSelfEject_PortalSaverPaneMismatch_ExitsCleanly(t *testing.T) {
 	case <-deadline.C:
 		logBlob := portaltest.ReadPortalLogSafe(stateDir)
 		t.Fatalf("daemon did not exit within %s of Start (pid=%d, panePID=%d); "+
-			"spec § Component D requires self-eject within (N+1)*TickerPeriod "+
+			"the daemon must self-eject within (N+1)*TickerPeriod "+
 			"= ~4 s for N=3, TickerPeriod=1 s\n"+
 			"--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			selfEjectExitBudget, daemonPID, panePID, logBlob, stderr.String())
@@ -341,8 +341,8 @@ func TestSelfEject_PortalSaverPaneMismatch_ExitsCleanly(t *testing.T) {
 			stateStr = daemon.ProcessState.String()
 			exitCode = daemon.ProcessState.ExitCode()
 		}
-		t.Errorf("daemon ProcessState not successful: %s (ExitCode=%d); spec § Component D "+
-			"requires osExit(0) on self-eject\n"+
+		t.Errorf("daemon ProcessState not successful: %s (ExitCode=%d); the self-eject "+
+			"path must exit(0)\n"+
 			"--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			stateStr, exitCode, logBlob, stderr.String())
 	}
@@ -364,21 +364,21 @@ func TestSelfEject_PortalSaverPaneMismatch_ExitsCleanly(t *testing.T) {
 
 	if !strings.Contains(logBlob, selfEjectLogMarker) {
 		t.Errorf("portal.log missing self-eject marker %q\n"+
-			"  spec § Component D: the eject path MUST emit this INFO line\n"+
+			"  the eject path MUST emit this INFO line\n"+
 			"--- portal.log ---\n%s",
 			selfEjectLogMarker, logBlob)
 	}
 
 	if out, hasErr := sock.TryRun("has-session", "-t", "=_portal-saver"); hasErr != nil {
 		t.Errorf("_portal-saver session missing post-eject: %v\n"+
-			"  spec § Component D: the eject path is osExit(0); the saver "+
+			"  the eject path is osExit(0); the saver "+
 			"session MUST NOT be killed as a side effect\n"+
 			"--- tmux has-session output ---\n%s\n--- portal.log ---\n%s",
 			hasErr, out, logBlob)
 	}
 
 	if exitLatency < 2*time.Second {
-		t.Errorf("daemon exit latency %s < 2 s floor; spec § Component D requires "+
+		t.Errorf("daemon exit latency %s < 2 s floor; the daemon requires "+
 			"N=3 consecutive failing ticks before eject, so exit cannot fire "+
 			"in less than ~2-3 s of Start\n--- portal.log ---\n%s",
 			exitLatency, logBlob)
@@ -471,8 +471,8 @@ func TestSelfEject_NoScrollbackDeltaAcrossEject(t *testing.T) {
 		exitInstant = time.Now()
 	case <-deadline.C:
 		logBlob := portaltest.ReadPortalLogSafe(stateDir)
-		t.Fatalf("daemon did not exit within %s of Start (pid=%d); spec § Component D "+
-			"requires self-eject within (N+1)*TickerPeriod = ~4 s for N=3, "+
+		t.Fatalf("daemon did not exit within %s of Start (pid=%d); the daemon must "+
+			"self-eject within (N+1)*TickerPeriod = ~4 s for N=3, "+
 			"TickerPeriod=1 s\n--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			selfEjectExitBudget, daemonPID, logBlob, stderr.String())
 	}
@@ -503,8 +503,8 @@ func TestSelfEject_NoScrollbackDeltaAcrossEject(t *testing.T) {
 			stateStr = daemon.ProcessState.String()
 			exitCode = daemon.ProcessState.ExitCode()
 		}
-		t.Errorf("daemon ProcessState not successful: %s (ExitCode=%d); spec § Component D "+
-			"requires osExit(0) on self-eject\n"+
+		t.Errorf("daemon ProcessState not successful: %s (ExitCode=%d); the self-eject "+
+			"path must exit(0)\n"+
 			"--- portal.log ---\n%s\n--- daemon stderr ---\n%s",
 			stateStr, exitCode, logBlob, stderr.String())
 	}
@@ -515,8 +515,8 @@ func TestSelfEject_NoScrollbackDeltaAcrossEject(t *testing.T) {
 			lines[i] = "  " + portaltest.FormatDelta(d)
 		}
 		t.Fatalf("scrollback dir mutated between snapBefore (post-first-failing-tick) "+
-			"and snapAfter (post-self-eject) — spec § Component D requires "+
-			"NO final flush on self-eject\n"+
+			"and snapAfter (post-self-eject) — the self-eject path must perform "+
+			"NO final flush\n"+
 			"  scrollback dir: %s\n"+
 			"  pre keys  (%d): %v\n"+
 			"  post keys (%d): %v\n"+
@@ -620,8 +620,8 @@ func TestSelfEject_LegitimateColdStartDoesNotFalsePositive(t *testing.T) {
 	// separate regression: some path deleted the pidfile.
 	pidData, readErr := os.ReadFile(pidPath)
 	if errors.Is(readErr, os.ErrNotExist) {
-		t.Fatalf("daemon.pid absent post-window; spec § Component D bullet 4.iii "+
-			"forbids any cleanup logic deleting daemon.pid — file absence here "+
+		t.Fatalf("daemon.pid absent post-window; no cleanup logic may delete "+
+			"daemon.pid — file absence here "+
 			"signals an unrelated regression in the pidfile lifecycle\n"+
 			"--- portal.log ---\n%s", logBlob)
 	}
@@ -676,7 +676,7 @@ func TestSelfEject_LegitimateColdStartDoesNotFalsePositive(t *testing.T) {
 	if strings.Contains(logBlob, selfEjectLogMarker) {
 		t.Errorf("portal.log contains self-eject marker %q during legitimate cold-start "+
 			"observation window — the daemon self-ejected when it should not have "+
-			"(spec § Component D: legitimate first-tick self-check)\n"+
+			"(the first-tick self-check is legitimate here)\n"+
 			"--- portal.log ---\n%s",
 			selfEjectLogMarker, logBlob)
 	}

@@ -45,11 +45,11 @@ func TestThemePanelFooter_PinnedCopy(t *testing.T) {
 	lines := themePanelFooterLines(block)
 
 	if len(lines) != len(themePanelFooterPinnedRows()) {
-		t.Fatalf("panel footer has %d rows, want %d (§14A's four):\n%s", len(lines), len(themePanelFooterPinnedRows()), block)
+		t.Fatalf("panel footer has %d rows, want %d:\n%s", len(lines), len(themePanelFooterPinnedRows()), block)
 	}
 	for i, want := range themePanelFooterPinnedRows() {
 		if got := themePanelFooterCopy(lines[i]); got != want {
-			t.Errorf("row %d reads %q, want the §14A copy %q", i, got, want)
+			t.Errorf("row %d reads %q, want the pinned copy %q", i, got, want)
 		}
 		if h := lipgloss.Height(lines[i]); h != 1 {
 			t.Errorf("row %d is %d lines, want exactly 1", i, h)
@@ -242,7 +242,7 @@ func themePanelFooterCoreEntries(t *testing.T) []keymapEntry {
 	t.Helper()
 	core := coreEntriesOf(themePanelKeymap())
 	if len(core) != len(themePanelFooterPinnedRows()) {
-		t.Fatalf("panel scope has %d Core entries, want %d (§14A's four rows)", len(core), len(themePanelFooterPinnedRows()))
+		t.Fatalf("panel scope has %d Core entries, want %d", len(core), len(themePanelFooterPinnedRows()))
 	}
 	return core
 }

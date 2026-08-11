@@ -92,14 +92,14 @@ func requireCommitted(t *testing.T, p *fakeThemePersister, want ...string) {
 		}
 	}
 	if len(p.slots) != 0 {
-		t.Errorf("`Enter` committed slot(s) %v; it writes the CONSTANT and clears both slots (§9.2)", p.slots)
+		t.Errorf("`Enter` committed slot(s) %v; it writes the CONSTANT and clears both slots", p.slots)
 	}
 }
 
 func requireConstantKeys(t *testing.T, m Model, slug string) {
 	t.Helper()
 	if got := m.themeState.keys; got != (theme.RawKeys{Theme: slug}) {
-		t.Errorf("themeKeys = %+v, want {Theme:%s} — a constant clears both slots (§8.2)", got, slug)
+		t.Errorf("themeKeys = %+v, want {Theme:%s} — a constant clears both slots", got, slug)
 	}
 }
 
@@ -149,7 +149,7 @@ func TestPanelEnter_DoesNotClose(t *testing.T) {
 
 			requireCommitted(t, persister, rows[0].Slug)
 			if !m.themePanel.open {
-				t.Error("`Enter` closed the panel; `Esc` is the ONLY way out (§9.2)")
+				t.Error("`Enter` closed the panel; `Esc` is the ONLY way out")
 			}
 			if isQuitCmd(cmd) {
 				t.Error("`Enter` quit Portal from the open panel")
@@ -197,7 +197,7 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 
 		requireCommitted(t, persister, target)
 		if m.themeState.active != previewed {
-			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone — a commit is a write, not a navigation (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+			t.Errorf("the commit rendered canvas %s, want the previewed %s left alone — a commit is a write, not a navigation", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := m.View().Content; got != before {
 			t.Errorf("the commit changed the composed frame\nbefore: %q\nafter:  %q", escSeq(before), escSeq(got))
@@ -218,7 +218,7 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 	// behavioural assertion, so the scan holds it out.
 	t.Run("the commit path calls no ApplyTheme", func(t *testing.T) {
 		if sites := applyThemeCallSitesIn(t, "theme_panel_commit.go"); len(sites) != 0 {
-			t.Errorf("%v call Model.ApplyTheme; a commit is a WRITE, not a navigation (§9.2) — the frame must not move on this keypress", sites)
+			t.Errorf("%v call Model.ApplyTheme; a commit is a WRITE, not a navigation — the frame must not move on this keypress", sites)
 		}
 	})
 
@@ -292,10 +292,10 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 		requireCommitted(t, persister, target)
 		requireConstantKeys(t, m, persisted)
 		if !m.themePanel.open {
-			t.Error("a failed commit closed the panel; `Esc` is the only way out (§9.2)")
+			t.Error("a failed commit closed the panel; `Esc` is the only way out")
 		}
 		if m.themeState.active != previewed {
-			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — a failed commit KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 	})
 
@@ -362,7 +362,7 @@ func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
 	}
 	requireConstantKeys(t, m, target)
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
-		t.Errorf("the repeat commit raised the message %+v; there is no retry affordance and no state to clear first (§9.13)", got)
+		t.Errorf("the repeat commit raised the message %+v; there is no retry affordance and no state to clear first", got)
 	}
 	if cmd != nil {
 		t.Errorf("the repeat commit scheduled %T, want nothing", cmd)
@@ -461,7 +461,7 @@ func TestPanelEnter_NoConfirmOverAPair(t *testing.T) {
 
 			requireCommitted(t, persister, tc.want(rows))
 			if got := m.themePanel.message; got.Kind != themeMessageNone {
-				t.Errorf("`Enter` raised the message %+v; the reverse direction needs no confirm (§9.2)", got)
+				t.Errorf("`Enter` raised the message %+v; the reverse direction needs no confirm", got)
 			}
 			if cmd != nil {
 				t.Errorf("`Enter` scheduled %T; the write lands on this keypress rather than awaiting an answer", cmd)

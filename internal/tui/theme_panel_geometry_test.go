@@ -423,7 +423,7 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 		m = resizeForTest(t, m, geometryDegradedW, geometryContentH)
 
 		if !m.themePanel.open {
-			t.Fatal("a resize above the floor closed the panel; §9.8 degrades in place")
+			t.Fatal("a resize above the floor closed the panel; it degrades in place")
 		}
 		requireRenderedPanelWidth(t, m, geometryDegradedPanel)
 		requirePanelListMatchesTheRenderCopy(t, m)
@@ -576,7 +576,7 @@ func requireForcedClose(t *testing.T, m Model, wantFlash string) {
 		t.Errorf("the forced close retained panel state %+v, want the zero value — it takes the `Esc` path exactly", got)
 	}
 	if got := m.flashText; got != wantFlash {
-		t.Errorf("the forced close raised %q, want §14A's %q", got, wantFlash)
+		t.Errorf("the forced close raised %q, want %q", got, wantFlash)
 	}
 }
 
@@ -591,7 +591,7 @@ func TestPanelGeometry_ResizeBelowWidthFloorClosesWithFlash(t *testing.T) {
 
 	requireForcedClose(t, m, specNarrowClosedFlash)
 	if got := themePanelNarrowClosedFlash; got != specNarrowClosedFlash {
-		t.Errorf("the pinned constant is %q, want §14A's %q", got, specNarrowClosedFlash)
+		t.Errorf("the pinned constant is %q, want %q", got, specNarrowClosedFlash)
 	}
 }
 
@@ -608,7 +608,7 @@ func TestPanelGeometry_ResizeBelowHeightFloorClosesWithFlash(t *testing.T) {
 
 	requireForcedClose(t, m, specShortClosedFlash)
 	if got := themePanelShortClosedFlash; got != specShortClosedFlash {
-		t.Errorf("the pinned constant is %q, want §14A's %q", got, specShortClosedFlash)
+		t.Errorf("the pinned constant is %q, want %q", got, specShortClosedFlash)
 	}
 	if got := ansi.Strip(m.View().Content); !strings.Contains(got, specShortClosedFlash) {
 		t.Errorf("the post-close frame carries no %q band:\n%s", specShortClosedFlash, got)
@@ -674,7 +674,7 @@ func TestPanelGeometry_ForcedCloseWritesNothing(t *testing.T) {
 	}
 
 	if mode.calls != 0 {
-		t.Errorf("the forced close persisted %d preference(s); every write is an explicit keypress (§9.2)", mode.calls)
+		t.Errorf("the forced close persisted %d preference(s); every write is an explicit keypress", mode.calls)
 	}
 	if len(committer.slugs) != 0 {
 		t.Errorf("the forced close committed %v; nothing writes on a close", committer.slugs)

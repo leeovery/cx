@@ -23,7 +23,7 @@ func embeddedLoader() theme.Loader {
 func TestEveryEmbeddedThemeIsValid(t *testing.T) {
 	slugs := theme.BuiltinSlugs()
 	if len(slugs) == 0 {
-		t.Fatal("the embedded set is empty — this half of §7.6's guarantee would pass vacuously")
+		t.Fatal("the embedded set is empty — this half of the built-in guarantee would pass vacuously")
 	}
 
 	loader := embeddedLoader()
@@ -51,7 +51,7 @@ func TestEveryEmbeddedThemeIsValid(t *testing.T) {
 					continue
 				}
 				if !canonicalHexValue.MatchString(tok.Value) {
-					t.Errorf("built-in %q token %s = %q, want the §4.3 upper-case canonical #RRGGBB", slug, tok.Name, tok.Value)
+					t.Errorf("built-in %q token %s = %q, want the upper-case canonical #RRGGBB", slug, tok.Name, tok.Value)
 				}
 			}
 		})
@@ -74,10 +74,10 @@ func TestFallbackSlugsResolveWithinEmbeddedSet(t *testing.T) {
 			_, rejection, found := loader.LoadBuiltin(slot.slug)
 
 			if !found {
-				t.Fatalf("§8.5's fallback for %s is %q, which resolves to no built-in — every %s fallback is unresolvable", slot.slot, slot.slug, slot.slot)
+				t.Fatalf("the shipped fallback for %s is %q, which resolves to no built-in — every %s fallback is unresolvable", slot.slot, slot.slug, slot.slot)
 			}
 			if rejection != nil {
-				t.Fatalf("§8.5's fallback for %s is %q, which is invalid: %s", slot.slot, slot.slug, rejection)
+				t.Fatalf("the shipped fallback for %s is %q, which is invalid: %s", slot.slot, slot.slug, rejection)
 			}
 		})
 	}
@@ -98,22 +98,22 @@ func TestShippedDefaultPairResolves(t *testing.T) {
 			_, rejection, found := loader.LoadBuiltin(member.slug)
 
 			if !found {
-				t.Fatalf("§8.3 ships %s = %q, which resolves to no built-in", member.key, member.slug)
+				t.Fatalf("the shipped pair sets %s = %q, which resolves to no built-in", member.key, member.slug)
 			}
 			if rejection != nil {
-				t.Fatalf("§8.3 ships %s = %q, which is invalid: %s", member.key, member.slug, rejection)
+				t.Fatalf("the shipped pair sets %s = %q, which is invalid: %s", member.key, member.slug, rejection)
 			}
 		})
 	}
 
 	if theme.DefaultDarkSlug == theme.DefaultLightSlug {
-		t.Errorf("§8.3's shipped pair nominates %q for both slots — the adaptive default is a constant one", theme.DefaultDarkSlug)
+		t.Errorf("the shipped pair nominates %q for both slots — the adaptive default is a constant one", theme.DefaultDarkSlug)
 	}
 }
 
 func TestEmbeddedSetIsNonEmpty(t *testing.T) {
 	if slugs := theme.BuiltinSlugs(); len(slugs) == 0 {
-		t.Fatal("no theme is embedded — §7.6's validity and resolution halves would both pass against nothing")
+		t.Fatal("no theme is embedded — the validity and resolution halves would both pass against nothing")
 	}
 }
 
@@ -192,7 +192,7 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 					return true
 				}
 				if source.Name != fatalCopyOwner {
-					t.Errorf("%s:%d carries §14A's fatal startup copy — the sentence is single-sourced in %s and raised only where a fallback is needed, never where a file is read", source.Name, source.Fset.Position(node.Pos()).Line, fatalCopyOwner)
+					t.Errorf("%s:%d carries the fatal startup copy — the sentence is single-sourced in %s and raised only where a fallback is needed, never where a file is read", source.Name, source.Fset.Position(node.Pos()).Line, fatalCopyOwner)
 					return true
 				}
 				owners++
@@ -202,7 +202,7 @@ func TestEmbeddedRejection_HasNoFatalPathInThePackage(t *testing.T) {
 	}
 
 	if owners != 1 {
-		t.Errorf("%s declares §14A's fatal copy %d times, want exactly 1 — the sentence is single-sourced", fatalCopyOwner, owners)
+		t.Errorf("%s declares the fatal copy %d times, want exactly 1 — the sentence is single-sourced", fatalCopyOwner, owners)
 	}
 }
 

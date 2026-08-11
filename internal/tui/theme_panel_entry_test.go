@@ -120,7 +120,7 @@ func requireBlocked(t *testing.T, m Model, cmd tea.Cmd, wantFlash string) {
 		t.Fatal("t opened the panel where the entry gate must refuse")
 	}
 	if got := m.flashText; got != wantFlash {
-		t.Errorf("the blocked t raised %q, want §14A's %q", got, wantFlash)
+		t.Errorf("the blocked t raised %q, want %q", got, wantFlash)
 	}
 	if cmd == nil {
 		t.Error("the blocked t scheduled no auto-clear tick; a blocked entry inherits the standard flash lifecycle")
@@ -151,7 +151,7 @@ func requireSilentRefusal(t *testing.T, m Model, rec *fakeThemeSource, where str
 		t.Errorf("t ran %d enumerations on %s, want 0", rec.opens, where)
 	}
 	if got := m.flashText; got != "" {
-		t.Errorf("t raised %q on %s; the refusal is SILENT where the key is not bound at all (§9.7)", got, where)
+		t.Errorf("t raised %q on %s; the refusal is SILENT where the key is not bound at all", got, where)
 	}
 }
 
@@ -319,7 +319,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 		m, _ = pressThemeKeyCmd(t, m)
 
 		if !m.themePanel.open {
-			t.Fatalf("t refused at the %d-row directory-inclusive floor, which §9.8 admits", height)
+			t.Fatalf("t refused at the %d-row directory-inclusive floor, which the entry gate admits", height)
 		}
 		lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless))
 		if len(lines) != height {
@@ -330,7 +330,7 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 			t.Fatalf("the row under the header = %q, want the pinned %q", got, want)
 		}
 		if got, want := lines[header+1], entryRows(t)[0].Label(); !strings.Contains(got, want) {
-			t.Errorf("the row beneath the warning = %q, want the list row %q — §9.5 requires rows BENEATH it", got, want)
+			t.Errorf("the row beneath the warning = %q, want the list row %q — rows must sit BENEATH it", got, want)
 		}
 	})
 }
@@ -542,7 +542,7 @@ func TestPanelEntry_PinnedCopy(t *testing.T) {
 		{got: themePanelShortEntryFlash, want: specShortEntryFlash},
 	} {
 		if tc.got != tc.want {
-			t.Errorf("the pinned constant is %q, want §14A's %q", tc.got, tc.want)
+			t.Errorf("the pinned constant is %q, want %q", tc.got, tc.want)
 		}
 	}
 }
@@ -650,7 +650,7 @@ func TestPanelRouting_KeyExclusive(t *testing.T) {
 			m := updated.(Model)
 
 			if tc.effect(m, cmd) {
-				t.Errorf("%v reached %s while the panel was open — the panel is key-exclusive (§9.7)", tc.press, tc.desc)
+				t.Errorf("%v reached %s while the panel was open — the panel is key-exclusive", tc.press, tc.desc)
 			}
 			if !m.themePanel.open {
 				t.Errorf("%v closed the panel; only Esc closes it", tc.press)
@@ -752,7 +752,7 @@ func TestPanelRouting_NestsOverMultiSelect(t *testing.T) {
 		t.Fatal("`t` did not open the panel over multi-select")
 	}
 	if !m.MultiSelectActive() {
-		t.Error("opening the panel exited multi-select; the panel NESTS over the mode (§9.7)")
+		t.Error("opening the panel exited multi-select; the panel NESTS over the mode")
 	}
 	if got := m.SelectedSessionCount(); got != marked {
 		t.Errorf("the marked set holds %d session(s) with the panel open, want the %d marked before", got, marked)
@@ -770,7 +770,7 @@ func TestPanelRouting_NestsOverMultiSelect(t *testing.T) {
 		t.Fatal("Esc left the panel open")
 	}
 	if !m.MultiSelectActive() {
-		t.Error("the close exited multi-select; Esc resolves innermost-first (§9.7)")
+		t.Error("the close exited multi-select; Esc resolves innermost-first")
 	}
 	if got := m.SelectedSessionCount(); got != marked {
 		t.Errorf("the marked set holds %d session(s) after the close, want %d", got, marked)

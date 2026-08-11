@@ -163,7 +163,7 @@ func TestProjectsPage_FlashRendered(t *testing.T) {
 
 	out := m.View().Content
 	if !strings.Contains(out, flash) {
-		t.Errorf("§14A: a flash raised on the Projects page must render there:\n%s", out)
+		t.Errorf("a flash raised on the Projects page must render there:\n%s", out)
 	}
 }
 

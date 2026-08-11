@@ -83,7 +83,7 @@ func TestPersistedThemeAdvisory_ConstantOmitsSlot(t *testing.T) {
 		t.Errorf("advisory line = %q carries a slot parenthetical; a constant setting has no slots", got.line)
 	}
 	if got.slug != "nord-lee" {
-		t.Errorf("advisory slug = %q; want %q — §12.2's union dedups on it", got.slug, "nord-lee")
+		t.Errorf("advisory slug = %q; want %q — the advisory union dedups on it", got.slug, "nord-lee")
 	}
 	if !got.fromPrefs {
 		t.Error("advisory fromPrefs = false; this line comes from prefs.json and outranks a file line for the same slug")

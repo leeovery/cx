@@ -216,7 +216,7 @@ func TestBurst_NotAllConfirmed_ClearsPendingWithoutQuit(t *testing.T) {
 		t.Errorf("a non-all-confirmed burst must NOT self-attach; Selected() = %q, want empty", rm.Selected())
 	}
 	if follow != nil {
-		t.Error("the non-all-confirmed path returns a nil cmd (unchanged §6-3), got non-nil (no tea.Quit)")
+		t.Error("the non-all-confirmed path returns a nil cmd (unchanged), got non-nil (no tea.Quit)")
 	}
 	if rm.BurstPending() {
 		t.Error("the non-all-confirmed path must still clear burst-pending")

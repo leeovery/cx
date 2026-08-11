@@ -66,7 +66,7 @@ func TestRowOrder_BadNameSortsByFilename(t *testing.T) {
 
 	row := onlyRejectedRow(t, union, theme.ReasonBadName)
 	if row.Slug != "" {
-		t.Errorf("bad-name row slug = %q, want none — §5.2 rejects rather than normalises, so the name yields no identity", row.Slug)
+		t.Errorf("bad-name row slug = %q, want none — a bad name is rejected rather than normalised, so it yields no identity", row.Slug)
 	}
 	if got, want := row.SortKey(), "Bad_Name.theme"; got != want {
 		t.Errorf("bad-name row SortKey() = %q, want the filename %q — it is the only thing the row has", got, want)

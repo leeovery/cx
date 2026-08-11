@@ -39,7 +39,7 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 		}
 	}
 	if len(p.constants) != 0 {
-		t.Errorf("a slot key committed the constant(s) %v; `d`/`l` write a SLOT and clear the constant in the SAME write (§9.2)", p.constants)
+		t.Errorf("a slot key committed the constant(s) %v; `d`/`l` write a SLOT and clear the constant in the SAME write", p.constants)
 	}
 }
 
@@ -53,14 +53,14 @@ func requireNoSlotLoad(t *testing.T, m Model) {
 		t.Fatalf("fixture: the seam is %T, want the recording fake — this is a statement about what the seam was ASKED", m.themeState.source)
 	}
 	if len(seam.slotLoads) != 0 {
-		t.Errorf("a non-converting commit asked the seam for slot load(s) %v, want none — §8.4 puts the load on the constant → adaptive transition and nowhere else", seam.slotLoads)
+		t.Errorf("a non-converting commit asked the seam for slot load(s) %v, want none — the load sits on the constant → adaptive transition and nowhere else", seam.slotLoads)
 	}
 }
 
 func requirePairKeys(t *testing.T, m Model, light, dark string) {
 	t.Helper()
 	if got := m.themeState.keys; got != (theme.RawKeys{Light: light, Dark: dark}) {
-		t.Errorf("themeKeys = %+v, want {Light:%s Dark:%s} — a slot commit clears the constant and leaves the OTHER slot alone (§8.2)", got, light, dark)
+		t.Errorf("themeKeys = %+v, want {Light:%s Dark:%s} — a slot commit clears the constant and leaves the OTHER slot alone", got, light, dark)
 	}
 }
 
@@ -100,7 +100,7 @@ func requireBothBadge(t *testing.T, m Model, label string) {
 	requireBadge(t, m, label, theme.BadgeBoth)
 	rendered := ansi.Strip(renderRecomputePanel(m))
 	if got := strings.Count(rendered, "● both"); got != 1 {
-		t.Errorf("the panel renders %d `● both` badges, want exactly 1 — both slots naming one slug is ONE row (§9.5)\n%s", got, rendered)
+		t.Errorf("the panel renders %d `● both` badges, want exactly 1 — both slots naming one slug is ONE row\n%s", got, rendered)
 	}
 	if strings.Contains(rendered, "● light") || strings.Contains(rendered, "● dark") {
 		t.Errorf("the panel still renders a slot badge beside `● both`\n%s", rendered)
@@ -121,7 +121,7 @@ func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 	requirePairKeys(t, m, light, target)
 	requireNoSlotLoad(t, m)
 	if !m.themePanel.open {
-		t.Error("`d` closed the panel; `Esc` is the ONLY way out (§9.2)")
+		t.Error("`d` closed the panel; `Esc` is the ONLY way out")
 	}
 	if cmd != nil {
 		t.Errorf("`d` scheduled %T; the write lands on this keypress", cmd)
@@ -142,7 +142,7 @@ func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 	requirePairKeys(t, m, target, dark)
 	requireNoSlotLoad(t, m)
 	if !m.themePanel.open {
-		t.Error("`l` closed the panel; `Esc` is the ONLY way out (§9.2)")
+		t.Error("`l` closed the panel; `Esc` is the ONLY way out")
 	}
 	if cmd != nil {
 		t.Errorf("`l` scheduled %T; the write lands on this keypress", cmd)
@@ -219,7 +219,7 @@ func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 	requireBadge(t, m, "aurora", theme.BadgeNone)
 	requireBadge(t, m, "sunset", theme.BadgeNone)
 	if !m.themePanel.open {
-		t.Error("the pair flow closed the panel; `Esc` is the ONLY way out (§9.2)")
+		t.Error("the pair flow closed the panel; `Esc` is the ONLY way out")
 	}
 }
 
@@ -239,7 +239,7 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 			t.Errorf("the keypress made %d seam call(s) (%v), want the single atomic slot write", len(persister.slugs), persister.slugs)
 		}
 		if m.themeState.keys.Theme != "" {
-			t.Errorf("themeKeys.Theme = %q after a slot commit, want it cleared (§8.2)", m.themeState.keys.Theme)
+			t.Errorf("themeKeys.Theme = %q after a slot commit, want it cleared", m.themeState.keys.Theme)
 		}
 	})
 
@@ -258,7 +258,7 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 
 		requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 		if len(persister.slugs) != 1 {
-			t.Errorf("the commit made %d seam call(s) (%v), want one — the clear rides the SAME write (§8.2)", len(persister.slugs), persister.slugs)
+			t.Errorf("the commit made %d seam call(s) (%v), want one — the clear rides the SAME write", len(persister.slugs), persister.slugs)
 		}
 		requirePairKeys(t, m, "ghost", "nord")
 		requireRowLabels(t, m, "aurora", "ghost", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
@@ -287,14 +287,14 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 			m, cmd := pressSlotKey(t, m, tc.press)
 
 			if len(persister.slugs) != 0 {
-				t.Errorf("%q wrote %v over a constant; the write waits for the confirm's `y` (§9.2)", tc.name, persister.slugs)
+				t.Errorf("%q wrote %v over a constant; the write waits for the confirm's `y`", tc.name, persister.slugs)
 			}
 			requireConstantKeys(t, m, persisted)
 			if !m.themePanel.open {
 				t.Errorf("%q closed the panel over a constant", tc.name)
 			}
 			if got := m.themePanel.message; got.Kind != themeMessageConfirm {
-				t.Errorf("%q left the message %+v; over a constant the keypress ASKS (§9.2)", tc.name, got)
+				t.Errorf("%q left the message %+v; over a constant the keypress ASKS", tc.name, got)
 			}
 			if m.themeState.active != previewed {
 				t.Errorf("%q rendered canvas %s, want the previewed %s left alone", tc.name, m.themeState.active.Canvas.Value, previewed.Canvas.Value)
@@ -363,7 +363,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		requireBadge(t, m, "sunset", theme.BadgeLight)
 		requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeNone)
 		if m.themeState.active != previewed {
-			t.Errorf("the commit rendered canvas %s, want the previewed %s — the resolved-active theme is still the DARK slot (§9.2)", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+			t.Errorf("the commit rendered canvas %s, want the previewed %s — the resolved-active theme is still the DARK slot", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := frameColours(m.View().Content); !slices.Equal(got, colours) {
 			t.Errorf("the commit changed the frame's colours\nbefore: %v\nafter:  %v", colours, got)
@@ -382,7 +382,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 			t.Fatal("Esc left the panel open")
 		}
 		if got := m.themeState.active.Canvas.Value; got != "#101010" {
-			t.Errorf("the close rendered canvas %s, want the DARK slot's aurora #101010 — a light-slot commit does not change what is in force in a dark terminal (§9.2)", got)
+			t.Errorf("the close rendered canvas %s, want the DARK slot's aurora #101010 — a light-slot commit does not change what is in force in a dark terminal", got)
 		}
 	})
 }
@@ -412,7 +412,7 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 		t.Errorf("the second commit left badges %v, want the first's %v", got, onceBadges)
 	}
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
-		t.Errorf("the repeat commit raised the message %+v; there is no retry affordance and no state to clear first (§9.13)", got)
+		t.Errorf("the repeat commit raised the message %+v; there is no retry affordance and no state to clear first", got)
 	}
 	if cmd != nil {
 		t.Errorf("the repeat commit scheduled %T, want nothing", cmd)
@@ -424,7 +424,7 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	// The keypress discards the error return (the report is raised inside the
 	// commit), so the helper is called directly to observe it.
 	if err := (&m).commitSelectedSlot(theme.MemberDark); err != nil {
-		t.Errorf("a repeated commit returned %v, want nil — a commit is always re-attemptable (§9.13)", err)
+		t.Errorf("a repeated commit returned %v, want nil — a commit is always re-attemptable", err)
 	}
 }
 
@@ -522,19 +522,19 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		}
 		requireRowLabels(t, m, arrowSlug(0), arrowSlug(1), arrowSlug(2), arrowSlug(3))
 		if got := m.themePanel.badges; !maps.Equal(got, badges) {
-			t.Errorf("the failed commit left badges %v, want the untouched %v — a failed commit does not move the `●` (§9.13)", got, badges)
+			t.Errorf("the failed commit left badges %v, want the untouched %v — a failed commit does not move the `●`", got, badges)
 		}
 		if enumerator.reassembles != 0 {
-			t.Errorf("the failed commit ran %d reassemblies, want 0 — only a SUCCESSFUL commit recomputes (§9.2)", enumerator.reassembles)
+			t.Errorf("the failed commit ran %d reassemblies, want 0 — only a SUCCESSFUL commit recomputes", enumerator.reassembles)
 		}
 		if !m.themePanel.open {
-			t.Error("a failed slot commit closed the panel; `Esc` is the only way out (§9.2)")
+			t.Error("a failed slot commit closed the panel; `Esc` is the only way out")
 		}
 		if m.themeState.active != previewed {
-			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — §9.13 KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
+			t.Errorf("a failed commit rendered canvas %s, want the previewed %s — a failed commit KEEPS the theme applied in memory", m.themeState.active.Canvas.Value, previewed.Canvas.Value)
 		}
 		if got := m.themePanel.message; got.Kind != themeMessageCommitFailed {
-			t.Errorf("a failed slot commit left the message %+v, want §9.13's failed-commit line reported in the slot", got)
+			t.Errorf("a failed slot commit left the message %+v, want the failed-commit line reported in the slot", got)
 		}
 		if cmd != nil {
 			t.Errorf("a failed slot commit scheduled %T, want nothing", cmd)
@@ -559,10 +559,10 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 
 		requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})
 		if m.themeState.keys != keys {
-			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v — §8.2 clears the constant in the WRITE, and this write did not land", m.themeState.keys, keys)
+			t.Errorf("a failed slot commit left keys %+v, want the untouched %+v — the constant is cleared in the WRITE, and this write did not land", m.themeState.keys, keys)
 		}
 		if got := m.themePanel.badges; !maps.Equal(got, badges) {
-			t.Errorf("the failed commit left badges %v, want the untouched %v — the constant is still set, so the panel still marks it (§9.13)", got, badges)
+			t.Errorf("the failed commit left badges %v, want the untouched %v — the constant is still set, so the panel still marks it", got, badges)
 		}
 		requireBadge(t, m, "aurora", theme.BadgeConstant)
 	})
@@ -637,7 +637,7 @@ func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	requireBadge(t, m, "aurora", theme.BadgeConstant)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeNone)
 	if got := m.themePanel.message; got.Kind != themeMessageNone {
-		t.Errorf("`Enter` after a slot commit raised the message %+v; the reverse direction needs no confirm (§9.2)", got)
+		t.Errorf("`Enter` after a slot commit raised the message %+v; the reverse direction needs no confirm", got)
 	}
 	if cmd != nil {
 		t.Errorf("`Enter` scheduled %T; the write lands on this keypress rather than awaiting an answer", cmd)

@@ -149,9 +149,9 @@ func TestBootstrapPortalSaver_LockLoser_NoNoSuchSessionLogNoise(t *testing.T) {
 	if bootstrapErr != nil {
 		if strings.Contains(bootstrapErr.Error(), "no such session: "+tmux.PortalSaverName) {
 			t.Fatalf("BootstrapPortalSaver returned the load-bearing cascade error: %v\n"+
-				"This indicates the create-then-set-option-then-respawn ordering of "+
-				"Component F (Task 3-2) has regressed: SetSessionOption ran against "+
-				"a session that was destroyed by an immediately-exiting lock-loser daemon",
+				"This indicates the create-then-set-option-then-respawn ordering has "+
+				"regressed: SetSessionOption ran against a session that was "+
+				"destroyed by an immediately-exiting lock-loser daemon",
 				bootstrapErr)
 		}
 		t.Fatalf("BootstrapPortalSaver returned unexpected error %v; want nil "+

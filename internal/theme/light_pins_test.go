@@ -38,7 +38,7 @@ func TestThemeAppearanceTableCoversEveryEmbeddedTheme(t *testing.T) {
 
 	for _, slug := range embedded {
 		if _, enrolled := themeIsLight[slug]; !enrolled {
-			t.Errorf("built-in %q has no light/dark entry — enrol it in themeIsLight so §13.5's light-only pins know whether to run against it", slug)
+			t.Errorf("built-in %q has no light/dark entry — enrol it in themeIsLight so the light-only pins know whether to run against it", slug)
 		}
 	}
 
@@ -103,7 +103,7 @@ func TestLightPins_AreExactlyFourTokens(t *testing.T) {
 	wantSet := slices.Sorted(slices.Values(pinnedTokenNames))
 
 	if got := len(pinnedTokenNames); got != want {
-		t.Errorf("the eyeball-pinned set is %d tokens %v, want exactly %d (§13.5)", got, pinnedTokenNames, want)
+		t.Errorf("the eyeball-pinned set is %d tokens %v, want exactly %d", got, pinnedTokenNames, want)
 	}
 	if got := len(slices.Compact(slices.Clone(wantSet))); got != len(pinnedTokenNames) {
 		t.Errorf("the eyeball-pinned set %v repeats a token — the count is of DISTINCT tokens", pinnedTokenNames)

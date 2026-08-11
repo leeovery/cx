@@ -133,8 +133,8 @@ func TestComposition_PhaseFour_ABC_EndToEnd(t *testing.T) {
 				lines[k] = "  " + portaltest.FormatDelta(d)
 			}
 			t.Fatalf("scrollback dir oscillated between first snapshot and "+
-				"observation %d/%d (spec § Composite End-to-End Verification "+
-				"bullet 6: \"no .bin file deletions or unexpected new files\")\n"+
+				"observation %d/%d (there must be no .bin file deletions "+
+				"or unexpected new files)\n"+
 				"  scrollback dir: %s\n"+
 				"  delta(s):\n%s",
 				i, compositionScrollbackObservations, scrollbackDir,

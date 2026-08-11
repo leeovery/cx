@@ -35,7 +35,7 @@ func TestValidSlug_RejectsIllegalForms(t *testing.T) {
 		name string
 		slug string
 	}{
-		{name: "empty — the unset sentinel of §8.1, never a slug", slug: ""},
+		{name: "empty — the unset sentinel, never a slug", slug: ""},
 		{name: "path traversal", slug: "../evil"},
 		{name: "path separator", slug: "nord/evil"},
 		{name: "leading hyphen — reads as a flag", slug: "-nord"},

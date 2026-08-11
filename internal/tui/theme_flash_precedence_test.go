@@ -178,7 +178,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 				m := tc.raise(t)
 
 				if got := m.flashText; got != tc.want {
-					t.Fatalf("the raised copy is %q, want §14A's %q", got, tc.want)
+					t.Fatalf("the raised copy is %q, want %q", got, tc.want)
 				}
 				if m.flashOrigin != flashOriginTheme {
 					t.Errorf("%q carries origin %v, want the theme origin — it must be raised through setThemeFlash", tc.want, m.flashOrigin)

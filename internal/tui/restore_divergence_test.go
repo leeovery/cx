@@ -83,7 +83,7 @@ func TestRestoreBackground_CommittedThemeDivergence(t *testing.T) {
 
 	t.Run("the startup hex did not move with the commit", func(t *testing.T) {
 		if got := m.themeState.startupCanvasHex; got != testDarkThemeCanvas {
-			t.Errorf("startupCanvasHex = %q after committing %s, want %q — it is frozen at gate resolution (§11.4)",
+			t.Errorf("startupCanvasHex = %q after committing %s, want %q — it is frozen at gate resolution",
 				got, themeLabel(committed), testDarkThemeCanvas)
 		}
 	})

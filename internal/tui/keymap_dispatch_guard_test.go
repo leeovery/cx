@@ -257,7 +257,7 @@ func previewGuardModel(t *testing.T) previewModel {
 func themeGuardModel(t *testing.T, m Model) Model {
 	t.Helper()
 	if m.colourless {
-		t.Fatal("the guard seed must not be colourless — §9.10 would block t and the probe would assert a refusal")
+		t.Fatal("the guard seed must not be colourless — that would block t and the probe would assert a refusal")
 	}
 	m.themeState.source = newEntryEnumerator(t, false)
 	return m
@@ -269,7 +269,7 @@ func TestKeymapDispatchGuard_ThemeKeyProbe(t *testing.T) {
 	t.Run("sessions", func(t *testing.T) {
 		unwired := pressSession(t, sessionsGuardModel(t), press)
 		if unwired.themePanel.open {
-			t.Fatal("precondition: an unwired seam must leave t a silent no-op (§9.6)")
+			t.Fatal("precondition: an unwired seam must leave t a silent no-op")
 		}
 		if wired := pressSession(t, themeGuardModel(t, sessionsGuardModel(t)), press); !wired.themePanel.open {
 			t.Error("t did not open the panel against a faked enumerator — the guard's probe would be vacuous")
@@ -279,7 +279,7 @@ func TestKeymapDispatchGuard_ThemeKeyProbe(t *testing.T) {
 	t.Run("projects", func(t *testing.T) {
 		unwired, _ := pressProject(t, projectsDispatchModel(t), press)
 		if unwired.themePanel.open {
-			t.Fatal("precondition: an unwired seam must leave t a silent no-op (§9.6)")
+			t.Fatal("precondition: an unwired seam must leave t a silent no-op")
 		}
 		wired, _ := pressProject(t, themeGuardModel(t, projectsDispatchModel(t)), press)
 		if !wired.themePanel.open {

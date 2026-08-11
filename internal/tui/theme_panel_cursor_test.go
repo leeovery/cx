@@ -33,7 +33,7 @@ func requireCursorOn(t *testing.T, m Model, label string) {
 	t.Helper()
 
 	if got := themePanelCursorRow(t, m).Label(); got != label {
-		t.Errorf("the cursor landed on %q, want %q — the cursor's row is always what is painted behind the panel (§9.2); rows: %v", got, label, themePanelRowLabels(m))
+		t.Errorf("the cursor landed on %q, want %q — the cursor's row is always what is painted behind the panel; rows: %v", got, label, themePanelRowLabels(m))
 	}
 }
 
@@ -41,7 +41,7 @@ func requireBadge(t *testing.T, m Model, label string, want theme.Badge) {
 	t.Helper()
 
 	if got := themePanelRowFor(t, m, label).Badge; got != want {
-		t.Errorf("the %q row's badge = %v, want %v — the `●` marks what is SET (§9.5)", label, got, want)
+		t.Errorf("the %q row's badge = %v, want %v — the `●` marks what is SET", label, got, want)
 	}
 }
 
@@ -103,7 +103,7 @@ func TestPanelOpenCursor_BothSlotsSameSlug(t *testing.T) {
 		requireCursorOn(t, m, "nord")
 		requireBadge(t, m, "nord", theme.BadgeBoth)
 		if got := themePanelRowLabels(m); countLabel(got, "nord") != 1 {
-			t.Errorf("the union lists %q %d times, want exactly 1 — one slug is one row (§9.4); rows: %v", "nord", countLabel(got, "nord"), got)
+			t.Errorf("the union lists %q %d times, want exactly 1 — one slug is one row; rows: %v", "nord", countLabel(got, "nord"), got)
 		}
 	}
 }
@@ -202,7 +202,7 @@ func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 	m = pressThemeKey(t, m)
 
 	if want := testDarkTheme(t); m.themeState.active != want {
-		t.Errorf("the screen renders canvas %s, want the §8.5 fallback's %s — the flip happens on open", m.themeState.active.Canvas.Value, want.Canvas.Value)
+		t.Errorf("the screen renders canvas %s, want the fallback's %s — the flip happens on open", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
 	requireCursorOn(t, m, theme.DefaultDarkSlug)
 	broken := themePanelRowFor(t, m, "sunset")
@@ -404,7 +404,7 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	assertBackgroundQueryIssued(t, m)
 	for _, msg := range initCmds(t, cmd) {
 		if reflect.TypeOf(msg) == queryType {
-			t.Errorf("opening the panel issued a %v; the gate resolves exactly once (§8.8)", queryType)
+			t.Errorf("opening the panel issued a %v; the gate resolves exactly once", queryType)
 		}
 		if _, ok := msg.(appearanceTimeoutMsg); ok {
 			t.Error("opening the panel armed a detection timeout; there is no question left to ask")
@@ -438,7 +438,7 @@ func TestDeps_HasNoThemeSlots(t *testing.T) {
 		t.Errorf("Deps still carries a ThemeSlots field; the panel derives its badges from the seam's Resolve, and a dead injection is a second source of truth for which slug carries the `●`")
 	}
 	if _, found := depsType.FieldByName("ThemeKeys"); !found {
-		t.Errorf("Deps carries no ThemeKeys field; the raw persisted keys are unaffected by the retirement and stay (§8.4)")
+		t.Errorf("Deps carries no ThemeKeys field; the raw persisted keys are unaffected by the retirement and stay")
 	}
 
 	for _, name := range exportedFuncsInPackage(t) {

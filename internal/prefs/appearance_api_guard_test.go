@@ -52,7 +52,7 @@ func TestPrefs_AppearanceAPIIsGone(t *testing.T) {
 		}
 		for _, identifier := range appearanceAPIIdentifiers {
 			if strings.Contains(string(data), identifier) {
-				t.Errorf("%s still references %s; §8.8 deletes the appearance enum and its API with its last caller (the raw on-disk field stays)", rel, identifier)
+				t.Errorf("%s still references %s; the appearance enum and its API are deleted along with their last caller (the raw on-disk field stays)", rel, identifier)
 			}
 		}
 	}

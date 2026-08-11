@@ -389,7 +389,7 @@ func TestProjectsFlash_FilterHeaderPrecedenceUnchanged(t *testing.T) {
 
 	m.setFlash("__FILTER_PRECEDENCE__")
 	if got := sectionHeaderRow(m.applyProjectsSectionHeader(m.projectList.View())); got != baseline {
-		t.Errorf("a flash must not change the Projects filter header row (the §14A filter-line flip is Phase 9's):\n got %q\nwant %q", got, baseline)
+		t.Errorf("a flash must not change the Projects filter header row (the filter-line flip is a separate concern):\n got %q\nwant %q", got, baseline)
 	}
 	if !strings.Contains(ansi.Strip(m.viewProjectList()), "__FILTER_PRECEDENCE__") {
 		t.Errorf("the flash must still render in the band slot beneath an applied filter:\n%s", ansi.Strip(m.viewProjectList()))

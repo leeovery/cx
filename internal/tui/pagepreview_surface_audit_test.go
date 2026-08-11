@@ -68,9 +68,9 @@ func TestSurfaceAudit_TmuxNoNewCaptureWrapper(t *testing.T) {
 			if strings.Contains(src, methodForm) || strings.Contains(src, funcForm) {
 				t.Errorf(
 					"%s declares forbidden capture-wrapper symbol %q; "+
-						"per spec § Source of Preview Bytes, preview must not "+
-						"introduce new tmux capture wrappers — the read pipeline "+
-						"is always-disk via state.ScrollbackFile + tail-N helper.",
+						"preview must not introduce new tmux capture wrappers — "+
+						"the read pipeline is always-disk via "+
+						"state.ScrollbackFile + tail-N helper.",
 					tmuxPath, sym,
 				)
 			}
@@ -90,8 +90,7 @@ func TestSurfaceAudit_TmuxCapturePaneSignatureUnchanged(t *testing.T) {
 	if !strings.Contains(src, wantSignature) {
 		t.Errorf(
 			"%s no longer contains the verbatim CapturePane signature %q. "+
-				"Per spec § Architecture Summary > No changes to, the existing "+
-				"capture path must remain untouched.",
+				"The existing capture path must remain untouched.",
 			tmuxPath, wantSignature,
 		)
 	}
@@ -120,8 +119,7 @@ func TestSurfaceAudit_StateExposesExistingWriters(t *testing.T) {
 			if !strings.Contains(combined, decl) {
 				t.Errorf(
 					"internal/state no longer declares %q. "+
-						"Per spec § Cross-cutting Seams > State Package API Reuse, "+
-						"existing writers must remain present alongside the new "+
+						"Existing writers must remain present alongside the new "+
 						"tail-N helper.",
 					decl,
 				)
@@ -132,9 +130,8 @@ func TestSurfaceAudit_StateExposesExistingWriters(t *testing.T) {
 	const tailDecl = "func TailScrollback("
 	if !strings.Contains(combined, tailDecl) {
 		t.Errorf(
-			"internal/state does not declare %q — the Phase 1 tail-N helper "+
-				"is missing. Per spec § Architecture Summary > Read pipeline, "+
-				"the helper is the canonical Phase 1 addition.",
+			"internal/state does not declare %q — the tail-N helper the "+
+				"preview read pipeline depends on is missing.",
 			tailDecl,
 		)
 	}
@@ -156,8 +153,7 @@ func auditNoPreviewTokens(t *testing.T, dir string) {
 			if strings.Contains(src, tok) {
 				t.Errorf(
 					"%s contains forbidden preview token %q. "+
-						"Per spec § Architecture Summary > No changes to, "+
-						"this directory must remain untouched by the "+
+						"This directory must remain untouched by the "+
 						"session-scrollback-preview feature.",
 					path, tok,
 				)
@@ -233,10 +229,10 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		name := e.Name()
 		if _, forbidden := forbiddenNames[name]; forbidden {
 			t.Errorf(
-				"new package internal/%s/ exists; per spec "+
-					"§ Architecture Summary, the feature must live entirely "+
-					"in pre-existing packages (internal/tui, internal/tmux, "+
-					"internal/state). Forbidden name pinned by audit.",
+				"new package internal/%s/ exists; the feature must live "+
+					"entirely in pre-existing packages (internal/tui, "+
+					"internal/tmux, internal/state). Forbidden name pinned "+
+					"by audit.",
 				name,
 			)
 			continue
@@ -246,9 +242,8 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 				"new package internal/%s/ exists and is not on the "+
 					"pre-existing allow-list. If this addition is unrelated "+
 					"to the session-scrollback-preview feature, update the "+
-					"audit's preExistingPackages map. Otherwise, per spec "+
-					"§ Architecture Summary, preview must not introduce a "+
-					"new internal/ package.",
+					"audit's preExistingPackages map. Otherwise, preview "+
+					"must not introduce a new internal/ package.",
 				name,
 			)
 		}
@@ -290,9 +285,8 @@ func TestSurfaceAudit_SaveFormatConstantsUnchanged(t *testing.T) {
 		t.Run(p.name, func(t *testing.T) {
 			if !strings.Contains(src, p.literal) {
 				t.Errorf(
-					"%s no longer contains %q (%s); per spec "+
-						"§ Architecture Summary > No changes to, the save "+
-						"format and `.bin` file shape must remain unchanged.",
+					"%s no longer contains %q (%s); the save format and "+
+						"`.bin` file shape must remain unchanged.",
 					pathsFile, p.literal, p.why,
 				)
 			}

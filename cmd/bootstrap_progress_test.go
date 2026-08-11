@@ -154,7 +154,7 @@ func TestBootstrapProgressPipe_ClosesChannelOnFatal(t *testing.T) {
 		t.Error("channel was not closed on fatal — goroutine would leak")
 	}
 	if !errors.Is(pipe.Err(), boom) {
-		t.Errorf("pipe.Err() = %v, want %v carried through for task 5-6", pipe.Err(), boom)
+		t.Errorf("pipe.Err() = %v, want %v carried through", pipe.Err(), boom)
 	}
 }
 

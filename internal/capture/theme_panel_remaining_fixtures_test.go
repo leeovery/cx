@@ -83,19 +83,19 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 	t.Run("the invalid label is text.subtle and its reason accent.attention", func(t *testing.T) {
 		_, line := panelRowLine(t, frame, "aurora-glow")
 		if !strings.Contains(line, fgSeq(t, palette.TextSubtle)) {
-			t.Errorf("the aurora-glow row does not carry text.subtle; §9.1 makes an invalid label de-emphasised BUT READABLE, and §13.5 forbids text.faint reaching the UI floor:\n%q", ansi.Strip(line))
+			t.Errorf("the aurora-glow row does not carry text.subtle; an invalid label is de-emphasised BUT READABLE, and text.faint must never reach the UI floor:\n%q", ansi.Strip(line))
 		}
 		if !strings.Contains(line, fgSeq(t, palette.AccentAttention)) {
-			t.Errorf("the aurora-glow row does not carry accent.attention; the `⚠` and its reason are one accent.attention run (§9.1's table):\n%q", ansi.Strip(line))
+			t.Errorf("the aurora-glow row does not carry accent.attention; the `⚠` and its reason are one accent.attention run:\n%q", ansi.Strip(line))
 		}
 	})
 
 	t.Run("the persisted invalid row keeps its badge and loses its reason", func(t *testing.T) {
 		if got := rows["nord-lee"].badge; !strings.Contains(got, "● dark") {
-			t.Errorf("the nord-lee row's trailing elements = %q, want the `● dark` badge — §9.5's badge marks what is SET, and a fallback never moves it", got)
+			t.Errorf("the nord-lee row's trailing elements = %q, want the `● dark` badge — the badge marks what is SET, and a fallback never moves it", got)
 		}
 		if got := rows["nord-lee"].badge; strings.Contains(got, "bad colour") {
-			t.Errorf("the nord-lee row still renders its reason (%q); §9.5's priority 2 outranks priority 4, so a badged row has no reason slot to fill", got)
+			t.Errorf("the nord-lee row still renders its reason (%q); the badge outranks the reason, so a badged row has no reason slot to fill", got)
 		}
 	})
 
@@ -105,13 +105,13 @@ func TestPanelFixture_InvalidRowFrame(t *testing.T) {
 			t.Errorf("the over-long `bad name` label is not truncated to the panel's budget:\n%s", visible)
 		}
 		if strings.Contains(visible, "My Gorgeous Midnight Palette.theme") {
-			t.Error("the over-long label renders in full; §9.5 truncates it with `…` to whatever the fixed columns leave")
+			t.Error("the over-long label renders in full; it must be truncated with `…` to whatever the fixed columns leave")
 		}
 	})
 
 	t.Run("the cursor rests on a valid row", func(t *testing.T) {
 		if !rows["tokyo-night"].cursor {
-			t.Error("the cursor is not on tokyo-night; §9.5's arrow skip keeps it off invalid rows, so a frame with it parked on one is a state production cannot reach")
+			t.Error("the cursor is not on tokyo-night; the arrow skip keeps it off invalid rows, so a frame with it parked on one is a state production cannot reach")
 		}
 		for _, invalid := range []string{"aurora-glow", "nord-lee"} {
 			if rows[invalid].cursor {
@@ -128,7 +128,7 @@ func TestPanelFixture_InvalidPersistedRowDropsTheReason(t *testing.T) {
 		t.Errorf("the UNBADGED invalid row renders no reason at all, so a missing reason on the badged row demonstrates nothing about the priority:\n%s", visible)
 	}
 	if strings.Contains(visible, "bad colour") {
-		t.Errorf("the BADGED invalid row still renders its reason; §9.4 exists so the marker always has a home, so the badge takes the right edge and the reason is dropped:\n%s", visible)
+		t.Errorf("the BADGED invalid row still renders its reason; the marker must always have a home, so the badge takes the right edge and the reason is dropped:\n%s", visible)
 	}
 }
 
@@ -142,12 +142,12 @@ func TestPanelFixture_DirUnreadableIsChromeOnPageTwo(t *testing.T) {
 
 	dirRow, _ := panelLineWith(t, frame, "dir unreadable")
 	if !strings.Contains(visible, "⚠ dir unreadable") {
-		t.Errorf("the pinned copy is not rendered verbatim; §9.5 fixes it at 16 columns precisely so it never truncates:\n%s", visible)
+		t.Errorf("the pinned copy is not rendered verbatim; it is fixed at 16 columns precisely so it never truncates:\n%s", visible)
 	}
 
 	header, _ := panelLineWith(t, frame, "Themes")
 	if dirRow <= header {
-		t.Errorf("the directory row is on line %d and the header on line %d; §9.5 pins it DIRECTLY BENEATH the header", dirRow, header)
+		t.Errorf("the directory row is on line %d and the header on line %d; it is pinned DIRECTLY BENEATH the header", dirRow, header)
 	}
 	for _, row := range []string{"solarized-lee", "tokyo-night"} {
 		at, _ := panelRowLine(t, frame, row)
@@ -169,7 +169,7 @@ func TestPanelFixture_RowsBeneathDirRow(t *testing.T) {
 
 	t.Run("a persisted-slug row keeps its badge beneath it", func(t *testing.T) {
 		if got := rows["solarized-lee"].badge; !strings.Contains(got, "● light") {
-			t.Errorf("the persisted row solarized-lee's trailing elements = %q, want the `● light` badge — losing it is the state §9.5 names", got)
+			t.Errorf("the persisted row solarized-lee's trailing elements = %q, want the `● light` badge — losing it is the regression this pins", got)
 		}
 	})
 }
@@ -197,7 +197,7 @@ func TestPanelFixture_NarrowRendersTheStepDown(t *testing.T) {
 
 	t.Run("the badges survive the narrowed width", func(t *testing.T) {
 		if got, want := panelSlugRow(t, narrow, "nord").badge, "● dark"; got != want {
-			t.Errorf("the nord row's badge = %q, want %q — §9.5's priority 2 reserves the badge before anything can crowd it out", got, want)
+			t.Errorf("the nord row's badge = %q, want %q — the badge is reserved before anything can crowd it out", got, want)
 		}
 		if got, want := panelSlugRow(t, narrow, "tokyo-night-day").badge, "● light"; got != want {
 			t.Errorf("the tokyo-night-day row's badge = %q, want %q", got, want)
@@ -217,7 +217,7 @@ func TestPanelFixture_PaginatedDrawsDots(t *testing.T) {
 
 	t.Run("the overflowing panel draws them", func(t *testing.T) {
 		if !panelCarriesDots(t, frame) {
-			t.Errorf("the panel draws no pagination dots, so §13.4's guard is blind at the panel's bubbles/list instance:\n%s", ansi.Strip(frame))
+			t.Errorf("the panel draws no pagination dots, so the swap-and-diff guard is blind at the panel's bubbles/list instance:\n%s", ansi.Strip(frame))
 		}
 	})
 
@@ -282,7 +282,7 @@ func TestPanelFixture_OverProjects(t *testing.T) {
 			t.Fatalf("the footer is identical with and without the panel, so nothing was covered:\n%s", covered)
 		}
 		if !strings.HasPrefix(bare, covered) {
-			t.Errorf("the covered footer %q is not a prefix cut of the bare footer %q; §9.1's overlay cuts wherever its border falls rather than reflowing", covered, bare)
+			t.Errorf("the covered footer %q is not a prefix cut of the bare footer %q; the overlay cuts wherever its border falls rather than reflowing", covered, bare)
 		}
 	})
 }

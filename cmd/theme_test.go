@@ -627,7 +627,7 @@ func requireExportRefusal(t *testing.T, run themeExportRun, want string) {
 		t.Fatalf("theme export succeeded, want the refusal %q", want)
 	}
 	if got := run.err.Error(); got != want {
-		t.Errorf("refusal = %q, want §14A's frame %q", got, want)
+		t.Errorf("refusal = %q, want the refusal frame %q", got, want)
 	}
 	if len(run.stdout) != 0 {
 		t.Errorf("stdout = %q, want nothing — a redirect would capture the refusal into the user's theme file", run.stdout)
@@ -651,7 +651,7 @@ func requireOrdinaryError(t *testing.T, err error) {
 	}
 	var usage *UsageError
 	if errors.As(err, &usage) {
-		t.Errorf("refusal %q is a *UsageError — classify would exit 2, and §12.1 fixes every failure class at 1", err)
+		t.Errorf("refusal %q is a *UsageError — classify would exit 2, and every failure class here must exit 1", err)
 	}
 }
 
@@ -934,7 +934,7 @@ func TestThemeExport_StdoutIsEmptyOnFailure(t *testing.T) {
 }
 
 func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
-	t.Run("the four §14A frames are unchanged", func(t *testing.T) {
+	t.Run("the four refusal frames are unchanged", func(t *testing.T) {
 		t.Run("an unknown slug", func(t *testing.T) {
 			useThemesDir(t)
 
@@ -996,7 +996,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 				return true
 			}
 			if why, isBanned := banned[ident.Name]; isBanned {
-				t.Errorf("cmd/theme.go:%d names %s, which %s — §8.4's ordering lives in theme.Loader.ResolveByName alone", fset.Position(ident.Pos()).Line, ident.Name, why)
+				t.Errorf("cmd/theme.go:%d names %s, which %s — the by-name resolution ordering lives in theme.Loader.ResolveByName alone", fset.Position(ident.Pos()).Line, ident.Name, why)
 			}
 			return true
 		})

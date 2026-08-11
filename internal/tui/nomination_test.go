@@ -29,7 +29,7 @@ func memberForSlot(slot theme.Slot) theme.Member {
 func TestDeps_HasNoAppearanceField(t *testing.T) {
 	depsType := reflect.TypeFor[Deps]()
 	if _, found := depsType.FieldByName("Appearance"); found {
-		t.Errorf("Deps still carries an Appearance field; §8.8 removes the appearance injection, it is not kept alongside Deps.Theme")
+		t.Errorf("Deps still carries an Appearance field; the appearance injection is removed, not kept alongside Deps.Theme")
 	}
 	if _, found := depsType.FieldByName("Theme"); !found {
 		t.Errorf("Deps carries no Theme field; the loaded nomination is what replaces the appearance injection")
@@ -37,7 +37,7 @@ func TestDeps_HasNoAppearanceField(t *testing.T) {
 
 	for _, name := range exportedFuncsInPackage(t) {
 		if name == "WithAppearance" {
-			t.Errorf("WithAppearance is still declared; §8.8 removes the option rather than leaving a second, dead injection path")
+			t.Errorf("WithAppearance is still declared; the option is removed rather than left as a second, dead injection path")
 		}
 	}
 }
@@ -196,7 +196,7 @@ func TestConstruction_ReadsNoThemesDirectory(t *testing.T) {
 				t.Errorf("%s calls %s (%s); TUI construction takes a LOADED nomination and must read nothing", file, call, what)
 			}
 			if strings.HasSuffix(call, ".Enumerate") {
-				t.Errorf("%s calls %s; construction enumerates nothing — the themes directory is read only by the §9 panel", file, call)
+				t.Errorf("%s calls %s; construction enumerates nothing — the themes directory is read only by the theme panel", file, call)
 			}
 		}
 	}
@@ -212,7 +212,7 @@ func assertBackgroundQueryIssued(t *testing.T, m Model) {
 			return
 		}
 	}
-	t.Errorf("Init issued no OSC 11 background query (no %v produced); restore-on-exit and §9.3's conversion both need the reply", wantType)
+	t.Errorf("Init issued no OSC 11 background query (no %v produced); restore-on-exit and the adaptive conversion both need the reply", wantType)
 }
 
 func exportedFuncsInPackage(t *testing.T) []string {

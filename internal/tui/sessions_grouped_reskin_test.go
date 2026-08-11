@@ -240,7 +240,7 @@ func TestSessionsTuiNoLipglossTree(t *testing.T) {
 		for _, imp := range file.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
 			if strings.Contains(path, "lipgloss") && strings.Contains(path, "tree") {
-				t.Errorf("%s imports %q — grouping must stay pure Lipgloss in the delegate, not lipgloss/tree (§14.1)", name, path)
+				t.Errorf("%s imports %q — grouping must stay pure Lipgloss in the delegate, not lipgloss/tree", name, path)
 			}
 		}
 	}

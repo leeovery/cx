@@ -83,16 +83,16 @@ func TestThemePersister_FailedCommitLogsAndReturns(t *testing.T) {
 	err := persister.CommitTheme(nordSlug)
 
 	if err == nil {
-		t.Fatal("CommitTheme returned nil over a malformed prefs.json; Phase 9's outstanding-failure state machine reports the VALUE, not the log")
+		t.Fatal("CommitTheme returned nil over a malformed prefs.json; a failed commit must report the failure as its return VALUE, not only as a log line")
 	}
 	assertPrefsUnchanged(t, path, []byte(malformed))
 
 	rec := sink.OnlyRecord(t)
 	if rec.Level != slog.LevelWarn {
-		t.Errorf("level = %v, want WARN per §12.3", rec.Level)
+		t.Errorf("level = %v, want WARN", rec.Level)
 	}
 	if want := "commit failed"; rec.Msg != want {
-		t.Errorf("message = %q, want %q verbatim from §12.3's catalogue", rec.Msg, want)
+		t.Errorf("message = %q, want %q verbatim from the event catalogue", rec.Msg, want)
 	}
 	if got := rec.AttrString(t, "reason"); got != err.Error() {
 		t.Errorf("reason = %q, want the returned error %q — the log and the value must describe the same failure", got, err.Error())
@@ -154,7 +154,7 @@ func TestThemePersister_CommitFailedAttrs(t *testing.T) {
 			closed := map[string]bool{"slug": true, "slot": true, "reason": true, "path": true, "token": true, "count": true, "rejected": true}
 			for _, key := range rec.Keys {
 				if key != "component" && !closed[key] {
-					t.Errorf("attr %q is outside §12.3's closed key set %v", key, slices.Sorted(maps.Keys(closed)))
+					t.Errorf("attr %q is outside the theme component's closed key set %v", key, slices.Sorted(maps.Keys(closed)))
 				}
 			}
 		})

@@ -173,12 +173,12 @@ func requireRenderedBadge(t *testing.T, m Model, label string, want theme.Badge)
 	row := renderedPanelRowFor(t, m, label)
 	if want == theme.BadgeNone {
 		if strings.Contains(row.trailer, themeBadgeGlyph) {
-			t.Errorf("the %q row draws a badge in %q, want none — the `●` marks what is SET (§9.5)", label, row.trailer)
+			t.Errorf("the %q row draws a badge in %q, want none — the `●` marks what is SET", label, row.trailer)
 		}
 		return
 	}
 	if !strings.HasSuffix(row.trailer, themePanelBadgeText(want)) {
-		t.Errorf("the %q row draws %q, want it to end with the right-aligned %q (§9.5)", label, row.trailer, themePanelBadgeText(want))
+		t.Errorf("the %q row draws %q, want it to end with the right-aligned %q", label, row.trailer, themePanelBadgeText(want))
 	}
 }
 
@@ -216,7 +216,7 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 		requireRenderedOrder(t, m, theme.BuiltinSlugs()...)
 		row := themePanelRowFor(t, m, "nord")
 		if !row.Row.Selectable() {
-			t.Errorf("the `nord` row is unselectable (%v); a persisted slug naming a built-in IS that built-in's row (§9.4)", row.Row.Rejection)
+			t.Errorf("the `nord` row is unselectable (%v); a persisted slug naming a built-in IS that built-in's row", row.Row.Rejection)
 		}
 		if row.Row.Source != theme.SourceBuiltin {
 			t.Errorf("the `nord` row is a %v, want the built-in's own row rather than a minted persisted one", row.Row.Source)
@@ -225,7 +225,7 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 		requireRenderedBadgeCount(t, m, 1)
 		for _, drawn := range renderedPanelRows(t, m) {
 			if strings.Contains(drawn.trailer, string(theme.ReasonNotFound)) {
-				t.Errorf("the panel drew a %q row (%+v); the persisted slug RESOLVES, so no second row is minted for it (§9.4)", theme.ReasonNotFound, drawn)
+				t.Errorf("the panel drew a %q row (%+v); the persisted slug RESOLVES, so no second row is minted for it", theme.ReasonNotFound, drawn)
 			}
 		}
 	})
@@ -238,7 +238,7 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 		requireRenderedOrder(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 		row := themePanelRowFor(t, m, "sunset")
 		if row.Row.Selectable() {
-			t.Error("the `sunset` row is selectable; an invalid file is present and named but not committable (§9.5)")
+			t.Error("the `sunset` row is selectable; an invalid file is present and named but not committable")
 		}
 		if got := row.Row.Rejection.Reason; got != theme.ReasonBadColour {
 			t.Errorf("the `sunset` row carries reason %q, want the file's own %q — nothing re-derives it", got, theme.ReasonBadColour)
@@ -256,10 +256,10 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 		requireRenderedOrder(t, m, "nord", "nord.theme", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 		collided := themePanelRowFor(t, m, "nord.theme")
 		if got := collided.Row.Slug; got != "nord" {
-			t.Errorf("the `nord.theme` row's slug is %q, want the built-in's %q — the collision IS the reason (§6.2)", got, "nord")
+			t.Errorf("the `nord.theme` row's slug is %q, want the built-in's %q — the collision IS the reason", got, "nord")
 		}
 		if collided.Row.Selectable() {
-			t.Error("the `nord.theme` row is selectable; a reserved name is a rejection (§5.4)")
+			t.Error("the `nord.theme` row is selectable; a reserved name is a rejection")
 		}
 		// A bare Slug lookup (instead of Row.BadgeKey) would paint `●` on both rows
 		// of the collision.
@@ -299,11 +299,11 @@ func TestThemePanelBehaviour_Ordering(t *testing.T) {
 		builtin := slices.Index(rows, "nord")
 		collided := slices.Index(rows, "nord.theme")
 		if builtin < 0 || collided != builtin+1 {
-			t.Fatalf("the panel draws %v, want `nord.theme` immediately after `nord` — the valid thing first, then the row explaining why theirs is not it (§9.5)", rows)
+			t.Fatalf("the panel draws %v, want `nord.theme` immediately after `nord` — the valid thing first, then the row explaining why theirs is not it", rows)
 		}
 		requireRenderedCursorOn(t, m, "nord")
 		if got, want := m.themePanel.list.Index(), builtin; got != want {
-			t.Errorf("the cursor sits at index %d, want the built-in's %d — the anchor resolves a shared identity to the SELECTABLE row (§9.2)", got, want)
+			t.Errorf("the cursor sits at index %d, want the built-in's %d — the anchor resolves a shared identity to the SELECTABLE row", got, want)
 		}
 	})
 }
@@ -343,10 +343,10 @@ func TestThemePanelBehaviour_RowComposition(t *testing.T) {
 	t.Run("the reason is dropped before the badge", func(t *testing.T) {
 		row := renderedPanelRowFor(t, badged, "sunset")
 		if !strings.Contains(row.trailer, flashWarningGlyph) {
-			t.Errorf("the badged invalid row drew %q, want the `⚠` invalidity signal — it survives every competitor (§9.5)", row.trailer)
+			t.Errorf("the badged invalid row drew %q, want the `⚠` invalidity signal — it survives every competitor", row.trailer)
 		}
 		if strings.Contains(row.trailer, string(theme.ReasonBadColour)) {
-			t.Errorf("the badged invalid row drew the reason in %q; the badge outranks it, because §9.4 exists so the marker always has a home", row.trailer)
+			t.Errorf("the badged invalid row drew the reason in %q; the badge outranks it, so the marker always has a home", row.trailer)
 		}
 		requireRenderedBadge(t, badged, "sunset", theme.BadgeConstant)
 
@@ -367,7 +367,7 @@ func TestThemePanelBehaviour_RowComposition(t *testing.T) {
 			t.Errorf("the truncated label %q carries no ellipsis", label)
 		}
 		if got := len([]rune(label)); got < themeRowLabelFloor {
-			t.Errorf("the label drew %d cells, below §9.5's floor of three characters plus the ellipsis (%d)", got, themeRowLabelFloor)
+			t.Errorf("the label drew %d cells, below the floor of three characters plus the ellipsis (%d)", got, themeRowLabelFloor)
 		}
 	})
 }
@@ -405,7 +405,7 @@ func TestThemePanelBehaviour_Badges(t *testing.T) {
 
 		fallback := renderedPanelRowFor(t, m, "gone-light")
 		if !strings.Contains(fallback.trailer, flashWarningGlyph) {
-			t.Errorf("the `gone-light` row drew %q, want the `⚠` — the user sees what is set AND why it is not applying (§9.4)", fallback.trailer)
+			t.Errorf("the `gone-light` row drew %q, want the `⚠` — the user sees what is set AND why it is not applying", fallback.trailer)
 		}
 	})
 
@@ -433,7 +433,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)
 	if !m.themePanel.confirming() {
-		t.Fatal("`d` over a constant did not raise the confirm, so the commit below is not the one §9.2 gates")
+		t.Fatal("`d` over a constant did not raise the confirm, so the commit below is not the one the confirm gates")
 	}
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
@@ -448,7 +448,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 		t.Errorf("the cursor sits at index %d, want %d — the row inserted above it pushed the previewed row down", got, want)
 	}
 	if m.themeState.active != previewed {
-		t.Errorf("the commit rendered %s, want the previewed %s — a commit is a WRITE, not a navigation (§9.2)", themeLabel(m.themeState.active), themeLabel(previewed))
+		t.Errorf("the commit rendered %s, want the previewed %s — a commit is a WRITE, not a navigation", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 
 	m, _ = pressCommitKey(t, m)
@@ -457,7 +457,7 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 		t.Fatalf("`Enter` recorded the constants %v, want [sunset]", got)
 	}
 	if got := len(persister.slotCommits); got != 1 {
-		t.Errorf("`Enter` recorded %d slot commits, want the 1 the confirm made — it writes the CONSTANT and clears both slots (§9.2)", got)
+		t.Errorf("`Enter` recorded %d slot commits, want the 1 the confirm made — it writes the CONSTANT and clears both slots", got)
 	}
 	requireConstantKeys(t, m, "sunset")
 	requireRenderedOrder(t, m, "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
@@ -483,10 +483,10 @@ func TestThemePanelBehaviour_Confirm(t *testing.T) {
 				m, _ = pressConfirmKey(t, m, press)
 
 				if m.themePanel.confirming() {
-					t.Errorf("%v left the question standing; it is one of §9.2's three resolving inputs", press)
+					t.Errorf("%v left the question standing; it is one of the three resolving inputs", press)
 				}
 				if !m.themePanel.open {
-					t.Errorf("%v closed the panel; the confirm resolves, and only an `Esc` with no confirm live closes (§9.2)", press)
+					t.Errorf("%v closed the panel; the confirm resolves, and only an `Esc` with no confirm live closes", press)
 				}
 			})
 		}
@@ -510,7 +510,7 @@ func TestThemePanelBehaviour_Confirm(t *testing.T) {
 				got, cmd := pressConfirmKey(t, m, probe.press)
 
 				if !got.themePanel.confirming() || got.themePanel.pending != pending {
-					t.Errorf("%v resolved the question (pending %+v, want the standing %+v); only §9.2's three inputs may", probe.press, got.themePanel.pending, pending)
+					t.Errorf("%v resolved the question (pending %+v, want the standing %+v); only the three resolving inputs may", probe.press, got.themePanel.pending, pending)
 				}
 				if len(persister.slugs) != 0 {
 					t.Errorf("%v wrote %v while the question was live; nothing is written until `y`", probe.press, persister.slugs)
@@ -556,7 +556,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		m, _ = pressSlotKey(t, m, slotDarkPress)
 
 		if got := themePanelMessageRow(m); got != messageTestFailedCopy {
-			t.Fatalf("the failed commit drew %q in the message slot, want §14A's %q", got, messageTestFailedCopy)
+			t.Fatalf("the failed commit drew %q in the message slot, want %q", got, messageTestFailedCopy)
 		}
 		if !m.themeState.commitFailed {
 			t.Fatal("the failed commit left nothing outstanding")
@@ -568,10 +568,10 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 			t.Errorf("the message slot still reads %q after the next keypress, want it cleared", got)
 		}
 		if m.themePanel.list.Index() == index {
-			t.Error("the keypress that cleared the message was swallowed; it clears AND acts (§9.13)")
+			t.Error("the keypress that cleared the message was swallowed; it clears AND acts")
 		}
 		if !m.themeState.commitFailed {
-			t.Fatal("arrowing away discharged the state; only a SUCCESSFUL commit does (§9.13)")
+			t.Fatal("arrowing away discharged the state; only a SUCCESSFUL commit does")
 		}
 
 		persister.err = nil
@@ -594,11 +594,11 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		m, _ = closePanelForTest(t, m)
 
 		if got := m.flashText; got != specThemeNotSavedFlash {
-			t.Errorf("the close raised %q, want §14A's %q", got, specThemeNotSavedFlash)
+			t.Errorf("the close raised %q, want %q", got, specThemeNotSavedFlash)
 		}
 		requireFlashBandVisible(t, m, specThemeNotSavedFlash)
 		if m.themeState.commitFailed {
-			t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state (§9.13)")
+			t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state")
 		}
 
 		m = pressThemeKey(t, m)
@@ -623,7 +623,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 			t.Fatal("the resize below the floor left the panel open")
 		}
 		if got := m.flashText; got != specThemeNotSavedFlash {
-			t.Errorf("the forced close raised %q, want §9.13's report to win the single band slot over %q", got, specNarrowClosedFlash)
+			t.Errorf("the forced close raised %q, want the commit-failure report to win the single band slot over %q", got, specNarrowClosedFlash)
 		}
 		if m.themeState.commitFailed {
 			t.Error("the forced close left the failure outstanding; the report was made, so the state is discharged")
@@ -632,7 +632,7 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		control, _ := behaviourFailureModel(t)
 		control = resizeForTest(t, control, contentW, contentH)
 		if got := control.flashText; got != specNarrowClosedFlash {
-			t.Errorf("the control's forced close raised %q, want §14A's %q", got, specNarrowClosedFlash)
+			t.Errorf("the control's forced close raised %q, want %q", got, specNarrowClosedFlash)
 		}
 	})
 }
@@ -667,7 +667,7 @@ func TestThemePanelBehaviour_NoConfigAccess(t *testing.T) {
 			theme.RawKeys{})
 
 		if got := m.themePanel.enumeration.DirPath; got != "" {
-			t.Errorf("the retained enumeration names the directory %q, want none — the seam returns the finished union, not a directory listing (§13.3)", got)
+			t.Errorf("the retained enumeration names the directory %q, want none — the seam returns the finished union, not a directory listing", got)
 		}
 		row := renderedPanelRowFor(t, m, "sunset")
 		if !strings.Contains(row.trailer, flashWarningGlyph) || !strings.Contains(row.trailer, string(theme.ReasonMissingTokens)) {

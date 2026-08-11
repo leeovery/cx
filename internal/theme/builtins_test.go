@@ -30,7 +30,7 @@ func TestTokyoNightFile_HasNineteenKeysAndNoBorderFooter(t *testing.T) {
 		t.Errorf("%s declares %d keys, want %d", tokyoNightPath, len(keys), want)
 	}
 	if slices.Contains(keys, "border.footer") {
-		t.Errorf("%s declares border.footer — §2.2 consolidated the border tokens into one", tokyoNightPath)
+		t.Errorf("%s declares border.footer — the border tokens are consolidated into one", tokyoNightPath)
 	}
 
 	got, want := slices.Sorted(slices.Values(keys)), slices.Sorted(slices.Values(theme.TokenNames()))

@@ -79,16 +79,15 @@ func TestDaemonAcquireLockOrdering_WritePIDFollowsAcquire(t *testing.T) {
 	writePIDIfStmt, ok := writePIDStmt.(*ast.IfStmt)
 	if !ok {
 		t.Fatalf("statement at index %d after err-guard is not an *ast.IfStmt; "+
-			"got %T at line %d — the spec mandates WritePIDFile is the next "+
+			"got %T at line %d — WritePIDFile must be the next "+
 			"statement after the acquire err-guard. Did a refactor insert "+
 			"intermediate work between acquireDaemonLock's err-guard and WritePIDFile?",
 			acquireIdx+2, writePIDStmt, fset.Position(writePIDStmt.Pos()).Line)
 	}
 	if !ifStmtContainsCallTo(writePIDIfStmt, writePIDFileIdent) {
 		t.Fatalf("statement at index %d (line %d) is an *ast.IfStmt but does not "+
-			"contain a call to %q. The spec mandates the acquire err-guard be "+
-			"immediately followed by WritePIDFile — see specification.md § "+
-			"Component C step 4.",
+			"contain a call to %q. The acquire err-guard must be "+
+			"immediately followed by WritePIDFile.",
 			acquireIdx+2, fset.Position(writePIDIfStmt.Pos()).Line, writePIDFileIdent)
 	}
 }
@@ -133,11 +132,11 @@ func TestAcquireDaemonLock_SingleProductionCallSite(t *testing.T) {
 	if count != 1 {
 		t.Errorf("expected exactly 1 production call site to acquireDaemonLock / "+
 			"state.AcquireDaemonLock in cmd/; got %d at: %v\n\n"+
-			"Spec § Component C step 4 mandates a single production call site "+
-			"inside defaultDaemonRun. A second caller would bypass the "+
+			"There must be exactly one production call site, inside "+
+			"defaultDaemonRun. A second caller would bypass the "+
 			"acquire+WritePIDFile adjacency check enforced by "+
 			"TestDaemonAcquireLockOrdering_WritePIDFollowsAcquire and "+
-			"re-introduce the race Component C closes.",
+			"re-introduce the acquire/pid-write race it closes.",
 			count, locations)
 	}
 }

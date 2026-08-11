@@ -241,7 +241,7 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
 
 	if enumerator.opens != 0 {
-		t.Errorf("construction ran %d enumerations, want 0 — discovery is lazy (§5.7)", enumerator.opens)
+		t.Errorf("construction ran %d enumerations, want 0 — discovery is lazy", enumerator.opens)
 	}
 	if got := countThemeEvents(sink, "enumerated"); got != 0 {
 		t.Errorf("construction emitted %d `theme: enumerated` records, want 0", got)
@@ -277,10 +277,10 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	}
 
 	if enumerator.opens != opens {
-		t.Errorf("%d opens ran %d enumerations, want %d — the read is per open (§5.8)", opens, enumerator.opens, opens)
+		t.Errorf("%d opens ran %d enumerations, want %d — the read is per open", opens, enumerator.opens, opens)
 	}
 	if got := countThemeEvents(sink, "enumerated"); got != opens {
-		t.Errorf("%d opens emitted %d `theme: enumerated` records, want %d (§12.3 — per event, no dedup)", opens, got, opens)
+		t.Errorf("%d opens emitted %d `theme: enumerated` records, want %d (per event, no dedup)", opens, got, opens)
 	}
 }
 
@@ -550,7 +550,7 @@ func TestThemePanelOpen_SwallowsPageKeys(t *testing.T) {
 			m = pressPanelKey(t, m, tc.press)
 
 			if tc.effect(m) {
-				t.Errorf("%v reached %s while the panel was open — the panel is key-exclusive (§9.7)", tc.press, tc.effectS)
+				t.Errorf("%v reached %s while the panel was open — the panel is key-exclusive", tc.press, tc.effectS)
 			}
 			if !m.themePanel.open {
 				t.Errorf("%v closed the panel; only Esc closes it", tc.press)

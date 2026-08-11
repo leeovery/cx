@@ -39,10 +39,10 @@ func TestFooterRevision_SessionsPinnedCopy(t *testing.T) {
 	cluster, anchor := splitFooterRow(row)
 
 	if cluster != specSessionsFooterCluster {
-		t.Errorf("Sessions footer cluster:\n got  %q\n want %q (§14.2)", cluster, specSessionsFooterCluster)
+		t.Errorf("Sessions footer cluster:\n got  %q\n want %q", cluster, specSessionsFooterCluster)
 	}
 	if anchor != specFooterHelpAnchor {
-		t.Errorf("Sessions footer anchor = %q, want the right-aligned %q (§14.2)", anchor, specFooterHelpAnchor)
+		t.Errorf("Sessions footer anchor = %q, want the right-aligned %q", anchor, specFooterHelpAnchor)
 	}
 }
 
@@ -51,10 +51,10 @@ func TestFooterRevision_ProjectsPinnedCopy(t *testing.T) {
 	cluster, anchor := splitFooterRow(row)
 
 	if cluster != specProjectsFooterCluster {
-		t.Errorf("Projects footer cluster:\n got  %q\n want %q (§14.2)", cluster, specProjectsFooterCluster)
+		t.Errorf("Projects footer cluster:\n got  %q\n want %q", cluster, specProjectsFooterCluster)
 	}
 	if anchor != specFooterHelpAnchor {
-		t.Errorf("Projects footer anchor = %q, want the right-aligned %q (§14.2)", anchor, specFooterHelpAnchor)
+		t.Errorf("Projects footer anchor = %q, want the right-aligned %q", anchor, specFooterHelpAnchor)
 	}
 }
 
@@ -81,14 +81,14 @@ func TestFooterRevision_NavigateIsNonCore(t *testing.T) {
 	} {
 		t.Run(tc.page, func(t *testing.T) {
 			if strings.Contains(tc.footer, "navigate") {
-				t.Errorf("the %s footer still lists `↑↓ navigate` (§14.1 drops it):\n%s", tc.page, tc.footer)
+				t.Errorf("the %s footer still lists `↑↓ navigate` (the footer drops it):\n%s", tc.page, tc.footer)
 			}
 			if !strings.Contains(tc.help, "Move selection") {
-				t.Errorf("the %s help body must still list the nav row (§14.1 keeps it in help):\n%s", tc.page, tc.help)
+				t.Errorf("the %s help body must still list the nav row (help keeps it):\n%s", tc.page, tc.help)
 			}
 			for _, e := range tc.entries {
 				if e.Key == "↑↓" && e.Core {
-					t.Errorf("the %s nav entry is still Core; §14.1 makes it non-core (listed, not footed)", tc.page)
+					t.Errorf("the %s nav entry is still Core; it must be non-core (listed, not footed)", tc.page)
 				}
 			}
 		})
@@ -100,13 +100,13 @@ func TestFooterRevision_MultiLabelIsShort(t *testing.T) {
 	row := footerRowVisible(t, renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, th, false))
 
 	if !strings.Contains(row, "m multi") {
-		t.Errorf("the Sessions footer must carry `m multi` (§14.3):\n%s", row)
+		t.Errorf("the Sessions footer must carry `m multi`:\n%s", row)
 	}
 	if strings.Contains(row, "multi-select") {
-		t.Errorf("the Sessions footer must NOT carry the long `m multi-select` label (§14.3):\n%s", row)
+		t.Errorf("the Sessions footer must NOT carry the long `m multi-select` label:\n%s", row)
 	}
 	if body := footerVisible(helpModalBody(sessionsKeymap(), th, false)); !strings.Contains(body, "Multi-select mode") {
-		t.Errorf("the help body keeps the long `Multi-select mode` label (§14.3 shortens the FOOTER only):\n%s", body)
+		t.Errorf("the help body keeps the long `Multi-select mode` label (only the FOOTER is shortened):\n%s", body)
 	}
 }
 
@@ -193,11 +193,11 @@ func TestFooterRevision_BlockedThemeKeyFilteredInLockstep(t *testing.T) {
 
 			blocked := tc.model(t, true)
 			if keymapHasKey(tc.keymap(blocked), "t") {
-				t.Errorf("the %s call-site keymap must DROP t under NO_COLOR (§9.10)", tc.page)
+				t.Errorf("the %s call-site keymap must DROP t under NO_COLOR", tc.page)
 			}
 			blockedRow := footerRowVisible(t, tc.footer(blocked))
 			if strings.Contains(blockedRow, "t theme") {
-				t.Errorf("the blocked %s footer still advertises `t theme` (§14.3 filters in lockstep):\n%s", tc.page, blockedRow)
+				t.Errorf("the blocked %s footer still advertises `t theme` (footer and help filter in lockstep):\n%s", tc.page, blockedRow)
 			}
 			if body := helpBodyThroughView(tc.view, blocked); strings.Contains(body, "Theme picker") {
 				t.Errorf("the blocked %s help modal still lists the Theme picker row (its view passes the UNFILTERED descriptor):\n%s", tc.page, body)
@@ -227,7 +227,7 @@ func TestFooterRevision_BlockedMultiKeyFilteredInLockstep(t *testing.T) {
 	}
 	blockedRow := footerRowVisible(t, renderSessionsFooter(blocked.sessionsHelpKeymap(), referenceFooterWidth, th, false))
 	if strings.Contains(blockedRow, "m multi") {
-		t.Errorf("the blocked footer still advertises `m multi` (§14.3 filters in lockstep):\n%s", blockedRow)
+		t.Errorf("the blocked footer still advertises `m multi` (footer and help filter in lockstep):\n%s", blockedRow)
 	}
 	if body := footerVisible(helpModalBody(blocked.sessionsHelpKeymap(), th, false)); strings.Contains(body, "Multi-select mode") {
 		t.Errorf("the blocked help body still lists the multi-select row:\n%s", body)
@@ -361,10 +361,10 @@ func TestFooterRevision_HelpAnchorSurvivesNarrowing(t *testing.T) {
 		cluster, anchor := splitFooterRow(row)
 
 		if anchor != specFooterHelpAnchor {
-			t.Fatalf("at width %d the ? help anchor was dropped; §14.4 never drops it while it fits:\n%q", w, row)
+			t.Fatalf("at width %d the ? help anchor was dropped; it is never dropped while it fits:\n%q", w, row)
 		}
 		if !slices.Contains(allowed, cluster) {
-			t.Fatalf("at width %d the cluster %q is not a legal §14.4 degrade step (wrapped, truncated, or dropped from the wrong end)", w, cluster)
+			t.Fatalf("at width %d the cluster %q is not a legal degrade step (wrapped, truncated, or dropped from the wrong end)", w, cluster)
 		}
 		count := footerClusterEntryCount(cluster)
 		if previous >= 0 {
@@ -372,7 +372,7 @@ func TestFooterRevision_HelpAnchorSurvivesNarrowing(t *testing.T) {
 				t.Fatalf("at width %d the cluster grew back to %d entries from %d — the drop must be monotonic as the row narrows", w, count, previous)
 			}
 			if previous-count > 1 {
-				t.Fatalf("at width %d the cluster lost %d entries in one cell (from %d to %d) — §14.4 drops one at a time", w, previous-count, previous, count)
+				t.Fatalf("at width %d the cluster lost %d entries in one cell (from %d to %d) — the cluster drops one at a time", w, previous-count, previous, count)
 			}
 		}
 		previous = count
@@ -402,7 +402,7 @@ func TestFooterRevision_ExtremeNarrowLadder(t *testing.T) {
 		footer := renderSessionsFooter(sessionsKeymap(), w, th, false)
 		row := footerRowVisible(t, footer)
 		if got := strings.TrimSpace(row); got != "" {
-			t.Errorf("at width %d the row = %q, want an empty row (§14.4 below the anchor's width)", w, got)
+			t.Errorf("at width %d the row = %q, want an empty row (below the anchor's width)", w, got)
 		}
 		if got := lipgloss.Width(strings.Split(footer, "\n")[1]); got != w {
 			t.Errorf("at width %d the empty row is %d cells wide, want exactly %d", w, got, w)

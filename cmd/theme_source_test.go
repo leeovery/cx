@@ -39,7 +39,7 @@ func TestThemeSource_ReadsOnlyWhenOpened(t *testing.T) {
 	enumerator := newThemeSource(loader)
 
 	if got := themeEventCount(t, sink, "enumerated"); got != 0 {
-		t.Errorf("constructing the adapter emitted %d `theme: enumerated` records, want 0 — the read is on the keypress (§5.7)", got)
+		t.Errorf("constructing the adapter emitted %d `theme: enumerated` records, want 0 — the read is on the keypress", got)
 	}
 
 	const opens = 3
@@ -51,7 +51,7 @@ func TestThemeSource_ReadsOnlyWhenOpened(t *testing.T) {
 	}
 
 	if got := themeEventCount(t, sink, "enumerated"); got != opens {
-		t.Errorf("%d opens emitted %d `theme: enumerated` records, want %d (§12.3 — per event, no dedup)", opens, got, opens)
+		t.Errorf("%d opens emitted %d `theme: enumerated` records, want %d (one per open event, no dedup)", opens, got, opens)
 	}
 }
 
@@ -101,7 +101,7 @@ func TestThemeSource_SharesTheConstructionReadsDedupScope(t *testing.T) {
 	t.Run("the construction loader dedups the panel's repeat", func(t *testing.T) {
 		got := openAfterConstruction(t, func(l theme.Loader) theme.Loader { return l })
 		if got != 1 {
-			t.Errorf("`theme: directory unusable` was emitted %d times, want 1 — the panel must share the construction read's dedup scope (§5.5)", got)
+			t.Errorf("`theme: directory unusable` was emitted %d times, want 1 — the panel must share the construction read's dedup scope", got)
 		}
 	})
 
@@ -121,7 +121,7 @@ func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 
 	for _, constructor := range []string{"buildThemeLoader", "newThemeLoader"} {
 		if got := callCount(fn, constructor); got > 1 {
-			t.Errorf("openTUI calls %s %d times, want at most 1 — one loader per launch is one dedup scope per launch (§5.5)", constructor, got)
+			t.Errorf("openTUI calls %s %d times, want at most 1 — one loader per launch is one dedup scope per launch", constructor, got)
 		}
 	}
 
@@ -141,7 +141,7 @@ func assertEnumeratorTakesBoundLoader(t *testing.T, n ast.Node) {
 			return true
 		}
 		if _, isIdent := call.Args[0].(*ast.Ident); !isIdent {
-			t.Errorf("openTUI hands newThemeSource a freshly-constructed loader; it must share the construction-time instance (§5.5)")
+			t.Errorf("openTUI hands newThemeSource a freshly-constructed loader; it must share the construction-time instance")
 		}
 		return true
 	})

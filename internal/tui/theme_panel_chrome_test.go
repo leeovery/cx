@@ -346,7 +346,7 @@ func TestPanelChrome_EntryGateFollowsTheFloor(t *testing.T) {
 			t.Errorf("`t` opened the panel at %d content rows, one below the %d-row floor", floor-1, floor)
 		}
 		if got := m.flashText; got != themePanelShortEntryFlash {
-			t.Errorf("the refusal raised %q, want §14A's %q", got, themePanelShortEntryFlash)
+			t.Errorf("the refusal raised %q, want %q", got, themePanelShortEntryFlash)
 		}
 	})
 
@@ -354,7 +354,7 @@ func TestPanelChrome_EntryGateFollowsTheFloor(t *testing.T) {
 		m := newChromeGateModel(t, floor)
 		m = pressThemeKey(t, m)
 		if !m.themePanel.open {
-			t.Errorf("`t` refused at exactly the %d-row floor, which §9.8 admits", floor)
+			t.Errorf("`t` refused at exactly the %d-row floor, which the entry gate admits", floor)
 		}
 	})
 }

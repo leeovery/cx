@@ -154,8 +154,8 @@ func TestKillBarrierEscalation_NoScrollbackDeltaIn200msPostExit(t *testing.T) {
 			lines[i] = "  " + portaltest.FormatDelta(d)
 		}
 		t.Fatalf("scrollback dir mutated between pre-SIGKILL snapshot and "+
-			"200 ms post-exit snapshot (spec § Component A: no final-flush "+
-			"GC cycle on escalation-killed orphans)\n"+
+			"200 ms post-exit snapshot; an escalation-killed orphan must run "+
+			"no final-flush GC cycle\n"+
 			"  scrollback dir: %s\n"+
 			"  pre keys (%d): %v\n"+
 			"  post keys (%d): %v\n"+

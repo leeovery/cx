@@ -156,7 +156,7 @@ func TestEventLogger_AttrKeysAreInTheClosedSet(t *testing.T) {
 		}
 		for _, key := range record.Keys {
 			if !slices.Contains(closedAttrKeys, key) {
-				t.Errorf("record %d (%q) carries the attr key %q, which is not one of §12.3's closed keys %v", i, record.Msg, key, closedAttrKeys)
+				t.Errorf("record %d (%q) carries the attr key %q, which is not one of the closed keys %v", i, record.Msg, key, closedAttrKeys)
 			}
 		}
 	}
@@ -672,7 +672,7 @@ func TestEvents_AttrKeysAreInTheClosedSet(t *testing.T) {
 		}
 		for _, key := range record.Keys {
 			if !slices.Contains(closedAttrKeys, key) {
-				t.Errorf("record %d (%q) carries the attr key %q, which is not one of §12.3's closed keys %v", i, record.Msg, key, closedAttrKeys)
+				t.Errorf("record %d (%q) carries the attr key %q, which is not one of the closed keys %v", i, record.Msg, key, closedAttrKeys)
 			}
 		}
 		for _, enumerated := range []string{"count", "rejected"} {

@@ -56,16 +56,16 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 	start := panelLineIndex(t, lines, "clear constant")
 	footerStart, footerRows := footerBlock(t, lines, confirmFooterRows)
 
-	t.Run("the slot carries §14A's confirm verbatim", func(t *testing.T) {
+	t.Run("the slot carries the pinned confirm verbatim", func(t *testing.T) {
 		if got, want := joinMessageLines(lines[start:footerStart]), strings.Join(strings.Fields(themePanelConfirmCopy), " "); got != want {
-			t.Errorf("the message slot reads %q, want §14A's pinned %q", got, want)
+			t.Errorf("the message slot reads %q, want the pinned %q", got, want)
 		}
 	})
 
 	t.Run("it renders in text.secondary with no band", func(t *testing.T) {
 		raw := lines[start].raw
 		if !strings.Contains(raw, fgSeq(t, palette.TextSecondary)) {
-			t.Error("the confirm is not text.secondary; §9.1's table gives the slot's confirm state that token and no other")
+			t.Error("the confirm is not text.secondary; the slot's confirm state carries that token and no other")
 		}
 		for _, band := range []struct {
 			name  string
@@ -76,7 +76,7 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 			{"bg.subtle", palette.BgSubtle},
 		} {
 			if strings.Contains(raw, bgSeq(t, band.token)) {
-				t.Errorf("the confirm carries a %s band; §9.1's table gives it NO band — it is text on the panel's own canvas", band.name)
+				t.Errorf("the confirm carries a %s band; it takes NO band — it is text on the panel's own canvas", band.name)
 			}
 		}
 		if !strings.Contains(raw, bgSeq(t, palette.Canvas)) {
@@ -90,7 +90,7 @@ func TestPanelFixture_ConfirmFrame(t *testing.T) {
 		}
 		for _, standing := range standingFooterRows {
 			if strings.Contains(panelFieldText(lines), standing) {
-				t.Errorf("the panel still advertises %q while the confirm is live; §9.2 substitutes the scope rather than extending it", standing)
+				t.Errorf("the panel still advertises %q while the confirm is live; the confirm substitutes the scope rather than extending it", standing)
 			}
 		}
 	})
@@ -105,7 +105,7 @@ func TestPanelFixture_ConfirmWrapsAtMinWidth(t *testing.T) {
 
 	t.Run("the slot occupies two rows", func(t *testing.T) {
 		if messageRows != 2 {
-			t.Errorf("the confirm renders on %d row(s) at the panel's minimum width, want the 2 §9.1 names:\n%s", messageRows, panelText(lines))
+			t.Errorf("the confirm renders on %d row(s) at the panel's minimum width, want the 2 rows it wraps to:\n%s", messageRows, panelText(lines))
 		}
 	})
 
@@ -143,22 +143,22 @@ func TestPanelFixture_CommitFailedFrame(t *testing.T) {
 	start := panelLineIndex(t, lines, "couldn't save theme")
 	footerStart, footerRows := footerBlock(t, lines, standingFooterRows)
 
-	t.Run("the slot carries §14A's failed-commit line verbatim", func(t *testing.T) {
+	t.Run("the slot carries the pinned failed-commit line verbatim", func(t *testing.T) {
 		if got, want := joinMessageLines(lines[start:footerStart]), themePanelCommitFailedCopy; got != want {
-			t.Errorf("the message slot reads %q, want §14A's pinned %q", got, want)
+			t.Errorf("the message slot reads %q, want the pinned %q", got, want)
 		}
 	})
 
 	t.Run("the glyph and the text are one accent.attention run", func(t *testing.T) {
 		got := distinctForegrounds(lines[start].raw)
 		if want := []string{fgSeq(t, palette.AccentAttention)}; !slicesEqual(got, want) {
-			t.Errorf("the line is painted with foregrounds %v, want the single accent.attention run %v — the `⚠` and the text are one signal (§9.1's table)", got, want)
+			t.Errorf("the line is painted with foregrounds %v, want the single accent.attention run %v — the `⚠` and the text are one signal", got, want)
 		}
 	})
 
 	t.Run("it carries no bg.attention band", func(t *testing.T) {
 		if strings.Contains(lines[start].raw, bgSeq(t, palette.BgAttention)) {
-			t.Error("the failed-commit line carries a bg.attention band; §9.1's table refuses it — the warning band is a full-width main-screen treatment that reads as heavy inside a ~30-column panel")
+			t.Error("the failed-commit line carries a bg.attention band; it takes none — the warning band is a full-width main-screen treatment that reads as heavy inside a ~30-column panel")
 		}
 		if !strings.Contains(lines[start].raw, bgSeq(t, palette.Canvas)) {
 			t.Error("the line does not carry the panel's canvas, so its cells are a terminal-bg island inside the panel body")
@@ -167,7 +167,7 @@ func TestPanelFixture_CommitFailedFrame(t *testing.T) {
 
 	t.Run("the standing footer is still in force", func(t *testing.T) {
 		if !slicesEqual(footerRows, standingFooterRows) {
-			t.Errorf("the footer renders %v, want the standing %v — only §9.2's confirm substitutes a scope, and a failed commit raises no question", footerRows, standingFooterRows)
+			t.Errorf("the footer renders %v, want the standing %v — only the confirm substitutes a scope, and a failed commit raises no question", footerRows, standingFooterRows)
 		}
 	})
 }
@@ -180,7 +180,7 @@ func TestPanelFixture_CommitFailedBadgeUnmoved(t *testing.T) {
 	for _, slug := range panelUnionSlugs() {
 		t.Run(slug, func(t *testing.T) {
 			if got, want := failed[slug].badge, prior[slug].badge; got != want {
-				t.Errorf("the %s row's badge = %q with the failure live, want the pre-failure %q — §9.13 forbids a write that did not land moving the `●`", slug, got, want)
+				t.Errorf("the %s row's badge = %q with the failure live, want the pre-failure %q — a write that did not land must never move the `●`", slug, got, want)
 			}
 		})
 	}
@@ -200,10 +200,10 @@ func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 	t.Run("one row shorter the panel refuses to open", func(t *testing.T) {
 		short := ansi.Strip(panelFrameAt(t, "theme-panel-min-height-message", palette, messagePanelTermWidth, messagePanelFloorTermHeight-1))
 		if strings.Contains(short, panelBorder) {
-			t.Errorf("the panel still opens one row below the captured height, so that height is above §9.8's floor rather than on it:\n%s", short)
+			t.Errorf("the panel still opens one row below the captured height, so that height is above the floor rather than on it:\n%s", short)
 		}
 		if !strings.Contains(short, "terminal too short for the theme picker") {
-			t.Errorf("the refusal does not carry §14A's pinned short-terminal copy:\n%s", short)
+			t.Errorf("the refusal does not carry the pinned short-terminal copy:\n%s", short)
 		}
 	})
 
@@ -225,13 +225,13 @@ func TestPanelFixture_MinHeightMessageFrame(t *testing.T) {
 
 	t.Run("the body is the floor's one list row", func(t *testing.T) {
 		if got := message - body; got != 1 {
-			t.Errorf("the list body renders %d rows, want the ONE §9.8's floor guarantees:\n%s", got, panelText(lines))
+			t.Errorf("the list body renders %d rows, want the ONE row the floor guarantees:\n%s", got, panelText(lines))
 		}
 	})
 
 	t.Run("the slot is the floor's one message row", func(t *testing.T) {
 		if got := footerStart - message; got != 1 {
-			t.Errorf("the message slot renders %d rows, want the ONE §9.8's floor counts:\n%s", got, panelText(lines))
+			t.Errorf("the message slot renders %d rows, want the ONE row the floor counts:\n%s", got, panelText(lines))
 		}
 	})
 
@@ -259,7 +259,7 @@ func TestPanelFixture_MinHeightMessageTruncates(t *testing.T) {
 		start := panelLineIndex(t, lines, "clear constant")
 		footerStart, _ := footerBlock(t, lines, confirmFooterRows)
 		if got := footerStart - start; got != 1 {
-			t.Errorf("the confirm renders %d rows at the floor, want the 1 §9.1's height rule pins:\n%s", got, panelText(lines))
+			t.Errorf("the confirm renders %d rows at the floor, want the 1 row the height rule pins:\n%s", got, panelText(lines))
 		}
 		if got := strings.TrimSpace(lines[start].visible); !strings.HasSuffix(got, "…") {
 			t.Errorf("the confirm reads %q at the floor; the same copy wraps at this width above the floor, so at it the line must be TRUNCATED rather than laid out whole", got)
@@ -289,7 +289,7 @@ func TestPanelFixture_MessageSeedsAreStateOnly(t *testing.T) {
 				continue
 			}
 			if field.Type.Kind() != reflect.Bool {
-				t.Errorf("tui.CaptureSeeds.%s is a %s; a seed that can carry text can carry a paraphrase of §14A's copy", name, field.Type.Kind())
+				t.Errorf("tui.CaptureSeeds.%s is a %s; a seed that can carry text can carry a paraphrase of the pinned copy", name, field.Type.Kind())
 			}
 		}
 	})
@@ -302,7 +302,7 @@ func TestPanelFixture_MessageSeedsAreStateOnly(t *testing.T) {
 			}
 			for _, pinned := range pinnedMessageCopy {
 				if strings.Contains(string(body), pinned) {
-					t.Errorf("%s contains %q; the message slot's copy is §14A's, single-sourced in internal/tui, and a catalogue holding its own would be free to drift from it", path, pinned)
+					t.Errorf("%s contains %q; the message slot's copy is single-sourced in internal/tui, and a catalogue holding its own would be free to drift from it", path, pinned)
 				}
 			}
 		}

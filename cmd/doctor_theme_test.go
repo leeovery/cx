@@ -83,7 +83,7 @@ func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "missing tokens names every absent token in §2.4 order",
+			name:   "missing tokens names every absent token in canonical order",
 			slug:   "mine",
 			source: func(t *testing.T) []byte { return sourceMissingTokens(t, "text.primary", "bg.subtle") },
 			want:   "⚠ theme mine: missing tokens — missing text.primary, bg.subtle",
@@ -605,7 +605,7 @@ func TestThemeAdvisories_ReservedNameFrame(t *testing.T) {
 		t.Errorf("advisory line = %q; want %q", got.line, want)
 	}
 	if strings.Contains(got.line, string(theme.ReasonReservedName)) {
-		t.Errorf("advisory line = %q carries the terse reason label; §14A's line names the conflict and the fix INSTEAD of following the generic `<reason> — <detail>` frame", got.line)
+		t.Errorf("advisory line = %q carries the terse reason label; the reserved-name line names the conflict and the fix INSTEAD of following the generic `<reason> — <detail>` frame", got.line)
 	}
 	if got.slug != "nord" {
 		t.Errorf("advisory slug = %q; want %q — a reserved-name entry has a valid slug, and it is what collided", got.slug, "nord")

@@ -21,7 +21,7 @@ func TestOldThemeSubpackageIsGone(t *testing.T) {
 	root := repoRoot(t)
 
 	if info, err := os.Stat(filepath.Join(root, "internal", "tui", "theme")); err == nil && info.IsDir() {
-		t.Errorf("internal/tui/theme still exists; §3.2 relocates the token layer to internal/theme")
+		t.Errorf("internal/tui/theme still exists; the token layer lives in internal/theme")
 	}
 
 	forEachGoFile(t, root, func(path string, file *ast.File) {

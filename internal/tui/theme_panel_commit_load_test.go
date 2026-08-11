@@ -122,7 +122,7 @@ func requireLoadedLine(t *testing.T, sink *logtest.Sink, slug, slot string) {
 
 	loaded := themeEventRecords(sink, "loaded")
 	if len(loaded) != 1 {
-		t.Fatalf("the conversion emitted %d `theme: loaded` lines, want exactly 1 (§12.3)\n%s", len(loaded), sink.Body())
+		t.Fatalf("the conversion emitted %d `theme: loaded` lines, want exactly 1\n%s", len(loaded), sink.Body())
 	}
 	if got := loaded[0].AttrString(t, "slug"); got != slug {
 		t.Errorf("`theme: loaded` carries slug=%q, want %q", got, slug)
@@ -136,7 +136,7 @@ func requireNominationPair(t *testing.T, m Model, light, dark theme.Theme) {
 	t.Helper()
 
 	if m.themeState.nomination.IsConstant() {
-		t.Fatalf("the nomination is still a CONSTANT after a conversion; §8.4's load joins the pair")
+		t.Fatalf("the nomination is still a CONSTANT after a conversion; the slot load joins the pair")
 	}
 	if got := m.themeState.nomination.Select(theme.MemberLight); got != light {
 		t.Errorf("the nomination's light member is %s, want %s", themeLabel(got), themeLabel(light))
@@ -345,7 +345,7 @@ func TestCommitSlotLoad_EmitsLoadedOncePerConversion(t *testing.T) {
 
 	loaded := themeEventRecords(sink, "loaded")
 	if len(loaded) != 2 {
-		t.Fatalf("two conversions emitted %d `theme: loaded` lines, want 2 — the event is NOT deduplicated (§12.3)\n%s", len(loaded), sink.Body())
+		t.Fatalf("two conversions emitted %d `theme: loaded` lines, want 2 — the event is NOT deduplicated\n%s", len(loaded), sink.Body())
 	}
 	for i, record := range loaded {
 		if got := record.AttrString(t, "slug"); got != theme.DefaultLightSlug {
@@ -380,7 +380,7 @@ func TestCommitSlotLoad_LoadedNamesTheFallbackSlug(t *testing.T) {
 		t.Errorf("`theme: fallback applied` carries reason=%q, want %q", got, theme.ReasonNotFound)
 	}
 	if loaded := themeEventRecords(sink, "loaded")[0].AttrString(t, "slug"); loaded == applied[0].AttrString(t, "slug") {
-		t.Errorf("both lines name %q; the pair is only useful because one names the theme that BROKE and the other the palette that RENDERED (§12.3)", loaded)
+		t.Errorf("both lines name %q; the pair is only useful because one names the theme that BROKE and the other the palette that RENDERED", loaded)
 	}
 	requireSlotCanvas(t, m, theme.SlotLight, testLightTheme(t).Canvas.Value)
 }
@@ -456,11 +456,11 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 				t.Fatalf("fixture: the keypress wrote %v, want exactly one commit so the silence is not vacuous", persister.slugs)
 			}
 			if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
-				t.Errorf("a non-converting commit emitted %d `theme: loaded` line(s), want none (§8.4)\n%s", len(got), sink.Body())
+				t.Errorf("a non-converting commit emitted %d `theme: loaded` line(s), want none\n%s", len(got), sink.Body())
 			}
 			tc.want(t, m, previewed)
 			if m.themeState.inForceMode() != mode {
-				t.Errorf("a non-converting commit moved the light/dark answer to %v, want the classified %v — an adaptive launch already has one (§9.3)", m.themeState.inForceMode(), mode)
+				t.Errorf("a non-converting commit moved the light/dark answer to %v, want the classified %v — an adaptive launch already has one", m.themeState.inForceMode(), mode)
 			}
 		})
 	}
@@ -477,7 +477,7 @@ func TestCommitSlotLoad_NonConvertingCommitIsSilent(t *testing.T) {
 		requireCommitted(t, persister, "nord")
 		requireConstantKeys(t, m, "nord")
 		if got := themeEventRecords(sink, "loaded"); len(got) != 0 {
-			t.Errorf("`Enter` emitted %d `theme: loaded` line(s), want none (§8.4)\n%s", len(got), sink.Body())
+			t.Errorf("`Enter` emitted %d `theme: loaded` line(s), want none\n%s", len(got), sink.Body())
 		}
 		requireNominationConstant(t, m, themetest.Builtin(t, "nord"))
 		if m.themeState.inForceMode() != mode {
@@ -503,10 +503,10 @@ func TestCommitSlotLoad_FailedCommitLoadsNothing(t *testing.T) {
 		t.Errorf("a failed write emitted %d `theme: fallback applied` line(s), want none\n%s", len(got), sink.Body())
 	}
 	if m.themeState.nomination != nomination {
-		t.Error("a failed write moved the nomination; §9.13 leaves the constant standing in memory")
+		t.Error("a failed write moved the nomination; a failed commit leaves the constant standing in memory")
 	}
 	if !m.themeState.nomination.IsConstant() {
-		t.Error("a failed write left an adaptive nomination; the constant is still what is persisted (§9.13)")
+		t.Error("a failed write left an adaptive nomination; the constant is still what is persisted")
 	}
 	if m.themeState.inForceMode() != mode {
 		t.Errorf("a failed write moved the light/dark answer to %v, want the untouched %v", m.themeState.inForceMode(), mode)
@@ -535,7 +535,7 @@ func TestCommitSlotLoad_ActiveThemeUnchanged(t *testing.T) {
 	m, _ = pressConfirmKey(t, m, confirmYes)
 
 	if m.themeState.active != previewed {
-		t.Errorf("the conversion rendered %s, want the previewed %s — a commit is a WRITE, not a navigation (§9.2)", themeLabel(m.themeState.active), themeLabel(previewed))
+		t.Errorf("the conversion rendered %s, want the previewed %s — a commit is a WRITE, not a navigation", themeLabel(m.themeState.active), themeLabel(previewed))
 	}
 	requireNominationPair(t, m, testLightTheme(t), previewed)
 
@@ -571,7 +571,7 @@ func TestCommitSlotLoad_SharesTheResolverBody(t *testing.T) {
 				t.Fatalf("the badge path's first slot is %v, want the light one", badge.Slot)
 			}
 			if one != badge {
-				t.Errorf("ResolveSlot returned %+v and the badge path %+v for %q; the two share one rule body (§8.4)", one, badge, slug)
+				t.Errorf("ResolveSlot returned %+v and the badge path %+v for %q; the two share one rule body", one, badge, slug)
 			}
 		})
 	}
@@ -629,13 +629,13 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 			m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 			if m.themeState.inForceMode() != tc.want {
-				t.Errorf("the conversion left the light/dark answer %v, want %v — it classifies the reply already in hand (§9.3)", m.themeState.inForceMode(), tc.want)
+				t.Errorf("the conversion left the light/dark answer %v, want %v — it classifies the reply already in hand", m.themeState.inForceMode(), tc.want)
 			}
 
 			closed := closeThemePanelForTest(t, m)
 			want := themetest.Builtin(t, tc.inForce)
 			if closed.themeState.active != want {
-				t.Errorf("the close landed on %s, want %s — the in-force member is the one the answer names (§9.2)", themeLabel(closed.themeState.active), themeLabel(want))
+				t.Errorf("the close landed on %s, want %s — the in-force member is the one the answer names", themeLabel(closed.themeState.active), themeLabel(want))
 			}
 		})
 	}
@@ -660,7 +660,7 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 		if m.themeState.inForceMode() != theme.MemberLight {
-			t.Errorf("the conversion left the light/dark answer %v, want light — a reply retained with the panel open classifies exactly as an early one (§9.3)", m.themeState.inForceMode())
+			t.Errorf("the conversion left the light/dark answer %v, want light — a reply retained with the panel open classifies exactly as an early one", m.themeState.inForceMode())
 		}
 		closed := closeThemePanelForTest(t, m)
 		if want := testLightTheme(t); closed.themeState.active != want {
@@ -681,10 +681,10 @@ func TestCommitSlotLoad_ConversionIssuesNoQuery(t *testing.T) {
 	m, cmd := convertToSlot(t, m, "nord", slotDarkPress)
 
 	if cmd != nil {
-		t.Errorf("the conversion scheduled %T; §9.3 needs no new query and arms no new gate", cmd)
+		t.Errorf("the conversion scheduled %T; it needs no new query and arms no new gate", cmd)
 	}
 	if m.themeState.gate != gate {
-		t.Errorf("the conversion moved the gate to %+v, want the untouched %+v — §8.8's gate resolves exactly once", m.themeState.gate, gate)
+		t.Errorf("the conversion moved the gate to %+v, want the untouched %+v — the appearance gate resolves exactly once", m.themeState.gate, gate)
 	}
 	if m.originalBg != original || m.themeState.reply.arrived != arrived {
 		t.Errorf("the conversion moved the retained reply to (%q, %v), want the untouched (%q, %v)", m.originalBg, m.themeState.reply.arrived, original, arrived)
@@ -708,14 +708,14 @@ func TestCommitSlotLoad_ConversionWithNoReplyIsDark(t *testing.T) {
 	m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 	if m.themeState.inForceMode() != theme.MemberDark {
-		t.Errorf("a conversion with no reply answered %v, want dark (§8.8's no-answer fallback)", m.themeState.inForceMode())
+		t.Errorf("a conversion with no reply answered %v, want dark (the no-answer fallback)", m.themeState.inForceMode())
 	}
 	active, nomination := m.themeState.active, m.themeState.nomination
 
 	late := deliverBackgroundReply(t, m, lightBg)
 
 	if late.themeState.inForceMode() != theme.MemberDark {
-		t.Errorf("a late reply moved the answer to %v; §8.8 resolves exactly once", late.themeState.inForceMode())
+		t.Errorf("a late reply moved the answer to %v; the gate resolves exactly once", late.themeState.inForceMode())
 	}
 	if late.themeState.active != active {
 		t.Errorf("a late reply re-themed to %s, want the untouched %s", themeLabel(late.themeState.active), themeLabel(active))
@@ -753,7 +753,7 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 			m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
 			if m.themeState.startupCanvasHex != anchor {
-				t.Errorf("the conversion moved the startup canvas hex to %q, want the byte-identical %q — §11.4's anchor is frozen at gate resolution", m.themeState.startupCanvasHex, anchor)
+				t.Errorf("the conversion moved the startup canvas hex to %q, want the byte-identical %q — the startup-canvas anchor is frozen at gate resolution", m.themeState.startupCanvasHex, anchor)
 			}
 			if m.themeState.startupCanvasHex == m.themeState.active.Canvas.Value {
 				t.Error("the anchor now equals the PREVIEWED canvas, so this fixture cannot detect a re-capture from the active theme")
@@ -773,7 +773,7 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 			t.Fatalf("syncResolvedMode is called from %v; the scan found no known caller, so its absence proves nothing", callers)
 		}
 		if want := []string{"New", "Update", "armAppearanceDetection"}; !slices.Equal(callers, want) {
-			t.Errorf("syncResolvedMode is called from %v, want exactly %v — §11.4's anchor is captured there, so the conversion records its answer directly", callers, want)
+			t.Errorf("syncResolvedMode is called from %v, want exactly %v — the startup-canvas anchor is captured there, so the conversion records its answer directly", callers, want)
 		}
 	})
 }
@@ -878,6 +878,6 @@ func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 		t.Errorf("the fatal scheduled %T; the panel degrades rather than quitting Portal mid-session", cmd)
 	}
 	if !m.themePanel.open {
-		t.Error("the fatal closed the panel; `Esc` is the only way out (§9.2)")
+		t.Error("the fatal closed the panel; `Esc` is the only way out")
 	}
 }

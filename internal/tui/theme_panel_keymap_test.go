@@ -37,7 +37,7 @@ func TestThemePanelKeymap_CarriesAllSixKeys(t *testing.T) {
 				t.Errorf("entry %q is RightAligned — a vertical footer has no right anchor", e.Key)
 			}
 			if e.Key == "?" {
-				t.Errorf("panel scope carries a %q entry — §9.12: ? does nothing inside the panel", e.Key)
+				t.Errorf("panel scope carries a %q entry — ? does nothing inside the panel", e.Key)
 			}
 		}
 	})
@@ -60,7 +60,7 @@ func TestThemePanelKeymap_CoreIsTheFourCommits(t *testing.T) {
 		}
 		for _, k := range []string{"↑↓", "^↑/↓"} {
 			if core[k] {
-				t.Errorf("key %q should be non-core (§14.1: arrows in a list are a given), got Core=true", k)
+				t.Errorf("key %q should be non-core (arrows in a list are a given), got Core=true", k)
 			}
 		}
 	})
@@ -137,7 +137,7 @@ func TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 				t.Errorf("entry %q is RightAligned — a vertical footer has no right anchor", e.Key)
 			}
 			if e.Key == "?" {
-				t.Errorf("confirm scope carries a %q entry — §9.12: ? does nothing inside the panel", e.Key)
+				t.Errorf("confirm scope carries a %q entry — ? does nothing inside the panel", e.Key)
 			}
 			if !e.Core {
 				t.Errorf("entry %q is non-core — both confirm keys are what the substituted footer renders", e.Key)

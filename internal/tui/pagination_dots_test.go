@@ -159,7 +159,7 @@ func TestSessionsPaginationDots_NoFullScreenFrame(t *testing.T) {
 	vis := ansi.Strip(m.viewSessionList())
 	for _, frameGlyph := range []string{"┌", "┐", "└", "┘", "│", "├", "┤"} {
 		if strings.Contains(vis, frameGlyph) {
-			t.Errorf("composed view contains box-frame glyph %q — §3.6 forbids a full-screen frame:\n%s", frameGlyph, vis)
+			t.Errorf("composed view contains box-frame glyph %q — a full-screen frame is forbidden:\n%s", frameGlyph, vis)
 		}
 	}
 }

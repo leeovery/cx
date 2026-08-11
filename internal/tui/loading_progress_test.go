@@ -264,7 +264,7 @@ func TestMappingCoversAllTenStepsNoGaps(t *testing.T) {
 	for step := 1; step <= 10; step++ {
 		got := tui.LabelForStep(tui.BootstrapProgressMsg{Index: step})
 		if got == "" {
-			t.Errorf("step %d resolved to no label (gap in the §10.4 mapping)", step)
+			t.Errorf("step %d resolved to no label (gap in the step→label mapping)", step)
 			continue
 		}
 		if !valid[got] {
@@ -318,7 +318,7 @@ func TestBootstrapProgressMsgCarriesOnlyConsumedFields(t *testing.T) {
 	}
 	for name := range got {
 		if !want[name] {
-			t.Errorf("BootstrapProgressMsg carries field %q — only Index/RestoreN/RestoreM may ride the wire (the §10.4 label mapping is loading_progress.go's sole authority)", name)
+			t.Errorf("BootstrapProgressMsg carries field %q — only Index/RestoreN/RestoreM may ride the wire (the label mapping is loading_progress.go's sole authority)", name)
 		}
 	}
 	for name := range want {

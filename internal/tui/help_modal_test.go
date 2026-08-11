@@ -278,7 +278,7 @@ func TestHelpModalHeader(t *testing.T) {
 		view := m.viewSessionList()
 		for _, footerVerb := range []string{"esc cancel", "esc discard"} {
 			if strings.Contains(view, footerVerb) {
-				t.Errorf("help modal must not carry a contextual footer dismiss hint %q (§8.1 exception); got:\n%s", footerVerb, view)
+				t.Errorf("help modal must not carry a contextual footer dismiss hint %q; got:\n%s", footerVerb, view)
 			}
 		}
 	})

@@ -2685,7 +2685,7 @@ func TestOpenCommand_CommandNoTarget_ExecFlag_OpensProjectsPicker(t *testing.T) 
 		t.Errorf("command = %v, want %v (threaded into Projects mode)", gotCommand, wantCmd)
 	}
 	if sessionCalled || pathCalled {
-		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the Task 2-6 guard must not run")
+		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the command-on-attach guard must not run")
 	}
 	if lister.called {
 		t.Error("query resolver must not be consulted on the no-target command path (resolution skipped)")
@@ -2750,7 +2750,7 @@ func TestOpenCommand_CommandNoTarget_DashDash_OpensProjectsPicker(t *testing.T) 
 		t.Errorf("command = %v, want %v (threaded into Projects mode)", gotCommand, wantCmd)
 	}
 	if sessionCalled || pathCalled {
-		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the Task 2-6 guard must not run")
+		t.Error("no resolution outcome (attach/mint) may fire on the no-target command path — the command-on-attach guard must not run")
 	}
 	if lister.called {
 		t.Error("query resolver must not be consulted on the no-target command path (resolution skipped)")

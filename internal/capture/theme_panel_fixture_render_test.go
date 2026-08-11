@@ -93,7 +93,7 @@ func TestPanelFixture_AdaptivePairBadges(t *testing.T) {
 
 	t.Run("the cursor is on the in-force dark slot's row", func(t *testing.T) {
 		if !rows["nord"].cursor {
-			t.Error("the cursor is not on nord; §9.2 puts it on the theme actually rendering, which under a pair with no gate is the dark slot's")
+			t.Error("the cursor is not on nord; the cursor belongs on the theme actually rendering, which under a pair with no gate is the dark slot's")
 		}
 		if rows["tokyo-night-day"].cursor {
 			t.Error("the cursor is on tokyo-night-day as well; only ONE row may carry the cursor bar")
@@ -121,7 +121,7 @@ func TestPanelFixture_ConstantWhilePreviewing(t *testing.T) {
 	t.Run("no slot badge appears on any list row", func(t *testing.T) {
 		for _, label := range panelUnionSlugs() {
 			if badge := rows[label].badge; badge != "" && badge != "●" {
-				t.Errorf("the %s row carries badge %q; under a constant the slots are not read at all, so the only badge available is the bare ● (§8.2)", label, badge)
+				t.Errorf("the %s row carries badge %q; under a constant the slots are not read at all, so the only badge available is the bare ●", label, badge)
 			}
 		}
 	})

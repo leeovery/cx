@@ -34,7 +34,7 @@ func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 
 	m := Build(deps)
 	if m.colourless {
-		t.Fatal("the guard seed must not be colourless — §9.10 blocks `t`, and every probe would assert a refusal")
+		t.Fatal("the guard seed must not be colourless — that blocks `t`, and every probe would assert a refusal")
 	}
 	m.termWidth, m.termHeight = arrowTermW, arrowPagingTermH
 	m.applySessions(closePanelSessions())
@@ -257,13 +257,13 @@ func TestThemePanelDispatch_EscMeansInnermostFirst(t *testing.T) {
 		after := dispatchPanelKey(t, livePanelDispatch, m, keyEsc)
 
 		if after.themePanel.open {
-			t.Error("`Esc` with no confirm live left the panel open; it is the ONLY way out (§9.2)")
+			t.Error("`Esc` with no confirm live left the panel open; it is the ONLY way out")
 		}
 		if !themePanelStateDropped(after) {
-			t.Errorf("the close retained panel state %+v, want the whole struct dropped so the next open re-reads (§5.8)", after.themePanel)
+			t.Errorf("the close retained panel state %+v, want the whole struct dropped so the next open re-reads", after.themePanel)
 		}
 		if len(persister.slugs) != 0 {
-			t.Errorf("the close wrote %v; every write is an explicit commit key (§9.2)", persister.slugs)
+			t.Errorf("the close wrote %v; every write is an explicit commit key", persister.slugs)
 		}
 	})
 
@@ -273,16 +273,16 @@ func TestThemePanelDispatch_EscMeansInnermostFirst(t *testing.T) {
 		after := dispatchPanelKey(t, livePanelDispatch, m, keyEsc)
 
 		if !after.themePanel.open {
-			t.Fatal("`Esc` closed the panel while the confirm was live; the innermost thing resolves first (§9.2)")
+			t.Fatal("`Esc` closed the panel while the confirm was live; the innermost thing resolves first")
 		}
 		if after.themePanel.confirming() {
-			t.Error("`Esc` left the confirm standing; it is one of the three inputs that resolve it (§9.2)")
+			t.Error("`Esc` left the confirm standing; it is one of the three inputs that resolve it")
 		}
 		if themePanelStateDropped(after) {
 			t.Errorf("the cancel dropped the panel state %+v, want everything the CLOSE would have discarded left in place", after.themePanel)
 		}
 		if len(persister.slugs) != 0 {
-			t.Errorf("the cancel wrote %v; nothing is written until `y` (§9.2)", persister.slugs)
+			t.Errorf("the cancel wrote %v; nothing is written until `y`", persister.slugs)
 		}
 	})
 }
@@ -302,7 +302,7 @@ func TestThemeConfirmDispatch_UppercaseReachesTheSameArm(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if !tc.honoured(t, livePanelDispatch, tc.press) {
-				t.Errorf("%q does not reach the arm its lowercase form does; the descriptor carries ONE glyph for both cases (§9.2)", tc.name)
+				t.Errorf("%q does not reach the arm its lowercase form does; the descriptor carries ONE glyph for both cases", tc.name)
 			}
 		})
 	}
@@ -351,7 +351,7 @@ func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 		for _, scope := range themeKeymapScopes() {
 			for _, e := range scope.entries {
 				if e.Key == "?" || e.HelpKey == "?" {
-					t.Errorf("the %s scope advertises a `?` entry; `?` does nothing inside the panel (§9.12)", scope.name)
+					t.Errorf("the %s scope advertises a `?` entry; `?` does nothing inside the panel", scope.name)
 				}
 			}
 			if _, probed := scope.probes["?"]; probed {
@@ -367,7 +367,7 @@ func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 		after := dispatchPanelKey(t, livePanelDispatch, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 
 		if !after.themePanel.open || after.modal != modalNone {
-			t.Errorf("`?` inside the panel left open=%t modal=%v, want the panel standing with no modal (§9.12)", after.themePanel.open, after.modal)
+			t.Errorf("`?` inside the panel left open=%t modal=%v, want the panel standing with no modal", after.themePanel.open, after.modal)
 		}
 		if got := after.themePanel.list.Index(); got != before {
 			t.Errorf("`?` moved the panel cursor to row %d, want it left on %d", got, before)
@@ -386,7 +386,7 @@ func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 		for _, scope := range themeKeymapScopes() {
 			for _, e := range scope.entries {
 				if slices.Contains(ctrlCGlyphs, e.Key) {
-					t.Errorf("the %s scope advertises %q; `Ctrl-C` is the global quit that stays live everywhere, not a scope binding (§9.7)", scope.name, e.Key)
+					t.Errorf("the %s scope advertises %q; `Ctrl-C` is the global quit that stays live everywhere, not a scope binding", scope.name, e.Key)
 				}
 			}
 		}

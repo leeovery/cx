@@ -36,7 +36,7 @@ func TestThemeFatal_TravelsExecuteUnaltered(t *testing.T) {
 
 	var asFatal *bootstrap.FatalError
 	if errors.As(err, &asFatal) {
-		t.Error("the theme fatal classifies as a *bootstrap.FatalError — main suppresses stderr for those, so §14A's line would never be printed")
+		t.Error("the theme fatal classifies as a *bootstrap.FatalError — main suppresses stderr for those, so the failure line would never be printed")
 	}
 	if IsSilentExitError(err) {
 		t.Error("the theme fatal classifies as a silent-exit error — the user would get a bare non-zero exit with nothing to read")

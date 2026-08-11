@@ -376,7 +376,7 @@ func TestResolveNomination_FallbackUsesSharedConstants(t *testing.T) {
 
 		for _, member := range []theme.Member{theme.MemberLight, theme.MemberDark} {
 			if fallen.Nomination.Select(member) != virgin.Nomination.Select(member) {
-				t.Errorf("Select(%v) differs between a fallen-back pair and the shipped default, want identical palettes — §8.3's degrades-to-a-constant-dark-default argument rests on them being the same values", member)
+				t.Errorf("Select(%v) differs between a fallen-back pair and the shipped default, want identical palettes — the degrades-to-a-constant-dark-default argument rests on them being the same values", member)
 			}
 		}
 		if got := []string{fallen.Slots[0].Resolved, fallen.Slots[1].Resolved}; !slices.Equal(got, []string{theme.DefaultLightSlug, theme.DefaultDarkSlug}) {
@@ -754,7 +754,7 @@ func TestResolveNomination_NeverOverwritesPrefs(t *testing.T) {
 			t.Fatalf("read %s: %v", configDir, err)
 		}
 		if len(entries) != 0 {
-			t.Errorf("resolution left %d entries in the config directory, want none — §8.1 leaves prefs.json absent on a virgin install and nothing here seeds it", len(entries))
+			t.Errorf("resolution left %d entries in the config directory, want none — prefs.json stays absent on a virgin install and nothing here seeds it", len(entries))
 		}
 	})
 
@@ -808,7 +808,7 @@ func TestResolveNominationFrom_ReadsNothing(t *testing.T) {
 	t.Run("it reaches no os call at all", func(t *testing.T) {
 		for name, count := range osCallsReachableFrom(t, "ResolveNominationFrom") {
 			if strings.HasPrefix(name, "os.") {
-				t.Errorf("ResolveNominationFrom reaches %d %s call sites, want 0 — it resolves against the retained enumeration, never the filesystem (§8.4)", count, name)
+				t.Errorf("ResolveNominationFrom reaches %d %s call sites, want 0 — it resolves against the retained enumeration, never the filesystem", count, name)
 			}
 		}
 		if osCallsReachableFrom(t, "ResolveNomination")["os.ReadFile"] == 0 {
@@ -940,10 +940,10 @@ func TestResolveNominationFrom_EmitsNoLoadedRecord(t *testing.T) {
 		t.Fatalf("slot = %+v, want the fallback applied — the assertions below need one", got.Slots[0])
 	}
 	if n := len(recordsNamed(sink, "loaded")); n != 0 {
-		t.Errorf("a panel-open resolution emitted %d `theme: loaded` records, want 0 — the event's cadence is construction plus the commit-time load (§12.3):\n%s", n, sink.Body())
+		t.Errorf("a panel-open resolution emitted %d `theme: loaded` records, want 0 — the event's cadence is construction plus the commit-time load:\n%s", n, sink.Body())
 	}
 	if n := len(recordsNamed(sink, "fallback applied")); n != 1 {
-		t.Errorf("emitted %d `theme: fallback applied` records, want exactly 1 — §12.3 names the panel open as a site that applies one:\n%s", n, sink.Body())
+		t.Errorf("emitted %d `theme: fallback applied` records, want exactly 1 — a panel open is a site that applies one:\n%s", n, sink.Body())
 	}
 }
 

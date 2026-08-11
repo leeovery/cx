@@ -38,7 +38,6 @@ func TestPreviewLayerAudit_NoPortalSaverReferences(t *testing.T) {
 			if strings.Contains(string(contents), forbidden) {
 				t.Errorf(
 					"preview source file %s mentions %q; "+
-						"per spec § Cross-cutting Seams > _portal-saver Self-Reference, "+
 						"the preview layer must not introduce a name-based blacklist. "+
 						"Exclusion belongs to the Sessions-list source (internal/tmux Client.ListSessions).",
 					path, forbidden,
@@ -71,9 +70,8 @@ func TestPreviewLayerAudit_ExclusionAppliedAtSource_NotPreviewLayer(t *testing.T
 		t.Errorf(
 			"canonical Sessions-list filter at %s no longer contains "+
 				`strings.HasPrefix(s.Name, "_") — the underscore-prefix `+
-				"exclusion has been removed or relocated. Per spec "+
-				"§ Cross-cutting Seams > _portal-saver Self-Reference, "+
-				"exclusion must remain at the list-population source.",
+				"exclusion has been removed or relocated. Exclusion must "+
+				"remain at the list-population source.",
 			listSource,
 		)
 	}

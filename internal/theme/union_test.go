@@ -76,7 +76,7 @@ func TestUnion_ReservedNameIsTheOnlyTwoRowCase(t *testing.T) {
 		t.Errorf("second %q row rejection = %v, want %q", "nord", collided[1].Rejection, theme.ReasonReservedName)
 	}
 	if got, want := collided[1].Filename, "nord.theme"; got != want {
-		t.Errorf("second %q row filename = %q, want %q — §9.5 labels a reserved-name row by its filename", "nord", got, want)
+		t.Errorf("second %q row filename = %q, want %q — a reserved-name row is labelled by its filename", "nord", got, want)
 	}
 
 	for _, slug := range unionSlugs(union) {

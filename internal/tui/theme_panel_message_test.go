@@ -54,10 +54,10 @@ func TestPanelMessage_ConfirmPinnedCopy(t *testing.T) {
 		t.Fatalf("the confirm rendered %d rows at inner width %d, want 1: %q", len(rows), inner, rows)
 	}
 	if got := rows[0]; got != messageTestConfirmCopy {
-		t.Errorf("the confirm reads %q, want §14A's %q", got, messageTestConfirmCopy)
+		t.Errorf("the confirm reads %q, want %q", got, messageTestConfirmCopy)
 	}
 	if !strings.Contains(rows[0], "?  y") {
-		t.Errorf("the confirm reads %q, want the DOUBLE space §14A pins before `y`", rows[0])
+		t.Errorf("the confirm reads %q, want the DOUBLE space pinned before `y`", rows[0])
 	}
 }
 
@@ -71,7 +71,7 @@ func TestPanelMessage_CommitFailedPinnedCopy(t *testing.T) {
 		t.Fatalf("the failed-commit line rendered %d rows, want 1: %q", len(rows), rows)
 	}
 	if got := rows[0]; got != messageTestFailedCopy {
-		t.Errorf("the failed-commit line reads %q, want §14A's %q", got, messageTestFailedCopy)
+		t.Errorf("the failed-commit line reads %q, want %q", got, messageTestFailedCopy)
 	}
 	if !strings.HasPrefix(rows[0], flashWarningGlyph) {
 		t.Errorf("the failed-commit line reads %q, want it glyph-backed with %q", rows[0], flashWarningGlyph)
@@ -212,7 +212,7 @@ func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 
 	t.Run("at the floor it renders on exactly one line", func(t *testing.T) {
 		if got := themePanelMessageWraps(p, floor); got {
-			t.Fatal("the slot wraps at the floor; §9.1 truncates there")
+			t.Fatal("the slot wraps at the floor; it truncates there")
 		}
 		rows := messageTestVisible(confirm, inner, false, th)
 		if len(rows) != 1 {
@@ -225,7 +225,7 @@ func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 
 	t.Run("above the floor the same message may occupy two", func(t *testing.T) {
 		if got := themePanelMessageWraps(p, floor+1); !got {
-			t.Fatal("the slot truncates one row above the floor; §9.1 wraps there")
+			t.Fatal("the slot truncates one row above the floor; it wraps there")
 		}
 		if got := themePanelMessageHeight(confirm, inner, true); got != themePanelMessageWrapRows {
 			t.Errorf("above the floor the slot measures %d rows, want %d", got, themePanelMessageWrapRows)
@@ -259,15 +259,15 @@ func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 		t.Errorf("the confirm reads %q, want the %d-cell slug truncated", joined, lipgloss.Width(long.Slug))
 	}
 	if !strings.HasPrefix(joined, "clear constant ") {
-		t.Errorf("the confirm reads %q, want §14A's leading phrase intact", joined)
+		t.Errorf("the confirm reads %q, want the leading phrase intact", joined)
 	}
 	if !strings.HasSuffix(joined, "? y / n") {
-		t.Errorf("the confirm reads %q, want §14A's trailing keys intact", joined)
+		t.Errorf("the confirm reads %q, want the trailing keys intact", joined)
 	}
 
 	// Three visible characters plus the ellipsis, so the slug stays recognisable.
 	if got := lipgloss.Width(strings.Fields(joined)[2]); got != themeRowLabelFloor+1 {
-		t.Errorf("the truncated slug plus its `?` is %d cells, want §9.5's floor of %d", got, themeRowLabelFloor+1)
+		t.Errorf("the truncated slug plus its `?` is %d cells, want the floor of %d", got, themeRowLabelFloor+1)
 	}
 
 	p := messageTestPanel(th, themePanelMinWidth, long)
@@ -426,7 +426,7 @@ func TestPanelMessage_FloorUsesStandingScope(t *testing.T) {
 	th := testDarkTheme(t)
 
 	if got := footerScopeSaving(); got <= 0 {
-		t.Fatalf("the confirm footer is %d rows shorter than the standing one; §9.2's nested scope must be strictly shorter or the floor would need a row", got)
+		t.Fatalf("the confirm footer is %d rows shorter than the standing one; the nested confirm scope must be strictly shorter or the floor would need a row", got)
 	}
 
 	for _, dirUnusable := range []bool{false, true} {

@@ -142,7 +142,7 @@ func TestSignpostReskin_ZeroPaneReads(t *testing.T) {
 		t.Fatalf("setup invariant: byTagSignpost = false, want true (zero tags anywhere)")
 	}
 	if len(stamper.reads) != 0 {
-		t.Errorf("signpost path performed %d pane reads (reads=%v), want 0 (§5.4)", len(stamper.reads), stamper.reads)
+		t.Errorf("signpost path performed %d pane reads (reads=%v), want 0", len(stamper.reads), stamper.reads)
 	}
 	if len(stamper.setCalls) != 0 {
 		t.Errorf("signpost path performed %d stamp writes, want 0", len(stamper.setCalls))
