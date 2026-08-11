@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/project"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -341,7 +341,7 @@ func applyThemeCallSitesIn(t *testing.T, file string) []string {
 		t.Fatalf("the package holds no %s, so scanning it proves nothing", file)
 	}
 	var sites []string
-	portalbintest.ForEachFuncCall(parsed, func(funcName string, call *ast.CallExpr) bool {
+	sourceguard.ForEachFuncCall(parsed, func(funcName string, call *ast.CallExpr) bool {
 		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "ApplyTheme" {
 			sites = append(sites, funcName)
 		}

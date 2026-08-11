@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 const (
@@ -295,7 +295,7 @@ func exprText(expr ast.Expr) string {
 // imports-only parse cannot supply.
 func allGoFiles(t *testing.T, root string) []string {
 	t.Helper()
-	paths, err := portalbintest.GoSourceFiles(root)
+	paths, err := sourceguard.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}

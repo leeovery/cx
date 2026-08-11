@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // loaderConstructionFile is the production file allowed to assemble a Loader,
@@ -41,7 +42,7 @@ func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve project root: %v", err)
 	}
-	paths, err := portalbintest.GoSourceFiles(root)
+	paths, err := sourceguard.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}

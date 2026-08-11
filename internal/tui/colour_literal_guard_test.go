@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // centralisedColourSites enumerates every NON-test production .go file in the
@@ -23,7 +23,7 @@ import (
 // coverage grows with the package automatically.
 func centralisedColourSites(t *testing.T) []string {
 	t.Helper()
-	paths, err := portalbintest.PackageGoFiles(".", false)
+	paths, err := sourceguard.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}

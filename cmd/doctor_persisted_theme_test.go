@@ -25,7 +25,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -745,7 +745,7 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 			if !strings.HasPrefix(name, "doctor") {
 				continue
 			}
-			portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+			sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 				ident, ok := call.Fun.(*ast.Ident)
 				if !ok {
 					return true

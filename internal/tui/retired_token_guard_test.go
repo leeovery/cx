@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // retiredTokenNames maps every token name the vocabulary retired to the name that
@@ -94,7 +94,7 @@ var renderLayerPackageDirs = []string{".", filepath.Join("..", "capture")}
 // the prose a maintainer learns the vocabulary from.
 func TestNoRetiredTokenNameInComments(t *testing.T) {
 	for _, dir := range renderLayerPackageDirs {
-		matches, err := portalbintest.PackageGoFiles(dir, true)
+		matches, err := sourceguard.PackageGoFiles(dir, true)
 		if err != nil {
 			t.Fatalf("enumerate the %s package sources: %v", dir, err)
 		}

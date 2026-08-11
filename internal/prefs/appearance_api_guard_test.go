@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // appearanceAPIIdentifiers are the identifiers §8.8 puts in the "Dies" row: the
@@ -55,7 +56,7 @@ func TestPrefs_AppearanceAPIIsGone(t *testing.T) {
 	// — the discard-guard precedent.
 	self := filepath.Join("internal", "prefs", "appearance_api_guard_test.go")
 
-	paths, err := portalbintest.GoSourceFiles(root)
+	paths, err := sourceguard.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("enumerate .go files: %v", err)
 	}

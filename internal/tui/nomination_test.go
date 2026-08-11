@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -328,7 +328,7 @@ func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 // directory, so the enumeration resolves wherever the suite was invoked from.
 func parsePackageFiles(t *testing.T, fset *token.FileSet) map[string]*ast.File {
 	t.Helper()
-	paths, err := portalbintest.PackageGoFiles(".", false)
+	paths, err := sourceguard.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/tui package sources: %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 )
 
@@ -1208,7 +1208,7 @@ func themePanelSeamCallers(t *testing.T, name string) []string {
 
 	var callers []string
 	for _, file := range parsePackageFilesByName(t) {
-		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+		sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
 				callers = append(callers, funcName)
 			}

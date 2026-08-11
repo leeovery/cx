@@ -10,9 +10,6 @@
 // Exported surface:
 //
 //   - ProjectRoot — repo-root resolver (walks up from CWD to find go.mod).
-//   - GoSourceFiles — the .go enumeration the repo-wide source guards share.
-//   - PackageGoFiles — the .go enumeration the package-local source guards share.
-//   - ForEachFuncCall — the call-expression walk the source guards share.
 //   - BuildPortalBinary — pure error-returning `go build .` wrapper.
 //   - StagePortalBinary — t.Helper-flavoured build + PATH-prepend +
 //     exec.LookPath composition used by real-tmux
@@ -23,11 +20,9 @@ package portalbintest
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -55,77 +50,6 @@ func ProjectRoot() (string, error) {
 		}
 		dir = parent
 	}
-}
-
-// GoSourceFiles returns every .go file under root, test sources included,
-// as paths joined onto root.
-//
-// It records in one place what the guards that consume it cover:
-// directories whose name begins with "." are skipped, as are vendor and
-// node_modules. The skipped tree holds only documentation scaffolding that Go's
-// own tooling already ignores (a leading dot keeps a directory out of every
-// build and every ./... pattern), so nothing a guard is written to police can
-// hide there. A guard that walks its own subset is a guard narrower than its
-// siblings by accident.
-func GoSourceFiles(root string) ([]string, error) {
-	var paths []string
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			if excludedGuardDir(entry.Name()) {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if strings.HasSuffix(entry.Name(), ".go") {
-			paths = append(paths, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", root, err)
-	}
-	return paths, nil
-}
-
-// PackageGoFiles returns the .go files held directly by dir, as paths joined
-// onto dir in os.ReadDir's filename order. Test sources are included only when
-// includeTests is set.
-//
-// It records in one place what a package-local source guard covers, the way
-// GoSourceFiles does for the repo-wide walk: one directory, never descended
-// into, so a guard's scope is the package it is written about. An unreadable
-// directory and a directory yielding no matching file are both errors — a guard
-// that enumerates nothing must fail rather than pass having stopped looking.
-func PackageGoFiles(dir string, includeTests bool) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("read package dir %s: %w", dir, err)
-	}
-	var paths []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") {
-			continue
-		}
-		if !includeTests && strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		paths = append(paths, filepath.Join(dir, name))
-	}
-	if len(paths) == 0 {
-		return nil, fmt.Errorf("no .go files in %s", dir)
-	}
-	return paths, nil
-}
-
-func excludedGuardDir(name string) bool {
-	if strings.HasPrefix(name, ".") && name != "." {
-		return true
-	}
-	return name == "vendor" || name == "node_modules"
 }
 
 // BuildPortalBinary compiles the portal CLI into dir/portal using the

@@ -1,4 +1,4 @@
-package portalbintest_test
+package sourceguard_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // TestGoSourceFiles_EnumeratesUnderRoot asserts the enumeration collects every
@@ -64,14 +64,14 @@ func TestGoSourceFiles_SkipsExcludedDirectories(t *testing.T) {
 // error rather than an empty, silently-passing enumeration.
 func TestGoSourceFiles_MissingRootErrors(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
-	if _, err := portalbintest.GoSourceFiles(missing); err == nil {
+	if _, err := sourceguard.GoSourceFiles(missing); err == nil {
 		t.Fatalf("GoSourceFiles(%q) = nil error, want an error", missing)
 	}
 }
 
 func relFiles(t *testing.T, root string) []string {
 	t.Helper()
-	paths, err := portalbintest.GoSourceFiles(root)
+	paths, err := sourceguard.GoSourceFiles(root)
 	if err != nil {
 		t.Fatalf("GoSourceFiles(%q): %v", root, err)
 	}

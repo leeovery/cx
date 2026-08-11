@@ -1,4 +1,4 @@
-package portalbintest_test
+package sourceguard_test
 
 import (
 	"go/ast"
@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // TestForEachFuncCall_VisitsEveryCallUnderItsFunction asserts the walk reaches
@@ -29,7 +29,7 @@ var atPackageLevel = notAFunctionDecl()
 `)
 
 	var got []string
-	portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		got = append(got, funcName+":"+callName(t, call))
 		return true
 	})
@@ -58,7 +58,7 @@ func local() { after() }
 `)
 
 	var got []string
-	portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		got = append(got, funcName+":"+callName(t, call))
 		return true
 	})
@@ -84,7 +84,7 @@ func second() { inLaterFunc() }
 `)
 
 	var got []string
-	portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		got = append(got, funcName+":"+callName(t, call))
 		return false
 	})

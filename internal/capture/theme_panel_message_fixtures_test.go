@@ -10,7 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/capture"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
@@ -511,7 +511,7 @@ func TestPanelFixture_MessageSeedsAreStateOnly(t *testing.T) {
 func packageSourceFiles(t *testing.T) []string {
 	t.Helper()
 
-	paths, err := portalbintest.PackageGoFiles(".", false)
+	paths, err := sourceguard.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/capture package sources: %v", err)
 	}

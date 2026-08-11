@@ -313,6 +313,11 @@ func TestSurfaceAudit_NoNewPackageForPreview(t *testing.T) {
 		"restore":     {},
 		"restoretest": {},
 		"session":     {},
+		// sourceguard: test-only Go-source scanning primitives the repo's
+		// source guards share, split out of portalbintest so the binary-build
+		// helper is not the home for source scanning; unrelated to
+		// scrollback-preview, allow-listed per this audit's own guidance.
+		"sourceguard": {},
 		// spawn: added by the restore-host-terminal-windows feature (the
 		// shared terminal-detection + window-spawn service); unrelated to
 		// scrollback-preview, allow-listed per this audit's own guidance.

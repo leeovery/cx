@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // Task spectrum-tui-design-8-6 consolidation gate. The §8.1/§13.5 cleared-canvas
@@ -74,7 +74,7 @@ func TestModalCentringAppearsInExactlyOnePlace(t *testing.T) {
 	}
 
 	var hosts []string
-	portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+	sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 		if isClearedCanvasPlaceCall(call) {
 			hosts = append(hosts, funcName)
 		}

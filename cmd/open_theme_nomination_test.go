@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/resolver"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/spf13/cobra"
 )
@@ -222,7 +222,7 @@ func themeCallSites(t *testing.T) map[string]map[string]string {
 	sites := map[string]map[string]string{}
 
 	for name, file := range parsePackageFilesByName(t) {
-		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+		sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 			switch target := call.Fun.(type) {
 			case *ast.SelectorExpr:
 				pkg, ok := target.X.(*ast.Ident)
@@ -305,7 +305,7 @@ func logForCalls(t *testing.T, component string) []string {
 	t.Helper()
 	var found []string
 	for name, file := range parsePackageFilesByName(t) {
-		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+		sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 			if isLogForCall(call, component) {
 				found = append(found, name+":"+funcName)
 			}
@@ -320,7 +320,7 @@ func logForCalls(t *testing.T, component string) []string {
 // resolves wherever the suite was invoked from.
 func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()
-	paths, err := portalbintest.PackageGoFiles(".", false)
+	paths, err := sourceguard.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the cmd package sources: %v", err)
 	}

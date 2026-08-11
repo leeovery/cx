@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 )
 
 // themePkg is the import path of the package under test.
@@ -214,7 +214,7 @@ func parseThemeSources(t *testing.T) []parsedThemeSource {
 // hand-maintained list so a file added later is covered automatically.
 func themeSourceFiles(t *testing.T) []string {
 	t.Helper()
-	files, err := portalbintest.PackageGoFiles(".", false)
+	files, err := sourceguard.PackageGoFiles(".", false)
 	if err != nil {
 		t.Fatalf("enumerate the internal/theme package sources: %v", err)
 	}

@@ -1,4 +1,4 @@
-package portalbintest
+package sourceguard
 
 import "go/ast"
 

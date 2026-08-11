@@ -10,8 +10,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/portal/internal/portalbintest"
 	"github.com/leeovery/portal/internal/prefs"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -396,7 +396,7 @@ func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 	var callers []string
 
 	for name, file := range parsePackageFilesByName(t) {
-		portalbintest.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
+		sourceguard.ForEachFuncCall(file, func(funcName string, call *ast.CallExpr) bool {
 			if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "loadPrefsStore" {
 				callers = append(callers, name+":"+funcName)
 			}

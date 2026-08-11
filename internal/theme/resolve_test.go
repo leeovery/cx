@@ -13,7 +13,7 @@ import (
 
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
-	"github.com/leeovery/portal/internal/portalbintest"
+	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
 	"github.com/leeovery/portal/internal/themetest"
 )
@@ -826,7 +826,7 @@ func themeCallGraph(t *testing.T) map[string]themeCallNode {
 	graph := map[string]themeCallNode{}
 	for _, source := range parseThemeSources(t) {
 		imports := importedPackageNames(source.File)
-		portalbintest.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
+		sourceguard.ForEachFuncCall(source.File, func(funcName string, call *ast.CallExpr) bool {
 			node := graph[funcName]
 			switch fun := call.Fun.(type) {
 			case *ast.Ident:
