@@ -16,7 +16,7 @@ import (
 
 func testBuiltinPair(t *testing.T) theme.Nomination {
 	t.Helper()
-	return theme.AdaptivePair(theme.MemberLight.Palette(testLightTheme(t)), testDarkTheme(t))
+	return theme.AdaptivePair(testLightTheme(t), testDarkTheme(t))
 }
 
 func memberForSlot(slot theme.Slot) theme.Member {

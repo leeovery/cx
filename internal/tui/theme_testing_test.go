@@ -215,7 +215,7 @@ func constantResolution(slug string, th theme.Theme) theme.Resolution {
 
 func pairResolution(light, dark theme.Row) theme.Resolution {
 	return theme.Resolution{
-		Nomination: theme.AdaptivePair(theme.MemberLight.Palette(light.Theme), dark.Theme),
+		Nomination: theme.AdaptivePair(light.Theme, dark.Theme),
 		Slots: []theme.SlotResolution{
 			{Slot: theme.SlotLight, Requested: light.Slug, Resolved: light.Slug, Theme: light.Theme},
 			{Slot: theme.SlotDark, Requested: dark.Slug, Resolved: dark.Slug, Theme: dark.Theme},

@@ -159,7 +159,7 @@ func (l Loader) resolveNomination(s Setting, pass resolutionPass) (Resolution, e
 		return Resolution{}, err
 	}
 	return Resolution{
-		Nomination: AdaptivePair(MemberLight.Palette(light.Theme), dark.Theme),
+		Nomination: AdaptivePair(light.Theme, dark.Theme),
 		Slots:      []SlotResolution{light, dark},
 	}, nil
 }

@@ -466,7 +466,7 @@ func themeSlotUsagesInPackage(t *testing.T) (members, conversions, prefsSlots []
 
 // Member-prefixed VALUES only: a signature names the type without naming a half.
 func isThemeMemberValue(name string) bool {
-	return strings.HasPrefix(name, "Member") && name != "Member" && name != "MemberPalette"
+	return strings.HasPrefix(name, "Member") && name != "Member"
 }
 
 func isPackageSelector(expr ast.Expr, pkg, sel string) bool {

@@ -29,18 +29,9 @@ func ConstantNomination(t Theme) Nomination {
 	return Nomination{state: nominationConstant, constant: t}
 }
 
-// AdaptivePair returns the nomination for an adaptive theme setting; the gate's
-// answer arrives through Select. The named palette carries which half is which —
-// a positional light/dark order read the wrong way round at one call site would
-// invert the whole product with nothing failing anywhere.
-func AdaptivePair(named MemberPalette, opposite Theme) Nomination {
-	if named.member == MemberLight {
-		return pairFor(named.theme, opposite)
-	}
-	return pairFor(opposite, named.theme)
-}
-
-func pairFor(light, dark Theme) Nomination {
+// AdaptivePair returns the nomination for an adaptive theme setting from its two
+// palettes, light first; the gate's answer arrives through Select.
+func AdaptivePair(light, dark Theme) Nomination {
 	return Nomination{state: nominationAdaptive, light: light, dark: dark}
 }
 
