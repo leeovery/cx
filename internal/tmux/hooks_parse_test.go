@@ -11,7 +11,6 @@ func TestParseShowHooks(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  string
-		// want is keyed by event; each value is the ordered slice of HookEntry expected.
 		want map[string][]tmux.HookEntry
 	}{
 		{
@@ -196,9 +195,6 @@ func TestParseShowHooks(t *testing.T) {
 }
 
 func TestParseShowHooks_PortalSubstringRecoverable(t *testing.T) {
-	// Spec acceptance: `portal state notify` substring matchable across both
-	// quoting variants. This guards against accidental over-stripping that
-	// would mangle the substring used by content-based idempotency.
 	t.Run("portal state notify substring is matchable across quoting variants", func(t *testing.T) {
 		raw := strings.Join([]string{
 			`session-created[0] => 'run-shell "command -v portal >/dev/null 2>&1 && portal state notify"'`,

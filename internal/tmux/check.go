@@ -6,8 +6,8 @@ import (
 	"os/exec"
 )
 
-// CheckTmuxAvailable verifies that tmux is installed and available on PATH.
-// Returns nil if tmux is found, or an error with install instructions if not.
+// CheckTmuxAvailable reports whether tmux is on PATH, returning an error
+// carrying install instructions when it is not.
 func CheckTmuxAvailable() error {
 	_, err := exec.LookPath("tmux")
 	if err != nil {

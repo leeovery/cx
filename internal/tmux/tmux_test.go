@@ -10,20 +10,14 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// MockCommander implements Commander for testing.
 type MockCommander struct {
-	Output string
-	Err    error
-	// Calls records all invocations as joined arg strings.
-	Calls [][]string
-	// RunFunc, when set, is called instead of returning Output/Err.
-	RunFunc func(args ...string) (string, error)
-	// RunRawFunc, when set, is called by RunRaw instead of returning Output/Err.
-	// When unset, RunRaw falls back to the same Output/Err that Run would return.
+	Output     string
+	Err        error
+	Calls      [][]string
+	RunFunc    func(args ...string) (string, error)
 	RunRawFunc func(args ...string) (string, error)
 }
 
-// Run returns the configured output and error, or delegates to RunFunc.
 func (m *MockCommander) Run(args ...string) (string, error) {
 	m.Calls = append(m.Calls, args)
 	if m.RunFunc != nil {
@@ -32,8 +26,6 @@ func (m *MockCommander) Run(args ...string) (string, error) {
 	return m.Output, m.Err
 }
 
-// RunRaw mirrors Run but is the no-trim variant. Tests that don't care about
-// raw vs trimmed semantics fall through to Output/Err.
 func (m *MockCommander) RunRaw(args ...string) (string, error) {
 	m.Calls = append(m.Calls, args)
 	if m.RunRawFunc != nil {
@@ -256,16 +248,7 @@ func TestListSessionsFiltersUnderscorePrefixed(t *testing.T) {
 	}
 }
 
-// TestListSessions_PortalSaverExcludedAtSource is a behavioural regression
-// pin: the Sessions-list source (Client.ListSessions) must omit
-// _portal-saver even when tmux's raw output includes it. Pinned at this
-// layer rather than the preview layer because § Cross-cutting Seams >
-// _portal-saver Self-Reference of the spec mandates filtering at list-
-// population, not preview.
 func TestListSessions_PortalSaverExcludedAtSource(t *testing.T) {
-	// Raw tmux output deliberately includes _portal-saver alongside two
-	// real user sessions to verify the filter strips only the internal
-	// session.
 	rawOutput := fmt.Sprintf("dev|2|0|\n%s|1|0|\nwork|3|1|", tmux.PortalSaverName)
 	mock := &MockCommander{Output: rawOutput}
 	client := tmux.NewClient(mock)
@@ -292,19 +275,7 @@ func TestListSessions_PortalSaverExcludedAtSource(t *testing.T) {
 	}
 }
 
-// TestListSessions_PortalSaverExclusionRefactorPin is a refactor-resistance
-// pin: a future change that strips the underscore-prefix filter from
-// Client.ListSessions (or from any wrapper that consumes its output) must
-// fail this test. The check is deliberately worded to fail loudly with a
-// pointer to § Cross-cutting Seams > _portal-saver Self-Reference so the
-// reviewer who removes the filter sees the spec invariant they are
-// breaking.
 func TestListSessions_PortalSaverExclusionRefactorPin(t *testing.T) {
-	// Mix of similar prefixes to also pin the exact-match-on-prefix
-	// invariant: _portal-saver and _portal-bootstrap must be filtered;
-	// _foo (any underscore-prefixed) must be filtered; pigeon and
-	// pigeon-saver (no underscore prefix, mid-name 'saver' substring)
-	// must NOT be filtered.
 	rawOutput := fmt.Sprintf(
 		"pigeon|1|0|\n%s|1|0|\npigeon-saver|1|0|\n%s|1|0|\n_foo|1|0|",
 		tmux.PortalSaverName,
@@ -424,22 +395,6 @@ func TestHasSession(t *testing.T) {
 	})
 }
 
-// TestHasSessionUsesExactMatchPrefix is a regression test that documents the
-// prefix-collision rationale for tmux's "=" exact-match target syntax.
-//
-// Without the "=" prefix, tmux's default `-t <session>` resolution matches by
-// prefix. A killed session "foo" coexisting with a live "foo-2" would silently
-// resolve `has-session -t foo` to "foo-2" (zero exit), causing the
-// session-killed-externally bail path in the preview Enter sequence to be
-// missed and the connector to attach to (or auto-create) the wrong session.
-//
-// Uniform use of "=<session>" across HasSession / SelectWindow / SelectPane /
-// SwitchClient / attach-session closes this hole. This test pins the prefix
-// at the HasSession entry point so any future refactor that drops it will
-// fail loudly here.
-//
-// Spec: .workflows/enter-attaches-from-preview/specification/enter-attaches-from-preview/specification.md
-// § Pre-select + attach sequence > Exact-match target syntax.
 func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 	mock := &MockCommander{}
 	client := tmux.NewClient(mock)
@@ -459,35 +414,22 @@ func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 			t.Errorf("args[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
-	// Prefix-collision regression: the target MUST begin with "=" so tmux's
-	// exact-match resolution kicks in. A killed "foo" coexisting with a
-	// live "foo-2" would otherwise prefix-match "foo-2" and bypass the
-	// bail path.
 	if !strings.HasPrefix(got[2], "=") {
 		t.Errorf("target %q lacks exact-match prefix '='; prefix-collision regression hazard", got[2])
 	}
 
-	// Drive a commander that simulates real tmux's exact-match semantics:
-	// "=foo" matches the literal session "foo" only, while bare "foo"
-	// would prefix-match the live "foo-2" (the hazard). We pin HasSession
-	// to the exact-match arm so a killed "foo" with live "foo-2"
-	// coexisting reports absent — the precondition for the bail path.
 	t.Run("killed foo with live foo-2 reports absent", func(t *testing.T) {
 		exactMock := &MockCommander{
 			RunFunc: func(args ...string) (string, error) {
 				if len(args) >= 3 && args[0] == "has-session" && args[1] == "-t" {
-					// Live sessions on the simulated server: {"foo-2"}.
-					// "=foo" must NOT match (foo is dead); "=foo-2"
-					// matches. Bare "foo" would prefix-match "foo-2",
-					// which is the hazard we're guarding against.
 					switch args[2] {
 					case "=foo":
 						return "", fmt.Errorf("can't find session: foo")
 					case "=foo-2":
 						return "", nil
 					case "foo":
-						// If we hit this case, HasSession dropped the
-						// "=" prefix and tmux prefix-matched "foo-2".
+						// Reaching this arm means the "=" was dropped: real
+						// tmux would prefix-match the live "foo-2" here.
 						return "", nil
 					}
 				}
@@ -504,15 +446,6 @@ func TestHasSessionUsesExactMatchPrefix(t *testing.T) {
 	})
 }
 
-// TestHasSessionProbe pins the three-shape discriminator contract documented
-// on Client.HasSessionProbe: (true, nil) on a zero tmux exit (session
-// present); (false, err) when the underlying error unwraps to *exec.ExitError
-// (session absent — caller may bail); (true, err) when the underlying error
-// does NOT unwrap to *exec.ExitError (OS-layer fault — caller proceeds and
-// logs).
-//
-// Spec: .workflows/enter-attaches-from-preview/specification/enter-attaches-from-preview/specification.md
-// § Pre-select + attach sequence > step 1.
 func TestHasSessionProbe(t *testing.T) {
 	t.Run("returns (true, nil) when tmux exits zero", func(t *testing.T) {
 		mock := &MockCommander{}
@@ -538,9 +471,6 @@ func TestHasSessionProbe(t *testing.T) {
 	})
 
 	t.Run("returns (false, err) when tmux exits non-zero", func(t *testing.T) {
-		// Synthetic *exec.ExitError simulating a real non-zero tmux exit.
-		// Construct via exec.Command of a failing process so the returned
-		// error is a genuine *exec.ExitError that errors.As can recover.
 		exitErr := syntheticExitError(t)
 		mock := &MockCommander{Err: &tmux.CommandError{Err: exitErr}}
 		client := tmux.NewClient(mock)
@@ -554,13 +484,11 @@ func TestHasSessionProbe(t *testing.T) {
 			t.Fatal("err = nil, want non-nil")
 		}
 
-		// The returned err preserves *CommandError shape.
 		var cmdErr *tmux.CommandError
 		if !errors.As(err, &cmdErr) {
 			t.Errorf("errors.As(err, &cmdErr) = false; want *CommandError shape preserved")
 		}
 
-		// The underlying error unwraps to *exec.ExitError.
 		var asExit *exec.ExitError
 		if !errors.As(err, &asExit) {
 			t.Errorf("errors.As(err, &exitErr) = false; want underlying *exec.ExitError")
@@ -568,10 +496,6 @@ func TestHasSessionProbe(t *testing.T) {
 	})
 
 	t.Run("returns (true, err) on OS-layer failure", func(t *testing.T) {
-		// A non-ExitError underlying cause (e.g. *exec.Error from a PATH
-		// lookup failure, or any other transport fault). The probe must
-		// treat this as 'session present' so the caller proceeds rather
-		// than falsely triggering the externally-killed bail UX.
 		osErr := errors.New("exec: \"tmux\": executable file not found in $PATH")
 		mock := &MockCommander{Err: &tmux.CommandError{Err: osErr}}
 		client := tmux.NewClient(mock)
@@ -585,7 +509,6 @@ func TestHasSessionProbe(t *testing.T) {
 			t.Fatal("err = nil, want non-nil")
 		}
 
-		// errors.As against *exec.ExitError must fail.
 		var asExit *exec.ExitError
 		if errors.As(err, &asExit) {
 			t.Errorf("errors.As(err, &exitErr) = true; want false for non-ExitError cause")
@@ -593,9 +516,6 @@ func TestHasSessionProbe(t *testing.T) {
 	})
 }
 
-// syntheticExitError returns a real *exec.ExitError by running a process
-// guaranteed to exit non-zero. Used so errors.As discrimination is exercised
-// against a genuine exec.ExitError instance, not a synthetic stand-in.
 func syntheticExitError(t *testing.T) *exec.ExitError {
 	t.Helper()
 	cmd := exec.Command("sh", "-c", "exit 1")
@@ -666,7 +586,6 @@ func TestNewSession(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
-		// Should be exactly 6 args: new-session -d -s <name> -c <dir>
 		if len(mock.Calls[0]) != 6 {
 			t.Errorf("got %d args %v, want 6 args (no shell-command)", len(mock.Calls[0]), mock.Calls[0])
 		}
@@ -753,36 +672,16 @@ func TestKillSession(t *testing.T) {
 	})
 }
 
-// TestKillSessionUsesExactMatchPrefix is the prefix-collision regression guard
-// for the destructive kill path, mirroring TestHasSessionUsesExactMatchPrefix.
-//
-// Without the "=" prefix, tmux's default `-t <session>` resolution matches by
-// prefix. A killed session "foo" coexisting with a live "foo-2" would silently
-// resolve `kill-session -t foo` to "foo-2" and destroy the wrong session with
-// no error — the kill path is destructive, has no undo, and is silent on a
-// wrong-session kill.
-//
-// This test drives a commander simulating real tmux's exact-match semantics:
-// the live server holds only "foo-2". KillSession("foo") must resolve "=foo"
-// to absent (error) and never reach the bare-"foo" prefix-match arm — if it
-// does, "=" was dropped and tmux would have prefix-matched and killed "foo-2".
-//
-// Spec: .workflows/kill-rename-prefix-collision/specification/kill-rename-prefix-collision/specification.md
-// § Required Behaviour & The Fix; Testing Requirements & Acceptance Criteria.
 func TestKillSessionUsesExactMatchPrefix(t *testing.T) {
 	exactMock := &MockCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) >= 3 && args[0] == "kill-session" && args[1] == "-t" {
 				switch args[2] {
 				case "=foo":
-					// "foo" is dead; exact-match finds nothing.
 					return "", fmt.Errorf("can't find session: foo")
 				case "=foo-2":
 					return "", nil
 				case "foo":
-					// Reaching this arm means KillSession dropped the "="
-					// prefix and tmux would have prefix-matched and killed
-					// the live "foo-2" — the regression we guard against.
 					t.Errorf("KillSession reached bare-\"foo\" prefix-match arm; \"=\" prefix dropped, live \"foo-2\" would have been killed")
 					return "", nil
 				}
@@ -803,8 +702,6 @@ func TestKillSessionUsesExactMatchPrefix(t *testing.T) {
 	if len(got) < 3 || got[0] != "kill-session" || got[1] != "-t" {
 		t.Fatalf("unexpected first call %v, want kill-session -t <target>", got)
 	}
-	// The recorded -t argument MUST begin with "=" so tmux's exact-match
-	// resolution kicks in and a destructive kill never silently prefix-matches.
 	if !strings.HasPrefix(got[2], "=") {
 		t.Errorf("target %q lacks exact-match prefix '='; prefix-collision regression hazard", got[2])
 	}
@@ -879,7 +776,6 @@ func TestStartServer(t *testing.T) {
 			t.Errorf("error %q does not contain %q", err.Error(), wantMsg)
 		}
 
-		// Verify the original error is wrapped
 		wantWrapped := "tmux failed"
 		if !strings.Contains(err.Error(), wantWrapped) {
 			t.Errorf("error %q does not contain wrapped error %q", err.Error(), wantWrapped)
@@ -903,7 +799,7 @@ func TestEnsureServer(t *testing.T) {
 		mock := &MockCommander{
 			RunFunc: func(args ...string) (string, error) {
 				if args[0] == "info" {
-					return "", nil // server is running
+					return "", nil
 				}
 				t.Fatalf("unexpected command: %v", args)
 				return "", nil
@@ -975,7 +871,7 @@ func TestEnsureServer(t *testing.T) {
 		mock := &MockCommander{
 			RunFunc: func(args ...string) (string, error) {
 				if args[0] == "info" {
-					return "", nil // server is running
+					return "", nil
 				}
 				return "", nil
 			},
@@ -1026,40 +922,14 @@ func TestRenameSession(t *testing.T) {
 	})
 }
 
-// TestRenameSessionUsesExactMatchPrefix pins the "=" exact-match prefix on
-// RenameSession's -t target while proving the new-name positional stays bare.
-//
-// Without the "=" prefix, tmux's default `-t <session>` resolution matches by
-// prefix. A target "foo" with a live "foo-2" coexisting would silently
-// resolve `rename-session -t foo` to "foo-2", renaming the wrong session. The
-// rename path is recoverable (unlike kill) but still incorrect, and session
-// names ({project}-{nanoid}, freely renamed) carry the same live-collision
-// exposure.
-//
-// The implementer trap this guards: the "=" prefix goes on the TARGET ONLY.
-// newName is the literal positional new-name argument — prefixing it would
-// literally name the session "=...". The bare-newName argv assertion is the
-// guard.
-//
-// Spec: .workflows/kill-rename-prefix-collision/specification/kill-rename-prefix-collision/specification.md
-// § Required Behaviour & The Fix > Fix the two destructive callers.
 func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
-	// Drive a commander that simulates real tmux's exact-match semantics:
-	// "=foo" matches the literal session "foo" only, while bare "foo" would
-	// prefix-match the live "foo-2" (the hazard). The live server holds only
-	// "foo-2", so "=foo" must resolve to absent (error) and RenameSession must
-	// never reach the bare-"foo" prefix-match arm.
 	exactMock := &MockCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) >= 3 && args[0] == "rename-session" && args[1] == "-t" {
 				switch args[2] {
 				case "=foo":
-					// "foo" is not a live exact match; tmux errors out.
 					return "", fmt.Errorf("can't find session: foo")
 				case "foo":
-					// If reached, RenameSession dropped the "=" prefix and
-					// tmux would prefix-match the live "foo-2" — the exact
-					// regression this test guards against.
 					t.Fatalf("RenameSession used bare target %q; prefix-collision regression (would rename live foo-2)", args[2])
 				}
 			}
@@ -1073,8 +943,6 @@ func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
 		t.Fatal("RenameSession(\"foo\", \"bar\") returned nil; expected error because \"foo\" is not a live exact match (live foo-2 must NOT be renamed)")
 	}
 
-	// Assert the recorded argv: prefix on the target slot only, new-name slot
-	// exactly "bar" (no "="). This is the implementer-trap guard.
 	if len(exactMock.Calls) != 1 {
 		t.Fatalf("expected 1 call, got %d: %v", len(exactMock.Calls), exactMock.Calls)
 	}
@@ -1088,8 +956,6 @@ func TestRenameSessionUsesExactMatchPrefix(t *testing.T) {
 			t.Errorf("args[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
-	// The new-name positional must stay bare — prefixing it would literally
-	// name the session "=bar".
 	if strings.HasPrefix(got[3], "=") {
 		t.Errorf("new-name slot %q carries an '=' prefix; newName must stay bare", got[3])
 	}
@@ -1215,7 +1081,6 @@ func TestNewDetachedSessionNoCwd(t *testing.T) {
 				t.Errorf("args[%d] = %q, want %q", i, arg, wantArgs[i])
 			}
 		}
-		// Belt-and-braces: ensure no -c anywhere
 		for _, arg := range mock.Calls[0] {
 			if arg == "-c" {
 				t.Errorf("NewDetachedSessionNoCwd must not include -c flag, got args %v", mock.Calls[0])
@@ -1236,7 +1101,6 @@ func TestNewDetachedSessionNoCwd(t *testing.T) {
 		if len(mock.Calls) != 1 {
 			t.Fatalf("expected 1 call, got %d", len(mock.Calls))
 		}
-		// Should be exactly 4 args: new-session -d -s <name>
 		wantArgs := []string{"new-session", "-d", "-s", "_portal-saver"}
 		if len(mock.Calls[0]) != len(wantArgs) {
 			t.Fatalf("got %d args %v, want %d args %v", len(mock.Calls[0]), mock.Calls[0], len(wantArgs), wantArgs)
@@ -1308,11 +1172,6 @@ func TestGetServerOption(t *testing.T) {
 	})
 }
 
-// TestGetServerOption_TransportError covers the propagation path: failures
-// whose stderr does not match any optionAbsentStderrPatterns entry must
-// surface to the caller with the wrapped *CommandError intact, so consumers
-// (e.g. the daemon's restoring-marker check) can distinguish transport faults
-// from genuine option absence.
 func TestGetServerOption_TransportError(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -1356,10 +1215,6 @@ func TestGetServerOption_TransportError(t *testing.T) {
 	}
 }
 
-// TestGetServerOption_NonExitErrorPropagates covers the case where the
-// underlying tmux invocation could not even produce stderr (e.g. exec lookup
-// failure). The *CommandError still wraps the underlying cause but Stderr is
-// empty; the discriminator must not treat the empty string as a match.
 func TestGetServerOption_NonExitErrorPropagates(t *testing.T) {
 	cmdErr := &tmux.CommandError{Stderr: "", Err: errors.New("exec: \"tmux\": not found")}
 	mock := &MockCommander{Err: cmdErr}
@@ -1407,7 +1262,7 @@ func TestUnsetServerOption(t *testing.T) {
 	})
 
 	t.Run("succeeds when option does not exist", func(t *testing.T) {
-		mock := &MockCommander{} // tmux set-option -su is a no-op for missing options
+		mock := &MockCommander{}
 		client := tmux.NewClient(mock)
 
 		err := client.UnsetServerOption("@nonexistent-option")
@@ -1657,14 +1512,9 @@ func TestListAllPanes(t *testing.T) {
 		}
 	})
 
-	// Legitimate-empty contract: exit 0 + empty stdout ⇒ ([]string{}, nil).
-	// This is the distinguishability boundary between failure mode (a)
-	// "tmux failed" (non-nil err) and failure mode (b) "no panes exist"
-	// (nil err, empty slice). The hazard guard in runHookStaleCleanup (the shared
-	// prune behind the daemon's idle-tick cleanup and doctor --fix) relies on this
-	// shape to detect mode (b) and refuse to
-	// wipe markers when the live pane set is authoritatively empty.
-	// Do not delete this subtest or the whitespace-only sibling below.
+	// Exit 0 + empty stdout must stay distinguishable from a tmux failure: the
+	// stale-hook prune keys on that difference before it wipes markers. Do not
+	// delete this subtest or its whitespace-only sibling below.
 	t.Run("returns empty slice when output is empty", func(t *testing.T) {
 		mock := &MockCommander{Output: ""}
 		client := tmux.NewClient(mock)
@@ -1796,7 +1646,6 @@ func TestEnsureServerThenListSessions(t *testing.T) {
 		}
 		client := tmux.NewClient(mock)
 
-		// Step 1: EnsureServer should start the server
 		started, err := client.EnsureServer()
 		if err != nil {
 			t.Fatalf("EnsureServer() unexpected error: %v", err)
@@ -1805,8 +1654,6 @@ func TestEnsureServerThenListSessions(t *testing.T) {
 			t.Error("EnsureServer() started = false, want true")
 		}
 
-		// Step 2: ListSessions filters _* sessions, so the reserved
-		// bootstrap session must NOT appear in the user-facing slice.
 		sessions, err := client.ListSessions()
 		if err != nil {
 			t.Fatalf("ListSessions() unexpected error: %v", err)
@@ -1815,12 +1662,10 @@ func TestEnsureServerThenListSessions(t *testing.T) {
 			t.Fatalf("ListSessions() returned %d sessions, want 0 (bootstrap session must be filtered): %v", len(sessions), sessions)
 		}
 
-		// Step 3: ServerRunning should return true
 		if !client.ServerRunning() {
 			t.Error("ServerRunning() = false, want true")
 		}
 
-		// Verify exactly 4 mock calls in correct order
 		if len(mock.Calls) != 4 {
 			t.Fatalf("expected 4 calls, got %d: %v", len(mock.Calls), mock.Calls)
 		}
@@ -2159,13 +2004,6 @@ func TestTryGetServerOption(t *testing.T) {
 	})
 }
 
-// TestTryGetServerOption_PropagatesTransportError verifies that
-// TryGetServerOption's previously-dead transport-error branch now fires:
-// a *CommandError whose stderr does not match any absence pattern must
-// surface as ("", false, non-nil err) with the wrapped *CommandError
-// recoverable via errors.As. This is the contract the daemon's
-// restoring-marker check relies on to distinguish absence from transport
-// failure.
 func TestTryGetServerOption_PropagatesTransportError(t *testing.T) {
 	cmdErr := &tmux.CommandError{
 		Stderr: "error connecting to /tmp/tmux-501//default (No such file or directory)",
@@ -2712,7 +2550,6 @@ func TestListPanesInSession(t *testing.T) {
 	})
 
 	t.Run("sorts coords by window then pane", func(t *testing.T) {
-		// tmux output deliberately out of order.
 		mock := &MockCommander{Output: "1:2\n0:1\n1:0\n0:0"}
 		client := tmux.NewClient(mock)
 
@@ -2903,9 +2740,7 @@ func TestPaneTarget(t *testing.T) {
 }
 
 func TestListWindowsAndPanesInSession(t *testing.T) {
-	// us is the ASCII unit separator (\x1f) used as the field delimiter in the
-	// list-panes -F format string. Tests construct fixtures using this constant
-	// so the chosen delimiter is visible at the call site.
+	// us is the ASCII unit separator, the list-panes -F field delimiter.
 	const us = "\x1f"
 
 	t.Run("it uses the cmd.Run interface with list-panes -s -t <session> and unit-separator format", func(t *testing.T) {
@@ -3016,8 +2851,6 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves window names containing the pipe delimiter", func(t *testing.T) {
-		// The unit-separator delimiter is non-printable, so a pipe character in
-		// a window name must round-trip intact.
 		mock := &MockCommander{Output: "0" + us + "name|with|pipes" + us + "0"}
 		client := tmux.NewClient(mock)
 
@@ -3033,7 +2866,6 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it groups multiple panes within the same window correctly", func(t *testing.T) {
-		// Output is deliberately out of order to exercise pane-index sorting.
 		mock := &MockCommander{Output: strings.Join([]string{
 			"0" + us + "main" + us + "2",
 			"0" + us + "main" + us + "0",
@@ -3053,8 +2885,6 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("it preserves first-seen window name when later rows share the index", func(t *testing.T) {
-		// tmux always reports the same window name for a given window_index, but
-		// the implementation documents "first-seen wins"; lock that contract.
 		mock := &MockCommander{Output: strings.Join([]string{
 			"0" + us + "first-seen" + us + "0",
 			"0" + us + "ignored" + us + "1",
@@ -3167,9 +2997,6 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 
 	t.Run("the wrapped error uses the spec-mandated prefix without quoting the session name", func(t *testing.T) {
-		// Spec mandates the wrap shape "list windows and panes for session %s: %w"
-		// — bare %s, not %q. Lock the prefix and that the session name appears
-		// unquoted so the message is grep-friendly and matches the spec contract.
 		const sessionName = "work"
 		sentinel := errors.New("boom")
 		mock := &MockCommander{Err: sentinel}
@@ -3186,9 +3013,6 @@ func TestListWindowsAndPanesInSession(t *testing.T) {
 	})
 }
 
-// assertWindowGroups compares two []WindowGroup slices field-by-field with
-// useful diff messages. Centralised here so the multiple table-style tests for
-// ListWindowsAndPanesInSession share one assertion shape.
 func assertWindowGroups(t *testing.T, got, want []tmux.WindowGroup) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -3312,9 +3136,6 @@ func TestCommandError_ErrorsAsThroughFmtWrap(t *testing.T) {
 }
 
 func TestCommandError_StructLiteralConstruction(t *testing.T) {
-	// Confirms the type is constructable as a bare struct literal from an
-	// external package — the contract that mocks rely on (no NewCommandError
-	// factory, fields Stderr and Err remain exported).
 	var _ error = &tmux.CommandError{Stderr: "x", Err: errors.New("y")}
 }
 
@@ -3343,7 +3164,6 @@ func TestActivePaneCurrentPath(t *testing.T) {
 				t.Errorf("arg[%d] = %q, want %q (full %v)", i, mock.Calls[0][i], want, mock.Calls[0])
 			}
 		}
-		// The active-pane-only contract: must not use list-panes or the -a flag.
 		joined := strings.Join(mock.Calls[0], " ")
 		if strings.Contains(joined, "list-panes") {
 			t.Errorf("must not enumerate panes via list-panes, got %q", joined)

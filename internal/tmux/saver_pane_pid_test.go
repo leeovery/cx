@@ -8,20 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// TestSaverPanePID covers the six observable shapes documented on
-// tmux.SaverPanePID:
-//
-//  1. success — single pane_pid line parses into an int.
-//  2. ErrNoSuchSession — stderr contains "no such session" → wrap.
-//  3. ErrEmptyPaneList — stdout empty (no panes) → wrap.
-//  4. ErrPanePIDParse — stdout non-numeric → wrap.
-//  5. multi-line stdout — first non-empty line is taken.
-//  6. generic exec error — non-CommandError chains return wrapped, no sentinel.
-//
-// The helper is the dependency Component D's saverMembershipProbe consumes
-// to detect a pid-mismatch (orphan daemon) condition; the error classification
-// here is what lets the probe collapse every failure mode to "absent" without
-// substring-matching tmux stderr.
 func TestSaverPanePID(t *testing.T) {
 	t.Run("it returns the parsed pid on a single-line success", func(t *testing.T) {
 		mock := &MockCommander{Output: "12345\n"}
@@ -74,9 +60,6 @@ func TestSaverPanePID(t *testing.T) {
 	})
 
 	t.Run("it returns ErrEmptyPaneList when stdout is whitespace-only", func(t *testing.T) {
-		// Whitespace-only output is observably equivalent to "no panes" — the
-		// helper must classify it the same as a bare empty string rather than
-		// drift into ErrPanePIDParse on the trimmed empty token.
 		mock := &MockCommander{Output: "   \n\n  "}
 		client := tmux.NewClient(mock)
 
@@ -139,8 +122,6 @@ func TestSaverPanePID(t *testing.T) {
 	})
 }
 
-// equalStringSlice is a small local helper so the test does not pull in a
-// comparison dependency just to assert tmux argv vectors.
 func equalStringSlice(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
