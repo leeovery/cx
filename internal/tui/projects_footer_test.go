@@ -79,32 +79,24 @@ func TestProjectsFooter_NoLegacySessionsCopy(t *testing.T) {
 // footer top rule — every colour via its role token (matching the
 // reference's per-glyph footer colours).
 func TestProjectsFooter_TokenColours(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		footer := renderProjectsFooter(projectsKeymap(), referenceFooterWidth, th, false)
 
-			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
-				t.Errorf("Projects footer missing accent.blue key-glyph role sequence %q", seq)
-			}
-			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(footer, seq) {
-				t.Errorf("Projects footer missing text.detail label role sequence %q", seq)
-			}
-			// The ? glyph specifically is accent.primary (the right-aligned help anchor).
-			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(footer, seq) {
-				t.Errorf("Projects footer missing accent.violet ? glyph role sequence %q", seq)
-			}
-			// 1px footer top rule present, drawn in the consolidated border token.
-			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(footer, seq) {
-				t.Errorf("Projects footer missing the border top-rule role sequence %q", seq)
-			}
-		})
-	}
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
+			t.Errorf("Projects footer missing accent.blue key-glyph role sequence %q", seq)
+		}
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
+			t.Errorf("Projects footer missing text.detail label role sequence %q", seq)
+		}
+		// The ? glyph specifically is accent.primary (the right-aligned help anchor).
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
+			t.Errorf("Projects footer missing accent.violet ? glyph role sequence %q", seq)
+		}
+		// 1px footer top rule present, drawn in the consolidated border token.
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
+			t.Errorf("Projects footer missing the border top-rule role sequence %q", seq)
+		}
+	})
 }
 
 // TestProjectsFooter_ColourlessDropsHueAndCanvas asserts the NO_COLOR carve-out

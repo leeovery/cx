@@ -55,27 +55,19 @@ func dotRowLine(t *testing.T, view string) (string, int) {
 // requirement: the active page dot renders in accent.primary and the inactive
 // dots in text.faint — the exact mode-resolved foreground SGR for each token.
 func TestSessionsPaginationDots_ActiveVioletInactiveFaint(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := newMultiPageSessionModel(t, 120, 24, appearanceForTheme(t, tc.th), false)
-			row, _ := dotRowLine(t, m.viewSessionList())
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		m := newMultiPageSessionModel(t, 120, 24, appearanceForTheme(t, th), false)
+		row, _ := dotRowLine(t, m.viewSessionList())
 
-			// Active dot: accent.primary foreground role sequence present.
-			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(row, seq) {
-				t.Errorf("dot row missing active-dot accent.violet role sequence %q:\n%q", seq, row)
-			}
-			// Inactive dots: text.faint foreground role sequence present.
-			if seq := tokenFgSeq(t, tc.th.TextFaint); !strings.Contains(row, seq) {
-				t.Errorf("dot row missing inactive-dot text.faint role sequence %q:\n%q", seq, row)
-			}
-		})
-	}
+		// Active dot: accent.primary foreground role sequence present.
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(row, seq) {
+			t.Errorf("dot row missing active-dot accent.violet role sequence %q:\n%q", seq, row)
+		}
+		// Inactive dots: text.faint foreground role sequence present.
+		if seq := tokenFgSeq(t, th.TextFaint); !strings.Contains(row, seq) {
+			t.Errorf("dot row missing inactive-dot text.faint role sequence %q:\n%q", seq, row)
+		}
+	})
 }
 
 // TestSessionsPaginationDots_ActiveDotIsViolet pins the active page dot

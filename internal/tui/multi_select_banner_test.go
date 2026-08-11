@@ -29,34 +29,26 @@ import (
 // (the SAME dim chrome token the standard `/ to filter` hint uses), on both the
 // dark and light canvas.
 func TestMultiSelectHeader_CountVioletCancelDetail(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			header := renderMultiSelectHeader(3, sectionHeaderWidth, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		header := renderMultiSelectHeader(3, sectionHeaderWidth, th, false)
 
-			if !strings.Contains(header, "3 selected") {
-				t.Errorf("banner missing the %q cluster:\n%s", "3 selected", header)
-			}
-			if !strings.Contains(header, multiSelectCancelHint) {
-				t.Errorf("banner missing the %q hint:\n%s", multiSelectCancelHint, header)
-			}
-			// The `N selected` cluster is accent.primary, the `esc cancel` hint is
-			// text.muted — assert the exact styled runs appear verbatim.
-			violetRun := headerStyle(tc.th.AccentPrimary, tc.th, false).Render("3 selected")
-			if !strings.Contains(header, violetRun) {
-				t.Errorf("banner missing the accent.violet %q run:\n%s", "3 selected", header)
-			}
-			detailRun := headerStyle(tc.th.TextMuted, tc.th, false).Render(multiSelectCancelHint)
-			if !strings.Contains(header, detailRun) {
-				t.Errorf("banner missing the text.detail %q run:\n%s", multiSelectCancelHint, header)
-			}
-		})
-	}
+		if !strings.Contains(header, "3 selected") {
+			t.Errorf("banner missing the %q cluster:\n%s", "3 selected", header)
+		}
+		if !strings.Contains(header, multiSelectCancelHint) {
+			t.Errorf("banner missing the %q hint:\n%s", multiSelectCancelHint, header)
+		}
+		// The `N selected` cluster is accent.primary, the `esc cancel` hint is
+		// text.muted — assert the exact styled runs appear verbatim.
+		violetRun := headerStyle(th.AccentPrimary, th, false).Render("3 selected")
+		if !strings.Contains(header, violetRun) {
+			t.Errorf("banner missing the accent.violet %q run:\n%s", "3 selected", header)
+		}
+		detailRun := headerStyle(th.TextMuted, th, false).Render(multiSelectCancelHint)
+		if !strings.Contains(header, detailRun) {
+			t.Errorf("banner missing the text.detail %q run:\n%s", multiSelectCancelHint, header)
+		}
+	})
 }
 
 // TestMultiSelectHeader_RightAlignedCancelHint asserts the `esc cancel` hint is

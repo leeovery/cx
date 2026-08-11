@@ -102,24 +102,16 @@ func TestModalBlankScreen_CentresPanelUsingTerminalDims(t *testing.T) {
 // composed frame — and that it is inherited from the Phase 1 fillCanvas primitive
 // (no list rows). Verified for both dark and light canvases.
 func TestModalBlankScreen_PaintsOwnedCanvasBackdrop(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		appearance theme.Member
-	}{
-		{"dark", theme.MemberDark},
-		{"light", theme.MemberLight},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			const w, h = 90, 24
-			m := newCanvasTestModel(t, w, h, tc.appearance)
-			openKillModal(&m, "alpha")
+	forEachCanvasMode(t, func(t *testing.T, mode theme.Member) {
+		const w, h = 90, 24
+		m := newCanvasTestModel(t, w, h, mode)
+		openKillModal(&m, "alpha")
 
-			frame := m.View().Content
-			if seq := canvasSeq(t, themeForAppearance(t, tc.appearance)); !strings.Contains(frame, seq) {
-				t.Errorf("modal frame does not contain the canvas background sequence %q (backdrop must be the owned canvas)", seq)
-			}
-		})
-	}
+		frame := m.View().Content
+		if seq := canvasSeq(t, themeForAppearance(t, mode)); !strings.Contains(frame, seq) {
+			t.Errorf("modal frame does not contain the canvas background sequence %q (backdrop must be the owned canvas)", seq)
+		}
+	})
 }
 
 // TestModalBlankScreen_ColourlessClearsToNativeBg asserts the §2.5 NO_COLOR

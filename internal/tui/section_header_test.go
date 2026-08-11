@@ -26,31 +26,23 @@ const sectionHeaderWidth = 90
 // glyph), distinguished only by colour (§13.6). Both are plain runs, so the
 // count digits sit on the same baseline as the label letters.
 func TestSectionHeader_LabelCyanCountGreen(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			header := renderSectionHeader(prefs.ModeFlat, false, "", 7, sectionHeaderWidth, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		header := renderSectionHeader(prefs.ModeFlat, false, "", 7, sectionHeaderWidth, th, false)
 
-			if !strings.Contains(header, "Sessions") {
-				t.Errorf("section header missing the %q label:\n%s", "Sessions", header)
-			}
-			if !strings.Contains(header, "7") {
-				t.Errorf("section header missing the count %q:\n%s", "7", header)
-			}
-			// Label is accent.mode, count is state.positive — each via its token.
-			if seq := tokenFgSeq(t, tc.th.AccentMode); !strings.Contains(header, seq) {
-				t.Errorf("section header missing the accent.cyan label role sequence %q", seq)
-			}
-			if seq := tokenFgSeq(t, tc.th.StatePositive); !strings.Contains(header, seq) {
-				t.Errorf("section header missing the state.green count role sequence %q", seq)
-			}
-		})
-	}
+		if !strings.Contains(header, "Sessions") {
+			t.Errorf("section header missing the %q label:\n%s", "Sessions", header)
+		}
+		if !strings.Contains(header, "7") {
+			t.Errorf("section header missing the count %q:\n%s", "7", header)
+		}
+		// Label is accent.mode, count is state.positive — each via its token.
+		if seq := tokenFgSeq(t, th.AccentMode); !strings.Contains(header, seq) {
+			t.Errorf("section header missing the accent.cyan label role sequence %q", seq)
+		}
+		if seq := tokenFgSeq(t, th.StatePositive); !strings.Contains(header, seq) {
+			t.Errorf("section header missing the state.green count role sequence %q", seq)
+		}
+	})
 }
 
 // TestSectionHeader_ModeSuffixFromTitleFn asserts the mode suffix renders in
@@ -286,32 +278,24 @@ func leadingPrintableCol(line string) int {
 // TitleBar PaddingLeft=2 that this header REPLACES) pushed `Sessions` 2 cells right
 // of `PORTAL`. Both leading printable columns must be 0 and equal.
 func TestSectionHeader_AlignsWithHeaderWordmark(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			const w = sectionHeaderWidth
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		const w = sectionHeaderWidth
 
-			headerFirstLine := strings.SplitN(renderHeaderBlock(w, tc.th, false), "\n", 2)[0]
-			wordmarkCol := leadingPrintableCol(headerFirstLine)
-			if wordmarkCol != 0 {
-				t.Fatalf("PORTAL wordmark leading column = %d, want 0 (flush at the content edge)", wordmarkCol)
-			}
+		headerFirstLine := strings.SplitN(renderHeaderBlock(w, th, false), "\n", 2)[0]
+		wordmarkCol := leadingPrintableCol(headerFirstLine)
+		if wordmarkCol != 0 {
+			t.Fatalf("PORTAL wordmark leading column = %d, want 0 (flush at the content edge)", wordmarkCol)
+		}
 
-			section := renderSectionHeader(prefs.ModeFlat, false, "", 3, w, tc.th, false)
-			sectionCol := leadingPrintableCol(section)
-			if sectionCol != 0 {
-				t.Errorf("section header `Sessions` leading column = %d, want 0 (no extra indent; must align with the PORTAL wordmark at the content edge)", sectionCol)
-			}
-			if sectionCol != wordmarkCol {
-				t.Errorf("section header leading column %d != PORTAL wordmark leading column %d; they must share the content's left edge", sectionCol, wordmarkCol)
-			}
-		})
-	}
+		section := renderSectionHeader(prefs.ModeFlat, false, "", 3, w, th, false)
+		sectionCol := leadingPrintableCol(section)
+		if sectionCol != 0 {
+			t.Errorf("section header `Sessions` leading column = %d, want 0 (no extra indent; must align with the PORTAL wordmark at the content edge)", sectionCol)
+		}
+		if sectionCol != wordmarkCol {
+			t.Errorf("section header leading column %d != PORTAL wordmark leading column %d; they must share the content's left edge", sectionCol, wordmarkCol)
+		}
+	})
 }
 
 // TestViewSessionList_HeaderSectionCursorShareLeftEdge is the composed-view

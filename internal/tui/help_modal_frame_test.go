@@ -20,20 +20,12 @@ func borderFgSeq(t *testing.T, tok theme.Token) string {
 // TestHelpModalPanelBorderColour asserts FIX 3 for the help modal specifically:
 // its own panel frame is drawn in the border token (not white), dark + light.
 func TestHelpModalPanelBorderColour(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 100, 30, tc.th, false)
-			if seq := borderFgSeq(t, tc.th.Border); !strings.Contains(panel, seq) {
-				t.Errorf("help modal panel border must be border.separator SGR core %q (not white); missing in:\n%s", seq, panel)
-			}
-		})
-	}
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		panel := renderHelpModalOnClearedCanvas(sessionsKeymap(), 100, 30, th, false)
+		if seq := borderFgSeq(t, th.Border); !strings.Contains(panel, seq) {
+			t.Errorf("help modal panel border must be border.separator SGR core %q (not white); missing in:\n%s", seq, panel)
+		}
+	})
 }
 
 // TestHelpModalDividerToken asserts the SINGLE-TONE frame: the header divider

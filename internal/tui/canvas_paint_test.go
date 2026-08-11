@@ -51,33 +51,25 @@ func TestWithCanvasMode(t *testing.T) {
 // terminal width and the frame is exactly the terminal height, with the canvas
 // background sequence present (no edge bleed, no unpainted rows).
 func TestOuterFill_PaintsEveryCellTheCanvas(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		appearance theme.Member
-	}{
-		{"dark", theme.MemberDark},
-		{"light", theme.MemberLight},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			const w, h = 90, 24
-			m := newCanvasTestModel(t, w, h, tc.appearance)
+	forEachCanvasMode(t, func(t *testing.T, mode theme.Member) {
+		const w, h = 90, 24
+		m := newCanvasTestModel(t, w, h, mode)
 
-			view := m.View().Content
+		view := m.View().Content
 
-			if got := lipgloss.Height(view); got != h {
-				t.Errorf("rendered frame height = %d, want exactly %d (filled to termH)", got, h)
+		if got := lipgloss.Height(view); got != h {
+			t.Errorf("rendered frame height = %d, want exactly %d (filled to termH)", got, h)
+		}
+		lines := strings.Split(view, "\n")
+		for i, line := range lines {
+			if lw := lipgloss.Width(line); lw != w {
+				t.Errorf("line %d width = %d, want exactly %d (padded to termW, no edge bleed)", i, lw, w)
 			}
-			lines := strings.Split(view, "\n")
-			for i, line := range lines {
-				if lw := lipgloss.Width(line); lw != w {
-					t.Errorf("line %d width = %d, want exactly %d (padded to termW, no edge bleed)", i, lw, w)
-				}
-			}
-			if seq := canvasSeq(t, themeForAppearance(t, tc.appearance)); !strings.Contains(view, seq) {
-				t.Errorf("rendered frame does not contain the canvas background sequence %q", seq)
-			}
-		})
-	}
+		}
+		if seq := canvasSeq(t, themeForAppearance(t, mode)); !strings.Contains(view, seq) {
+			t.Errorf("rendered frame does not contain the canvas background sequence %q", seq)
+		}
+	})
 }
 
 // TestOuterFill_OutsideListHeightBudget asserts the outer fill never

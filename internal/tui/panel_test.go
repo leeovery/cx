@@ -14,35 +14,27 @@ import (
 // compartment dividers joined to the side borders via real ├/┤ junctions. The
 // help modal and the kill modal both compose through this helper.
 func TestJoinedPanel_SingleToneJoinedFrame(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			compartments := [][]string{
-				{"header"},
-				{"body line one", "body line two"},
-				{"footer"},
-			}
-			panel := renderJoinedPanel(compartments, tc.th.Border, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		compartments := [][]string{
+			{"header"},
+			{"body line one", "body line two"},
+			{"footer"},
+		}
+		panel := renderJoinedPanel(compartments, th.Border, th, false)
 
-			// Frame glyphs present.
-			if !strings.ContainsAny(panel, "╭╮╰╯") {
-				t.Errorf("panel must carry the rounded corner glyphs; got:\n%s", panel)
-			}
-			// Single-tone: every frame glyph is border.
-			sepSeq := tokenFgSeq(t, tc.th.Border)
-			if !strings.Contains(panel, sepSeq) {
-				t.Errorf("panel frame must be drawn in border.separator SGR core %q; missing in:\n%s", sepSeq, panel)
-			}
-			// §2.2 consolidated the two border tokens into one, so there is no
-			// second border hue a frame glyph could drift onto — the positive
-			// assertion above is the whole single-tone contract now.
-		})
-	}
+		// Frame glyphs present.
+		if !strings.ContainsAny(panel, "╭╮╰╯") {
+			t.Errorf("panel must carry the rounded corner glyphs; got:\n%s", panel)
+		}
+		// Single-tone: every frame glyph is border.
+		sepSeq := tokenFgSeq(t, th.Border)
+		if !strings.Contains(panel, sepSeq) {
+			t.Errorf("panel frame must be drawn in border.separator SGR core %q; missing in:\n%s", sepSeq, panel)
+		}
+		// §2.2 consolidated the two border tokens into one, so there is no
+		// second border hue a frame glyph could drift onto — the positive
+		// assertion above is the whole single-tone contract now.
+	})
 }
 
 // TestJoinedPanel_BorderTokenParameterised asserts the borderToken parameter is

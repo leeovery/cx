@@ -335,36 +335,28 @@ func TestHelpModalHeader(t *testing.T) {
 // in text.primary, and `esc close` in text.muted. Verified by the presence of
 // each token's mode-resolved SGR in the rendered body.
 func TestHelpModalColourRoles(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			body := helpModalBody(sessionsKeymap(), tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		body := helpModalBody(sessionsKeymap(), th, false)
 
-			wantTokens := map[string]theme.Token{
-				"accent.blue (key glyphs)":    tc.th.AccentKey,
-				"text.strong (action labels)": tc.th.TextSecondary,
+		wantTokens := map[string]theme.Token{
+			"accent.blue (key glyphs)":    th.AccentKey,
+			"text.strong (action labels)": th.TextSecondary,
+		}
+		for label, tok := range wantTokens {
+			seq := tokenFgSeq(t, tok)
+			if !strings.Contains(body, seq) {
+				t.Errorf("help body must render %s via token SGR core %q; missing in:\n%s", label, seq, body)
 			}
-			for label, tok := range wantTokens {
-				seq := tokenFgSeq(t, tok)
-				if !strings.Contains(body, seq) {
-					t.Errorf("help body must render %s via token SGR core %q; missing in:\n%s", label, seq, body)
-				}
-			}
+		}
 
-			header := helpModalHeader(60, tc.th, false)
-			if seq := tokenFgSeq(t, tc.th.TextPrimary); !strings.Contains(header, seq) {
-				t.Errorf("help header must render '? Keybindings' in text.primary SGR core %q; missing in:\n%s", seq, header)
-			}
-			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(header, seq) {
-				t.Errorf("help header must render 'esc close' in text.detail SGR core %q; missing in:\n%s", seq, header)
-			}
-		})
-	}
+		header := helpModalHeader(60, th, false)
+		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(header, seq) {
+			t.Errorf("help header must render '? Keybindings' in text.primary SGR core %q; missing in:\n%s", seq, header)
+		}
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(header, seq) {
+			t.Errorf("help header must render 'esc close' in text.detail SGR core %q; missing in:\n%s", seq, header)
+		}
+	})
 }
 
 // TestHelpModalDestructiveKill asserts the kill (k) key glyph renders in the
@@ -383,27 +375,19 @@ func TestHelpModalDestructiveKill(t *testing.T) {
 // canvas (inherits the 3-1 blank-screen modal layer): the session rows behind it
 // are gone and the owned-canvas backdrop SGR is present (dark + light).
 func TestHelpModalBlankCanvas(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		appearance theme.Member
-	}{
-		{"dark", theme.MemberDark},
-		{"light", theme.MemberLight},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := helpModelSessions(t, tc.appearance)
-			// Sanity: the live view shows the list rows.
-			if !strings.Contains(m.viewSessionList(), "alpha") {
-				t.Fatalf("pre-modal sanity: live view should contain a session row")
-			}
-			m.modal = modalHelp
-			frame := m.View().Content
-			if strings.Contains(frame, "bravo") {
-				t.Errorf("help modal must clear the list rows behind it; 'bravo' leaked:\n%s", frame)
-			}
-			if seq := canvasSeq(t, themeForAppearance(t, tc.appearance)); !strings.Contains(frame, seq) {
-				t.Errorf("help modal backdrop must be the owned canvas SGR %q; missing", seq)
-			}
-		})
-	}
+	forEachCanvasMode(t, func(t *testing.T, mode theme.Member) {
+		m := helpModelSessions(t, mode)
+		// Sanity: the live view shows the list rows.
+		if !strings.Contains(m.viewSessionList(), "alpha") {
+			t.Fatalf("pre-modal sanity: live view should contain a session row")
+		}
+		m.modal = modalHelp
+		frame := m.View().Content
+		if strings.Contains(frame, "bravo") {
+			t.Errorf("help modal must clear the list rows behind it; 'bravo' leaked:\n%s", frame)
+		}
+		if seq := canvasSeq(t, themeForAppearance(t, mode)); !strings.Contains(frame, seq) {
+			t.Errorf("help modal backdrop must be the owned canvas SGR %q; missing", seq)
+		}
+	})
 }

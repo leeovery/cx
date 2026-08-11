@@ -23,34 +23,26 @@ const projectsHeaderWidth = 90
 // smaller/superscript glyph), distinguished only by colour (§13.6). Both are plain
 // runs so the count digits sit on the same baseline/cap-height as the label.
 func TestProjectsHeader_LabelGreenCountDetail(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			header := renderProjectsSectionHeader(14, projectsHeaderWidth, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		header := renderProjectsSectionHeader(14, projectsHeaderWidth, th, false)
 
-			if !strings.Contains(ansi.Strip(header), "Projects") {
-				t.Errorf("Projects header missing the %q label:\n%s", "Projects", header)
-			}
-			if !strings.Contains(ansi.Strip(header), "14") {
-				t.Errorf("Projects header missing the count %q:\n%s", "14", header)
-			}
-			// Label is state.positive.
-			if seq := tokenFgSeq(t, tc.th.StatePositive); !strings.Contains(header, seq) {
-				t.Errorf("Projects header missing the state.green label role sequence %q", seq)
-			}
-			// The count VALUE renders verbatim inside its own text.muted run (so it is
-			// byte-identical and dim, at the same cap-height as the label).
-			countRun := headerStyle(tc.th.TextMuted, tc.th, false).Render("14")
-			if !strings.Contains(header, countRun) {
-				t.Errorf("Projects header missing the exact count 14 in a text.detail run:\n%s", header)
-			}
-		})
-	}
+		if !strings.Contains(ansi.Strip(header), "Projects") {
+			t.Errorf("Projects header missing the %q label:\n%s", "Projects", header)
+		}
+		if !strings.Contains(ansi.Strip(header), "14") {
+			t.Errorf("Projects header missing the count %q:\n%s", "14", header)
+		}
+		// Label is state.positive.
+		if seq := tokenFgSeq(t, th.StatePositive); !strings.Contains(header, seq) {
+			t.Errorf("Projects header missing the state.green label role sequence %q", seq)
+		}
+		// The count VALUE renders verbatim inside its own text.muted run (so it is
+		// byte-identical and dim, at the same cap-height as the label).
+		countRun := headerStyle(th.TextMuted, th, false).Render("14")
+		if !strings.Contains(header, countRun) {
+			t.Errorf("Projects header missing the exact count 14 in a text.detail run:\n%s", header)
+		}
+	})
 }
 
 // TestProjectsHeader_RightAlignedFilterHint asserts a `/ to filter` hint renders in

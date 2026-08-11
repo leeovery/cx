@@ -16,63 +16,55 @@ import (
 // violet block caret, a right-aligned "session manager" subtitle (text.muted),
 // over a full-width 2px (two-row, heavy) border rule — all via tokens.
 func TestHeaderBlock_RendersWordmarkCaretSubtitleRule(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			const w = 80
-			header := renderHeaderBlock(w, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		const w = 80
+		header := renderHeaderBlock(w, th, false)
 
-			// Wordmark glyphs are present, letter-spaced (a space between each glyph).
-			if !strings.Contains(header, "P O R T A L") {
-				t.Errorf("header does not contain the letter-spaced wordmark %q:\n%s", "P O R T A L", header)
-			}
-			// Caret glyph present.
-			if !strings.Contains(header, "▌") {
-				t.Errorf("header does not contain the block caret %q:\n%s", "▌", header)
-			}
-			// Subtitle present.
-			if !strings.Contains(header, "session manager") {
-				t.Errorf("header does not contain the subtitle %q:\n%s", "session manager", header)
-			}
+		// Wordmark glyphs are present, letter-spaced (a space between each glyph).
+		if !strings.Contains(header, "P O R T A L") {
+			t.Errorf("header does not contain the letter-spaced wordmark %q:\n%s", "P O R T A L", header)
+		}
+		// Caret glyph present.
+		if !strings.Contains(header, "▌") {
+			t.Errorf("header does not contain the block caret %q:\n%s", "▌", header)
+		}
+		// Subtitle present.
+		if !strings.Contains(header, "session manager") {
+			t.Errorf("header does not contain the subtitle %q:\n%s", "session manager", header)
+		}
 
-			// Colour roles: wordmark text.primary, caret accent.primary, subtitle
-			// text.muted, the rule border — each via its token.
-			for _, want := range []struct {
-				role string
-				tok  theme.Token
-			}{
-				{"text.primary wordmark", tc.th.TextPrimary},
-				{"accent.violet caret", tc.th.AccentPrimary},
-				{"text.detail subtitle", tc.th.TextMuted},
-			} {
-				if seq := tokenFgSeq(t, want.tok); !strings.Contains(header, seq) {
-					t.Errorf("header missing the %s foreground role sequence %q", want.role, seq)
-				}
+		// Colour roles: wordmark text.primary, caret accent.primary, subtitle
+		// text.muted, the rule border — each via its token.
+		for _, want := range []struct {
+			role string
+			tok  theme.Token
+		}{
+			{"text.primary wordmark", th.TextPrimary},
+			{"accent.violet caret", th.AccentPrimary},
+			{"text.detail subtitle", th.TextMuted},
+		} {
+			if seq := tokenFgSeq(t, want.tok); !strings.Contains(header, seq) {
+				t.Errorf("header missing the %s foreground role sequence %q", want.role, seq)
 			}
-			// The 2px rule is drawn with the border colour (used as a
-			// foreground for the heavy rule glyphs).
-			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(header, seq) {
-				t.Errorf("header missing the border.separator rule role sequence %q", seq)
-			}
+		}
+		// The 2px rule is drawn with the border colour (used as a
+		// foreground for the heavy rule glyphs).
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(header, seq) {
+			t.Errorf("header missing the border.separator rule role sequence %q", seq)
+		}
 
-			// Every line is exactly the requested width (no overflow). The header is
-			// the wordmark band + the separator rule beneath.
-			lines := strings.Split(header, "\n")
-			if got := lipgloss.Height(header); got < 2 {
-				t.Errorf("header height = %d, want >= 2 (band + rule)", got)
+		// Every line is exactly the requested width (no overflow). The header is
+		// the wordmark band + the separator rule beneath.
+		lines := strings.Split(header, "\n")
+		if got := lipgloss.Height(header); got < 2 {
+			t.Errorf("header height = %d, want >= 2 (band + rule)", got)
+		}
+		for i, line := range lines {
+			if lw := lipgloss.Width(line); lw != w {
+				t.Errorf("header line %d width = %d, want exactly %d (full-width, no overflow)", i, lw, w)
 			}
-			for i, line := range lines {
-				if lw := lipgloss.Width(line); lw != w {
-					t.Errorf("header line %d width = %d, want exactly %d (full-width, no overflow)", i, lw, w)
-				}
-			}
-		})
-	}
+		}
+	})
 }
 
 // visibleContent strips ANSI/SGR sequences and returns what would actually print
@@ -222,21 +214,13 @@ func TestHeaderBlock_NeverOverflowsAtMinWidth(t *testing.T) {
 // owned canvas background (leaf .Background(canvas)) so there is no terminal-bg
 // island behind the band or in the right-aligned spacer gap.
 func TestHeaderBlock_PaintsOnCanvasNoEdgeBleed(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			header := renderHeaderBlock(80, tc.th, false)
-			seq := canvasSeq(t, tc.th)
-			if !strings.Contains(header, seq) {
-				t.Errorf("header does not paint the canvas background sequence %q:\n%s", seq, header)
-			}
-		})
-	}
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		header := renderHeaderBlock(80, th, false)
+		seq := canvasSeq(t, th)
+		if !strings.Contains(header, seq) {
+			t.Errorf("header does not paint the canvas background sequence %q:\n%s", seq, header)
+		}
+	})
 }
 
 // TestHeaderBlock_ColourlessDropsHueAndCanvas asserts the NO_COLOR carve-out

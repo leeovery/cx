@@ -551,38 +551,30 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	rows := themePanelTestRows(20)
 	union := theme.Union{Rows: rows, Count: len(rows)}
 
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{name: "dark", th: testDarkTheme(t)},
-		{name: "light", th: testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
-			m.themeState.active = tc.th
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
+		m.themeState.active = th
 
-			m = pressThemeKey(t, m)
+		m = pressThemeKey(t, m)
 
-			row := themePanelDotRow(t, renderThemePanel(m.themePanel, 16, tc.th, false))
-			for _, want := range []struct {
-				role  string
-				token theme.Token
-			}{
-				{role: "active dot accent.primary", token: tc.th.AccentPrimary},
-				{role: "inactive dot text.faint", token: tc.th.TextFaint},
-			} {
-				if seq := tokenFgSeq(t, want.token); !strings.Contains(row, seq) {
-					t.Errorf("the panel dot row is missing the %s sequence %q:\n%q", want.role, seq, row)
-				}
+		row := themePanelDotRow(t, renderThemePanel(m.themePanel, 16, th, false))
+		for _, want := range []struct {
+			role  string
+			token theme.Token
+		}{
+			{role: "active dot accent.primary", token: th.AccentPrimary},
+			{role: "inactive dot text.faint", token: th.TextFaint},
+		} {
+			if seq := tokenFgSeq(t, want.token); !strings.Contains(row, seq) {
+				t.Errorf("the panel dot row is missing the %s sequence %q:\n%q", want.role, seq, row)
 			}
-			for _, grey := range bubblesDefaultDotGreys {
-				if strings.Contains(row, grey) {
-					t.Errorf("the panel dot row still carries the bubbles/list default grey %q — a colour belonging to no theme:\n%q", grey, row)
-				}
+		}
+		for _, grey := range bubblesDefaultDotGreys {
+			if strings.Contains(row, grey) {
+				t.Errorf("the panel dot row still carries the bubbles/list default grey %q — a colour belonging to no theme:\n%q", grey, row)
 			}
-		})
-	}
+		}
+	})
 
 	t.Run("colourless", func(t *testing.T) {
 		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})

@@ -240,6 +240,60 @@ func testLightTheme(t *testing.T) theme.Theme {
 	return themetest.DefaultLight(t)
 }
 
+// builtinThemeCase is one shipped built-in under the subtest name the render
+// suite runs it as.
+type builtinThemeCase struct {
+	name string
+	th   theme.Theme
+}
+
+// builtinThemeCases is the render suite's single declaration of the built-in
+// pair: the dark palette then the light one, named as their subtests.
+//
+// The pair follows internal/theme's shipped-default slugs through testDarkTheme
+// and testLightTheme rather than restating which themes those are, so a change to
+// the shipped pair carries the whole suite with it.
+//
+// forEachBuiltinTheme is the form to reach for. The slice form is for a site that
+// iterates the pair INSIDE a subtest it names itself, where running a dark/light
+// subtest would rename tests.
+func builtinThemeCases(t *testing.T) []builtinThemeCase {
+	t.Helper()
+	return []builtinThemeCase{
+		{"dark", testDarkTheme(t)},
+		{"light", testLightTheme(t)},
+	}
+}
+
+// forEachBuiltinTheme runs fn against each shipped built-in's palette, as a
+// subtest named for that built-in's half of the pair.
+func forEachBuiltinTheme(t *testing.T, fn func(t *testing.T, th theme.Theme)) {
+	t.Helper()
+	for _, tc := range builtinThemeCases(t) {
+		t.Run(tc.name, func(t *testing.T) {
+			fn(t, tc.th)
+		})
+	}
+}
+
+// forEachCanvasMode is forEachBuiltinTheme for the sites parameterised by the
+// canvas answer in force rather than by a palette — the ones that build a model
+// for a mode and derive the palette from it.
+func forEachCanvasMode(t *testing.T, fn func(t *testing.T, m theme.Member)) {
+	t.Helper()
+	for _, tc := range []struct {
+		name string
+		mode theme.Member
+	}{
+		{"dark", theme.MemberDark},
+		{"light", theme.MemberLight},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fn(t, tc.mode)
+		})
+	}
+}
+
 // themeLabel names th for a failure message — "dark", "light", or the theme's
 // canvas hex for anything else.
 //

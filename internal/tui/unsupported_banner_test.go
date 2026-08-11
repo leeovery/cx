@@ -43,46 +43,38 @@ func unsupportedResolvedModel(t *testing.T, identity spawn.Identity) Model {
 // separators from the delivered frame), and the right-anchored `see docs` hint in
 // accent.key — on both the dark and light canvas.
 func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, th, false)
 
-			// The exact visible left cluster + separators from the delivered frame.
-			const wantVisible = "⚠ unsupported terminal — Apple Terminal · com.apple.Terminal"
-			if !strings.Contains(ansi.Strip(header), wantVisible) {
-				t.Errorf("banner missing the exact copy %q:\n%s", wantVisible, ansi.Strip(header))
-			}
-			if !strings.Contains(ansi.Strip(header), "see docs") {
-				t.Errorf("banner missing the %q hint:\n%s", "see docs", ansi.Strip(header))
-			}
-			// It is a section-header analogue, not a §11 notice band: NO `▌` left-bar.
-			if strings.Contains(ansi.Strip(header), noticeBarGlyph) {
-				t.Errorf("banner must not carry the %q notice-bar glyph:\n%s", noticeBarGlyph, ansi.Strip(header))
-			}
+		// The exact visible left cluster + separators from the delivered frame.
+		const wantVisible = "⚠ unsupported terminal — Apple Terminal · com.apple.Terminal"
+		if !strings.Contains(ansi.Strip(header), wantVisible) {
+			t.Errorf("banner missing the exact copy %q:\n%s", wantVisible, ansi.Strip(header))
+		}
+		if !strings.Contains(ansi.Strip(header), "see docs") {
+			t.Errorf("banner missing the %q hint:\n%s", "see docs", ansi.Strip(header))
+		}
+		// It is a section-header analogue, not a §11 notice band: NO `▌` left-bar.
+		if strings.Contains(ansi.Strip(header), noticeBarGlyph) {
+			t.Errorf("banner must not carry the %q notice-bar glyph:\n%s", noticeBarGlyph, ansi.Strip(header))
+		}
 
-			// The `⚠ unsupported terminal` label run is accent.attention (amber).
-			amberRun := headerStyle(tc.th.AccentAttention, tc.th, false).Render(flashWarningGlyph + " " + "unsupported terminal")
-			if !strings.Contains(header, amberRun) {
-				t.Errorf("banner missing the accent.orange label run:\n%s", header)
-			}
-			// The identity run is dim text.muted.
-			dimRun := headerStyle(tc.th.TextMuted, tc.th, false).Render(" — Apple Terminal · com.apple.Terminal")
-			if !strings.Contains(header, dimRun) {
-				t.Errorf("banner missing the text.detail identity run:\n%s", header)
-			}
-			// The `see docs` hint is accent.key and carries the OSC 8 hyperlink wrapper.
-			blueRun := headerStyle(tc.th.AccentKey, tc.th, false).Hyperlink(unsupportedDocsURL).Render("see docs")
-			if !strings.Contains(header, blueRun) {
-				t.Errorf("banner missing the hyperlinked accent.blue %q run:\n%s", "see docs", header)
-			}
-		})
-	}
+		// The `⚠ unsupported terminal` label run is accent.attention (amber).
+		amberRun := headerStyle(th.AccentAttention, th, false).Render(flashWarningGlyph + " " + "unsupported terminal")
+		if !strings.Contains(header, amberRun) {
+			t.Errorf("banner missing the accent.orange label run:\n%s", header)
+		}
+		// The identity run is dim text.muted.
+		dimRun := headerStyle(th.TextMuted, th, false).Render(" — Apple Terminal · com.apple.Terminal")
+		if !strings.Contains(header, dimRun) {
+			t.Errorf("banner missing the text.detail identity run:\n%s", header)
+		}
+		// The `see docs` hint is accent.key and carries the OSC 8 hyperlink wrapper.
+		blueRun := headerStyle(th.AccentKey, th, false).Hyperlink(unsupportedDocsURL).Render("see docs")
+		if !strings.Contains(header, blueRun) {
+			t.Errorf("banner missing the hyperlinked accent.blue %q run:\n%s", "see docs", header)
+		}
+	})
 }
 
 // TestUnsupportedHeader_RightAlignedSeeDocs asserts the `see docs` hint is

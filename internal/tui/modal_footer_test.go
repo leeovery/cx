@@ -173,10 +173,7 @@ func TestRenderConfirmCancelFooter(t *testing.T) {
 // against the captured PRE-refactor golden, proving the consolidation produced zero
 // output drift for every footer/modal-footer in both modes and the colourless carve-out.
 func TestFooterHintCallSitesByteIdentical(t *testing.T) {
-	modes := []struct {
-		name string
-		m    theme.Theme
-	}{{"dark", testDarkTheme(t)}, {"light", testLightTheme(t)}}
+	modes := builtinThemeCases(t)
 
 	// previewFooterHint and editFooterGroup were deleted in favour of routing the
 	// Preview nav footer and the contextual edit footer through the shared
@@ -187,7 +184,7 @@ func TestFooterHintCallSitesByteIdentical(t *testing.T) {
 	t.Run("previewFooterHint", func(t *testing.T) {
 		for _, md := range modes {
 			for _, cl := range []bool{false, true} {
-				got := renderBlueKeyHint("←→", "window", md.m, cl)
+				got := renderBlueKeyHint("←→", "window", md.th, cl)
 				exp := goldenPreviewHintDark
 				if md.name == "light" {
 					exp = goldenPreviewHintLight
@@ -205,7 +202,7 @@ func TestFooterHintCallSitesByteIdentical(t *testing.T) {
 	t.Run("editFooterGroup/normal", func(t *testing.T) {
 		for _, md := range modes {
 			for _, cl := range []bool{false, true} {
-				got := renderBlueKeyHint("⏎/e", "edit", md.m, cl)
+				got := renderBlueKeyHint("⏎/e", "edit", md.th, cl)
 				exp := goldenEditEditDark
 				if md.name == "light" {
 					exp = goldenEditEditLight
@@ -223,7 +220,7 @@ func TestFooterHintCallSitesByteIdentical(t *testing.T) {
 	t.Run("editFooterGroup/empty", func(t *testing.T) {
 		for _, md := range modes {
 			for _, cl := range []bool{false, true} {
-				got := renderBlueKeyHint("", "empty on save = delete", md.m, cl)
+				got := renderBlueKeyHint("", "empty on save = delete", md.th, cl)
 				exp := goldenKeyHintEmptyDark
 				if md.name == "light" {
 					exp = goldenKeyHintEmptyLight
@@ -241,7 +238,7 @@ func TestFooterHintCallSitesByteIdentical(t *testing.T) {
 	t.Run("renameModalFooterRow", func(t *testing.T) {
 		for _, md := range modes {
 			for _, cl := range []bool{false, true} {
-				got := renameModalFooterRow(md.m, cl)
+				got := renameModalFooterRow(md.th, cl)
 				exp := goldenRenameFooterDark
 				if md.name == "light" {
 					exp = goldenRenameFooterLight

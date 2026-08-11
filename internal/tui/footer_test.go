@@ -74,37 +74,29 @@ func TestSessionsFooter_SingleRowCoreKeysWithRightAlignedHelp(t *testing.T) {
 // in text.muted, and the ? glyph specifically in accent.primary, over a 1px
 // border top rule — every colour via its §2.9 token.
 func TestSessionsFooter_TokenColours(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		th   theme.Theme
-	}{
-		{"dark", testDarkTheme(t)},
-		{"light", testLightTheme(t)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, tc.th, false)
+	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
+		footer := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, th, false)
 
-			// Left-cluster key glyphs: accent.key.
-			if seq := tokenFgSeq(t, tc.th.AccentKey); !strings.Contains(footer, seq) {
-				t.Errorf("footer missing accent.blue key-glyph role sequence %q", seq)
-			}
-			// Labels (and separators): text.muted.
-			if seq := tokenFgSeq(t, tc.th.TextMuted); !strings.Contains(footer, seq) {
-				t.Errorf("footer missing text.detail label role sequence %q", seq)
-			}
-			// The ? glyph: accent.primary.
-			if seq := tokenFgSeq(t, tc.th.AccentPrimary); !strings.Contains(footer, seq) {
-				t.Errorf("footer missing accent.violet ? role sequence %q", seq)
-			}
-			// The 1px top rule: THE border token. The separate footer-rule role was
-			// dropped, so the footer rule renders with the same token as the title
-			// rule — the one intended render delta of the consolidation (in dark it
-			// moves from #20232E to #292E42).
-			if seq := tokenFgSeq(t, tc.th.Border); !strings.Contains(footer, seq) {
-				t.Errorf("footer missing the border rule role sequence %q", seq)
-			}
-		})
-	}
+		// Left-cluster key glyphs: accent.key.
+		if seq := tokenFgSeq(t, th.AccentKey); !strings.Contains(footer, seq) {
+			t.Errorf("footer missing accent.blue key-glyph role sequence %q", seq)
+		}
+		// Labels (and separators): text.muted.
+		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(footer, seq) {
+			t.Errorf("footer missing text.detail label role sequence %q", seq)
+		}
+		// The ? glyph: accent.primary.
+		if seq := tokenFgSeq(t, th.AccentPrimary); !strings.Contains(footer, seq) {
+			t.Errorf("footer missing accent.violet ? role sequence %q", seq)
+		}
+		// The 1px top rule: THE border token. The separate footer-rule role was
+		// dropped, so the footer rule renders with the same token as the title
+		// rule — the one intended render delta of the consolidation (in dark it
+		// moves from #20232E to #292E42).
+		if seq := tokenFgSeq(t, th.Border); !strings.Contains(footer, seq) {
+			t.Errorf("footer missing the border rule role sequence %q", seq)
+		}
+	})
 }
 
 // TestSessionsFooter_HelpGlyphIsViolet pins the §3.4 requirement that the ? glyph

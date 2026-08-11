@@ -139,43 +139,36 @@ func splitSGRParams(seq string) []string {
 // fails without the backfill: the footer inter-column gaps and the title-row gap
 // were rendering on the terminal default.
 func TestCanvasCellBackground_EveryInGridCellIsCanvas(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		appearance theme.Member
-	}{
-		{"dark", theme.MemberDark},
-		{"light", theme.MemberLight},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			const w, h = 90, 24
-			m := newCanvasTestModel(t, w, h, tc.appearance)
-			canvasParams := wantCanvasBgParams(t, themeForAppearance(t, tc.appearance))
+	forEachCanvasMode(t, func(t *testing.T, mode theme.Member) {
+		const w, h = 90, 24
+		m := newCanvasTestModel(t, w, h, mode)
+		th := themeForAppearance(t, mode)
+		canvasParams := wantCanvasBgParams(t, th)
 
-			view := m.View().Content
-			lines := strings.Split(view, "\n")
+		view := m.View().Content
+		lines := strings.Split(view, "\n")
 
-			sawCanvas := false
-			for li, line := range lines {
-				cells := scanCellBackgrounds(line)
-				// Every cell up to the grid width must carry an explicit bg.
-				for col, c := range cells {
-					if col >= w {
-						break
-					}
-					if !c.set {
-						t.Fatalf("mode %s line %d col %d: cell has NO explicit background (falls back to terminal default) — mid-line bleed. line=%q",
-							tc.name, li, col, strings.ReplaceAll(line, "\x1b", "\\e"))
-					}
-					if c.params == canvasParams {
-						sawCanvas = true
-					}
+		sawCanvas := false
+		for li, line := range lines {
+			cells := scanCellBackgrounds(line)
+			// Every cell up to the grid width must carry an explicit bg.
+			for col, c := range cells {
+				if col >= w {
+					break
+				}
+				if !c.set {
+					t.Fatalf("mode %s line %d col %d: cell has NO explicit background (falls back to terminal default) — mid-line bleed. line=%q",
+						themeLabel(th), li, col, strings.ReplaceAll(line, "\x1b", "\\e"))
+				}
+				if c.params == canvasParams {
+					sawCanvas = true
 				}
 			}
-			if !sawCanvas {
-				t.Errorf("mode %s: no cell carried the canvas background %q — the canvas paint is absent", tc.name, canvasParams)
-			}
-		})
-	}
+		}
+		if !sawCanvas {
+			t.Errorf("mode %s: no cell carried the canvas background %q — the canvas paint is absent", themeLabel(th), canvasParams)
+		}
+	})
 }
 
 // TestCanvasCellBackground_TitleAndFooterGaps targets the exact regression sites
