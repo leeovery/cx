@@ -84,7 +84,7 @@ func themeOpenTestUnion() theme.Union {
 		{Slug: "nord", Source: theme.SourcePersisted, Rejection: &theme.Rejection{Reason: theme.ReasonNotFound}},
 		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
 	}
-	return theme.Union{Rows: rows, Count: len(rows), Rejected: 1}
+	return themeRowsUnion(rows)
 }
 
 // themeOpenTestModel builds a Sessions-page model with the two constructor slots
@@ -549,7 +549,7 @@ func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
 // from the active theme would pass the dark case alone.
 func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	rows := themePanelTestRows(20)
-	union := theme.Union{Rows: rows, Count: len(rows)}
+	union := themeRowsUnion(rows)
 
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})

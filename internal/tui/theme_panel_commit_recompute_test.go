@@ -438,9 +438,63 @@ func TestPanelRecompute_NoChangeCommitIsStable(t *testing.T) {
 // the degrade path is driven through a fake.
 var errThemeResolveFatal = errors.New("theme: the embedded set cannot supply a fallback")
 
-// themeRowsUnion wraps hand-declared rows as the union shape the seam hands back.
+// themeRowsUnion wraps hand-declared rows as the union shape the seam hands back,
+// over a readable themes directory.
+//
+// Count and Rejected are DERIVED from the rows rather than passed in: a
+// hand-carried tally is a fixture that can disagree with its own rows.
 func themeRowsUnion(rows []theme.Row) theme.Union {
-	return theme.Union{Rows: rows, Count: len(rows), Rejected: arrowRejectedCount(rows)}
+	return themeRowsUnionDirUnusable(rows, false)
+}
+
+// themeRowsUnionDirUnusable is themeRowsUnion for the fixtures that also drive
+// the unreadable-directory state, which the panel pins its own row for.
+func themeRowsUnionDirUnusable(rows []theme.Row, dirUnusable bool) theme.Union {
+	return theme.Union{Rows: rows, DirUnusable: dirUnusable, Count: len(rows), Rejected: arrowRejectedCount(rows)}
+}
+
+// TestThemeRowsUnion_DerivesTalliesFromRows: the fixture helper's tallies come
+// from the rows themselves, so a fixture cannot state a rejected count its own
+// rows contradict.
+func TestThemeRowsUnion_DerivesTalliesFromRows(t *testing.T) {
+	rejected := func(slug string) theme.Row {
+		return theme.Row{Slug: slug, Source: theme.SourceFile, Filename: slug + ".theme", Rejection: &theme.Rejection{Reason: theme.ReasonBadColour}}
+	}
+	valid := func(slug string) theme.Row {
+		return theme.Row{Slug: slug, Source: theme.SourceBuiltin}
+	}
+
+	for _, tc := range []struct {
+		name         string
+		rows         []theme.Row
+		wantCount    int
+		wantRejected int
+	}{
+		{name: "no rows at all"},
+		{name: "every row selectable", rows: []theme.Row{valid("a"), valid("b")}, wantCount: 2},
+		{name: "one rejected row", rows: []theme.Row{valid("a"), rejected("b")}, wantCount: 2, wantRejected: 1},
+		{name: "several rejected rows", rows: []theme.Row{rejected("a"), valid("b"), rejected("c"), rejected("d")}, wantCount: 4, wantRejected: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for name, got := range map[string]theme.Union{
+				"themeRowsUnion":            themeRowsUnion(tc.rows),
+				"themeRowsUnionDirUnusable": themeRowsUnionDirUnusable(tc.rows, false),
+			} {
+				if got.Count != tc.wantCount {
+					t.Errorf("%s reports Count %d over %d rows, want %d", name, got.Count, len(tc.rows), tc.wantCount)
+				}
+				if got.Rejected != tc.wantRejected {
+					t.Errorf("%s reports Rejected %d, want %d — the count of its own unselectable rows", name, got.Rejected, tc.wantRejected)
+				}
+				if got.DirUnusable {
+					t.Errorf("%s marked the directory unusable unasked", name)
+				}
+			}
+			if got := themeRowsUnionDirUnusable(tc.rows, true); !got.DirUnusable {
+				t.Error("themeRowsUnionDirUnusable(rows, true) left the directory usable")
+			}
+		})
+	}
 }
 
 // newSplitPanelModel opens the panel over `opened`, with the seam's split-reassembly

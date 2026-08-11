@@ -328,7 +328,7 @@ func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			enumerator := &fakeThemeSource{
-				union:      theme.Union{Rows: tc.rows, Count: len(tc.rows)},
+				union:      themeRowsUnion(tc.rows),
 				resolution: resolution,
 			}
 			m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
@@ -361,7 +361,7 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 			{Slug: "broken", Filename: "broken.theme", Source: theme.SourceFile, Rejection: &theme.Rejection{Reason: theme.ReasonBadColour}},
 			{Slug: "nord", Source: theme.SourceBuiltin, Theme: themetest.Builtin(t, "nord")},
 		}
-		enumerator := &fakeThemeSource{union: theme.Union{Rows: rows, Count: len(rows), Rejected: 1}, resolution: ghost}
+		enumerator := &fakeThemeSource{union: themeRowsUnion(rows), resolution: ghost}
 		m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "ghost"}))
 
 		m = pressThemeKey(t, m)
@@ -409,7 +409,7 @@ func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 	nord := themetest.Builtin(t, "nord")
 	rows := []theme.Row{{Slug: "nord", Source: theme.SourceBuiltin, Theme: nord}}
 	enumerator := &fakeThemeSource{
-		union: theme.Union{Rows: rows, Count: len(rows)},
+		union: themeRowsUnion(rows),
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(nord),
 			Slots:      []theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord", Theme: nord}},

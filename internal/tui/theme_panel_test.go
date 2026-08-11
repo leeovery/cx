@@ -67,7 +67,7 @@ func newThemePanelFixture(o themePanelFixtureOpts) themePanel {
 	return themePanel{
 		open:    true,
 		list:    newThemePanelList(items, delegate),
-		union:   theme.Union{Rows: o.rows, DirUnusable: o.dirUnusable, Count: len(o.rows)},
+		union:   themeRowsUnionDirUnusable(o.rows, o.dirUnusable),
 		message: o.message,
 		width:   o.width,
 	}

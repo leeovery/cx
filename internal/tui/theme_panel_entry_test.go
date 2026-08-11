@@ -68,7 +68,7 @@ func newEntryEnumerator(t *testing.T, dirUnusable bool) *fakeThemeSource {
 	rows := entryRows(t)
 	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
-		union:       theme.Union{Rows: rows, Count: len(rows), DirUnusable: dirUnusable},
+		union:       themeRowsUnionDirUnusable(rows, dirUnusable),
 		resolution: theme.Resolution{
 			Nomination: theme.ConstantNomination(rows[0].Theme),
 			Slots: []theme.SlotResolution{{
