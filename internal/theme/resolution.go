@@ -193,10 +193,10 @@ func (l Loader) ResolveNominationFrom(e Enumeration, s Setting) (Resolution, err
 // than a flag so that pairing is stated in a type (see resolutionPass) and a
 // later call site cannot pair them the other way round.
 //
-// The slug is the caller's already-defaulted one: an unset slot holds the shipped
-// default, which ResolveSetting substitutes first, so an untouched slot resolves
-// from the embedded set with FellBack false rather than being reported as a
-// fallback.
+// The slug is an already-defaulted one: an unset slot holds the shipped default,
+// which ResolveSetting and Setting.Slug substitute first, so an untouched slot
+// resolves from the embedded set with FellBack false rather than being reported
+// as a fallback.
 func (l Loader) ResolveSlot(e Enumeration, slot Slot, slug string) (SlotResolution, error) {
 	return l.resolveSlot(slot, slug, l.commitPass(e))
 }

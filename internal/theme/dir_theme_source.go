@@ -56,9 +56,15 @@ func (e DirThemeSource) Reassemble(enumeration Enumeration, keys RawKeys) Union 
 // the theme applied on open and the row the cursor lands on all derive from this
 // ONE answer, so none of the three can be the stale one.
 //
+// It takes the persisted keys and collapses them here, as Reassemble does: the
+// tiebreak and the shipped-default substitution are this package's rules, so a
+// caller cannot resolve against a setting derived differently from the one it
+// lists and marks.
+//
 // It takes no directory and MUST NOT CONSULT Dir: a read here would be a third
 // parse of the same slug, neither construction's nor the panel's.
-func (e DirThemeSource) Resolve(enumeration Enumeration, setting Setting) (Resolution, error) {
+func (e DirThemeSource) Resolve(enumeration Enumeration, keys RawKeys) (Resolution, error) {
+	setting, _ := ResolveSetting(keys)
 	return e.Loader.ResolveNominationFrom(enumeration, setting)
 }
 
@@ -67,9 +73,14 @@ func (e DirThemeSource) Resolve(enumeration Enumeration, setting Setting) (Resol
 // on a constant → adaptive conversion, and the one `theme: loaded` that fires
 // outside construction.
 //
+// The slug is taken from the same collapse Resolve runs, through Setting.Slug, so
+// a slot the user never set resolves the shipped default rather than an empty
+// slug reported as a fallback of a name nobody chose.
+//
 // It takes no directory and reads none, for Resolve's reason exactly.
-func (e DirThemeSource) ResolveSlot(enumeration Enumeration, slot Slot, slug string) (SlotResolution, error) {
-	return e.Loader.ResolveSlot(enumeration, slot, slug)
+func (e DirThemeSource) ResolveSlot(enumeration Enumeration, slot Slot, keys RawKeys) (SlotResolution, error) {
+	setting, _ := ResolveSetting(keys)
+	return e.Loader.ResolveSlot(enumeration, slot, setting.Slug(slot))
 }
 
 // assembler is the row-model half of the pair, over this seam's loader — built

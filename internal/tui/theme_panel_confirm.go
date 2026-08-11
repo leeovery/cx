@@ -134,7 +134,7 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // The persister is re-read below rather than inferred from the nil error, because
 // commitSlot returns nil both for a write that landed and for the absence of a
 // writer. loadNewlyLiveSlot requires mirrored keys: on the writer-less path the
-// keys still hold the constant, whose slot slugs are both empty, and it would
+// keys still hold the constant, so the seam would resolve a slot nothing set and
 // report a commit-time `theme: loaded` for a write that never happened.
 func (m *Model) confirmSlotAssignment() {
 	pending := m.resolveSlotConfirm()
@@ -183,11 +183,10 @@ func (m *Model) confirmSlotAssignment() {
 // The assigned slot is deliberately not re-read "for symmetry": its parse is
 // already in hand, so resolving it again would mint a second answer for one slug.
 //
-// The opposite slug comes off the mirrored keys through themeSetting, which is
-// the single site that substitutes the shipped default for an unset slot. An
-// untouched slot therefore resolves the shipped default with FellBack false,
-// rather than arriving empty and being reported as a fallback of a slug nobody
-// set.
+// The mirrored keys are handed over as they stand: the seam picks the opposite
+// slot's slug out of them and substitutes the shipped default for an unset one,
+// so an untouched slot resolves that default with FellBack false rather than
+// arriving empty and being reported as a fallback of a slug nobody set.
 //
 // On the broken-builtin fatal the load degrades — the policy applyInForceTheme
 // states for every panel call site of the seam.
@@ -198,25 +197,9 @@ func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
 	m.themeState.adoptRetainedReply()
 
 	newlyLive := assigned.Opposite()
-	slot := newlyLive.Slot()
-	if _, err := m.themeState.source.ResolveSlot(m.themePanel.enumeration, slot, m.persistedSlotSlug(slot)); err != nil {
+	if _, err := m.themeState.source.ResolveSlot(m.themePanel.enumeration, newlyLive.Slot(), m.themeState.keys); err != nil {
 		return
 	}
-}
-
-// persistedSlotSlug is the slug one slot of the mirrored keys nominates, with
-// the shipped default already substituted for an unset one.
-//
-// It reads through themeSetting rather than off RawKeys so the unset-slot rule
-// keeps the single site it has everywhere else in the panel; a second
-// substitution here is how an untouched slot would come to resolve one default in
-// the badges and another in the load.
-func (m Model) persistedSlotSlug(slot theme.Slot) string {
-	setting := m.themeSetting()
-	if slot == theme.SlotLight {
-		return setting.Light
-	}
-	return setting.Dark
 }
 
 // The two answer letters, as the dispatch matches them. They must stay in step

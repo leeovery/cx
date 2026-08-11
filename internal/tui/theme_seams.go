@@ -25,6 +25,12 @@ import "github.com/leeovery/portal/internal/theme"
 // ResolveSlot resolves the slot a constant → adaptive conversion just made live,
 // emitting the commit-time `theme: loaded` that Resolve does not.
 //
+// Every method takes the persisted keys as they stand — no collapsed setting and
+// no defaulted slug. The tiebreak and the shipped-default substitution belong to
+// internal/theme, so applying either here would let this package resolve against
+// a setting derived differently from the one it lists and marks, and would let a
+// fake answer from a third.
+//
 // None of the three reads the filesystem. A read would produce a further parse of
 // the same slug, free to disagree with the row the user is looking at. Resolve's
 // error is the broken-builtin fatal, which the panel degrades on rather than
@@ -32,6 +38,6 @@ import "github.com/leeovery/portal/internal/theme"
 type ThemeSource interface {
 	Open(keys theme.RawKeys) (theme.Enumeration, theme.Union)
 	Reassemble(e theme.Enumeration, keys theme.RawKeys) theme.Union
-	Resolve(e theme.Enumeration, s theme.Setting) (theme.Resolution, error)
-	ResolveSlot(e theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error)
+	Resolve(e theme.Enumeration, keys theme.RawKeys) (theme.Resolution, error)
+	ResolveSlot(e theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error)
 }

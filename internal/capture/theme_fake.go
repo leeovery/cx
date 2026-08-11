@@ -105,7 +105,7 @@ func (f fakeThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.Unio
 //
 // The declared slots are what the badges come from, and the injected palette is
 // what keeps the panel's open-time apply a no-op. See the type comment.
-func (f fakeThemeSource) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+func (f fakeThemeSource) Resolve(theme.Enumeration, theme.RawKeys) (theme.Resolution, error) {
 	return theme.Resolution{
 		Nomination: theme.ConstantNomination(f.palette),
 		Slots:      f.slots,
@@ -113,14 +113,20 @@ func (f fakeThemeSource) Resolve(theme.Enumeration, theme.Setting) (theme.Resolu
 }
 
 // ResolveSlot answers the commit-time load with the injected palette under the
-// slot and slug it was asked for — the fake's one palette, reported as every other
-// answer reports it (see the type comment).
+// slot it was asked for — the fake's one palette, reported as every other answer
+// reports it (see the type comment).
+//
+// The slug comes out of the keys through the same collapse the production adapter
+// runs, so the record names the slug that adapter would have loaded rather than
+// one derived here.
 //
 // It is unreachable in a capture: a fixture wires NO theme persister, so the
 // conversion this serves returns before the load. It is implemented honestly
 // anyway, because a fake answering a fourth method differently from its other
 // three is exactly the divergence the injected palette exists to prevent.
-func (f fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+func (f fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error) {
+	setting, _ := theme.ResolveSetting(keys)
+	slug := setting.Slug(slot)
 	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug, Theme: f.palette}, nil
 }
 

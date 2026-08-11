@@ -341,7 +341,7 @@ func previewedThemeIdentity(l list.Model) string {
 // committed one. The caller's other steps still run on that path — they read the
 // mutated keys and the retained enumeration, not the resolution.
 func (m *Model) applyCommittedSetting() {
-	resolution, err := m.themeState.source.Resolve(m.themePanel.enumeration, m.themeSetting())
+	resolution, err := m.themeState.source.Resolve(m.themePanel.enumeration, m.themeState.keys)
 	if err != nil {
 		return
 	}

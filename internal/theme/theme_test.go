@@ -350,6 +350,7 @@ var wantExports = []string{
 	"Row.SortKey",
 	"RowSource",
 	"Setting",
+	"Setting.Slug",
 	"Slot",
 	"Slot.AttrName",
 	"SlotConstant",

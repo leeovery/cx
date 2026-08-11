@@ -127,8 +127,8 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 	if !m.themePanel.open {
 		t.Fatal("fixture: the panel did not open")
 	}
-	if len(stub.settings) != 1 {
-		t.Fatalf("the open ran %d resolutions, want exactly 1", len(stub.settings))
+	if len(stub.resolves) != 1 {
+		t.Fatalf("the open ran %d resolutions, want exactly 1", len(stub.resolves))
 	}
 	for range 3 {
 		m = pressPanelKey(t, m, arrowDown)
@@ -136,8 +136,8 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 	if m.themeState.active == rows[0].Theme {
 		t.Fatal("fixture: three arrows previewed nothing, so the close below restores nothing")
 	}
-	if len(stub.settings) != 1 {
-		t.Errorf("three arrows ran %d resolutions in total, want the open's 1 — an arrow previews from the retained parse (§5.8)", len(stub.settings))
+	if len(stub.resolves) != 1 {
+		t.Errorf("three arrows ran %d resolutions in total, want the open's 1 — an arrow previews from the retained parse (§5.8)", len(stub.resolves))
 	}
 
 	m, cmd := closePanelForTest(t, m)
@@ -148,8 +148,8 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 	if m.themePanel.open {
 		t.Fatal("Esc left the panel open")
 	}
-	if len(stub.settings) != 2 {
-		t.Errorf("the close ran %d resolutions in total, want 2 — `Esc` RE-RESOLVES persisted state rather than restoring a snapshot (§9.2)", len(stub.settings))
+	if len(stub.resolves) != 2 {
+		t.Errorf("the close ran %d resolutions in total, want 2 — `Esc` RE-RESOLVES persisted state rather than restoring a snapshot (§9.2)", len(stub.resolves))
 	}
 	if m.themeState.active != rows[0].Theme {
 		t.Errorf("the close left canvas %s, want the resolved persisted %s", m.themeState.active.Canvas.Value, rows[0].Theme.Canvas.Value)

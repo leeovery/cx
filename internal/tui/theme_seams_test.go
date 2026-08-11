@@ -33,11 +33,13 @@ func (f fixtureThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.U
 	return f.union
 }
 
-func (f fixtureThemeSource) Resolve(theme.Enumeration, theme.Setting) (theme.Resolution, error) {
+func (f fixtureThemeSource) Resolve(theme.Enumeration, theme.RawKeys) (theme.Resolution, error) {
 	return f.resolution, nil
 }
 
-func (f fixtureThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+func (f fixtureThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error) {
+	setting, _ := theme.ResolveSetting(keys)
+	slug := setting.Slug(slot)
 	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
 }
 
@@ -92,6 +94,63 @@ func TestThemeSourceReturnsTheFinishedUnion(t *testing.T) {
 	}
 	if union.Rejected != 1 {
 		t.Errorf("union rejected = %d, want 1 — the counts arrive assembled too", union.Rejected)
+	}
+}
+
+// TestThemeSourceResolvesFromTheRawKeys pins the collapse as the SEAM's, not the
+// caller's: the adapter is handed prefs.json's keys exactly as they are persisted
+// — all three at once, which a hand-edited file may legally carry — and applies
+// the tiebreak itself.
+//
+// The keys rather than a collapsed setting is what keeps the rule behind the
+// seam. A caller collapsing first is free to answer from a setting derived
+// differently from the one it lists and marks.
+func TestThemeSourceResolvesFromTheRawKeys(t *testing.T) {
+	var source tui.ThemeSource = theme.DirThemeSource{
+		Loader: theme.NewSilentLoader(),
+		Dir:    filepath.Join(t.TempDir(), "themes"),
+	}
+
+	enumeration, _ := source.Open(theme.RawKeys{})
+	resolution, err := source.Resolve(enumeration, theme.RawKeys{Theme: "nord", Light: "tokyo-night-day", Dark: "tokyo-night"})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	if len(resolution.Slots) != 1 {
+		t.Fatalf("the resolution holds %d slot(s), want 1 — a non-empty `theme` wins and the slots are not read", len(resolution.Slots))
+	}
+	if got := resolution.Slots[0]; got.Slot != theme.SlotConstant || got.Requested != "nord" {
+		t.Errorf("the resolved slot is %+v, want the constant %q", got, "nord")
+	}
+	if !resolution.Nomination.IsConstant() {
+		t.Errorf("the nomination is adaptive, want the constant shape the winning `theme` key names")
+	}
+}
+
+// TestThemeSourceResolvesASlotFromTheRawKeys pins the OTHER rule the seam now
+// owns: the shipped-default substitution for a slot the user never set.
+//
+// The unset slot resolves the shipped default and reports no fallback, which is
+// the distinction that would be lost if a caller handed over a raw empty slug: an
+// untouched slot would be reported as a fallback of a slug nobody set.
+func TestThemeSourceResolvesASlotFromTheRawKeys(t *testing.T) {
+	var source tui.ThemeSource = theme.DirThemeSource{
+		Loader: theme.NewSilentLoader(),
+		Dir:    filepath.Join(t.TempDir(), "themes"),
+	}
+
+	enumeration, _ := source.Open(theme.RawKeys{})
+	slot, err := source.ResolveSlot(enumeration, theme.SlotDark, theme.RawKeys{Light: "nord"})
+	if err != nil {
+		t.Fatalf("ResolveSlot: %v", err)
+	}
+
+	if slot.Requested != theme.DefaultDarkSlug {
+		t.Errorf("the unset dark slot requested %q, want the shipped default %q", slot.Requested, theme.DefaultDarkSlug)
+	}
+	if slot.Resolved != theme.DefaultDarkSlug || slot.FellBack {
+		t.Errorf("the unset dark slot resolved %q (fell back: %v), want %q with no fallback", slot.Resolved, slot.FellBack, theme.DefaultDarkSlug)
 	}
 }
 

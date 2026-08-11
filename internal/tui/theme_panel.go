@@ -421,7 +421,7 @@ func (m *Model) seedThemePanelMessage() {
 // necessity, since ApplyTheme is idempotent per swap, and it makes the common
 // close cost no restyle.
 func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.SlotResolution, bool) {
-	resolution, err := m.themeState.source.Resolve(e, m.themeSetting())
+	resolution, err := m.themeState.source.Resolve(e, m.themeState.keys)
 	if err != nil {
 		return theme.Resolution{}, theme.SlotResolution{}, false
 	}
@@ -465,13 +465,16 @@ func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
 }
 
 // themeSetting collapses the model's construction-time raw keys onto the
-// two-state setting.
+// two-state setting, for the one decision this package makes about the shape of
+// the setting rather than about a palette: whether `d`/`l` must raise the confirm.
 //
-// It routes through ResolveSetting rather than restating the tiebreak — the same
-// site the union assembly and doctor's line resolve through — so what the panel
-// lists, what it marks and what it resolves cannot disagree about which slug is
-// live. Re-running it on already-stripped keys is safe: stripping is idempotent
+// It routes through ResolveSetting rather than restating the tiebreak, so what
+// the keypress gates on cannot disagree with what the seam resolves from the same
+// keys. Re-running it on already-stripped keys is safe: stripping is idempotent
 // and the resolution is pure and total.
+//
+// It is not the route to a slug: resolution and the shipped-default substitution
+// belong behind the seam, which takes the raw keys and applies both.
 func (m Model) themeSetting() theme.Setting {
 	setting, _ := theme.ResolveSetting(m.themeState.keys)
 	return setting

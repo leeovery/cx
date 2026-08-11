@@ -382,6 +382,71 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	})
 }
 
+// TestSetting_Slug pins the per-slot read every caller resolving ONE slot goes
+// through: the slug that slot nominates, with the shipped default already
+// substituted for a slot left unset.
+//
+// The substitution is the point. A caller resolving an untouched slot from a raw
+// empty string would report a fallback of a slug nobody set, so the rule lives
+// here — beside the collapse that applies it to a whole setting — rather than in
+// whichever surface happens to need one slot.
+//
+// The constant is the one slot with no default to substitute: light and dark are
+// what the shipped defaults name, and there is no constant Portal ships.
+func TestSetting_Slug(t *testing.T) {
+	tests := []struct {
+		name    string
+		setting theme.Setting
+		slot    theme.Slot
+		want    string
+	}{
+		{
+			name:    "the constant slot of a constant setting",
+			setting: theme.Setting{IsConstant: true, Constant: "nord"},
+			slot:    theme.SlotConstant,
+			want:    "nord",
+		},
+		{
+			name:    "the light slot of a pair",
+			setting: theme.Setting{Light: "nord", Dark: "tokyo-night"},
+			slot:    theme.SlotLight,
+			want:    "nord",
+		},
+		{
+			name:    "the dark slot of a pair",
+			setting: theme.Setting{Light: "nord", Dark: "tokyo-night"},
+			slot:    theme.SlotDark,
+			want:    "tokyo-night",
+		},
+		{
+			name:    "an unset light slot takes the shipped default",
+			setting: theme.Setting{Dark: "nord"},
+			slot:    theme.SlotLight,
+			want:    theme.DefaultLightSlug,
+		},
+		{
+			name:    "an unset dark slot takes the shipped default",
+			setting: theme.Setting{Light: "nord"},
+			slot:    theme.SlotDark,
+			want:    theme.DefaultDarkSlug,
+		},
+		{
+			name:    "an unset constant has no default to substitute",
+			setting: theme.Setting{},
+			slot:    theme.SlotConstant,
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.setting.Slug(tt.slot); got != tt.want {
+				t.Errorf("Slug(%v) = %q, want %q", tt.slot, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestInForceKeys_SelectsTheKeysInForce pins all three clauses of the construction-time load
 // rule's "the keys in force" rule in the one place they are now decided: the `theme`-wins
 // tiebreak, the non-empty-raw-value rule, and the same-value collapse.

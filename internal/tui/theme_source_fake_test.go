@@ -56,10 +56,12 @@ type fakeThemeSource struct {
 	// genuinely not happening.
 	reassembles int
 
-	// settings records every setting Resolve was asked to re-resolve, which is what
-	// pins the open's and the close's resolution counts — an arrow previews from the
-	// parse already in hand and must resolve nothing.
-	settings []theme.Setting
+	// resolves records the keys every Resolve was handed, which is what pins the
+	// open's and the close's resolution counts — an arrow previews from the parse
+	// already in hand and must resolve nothing — and what makes the seam's input
+	// the panel's own persisted keys observable rather than a setting derived on the
+	// way in.
+	resolves []theme.RawKeys
 
 	// slotLoads records every commit-time slot resolution the seam was asked
 	// for. Two cases read it: requireNoSlotLoad, for a NON-CONVERTING commit asking
@@ -104,8 +106,8 @@ func (e *fakeThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.Uni
 // declares instead, since theme.Badges yields an empty map for the empty slot slice
 // a zero Resolution carries, so a refresh that ignored the error would wipe every
 // `●` off the panel.
-func (e *fakeThemeSource) Resolve(_ theme.Enumeration, setting theme.Setting) (theme.Resolution, error) {
-	e.settings = append(e.settings, setting)
+func (e *fakeThemeSource) Resolve(_ theme.Enumeration, keys theme.RawKeys) (theme.Resolution, error) {
+	e.resolves = append(e.resolves, keys)
 	return e.resolution, e.err
 }
 
@@ -113,13 +115,19 @@ func (e *fakeThemeSource) Resolve(_ theme.Enumeration, setting theme.Setting) (t
 // that slot — or, for a slot the fixture declared no record for, with the declared
 // NOMINATION's member for it.
 //
+// The slug it records is the one the keys nominate for that slot, taken through the
+// same collapse the production adapter runs, so a recorded ask names the slug that
+// adapter would have loaded.
+//
 // The fallback branch is the live one on a conversion: a fixture whose resolution is
 // a constant (newArrowPanelDeps) declares only a SlotConstant record, and the
 // construction-time load rule's load asks for the opposite light/dark slot. Answering it from
 // the nomination is what keeps a fake-driven conversion joining a palette the fixture chose —
 // a zero Theme in a live nomination slot renders through lipgloss's no-colour sentinel, which
 // is the silent colourless render New's dark seed exists to keep out of this package.
-func (e *fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, slug string) (theme.SlotResolution, error) {
+func (e *fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error) {
+	setting, _ := theme.ResolveSetting(keys)
+	slug := setting.Slug(slot)
 	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: slug})
 	if e.err != nil {
 		return theme.SlotResolution{}, e.err

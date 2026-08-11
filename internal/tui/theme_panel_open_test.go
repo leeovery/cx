@@ -479,6 +479,17 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 			t.Errorf("open %d handed the seam %+v, want the construction-time snapshot %+v", i+1, got, construction)
 		}
 	}
+	// The resolving half is handed the same snapshot, UNCOLLAPSED: the tiebreak and
+	// the shipped-default substitution are the seam's, so a setting derived here
+	// could answer for slugs the panel never listed or marked.
+	if len(enumerator.resolves) == 0 {
+		t.Fatal("the seam was asked to resolve nothing across two opens")
+	}
+	for i, got := range enumerator.resolves {
+		if got != construction {
+			t.Errorf("resolution %d handed the seam %+v, want the construction-time snapshot %+v", i+1, got, construction)
+		}
+	}
 	if m.themeState.keys != construction {
 		t.Errorf("model keys = %+v, want the construction-time snapshot %+v", m.themeState.keys, construction)
 	}

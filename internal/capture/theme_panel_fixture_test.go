@@ -153,7 +153,7 @@ func TestFakeThemeSource_ResolveReportsTheInjectedPalette(t *testing.T) {
 	}
 	fake := newFakeThemeSource(injected, theme.Enumeration{}, theme.Union{}, declared)
 
-	resolution, err := fake.Resolve(theme.Enumeration{}, theme.Setting{})
+	resolution, err := fake.Resolve(theme.Enumeration{}, theme.RawKeys{})
 	if err != nil {
 		t.Fatalf("Resolve returned %v; the fake has nothing that can fail", err)
 	}
@@ -474,7 +474,7 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		if got, want := rowIdentities(seam.Reassemble(enumeration, fx.themeKeys).Rows), rowIdentities(fx.themeUnion.Rows); !slices.Equal(got, want) {
 			t.Errorf("Reassemble listed %v, want the declared %v", got, want)
 		}
-		resolution, err := seam.Resolve(enumeration, theme.Setting{})
+		resolution, err := seam.Resolve(enumeration, theme.RawKeys{})
 		if err != nil {
 			t.Fatalf("Resolve returned %v", err)
 		}
@@ -483,9 +483,9 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		}
 		// ResolveSlot is unreachable in a capture (a fixture wires no theme
 		// persister), so this is the only pin on it answering like its three
-		// siblings: the slot and slug it was asked for, carrying the injected
-		// palette, off no directory read.
-		res, err := seam.ResolveSlot(enumeration, theme.SlotLight, "nord")
+		// siblings: the slot it was asked for, carrying the slug those keys
+		// nominate for it and the injected palette, off no directory read.
+		res, err := seam.ResolveSlot(enumeration, theme.SlotLight, theme.RawKeys{Light: "nord"})
 		if err != nil {
 			t.Fatalf("ResolveSlot returned %v", err)
 		}

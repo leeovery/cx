@@ -150,6 +150,32 @@ func ResolveSetting(keys RawKeys) (Setting, RawKeys) {
 	}, raw
 }
 
+// Slug is the slug one slot of this setting nominates, with the shipped default
+// substituted for a slot left unset.
+//
+// It is the per-slot half of ResolveSetting's substitution, so a caller resolving
+// ONE slot reaches the same rule the whole-setting collapse applies rather than
+// authoring a second one: a slot read raw would arrive empty and be reported as a
+// fallback of a slug nobody set.
+//
+// The constant is the slot with no default to substitute. The shipped defaults
+// are a light one and a dark one, and a constant is neither, so an unset constant
+// answers the empty string — the unset sentinel this package reads elsewhere.
+//
+// It is total over the three slots and reads the fields as they stand, so it does
+// not gate on which state the tiebreak settled on: the pair slots of a constant
+// setting are unset, and answer the shipped defaults accordingly.
+func (s Setting) Slug(slot Slot) string {
+	switch slot {
+	case SlotLight:
+		return cmp.Or(s.Light, DefaultLightSlug)
+	case SlotDark:
+		return cmp.Or(s.Dark, DefaultDarkSlug)
+	default:
+		return s.Constant
+	}
+}
+
 // InForceKey is one persisted value Portal is actually reading, and where in the
 // setting it sits.
 //
