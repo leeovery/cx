@@ -558,47 +558,17 @@ func TestDoctorFix_ExistingRepairsUnchanged(t *testing.T) {
 	})
 
 	t.Run("the hazard guard still defers on a down server", func(t *testing.T) {
-		dir := t.TempDir()
-		hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
-		goneDir := filepath.Join(t.TempDir(), "gone")
-		projectStore, projectsPath := seedProjectsJSON(t, goneDir)
+		deps, hooksPath, projectsPath, goneDir := downServerDeferFixture(t, t.TempDir())
+		deps.ThemesDir = themesDirWith(t, map[string][]byte{
+			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
+		})
 		hooksBefore, err := os.ReadFile(hooksPath)
 		if err != nil {
 			t.Fatalf("read hooks.json: %v", err)
 		}
 
-		deps := &DoctorDeps{
-			StateDir:      dir,
-			ServerRunning: func() bool { return false },
-			// A down server yields an empty live-pane enumeration.
-			HookLister:   fakeHookLister{keys: []string{}},
-			HookStore:    hookStore,
-			ProjectStore: projectStore,
-			Detector:     fakeTerminalDetector{},
-			Resolve:      doctorUnsupportedResolve,
-			ThemesDir: themesDirWith(t, map[string][]byte{
-				"a-missing.theme": sourceMissingTokens(t, "text.primary"),
-			}),
-		}
 		outBuf, _, execErr := runDoctorFixCmd(t, deps)
-		if execErr != ErrDoctorUnhealthy {
-			t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy (server still down post-repair)", execErr)
-		}
-
-		hooksAfter, err := os.ReadFile(hooksPath)
-		if err != nil {
-			t.Fatalf("re-read hooks.json: %v", err)
-		}
-		if !bytes.Equal(hooksBefore, hooksAfter) {
-			t.Errorf("hooks.json pruned on a down server (user commands must survive)\nbefore: %s\nafter:  %s", hooksBefore, hooksAfter)
-		}
-		projectsAfter, err := os.ReadFile(projectsPath)
-		if err != nil {
-			t.Fatalf("re-read projects.json: %v", err)
-		}
-		if strings.Contains(string(projectsAfter), goneDir) {
-			t.Errorf("the filesystem-only stale-project prune did not run on a down server:\n%s", projectsAfter)
-		}
+		assertDownServerDeferral(t, hooksBefore, hooksPath, projectsPath, goneDir, execErr)
 
 		const advisory = "  ⚠ theme a-missing: missing tokens — missing text.primary\n"
 		pre, post := requireTwoReports(t, outBuf.String())

@@ -996,6 +996,60 @@ func assertStalePrunesApplied(t *testing.T, hooksPath, projectsPath, liveDir, go
 	}
 }
 
+// downServerDeferFixture seeds the shared `--fix` down-server scenario over
+// stateDir: a hook entry, one project record whose directory is gone, and deps
+// wired to a server that is down. A down server yields an empty live-pane
+// enumeration, and an empty live set is indistinguishable from "every pane is
+// gone" — so the mass-deletion hazard guard defers the stale-hook prune rather
+// than wiping a user's non-reconstructable on-resume commands. The
+// filesystem-only stale-project prune has no such ambiguity and still runs.
+func downServerDeferFixture(t *testing.T, stateDir string) (deps *DoctorDeps, hooksPath, projectsPath, goneDir string) {
+	t.Helper()
+
+	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
+	goneDir = filepath.Join(t.TempDir(), "gone")
+	projectStore, projectsPath := seedProjectsJSON(t, goneDir)
+
+	deps = &DoctorDeps{
+		StateDir:      stateDir,
+		ServerRunning: func() bool { return false },
+		HookLister:    fakeHookLister{keys: []string{}},
+		HookStore:     hookStore,
+		ProjectStore:  projectStore,
+		Detector:      fakeTerminalDetector{},
+		Resolve:       doctorUnsupportedResolve,
+	}
+	return deps, hooksPath, projectsPath, goneDir
+}
+
+// assertDownServerDeferral checks the outcome of a `--fix` run over
+// downServerDeferFixture: hooks.json is byte-identical to hooksBefore, the stale
+// project is gone from projects.json, and the run exits unhealthy because the
+// server is still down post-repair.
+func assertDownServerDeferral(t *testing.T, hooksBefore []byte, hooksPath, projectsPath, goneDir string, err error) {
+	t.Helper()
+
+	if err != ErrDoctorUnhealthy {
+		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy (server still down post-repair)", err)
+	}
+
+	hooksAfter, readErr := os.ReadFile(hooksPath)
+	if readErr != nil {
+		t.Fatalf("re-read hooks.json: %v", readErr)
+	}
+	if !bytes.Equal(hooksBefore, hooksAfter) {
+		t.Errorf("hooks.json pruned on a down server (user commands must survive)\nbefore: %s\nafter:  %s", hooksBefore, hooksAfter)
+	}
+
+	projectsAfter, readErr := os.ReadFile(projectsPath)
+	if readErr != nil {
+		t.Fatalf("re-read projects.json: %v", readErr)
+	}
+	if strings.Contains(string(projectsAfter), goneDir) {
+		t.Errorf("the filesystem-only stale-project prune did not run on a down server:\n%s", projectsAfter)
+	}
+}
+
 func TestDoctorStaleHooksCheck(t *testing.T) {
 	t.Run("persisted key with no live pane fails", func(t *testing.T) {
 		dir := t.TempDir()
@@ -1425,45 +1479,15 @@ func TestDoctorFixProtectsUserHooksWhenLiveSetEmptyOrErrored(t *testing.T) {
 // post-repair exit is driven by the re-diagnosis — still non-zero because the
 // daemon / saver / hooks checks remain failed on a down server.
 func TestDoctorFixDownServerPrunesProjectsButNotHooks(t *testing.T) {
-	dir := t.TempDir()
-	hookStore, hooksPath := seedHooksJSON(t, "sessA:0.0")
-	goneDir := filepath.Join(t.TempDir(), "gone")
-	projectStore, projectsPath := seedProjectsJSON(t, goneDir)
+	deps, hooksPath, projectsPath, goneDir := downServerDeferFixture(t, t.TempDir())
 	hooksBefore, err := os.ReadFile(hooksPath)
 	if err != nil {
 		t.Fatalf("read hooks.json: %v", err)
 	}
 
-	deps := &DoctorDeps{
-		StateDir:      dir,
-		ServerRunning: func() bool { return false },
-		// A down server yields an empty live-pane enumeration.
-		HookLister:   fakeHookLister{keys: []string{}},
-		HookStore:    hookStore,
-		ProjectStore: projectStore,
-		Detector:     fakeTerminalDetector{},
-		Resolve:      doctorUnsupportedResolve,
-	}
 	outBuf, _, execErr := runDoctorFixCmd(t, deps)
-	if execErr != ErrDoctorUnhealthy {
-		t.Fatalf("Execute err = %v; want ErrDoctorUnhealthy (server still down post-repair)", execErr)
-	}
+	assertDownServerDeferral(t, hooksBefore, hooksPath, projectsPath, goneDir, execErr)
 
-	hooksAfter, err := os.ReadFile(hooksPath)
-	if err != nil {
-		t.Fatalf("re-read hooks.json: %v", err)
-	}
-	if !bytes.Equal(hooksBefore, hooksAfter) {
-		t.Errorf("hooks.json pruned on a down server (user commands must survive)\nbefore: %s\nafter:  %s", hooksBefore, hooksAfter)
-	}
-
-	projectsAfter, err := os.ReadFile(projectsPath)
-	if err != nil {
-		t.Fatalf("re-read projects.json: %v", err)
-	}
-	if strings.Contains(string(projectsAfter), goneDir) {
-		t.Errorf("filesystem-only stale-project prune did not run on a down server:\n%s", projectsAfter)
-	}
 	out := outBuf.String()
 	if !strings.Contains(out, "Pruned stale project: proj0 ("+goneDir+")") {
 		t.Errorf("missing pruned-project breadcrumb:\n%s", out)
