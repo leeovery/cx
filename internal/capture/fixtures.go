@@ -30,8 +30,9 @@ type Fixture struct {
 	initialMode        prefs.SessionListMode
 	initialMultiSelect []string
 	initialCursor      string
-	// Declared independently of the `--theme` palette: the union is what the
-	// panel lists, these keys are what it marks.
+	// Independent of the `--theme` palette: the union is what the panel lists —
+	// assembled from the enumeration and these keys — and the keys are what it
+	// marks.
 	themeKeys        theme.RawKeys
 	themeUnion       theme.Union
 	themeEnumeration theme.Enumeration
@@ -423,16 +424,11 @@ func sessionsNoTagsSignpostFixture() *Fixture {
 // drop-in must stand beside the built-ins; it sorts first.
 const themePanelDropInSlug = "catppuccin-latte"
 
-// Rows are left with a zero palette and repainted by the fake onto the
-// `--theme` value; declaring a palette here would make `--theme` inert.
-func themePanelUnion() theme.Union {
-	rows := []theme.Row{
-		{Slug: themePanelDropInSlug, Filename: themePanelDropInSlug + theme.FileExtension, Source: theme.SourceFile},
-		{Slug: "nord", Source: theme.SourceBuiltin},
-		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
-		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
-	}
-	return theme.Union{Rows: rows, Count: len(rows)}
+// A fixture declares its inputs and production assembles the list, so
+// membership, dedup and display order have one implementation. Reassemble, never
+// Open: the harness reads no directory and emits no `theme: enumerated`.
+func themePanelUnionFrom(e theme.Enumeration, keys theme.RawKeys) theme.Union {
+	return theme.Assembler{Loader: theme.NewSilentLoader()}.Reassemble(e, keys)
 }
 
 func themePanelEnumeration() theme.Enumeration {
@@ -446,8 +442,8 @@ func themePanelAdaptivePairFixture() *Fixture {
 	fx := sessionsFlatFixture()
 	fx.name = "theme-panel-adaptive-pair"
 	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
-	fx.themeUnion = themePanelUnion()
 	fx.themeEnumeration = themePanelEnumeration()
+	fx.themeUnion = themePanelUnionFrom(fx.themeEnumeration, fx.themeKeys)
 	fx.themeSlots = []theme.SlotResolution{
 		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
 		{Slot: theme.SlotDark, Requested: "nord", Resolved: "nord"},
@@ -466,8 +462,8 @@ func themePanelConstantPreviewingFixture() *Fixture {
 	fx := sessionsFlatFixture()
 	fx.name = "theme-panel-constant-previewing"
 	fx.themeKeys = theme.RawKeys{Theme: "nord"}
-	fx.themeUnion = themePanelUnion()
 	fx.themeEnumeration = themePanelEnumeration()
+	fx.themeUnion = themePanelUnionFrom(fx.themeEnumeration, fx.themeKeys)
 	// Exactly one record with SlotConstant — a second record would render the
 	// pair's badges instead of the bare marker.
 	fx.themeSlots = []theme.SlotResolution{
@@ -507,11 +503,19 @@ func themePanelMinHeightMessageFixture() *Fixture {
 // Never resolved, opened or stat'ed; shared so no fixture invents a second one.
 const themesDirPath = "/home/user/.config/portal/themes"
 
-// The palette and rejection are deliberately not restated on an entry —
-// duplicating each row's verdict would be a second place for it to drift from
-// the union that renders it.
+// No palette: the fake repaints every valid row onto the `--theme` value, so
+// one declared here is overwritten before it can reach a frame.
 func themePanelDirEntry(filename, slug string) theme.Entry {
 	return theme.Entry{Path: themesDirPath + "/" + filename, Filename: filename, Slug: slug}
+}
+
+// A candidate's verdict belongs to the entry the assembler reads, which is why
+// the rejection is declared here rather than on the row it produces. An empty
+// slug is the `bad name` shape, where the filename yields none.
+func themePanelRejectedEntry(filename, slug string, rejection *theme.Rejection) theme.Entry {
+	entry := themePanelDirEntry(filename, slug)
+	entry.Rejection = rejection
+	return entry
 }
 
 func themePanelDirEnumeration(entries ...theme.Entry) theme.Enumeration {
@@ -528,12 +532,20 @@ func themePanelInvalidRowFixture() *Fixture {
 	// The dark slot names a broken drop-in; the light slot a loadable built-in,
 	// so one badge sits on an invalid row and one on a valid one.
 	fx.themeKeys = theme.RawKeys{Light: theme.DefaultLightSlug, Dark: themePanelBrokenSlug}
-	fx.themeUnion = themePanelInvalidRowUnion()
 	fx.themeEnumeration = themePanelDirEnumeration(
-		themePanelDirEntry("aurora-glow"+theme.FileExtension, "aurora-glow"),
-		themePanelDirEntry("My Gorgeous Midnight Palette"+theme.FileExtension, ""),
-		themePanelDirEntry(themePanelBrokenSlug+theme.FileExtension, themePanelBrokenSlug),
+		// Invalid with a reason that fits beside its label.
+		themePanelRejectedEntry("aurora-glow"+theme.FileExtension, "aurora-glow",
+			&theme.Rejection{Reason: theme.ReasonBadSyntax, Line: 12, Detail: "quoted value"}),
+		// `bad name`: no slug, so labelled and sorted by filename — long enough to
+		// fill the row, which drops its reason.
+		themePanelRejectedEntry("My Gorgeous Midnight Palette"+theme.FileExtension, "",
+			&theme.Rejection{Reason: theme.ReasonBadName, BadNameCause: theme.BadNameSlug}),
+		// Invalid and persisted: the badge takes the right edge, so the reason
+		// never renders.
+		themePanelRejectedEntry(themePanelBrokenSlug+theme.FileExtension, themePanelBrokenSlug,
+			&theme.Rejection{Reason: theme.ReasonBadColour, Line: 7, Detail: "text.primary = #12345"}),
 	)
+	fx.themeUnion = themePanelUnionFrom(fx.themeEnumeration, fx.themeKeys)
 	fx.themeSlots = []theme.SlotResolution{
 		{Slot: theme.SlotLight, Requested: theme.DefaultLightSlug, Resolved: theme.DefaultLightSlug},
 		// The nomination did not load: Resolved names the mode-matched default
@@ -547,34 +559,6 @@ func themePanelInvalidRowFixture() *Fixture {
 
 const themePanelBrokenSlug = "nord-lee"
 
-// Rows are written out in display order — re-deriving the order would put a
-// second copy of the union's sort comparison in the harness.
-func themePanelInvalidRowUnion() theme.Union {
-	rows := []theme.Row{
-		// Invalid with a reason that fits beside its label.
-		{
-			Slug: "aurora-glow", Filename: "aurora-glow" + theme.FileExtension, Source: theme.SourceFile,
-			Rejection: &theme.Rejection{Reason: theme.ReasonBadSyntax, Line: 12, Detail: "quoted value"},
-		},
-		// `bad name`: no slug, so labelled and sorted by filename — long enough
-		// to fill the row, which drops its reason.
-		{
-			Filename: "My Gorgeous Midnight Palette" + theme.FileExtension, Source: theme.SourceFile,
-			Rejection: &theme.Rejection{Reason: theme.ReasonBadName, BadNameCause: theme.BadNameSlug},
-		},
-		{Slug: "nord", Source: theme.SourceBuiltin},
-		// Invalid and persisted: the badge takes the right edge, so the reason
-		// never renders.
-		{
-			Slug: themePanelBrokenSlug, Filename: themePanelBrokenSlug + theme.FileExtension, Source: theme.SourceFile,
-			Rejection: &theme.Rejection{Reason: theme.ReasonBadColour, Line: 7, Detail: "text.primary = #12345"},
-		},
-		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
-		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
-	}
-	return theme.Union{Rows: rows, Count: len(rows), Rejected: 3}
-}
-
 // The dir-unreadable warning is viewport chrome, not a list row — only
 // observable after paging past where a list row would have scrolled away,
 // hence the Ctrl+↓ and a capture height that forces a second page. Capture
@@ -585,8 +569,8 @@ func themePanelDirUnreadableFixture() *Fixture {
 	// Both slots name drop-ins the unreadable directory cannot answer for, so
 	// each contributes a persisted row and keeps its badge.
 	fx.themeKeys = theme.RawKeys{Light: themePanelUnreachableLightSlug, Dark: themePanelBrokenSlug}
-	fx.themeUnion = themePanelDirUnreadableUnion()
 	fx.themeEnumeration = theme.Enumeration{DirUnusable: true, DirPath: themesDirPath}
+	fx.themeUnion = themePanelUnionFrom(fx.themeEnumeration, fx.themeKeys)
 	fx.themeSlots = []theme.SlotResolution{
 		{Slot: theme.SlotLight, Requested: themePanelUnreachableLightSlug, Resolved: theme.DefaultLightSlug, FellBack: true, Reason: theme.ReasonUnreadable},
 		{Slot: theme.SlotDark, Requested: themePanelBrokenSlug, Resolved: theme.DefaultDarkSlug, FellBack: true, Reason: theme.ReasonUnreadable},
@@ -602,19 +586,6 @@ func themePanelDirUnreadableFixture() *Fixture {
 // persisted row on each page of the captured frame.
 const themePanelUnreachableLightSlug = "solarized-lee"
 
-// The persisted rows carry `unreadable` and no detail — the condition has its
-// own pinned chrome row, and the verbatim system message belongs to doctor.
-func themePanelDirUnreadableUnion() theme.Union {
-	rows := []theme.Row{
-		{Slug: "nord", Source: theme.SourceBuiltin},
-		{Slug: themePanelBrokenSlug, Source: theme.SourcePersisted, Rejection: &theme.Rejection{Reason: theme.ReasonUnreadable}},
-		{Slug: themePanelUnreachableLightSlug, Source: theme.SourcePersisted, Rejection: &theme.Rejection{Reason: theme.ReasonUnreadable}},
-		{Slug: theme.DefaultDarkSlug, Source: theme.SourceBuiltin},
-		{Slug: theme.DefaultLightSlug, Source: theme.SourceBuiltin},
-	}
-	return theme.Union{Rows: rows, DirUnusable: true, Count: len(rows), Rejected: 2}
-}
-
 // Identical data to the adaptive pair — only the capture width differs.
 // Capture with `--theme nord` at a terminal narrow enough to step the panel
 // to its minimum width.
@@ -629,8 +600,8 @@ func themePanelNarrowFixture() *Fixture {
 func themePanelPaginatedFixture() *Fixture {
 	fx := themePanelAdaptivePairFixture()
 	fx.name = "theme-panel-paginated"
-	fx.themeUnion = themePanelPaginatedUnion()
 	fx.themeEnumeration = themePanelDirEnumeration(themePanelPaginatedEntries()...)
+	fx.themeUnion = themePanelUnionFrom(fx.themeEnumeration, fx.themeKeys)
 	return fx
 }
 
@@ -642,15 +613,6 @@ const themePanelSyntheticDropIns = 30
 // Named to sort after every built-in slug, keeping the badged rows on page 1.
 func themePanelSyntheticSlug(i int) string {
 	return fmt.Sprintf("vivid-%02d", i+1)
-}
-
-func themePanelPaginatedUnion() theme.Union {
-	rows := slices.Clone(themePanelUnion().Rows)
-	for i := range themePanelSyntheticDropIns {
-		slug := themePanelSyntheticSlug(i)
-		rows = append(rows, theme.Row{Slug: slug, Filename: slug + theme.FileExtension, Source: theme.SourceFile})
-	}
-	return theme.Union{Rows: rows, Count: len(rows)}
 }
 
 func themePanelPaginatedEntries() []theme.Entry {
@@ -670,8 +632,8 @@ func themePanelProjectsFixture() *Fixture {
 	fx.name = "theme-panel-projects"
 	pair := themePanelAdaptivePairFixture()
 	fx.themeKeys = pair.themeKeys
-	fx.themeUnion = pair.themeUnion
 	fx.themeEnumeration = pair.themeEnumeration
+	fx.themeUnion = themePanelUnionFrom(fx.themeEnumeration, fx.themeKeys)
 	fx.themeSlots = pair.themeSlots
 	fx.initialThemeCursor = pair.initialThemeCursor
 	fx.captureKeys = []tea.KeyPressMsg{keyRune('x'), keyRune('t')}

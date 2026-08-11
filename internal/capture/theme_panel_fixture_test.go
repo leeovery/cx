@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -43,9 +44,6 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 			if (fx.themeKeys == theme.RawKeys{}) {
 				t.Error("input 2: the fixture declares no raw persisted theme keys, so its badges have nothing to derive from")
 			}
-			if len(fx.themeUnion.Rows) == 0 {
-				t.Error("input 3a: the fixture declares no union rows, so the panel would list nothing")
-			}
 			if len(fx.themeSlots) == 0 {
 				t.Error("input 3b: the fixture declares no slot resolutions, so no row carries a ● at all")
 			}
@@ -65,14 +63,128 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 			}
 
 			enumeration, union := deps.ThemeSource.Open(fx.themeKeys)
-			if got, want := rowIdentities(union.Rows), rowIdentities(fx.themeUnion.Rows); !slices.Equal(got, want) {
-				t.Errorf("the seam's union lists %v, want the declared %v", got, want)
-			}
 			if got, want := enumeration.DirPath, fx.themeEnumeration.DirPath; got != want {
 				t.Errorf("the seam's enumeration is of %q, want the declared %q", got, want)
 			}
+
+			cursor, found := rowFor(union, fx.initialThemeCursor)
+			if !found {
+				t.Fatalf("the union lists %v, none of them the declared cursor row %q — the cursor has nothing to rest on", rowIdentities(union.Rows), fx.initialThemeCursor)
+			}
+			if !cursor.Selectable() {
+				t.Errorf("the cursor row %q is rejected; the arrow skip keeps the cursor off invalid rows, so a frame parked on one is a state production cannot reach", fx.initialThemeCursor)
+			}
+			for _, slot := range fx.themeSlots {
+				if _, badged := rowFor(union, slot.Requested); !badged {
+					t.Errorf("the %v slot requests %q, which the union does not list — the badge marking it has no row to sit on", slot.Slot, slot.Requested)
+				}
+			}
 		})
 	}
+}
+
+func rowFor(union theme.Union, identity string) (theme.Row, bool) {
+	for _, row := range union.Rows {
+		if row.Identity() == identity {
+			return row, true
+		}
+	}
+	return theme.Row{}, false
+}
+
+// The fixtures state their inputs and production assembles the list, so a change
+// to membership, dedup or ordering reaches every captured frame.
+func TestPanelFixture_UnionIsProductionAssembled(t *testing.T) {
+	for _, name := range panelFixtureNames() {
+		t.Run(name, func(t *testing.T) {
+			fx, err := FixtureByName(name)
+			if err != nil {
+				t.Fatalf("FixtureByName(%s): %v", name, err)
+			}
+
+			assembled := theme.Assembler{Loader: theme.NewSilentLoader()}.Reassemble(fx.themeEnumeration, fx.themeKeys)
+			if !reflect.DeepEqual(fx.themeUnion, assembled) {
+				t.Errorf("the fixture's union is not what the assembler derives from its declared entries and keys:\n got %v (count %d, rejected %d)\nwant %v (count %d, rejected %d)",
+					rowIdentities(fx.themeUnion.Rows), fx.themeUnion.Count, fx.themeUnion.Rejected,
+					rowIdentities(assembled.Rows), assembled.Count, assembled.Rejected)
+			}
+		})
+	}
+}
+
+func TestPanelFixture_InvalidRowsCarryTheirReasons(t *testing.T) {
+	union := unionOf(t, "theme-panel-invalid-row")
+
+	for identity, want := range map[string]theme.Reason{
+		"aurora-glow": theme.ReasonBadSyntax,
+		"My Gorgeous Midnight Palette" + theme.FileExtension: theme.ReasonBadName,
+		themePanelBrokenSlug: theme.ReasonBadColour,
+	} {
+		row, found := rowFor(union, identity)
+		if !found {
+			t.Errorf("the union does not list %q; the frame this fixture exists for renders no such row", identity)
+			continue
+		}
+		if row.Rejection == nil {
+			t.Errorf("the %q row carries no rejection, so it renders as a valid theme", identity)
+			continue
+		}
+		if row.Rejection.Reason != want {
+			t.Errorf("the %q row is rejected %q, want %q", identity, row.Rejection.Reason, want)
+		}
+	}
+
+	if got, want := union.Rejected, 3; got != want {
+		t.Errorf("the union counts %d rejected rows, want %d", got, want)
+	}
+}
+
+func TestPanelFixture_DirUnreadablePersistedRows(t *testing.T) {
+	union := unionOf(t, "theme-panel-dir-unreadable")
+
+	if !union.DirUnusable {
+		t.Error("the union does not report an unusable directory, so the pinned `⚠ dir unreadable` chrome row never renders")
+	}
+	for _, slug := range []string{themePanelBrokenSlug, themePanelUnreachableLightSlug} {
+		row, found := rowFor(union, slug)
+		if !found {
+			t.Errorf("the union does not list the persisted slug %q, so its badge has no row", slug)
+			continue
+		}
+		if row.Source != theme.SourcePersisted {
+			t.Errorf("the %q row is sourced %v, want a persisted row — nothing in an unreadable directory can answer for it", slug, row.Source)
+		}
+		if row.Rejection == nil || row.Rejection.Reason != theme.ReasonUnreadable {
+			t.Errorf("the %q row carries rejection %+v, want %q", slug, row.Rejection, theme.ReasonUnreadable)
+		}
+	}
+}
+
+func TestPanelFixture_PaginatedOverflowsOnePage(t *testing.T) {
+	fx, err := FixtureByName("theme-panel-paginated")
+	if err != nil {
+		t.Fatalf("FixtureByName: %v", err)
+	}
+
+	last := themePanelSyntheticSlug(themePanelSyntheticDropIns - 1)
+	if _, found := rowFor(fx.themeUnion, last); !found {
+		t.Fatalf("the union does not list the last synthetic row %q, so it cannot be the one pushed off the page", last)
+	}
+
+	frame := ansi.Strip(driveToPanel(t, fx.Deps(themetest.Builtin(t, "nord"))))
+	if strings.Contains(frame, last) {
+		t.Errorf("the panel renders every one of its %d rows, so the pagination the fixture exists to capture never happens:\n%s", fx.themeUnion.Count, frame)
+	}
+}
+
+func unionOf(t *testing.T, name string) theme.Union {
+	t.Helper()
+
+	fx, err := FixtureByName(name)
+	if err != nil {
+		t.Fatalf("FixtureByName(%s): %v", name, err)
+	}
+	return fx.themeUnion
 }
 
 func rowIdentities(rows []theme.Row) []string {
@@ -475,39 +587,25 @@ func backgroundSGR(t *testing.T, tok theme.Token) string {
 	return probe[start+1 : end]
 }
 
-func TestPanelPaginatedUnion_DerivesFromBase(t *testing.T) {
-	base := themePanelUnion()
-	paginated := themePanelPaginatedUnion()
+func TestPanelPaginatedEntries_DeriveFromBase(t *testing.T) {
+	baseEntries := themePanelEnumeration().Entries
+	entries := themePanelPaginatedEntries()
 
-	if len(paginated.Rows) <= len(base.Rows) {
-		t.Fatalf("the paginating union carries %d rows against the base's %d; it must carry the base set and then the synthetics", len(paginated.Rows), len(base.Rows))
+	if len(entries) <= len(baseEntries) {
+		t.Fatalf("the paginating parse carries %d entries against the base's %d; it must carry the base set and then the synthetics", len(entries), len(baseEntries))
 	}
 
-	t.Run("the base rows lead the paginating union in order", func(t *testing.T) {
-		if got := paginated.Rows[:len(base.Rows)]; !slices.Equal(got, base.Rows) {
-			t.Errorf("the paginating union leads with rows %v, want the base set %v", rowSlugs(got), rowSlugs(base.Rows))
+	t.Run("the base entries lead the paginating parse in order", func(t *testing.T) {
+		if got := entries[:len(baseEntries)]; !slices.Equal(got, baseEntries) {
+			t.Errorf("the paginating parse leads with entries %+v, want the base entries %+v", got, baseEntries)
 		}
 	})
 
-	t.Run("the synthetics follow the base rows", func(t *testing.T) {
-		for i, row := range paginated.Rows[len(base.Rows):] {
-			if want := themePanelSyntheticSlug(i); row.Slug != want {
-				t.Errorf("synthetic row %d is %q, want %q — the synthetics sort after every built-in, which is what keeps the badged rows on page 1", i, row.Slug, want)
+	t.Run("the synthetics follow the base entries", func(t *testing.T) {
+		for i, entry := range entries[len(baseEntries):] {
+			if want := themePanelSyntheticSlug(i); entry.Slug != want {
+				t.Errorf("synthetic entry %d is %q, want %q — the synthetics sort after every built-in, which is what keeps the badged rows on page 1", i, entry.Slug, want)
 			}
-		}
-	})
-
-	t.Run("the count is re-derived from the rows", func(t *testing.T) {
-		if got, want := paginated.Count, len(paginated.Rows); got != want {
-			t.Errorf("the paginating union counts %d rows and carries %d", got, want)
-		}
-	})
-
-	t.Run("the base builders mint a fresh row set per call", func(t *testing.T) {
-		first := themePanelUnion()
-		first.Rows[0] = theme.Row{Slug: "mutated"}
-		if themePanelUnion().Rows[0].Slug == "mutated" {
-			t.Error("themePanelUnion hands back a shared row set, so every fixture derived from it would alias the others")
 		}
 	})
 
@@ -518,23 +616,4 @@ func TestPanelPaginatedUnion_DerivesFromBase(t *testing.T) {
 			t.Error("themePanelEnumeration hands back shared entries, so every fixture derived from it would alias the others")
 		}
 	})
-
-	t.Run("the retained parse leads with the base enumeration's entries", func(t *testing.T) {
-		baseEntries := themePanelEnumeration().Entries
-		entries := themePanelPaginatedEntries()
-		if len(entries) <= len(baseEntries) {
-			t.Fatalf("the paginating parse carries %d entries against the base's %d", len(entries), len(baseEntries))
-		}
-		if got := entries[:len(baseEntries)]; !slices.Equal(got, baseEntries) {
-			t.Errorf("the paginating parse leads with entries %+v, want the base entries %+v", got, baseEntries)
-		}
-	})
-}
-
-func rowSlugs(rows []theme.Row) []string {
-	slugs := make([]string, 0, len(rows))
-	for _, row := range rows {
-		slugs = append(slugs, row.Slug)
-	}
-	return slugs
 }
