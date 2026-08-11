@@ -344,7 +344,7 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 			if !opened.themePanel.open {
 				t.Fatal("fixture: the panel did not open at the unblocked region")
 			}
-			resized := resizeForTest(t, opened, contentW, contentH)
+			resized, resizeCmd := resizeForTestCmd(t, opened, contentW, contentH)
 			if resized.themePanel.open != ok {
 				t.Fatalf("the resize left the panel open=%v, want %v — one predicate, two callers", resized.themePanel.open, ok)
 			}
@@ -363,6 +363,11 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 			}
 			if got, want := resized.flashText, themePanelForcedCloseFlash(dim); got != want {
 				t.Errorf("the forced close raised %q, want the %v copy %q", got, dim, want)
+			}
+			// Presence only: evaluating the auto-clear tick it carries blocks for
+			// flashAutoClearDuration, once per region.
+			if resizeCmd == nil {
+				t.Error("the forced close returned no command, so its flash never auto-clears — a blocked entry schedules one")
 			}
 		})
 	}

@@ -46,32 +46,43 @@ func requireReportRaised(t *testing.T, m Model) {
 	}
 }
 
-func flashTickFrom(cmd tea.Cmd) (flashTickMsg, bool) {
+// Every tick is evaluated, so the walk costs flashAutoClearDuration per command.
+func collectFlashTicks(cmd tea.Cmd) []flashTickMsg {
 	if cmd == nil {
-		return flashTickMsg{}, false
+		return nil
 	}
 	switch msg := cmd().(type) {
 	case flashTickMsg:
-		return msg, true
+		return []flashTickMsg{msg}
 	case tea.BatchMsg:
+		var ticks []flashTickMsg
 		for _, child := range msg {
-			if tick, ok := flashTickFrom(child); ok {
-				return tick, true
-			}
+			ticks = append(ticks, collectFlashTicks(child)...)
 		}
+		return ticks
 	}
-	return flashTickMsg{}, false
+	return nil
 }
 
-func requireReportTick(t *testing.T, m Model, cmd tea.Cmd) {
+func requireSingleFlashTick(t *testing.T, m Model, cmd tea.Cmd) flashTickMsg {
 	t.Helper()
 
-	tick, ok := flashTickFrom(cmd)
-	if !ok {
-		t.Fatalf("no auto-clear tick reached Update's return (the close returned nothing at all: %t); the report inherits the standard flash lifecycle", cmd == nil)
+	ticks := collectFlashTicks(cmd)
+	if len(ticks) != 1 {
+		t.Fatalf("%d auto-clear tick(s) %+v reached Update's return (the close returned nothing at all: %t), want exactly one; the flash inherits the standard lifecycle", len(ticks), ticks, cmd == nil)
 	}
-	if tick.Gen != m.flashGen {
-		t.Errorf("the tick carries generation %d, want the live %d — a stale generation is dropped by the guard and the report never clears", tick.Gen, m.flashGen)
+	if ticks[0].Gen != m.flashGen {
+		t.Fatalf("the tick carries generation %d, want the live %d — a stale generation is dropped by the guard and the flash never clears", ticks[0].Gen, m.flashGen)
+	}
+	return ticks[0]
+}
+
+func requireTickClears(t *testing.T, m Model, tick flashTickMsg) {
+	t.Helper()
+
+	cleared, _ := m.Update(tick)
+	if got := cleared.(Model).flashText; got != "" {
+		t.Errorf("the matching tick left the flash %q, want it cleared", got)
 	}
 }
 
@@ -92,7 +103,7 @@ func TestCloseReport_RaisesTheFlash(t *testing.T) {
 	if got, want := m.flashGen, gen+1; got != want {
 		t.Errorf("the report left the flash generation at %d, want %d — it rides the shared counter", got, want)
 	}
-	requireReportTick(t, m, cmd)
+	requireSingleFlashTick(t, m, cmd)
 
 	superseded, _ := m.Update(flashTickMsg{Gen: m.flashGen - 1})
 	if got := superseded.(Model).flashText; got != wantThemeNotSavedFlash {
@@ -123,7 +134,7 @@ func TestCloseReport_ForcedCloseCommitFlashWins(t *testing.T) {
 
 			requireForcedClose(t, m, wantThemeNotSavedFlash)
 			requireReportRaised(t, m)
-			requireReportTick(t, m, cmd)
+			requireSingleFlashTick(t, m, cmd)
 			if got := m.flashText; got == tc.wantGeometry {
 				t.Errorf("the forced close raised the geometry copy %q, want the report — the band has ONE slot and the report is the one the user must act on", got)
 			}
@@ -131,7 +142,7 @@ func TestCloseReport_ForcedCloseCommitFlashWins(t *testing.T) {
 	}
 }
 
-func TestCloseReport_ForcedCloseGeometryFlashSurvives(t *testing.T) {
+func TestCloseReport_ForcedCloseGeometryFlashSelfClears(t *testing.T) {
 	for _, tc := range closeReportFloorCrossings {
 		t.Run(tc.name, func(t *testing.T) {
 			m, _ := newCommitFailureFixture(t)
@@ -143,11 +154,17 @@ func TestCloseReport_ForcedCloseGeometryFlashSurvives(t *testing.T) {
 			m, cmd := resizeForTestCmd(t, m, contentW, contentH)
 
 			requireForcedClose(t, m, tc.wantGeometry)
-			if tick, ok := flashTickFrom(cmd); ok {
-				t.Errorf("the geometry flash scheduled the auto-clear tick %+v; it clears on the next actionable key instead", tick)
-			}
 			if m.themeState.commitFailed {
 				t.Error("the forced close left a failure outstanding where none was")
+			}
+			tick := requireSingleFlashTick(t, m, cmd)
+			requireTickClears(t, m, tick)
+
+			superseding := m
+			(&superseding).setThemeFlash(wantThemeNotSavedFlash)
+			stood, _ := superseding.Update(tick)
+			if got := stood.(Model).flashText; got != wantThemeNotSavedFlash {
+				t.Errorf("the forced close's in-flight tick left the later flash %q, want %q standing — the generation guard drops a superseded tick", got, wantThemeNotSavedFlash)
 			}
 		})
 	}
@@ -314,7 +331,7 @@ func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
 	m, cmd := closePanelForTest(t, m)
 
 	requireReportRaised(t, m)
-	requireReportTick(t, m, cmd)
+	requireSingleFlashTick(t, m, cmd)
 	if m.activePage != PageProjects {
 		t.Fatalf("the close moved the active page to %d, want it left on Projects", m.activePage)
 	}

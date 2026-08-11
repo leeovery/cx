@@ -219,7 +219,7 @@ func TestPanelGeometry_FloorReportsWidthFirst(t *testing.T) {
 		} {
 			contentW, contentH := region[0], region[1]
 			t.Run(fmt.Sprintf("%dx%d", contentW, contentH), func(t *testing.T) {
-				m := resizeForTest(t, newGeometryPanelModel(t, geometryWideW, geometryContentH), contentW, contentH)
+				m, cmd := resizeForTestCmd(t, newGeometryPanelModel(t, geometryWideW, geometryContentH), contentW, contentH)
 				if got := m.contentWidth(); got != contentW {
 					t.Fatalf("fixture: the resized content region is %d columns, want %d", got, contentW)
 				}
@@ -239,6 +239,11 @@ func TestPanelGeometry_FloorReportsWidthFirst(t *testing.T) {
 				}
 				if got, want := m.flashText, themePanelForcedCloseFlash(dim); got != want {
 					t.Errorf("the forced close raised %q, want the %v copy %q", got, dim, want)
+				}
+				// Presence only: evaluating the auto-clear tick it carries blocks for
+				// flashAutoClearDuration, once per region.
+				if cmd == nil {
+					t.Error("the forced close returned no command, so its flash never auto-clears")
 				}
 			})
 		}

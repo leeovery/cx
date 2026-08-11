@@ -256,7 +256,8 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 
 // Degrading must re-run applyThemePanelListStyles: a stale PerPage makes page
 // keys move a different distance than the screen scrolls, and the delegate holds
-// its width as a field. A due commit-failure report wins over the geometry flash.
+// its width as a field. A due commit-failure report wins over the geometry flash,
+// which otherwise carries the auto-clear tick the report would have brought.
 func (m *Model) resizeThemePanel() tea.Cmd {
 	if !m.themePanel.open {
 		return nil
@@ -267,7 +268,10 @@ func (m *Model) resizeThemePanel() tea.Cmd {
 		willReport := m.themeState.commitFailed
 		cmd := m.closeThemePanel()
 		if !willReport {
+			// The generation is read after the raise bumps it, so the tick the
+			// guard admits is this flash's.
 			m.setThemeFlash(themePanelForcedCloseFlash(dim))
+			cmd = tea.Batch(cmd, flashTickCmd(m.flashGen))
 		}
 		return cmd
 	}
