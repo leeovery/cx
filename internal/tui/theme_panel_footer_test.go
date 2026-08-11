@@ -245,6 +245,32 @@ func TestThemePanelFooter_HeightMatchesRender(t *testing.T) {
 	}
 }
 
+// TestThemePanelFooter_WidestRowIsMeasured: it pins the widest composed footer row.
+//
+// The panel's assembly argues that no row it composes can exceed the minimum inner
+// width, and it cites this figure to make the case. A cited measurement nobody
+// executes is a claim that quietly goes stale the first time a label or the key
+// column moves, so the number is asserted against the rendered rows — and against
+// the minimum inner width it has to clear.
+func TestThemePanelFooter_WidestRowIsMeasured(t *testing.T) {
+	const wantWidest = 16
+
+	widest, at := 0, ""
+	for _, row := range themePanelFooterLines(renderThemePanelFooter(themePanelKeymap(), 0, testDarkTheme(t), false)) {
+		if got := lipgloss.Width(row); got > widest {
+			widest, at = got, row
+		}
+	}
+
+	if widest != wantWidest {
+		t.Errorf("the widest footer row is %d cells (%q), want %d", widest, at, wantWidest)
+	}
+	if widest > themePanelFooterTestMinWidth {
+		t.Errorf("the widest footer row is %d cells against a %d-cell minimum inner width — the panel pads rows, it never truncates them",
+			widest, themePanelFooterTestMinWidth)
+	}
+}
+
 // TestThemePanelFooter_Colourless asserts the NO_COLOR carve-out: the
 // footer drops the canvas and every hue and renders on the terminal's native
 // fg/bg, with the pinned copy structurally intact.

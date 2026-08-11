@@ -235,7 +235,7 @@ func renderedPanelRows(t *testing.T, m Model) []renderedPanelRow {
 		t.Fatalf("fixture: the panel paginates over %d pages, so the drawn body is not the whole union", got)
 	}
 	lines := themePanelLines(renderRecomputePanel(m))
-	from := themePanelHeaderRows() + themePanelDirRowHeight(m.themePanel.union.DirUnusable)
+	from := panelHeaderRowsOf(m) + themePanelDirRowHeight(m.themePanel.union.DirUnusable)
 
 	rows := make([]renderedPanelRow, 0, len(m.themePanel.union.Rows))
 	for i := range m.themePanel.union.Rows {
@@ -539,7 +539,7 @@ func TestThemePanelBehaviour_RowComposition(t *testing.T) {
 
 	t.Run("every row is exactly one line at the panel's width", func(t *testing.T) {
 		block := themePanelLines(renderRecomputePanel(badged))
-		from := themePanelHeaderRows()
+		from := panelHeaderRowsOf(badged)
 		for i := range badged.themePanel.union.Rows {
 			line := block[from+i]
 			if strings.Contains(line, "\n") {

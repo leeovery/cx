@@ -304,9 +304,20 @@ func themePanelMessageHeight(message themePanelMessage, inner int, wrap bool) in
 // rather than `at`, because renderThemePanel is a pure function of the height it is
 // handed and a sub-floor height is a shape a fixture can hand it.
 //
-// THE FLOOR IT COMPARES AGAINST IS THE STANDING SCOPE'S, exactly as
+// THE FLOOR IT COMPARES AGAINST IS THE ONE FOR THE HEADER SHAPE BEING DRAWN, not
+// the panel's own floor. The panel spends extra rows on its header once the height
+// affords the page's rhythm (themePanelHeaderShapeFor), and at exactly that height
+// they leave the slot as tight as the floor's own rows do — so a threshold anchored
+// to the compact floor would wrap a message the taller shape has no room for,
+// taking the row off the list body.
+//
+// THE FOOTER SCOPE IT COMPARES AGAINST IS THE STANDING ONE, exactly as
 // themePanelFloor's is: see themePanelMinHeight for why the confirm's shorter
 // footer never moves it.
 func themePanelMessageWraps(p themePanel, height int) bool {
-	return height > themePanelMinHeight(themePanelKeymap(), p.union.DirUnusable)
+	return height > themePanelFloorFor(
+		themePanelHeaderShapeFor(height, p.union.DirUnusable).rows,
+		themePanelKeymap(),
+		p.union.DirUnusable,
+	)
 }

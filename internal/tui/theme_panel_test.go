@@ -89,6 +89,13 @@ func themePanelLines(block string) []string {
 	return strings.Split(ansi.Strip(block), "\n")
 }
 
+// panelHeaderRowsOf is the header cost of the panel the model renders at its own
+// content height — the offset a body-row assertion indexes from, taken at the
+// height the frame under assertion was drawn at.
+func panelHeaderRowsOf(m Model) int {
+	return themePanelHeaderRows(m.contentHeight(), m.themePanel.union.DirUnusable)
+}
+
 // themePanelContentPrefix is the cells every BORDERED panel row opens with — the panel
 // layout's left `│` plus the inner gutter — so a row assertion states the panel's inset once
 // rather than restating it at each call site.
@@ -126,7 +133,7 @@ func TestThemePanel_BlockGeometry(t *testing.T) {
 	for _, width := range []int{themePanelMinWidth, themePanelPreferredWidth} {
 		for _, dirUnusable := range []bool{false, true} {
 			for _, message := range []themePanelMessage{{}, messageTestConfirm()} {
-				floor := themePanelHeaderRows() + themePanelTestBodyRows + footerRows
+				floor := themePanelCompactHeaderRows + themePanelTestBodyRows + footerRows
 				if dirUnusable {
 					floor++
 				}
@@ -192,7 +199,7 @@ func TestThemePanel_FooterSurvivesAtTheFloor(t *testing.T) {
 	for _, dirUnusable := range []bool{false, true} {
 		for _, message := range []themePanelMessage{{}, messageTestConfirm()} {
 			wantFooter := themePanelLines(renderThemePanelFooter(themePanelFooterScope(message), inner, th, false))
-			floor := themePanelHeaderRows() + themePanelTestBodyRows + len(wantFooter)
+			floor := themePanelCompactHeaderRows + themePanelTestBodyRows + len(wantFooter)
 			if dirUnusable {
 				floor++
 			}
@@ -249,7 +256,9 @@ func TestThemePanel_LeftBorderOnly(t *testing.T) {
 		width: themePanelPreferredWidth,
 		rows:  themePanelTestRows(6),
 	})
-	block := renderThemePanel(p, 16, th, false)
+	const height = 16
+	shape := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	block := renderThemePanel(p, height, th, false)
 
 	for i, line := range themePanelLines(block) {
 		runes := []rune(line)
@@ -258,15 +267,15 @@ func TestThemePanel_LeftBorderOnly(t *testing.T) {
 		}
 		want := panelFrameSide
 		switch {
-		case i < themePanelHeaderRuleRow():
+		case i < shape.ruleRow:
 			want = " "
-		case i == themePanelHeaderRuleRow():
+		case i == shape.ruleRow:
 			// The rule runs THROUGH the border's column: it is what carries the page's
 			// own rule across the columns the panel covers, so a `│` here would notch it.
 			want = headerRuleGlyph
 		}
 		if got := string(runes[0]); got != want {
-			t.Fatalf("line %d opens with %q, want %q (the border starts on row %d)", i, got, want, themePanelBorderFromRow())
+			t.Fatalf("line %d opens with %q, want %q (the border starts on row %d)", i, got, want, shape.borderFrom())
 		}
 		if strings.Contains(string(runes[1:]), panelFrameSide) {
 			t.Errorf("line %d carries a second %q (a right edge): %q", i, panelFrameSide, line)
@@ -288,7 +297,7 @@ func TestThemePanel_LeftBorderOnly(t *testing.T) {
 	// distinguishing the panel from the list behind it. It is read from the
 	// rows BELOW the header rule, which is where the border lives — the rule itself is
 	// the same token, so the first border-painted run in the whole block is its.
-	bordered := strings.Join(strings.Split(block, "\n")[themePanelBorderFromRow():], "\n")
+	bordered := strings.Join(strings.Split(block, "\n")[shape.borderFrom():], "\n")
 	if got := themeRowRunAfter(t, bordered, tokenFgSeq(t, th.Border)); !strings.HasPrefix(got, panelFrameSide) {
 		t.Errorf("the border run does not paint %q, got %q", panelFrameSide, got)
 	}
@@ -311,17 +320,19 @@ func TestThemePanel_HeaderIsMeasuredAndCountless(t *testing.T) {
 		width: themePanelPreferredWidth,
 		rows:  rows,
 	})
-	block := renderThemePanel(p, 16, th, false)
+	const height = 16
+	shape := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	block := renderThemePanel(p, height, th, false)
 	lines := themePanelLines(block)
 
-	rule, label := themePanelHeaderRuleRow(), themePanelHeaderLabelRow()
+	rule, label := shape.ruleRow, shape.labelRow
 	if got, want := lines[rule], strings.Repeat(headerRuleGlyph, themePanelPreferredWidth); got != want {
 		t.Errorf("header rule row = %q, want the glyph across all %d panel columns", got, themePanelPreferredWidth)
 	}
 	if got, want := strings.TrimRight(lines[label], " "), themePanelContentPrefix()+themePanelHeaderLabel; got != want {
 		t.Errorf("header label row = %q, want %q", got, want)
 	}
-	for i := range themePanelHeaderRows() {
+	for i := range shape.rows {
 		if i == rule || i == label {
 			continue
 		}
@@ -333,8 +344,8 @@ func TestThemePanel_HeaderIsMeasuredAndCountless(t *testing.T) {
 		t.Errorf("the header carries a count: %q / %q", lines[rule], lines[label])
 	}
 	// The header ends where the list body begins.
-	if !strings.Contains(lines[themePanelHeaderRows()], rows[0].Label()) {
-		t.Errorf("row %d is not the first list row (%q): %q", themePanelHeaderRows(), rows[0].Label(), lines[themePanelHeaderRows()])
+	if !strings.Contains(lines[shape.rows], rows[0].Label()) {
+		t.Errorf("row %d is not the first list row (%q): %q", shape.rows, rows[0].Label(), lines[shape.rows])
 	}
 
 	if got := themeRowRunAfter(t, block, tokenFgSeq(t, th.AccentMode)); got != themePanelHeaderLabel {
@@ -362,15 +373,16 @@ func TestThemePanel_DirUnreadableIsPinnedChrome(t *testing.T) {
 	})
 
 	const height = 14
+	header := themePanelHeaderRows(height, p.union.DirUnusable)
 	firstPage := themePanelLines(renderThemePanel(p, height, th, false))
-	if got, want := strings.TrimRight(firstPage[themePanelHeaderRows()], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
+	if got, want := strings.TrimRight(firstPage[header], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 		t.Fatalf("page 1 directory row = %q, want %q", got, want)
 	}
 
 	// Park the cursor deep enough that the list is on a later page, then re-render.
 	p.list.Select(len(rows) - 1)
 	lastPage := themePanelLines(renderThemePanel(p, height, th, false))
-	if got, want := strings.TrimRight(lastPage[themePanelHeaderRows()], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
+	if got, want := strings.TrimRight(lastPage[header], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 		t.Errorf("last page directory row = %q, want %q — the row is paginating, so it is a list item", got, want)
 	}
 	if strings.Join(firstPage, "\n") == strings.Join(lastPage, "\n") {
@@ -413,8 +425,9 @@ func TestThemePanel_RowsRenderBeneathDirRow(t *testing.T) {
 	p.list.SetDelegate(themeRowDelegate{Theme: th, Width: themePanelInnerWidth(themePanelPreferredWidth)})
 	p.list.Items()[1] = themeRowItem{Row: persisted, Badge: theme.BadgeDark}
 
-	lines := themePanelLines(renderThemePanel(p, themePanelHeaderRows()+10, th, false))
-	below := strings.Join(lines[themePanelHeaderRows()+1:], "\n")
+	height := themePanelMinHeight(themePanelKeymap(), p.union.DirUnusable) + 10
+	lines := themePanelLines(renderThemePanel(p, height, th, false))
+	below := strings.Join(lines[themePanelHeaderRows(height, p.union.DirUnusable)+1:], "\n")
 
 	for _, want := range []string{builtin.Label(), persisted.Label(), themePanelBadgeText(theme.BadgeDark)} {
 		if !strings.Contains(below, want) {
@@ -447,8 +460,9 @@ func TestThemePanel_DirRowFitsMinimumWidthUntruncated(t *testing.T) {
 		rows:        themePanelTestRows(3),
 		dirUnusable: true,
 	})
-	lines := themePanelLines(renderThemePanel(p, 10, th, false))
-	row := strings.TrimRight(lines[themePanelHeaderRows()], " ")
+	const height = 10
+	lines := themePanelLines(renderThemePanel(p, height, th, false))
+	row := strings.TrimRight(lines[themePanelHeaderRows(height, p.union.DirUnusable)], " ")
 	if want := themePanelContentPrefix() + themePanelDirUnreadable; row != want {
 		t.Errorf("at the minimum width the directory row = %q, want %q", row, want)
 	}
@@ -553,7 +567,8 @@ func TestThemePanel_ListIsConstructedWithPanelChromeDisabled(t *testing.T) {
 		width: themePanelPreferredWidth,
 		rows:  themePanelTestRows(12),
 	})
-	wantW, wantH := themePanelInnerWidth(themePanelPreferredWidth), height-themePanelHeaderRows()-themePanelFooterHeight(themePanelKeymap())
+	wantW, wantH := themePanelInnerWidth(themePanelPreferredWidth),
+		height-themePanelHeaderRows(height, p.union.DirUnusable)-themePanelFooterHeight(themePanelKeymap())
 	gotW, gotH := themePanelListSize(p, height)
 	if gotW != wantW || gotH != wantH {
 		t.Fatalf("themePanelListSize = (%d, %d), want (%d, %d)", gotW, gotH, wantW, wantH)
@@ -586,10 +601,12 @@ func TestThemePanel_EveryChromeSurfaceIsATokenLookup(t *testing.T) {
 	// this test hunts. The dot re-point has its own coverage, on a panel opened
 	// the production way.
 	//
-	// It is the floor with its single body row swapped for one row per theme, plus the
+	// It is the height at which the panel keeps the page's header rhythm, with the
+	// single body row that height guarantees swapped for one row per theme, plus the
 	// two rows `bubbles/list` charges for its pagination block — which it stops drawing
 	// once the body can absorb them. The dot-glyph guard below keeps that honest.
-	height := themePanelMinHeight(themePanelKeymap(), true) - themePanelMinBodyRows + len(rows) + 2
+	pageAligned := themePanelFloorFor(themePanelPageAlignedHeaderShape().rows, themePanelKeymap(), true)
+	height := pageAligned - themePanelMinBodyRows + len(rows) + 2
 
 	render := func(th theme.Theme) string {
 		p := newThemePanelFixture(themePanelFixtureOpts{
@@ -987,7 +1004,9 @@ func TestThemePanel_Colourless(t *testing.T) {
 		dirUnusable: true,
 		message:     messageTestConfirm(),
 	})
-	block := renderThemePanel(p, 14, th, true)
+	const height = 14
+	shape := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	block := renderThemePanel(p, height, th, true)
 
 	for i, line := range strings.Split(block, "\n") {
 		for col, cell := range scanCellBackgrounds(line) {
@@ -1001,11 +1020,11 @@ func TestThemePanel_Colourless(t *testing.T) {
 	// The structure survives: the border, the header, the pinned warning and the
 	// footer are all still there, glyph-backed.
 	lines := themePanelLines(block)
-	label := lines[themePanelHeaderLabelRow()]
+	label := lines[shape.labelRow]
 	if !strings.HasPrefix(label, themePanelContentPrefix()+themePanelHeaderLabel) {
 		t.Errorf("colourless header row = %q", label)
 	}
-	if !strings.Contains(lines[themePanelHeaderRows()], themePanelDirUnreadable) {
-		t.Errorf("colourless directory row = %q", lines[themePanelHeaderRows()])
+	if !strings.Contains(lines[shape.rows], themePanelDirUnreadable) {
+		t.Errorf("colourless directory row = %q", lines[shape.rows])
 	}
 }

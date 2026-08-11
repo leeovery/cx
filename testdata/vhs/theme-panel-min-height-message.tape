@@ -25,10 +25,12 @@
 # rather than wrapped". A two-row message here would leave zero list rows or
 # overflow the frame.
 #
-# WHAT TO LOOK AT: count the rows. Above the rule the panel draws nothing; beneath
-# it, the `Themes` label, then EXACTLY ONE theme row (`nord`, the cursor's, with its
-# `● dark`), then `⚠ couldn't save theme` on EXACTLY ONE line, then the standing
-# four-row footer ending in `esc close`. That is the floor, rendered. Judge whether
+# WHAT TO LOOK AT: count the rows. The panel opens on its rule, then the `Themes`
+# label directly beneath it — at this height the panel spends no rows on aligning
+# its header to the page's, because nothing is drawn in them — then EXACTLY ONE
+# theme row (`nord`, the cursor's, with its `● dark`), then `⚠ couldn't save theme`
+# on EXACTLY ONE line, then the standing four-row footer ending in `esc close`.
+# That is the floor, rendered. Judge whether
 # a one-row list still reads as a picker — this is the smallest panel that opens at
 # all, and one row shorter it refuses with a flash rather than opening a broken
 # frame. Note the width too: it is the same 24-column minimum the confirm frame uses,
@@ -74,7 +76,7 @@
 #
 # To view the same screen live in a real terminal instead (press `t` by hand —
 # capturetool replays no keys; the size is the whole subject here, so shrink the
-# window to about 54 columns x 13 rows — one row taller and the body gains a second
+# window to about 54 columns x 10 rows — one row taller and the body gains a second
 # theme row, one row shorter and `t` refuses with `terminal too short for the theme
 # picker`):
 #
@@ -89,18 +91,19 @@ Output "testdata/vhs/.gifcache/theme-panel-min-height-message.gif"
 Set FontFamily "JetBrains Mono"
 Set FontSize 16
 # VHS sizes the terminal in PIXELS, so the column/row counts are recorded here
-# rather than stated in the tape: 690x420 resolves to 54 COLUMNS x 13 ROWS.
+# rather than stated in the tape: 690x366 resolves to 54 COLUMNS x 10 ROWS.
 # BOTH halves are load-bearing, and this is the one tape where the height is the
-# subject. 13 rows leaves 11 content rows, which is exactly §9.8's floor: the panel
-# spends 5 on its header, 4 on the standing footer and 1 on the message slot,
-# leaving the ONE list row the floor guarantees. 14 rows gives the body a second row
-# and the arithmetic stops being visible; 12 refuses to open at all. The width is
+# subject. 10 rows leaves 8 content rows, which is exactly §9.8's floor: the panel
+# spends 2 on the header it DRAWS (the rule and the `Themes` label), 4 on the
+# standing footer and 1 on the message slot, leaving the ONE list row the floor
+# guarantees. 11 rows gives the body a second row
+# and the arithmetic stops being visible; 9 refuses to open at all. The width is
 # the same minimum theme-panel-confirm.tape uses — 54 columns leaves 50 content
 # columns, below twice the preferred width, so §9.8's ladder steps down to the
 # 24-column minimum — so the two frames
 # differ in nothing but height.
 Set Width 690
-Set Height 420
+Set Height 366
 # A fixed shell prompt keeps the captured frame deterministic across machines.
 Set Shell "bash"
 

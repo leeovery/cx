@@ -61,51 +61,90 @@ const (
 	themePanelFloorMessageRows = 1
 )
 
-// The panel's header region is measured off the page's, never restated with a
-// literal.
+// themePanelHeaderShape is where the panel's header draws its two surfaces and
+// what the whole region costs: the index of the rule, the index of the `Themes`
+// label, and the rows reserved for both.
+//
+// The reserved rows are by construction the rows that render, because the renderer
+// indexes into a block of this many rows with these two indices — the same
+// discipline themePanelDirRowHeight and themePanelFooterHeight apply by measuring
+// their own output.
+type themePanelHeaderShape struct {
+	ruleRow  int
+	labelRow int
+	rows     int
+}
+
+// borderFrom is the first row carrying the panel's left `│` — below the rule in
+// either shape, because the rule runs THROUGH the border's column (see
+// themePanelHeaderBlock).
+func (s themePanelHeaderShape) borderFrom() int {
+	return s.ruleRow + 1
+}
+
+// themePanelCompactHeaderRows is the compact header's cost: the rule row and the
+// label row, and nothing else. It is the header the geometry rule's floor resolves
+// against — the panel's header carries exactly those two things.
+const themePanelCompactHeaderRows = 2
+
+// themePanelCompactHeaderShape is the header with the two surfaces closed up: the
+// rule at the top of the block and the label directly beneath it.
+func themePanelCompactHeaderShape() themePanelHeaderShape {
+	return themePanelHeaderShape{ruleRow: 0, labelRow: 1, rows: themePanelCompactHeaderRows}
+}
+
+// themePanelPageAlignedHeaderShape is the header padded out to the PAGE's own
+// rhythm, measured off the page's renderers and never restated with a literal.
 //
 // The panel is composited over the page at the content region's Y=0, so its rows
 // and the page's are the same terminal rows, and the slide-over only reads as a
-// surface inside the content region if the two run one rhythm. Deriving these
-// four from the page's own renderers is what moves the panel when the header
-// block or section header changes.
+// surface inside the content region if the two run one rhythm: the rule lands in
+// the page header block's rule lane, the label on the page's section-header row,
+// and the region ends where the page's first session row begins. Deriving all
+// three from the page's own renderers is what moves the panel when the header
+// block or the section header changes.
 //
-//   - themePanelHeaderRuleRow — the rows above the rule, which is the page header
-//     block's band. Nothing is drawn in them (see themePanelHeaderBlock).
-//   - themePanelHeaderLabelRow — the page header block's whole height, which is
-//     therefore the index of the section-header row beneath it.
-//   - themePanelHeaderRows — that plus the section-header block, so the row after
-//     the panel's header is the row after the page's.
-//   - themePanelBorderFromRow — where the left border starts; see
-//     themePanelHeaderBlock for why it is below the rule rather than at it.
+// The rows the two surfaces do not occupy are blank — an ALIGNMENT LUXURY the
+// panel spends when the height affords it, never a cost the render floor carries
+// (themePanelHeaderShapeFor).
 //
 // The measurements are taken at zero width on the colourless path, as
 // themePanelFooterHeight measures its own block: a row count is a function of the
 // content, not of the width or the palette, so the layout resolves before either
 // is in hand.
-
-// themePanelHeaderRuleRow is the index of the panel's header rule — the rows the
-// page's header BAND occupies above its own rule.
-func themePanelHeaderRuleRow() int {
-	return lipgloss.Height(headerBand(0, theme.Theme{}, true))
+func themePanelPageAlignedHeaderShape() themePanelHeaderShape {
+	label := lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true))
+	return themePanelHeaderShape{
+		ruleRow:  lipgloss.Height(headerBand(0, theme.Theme{}, true)),
+		labelRow: label,
+		rows:     label + sectionHeaderBlockRows(),
+	}
 }
 
-// themePanelHeaderLabelRow is the index of the panel's `Themes` label: the page's
-// header block ends there, so that is the row its section header sits on.
-func themePanelHeaderLabelRow() int {
-	return lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true))
+// themePanelHeaderShapeFor is the SINGLE decision between the panel's two header
+// shapes, taken from the height the panel is rendered at: the page-aligned header
+// while the height can afford the rows it pads with, the compact one below that.
+//
+// No renderer and no arithmetic may re-decide it. The blank alignment rows carry
+// nothing, so charging them to the render floor would refuse the panel across a
+// band of terminals on which it can still render a rule, a label, a list row, the
+// message slot and the whole footer — the refusal the geometry rule's
+// degrade-don't-refuse doctrine reserves for a panel that genuinely cannot render.
+//
+// The affordance is the panel's own floor computed with the page-aligned header, so
+// the two questions are one arithmetic asked with two header costs.
+func themePanelHeaderShapeFor(height int, dirUnusable bool) themePanelHeaderShape {
+	pageAligned := themePanelPageAlignedHeaderShape()
+	if height >= themePanelFloorFor(pageAligned.rows, themePanelKeymap(), dirUnusable) {
+		return pageAligned
+	}
+	return themePanelCompactHeaderShape()
 }
 
-// themePanelHeaderRows is the panel's whole header cost — the page's header block
-// plus its section-header block — so the panel's first list row is the page's first
-// session row.
-func themePanelHeaderRows() int {
-	return themePanelHeaderLabelRow() + sectionHeaderBlockRows()
-}
-
-// themePanelBorderFromRow is the first row carrying the panel's left `│`.
-func themePanelBorderFromRow() int {
-	return themePanelHeaderRuleRow() + 1
+// themePanelHeaderRows is the panel's header cost at a given render height — the
+// rows themePanelChromeRows charges and the renderer fills.
+func themePanelHeaderRows(height int, dirUnusable bool) int {
+	return themePanelHeaderShapeFor(height, dirUnusable).rows
 }
 
 // themePanelDim names the dimension the render floor refused on, so the entry gate
@@ -142,13 +181,16 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 	return themePanelMinWidth, contentW >= themePanelMinWidth
 }
 
-// themePanelMinHeight is the height floor: header + footer + one list row + one
-// message row, plus the pinned directory row when the themes directory is
-// unusable.
+// themePanelMinHeight is the height floor: the header's two content rows + footer +
+// one list row + one message row, plus the pinned directory row when the themes
+// directory is unusable.
 //
-// Nothing here is a literal. The footer and the header are both measured
-// (themePanelFooterHeight, themePanelHeaderRows), so the floor follows a change to
-// either with no second edit.
+// It is the COMPACT header's cost, never the page-aligned one. The rows the
+// page-aligned header pads with are blank, so a floor carrying them would refuse a
+// panel that has every row it needs to render (themePanelHeaderShapeFor).
+//
+// The footer is measured (themePanelFooterHeight), so the floor follows a change to
+// it with no second edit.
 //
 // The message row is unconditional because neither contender can be suppressed
 // (see themePanelFloorMessageRows). The directory row is counted only when it
@@ -163,7 +205,19 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 // (themePanelListSize). Computing the floor from the transient scope would admit
 // terminals that could not render the panel once the confirm resolved.
 func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
-	return themePanelChromeRows(dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
+	return themePanelFloorFor(themePanelCompactHeaderRows, entries, dirUnusable)
+}
+
+// themePanelFloorFor is the shortest height that renders a whole panel for a given
+// header cost — that header + the directory row when it is due + one message row +
+// the footer + the one list row the floor guarantees.
+//
+// It is asked with both header costs: with the compact header it is the panel's own
+// floor (themePanelMinHeight), and with the page-aligned one it is the height from
+// which the panel can afford to keep the page's rhythm (themePanelHeaderShapeFor,
+// and the slot's own threshold in themePanelMessageWraps).
+func themePanelFloorFor(headerRows int, entries []keymapEntry, dirUnusable bool) int {
+	return themePanelChromeRows(headerRows, dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
 }
 
 // themePanelChromeRows is the panel's whole chrome cost at a given state — header +
@@ -173,11 +227,12 @@ func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
 // (themePanelMinHeight, themePanelListSize), so a component added to the chrome
 // cannot reach one arithmetic and miss the other.
 //
-// Callers differ in the arguments they pass, not in the sum: the floor passes its
-// fixed message row and the standing footer scope, while the body passes the
-// slot's measured height and the live scope.
-func themePanelChromeRows(dirUnusable bool, messageRows int, footer []keymapEntry) int {
-	return themePanelHeaderRows() +
+// Callers differ in the arguments they pass, not in the sum: the floor passes the
+// compact header, its fixed message row and the standing footer scope, while the
+// body passes the header shape its height affords, the slot's measured height and
+// the live scope.
+func themePanelChromeRows(headerRows int, dirUnusable bool, messageRows int, footer []keymapEntry) int {
+	return headerRows +
 		themePanelDirRowHeight(dirUnusable) +
 		messageRows +
 		themePanelFooterHeight(footer)
@@ -217,9 +272,10 @@ func themePanelInnerWidth(width int) int {
 //
 //	height − header − directory row(0 or 1) − message slot(0 or 1) − footer
 //
-// floored at one row. All four subtrahends are measured off the renderer that
-// produces them (themePanelHeaderRows, themePanelDirRowHeight,
-// themePanelMessageHeight, themePanelFooterHeight), so those reserved rows are by
+// floored at one row. All four subtrahends come from what draws them — the header
+// from the shape the height selects (themePanelHeaderRows), the other three
+// measured off their own renderers (themePanelDirRowHeight,
+// themePanelMessageHeight, themePanelFooterHeight) — so those reserved rows are by
 // construction the rows that render.
 //
 // The remainder is neither measured nor trusted. The list body is the one block
@@ -242,6 +298,7 @@ func themePanelInnerWidth(width int) int {
 func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
 	reserved := themePanelChromeRows(
+		themePanelHeaderRows(height, p.union.DirUnusable),
 		p.union.DirUnusable,
 		themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, height)),
 		themePanelFooterScope(p.message),

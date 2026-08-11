@@ -365,11 +365,26 @@ func TestPanelChrome_LadderEnds(t *testing.T) {
 	}
 }
 
-// chromeMeasuredFloor is the geometry rule's height floor derived INDEPENDENTLY of the
-// production arithmetic: the panel's header region is exactly the rows the page
-// spends before its first session row, and the rest of the floor is the measured
-// footer plus one list row and one message row.
+// chromeMeasuredFloor is the geometry rule's height floor derived INDEPENDENTLY of
+// the production arithmetic: the two rows the panel's header DRAWS — a rule and the
+// `Themes` label — plus the measured footer, one list row and one message row.
+//
+// The page-aligning blank rows are deliberately absent from it. They carry nothing,
+// so a floor that charged for them would refuse a panel with every row it needs.
 func chromeMeasuredFloor(t *testing.T, m Model) int {
+	t.Helper()
+	if got := chromeMeasuredAffordance(t, m); got <= specPanelHeaderRows+themePanelFooterHeight(themePanelKeymap())+2 {
+		t.Fatalf("fixture: the page-aligned header costs no more than the %d rows the panel draws, so the floor and the affordance are the same number", specPanelHeaderRows)
+	}
+	const listRow, messageRow = 1, 1
+	return specPanelHeaderRows + themePanelFooterHeight(themePanelKeymap()) + listRow + messageRow
+}
+
+// chromeMeasuredAffordance is the height from which the panel can keep the PAGE's
+// header rhythm, measured off the page's own composed frame: the rows the page
+// spends before its first session row, plus the footer, one list row and one
+// message row.
+func chromeMeasuredAffordance(t *testing.T, m Model) int {
 	t.Helper()
 	rows := chromeFrame(t, m)
 	first := chromePageRow(m, rows, chromeSessionNames()[0])
@@ -380,12 +395,13 @@ func chromeMeasuredFloor(t *testing.T, m Model) int {
 	return first + themePanelFooterHeight(themePanelKeymap()) + listRow + messageRow
 }
 
-// TestPanelChrome_FloorFollowsTheHeader: it derives the floor from the measured
-// header.
+// TestPanelChrome_FloorFollowsTheHeader: it charges the floor for the header the
+// panel DRAWS and the page's rhythm for the rows it pads with.
 //
-// The floor once read a restated two-row header. It now reads the same
-// measurement the render does, so the rows the header GAINED are rows the floor
-// gained — asserted against the page's own composed frame rather than against a new
+// The panel's header is measured off the page's so the two surfaces run one band,
+// but only two of those rows carry anything. The floor is therefore the two, and
+// the page's own measurement is what decides whether the panel can still afford the
+// blanks — asserted against the page's composed frame rather than against a
 // literal.
 func TestPanelChrome_FloorFollowsTheHeader(t *testing.T) {
 	m := newChromePanelModel(t)
@@ -393,10 +409,20 @@ func TestPanelChrome_FloorFollowsTheHeader(t *testing.T) {
 
 	want := chromeMeasuredFloor(t, m)
 	if got := themePanelMinHeight(entries, false); got != want {
-		t.Errorf("themePanelMinHeight = %d, want %d — the page spends that many rows before its first session row, and the panel's header must cost the same", got, want)
+		t.Errorf("themePanelMinHeight = %d, want %d — the header draws a rule and a label, and the floor charges for those", got, want)
 	}
 	if got, wantDir := themePanelMinHeight(entries, true), want+1; got != wantDir {
 		t.Errorf("the directory-inclusive floor = %d, want %d", got, wantDir)
+	}
+
+	// The page-aligned shape is spent from the height the page's own frame measures,
+	// not from the floor.
+	affordance := chromeMeasuredAffordance(t, m)
+	if got := themePanelHeaderRows(affordance, false); got != affordance-themePanelFooterHeight(entries)-2 {
+		t.Errorf("at %d rows the header costs %d, want the rows the page spends before its first session row", affordance, got)
+	}
+	if got := themePanelHeaderRows(affordance-1, false); got != specPanelHeaderRows {
+		t.Errorf("one row below the page's rhythm the header costs %d, want the %d rows it draws", got, specPanelHeaderRows)
 	}
 
 	// The panel genuinely renders at its floor: header, one list row, the message

@@ -31,40 +31,52 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	inner, bodyRows := themePanelListSize(p, height)
 	p.list.SetSize(inner, bodyRows)
 
-	rows := themePanelHeaderBlock(p.width, th, colourless)
+	header := themePanelHeaderShapeFor(height, p.union.DirUnusable)
+	rows := themePanelHeaderBlock(header, p.width, th, colourless)
 	rows = appendBlock(rows, themePanelDirRow(p.union.DirUnusable, th, colourless))
 	rows = appendBlock(rows, clampBlockHeight(p.list.View(), bodyRows))
 	rows = appendBlock(rows, renderThemePanelMessage(p.message, inner, themePanelMessageWraps(p, height), th, colourless))
 	rows = appendBlock(rows, renderThemePanelFooter(themePanelFooterScope(p.message), inner, th, colourless))
 
-	return themePanelBlock(rows, height, p.width, th, colourless)
+	return themePanelBlock(rows, header.borderFrom(), height, p.width, th, colourless)
 }
 
-// themePanelHeaderBlock is the panel's header region, cut to the PAGE's rhythm: a rule
-// in the page's own rule lane, the label `Themes` in accent.mode (bold) on the
-// page's section-header row, and blank rows everywhere else — one per row the page
-// spends on its header block and its section header (see the measurement note above
-// themePanelHeaderRuleRow).
+// themePanelHeaderBlock is the panel's header region: a `border` rule and the label
+// `Themes` in accent.mode (bold), laid into the shape it is handed.
+//
+// TWO SHAPES, ONE RENDERER. In the page-aligned shape the rule sits in the page's
+// own rule lane and the label on the page's section-header row, with blank rows
+// filling the rest of the rows the page spends on its header block and its section
+// header; in the compact shape the two close up at the top of the block with no
+// blank rows at all. Which one it is was decided once, at
+// themePanelHeaderShapeFor — the blank rows are an alignment luxury the height
+// affords rather than a cost the render floor carries — and the block indexes the
+// shape it is handed, so the rows reserved are the rows filled.
 //
 // It carries no theme count, deliberately: noise at this list size.
 //
-// The region above the rule carries nothing by decision rather than by omission.
-// The panel's body and the page's are painted the same `canvas` token, so those
-// blank rows are indistinguishable from the page's own canvas, which lets the
-// page's header band read as uninterrupted across the full width.
+// The blank rows carry nothing by decision rather than by omission. The panel's
+// body and the page's are painted the same `canvas` token, so they are
+// indistinguishable from the page's own canvas, which lets the page's header band
+// read as uninterrupted across the full width.
 //
-// The rule spans the panel's whole width, border column included, which is why
-// the left border starts below it (themePanelBorderFromRow). The panel is an
+// The rule spans the panel's whole width, border column included, which is why the
+// left border starts below it (themePanelHeaderShape.borderFrom). The panel is an
 // opaque layer, so it covers the right end of the page's rule; drawing its own
 // across every one of its columns continues that rule to the frame edge. A `│` in
 // the rule's lane would notch it, and a border running the full height would cut
 // the page's header band in two — which is what makes a slide-over read as a
 // second column rather than as a surface inside the content region.
-func themePanelHeaderBlock(width int, th theme.Theme, colourless bool) []string {
-	rows := make([]string, themePanelHeaderRows())
-	rows[themePanelHeaderRuleRow()] = headerStyle(th.Border, th, colourless).
+//
+// The rule is rendered ABOVE the label, inverting the label-then-rule order the
+// design states, so the panel's rule shares the page's rule lane. That is a
+// reviewed visual decision; changing it back is a visual change to be taken on the
+// reference frames, not a correction to make here.
+func themePanelHeaderBlock(shape themePanelHeaderShape, width int, th theme.Theme, colourless bool) []string {
+	rows := make([]string, shape.rows)
+	rows[shape.ruleRow] = headerStyle(th.Border, th, colourless).
 		Render(strings.Repeat(headerRuleGlyph, max(width, 0)))
-	rows[themePanelHeaderLabelRow()] = headerStyle(th.AccentMode, th, colourless).Bold(true).
+	rows[shape.labelRow] = headerStyle(th.AccentMode, th, colourless).Bold(true).
 		Render(themePanelHeaderLabel)
 	return rows
 }
@@ -97,11 +109,15 @@ func themePanelDirRowHeight(unusable bool) int {
 	return blockHeight(themePanelDirRow(unusable, theme.Theme{}, true))
 }
 
-// themePanelBlock assembles the panel's rows into the finished block: each row
-// below the header rule prefixed with the one `border`-coloured `│` cell and the
-// inner gutter, each row above it laid down bare, every row padded out to exactly
-// width cells with the owned canvas, and the whole clamped and padded to exactly
-// height rows.
+// themePanelBlock assembles the panel's rows into the finished block: each row from
+// borderFrom down prefixed with the one `border`-coloured `│` cell and the inner
+// gutter, each row above it laid down bare, every row padded out to exactly width
+// cells with the owned canvas, and the whole clamped and padded to exactly height
+// rows.
+//
+// borderFrom is the header shape's own answer (themePanelHeaderShape.borderFrom),
+// so the border starts below the rule in either shape rather than at a row the
+// compact header no longer draws a rule on.
 //
 // Left border only — no top, bottom or right edge. That is what makes the panel
 // read as a slide-over rather than as an inset bordered dialog like the modals,
@@ -122,15 +138,15 @@ func themePanelDirRowHeight(unusable bool) int {
 //
 // Rows are padded but never truncated: every row this file composes is authored
 // to fit the minimum inner width (the header label is 6 cells, the pinned warning
-// 16, the widest footer row 15, and a list row is exactly inner cells by
-// construction), and below the minimum width the panel refuses to open at all.
-func themePanelBlock(rows []string, height, width int, th theme.Theme, colourless bool) string {
+// 16, the widest footer row 16 — renderThemePanelFooter owns that measurement —
+// and a list row is exactly inner cells by construction), and below the minimum
+// width the panel refuses to open at all.
+func themePanelBlock(rows []string, borderFrom, height, width int, th theme.Theme, colourless bool) string {
 	inner := themePanelInnerWidth(width)
 	prefix := headerStyle(th.Border, th, colourless).Render(panelFrameSide) +
 		headerCanvasBg(th, colourless).Render(spaces(themePanelGutterWidth))
 	blank := blankCanvasRow(max(inner, 0), th, colourless)
 	painter := newThemePanelPainter(th, colourless)
-	borderFrom := themePanelBorderFromRow()
 
 	out := make([]string, 0, max(height, 0))
 	for _, row := range rows {

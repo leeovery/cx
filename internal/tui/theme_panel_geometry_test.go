@@ -112,6 +112,12 @@ func TestPanelGeometry_WidthFloor(t *testing.T) {
 	}
 }
 
+// specPanelHeaderRows is the header cost the geometry rule's floor resolves against,
+// written out here rather than read from the production arithmetic: the panel's
+// header is the `Themes` label plus a one-row rule, and a floor asserted against
+// whatever the header happens to measure pins nothing.
+const specPanelHeaderRows = 2
+
 // TestPanelGeometry_HeightFloorArithmetic: it computes the height floor from the
 // measured footer.
 //
@@ -132,11 +138,13 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	}
 
 	const listRow, messageRow = 1, 1
-	header := themePanelHeaderRows()
-	want := header + footer + listRow + messageRow
+	want := specPanelHeaderRows + footer + listRow + messageRow
 	if got := themePanelMinHeight(entries, false); got != want {
 		t.Errorf("themePanelMinHeight = %d, want header(%d) + footer(%d) + %d list row + %d message row = %d",
-			got, header, footer, listRow, messageRow, want)
+			got, specPanelHeaderRows, footer, listRow, messageRow, want)
+	}
+	if got, wantDir := themePanelMinHeight(entries, true), want+1; got != wantDir {
+		t.Errorf("themePanelMinHeight with an unusable directory = %d, want %d — the same composition plus the pinned row", got, wantDir)
 	}
 
 	// The confirm scope's shorter footer moves the floor with it — the assertion a
@@ -149,7 +157,7 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	if shorterFooter >= footer {
 		t.Fatalf("fixture: the substituted footer is %d rows, not shorter than the panel scope's %d", shorterFooter, footer)
 	}
-	if got, wantShort := themePanelMinHeight(shorter, false), header+shorterFooter+listRow+messageRow; got != wantShort {
+	if got, wantShort := themePanelMinHeight(shorter, false), specPanelHeaderRows+shorterFooter+listRow+messageRow; got != wantShort {
 		t.Errorf("themePanelMinHeight under a %d-row footer = %d, want %d — the floor reads the MEASURED footer height", shorterFooter, got, wantShort)
 	}
 }
@@ -172,7 +180,7 @@ func TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics(t *testing.T) {
 
 	t.Run("the floor is the chrome sum plus its guaranteed list row", func(t *testing.T) {
 		for _, dirUnusable := range []bool{false, true} {
-			want := themePanelChromeRows(dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
+			want := themePanelChromeRows(themePanelCompactHeaderRows, dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
 			if got := themePanelMinHeight(entries, dirUnusable); got != want {
 				t.Errorf("themePanelMinHeight(dirUnusable=%v) = %d, want the chrome sum plus its %d list row = %d",
 					dirUnusable, got, themePanelMinBodyRows, want)
@@ -201,7 +209,9 @@ func TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics(t *testing.T) {
 
 				inner := themePanelInnerWidth(p.width)
 				messageRows := themePanelMessageHeight(p.message, inner, themePanelMessageWraps(p, geometryContentH))
-				want := geometryContentH - themePanelChromeRows(tc.dirUnusable, messageRows, themePanelFooterScope(p.message))
+				want := geometryContentH - themePanelChromeRows(
+					themePanelHeaderRows(geometryContentH, tc.dirUnusable),
+					tc.dirUnusable, messageRows, themePanelFooterScope(p.message))
 				if want <= themePanelMinBodyRows {
 					t.Fatalf("fixture: a %d-row content region leaves a %d-row body, at or below the %d-row floor — the remainder is clamped, so the assertion proves nothing",
 						geometryContentH, want, themePanelMinBodyRows)
@@ -598,7 +608,7 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 func themePanelBodyRow(t *testing.T, m Model, offset int) string {
 	t.Helper()
 	lines := themePanelLines(renderThemePanel(m.themePanel, m.contentHeight(), m.themeState.active, m.colourless))
-	at := themePanelHeaderRows() + themePanelDirRowHeight(m.themePanel.union.DirUnusable) + offset
+	at := panelHeaderRowsOf(m) + themePanelDirRowHeight(m.themePanel.union.DirUnusable) + offset
 	if at >= len(lines) {
 		t.Fatalf("the panel rendered %d rows, so body row %d does not exist", len(lines), offset)
 	}
@@ -942,8 +952,8 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if len(lines) != floor {
 			t.Fatalf("the panel rendered %d rows at its floor of %d", len(lines), floor)
 		}
-		if listRow := lines[themePanelHeaderRows()]; !strings.Contains(listRow, rows[0].Label()) {
-			t.Errorf("row %d is not the single list row (%q): %q", themePanelHeaderRows(), rows[0].Label(), listRow)
+		if listRow := lines[specPanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
+			t.Errorf("row %d is not the single list row (%q): %q", specPanelHeaderRows, rows[0].Label(), listRow)
 		}
 		slot := strings.TrimRight(lines[floor-footer-1], " ")
 		if !strings.Contains(slot, themeRowEllipsis) {
@@ -979,8 +989,8 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if got, want := chromeWords(themePanelSlotText(slot)), chromeWords(geometryMessageText()); got != want {
 			t.Errorf("the wrapped slot reads %q, want the whole message %q", got, want)
 		}
-		if listRow := lines[themePanelHeaderRows()]; !strings.Contains(listRow, rows[0].Label()) {
-			t.Errorf("row %d is not the single list row (%q): %q", themePanelHeaderRows(), rows[0].Label(), listRow)
+		if listRow := lines[specPanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
+			t.Errorf("row %d is not the single list row (%q): %q", specPanelHeaderRows, rows[0].Label(), listRow)
 		}
 	})
 }
@@ -1021,10 +1031,16 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 				if len(lines) != floor {
 					t.Fatalf("the panel rendered %d rows at its floor of %d", len(lines), floor)
 				}
-				if got, want := strings.TrimRight(lines[themePanelHeaderLabelRow()], " "), themePanelContentPrefix()+themePanelHeaderLabel; got != want {
-					t.Errorf("the header label row = %q, want %q", got, want)
+				if floor >= panelPageAlignedAffordance(dirUnusable) {
+					t.Fatalf("fixture: the floor of %d affords the page-aligned header, so the floor is carrying rows the panel draws nothing in", floor)
 				}
-				at := themePanelHeaderRows()
+				if got, want := lines[0], strings.Repeat(headerRuleGlyph, themePanelMinWidth); got != want {
+					t.Errorf("the header rule row = %q, want the glyph across all %d panel columns", got, themePanelMinWidth)
+				}
+				if got, want := strings.TrimRight(lines[1], " "), themePanelContentPrefix()+themePanelHeaderLabel; got != want {
+					t.Errorf("the header label row = %q, want %q directly beneath the rule", got, want)
+				}
+				at := specPanelHeaderRows
 				if dirUnusable {
 					if got, want := strings.TrimRight(lines[at], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 						t.Errorf("the directory row = %q, want %q", got, want)
@@ -1050,6 +1066,188 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 			})
 		}
 	}
+}
+
+// TestPanelGeometry_RendersAcrossTheCompactBand: it renders a whole panel at every
+// height between its floor and the page's rhythm.
+//
+// The band is the whole of what lowering the floor bought, and it is the band with
+// the least room to absorb an arithmetic that disagrees with the assembly: the
+// footer is what the assembly cuts when the two are out of step, `esc close` last,
+// so every row of it is asserted present at every height in the band, in every state
+// the chrome can be in.
+func TestPanelGeometry_RendersAcrossTheCompactBand(t *testing.T) {
+	th := testDarkTheme(t)
+	rows := themePanelTestRows(12)
+	inner := themePanelInnerWidth(themePanelMinWidth)
+
+	for _, dirUnusable := range []bool{false, true} {
+		for _, message := range []themePanelMessage{{}, geometryMessage(), {Kind: themeMessageCommitFailed}} {
+			floor := themePanelMinHeight(themePanelKeymap(), dirUnusable)
+			wantFooter := themePanelLines(renderThemePanelFooter(themePanelFooterScope(message), inner, th, false))
+			for height := floor; height < panelPageAlignedAffordance(dirUnusable); height++ {
+				name := fmt.Sprintf("dir=%v/msg=%v/h=%d", dirUnusable, message.Kind, height)
+				t.Run(name, func(t *testing.T) {
+					p := newThemePanelFixture(themePanelFixtureOpts{
+						th:          th,
+						width:       themePanelMinWidth,
+						rows:        rows,
+						dirUnusable: dirUnusable,
+						message:     message,
+					})
+					lines := themePanelLines(renderThemePanel(p, height, th, false))
+
+					if len(lines) != height {
+						t.Fatalf("the panel rendered %d rows at height %d", len(lines), height)
+					}
+					if got := strings.TrimRight(lines[1], " "); got != themePanelContentPrefix()+themePanelHeaderLabel {
+						t.Errorf("row 1 = %q, want the label directly beneath the rule", got)
+					}
+					body := specPanelHeaderRows + themePanelDirRowHeight(dirUnusable)
+					if got := lines[body]; !strings.Contains(got, rows[0].Label()) {
+						t.Errorf("row %d = %q, want the list row %q", body, got, rows[0].Label())
+					}
+					footer := lines[len(lines)-len(wantFooter):]
+					for i, want := range wantFooter {
+						if got, wantRow := footer[i], themePanelContentPrefix()+want; got != wantRow {
+							t.Errorf("footer row %d = %q, want %q — the assembly overflowed and cut the footer", i, got, wantRow)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+// panelPageAlignedAffordance is the shortest render height at which the panel can
+// afford to keep the PAGE's header rhythm — the page's whole header block and its
+// section header, the pinned directory row when it is due, the standing footer, one
+// message row and the one list row the floor guarantees.
+//
+// It is composed here from the page's own renderers rather than read from the
+// production predicate, so the boundary the frames are asserted either side of is
+// measured off the chrome the panel is aligning to.
+func panelPageAlignedAffordance(dirUnusable bool) int {
+	const listRow, messageRow = 1, 1
+	return panelPageHeaderRows() +
+		themePanelDirRowHeight(dirUnusable) +
+		themePanelFooterHeight(themePanelKeymap()) +
+		listRow + messageRow
+}
+
+// panelPageHeaderRows is the rows the PAGE spends before its first session row: its
+// header block and its section-header block.
+func panelPageHeaderRows() int {
+	return lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true)) + sectionHeaderBlockRows()
+}
+
+// TestPanelGeometry_HeaderShapeFollowsTheHeight: it spends the page-aligning blank
+// rows only where the height affords them.
+//
+// The panel's header carries two things — a rule and the `Themes` label — and pads
+// them out to the page's own rhythm so the two surfaces run one header band. Those
+// pad rows are an ALIGNMENT LUXURY: nothing is drawn in them, so charging them to
+// the render floor refuses the panel across a band of terminals where it could still
+// degrade and render, which is the opposite of the geometry rule's doctrine.
+//
+// Above the affordance the frame is the page-aligned one, unchanged. Below it the
+// blank rows go and the rule and the label close up, which is the only shape
+// difference between the two.
+func TestPanelGeometry_HeaderShapeFollowsTheHeight(t *testing.T) {
+	th := testDarkTheme(t)
+	rows := themePanelTestRows(12)
+	p := newThemePanelFixture(themePanelFixtureOpts{
+		th:    th,
+		width: themePanelPreferredWidth,
+		rows:  rows,
+	})
+	wantRule := strings.Repeat(headerRuleGlyph, themePanelPreferredWidth)
+	wantLabel := themePanelContentPrefix() + themePanelHeaderLabel
+	affordance := panelPageAlignedAffordance(false)
+
+	t.Run("at the affordance and above it keeps the page's rhythm", func(t *testing.T) {
+		pageRule := lipgloss.Height(headerBand(0, theme.Theme{}, true))
+		pageLabel := lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true))
+		for _, height := range []int{affordance, affordance + 1, affordance + 6} {
+			t.Run(fmt.Sprintf("h=%d", height), func(t *testing.T) {
+				lines := themePanelLines(renderThemePanel(p, height, th, false))
+				if got := lines[pageRule]; got != wantRule {
+					t.Errorf("row %d = %q, want the rule in the page's own rule lane", pageRule, got)
+				}
+				if got := strings.TrimRight(lines[pageLabel], " "); got != wantLabel {
+					t.Errorf("row %d = %q, want the label on the page's section-header row %q", pageLabel, got, wantLabel)
+				}
+				for i := range panelPageHeaderRows() {
+					if i == pageRule || i == pageLabel {
+						continue
+					}
+					if got := strings.TrimSpace(lines[i]); got != "" && got != panelFrameSide {
+						t.Errorf("header row %d carries %q, want the page-aligning blank", i, lines[i])
+					}
+				}
+				if got := lines[panelPageHeaderRows()]; !strings.Contains(got, rows[0].Label()) {
+					t.Errorf("row %d = %q, want the first list row %q", panelPageHeaderRows(), got, rows[0].Label())
+				}
+			})
+		}
+	})
+
+	// THE SLOT'S PER-DIMENSION RULE MOVES WITH THE SHAPE. The message truncates at
+	// the height that leaves it no room and wraps above it, and the page-aligned
+	// header spends three more rows than the compact one — so at exactly the
+	// affordance the taller shape is as tight as the floor is, and the slot must
+	// still truncate. A threshold anchored to the panel's own floor instead wraps
+	// here, which is a different frame at a height that rendered before, and it takes
+	// the second row off the list body.
+	t.Run("at the affordance the slot still truncates", func(t *testing.T) {
+		narrow := newThemePanelFixture(themePanelFixtureOpts{
+			th:      th,
+			width:   themePanelMinWidth,
+			rows:    rows,
+			message: geometryMessage(),
+		})
+		footer := themePanelFooterHeight(themePanelFooterScope(geometryMessage()))
+		if lipgloss.Width(geometryMessageText()) <= themePanelInnerWidth(themePanelMinWidth) {
+			t.Fatalf("fixture: the %d-cell confirm fits the %d-cell inner width, so neither degradation is exercised",
+				lipgloss.Width(geometryMessageText()), themePanelInnerWidth(themePanelMinWidth))
+		}
+
+		lines := themePanelLines(renderThemePanel(narrow, affordance, th, false))
+		if len(lines) != affordance {
+			t.Fatalf("the panel rendered %d rows at the affordance of %d", len(lines), affordance)
+		}
+		slot := strings.TrimRight(lines[affordance-footer-1], " ")
+		if !strings.Contains(slot, themeRowEllipsis) {
+			t.Errorf("the message slot = %q, want it truncated with %q at the affordance", slot, themeRowEllipsis)
+		}
+		if above := lines[affordance-footer-2]; strings.Contains(above, "y / n") {
+			t.Errorf("the row above the slot = %q, want the slot on ONE row — the wrapped tail costs the body a row", above)
+		}
+
+		below := themePanelLines(renderThemePanel(narrow, affordance-1, th, false))
+		wrapped := below[affordance-1-footer-themePanelMessageWrapRows : affordance-1-footer]
+		if got, want := chromeWords(themePanelSlotText(wrapped)), chromeWords(geometryMessageText()); got != want {
+			t.Errorf("one row below the affordance the slot reads %q, want the whole message %q wrapped over two rows", got, want)
+		}
+	})
+
+	t.Run("one row below the affordance the blank rows go", func(t *testing.T) {
+		height := affordance - 1
+		lines := themePanelLines(renderThemePanel(p, height, th, false))
+		if len(lines) != height {
+			t.Fatalf("the panel rendered %d rows at height %d", len(lines), height)
+		}
+		if got := lines[0]; got != wantRule {
+			t.Errorf("row 0 = %q, want the rule — the compact header opens with it", got)
+		}
+		if got := strings.TrimRight(lines[1], " "); got != wantLabel {
+			t.Errorf("row 1 = %q, want %q directly beneath the rule", got, wantLabel)
+		}
+		if got := lines[2]; !strings.Contains(got, rows[0].Label()) {
+			t.Errorf("row 2 = %q, want the first list row %q — the compact header costs %d rows",
+				got, rows[0].Label(), specPanelHeaderRows)
+		}
+	})
 }
 
 // String renders a themePanelDim in a failure message. It is test-only: production

@@ -67,10 +67,10 @@ const (
 	messagePanelTermWidth = 54
 
 	// messagePanelFloorTermHeight lands the panel EXACTLY on the geometry rule's height floor —
-	// header + footer + one list row + one message row. 13 rows leaves 11 content
-	// rows, which is that floor; a taller terminal gives the body a second row and
-	// the frame stops being about the arithmetic.
-	messagePanelFloorTermHeight = 13
+	// the header's rule and label + footer + one list row + one message row. 10 rows
+	// leaves 8 content rows, which is that floor; a taller terminal gives the body a
+	// second row and the frame stops being about the arithmetic.
+	messagePanelFloorTermHeight = 10
 )
 
 // themePanelConfirmCopy is the pinned copy's slot-from-constant confirm as the confirm

@@ -439,10 +439,11 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 		if len(lines) != height {
 			t.Fatalf("the panel rendered %d rows at the %d-row floor", len(lines), height)
 		}
-		if got, want := strings.TrimRight(lines[themePanelHeaderRows()], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
+		header := panelHeaderRowsOf(m)
+		if got, want := strings.TrimRight(lines[header], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 			t.Fatalf("the row under the header = %q, want the pinned %q", got, want)
 		}
-		if got, want := lines[themePanelHeaderRows()+1], entryRows(t)[0].Label(); !strings.Contains(got, want) {
+		if got, want := lines[header+1], entryRows(t)[0].Label(); !strings.Contains(got, want) {
 			t.Errorf("the row beneath the warning = %q, want the list row %q — §9.5 requires rows BENEATH it", got, want)
 		}
 	})
