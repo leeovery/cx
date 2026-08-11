@@ -147,8 +147,8 @@ func TestGate_LateReplyCapturesBackgroundButNeverReThemes(t *testing.T) {
 	if got := after.OriginalBackground(); got != "#e1e2e7" {
 		t.Errorf("OriginalBackground() = %q after a late reply, want %q (the reply is still consumed)", got, "#e1e2e7")
 	}
-	if !after.themeState.bgReplyArrived {
-		t.Errorf("bgReplyArrived = false after a late reply, want true (the arrival is retained for later classification)")
+	if !after.themeState.reply.arrived {
+		t.Errorf("reply.arrived = false after a late reply, want true (the arrival is retained for later classification)")
 	}
 	assertActiveTheme(t, after, testDarkTheme(t).Canvas.Value)
 }
@@ -194,11 +194,11 @@ func TestGate_ConstantRetainsReplyWithoutClassifying(t *testing.T) {
 	if got := after.OriginalBackground(); got != "#e1e2e7" {
 		t.Errorf("OriginalBackground() = %q, want %q (the reply is retained for restore-on-exit)", got, "#e1e2e7")
 	}
-	if !after.themeState.bgReplyArrived {
-		t.Errorf("bgReplyArrived = false, want true (a reply did arrive, whatever it said)")
+	if !after.themeState.reply.arrived {
+		t.Errorf("reply.arrived = false, want true (a reply did arrive, whatever it said)")
 	}
-	if after.themeState.canvasMode != theme.MemberDark {
-		t.Errorf("canvasMode = %v, want the standing dark fallback — a constant derives no light/dark answer from the reply", after.themeState.canvasMode)
+	if after.themeState.inForceMode() != theme.MemberDark {
+		t.Errorf("inForceMode() = %v, want the standing dark fallback — a constant derives no light/dark answer from the reply", after.themeState.inForceMode())
 	}
 	assertActiveTheme(t, after, dark.Canvas.Value)
 }

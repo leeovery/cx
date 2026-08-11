@@ -425,7 +425,7 @@ func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.
 	if err != nil {
 		return theme.Resolution{}, theme.SlotResolution{}, false
 	}
-	inForce, ok := inForceSlot(resolution, m.themeState.canvasMode)
+	inForce, ok := inForceSlot(resolution, m.themeState.inForceMode())
 	if !ok {
 		return theme.Resolution{}, theme.SlotResolution{}, false
 	}
@@ -481,16 +481,10 @@ func (m Model) themeSetting() theme.Setting {
 // under a pair the member the light/dark answer names — light in a light
 // terminal, dark otherwise.
 //
-// The answer is read off the model rather than asked for again: a constant never
-// consulted detection at all and a pair resolved exactly once before first paint,
-// so a query here would reopen the race the resolve-once rule closes.
-//
-// On a gate that was never armed the value starts as the standing dark no-answer
-// fallback — until the mid-session constant → adaptive conversion, which records
-// Model.retainedCanvasAnswer into themeState.canvasMode while the pinned gate
-// keeps that fallback for good. From that commit on the mode read here must not
-// be gate.appearance: substituting one for the other closes a converted light
-// terminal onto the dark slot. See themeState.canvasMode and loadNewlyLiveSlot.
+// The answer is themeState.inForceMode, read off the model rather than asked for
+// again: a constant never consulted detection at all and a pair resolved exactly
+// once before first paint, so a query here would reopen the race the resolve-once
+// rule closes.
 //
 // The answer reaches the slot vocabulary through theme.Member.Slot rather than a
 // light/dark rule restated here, so the slot this matches on and the member the

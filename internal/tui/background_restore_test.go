@@ -179,7 +179,7 @@ func TestFirstPaint_NotGatedOnBackgroundQuery(t *testing.T) {
 		t.Error("first View differs with vs without a BackgroundColorMsg — the first paint is gated on the OSC 11 response (it must not be)")
 	}
 	// And the captured value is distinct from the painted canvas: originalBg is
-	// the terminal's actual bg (for restore), canvasMode drives the canvas.
+	// the terminal's actual bg (for restore), the answer in force drives the canvas.
 	if updated.(Model).OriginalBackground() == "" {
 		t.Error("OriginalBackground() empty after a response — capture did not store the original bg")
 	}

@@ -524,8 +524,8 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	if !m.modeResolved() {
 		t.Error("opening the panel reopened the first-paint gate")
 	}
-	if m.themeState.canvasMode != theme.MemberLight {
-		t.Errorf("canvasMode = %v after opening, want the gate's own answer %v", m.themeState.canvasMode, theme.MemberLight)
+	if m.themeState.inForceMode() != theme.MemberLight {
+		t.Errorf("inForceMode() = %v after opening, want the gate's own answer %v", m.themeState.inForceMode(), theme.MemberLight)
 	}
 }
 

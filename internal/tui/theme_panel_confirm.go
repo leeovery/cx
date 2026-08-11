@@ -195,7 +195,7 @@ func (m *Model) confirmSlotAssignment() {
 // It never calls ApplyTheme: a commit is a write, not a navigation, so the screen
 // keeps previewing whatever the cursor is on.
 func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
-	m.themeState.canvasMode = m.retainedCanvasAnswer()
+	m.themeState.adoptRetainedReply()
 
 	newlyLive := assigned.Opposite()
 	slot := newlyLive.Slot()
@@ -217,33 +217,6 @@ func (m Model) persistedSlotSlug(slot theme.Slot) string {
 		return setting.Light
 	}
 	return setting.Dark
-}
-
-// retainedCanvasAnswer is the transition's answer half: the light/dark
-// classification of the OSC 11 reply this launch already received, which a
-// constant-theme launch retained without ever turning into an answer.
-//
-// Model.Init issues the OSC 11 query regardless of the setting's shape, because
-// restore-on-exit needs the original background independently of detection. A
-// conversion therefore uses an answer already in hand: no new query, no new race,
-// and the resolve-once rule untouched — a reply landing after this point still
-// never re-themes.
-//
-// It is not read off the gate: a constant's gate is pinned to the standing dark
-// fallback rather than a classification of the terminal, so reading it would
-// answer "dark" for every light terminal. The retained reply is the only value
-// that is a fact about the terminal.
-//
-// No reply at all falls to dark, the standing no-answer fallback. A
-// no-answer-shaped reply is a different state — a nil colour arrives, leaving an
-// empty hex and no colour to classify — which is why the read is keyed on the
-// arrival rather than on a non-empty originalBg; IsDark reports a nil colour as
-// dark either way.
-func (m Model) retainedCanvasAnswer() theme.Member {
-	if m.themeState.bgReplyArrived && !m.themeState.bgReplyDark {
-		return theme.MemberLight
-	}
-	return theme.MemberDark
 }
 
 // The two answer letters, as the dispatch matches them. They must stay in step

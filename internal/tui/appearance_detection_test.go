@@ -55,15 +55,15 @@ func assertBlankFrame(t *testing.T, m Model) {
 
 // assertPaintedCanvas asserts an ADAPTIVE model resolved to the given answer and
 // painted the member that answer names. It is adaptive-only by construction: a
-// constant derives no answer, so its canvasMode stays at the dark zero value
+// constant derives no answer, so its answer in force stays at the dark zero value
 // whatever palette it paints (assertActiveTheme is that path's assertion).
 func assertPaintedCanvas(t *testing.T, m Model, appearance theme.Member) {
 	t.Helper()
 	if !m.modeResolved() {
 		t.Fatalf("modeResolved = false, want true (the canvas must be resolved before the real paint)")
 	}
-	if m.themeState.canvasMode != appearance {
-		t.Errorf("canvasMode = %v, want %v", m.themeState.canvasMode, appearance)
+	if m.themeState.inForceMode() != appearance {
+		t.Errorf("inForceMode() = %v, want %v", m.themeState.inForceMode(), appearance)
 	}
 	view := m.View().Content
 	if !strings.Contains(view, "Sessions") {
@@ -106,14 +106,15 @@ func TestUnresolvedGateCarriesDarkFallback(t *testing.T) {
 	}
 
 	m := detectModel(t, testBuiltinPair(t))
-	if m.themeState.canvasMode != theme.MemberDark {
-		t.Errorf("unresolved model canvasMode = %v, want %v", m.themeState.canvasMode, theme.MemberDark)
+	if m.themeState.inForceMode() != theme.MemberDark {
+		t.Errorf("unresolved model inForceMode() = %v, want %v", m.themeState.inForceMode(), theme.MemberDark)
 	}
 }
 
 // TestAdaptiveDetectsDark: an adaptive pair + a dark BackgroundColorMsg resolves
-// canvasMode Dark, marks resolved, and paints the dark canvas. Before the message
-// the frame is the neutral blank (no pre-resolution real paint).
+// the answer in force to Dark, marks resolved, and paints the dark canvas.
+// Before the message the frame is the neutral blank (no pre-resolution real
+// paint).
 func TestAdaptiveDetectsDark(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
@@ -123,7 +124,7 @@ func TestAdaptiveDetectsDark(t *testing.T) {
 }
 
 // TestAdaptiveDetectsLight: an adaptive pair + a light BackgroundColorMsg
-// resolves canvasMode Light and paints the light canvas.
+// resolves the answer in force to Light and paints the light canvas.
 func TestAdaptiveDetectsLight(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 	assertBlankFrame(t, m)
@@ -147,14 +148,14 @@ func TestNoPaintThenFlip(t *testing.T) {
 	// A late timeout (the loser of the race) must be ignored — the mode is
 	// already resolved, so it must not flip to anything.
 	after, _ := resolved.Update(appearanceTimeoutMsg{})
-	if after.(Model).themeState.canvasMode != theme.MemberDark {
-		t.Errorf("a late timeout flipped canvasMode to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).themeState.canvasMode)
+	if after.(Model).themeState.inForceMode() != theme.MemberDark {
+		t.Errorf("a late timeout flipped the answer in force to %v, want it pinned at the dark canvas (no second resolution)", after.(Model).themeState.inForceMode())
 	}
 
 	// And a late, conflicting BackgroundColorMsg (light) must not flip either.
 	after2, _ := after.(Model).Update(lightBg)
-	if after2.(Model).themeState.canvasMode != theme.MemberDark {
-		t.Errorf("a late light BackgroundColorMsg flipped canvasMode to %v, want it pinned at the dark canvas (no flip)", after2.(Model).themeState.canvasMode)
+	if after2.(Model).themeState.inForceMode() != theme.MemberDark {
+		t.Errorf("a late light BackgroundColorMsg flipped the answer in force to %v, want it pinned at the dark canvas (no flip)", after2.(Model).themeState.inForceMode())
 	}
 }
 

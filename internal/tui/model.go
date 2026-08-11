@@ -346,10 +346,10 @@ type Model struct {
 	// originalBg is the terminal's ACTUAL background colour as reported by the
 	// OSC 11 query (tea.RequestBackgroundColor) issued from Init, captured for
 	// RESTORE-ON-EXIT only. It is a hex string like "#1e1e2e" (empty if no
-	// response ever arrives). Distinct from the theme state's canvasMode (Portal's
-	// CHOSEN canvas): this is what the terminal looked like before Portal painted,
-	// so the launch sites can SET it back on exit (OSC 11 set) — terminals that
-	// ignore the OSC 111 reset (mosh/Blink) still honour the set, so the canvas
+	// response ever arrives). Distinct from Portal's CHOSEN canvas (the palette the
+	// answer in force selects): this is what the terminal looked like before Portal
+	// painted, so the launch sites can SET it back on exit (OSC 11 set) — terminals
+	// that ignore the OSC 111 reset (mosh/Blink) still honour the set, so the canvas
 	// colour does not stick after Portal quits.
 	//
 	// Capture is ASYNC and NON-GATING: the first paint never waits on this.
@@ -876,10 +876,10 @@ func WithThemeNomination(n theme.Nomination) Option {
 }
 
 // WithCanvasMode is the test/capture-only DIRECT override of the gate's light/dark
-// ANSWER: it pins canvasMode AND marks the gate already resolved, so the
-// model paints from frame one with no OSC 11 detection and no first-paint wait. It
-// exists so tests can render a deterministic member of an adaptive pair without
-// driving the async detection race.
+// ANSWER: it resolves the gate onto the given member and takes that as the answer
+// in force, so the model paints from frame one with no OSC 11 detection and no
+// first-paint wait. It exists so tests can render a deterministic member of an
+// adaptive pair without driving the async detection race.
 //
 // PRODUCTION never uses this seam — cmd/open.go drives the answer through OSC 11
 // detection (the appearance gate). It pins the ANSWER, not the palette: paired
@@ -887,11 +887,11 @@ func WithThemeNomination(n theme.Nomination) Option {
 // it changes nothing at all (a constant ignores the answer by design).
 func WithCanvasMode(appearance theme.Member) Option {
 	return func(m *Model) {
-		m.themeState.canvasMode = appearance
 		// pinned=true (and pending=false, the zero value) so the gate is resolved
 		// and New's gate-init guard preserves this direct override instead of
 		// rebuilding an auto gate over it.
 		m.themeState.gate = appearanceGate{appearance: appearance, pinned: true}
+		m.themeState.adoptGateAnswer()
 	}
 }
 
@@ -1387,12 +1387,12 @@ func (m Model) hasNomination() bool {
 	return m.themeState.nomination != (theme.Nomination{})
 }
 
-// syncResolvedMode mirrors the gate's resolved answer onto the model's painted
-// canvasMode, selects the ACTIVE PALETTE the nomination names for that answer,
-// and re-applies the leaf canvas styles. It is called after every gate transition
-// (arm, OSC 11 reply, timeout) so the existing render path keeps reading one field
-// while the gate owns the single-resolution race. It is a no-op for the leaf
-// styles when nothing changed, but always cheap.
+// syncResolvedMode takes the gate's resolved answer as the answer in force,
+// selects the ACTIVE PALETTE the nomination names for that answer, and re-applies
+// the leaf canvas styles. It is called after every gate transition (arm, OSC 11
+// reply, timeout) so the render path keeps reading one answer while the gate owns
+// the single-resolution race. It is a no-op for the leaf styles when nothing
+// changed, but always cheap.
 //
 // With NO nomination injected there is nothing to select, so the active palette
 // is left at New's dark built-in seed rather than overwritten with the zero Theme
@@ -1402,9 +1402,9 @@ func (m Model) hasNomination() bool {
 // place the active member is selected: a constant (or absent) nomination selects at
 // construction, an adaptive pair when the gate resolves.
 func (m *Model) syncResolvedMode() {
-	m.themeState.canvasMode = m.themeState.gate.appearance
+	m.themeState.adoptGateAnswer()
 	if m.hasNomination() {
-		m.themeState.active = m.themeState.nomination.Select(m.themeState.canvasMode)
+		m.themeState.active = m.themeState.nomination.Select(m.themeState.inForceMode())
 	}
 	m.captureStartupCanvasHex()
 	m.applyCanvasMode()
@@ -1679,7 +1679,7 @@ func sectionHeaderBlockRows() int {
 }
 
 // applyProjectCanvasMode re-points the Projects screen's list at the model's
-// resolved canvasMode (or the NO_COLOR carve-out) through the shared page-list
+// active palette (or the NO_COLOR carve-out) through the shared page-list
 // sequence. Its ONLY difference from the Sessions arm is the delegate: the
 // two-line ProjectDelegate, which paints every run through the resolved Mode (or
 // drops hue under Colourless).
@@ -2588,30 +2588,26 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		// Two independent jobs ride this one message, and the ORDER is the point:
 		// the reply is RETAINED unconditionally, and only then offered to the gate.
 		//
-		// 1. Retain the terminal's ORIGINAL background, the fact a reply arrived at
-		//    all, and what it SAID. restore-on-exit needs the hex so the launch
-		//    sites can SET it back on quit (terminals that ignore the OSC 111 reset
-		//    still honour the set), and the mid-session conversion needs the
-		//    arrival and the classification so it can use an answer this launch
-		//    never asked a question of (Model.retainedCanvasAnswer). The nil guard
-		//    is required — BackgroundColorMsg.String() panics on a nil Color (a
-		//    no-answer) — which is exactly why the arrival is tracked separately
-		//    rather than inferred from a non-empty hex, and why the classification
-		//    comes off IsDark (nil-safe) rather than off that hex.
+		// 1. Retain what the terminal SAID and its ORIGINAL background.
+		//    restore-on-exit needs the hex so the launch sites can SET it back on
+		//    quit (terminals that ignore the OSC 111 reset still honour the set),
+		//    and the mid-session conversion needs the classified reply so it can
+		//    answer on a launch that asked no question. The nil guard is required —
+		//    BackgroundColorMsg.String() panics on a nil Color (a no-answer) — which
+		//    is why terminalReply tracks the arrival itself rather than leaving it
+		//    inferred from a non-empty hex.
 		//
-		// 2. Offer it to the gate. msg.IsDark() is nil-safe (nil → dark), so a
-		//    no-answer-shaped reply collapses to the dark fallback. resolveFromDark
-		//    is the single-resolution core: it is a no-op once the gate already
-		//    resolved (a constant nomination, or the timeout already won the race),
-		//    so a late OSC 11 reply is still consumed by step 1 yet never re-themes.
-		//    COLORFGBG is deliberately NOT consulted here — OSC 11 is authoritative;
-		//    the weak COLORFGBG hint must never override it.
-		m.themeState.bgReplyArrived = true
-		m.themeState.bgReplyDark = msg.IsDark()
+		// 2. Offer the same classified verdict to the gate. resolve is the
+		//    single-resolution core: it is a no-op once the gate already resolved (a
+		//    constant nomination, or the timeout already won the race), so a late
+		//    OSC 11 reply is still consumed by step 1 yet never re-themes. COLORFGBG
+		//    is deliberately NOT consulted here — OSC 11 is authoritative; the weak
+		//    COLORFGBG hint must never override it.
+		m.themeState.reply = terminalReplyFrom(msg)
 		if msg.Color != nil {
 			m.originalBg = msg.String()
 		}
-		if m.themeState.gate.resolveFromDark(msg.IsDark()) {
+		if m.themeState.gate.resolve(m.themeState.reply.member) {
 			m.syncResolvedMode()
 		}
 		return m, nil

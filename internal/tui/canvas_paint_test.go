@@ -23,8 +23,8 @@ func canvasSeq(t *testing.T, th theme.Theme) string {
 // canvas it was tuned for.
 func TestCanvasMode_DefaultsToDark(t *testing.T) {
 	m := New(fakeLister{})
-	if m.themeState.canvasMode != theme.MemberDark {
-		t.Errorf("canvasMode = %v, want testDarkTheme(t) (default)", themeLabel(m.themeState.active))
+	if m.themeState.inForceMode() != theme.MemberDark {
+		t.Errorf("inForceMode() = %v, want testDarkTheme(t) (default)", themeLabel(m.themeState.active))
 	}
 }
 
@@ -33,15 +33,15 @@ func TestCanvasMode_DefaultsToDark(t *testing.T) {
 func TestWithCanvasMode(t *testing.T) {
 	t.Run("injects Light", func(t *testing.T) {
 		m := New(fakeLister{}, WithCanvasMode(theme.MemberLight))
-		if m.themeState.canvasMode != theme.MemberLight {
-			t.Errorf("canvasMode = %v, want testLightTheme(t)", themeLabel(m.themeState.active))
+		if m.themeState.inForceMode() != theme.MemberLight {
+			t.Errorf("inForceMode() = %v, want testLightTheme(t)", themeLabel(m.themeState.active))
 		}
 	})
 
 	t.Run("injects Dark explicitly", func(t *testing.T) {
 		m := New(fakeLister{}, WithCanvasMode(theme.MemberDark))
-		if m.themeState.canvasMode != theme.MemberDark {
-			t.Errorf("canvasMode = %v, want testDarkTheme(t)", themeLabel(m.themeState.active))
+		if m.themeState.inForceMode() != theme.MemberDark {
+			t.Errorf("inForceMode() = %v, want testDarkTheme(t)", themeLabel(m.themeState.active))
 		}
 	})
 }

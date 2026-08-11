@@ -55,12 +55,10 @@ type appearanceGate struct {
 	// the gate resolves.
 	//
 	// On a gate that was never armed — a constant nomination, a nomination-less
-	// model — the value is that standing fallback and NOTHING ELSE. It is not
-	// detection-derived and must never be read as "the terminal is dark": no
-	// question was asked. What the terminal actually reported is retained
-	// separately on the model (originalBg, the arrival flag and the reply's own
-	// classification), which is what the mid-session conversion classifies —
-	// see Model.retainedCanvasAnswer, and its warning against reading this field.
+	// model — the value is that standing fallback and NOTHING ELSE: no question was
+	// asked, so it is not detection-derived. What the terminal reported is a
+	// separate fact, held as themeState.reply; themeState.inForceMode is the answer
+	// in force, whichever of the two established it.
 	appearance theme.Member
 	// pending reports whether the detect-or-timeout window is OPEN (the first real
 	// paint must wait). It is named negatively on purpose: the zero value (false)
@@ -162,22 +160,11 @@ func (g *appearanceGate) resolveDark() bool {
 	return g.resolve(theme.MemberDark)
 }
 
-// resolveFromDark resolves an open gate from an OSC 11 reply: a dark terminal
-// background resolves to the dark canvas, a light one to the light canvas.
-// It reports whether this call performed the resolution and is a no-op (returning
-// false) once already resolved, so a late reply that lost the race never flips the
-// painted canvas.
-func (g *appearanceGate) resolveFromDark(isDark bool) bool {
-	if isDark {
-		return g.resolve(theme.MemberDark)
-	}
-	return g.resolve(theme.MemberLight)
-}
-
 // resolve is the single-resolution core: it sets the appearance and closes the
 // window on the FIRST call only (i.e. while the window is open / pending),
 // returning true when it performed the resolution and false otherwise. This is the
-// no-flip invariant — the canvas is fixed exactly once per open window.
+// no-flip invariant — the canvas is fixed exactly once per open window, so a late
+// OSC 11 reply or a timeout that lost the race never flips the painted canvas.
 func (g *appearanceGate) resolve(appearance theme.Member) bool {
 	if g.resolved() {
 		return false
