@@ -1,27 +1,18 @@
 package project
 
-// Index is a pre-canonicalised lookup table mapping a directory's canonical key
-// (CanonicalDirKey) to the Project stored at that directory. It exists to make a
-// grouped TUI render cheap: the stored Project.Path values are canonicalised
-// ONCE at construction (NewIndex), rather than re-running CanonicalDirKey — a
-// filepath.EvalSymlinks syscall — over every stored project on every session,
-// every render (the O(sessions × projects) syscall cost a per-call linear scan
-// over the stored project set would incur).
+// Index maps a directory's canonical key to the Project stored there,
+// canonicalising each stored path once instead of paying an EvalSymlinks syscall
+// per project per lookup.
 //
-// An Index is a derived cache of a []Project: it must be rebuilt (via NewIndex)
-// whenever the underlying project set changes, or lookups will return stale
-// matches. The zero value is not usable; always construct via NewIndex.
+// It is a derived cache: rebuild it whenever the project set changes or lookups
+// go stale. The zero value is not usable; construct via NewIndex.
 type Index struct {
 	byKey map[string]Project
 }
 
-// NewIndex builds an Index from projects, canonicalising each Project.Path via
-// CanonicalDirKey exactly once. A nil or empty projects slice yields an empty —
-// but fully usable, non-panicking — Index whose Match always reports not-found.
-//
-// Collision policy: last-write-wins. When two projects reduce to the same
-// canonical key (e.g. one stored with a trailing slash, or two records for the
-// same directory), the later project in the slice overwrites the earlier one.
+// NewIndex builds an Index from projects. An empty slice yields a usable Index
+// whose Match always reports not-found. Two projects reducing to the same
+// canonical key collide last-write-wins.
 func NewIndex(projects []Project) Index {
 	byKey := make(map[string]Project, len(projects))
 	for _, p := range projects {
@@ -30,22 +21,13 @@ func NewIndex(projects []Project) Index {
 	return Index{byKey: byKey}
 }
 
-// Match finds the Project whose directory matches dirPath, canonicalising
-// dirPath via CanonicalDirKey exactly once and performing a single map lookup.
-// It returns (Project{}, key, false) when no project matches — the same
-// canonical-key match semantics a linear scan over the stored project set would
-// yield, but at O(1) amortised cost with no per-call EvalSymlinks over that set.
+// Match finds the Project whose directory matches dirPath. The returned key is
+// CanonicalDirKey(dirPath) whether or not a project matched, so a caller needing
+// the canonical key reuses this computation rather than paying a second
+// EvalSymlinks.
 //
-// The returned key is always CanonicalDirKey(dirPath) — the canonical
-// (EvalSymlinks-resolved) form of the input — whether or not a project matched.
-// It is returned so callers that need the canonical key (e.g. buildByProject's
-// By-Project GroupKey) reuse the single computation performed here instead of
-// paying a second identical EvalSymlinks syscall.
-//
-// An empty dirPath is canonicalised like any other path; since a real project's
-// canonical key never collides with CanonicalDirKey("") (the process working
-// directory), an empty dir reports not-found. Grouping callers additionally
-// guard s.Dir == "" before calling.
+// An empty dirPath canonicalises to the working directory, which no real project
+// key collides with, so it reports not-found.
 func (idx Index) Match(dirPath string) (Project, string, bool) {
 	key := CanonicalDirKey(dirPath)
 	p, ok := idx.byKey[key]

@@ -99,7 +99,6 @@ func TestZoxideResolver_Query(t *testing.T) {
 				t.Errorf("Query(%q) = %q, want %q", tt.terms, got, tt.want)
 			}
 
-			// Verify the command was called correctly when lookPath succeeds
 			if tt.lookPathErr == nil {
 				wantArgs := append([]string{"zoxide", "query"}, strings.Fields(tt.terms)...)
 				if len(capturedArgs) != len(wantArgs) {

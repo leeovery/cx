@@ -1,21 +1,6 @@
-// Package portalbintest provides test-only helpers for compiling the
-// portal CLI binary and staging it on $PATH for integration tests.
-//
-// These helpers were previously housed in internal/restoretest but have
-// no semantic tie to restore — they are consumed by daemon and saver
-// integration tests as well. The package is dependency-free beyond
-// stdlib + testing so any test package can import it without dragging
-// in tmux / state fixtures.
-//
-// Exported surface:
-//
-//   - ProjectRoot — repo-root resolver (walks up from CWD to find go.mod).
-//   - BuildPortalBinary — pure error-returning `go build .` wrapper.
-//   - StagePortalBinary — t.Helper-flavoured build + PATH-prepend +
-//     exec.LookPath composition used by real-tmux
-//     integration tests.
-//
-// Production code must not import this package.
+// Package portalbintest provides test-only helpers for compiling the portal CLI
+// binary and staging it on $PATH. It depends on nothing beyond stdlib and
+// testing, so any test package can import it. Production code must not.
 package portalbintest
 
 import (
@@ -26,15 +11,9 @@ import (
 	"testing"
 )
 
-// ProjectRoot walks up from the current working directory until it finds
-// a directory containing go.mod. Returns the absolute path of that
-// directory. Used to anchor `go build` invocations regardless of the
-// caller test binary's runtime CWD (cmd/, internal/restore/,
-// internal/tmux/, etc.).
-//
-// Returns an error rather than fatalling so it can be reused by helpers
-// that also return error (BuildPortalBinary, BuildPortalBinaryStable in
-// restoretest) without dragging *testing.T into pure plumbing.
+// ProjectRoot returns the absolute path of the nearest ancestor of the working
+// directory containing go.mod, so a `go build` can be anchored regardless of
+// which package's test binary is running.
 func ProjectRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -52,36 +31,17 @@ func ProjectRoot() (string, error) {
 	}
 }
 
-// BuildPortalBinary compiles the portal CLI into dir/portal using the
-// repo-root-anchored `go build .` invocation. Returns a wrapped error
-// on either project-root resolution failure or `go build` failure;
-// stdout+stderr from the failing build are included in the returned
-// error so the caller's diagnostic surface is unchanged from the
-// previously-inlined helpers.
-//
-// Pure error-returning variant for callers that want to decide between
-// hard-fail and clean-skip on build failure (e.g. the
-// singleton-invariant test in internal/tmux/, which skips when `go`
-// is not available rather than fatalling).
+// BuildPortalBinary compiles the portal CLI into dir/portal, returning a wrapped
+// error carrying the failing build's output. It returns rather than fatals so a
+// caller can choose between hard-fail and skip when `go` is unavailable.
 func BuildPortalBinary(dir string) error {
 	return buildPortalBinaryInto(dir)
 }
 
-// StagePortalBinary builds the portal CLI into a fresh t.TempDir,
-// prepends that directory to $PATH for the duration of the test, and
-// asserts `portal` is resolvable via exec.LookPath. Returns the
-// directory holding the built binary.
-//
-// Skip semantics mirror the inlined preambles previously duplicated
-// across the real-tmux integration tests: a `go build`
-// failure (no `go` on PATH, compile error) is a clean t.Skipf, as is
-// a post-prepend exec.LookPath miss. Neither escalates to t.Fatal —
-// the invariants these tests pin are structural, not "build works".
-//
-// PATH composition: binDir is prepended ahead of the inherited PATH so
-// the freshly built binary cannot be shadowed by any system-installed
-// `portal`. The t.Setenv contract restores the prior PATH on test
-// exit.
+// StagePortalBinary builds the portal CLI into a fresh t.TempDir and prepends
+// that directory to $PATH for the test, so a system-installed portal cannot
+// shadow it, returning the directory. A build or lookup failure skips the test
+// rather than failing it.
 func StagePortalBinary(t *testing.T) string {
 	t.Helper()
 	binDir := t.TempDir()
@@ -95,18 +55,10 @@ func StagePortalBinary(t *testing.T) string {
 	return binDir
 }
 
-// buildPortalBinaryInto compiles the portal CLI into dir/portal. Shared
-// by BuildPortalBinary and the integration-tagged wrappers in
-// restoretest (BuildPortalBinaryDir, BuildPortalBinaryStable) so the
-// underlying `go build` invocation lives in one place.
-//
-// -tags integration is LOAD-BEARING: it compiles the daemon-pgrep test
-// sandbox (internal/state/pgrep_sandbox.go) into the staged binary, so a
-// test-driven subprocess bootstrap's orphan sweep honours the
-// cross-process ownership registry (state.SandboxRegistryEnv, injected by
-// portaltest.IsolateStateForTest) and can never enumerate — and therefore
-// never SIGKILL — the developer's live `portal state daemon`. The shipped
-// release binary is built WITHOUT the tag and contains none of this.
+// -tags integration is load-bearing: it compiles the daemon-pgrep sandbox into
+// the staged binary, so a subprocess bootstrap's orphan sweep honours the
+// cross-process ownership registry and can never SIGKILL the developer's live
+// daemon. The shipped release binary is built without the tag.
 func buildPortalBinaryInto(dir string) error {
 	binary := filepath.Join(dir, "portal")
 	root, err := ProjectRoot()

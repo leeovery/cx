@@ -10,7 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/resolver"
 )
 
-// mockAliasLookup implements resolver.AliasLookup for testing.
 type mockAliasLookup struct {
 	aliases map[string]string
 }
@@ -29,7 +28,6 @@ func (m *mockAliasLookup) Keys() []string {
 	return keys
 }
 
-// mockZoxideQuerier implements resolver.ZoxideQuerier for testing.
 type mockZoxideQuerier struct {
 	result string
 	err    error
@@ -39,7 +37,6 @@ func (m *mockZoxideQuerier) Query(terms string) (string, error) {
 	return m.result, m.err
 }
 
-// mockDirValidator implements resolver.DirValidator for testing.
 type mockDirValidator struct {
 	existing map[string]bool
 }
@@ -48,9 +45,8 @@ func (m *mockDirValidator) Exists(path string) bool {
 	return m.existing[path]
 }
 
-// mockSessionLister implements resolver.SessionLister for testing. names is the
-// user-visible (leading-underscore-filtered) session set — the same view the
-// real tmux client returns from ListSessionNames.
+// mockSessionLister returns names as the user-visible
+// (leading-underscore-filtered) session set.
 type mockSessionLister struct {
 	names []string
 	err   error
@@ -211,7 +207,6 @@ func TestQueryResolver_Resolve_PathLikeArguments(t *testing.T) {
 			t.Fatalf("failed to create subdir: %v", err)
 		}
 
-		// Query contains "/" which triggers path-like detection
 		query := subDir + "/."
 
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{}}
@@ -244,14 +239,12 @@ func TestQueryResolver_Resolve_PathLikeArguments(t *testing.T) {
 			t.Fatalf("failed to create subdir: %v", err)
 		}
 
-		// Query starts with "." which triggers path-like detection
 		query := "./mydir"
 
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{}}
 		zoxide := &mockZoxideQuerier{err: resolver.ErrNoMatch}
 		dirValidator := &mockDirValidator{existing: map[string]bool{}}
 
-		// Change working directory so ./mydir resolves to our temp subdir
 		t.Chdir(dir)
 
 		qr := resolver.NewQueryResolver(&mockSessionLister{}, aliasLookup, zoxide, dirValidator)
@@ -275,8 +268,6 @@ func TestQueryResolver_Resolve_PathLikeArguments(t *testing.T) {
 			t.Fatalf("failed to get home dir: %v", err)
 		}
 
-		// Query starts with "~" which triggers path-like detection
-		// ~ itself is a valid directory (user home)
 		query := "~"
 
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{}}
@@ -373,7 +364,6 @@ func TestQueryResolver_Resolve_PathLikeNotSentToAliasOrZoxide(t *testing.T) {
 	})
 }
 
-// trackingZoxideQuerier tracks whether Query was called.
 type trackingZoxideQuerier struct {
 	result  string
 	err     error
@@ -413,8 +403,6 @@ func TestQueryResolver_Resolve_SessionDomain(t *testing.T) {
 	})
 
 	t.Run("session-domain checked before path/alias/zoxide", func(t *testing.T) {
-		// The session hit must win even when the same name would also resolve
-		// via alias/zoxide — session-domain is first in the precedence chain.
 		sessions := &mockSessionLister{names: []string{"myapp"}}
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{"myapp": "/Users/lee/Code/myapp"}}
 		zoxide := &mockZoxideQuerier{result: "/Users/lee/Code/myapp"}
@@ -436,9 +424,6 @@ func TestQueryResolver_Resolve_SessionDomain(t *testing.T) {
 	})
 
 	t.Run("underscore-prefixed name never matches (filtered lister)", func(t *testing.T) {
-		// The lister returns the leading-underscore-filtered view, so internal
-		// _-prefixed sessions are absent — open _portal-saver falls through as
-		// if the session did not exist.
 		sessions := &mockSessionLister{names: []string{"api-x7Kd9a"}}
 		aliasLookup := &mockAliasLookup{aliases: map[string]string{}}
 		zoxide := &mockZoxideQuerier{err: resolver.ErrNoMatch}
@@ -521,8 +506,6 @@ func TestQueryResolver_Resolve_SessionDomain(t *testing.T) {
 	})
 }
 
-// failingAliasLookup fails the test if Get is ever called. ResolveSessionPin is
-// session-domain only, so it must never consult the alias lookup.
 type failingAliasLookup struct{ t *testing.T }
 
 func (f *failingAliasLookup) Get(name string) (string, bool) {
@@ -537,8 +520,6 @@ func (f *failingAliasLookup) Keys() []string {
 	return nil
 }
 
-// failingZoxideQuerier fails the test if Query is ever called. ResolveSessionPin
-// is session-domain only, so it must never consult zoxide.
 type failingZoxideQuerier struct{ t *testing.T }
 
 func (f *failingZoxideQuerier) Query(terms string) (string, error) {
@@ -547,8 +528,6 @@ func (f *failingZoxideQuerier) Query(terms string) (string, error) {
 	return "", nil
 }
 
-// failingSessionLister fails the test if ListSessionNames is ever called.
-// ResolvePathPin is path-domain only, so it must never consult the session set.
 type failingSessionLister struct{ t *testing.T }
 
 func (f *failingSessionLister) ListSessionNames() ([]string, error) {
@@ -558,9 +537,6 @@ func (f *failingSessionLister) ListSessionNames() ([]string, error) {
 }
 
 func TestQueryResolver_ResolveSessionPin(t *testing.T) {
-	// newPinResolver builds a QueryResolver whose alias and zoxide seams FAIL the
-	// test if consulted — ResolveSessionPin is session-domain only, so every pin
-	// case doubles as a "never consults the directory chain" guard.
 	newPinResolver := func(t *testing.T, names []string, err error) *resolver.QueryResolver {
 		return resolver.NewQueryResolver(
 			&mockSessionLister{names: names, err: err},
@@ -591,13 +567,6 @@ func TestQueryResolver_ResolveSessionPin(t *testing.T) {
 	})
 
 	t.Run("multi-match glob does NOT collapse to the first match — loud miss", func(t *testing.T) {
-		// Regression guard (report 13-1): the single-pin path must NEVER silently
-		// fork a glob-bearing -s value to matches[0]. Glob fan-out is exclusively the
-		// burst's job (ResolveSessionPinAll → expandSessionGlobAll, all-match). A glob
-		// reaching ResolveSessionPin is not a literal session name, so it falls through
-		// to the verbatim attach miss — the same loud hard-fail as a zero-match glob —
-		// independent of the isMultiTarget/os.Args gate that normally diverts globs to
-		// the burst.
 		qr := newPinResolver(t, []string{"api-1", "api-2", "web-abc"}, nil)
 
 		result, err := qr.ResolveSessionPin("api-*")
@@ -643,8 +612,6 @@ func TestQueryResolver_ResolveSessionPin(t *testing.T) {
 	})
 
 	t.Run("internal underscore-prefixed session is a miss (filtered lister)", func(t *testing.T) {
-		// The lister returns the leading-underscore-filtered view, so pinning
-		// _portal-saver never matches — it is treated as if it did not exist.
 		qr := newPinResolver(t, []string{"api-x7Kd9a"}, nil)
 
 		result, err := qr.ResolveSessionPin("_portal-saver")
@@ -690,9 +657,6 @@ func TestQueryResolver_ResolveSessionPin(t *testing.T) {
 	})
 
 	t.Run("never consults aliases or zoxide on a miss", func(t *testing.T) {
-		// A bare Resolve would fall through a session miss to alias/zoxide. The pin
-		// must not: with a name that also exists as an alias, the failing seams
-		// would fatal the test if consulted, and the pin hard-fails instead.
 		qr := newPinResolver(t, []string{"web-abc"}, nil)
 
 		_, err := qr.ResolveSessionPin("myapp")
@@ -705,13 +669,6 @@ func TestQueryResolver_ResolveSessionPin(t *testing.T) {
 	})
 }
 
-// TestQueryResolver_ExactSessionMatch_UnifiedAcrossEntryPoints pins the shared
-// exact-session-match rule and its single lister-error policy across the three
-// entry points that consume it — Resolve, ResolveSessionPin, and
-// ResolveSessionPinAll. The match rule (ListSessionNames + membership) and the
-// error policy (a lister error collapses to "no match", never escalates) now live
-// in one helper; these characterization tests lock in that all three sites route
-// through it and stay in sync.
 func TestQueryResolver_ExactSessionMatch_UnifiedAcrossEntryPoints(t *testing.T) {
 	newResolver := func(names []string, err error) *resolver.QueryResolver {
 		return resolver.NewQueryResolver(
@@ -773,11 +730,6 @@ func TestQueryResolver_ExactSessionMatch_UnifiedAcrossEntryPoints(t *testing.T) 
 		}
 	})
 
-	// The unified lister-error policy: a ListSessionNames error is treated as "no
-	// match" at every entry point — never escalated to a resolve error. Each site
-	// keeps its own downstream behaviour on the resulting non-match (Resolve falls
-	// through to a miss, ResolveSessionPin hard-fails, ResolveSessionPinAll collects
-	// a miss), but none surfaces the lister error itself.
 	t.Run("lister error is no match with no escalation via Resolve", func(t *testing.T) {
 		qr := newResolver(nil, errors.New("tmux unreachable"))
 
@@ -829,10 +781,6 @@ func TestQueryResolver_ExactSessionMatch_UnifiedAcrossEntryPoints(t *testing.T) 
 }
 
 func TestQueryResolver_ResolvePathPin(t *testing.T) {
-	// newPathPinResolver builds a QueryResolver whose session, alias, and zoxide
-	// seams FAIL the test if consulted — ResolvePathPin is path-domain only (it
-	// reuses ResolvePath and touches none of the resolution seams), so every case
-	// doubles as a "never consults session/alias/zoxide" guard.
 	newPathPinResolver := func(t *testing.T) *resolver.QueryResolver {
 		return resolver.NewQueryResolver(
 			&failingSessionLister{t: t},
@@ -865,11 +813,6 @@ func TestQueryResolver_ResolvePathPin(t *testing.T) {
 	})
 
 	t.Run("directory whose name contains glob metacharacters is reachable", func(t *testing.T) {
-		// The reason -p exists: a glob-named dir (foo[1]) is UNREACHABLE as a bare
-		// positional (the multi-target routing gate treats it as a session glob and
-		// routes it to the burst, where it matches zero sessions and hard-fails). -p
-		// reuses ResolvePath, which STATS the literal path — [1] is never expanded —
-		// so the dir resolves and mints.
 		tmp := t.TempDir()
 		tmp, _ = filepath.EvalSymlinks(tmp)
 		globDir := filepath.Join(tmp, "foo[1]")
@@ -953,12 +896,6 @@ func TestQueryResolver_ResolvePathPin(t *testing.T) {
 }
 
 func TestQueryResolver_ResolveAliasPin(t *testing.T) {
-	// newAliasPinResolver builds a QueryResolver whose session and zoxide seams
-	// FAIL the test if consulted — ResolveAliasPin is alias-domain only (it looks
-	// the key up directly in the alias store, bypassing the session→path→alias→
-	// zoxide precedence), so every case doubles as a "never consults session or
-	// zoxide" guard. The failing session lister also proves a same-named shadowing
-	// session is never checked.
 	newAliasPinResolver := func(t *testing.T, aliases map[string]string, existing map[string]bool) *resolver.QueryResolver {
 		return resolver.NewQueryResolver(
 			&failingSessionLister{t: t},
@@ -969,8 +906,6 @@ func TestQueryResolver_ResolveAliasPin(t *testing.T) {
 	}
 
 	t.Run("known key returns PathResult domain alias with the validated dir", func(t *testing.T) {
-		// The failing session lister proves a same-named shadowing session is never
-		// consulted: -a bypasses the session→path→alias precedence entirely.
 		qr := newAliasPinResolver(t,
 			map[string]string{"myapp": "/Users/lee/Code/myapp"},
 			map[string]bool{"/Users/lee/Code/myapp": true},
@@ -994,11 +929,6 @@ func TestQueryResolver_ResolveAliasPin(t *testing.T) {
 	})
 
 	t.Run("single-match key glob no longer expands in the single-pin — loud miss", func(t *testing.T) {
-		// Regression guard (report 13-1): the single-pin path no longer glob-expands at
-		// ANY arity — glob fan-out is exclusively the burst's job (ResolveAliasPinAll).
-		// A glob reaching ResolveAliasPin is not a literal alias key, so even a
-		// single-match glob falls through to the "No alias found" hard-fail, independent
-		// of the isMultiTarget/os.Args gate that normally diverts globs to the burst.
 		qr := newAliasPinResolver(t,
 			map[string]string{"workflow-a": "/code/wa", "blog": "/code/blog"},
 			map[string]bool{"/code/wa": true},
@@ -1017,11 +947,6 @@ func TestQueryResolver_ResolveAliasPin(t *testing.T) {
 	})
 
 	t.Run("multi-match key glob does NOT mint the first match — loud miss", func(t *testing.T) {
-		// Regression guard (report 13-1): the single-pin path must NEVER silently fork a
-		// glob-bearing -a value to the first matched key. A glob reaching ResolveAliasPin
-		// is not a literal alias key, so it falls through to the "No alias found"
-		// hard-fail — the same loud fail as a zero-match glob — independent of the
-		// isMultiTarget/os.Args gate that normally diverts globs to the burst.
 		qr := newAliasPinResolver(t,
 			map[string]string{"workflow-b": "/code/wb", "workflow-a": "/code/wa"},
 			map[string]bool{"/code/wa": true, "/code/wb": true},
@@ -1076,8 +1001,6 @@ func TestQueryResolver_ResolveAliasPin(t *testing.T) {
 	})
 
 	t.Run("resolved key whose dir is gone hard-fails with Directory not found", func(t *testing.T) {
-		// Distinct from the unknown-key miss: the key resolves, but its directory
-		// no longer exists — the shared disk validation (validatedPath) rejects it.
 		qr := newAliasPinResolver(t,
 			map[string]string{"stale": "/gone/dir"},
 			map[string]bool{},
@@ -1101,10 +1024,6 @@ func TestQueryResolver_ResolveAliasPin(t *testing.T) {
 }
 
 func TestQueryResolver_ResolveZoxidePin(t *testing.T) {
-	// newZoxidePinResolver builds a QueryResolver whose session and alias seams
-	// FAIL the test if consulted — ResolveZoxidePin is zoxide-domain only (it
-	// queries zoxide and touches neither the session set nor the alias store), so
-	// every case doubles as a "never consults session or alias" guard.
 	newZoxidePinResolver := func(t *testing.T, zoxide resolver.ZoxideQuerier, existing map[string]bool) *resolver.QueryResolver {
 		return resolver.NewQueryResolver(
 			&failingSessionLister{t: t},
@@ -1137,8 +1056,6 @@ func TestQueryResolver_ResolveZoxidePin(t *testing.T) {
 	})
 
 	t.Run("zoxide not installed surfaces ErrZoxideNotInstalled explicitly", func(t *testing.T) {
-		// The whole point of the pin: zoxide-absence is surfaced verbatim (a script
-		// sees WHY), distinct from the bare chain's silent fall-through.
 		qr := newZoxidePinResolver(t, &mockZoxideQuerier{err: resolver.ErrZoxideNotInstalled}, map[string]bool{})
 
 		result, err := qr.ResolveZoxidePin("proj")
@@ -1163,16 +1080,12 @@ func TestQueryResolver_ResolveZoxidePin(t *testing.T) {
 		if want := "No zoxide match for: nope"; err.Error() != want {
 			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
-		// A no-match is a distinct outcome from not-installed: it must NOT surface as
-		// ErrZoxideNotInstalled (the caller distinguishes them via errors.Is).
 		if errors.Is(err, resolver.ErrZoxideNotInstalled) {
 			t.Error("a no-match must not surface as ErrZoxideNotInstalled")
 		}
 	})
 
 	t.Run("best-match dir gone hard-fails with Directory not found", func(t *testing.T) {
-		// Distinct from a no-match: zoxide resolves, but its best-match directory no
-		// longer exists — the shared disk validation (validatedPath) rejects it.
 		qr := newZoxidePinResolver(t, &mockZoxideQuerier{result: "/gone/dir"}, map[string]bool{})
 
 		result, err := qr.ResolveZoxidePin("proj")

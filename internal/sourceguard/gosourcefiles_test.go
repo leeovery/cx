@@ -9,9 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// TestGoSourceFiles_EnumeratesUnderRoot asserts the enumeration collects every
-// .go file below root — test sources included, since the repo-wide guards scan
-// tests too — and nothing else.
 func TestGoSourceFiles_EnumeratesUnderRoot(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
@@ -33,9 +30,6 @@ func TestGoSourceFiles_EnumeratesUnderRoot(t *testing.T) {
 	}
 }
 
-// TestGoSourceFiles_SkipsExcludedDirectories pins the exclusion rule the
-// enumeration applies: dot-directories, vendor and node_modules are not
-// descended into.
 func TestGoSourceFiles_SkipsExcludedDirectories(t *testing.T) {
 	root := t.TempDir()
 	writeFiles(t, root, map[string]string{
@@ -60,8 +54,6 @@ func TestGoSourceFiles_SkipsExcludedDirectories(t *testing.T) {
 	}
 }
 
-// TestGoSourceFiles_MissingRootErrors asserts an unreadable root surfaces as an
-// error rather than an empty, silently-passing enumeration.
 func TestGoSourceFiles_MissingRootErrors(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
 	if _, err := sourceguard.GoSourceFiles(missing); err == nil {

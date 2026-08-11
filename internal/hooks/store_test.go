@@ -16,10 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// installCapture swaps the shared logtest.Sink into the process-wide log
-// indirection for the duration of the test and returns it. The hooks store
-// tests assert on component=hooks and the per-call attr values via the sink's
-// shared accessors.
 func installCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -27,9 +23,8 @@ func installCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// readOnlyDirPath returns a path inside a 0500 (read-only) directory so that
-// AtomicWrite fails at the temp-create phase. The directory is created under a
-// t.TempDir so cleanup can remove it.
+// readOnlyDirPath returns a path under a 0500 directory, so a write to it fails
+// at the temp-create phase.
 func readOnlyDirPath(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -170,7 +165,6 @@ func TestSave(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify no temp files remain in directory
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			t.Fatalf("failed to read dir: %v", err)
@@ -182,7 +176,6 @@ func TestSave(t *testing.T) {
 			}
 		}
 
-		// Verify the file exists and is valid
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			t.Fatalf("failed to read file: %v", err)
@@ -404,7 +397,6 @@ func TestList(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 
-		// Write hooks in non-sorted order
 		content := `{"my-session:0.1":{"on-resume":"cmd1"},"my-session:0.0":{"on-start":"cmd0s","on-resume":"cmd0r"}}`
 		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 			t.Fatalf("failed to write test file: %v", err)
@@ -420,7 +412,6 @@ func TestList(t *testing.T) {
 			t.Fatalf("got %d hooks, want 3", len(list))
 		}
 
-		// Expected order: my-session:0.0/on-resume, my-session:0.0/on-start, my-session:0.1/on-resume
 		wantKeys := []string{"my-session:0.0", "my-session:0.0", "my-session:0.1"}
 		wantEvents := []string{"on-resume", "on-start", "on-resume"}
 		wantCmds := []string{"cmd0r", "cmd0s", "cmd1"}
@@ -593,7 +584,6 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		// Record mod time before CleanStale
 		infoBefore, err := os.Stat(filePath)
 		if err != nil {
 			t.Fatalf("failed to stat file: %v", err)
@@ -608,7 +598,6 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("got %d removed, want 0", len(removed))
 		}
 
-		// Mod time should be unchanged since no save occurred
 		infoAfter, err := os.Stat(filePath)
 		if err != nil {
 			t.Fatalf("failed to stat file: %v", err)
@@ -619,13 +608,9 @@ func TestCleanStale(t *testing.T) {
 	})
 
 	t.Run("old pane-ID entries cleaned on first run after upgrade", func(t *testing.T) {
-		// After upgrading from pane-ID keys (%0, %3) to structural keys,
-		// old entries won't match any live structural key and should be
-		// removed by CleanStale. New structural-key entries are preserved.
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "hooks.json")
 
-		// Write a hooks.json with a mix of old pane-ID and new structural keys
 		content := `{"%0":{"on-resume":"claude --resume old1"},"%3":{"on-resume":"claude --resume old2"},"my-session:0.0":{"on-resume":"claude --resume new1"}}`
 		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 			t.Fatalf("failed to write test file: %v", err)
@@ -633,7 +618,6 @@ func TestCleanStale(t *testing.T) {
 
 		store := hooks.NewStore(filePath)
 
-		// Live panes only contain structural keys
 		removed, err := store.CleanStale([]string{"my-session:0.0"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -651,7 +635,6 @@ func TestCleanStale(t *testing.T) {
 			t.Errorf("removed[1] = %q, want %q", removed[1], "%3")
 		}
 
-		// Verify only the structural key entry remains
 		h, err := store.Load()
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
@@ -688,7 +671,6 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("unexpected error on set: %v", err)
 		}
 
-		// my-session:0.0 and other-session:0.1 are live; other-session:0.0 and my-session:0.1 are stale
 		removed, err := store.CleanStale([]string{"my-session:0.0", "other-session:0.1"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -698,7 +680,6 @@ func TestCleanStale(t *testing.T) {
 			t.Fatalf("got %d removed, want 2", len(removed))
 		}
 
-		// Sort removed for deterministic checking
 		sort.Strings(removed)
 		if removed[0] != "my-session:0.1" {
 			t.Errorf("removed[0] = %q, want %q", removed[0], "my-session:0.1")
@@ -776,9 +757,6 @@ func TestStaleKeys(t *testing.T) {
 	})
 }
 
-// TestCleanStaleRemovesExactlyStaleKeys proves CleanStale removes precisely the
-// set the shared StaleKeys predicate reports — the prune and the doctor
-// diagnosis provably share one classification and cannot drift.
 func TestCleanStaleRemovesExactlyStaleKeys(t *testing.T) {
 	dir := t.TempDir()
 	store := hooks.NewStore(filepath.Join(dir, "hooks.json"))
@@ -829,7 +807,6 @@ func TestCleanStaleLogging(t *testing.T) {
 		}
 
 		sink := installCapture(t)
-		// Keep only 0.0 live -> 0.1 and 0.2 are stale (N=2).
 		removed, err := store.CleanStale([]string{"my-session:0.0"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -930,10 +907,8 @@ func TestCleanStaleLogging(t *testing.T) {
 	})
 
 	t.Run("emits WARN with write-failed-* error_class (not unexpected) when the batched Save fails", func(t *testing.T) {
-		// Seed two entries on a writable path, then lock the parent dir 0500 so
-		// the subsequent CleanStale Save fails at AtomicWrite's temp-create
-		// phase. (readOnlyDirPath gives a path under an already-locked dir, which
-		// would block the seed write — we need the seed to succeed first.)
+		// The seed write must succeed before the directory is locked, so this
+		// cannot use readOnlyDirPath.
 		dir := t.TempDir()
 		seeded := filepath.Join(dir, "hooks.json")
 		if err := os.WriteFile(seeded, []byte(`{"a:0.0":{"on-resume":"x"},"b:0.0":{"on-resume":"y"}}`), 0o644); err != nil {
@@ -947,7 +922,6 @@ func TestCleanStaleLogging(t *testing.T) {
 		store := hooks.NewStore(seeded)
 		sink := installCapture(t)
 
-		// No live keys -> both entries stale -> Save attempted -> fails.
 		_, err := store.CleanStale([]string{})
 		if err == nil {
 			t.Fatal("expected error from CleanStale on read-only dir, got nil")
@@ -1073,7 +1047,6 @@ func TestSaveAuditedLogging(t *testing.T) {
 			t.Errorf("via = %q, want %q", got, "internal")
 		}
 
-		// Side effect: the file was actually persisted.
 		loaded, err := store.Load()
 		if err != nil {
 			t.Fatalf("failed to reload: %v", err)
@@ -1284,8 +1257,6 @@ func TestSetLogging(t *testing.T) {
 		if got := rec.AttrString(t, "error_class"); got != "write-failed-temp-create" {
 			t.Errorf("error_class = %q, want %q", got, "write-failed-temp-create")
 		}
-		// The error attr must carry the wrapped error itself, so errors.Is on
-		// the sentinel succeeds.
 		errVal, ok := rec.Attrs["error"]
 		if !ok {
 			t.Fatalf("WARN record missing error attr: %+v", rec.Attrs)
@@ -1307,7 +1278,6 @@ func TestSetLogging(t *testing.T) {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
 
-		// Direct Save call must emit nothing — only Set/Remove are emitters.
 		sink := installCapture(t)
 		h, err := store.Load()
 		if err != nil {
@@ -1323,11 +1293,6 @@ func TestSetLogging(t *testing.T) {
 	})
 }
 
-// TestSetEmitsOpAsJSONField proves the op verb is carried as a real structured
-// attr (not just the slog message), so the JSON-mode handler renders an "op"
-// field that programmatic tooling can index — the spec's stated rationale for
-// requiring op as an attr. A standard slog.NewJSONHandler stands in for the
-// future JSON rendering seam; component is rendered as an ordinary field too.
 func TestSetEmitsOpAsJSONField(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetTestHandler(t, slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))

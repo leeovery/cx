@@ -6,10 +6,6 @@ import (
 	"github.com/leeovery/portal/internal/resolver"
 )
 
-// TestDomain_String pins the typed Domain constant set to the exact spec-governed
-// strings. The session/path/alias/zoxide/miss values are the closed taxonomy the
-// `resolve` decision log line's `domain` attr emits, so this test is the
-// byte-identical contract at the source of truth (String() must not drift).
 func TestDomain_String(t *testing.T) {
 	cases := []struct {
 		domain   resolver.Domain

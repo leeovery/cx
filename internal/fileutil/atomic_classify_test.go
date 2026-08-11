@@ -13,8 +13,8 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// forceTempCreateFailure returns a path whose parent is a regular file, so
-// os.MkdirAll / os.CreateTemp inside AtomicWrite cannot succeed.
+// forceTempCreateFailure returns a path whose parent is a regular file, so the
+// directory and temp-file creation cannot succeed.
 func forceTempCreateFailure(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -51,8 +51,7 @@ func TestAtomicWriteSentinels(t *testing.T) {
 	})
 
 	t.Run("wraps a rename failure with ErrWriteRename and preserves *os.PathError", func(t *testing.T) {
-		// Force os.Rename to fail by making the destination an existing
-		// non-empty directory: rename(tmpfile, dir) returns an *os.PathError.
+		// Renaming a file over a non-empty directory fails.
 		dir := t.TempDir()
 		dest := filepath.Join(dir, "dest")
 		if err := os.MkdirAll(filepath.Join(dest, "occupant"), 0o755); err != nil {
@@ -66,9 +65,8 @@ func TestAtomicWriteSentinels(t *testing.T) {
 		if !errors.Is(err, fileutil.ErrWriteRename) {
 			t.Errorf("errors.Is(err, ErrWriteRename) = false; err = %v", err)
 		}
-		// os.Rename returns *os.LinkError (two paths), not *os.PathError. The
-		// %w wrap must preserve that concrete OS error verbatim so callers keep
-		// the source/dest path + errno context.
+		// The wrap must preserve the concrete *os.LinkError, so a caller keeps
+		// both paths and the errno.
 		var linkErr *os.LinkError
 		if !errors.As(err, &linkErr) {
 			t.Errorf("errors.As(err, &linkErr) = false; underlying *os.LinkError not preserved; err = %v", err)
@@ -123,8 +121,6 @@ func TestClassifyWriteError(t *testing.T) {
 }
 
 func TestAtomicWrite0600PreservesSentinel(t *testing.T) {
-	// A failure forced through AtomicWrite0600 must surface the AtomicWrite
-	// sentinel unchanged (the forward preserves the %w chain).
 	err := fileutil.AtomicWrite0600(forceTempCreateFailure(t), []byte("data"))
 	if err == nil {
 		t.Fatalf("expected error; got nil")
@@ -135,8 +131,8 @@ func TestAtomicWrite0600PreservesSentinel(t *testing.T) {
 }
 
 func TestAtomicWriteHasNoLoggingDependency(t *testing.T) {
-	// fileutil is shared with out-of-scope sessions.json and MUST stay
-	// audit-unaware: no internal/log import anywhere in the package source.
+	// fileutil must stay audit-unaware: no internal/log import anywhere in the
+	// package source.
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(".")
 	if err != nil {

@@ -11,10 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// installCapture swaps the shared logtest.Sink into the process-wide log
-// indirection for the duration of the test and returns it. The alias store
-// tests assert on component=aliases and the per-call attr values via the sink's
-// shared accessors.
 func installCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -22,10 +18,8 @@ func installCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// readOnlyDirAliasPath returns a path inside a 0500 (read-only) directory whose
-// parent already exists, so that os.WriteFile (not os.MkdirAll) is the failing
-// phase — the write-failed-write classification. The directory is created under
-// a t.TempDir so cleanup can remove it.
+// readOnlyDirAliasPath returns a path under an existing 0500 directory, so the
+// write itself fails rather than the directory creation.
 func readOnlyDirAliasPath(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -70,7 +64,6 @@ func TestSetAndSave(t *testing.T) {
 			t.Errorf("via = %q, want %q", got, "cli")
 		}
 
-		// Side effect: the alias actually persisted.
 		loaded, err := alias.NewStore(filepath.Join(dir, "aliases")).Load()
 		if err != nil {
 			t.Fatalf("reload failed: %v", err)
@@ -152,7 +145,6 @@ func TestSetAndSave(t *testing.T) {
 			t.Errorf("via = %q, want %q", got, "cli")
 		}
 
-		// The file must NOT have been rewritten.
 		after, err := os.Stat(path)
 		if err != nil {
 			t.Fatalf("stat after set-noop failed: %v", err)
@@ -257,7 +249,6 @@ func TestDeleteAndSave(t *testing.T) {
 	t.Run("emits WARN with write-failed-write error_class when persist fails", func(t *testing.T) {
 		path := readOnlyDirAliasPath(t)
 		store := alias.NewStore(path)
-		// Seed the in-memory map so Delete reports existed=true and Save runs.
 		store.Set("p", "/code/portal")
 		sink := installCapture(t)
 

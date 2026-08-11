@@ -20,7 +20,6 @@ type ZoxideResolver struct {
 	lookPath LookPathFunc
 }
 
-// NewZoxideResolver creates a ZoxideResolver with the given command runner and LookPath function.
 func NewZoxideResolver(runner CommandRunner, lookPath LookPathFunc) *ZoxideResolver {
 	return &ZoxideResolver{
 		runner:   runner,
@@ -28,9 +27,8 @@ func NewZoxideResolver(runner CommandRunner, lookPath LookPathFunc) *ZoxideResol
 	}
 }
 
-// Query runs `zoxide query <terms>` and returns the best match.
-// Returns ErrZoxideNotInstalled if zoxide is not on PATH.
-// Returns ErrNoMatch if zoxide exits non-zero (no match found).
+// Query returns zoxide's best match for terms, ErrZoxideNotInstalled when zoxide
+// is not on PATH, or ErrNoMatch when it exits non-zero.
 func (z *ZoxideResolver) Query(terms string) (string, error) {
 	if _, err := z.lookPath("zoxide"); err != nil {
 		return "", ErrZoxideNotInstalled

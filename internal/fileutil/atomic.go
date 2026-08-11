@@ -8,39 +8,26 @@ import (
 	"path/filepath"
 )
 
-// Write-phase sentinels let callers errors.Is-discriminate which step of
-// AtomicWrite failed without fileutil itself becoming audit-aware (it is shared
-// with out-of-scope sessions.json and must not import internal/log). Each
-// sentinel's string is deliberately the matching error_class token from the
-// closed AtomicWrite-failure value space, so ClassifyWriteError is a 1:1 map and
-// the token cannot drift between the sentinel and the classifier.
+// Write-phase sentinels let a caller errors.Is which step of AtomicWrite failed,
+// without fileutil having to know anything about audit logging. Each sentinel's
+// string is its error_class token, so the classifier below cannot drift from it.
 var (
-	// ErrWriteTempCreate is the temp-file-creation prerequisite phase. It
-	// covers both os.MkdirAll (the parent-directory precondition) and
-	// os.CreateTemp. The closed error_class space has no write-failed-mkdir,
-	// so an MkdirAll failure maps here — it is the temp file's creation
-	// prerequisite, not a distinct phase.
+	// ErrWriteTempCreate covers creating the parent directory as well as the
+	// temp file: the closed error_class space has no separate mkdir phase.
 	ErrWriteTempCreate = errors.New("write-failed-temp-create")
-	// ErrWriteWrite is the temp-file write phase (tmp.Write).
+	// ErrWriteWrite is the temp-file write phase.
 	ErrWriteWrite = errors.New("write-failed-write")
-	// ErrWriteFsync is the durability/flush phase. AtomicWrite has no explicit
-	// Sync() — create -> write -> Close -> rename — so tmp.Close() is the flush
-	// point where deferred write errors surface and is the closest analogue to
-	// a failed fsync. We map Close -> ErrWriteFsync (option (a): not adding a
-	// real Sync(), not leaving the fsync class unreachable).
+	// ErrWriteFsync is the flush phase. AtomicWrite has no explicit Sync, so
+	// Close is where deferred write errors surface and maps here.
 	ErrWriteFsync = errors.New("write-failed-fsync")
-	// ErrWriteRename is the atomic-rename (commit) phase (os.Rename).
+	// ErrWriteRename is the atomic-rename commit phase.
 	ErrWriteRename = errors.New("write-failed-rename")
 )
 
-// ClassifyWriteError maps a wrapped AtomicWrite error to its closed-space
-// error_class token. It is a pure string mapping — no I/O, no logging.
-//
-// An error matching none of the write-phase sentinels falls back to
-// "write-failed-write": a deliberate floor, not a sentinel match. It is the most
-// representative "persist did not complete" classification for an unrecognised
-// error, so an unexpected failure shape is still attributed to a write failure
-// rather than dropped or mis-bucketed.
+// ClassifyWriteError maps a wrapped AtomicWrite error to its error_class token.
+// An error matching no sentinel falls back to "write-failed-write" — a
+// deliberate floor, so an unrecognised failure is still attributed to a write
+// rather than dropped.
 func ClassifyWriteError(err error) string {
 	switch {
 	case errors.Is(err, ErrWriteTempCreate):
@@ -56,18 +43,9 @@ func ClassifyWriteError(err error) string {
 	}
 }
 
-// AtomicWrite0600 writes data to path via AtomicWrite and then chmod's the
-// final file to 0600.
-//
-// AtomicWrite already produces a 0600 temp file (os.CreateTemp default mode),
-// but the post-rename chmod is a defensive belt-and-braces against an unusually
-// permissive umask leaking broader bits through. Use this helper for any file
-// that must be 0600 on disk; centralising it keeps the umask-defence rationale
-// in one place.
-//
-// Note: WritePIDFile / WriteVersionFile in internal/state deliberately do NOT
-// use this helper — they tolerate the user's umask and rely on AtomicWrite's
-// documented temp-file mode alone.
+// AtomicWrite0600 writes data to path and chmods the result to 0600. AtomicWrite
+// already creates its temp file 0600; the extra chmod defends against a
+// permissive umask leaking broader bits through.
 func AtomicWrite0600(path string, data []byte) error {
 	if err := AtomicWrite(path, data); err != nil {
 		return err
@@ -82,9 +60,6 @@ func AtomicWrite0600(path string, data []byte) error {
 func AtomicWrite(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		// MkdirAll is the temp file's creation prerequisite; the closed
-		// error_class space has no write-failed-mkdir, so it maps to the
-		// temp-create phase.
 		return fmt.Errorf("%w: failed to create directory: %w", ErrWriteTempCreate, err)
 	}
 
@@ -101,8 +76,6 @@ func AtomicWrite(path string, data []byte) error {
 	}
 
 	if err := tmp.Close(); err != nil {
-		// Close is AtomicWrite's flush point (no explicit Sync()), so a Close
-		// failure is the closest analogue to a failed fsync — option (a).
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("%w: failed to close temp file: %w", ErrWriteFsync, err)
 	}

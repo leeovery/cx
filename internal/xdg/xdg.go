@@ -1,9 +1,6 @@
-// Package xdg resolves XDG Base Directory paths for Portal.
-//
-// It is a leaf package: it has no Portal dependencies, so any package — cmd
-// or internal — may import it. This is the single source of truth for
-// $XDG_CONFIG_HOME resolution; both cmd/config.go and internal/state/paths.go
-// delegate here to avoid drift.
+// Package xdg resolves XDG Base Directory paths for Portal. It is a dependency-
+// free leaf, so any package may import it and $XDG_CONFIG_HOME resolution has a
+// single home.
 package xdg
 
 import (
@@ -12,14 +9,8 @@ import (
 	"path/filepath"
 )
 
-// ConfigBase returns the XDG-compliant base config directory.
-//
-// Resolution order:
-//  1. $XDG_CONFIG_HOME — used verbatim when set and non-empty.
-//  2. $HOME/.config — fallback resolved via os.UserHomeDir().
-//
-// An error is returned only when the home directory cannot be determined
-// and the env var is unset or empty.
+// ConfigBase returns $XDG_CONFIG_HOME verbatim when set and non-empty, else
+// $HOME/.config. It errors only when neither is available.
 func ConfigBase() (string, error) {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return xdg, nil

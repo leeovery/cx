@@ -14,17 +14,8 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// logger is the aliases-component logger, bound once at package init. Every
-// aliases-file mutation that flows through the audited combined methods
-// (SetAndSave / DeleteAndSave) emits a single breadcrumb under this component so
-// `grep "aliases:" portal.log` reconstructs the change history. importing
-// internal/log introduces no cycle — internal/log depends only on the standard
-// library.
-//
-// Message-shape: the op verb is BOTH the slog message (preserving the
-// `aliases: <verb>` catalog shape and grep idiom) AND a required "op" attr drawn
-// from the closed value space (set / modify / rm / set-noop), so JSON output and
-// `grep op=set` filtering both work — see the hooks store for the full rationale.
+// The op verb is both the slog message and a required "op" attr, so the
+// `aliases: <verb>` grep idiom and `grep op=set` filtering both work.
 var logger = log.For("aliases")
 
 // Alias represents a single name-to-path mapping.
@@ -39,7 +30,6 @@ type Store struct {
 	aliases map[string]string
 }
 
-// NewStore creates a Store that reads and writes to the given file path.
 func NewStore(path string) *Store {
 	return &Store{
 		path:    path,
@@ -47,9 +37,8 @@ func NewStore(path string) *Store {
 	}
 }
 
-// Load reads aliases from the flat key=value file.
-// Returns an empty map when the file is missing or empty.
-// Duplicate keys are resolved with last-wins semantics.
+// Load reads aliases from the flat key=value file, returning an empty map when
+// the file is missing or empty. Duplicate keys are last-wins.
 func (s *Store) Load() (map[string]string, error) {
 	f, err := os.Open(s.path)
 	if err != nil {
@@ -86,26 +75,12 @@ func (s *Store) Load() (map[string]string, error) {
 	return s.aliases, nil
 }
 
-// Save writes all aliases to the file in sorted key=value format.
-// Creates the parent directory if it does not exist.
+// Save writes all aliases to the file in sorted key=value format, creating the
+// parent directory if needed. The write is in place, not atomic.
 //
-// The two failure phases are sentinel-wrapped from fileutil's write-phase
-// sentinels so the audited combined methods (SetAndSave / DeleteAndSave) can map
-// error_class via fileutil.ClassifyWriteError without re-implementing the token
-// table — the sentinel strings ARE the closed error_class tokens, so the mapping
-// is 1:1 and cannot drift:
-//   - os.MkdirAll failure -> ErrWriteTempCreate -> "write-failed-temp-create"
-//     (the directory is the write's creation prerequisite; the closed space has
-//     no write-failed-mkdir, mirroring fileutil.AtomicWrite's own mapping).
-//   - os.WriteFile failure -> ErrWriteWrite -> "write-failed-write".
-//
-// [needs-info, resolved-in-comment] error_class phase mapping = option (a): map
-// manually because Save uses os.WriteFile, NOT fileutil.AtomicWrite. Option (b)
-// — migrating Save to fileutil.AtomicWrite for atomicity plus the unified
-// AtomicWrite phase sentinels (temp-create / write / fsync / rename) — is a
-// deferred future improvement: it changes Save's on-disk behaviour (temp-file +
-// rename instead of in-place truncating write), which is out of scope for the
-// observability work.
+// Failures are wrapped in fileutil's write-phase sentinels — a missing directory
+// as ErrWriteTempCreate, since the closed error_class space has no mkdir phase —
+// so the audited methods can classify them without their own token table.
 func (s *Store) Save() error {
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -132,13 +107,12 @@ func (s *Store) Get(name string) (string, bool) {
 	return path, ok
 }
 
-// Set adds or overwrites an alias. Each name maps to exactly one path.
+// Set adds or overwrites an in-memory alias. Each name maps to one path.
 func (s *Store) Set(name, path string) {
 	s.aliases[name] = path
 }
 
-// Delete removes the alias with the given name.
-// Returns true if the alias existed, false otherwise.
+// Delete removes the in-memory alias, reporting whether it existed.
 func (s *Store) Delete(name string) bool {
 	_, ok := s.aliases[name]
 	if ok {
@@ -147,31 +121,13 @@ func (s *Store) Delete(name string) bool {
 	return ok
 }
 
-// SetAndSave is the audited mutation path for adding or updating an alias: it
-// classifies the op from the pre-mutation map, performs the in-memory Set, runs
-// Save, and emits exactly one breadcrumb under the aliases component.
-//
-// [needs-info, resolved-in-comment] EMISSION POINT = option (a): a single
-// COMBINED store-seam method that does the in-memory op AND Save AND emits. This
-// is the only shape that cleanly satisfies the set-noop skip-Save requirement —
-// a separate audited Save() could not selectively skip persistence for a no-op.
-//
-// via records the mutation origin (cli for user-facing `portal alias set` and
-// the TUI alias editor; the closed value space is cli / internal / migrate).
-//
-// The op is classified from the pre-mutation map:
-//   - name absent                       -> INFO "set"
-//   - name present, path == existing     -> DEBUG "set-noop"; Save is SKIPPED so
-//     the file is not touched, and SetAndSave returns nil without mutating.
-//   - name present, path != existing     -> INFO "modify"
-//
-// On a persist failure the breadcrumb is WARN carrying the wrapped error and its
-// error_class (from Save's sentinel-wrapping), and the error is returned.
+// SetAndSave adds or updates an alias, persists it and emits the audit
+// breadcrumb. Re-setting an alias to the path it already has is a no-op: the
+// file is left untouched. via records the mutation origin: cli, internal or
+// migrate.
 func (s *Store) SetAndSave(name, path, via string) error {
 	existing, present := s.aliases[name]
 	if present && existing == path {
-		// The value already matches: emit a DEBUG no-op breadcrumb and return
-		// without touching the file (no Save).
 		logger.Debug("set-noop", "op", "set-noop", "alias", name, "via", via)
 		return nil
 	}
@@ -193,18 +149,9 @@ func (s *Store) SetAndSave(name, path, via string) error {
 	return nil
 }
 
-// DeleteAndSave is the audited mutation path for removing an alias: it deletes
-// the in-memory entry, and — only if the entry existed — runs Save and emits one
-// breadcrumb under the aliases component.
-//
-// An absent-key delete returns (false, nil) WITHOUT Save and WITHOUT emitting:
-// the CLI rejects an absent alias before any persist would occur, so there is no
-// mutation to audit (preserving the pre-instrumentation "alias not found" path,
-// which never wrote the file). The "rm" breadcrumb carries NO value attr per the
-// closed-attr rule (value is only set for set / modify).
-//
-// On a persist failure (existed entry) the breadcrumb is WARN carrying the
-// wrapped error and its error_class, and (true, err) is returned.
+// DeleteAndSave removes an alias, persists the result and emits the audit
+// breadcrumb. Deleting an absent name returns (false, nil) without writing the
+// file or emitting: there is no mutation to audit.
 func (s *Store) DeleteAndSave(name, via string) (existed bool, err error) {
 	existed = s.Delete(name)
 	if !existed {
@@ -221,9 +168,8 @@ func (s *Store) DeleteAndSave(name, via string) (existed bool, err error) {
 	return true, nil
 }
 
-// Keys returns all alias names sorted. It exposes the finite alias-key
-// namespace for glob enumeration (resolver.AliasLookup.Keys) without leaking the
-// []Alias name-to-path shape that List returns.
+// Keys returns all alias names sorted, exposing the key namespace for glob
+// enumeration without the name-to-path shape List returns.
 func (s *Store) Keys() []string {
 	keys := make([]string, 0, len(s.aliases))
 	for name := range s.aliases {

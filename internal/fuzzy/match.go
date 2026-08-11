@@ -3,9 +3,8 @@ package fuzzy
 
 import "strings"
 
-// Match returns true if pattern is a subsequence of text.
-// Each character in pattern must appear in text in order,
-// but not necessarily consecutively.
+// Match reports whether pattern is a subsequence of text: every character
+// appears in order, though not necessarily consecutively.
 func Match(text, pattern string) bool {
 	pi := 0
 	for i := 0; i < len(text) && pi < len(pattern); i++ {
@@ -16,9 +15,8 @@ func Match(text, pattern string) bool {
 	return pi == len(pattern)
 }
 
-// Filter returns items whose names fuzzy-match the given filter string.
-// Matching is case-insensitive. The nameOf function extracts the name from each item.
-// If filter is empty, all items are returned.
+// Filter returns the items whose nameOf value fuzzy-matches filter,
+// case-insensitively. An empty filter returns everything.
 func Filter[T any](items []T, filter string, nameOf func(T) string) []T {
 	if filter == "" {
 		return items

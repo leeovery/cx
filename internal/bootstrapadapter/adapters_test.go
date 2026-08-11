@@ -1,14 +1,5 @@
 package bootstrapadapter_test
 
-// Integration tests for the production-shape bootstrap adapters. The two
-// adapters are pure pass-throughs to *tmux.Client / tmux.RegisterPortalHooks,
-// so the goal here is a thin smoke layer: prove that Set/Clear toggle the
-// expected server option on a live tmux server and that RegisterPortalHooks
-// runs to completion. Heavy hook-table semantics are owned by
-// internal/tmux/hooks_register_test.go; the orchestrator-level wiring is
-// owned by cmd/bootstrap/phase5_integration_test.go. This file only proves
-// the adapters' shaping.
-
 import (
 	"errors"
 	"testing"
@@ -18,9 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmuxtest"
 )
 
-// listerStub satisfies state.ServerOptionLister with a canned (output, err).
-// Used to exercise FIFOSweeper.Sweep's marker-enumeration failure path
-// without standing up a live tmux server.
 type listerStub struct {
 	out string
 	err error
@@ -30,18 +18,12 @@ func (s *listerStub) ShowAllServerOptions() (string, error) {
 	return s.out, s.err
 }
 
-// TestFIFOSweeper_PropagatesListSkeletonMarkersError proves that a
-// ShowAllServerOptions failure surfaces from FIFOSweeper.Sweep wrapped with
-// the "list skeleton markers" prefix so the orchestrator's step-10
-// Warn-and-swallow path can log it uniformly. Pre-cycle-4 the adapter
-// silently returned nil on this path, hiding transient tmux failures from
-// portal.log; this test is the regression guard.
 func TestFIFOSweeper_PropagatesListSkeletonMarkersError(t *testing.T) {
 	sentinel := errors.New("show-options boom")
 	s := &bootstrapadapter.FIFOSweeper{
 		Client:   &listerStub{err: sentinel},
 		StateDir: t.TempDir(),
-		Logger:   nil, // never dereferenced: Sweep returns on the ListSkeletonMarkers error before reaching the logger.
+		Logger:   nil,
 	}
 
 	err := s.Sweep()
@@ -56,10 +38,6 @@ func TestFIFOSweeper_PropagatesListSkeletonMarkersError(t *testing.T) {
 	}
 }
 
-// TestRestoringMarker_SetClearsTogglesServerOption proves that Set writes
-// @portal-restoring="1" and Clear removes it, both observable on the live
-// tmux server. The literal name comes from state.RestoringMarkerName so the
-// adapter cannot drift from the canonical constant.
 func TestRestoringMarker_SetClearsTogglesServerOption(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
@@ -71,14 +49,12 @@ func TestRestoringMarker_SetClearsTogglesServerOption(t *testing.T) {
 
 	m := &bootstrapadapter.RestoringMarker{Client: client}
 
-	// Pre-condition: marker MUST be absent.
 	if _, found, err := client.TryGetServerOption(state.RestoringMarkerName); err != nil {
 		t.Fatalf("TryGetServerOption pre-Set: %v", err)
 	} else if found {
 		t.Fatal("@portal-restoring unexpectedly set before Set()")
 	}
 
-	// Set: marker MUST be "1".
 	if err := m.Set(); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
@@ -90,7 +66,6 @@ func TestRestoringMarker_SetClearsTogglesServerOption(t *testing.T) {
 		t.Errorf("post-Set: found=%v value=%q; want found=true value=%q", found, val, "1")
 	}
 
-	// Clear: marker MUST be absent again.
 	if err := m.Clear(); err != nil {
 		t.Fatalf("Clear: %v", err)
 	}
@@ -100,17 +75,11 @@ func TestRestoringMarker_SetClearsTogglesServerOption(t *testing.T) {
 		t.Error("@portal-restoring still present after Clear()")
 	}
 
-	// Clear is idempotent: a second invocation MUST NOT error.
 	if err := m.Clear(); err != nil {
 		t.Errorf("Clear (second invocation): %v", err)
 	}
 }
 
-// TestHookRegistrar_RegistersPortalHooks proves that RegisterPortalHooks
-// runs without error against a live tmux server. The hook-table contents
-// are exercised in detail by internal/tmux/hooks_register_test.go and at
-// the orchestrator level by phase5_integration_test.go; this test only
-// confirms the adapter shape.
 func TestHookRegistrar_RegistersPortalHooks(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 
@@ -125,7 +94,6 @@ func TestHookRegistrar_RegistersPortalHooks(t *testing.T) {
 		t.Fatalf("RegisterPortalHooks: %v", err)
 	}
 
-	// Idempotent: a second invocation MUST NOT error or duplicate entries.
 	if err := r.RegisterPortalHooks(); err != nil {
 		t.Errorf("RegisterPortalHooks (second invocation): %v", err)
 	}

@@ -189,7 +189,6 @@ func TestTagsField(t *testing.T) {
 		filePath := filepath.Join(dir, "projects.json")
 		store := project.NewStore(filePath)
 
-		// Seed an existing record that already carries tags.
 		seeded := []project.Project{
 			{
 				Path:     "/Users/lee/Code/myapp",
@@ -202,7 +201,6 @@ func TestTagsField(t *testing.T) {
 			t.Fatalf("failed to seed: %v", err)
 		}
 
-		// Upsert the same path with a new name; must not clobber Tags.
 		if err := store.Upsert("/Users/lee/Code/myapp", "renamed-app", "internal"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -252,7 +250,6 @@ func TestSave(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Verify the directory was created
 		info, err := os.Stat(nested)
 		if err != nil {
 			t.Fatalf("directory not created: %v", err)
@@ -261,7 +258,6 @@ func TestSave(t *testing.T) {
 			t.Errorf("expected directory, got file")
 		}
 
-		// Verify the file is readable and contains correct data
 		loaded, err := store.Load()
 		if err != nil {
 			t.Fatalf("failed to load saved file: %v", err)
@@ -316,22 +312,18 @@ func TestUpsert(t *testing.T) {
 		filePath := filepath.Join(dir, "projects.json")
 		store := project.NewStore(filePath)
 
-		// Add initial project
 		if err := store.Upsert("/Users/lee/Code/myapp", "myapp", "internal"); err != nil {
 			t.Fatalf("unexpected error on first upsert: %v", err)
 		}
 
-		// Record the first timestamp
 		firstLoad, err := store.Load()
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
 		}
 		firstLastUsed := firstLoad[0].LastUsed
 
-		// Wait a tiny bit so time advances
 		time.Sleep(10 * time.Millisecond)
 
-		// Upsert with same path but different name
 		if err := store.Upsert("/Users/lee/Code/myapp", "renamed-app", "internal"); err != nil {
 			t.Fatalf("unexpected error on second upsert: %v", err)
 		}
@@ -381,7 +373,6 @@ func TestList(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "projects.json")
 
-		// Write projects in non-sorted order
 		content := `{"projects":[
 			{"path":"/a","name":"oldest","last_used":"2026-01-01T00:00:00Z"},
 			{"path":"/c","name":"newest","last_used":"2026-03-01T00:00:00Z"},
@@ -532,7 +523,6 @@ func TestRename(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		// Original should be unchanged
 		projects, err := store.Load()
 		if err != nil {
 			t.Fatalf("failed to load: %v", err)
@@ -556,8 +546,8 @@ func TestStaleEntries(t *testing.T) {
 		liveDir := t.TempDir()
 		goneDir := filepath.Join(dir, "gone")
 
-		// A child under a 0000 parent so os.Stat returns permission denied
-		// (retained, NOT stale) — the tri-state default branch.
+		// A child under a 0000 parent: os.Stat returns permission denied, which
+		// must retain rather than prune.
 		parentDir := filepath.Join(dir, "restricted")
 		deniedDir := filepath.Join(parentDir, "child")
 		if err := os.MkdirAll(deniedDir, 0o755); err != nil {
@@ -612,9 +602,6 @@ func TestStaleEntries(t *testing.T) {
 	})
 }
 
-// TestCleanStaleRemovesExactlyStaleEntries proves CleanStale removes precisely
-// the set the shared StaleEntries predicate reports — the prune and the doctor
-// diagnosis provably share one classification and cannot drift.
 func TestCleanStaleRemovesExactlyStaleEntries(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "projects.json")
@@ -655,7 +642,6 @@ func TestCleanStaleRemovesExactlyStaleEntries(t *testing.T) {
 	}
 }
 
-// pathsOf returns the sorted Path fields of the given projects.
 func pathsOf(projects []project.Project) []string {
 	paths := make([]string, 0, len(projects))
 	for _, p := range projects {
@@ -670,7 +656,6 @@ func TestCleanStale(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "projects.json")
 
-		// existingDir is a real directory; staleDir does not exist
 		existingDir := t.TempDir()
 		staleDir := filepath.Join(dir, "gone")
 
@@ -752,13 +737,12 @@ func TestCleanStale(t *testing.T) {
 		dir := t.TempDir()
 		filePath := filepath.Join(dir, "projects.json")
 
-		// Create a parent dir, then a child inside it, then remove perms on parent
 		parentDir := filepath.Join(dir, "restricted")
 		childDir := filepath.Join(parentDir, "child")
 		if err := os.MkdirAll(childDir, 0o755); err != nil {
 			t.Fatalf("failed to create child dir: %v", err)
 		}
-		// Remove execute permission on parent so stat on child returns permission denied
+		// Without execute permission on the parent, stat on the child is denied.
 		if err := os.Chmod(parentDir, 0o000); err != nil {
 			t.Fatalf("failed to chmod: %v", err)
 		}

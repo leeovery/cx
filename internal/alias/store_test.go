@@ -115,7 +115,6 @@ func TestSave(t *testing.T) {
 			t.Errorf("expected directory, got file")
 		}
 
-		// Verify file contents via reload
 		store2 := alias.NewStore(filePath)
 		aliases, err := store2.Load()
 		if err != nil {
@@ -323,7 +322,6 @@ func TestFileFormat(t *testing.T) {
 		}
 
 		content := string(data)
-		// File should be sorted by name, one per line
 		want := "aa=/Users/lee/Code/aerobid/api\nm2api=/Users/lee/Code/mac2/api\n"
 		if content != want {
 			t.Errorf("file content = %q, want %q", content, want)

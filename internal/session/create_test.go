@@ -88,7 +88,6 @@ func TestShellFromEnv(t *testing.T) {
 	})
 }
 
-// mockGitResolver implements session.GitResolver for testing.
 type mockGitResolver struct {
 	resolvedDir string
 	err         error
@@ -104,7 +103,6 @@ func (m *mockGitResolver) Resolve(dir string) (string, error) {
 	return dir, nil
 }
 
-// mockProjectStore implements session.ProjectStore for testing.
 type mockProjectStore struct {
 	upsertPath  string
 	upsertName  string
@@ -121,16 +119,12 @@ func (m *mockProjectStore) Upsert(path, name, via string) error {
 	return m.upsertErr
 }
 
-// setOptionCall records a single SetSessionOption invocation. Both @portal-dir
-// and @portal-id stamp via SetSessionOption, so tests record ALL calls and
-// assert each option independently.
 type setOptionCall struct {
 	Session string
 	Name    string
 	Value   string
 }
 
-// mockTmuxClient implements session.TmuxClient for testing.
 type mockTmuxClient struct {
 	existingSessions   map[string]bool
 	newSessionName     string
@@ -142,8 +136,6 @@ type mockTmuxClient struct {
 	setOptionErr   error
 }
 
-// setOptionCallFor returns the recorded SetSessionOption call for the given
-// option name, and whether one was made.
 func (m *mockTmuxClient) setOptionCallFor(name string) (setOptionCall, bool) {
 	for _, c := range m.setOptionCalls {
 		if c.Name == name {
@@ -198,8 +190,7 @@ func TestCreateFromDir(t *testing.T) {
 	})
 
 	t.Run("derives project name from basename of resolved directory", func(t *testing.T) {
-		dir := t.TempDir() // e.g., /tmp/TestXxx/001
-		// Resolve to this same dir so basename is used as project name
+		dir := t.TempDir()
 		gitResolver := &mockGitResolver{}
 		store := &mockProjectStore{}
 		tmuxClient := &mockTmuxClient{existingSessions: map[string]bool{}}
@@ -267,8 +258,6 @@ func TestCreateFromDir(t *testing.T) {
 			t.Errorf("upsert name = %q, want %q", store.upsertName, wantName)
 		}
 
-		// The session-creation pipeline is a code-driven mutation, so the
-		// breadcrumb must record via=internal.
 		if store.upsertVia != "internal" {
 			t.Errorf("upsert via = %q, want %q", store.upsertVia, "internal")
 		}
@@ -278,8 +267,6 @@ func TestCreateFromDir(t *testing.T) {
 		dir := t.TempDir()
 		gitResolver := &mockGitResolver{}
 		store := &mockProjectStore{}
-		// HasSession returns false (no server), NewSession succeeds
-		// (tmux new-session -A creates server if needed)
 		tmuxClient := &mockTmuxClient{existingSessions: map[string]bool{}}
 		gen := func() (string, error) { return "abc123", nil }
 
@@ -411,7 +398,6 @@ func TestCreateFromDir(t *testing.T) {
 
 		creator := session.NewSessionCreator(gitResolver, store, tmuxClient, gen)
 
-		// Change SHELL after construction — should NOT affect the creator
 		t.Setenv("SHELL", "/bin/bash")
 
 		_, err := creator.CreateFromDir(dir, []string{"vim"})
@@ -501,8 +487,6 @@ func TestCreateFromDir(t *testing.T) {
 		gitRoot := t.TempDir()
 		subDir := filepath.Join(gitRoot, "a", "b", "c")
 
-		// The resolver maps the deep subdir to the git root. The stamp value
-		// must be that resolved root, never the input subdir.
 		gitResolver := &mockGitResolver{resolvedDir: gitRoot}
 		store := &mockProjectStore{}
 		tmuxClient := &mockTmuxClient{existingSessions: map[string]bool{}}
@@ -623,8 +607,7 @@ func TestCreateFromDir(t *testing.T) {
 		gitResolver := &mockGitResolver{}
 		store := &mockProjectStore{}
 		tmuxClient := &mockTmuxClient{existingSessions: map[string]bool{}}
-		// The generator succeeds for the session-name generation (first call in
-		// PrepareSession) and fails on the stamp-time call (second).
+		// gen succeeds for the name and fails on the stamp call.
 		calls := 0
 		gen := func() (string, error) {
 			calls++

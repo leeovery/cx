@@ -1,22 +1,5 @@
 package portaltest
 
-// log_level_resolved.go — test-only assertion that PORTAL_LOG_LEVEL
-// propagated to a spawned portal process.
-//
-// The `process: log-level resolved` line (emitted by internal/log.Init
-// immediately after `process: start`) is the positive marker that proves
-// the resolved level took effect. It bypasses the level filter, so it is
-// present even at PORTAL_LOG_LEVEL=warn/error. Integration tests that set
-// PORTAL_LOG_LEVEL assert on this line via AssertLogLevelResolved so a
-// silent propagation failure (tmux clearing the env on respawn-pane, or a
-// harness forgetting to pass it) surfaces as a test failure rather than
-// degraded-but-passing coverage.
-//
-// Test-only. AssertLogLevelResolved takes *testing.T first, keeping it in
-// the package's *testing.T-first majority (the testing import would fail
-// production builds). The pure parser findLogLevelResolved is unexported
-// and unit-tested directly.
-
 import (
 	"os"
 	"strconv"
@@ -24,21 +7,10 @@ import (
 	"testing"
 )
 
-// AssertLogLevelResolved scans the portal.log at logPath for the
-// `process: log-level resolved` line matching the given pid and asserts the
-// resolved level matches expected with source="env". Used by integration
-// tests that set PORTAL_LOG_LEVEL.
-//
-// Callers typically pass state.PortalLog(stateDir) — the portal.log symlink,
-// which os.ReadFile follows to today's day file automatically. Only text-mode
-// (the production tail/grep default) is parsed; JSON mode is out of scope.
-//
-// It fails the test when:
-//   - the file cannot be read (the marker can't be found if the log is gone);
-//   - no log-level resolved line exists for pid (env did not propagate);
-//   - the matched line's source is not "env" (default/fallback => the harness
-//     did not set PORTAL_LOG_LEVEL or set it to an invalid value);
-//   - the matched line's resolved level differs from expected.
+// AssertLogLevelResolved fails the test unless the log at logPath carries a
+// `process: log-level resolved` line for pid whose level is expected and whose
+// source is "env" — i.e. unless PORTAL_LOG_LEVEL actually reached the spawned
+// process. Only text-mode logs are parsed.
 func AssertLogLevelResolved(t *testing.T, logPath string, pid int, expected string) {
 	t.Helper()
 
@@ -64,15 +36,8 @@ func AssertLogLevelResolved(t *testing.T, logPath string, pid int, expected stri
 	}
 }
 
-// findLogLevelResolved scans content line-by-line for the process: log-level
-// resolved line whose pid attr equals pid, returning its resolved and source
-// attr values. It tolerates baseline-attr ordering (attrs are parsed into a map,
-// not by position) and strips surrounding double quotes from quoted values.
-//
-// Multiple processes may have written to the same day file (reboot recovery), so
-// the pid match is load-bearing: every candidate line is checked and only the one
-// whose pid attr equals pid is selected. Returns ("", "", false) when no matching
-// line exists.
+// Several processes may share one day file, so the pid match is load-bearing:
+// every candidate line is checked and only the one matching pid is selected.
 func findLogLevelResolved(content string, pid int) (resolved, source string, found bool) {
 	wantPID := strconv.Itoa(pid)
 	for line := range strings.SplitSeq(content, "\n") {
@@ -88,19 +53,13 @@ func findLogLevelResolved(content string, pid int) (resolved, source string, fou
 	return "", "", false
 }
 
-// isLogLevelResolvedLine reports whether line is a process-component
-// log-level resolved record. The component renders as the literal "process:"
-// prefix before the message, so both the prefix and the message must be present.
 func isLogLevelResolvedLine(line string) bool {
 	return strings.Contains(line, "process:") &&
 		strings.Contains(line, "log-level resolved")
 }
 
-// parseLogAttrs extracts the trailing key=value attr pairs of a text-mode log
-// line into a map. It splits on whitespace, keeps only tokens containing '=',
-// and strips surrounding double quotes from values. Quoted values containing
-// spaces are not reconstructed — the attrs this helper reads (pid/resolved/
-// source) are all single-token, and raw is only ever a single token in practice.
+// parseLogAttrs does not reconstruct a quoted value containing spaces; the attrs
+// read here are all single-token.
 func parseLogAttrs(line string) map[string]string {
 	attrs := make(map[string]string)
 	for tok := range strings.FieldsSeq(line) {

@@ -30,7 +30,6 @@ func TestAddTag(t *testing.T) {
 		if len(projects) != 1 {
 			t.Fatalf("got %d projects, want 1", len(projects))
 		}
-		// Edges trimmed, case preserved: "  Work " -> "Work".
 		want := []string{"Work"}
 		if len(projects[0].Tags) != len(want) {
 			t.Fatalf("Tags = %#v, want %#v", projects[0].Tags, want)
@@ -49,9 +48,6 @@ func TestAddTag(t *testing.T) {
 			t.Fatalf("unexpected error on upsert: %v", err)
 		}
 
-		// "  Code Review " trims to "Code Review" — edges stripped, internal
-		// space and case preserved (not collapsed, not folded). Asserts the
-		// contract at the store boundary, not just at the NormaliseTag unit level.
 		if err := store.AddTag("/code/portal", "  Code Review "); err != nil {
 			t.Fatalf("unexpected error on AddTag: %v", err)
 		}
@@ -80,14 +76,11 @@ func TestAddTag(t *testing.T) {
 			t.Fatalf("unexpected error on first AddTag: %v", err)
 		}
 
-		// File state before the duplicate add.
 		infoBefore, err := os.Stat(filePath)
 		if err != nil {
 			t.Fatalf("failed to stat file: %v", err)
 		}
 
-		// Adding "  work " (trims to the already-present "work") must be a
-		// deduped no-op.
 		if err := store.AddTag("/code/portal", "  work "); err != nil {
 			t.Fatalf("unexpected error on duplicate AddTag: %v", err)
 		}
@@ -121,8 +114,6 @@ func TestAddTag(t *testing.T) {
 		if err := store.AddTag("/code/portal", "work"); err != nil {
 			t.Fatalf("unexpected error on first AddTag: %v", err)
 		}
-		// "WORK" is NOT a duplicate of "work" — case is preserved and matching
-		// is case-sensitive, so both are kept.
 		if err := store.AddTag("/code/portal", "WORK"); err != nil {
 			t.Fatalf("unexpected error on second AddTag: %v", err)
 		}
@@ -177,7 +168,6 @@ func TestAddTag(t *testing.T) {
 		filePath := filepath.Join(dir, "projects.json")
 		store := project.NewStore(filePath)
 
-		// No projects.json exists on disk yet.
 		err := store.AddTag("/code/absent", "work")
 		if !errors.Is(err, project.ErrProjectNotFound) {
 			t.Fatalf("err = %v, want ErrProjectNotFound", err)
@@ -202,7 +192,6 @@ func TestRemoveTag(t *testing.T) {
 			t.Fatalf("unexpected error on AddTag: %v", err)
 		}
 
-		// Removal matches the stored tag exactly (trimmed, case-sensitive).
 		if err := store.RemoveTag("/code/portal", "  work "); err != nil {
 			t.Fatalf("unexpected error on RemoveTag: %v", err)
 		}
@@ -228,7 +217,6 @@ func TestRemoveTag(t *testing.T) {
 			t.Fatalf("unexpected error on AddTag: %v", err)
 		}
 
-		// "Work" does not match the stored "work" (case-sensitive) — no removal.
 		if err := store.RemoveTag("/code/portal", "Work"); err != nil {
 			t.Fatalf("unexpected error on case-variant RemoveTag: %v", err)
 		}

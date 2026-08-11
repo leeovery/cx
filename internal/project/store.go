@@ -14,22 +14,8 @@ import (
 	"github.com/leeovery/portal/internal/storelog"
 )
 
-// logger is the projects-component logger, bound once at package init. Every
-// projects.json mutation that flows through Upsert/Rename/Remove/CleanStale
-// emits a single breadcrumb under this component so `grep "projects:"
-// portal.log` reconstructs the change history. Importing internal/log
-// introduces no cycle — internal/log depends only on the standard library.
-//
-// Attr-key convention (per the closed attr-key vocabulary): the `project` attr
-// carries the project NAME, the `path` attr carries the filesystem PATH (which
-// is also the addressable match key Upsert/Rename/Remove all key on), and the
-// `value` attr carries the verbatim new value for set/modify.
-//
-// Message-shape: the op verb is BOTH the slog message (preserving the
-// `projects: <verb>` catalog shape and grep idiom) AND a required "op" attr
-// drawn from the closed value space (set / modify / rm / clean-stale), so JSON
-// output and `grep op=set` filtering both work — see the hooks store for the
-// full rationale.
+// The op verb is both the slog message and a required "op" attr, so the
+// `projects: <verb>` grep idiom and `grep op=set` filtering both work.
 var logger = log.For("projects")
 
 // Project represents a remembered project directory.
@@ -40,7 +26,6 @@ type Project struct {
 	Tags     []string  `json:"tags,omitempty"`
 }
 
-// projectsFile is the on-disk JSON structure for projects.json.
 type projectsFile struct {
 	Projects []Project `json:"projects"`
 }
@@ -50,13 +35,12 @@ type Store struct {
 	path string
 }
 
-// NewStore creates a Store that reads and writes to the given file path.
 func NewStore(path string) *Store {
 	return &Store{path: path}
 }
 
-// Load reads projects from the JSON file.
-// Returns an empty slice when the file is missing or contains malformed JSON.
+// Load reads projects from the JSON file, returning an empty slice when the
+// file is missing or holds malformed JSON.
 func (s *Store) Load() ([]Project, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
@@ -74,8 +58,8 @@ func (s *Store) Load() ([]Project, error) {
 	return f.Projects, nil
 }
 
-// Save writes projects to the JSON file using atomic write (temp file + rename).
-// Creates the parent directory if it does not exist.
+// Save atomically writes projects to the JSON file, creating the parent
+// directory if it does not exist.
 func (s *Store) Save(projects []Project) error {
 	f := projectsFile{Projects: projects}
 	data, err := json.MarshalIndent(f, "", "  ")
@@ -86,27 +70,10 @@ func (s *Store) Save(projects []Project) error {
 	return fileutil.AtomicWrite(s.path, data)
 }
 
-// Upsert adds a new project or updates an existing one matched by path.
-// The LastUsed timestamp is set to the current time. If the project already
-// exists (matched by Path), its Name and LastUsed are updated.
-//
-// via records the mutation origin for the audit breadcrumb and is drawn from
-// the closed value space cli / internal / migrate (internal for code-driven
-// mutations such as the session-creation pipeline).
-//
-// Upsert emits one audit breadcrumb under the projects component, classified
-// from the pre-write Load:
-//   - path NOT found -> INFO "set"
-//   - path FOUND     -> INFO "modify"
-//
-// A true set-noop (file unchanged) is effectively UNREACHABLE: Upsert always
-// bumps LastUsed=now even when the name matches, so the file always changes.
-// "path found" therefore maps to op="modify"; the set-noop op would only become
-// reachable if the LastUsed bump were skipped — which we deliberately do NOT do
-// (the timestamp behaviour is load-bearing for List ordering).
-//
-// On a persist failure the breadcrumb is WARN carrying the wrapped error and its
-// write-failed-* error_class.
+// Upsert adds a new project or updates the one matched by path, always bumping
+// LastUsed to now — List orders on that timestamp, so the bump is load-bearing
+// and must not be skipped for an unchanged name. via records the mutation
+// origin for the audit breadcrumb: cli, internal or migrate.
 func (s *Store) Upsert(path, name, via string) error {
 	projects, err := s.Load()
 	if err != nil {
@@ -125,8 +92,6 @@ func (s *Store) Upsert(path, name, via string) error {
 		}
 	}
 
-	// op classified from the pre-write Load: an existing path is op="modify",
-	// a brand-new path is op="set". set-noop is unreachable (see doc comment).
 	op := "set"
 	if found {
 		op = "modify"
@@ -164,17 +129,9 @@ func (s *Store) List() ([]Project, error) {
 	return projects, nil
 }
 
-// StaleEntries loads projects.json and returns the records whose directory no
-// longer exists on disk — the store-owned staleness predicate. It is the single
-// owner of the os.Stat tri-state classification (via partitionByExistence):
-// CleanStale prunes through the same classifier, and doctor's strictly
-// read-only stale-projects diagnosis counts through StaleEntries, so the report
-// and the prune provably share one predicate and cannot silently drift.
-//
-// StaleEntries is read-only — it Loads and classifies, never Saves — so doctor
-// reuses it without any risk of mutation. A permission-denied / non-ErrNotExist
-// os.Stat error retains the entry (NOT stale), matching the conservative
-// default branch below.
+// StaleEntries returns the records whose directory no longer exists on disk. It
+// is read-only, and shares its predicate with CleanStale so a report and a prune
+// cannot drift; a stat error other than ErrNotExist retains the entry.
 func (s *Store) StaleEntries() ([]Project, error) {
 	projects, err := s.Load()
 	if err != nil {
@@ -184,11 +141,6 @@ func (s *Store) StaleEntries() ([]Project, error) {
 	return removed, nil
 }
 
-// partitionByExistence splits projects into the kept (directory present, or an
-// os.Stat error other than ErrNotExist such as permission-denied) and removed
-// (directory gone — os.Stat reports ErrNotExist) sets. It is the single home of
-// the os.Stat tri-state classification, shared by StaleEntries (doctor's
-// read-only count) and CleanStale (the prune), so the two cannot drift.
 func partitionByExistence(projects []Project) (kept, removed []Project) {
 	for _, p := range projects {
 		_, statErr := os.Stat(p.Path)
@@ -198,37 +150,17 @@ func partitionByExistence(projects []Project) (kept, removed []Project) {
 		case errors.Is(statErr, os.ErrNotExist):
 			removed = append(removed, p)
 		default:
-			// Permission denied or other errors: retain the project.
+			// An unreadable directory (permission denied) is not evidence of
+			// staleness: retain it.
 			kept = append(kept, p)
 		}
 	}
 	return kept, removed
 }
 
-// CleanStale removes projects whose directories no longer exist on disk.
-// Projects with permission errors are retained. Returns the removed projects.
-// The file is only saved if at least one project was removed.
-//
-// CleanStale is a batch mutation and follows the batch-summary breadcrumb shape:
-// one DEBUG per removed project, then exactly one INFO summary (op clean-stale,
-// entries=N, via=internal, took=<elapsed>) on a successful whole-batch Save, or
-// one WARN carrying the wrapped error and its write-failed-* error_class on a
-// Save failure. via is always "internal" because CleanStale is only ever invoked
-// by code-driven cleanup, never a user-facing command.
-//
-// Zero-removal case (decision (a), documented): a clean that removes nothing is
-// an idempotent no-op. It emits NO summary and performs NO Save — the
-// batch-summary INFO is reserved for batches that did work and must not clutter
-// the INFO baseline.
-//
-// [needs-info, resolved-in-comment] The spec's batch contract mentions a
-// per-entry WARN with error_class=unexpected on a mid-loop failure. That has no
-// reachable site here: the kept/removed partition is computed entirely in memory
-// and persistence is a SINGLE batched Save of the kept slice. There is no point
-// at which one entry can fail while the batch continues — the only failure mode
-// is the whole-batch Save below, which is write-failed-* (not unexpected). We do
-// NOT fabricate a synthetic per-entry failure path. (Same reasoning as the hooks
-// store's CleanStale.)
+// CleanStale removes and returns the projects whose directories no longer exist,
+// retaining those whose stat failed for another reason. A clean that removes
+// nothing writes no file and emits no summary.
 func (s *Store) CleanStale() ([]Project, error) {
 	start := time.Now()
 
@@ -237,12 +169,8 @@ func (s *Store) CleanStale() ([]Project, error) {
 		return nil, fmt.Errorf("failed to load projects: %w", err)
 	}
 
-	// Partition via the shared classifier so the prune and doctor's read-only
-	// diagnosis derive their stale set from the identical os.Stat tri-state and
-	// cannot drift.
 	kept, removed := partitionByExistence(projects)
 
-	// Zero-removal case: skip both the Save and the summary (decision (a)).
 	if len(removed) == 0 {
 		return removed, nil
 	}
@@ -252,30 +180,18 @@ func (s *Store) CleanStale() ([]Project, error) {
 	}
 
 	if err := s.Save(kept); err != nil {
-		// Whole-batch persist failure: the shared helper emits the WARN with the
-		// write-failed-* error_class (from the AtomicWrite phase space, NOT
-		// "unexpected"); we wrap-and-return.
 		storelog.EmitCleanStaleSummary(logger, len(removed), start, err)
 		return nil, fmt.Errorf("failed to save after cleaning stale projects: %w", err)
 	}
 
-	// entries_failed is omitted: there is no per-entry failure path (see the
-	// [needs-info] note above), so M is always 0 and the attr stays absent.
 	storelog.EmitCleanStaleSummary(logger, len(removed), start, nil)
 
 	return removed, nil
 }
 
-// Rename updates the display name of the project matched by path.
-// It does not change the LastUsed timestamp. It is a no-op if the path is not found.
-//
-// via records the mutation origin for the audit breadcrumb (cli for the
-// user-facing TUI rename).
-//
-// When the path is absent, Rename returns nil WITHOUT a Save and emits NOTHING
-// — there is no mutation to audit. When the path is found, after Save it emits
-// one breadcrumb under the projects component: INFO "modify" on success, or WARN
-// "modify" with the wrapped error and its error_class on a persist failure.
+// Rename updates the display name of the project matched by path, leaving
+// LastUsed untouched. An absent path is a silent no-op: no write, no breadcrumb.
+// via records the mutation origin for the audit breadcrumb.
 func (s *Store) Rename(path, newName, via string) error {
 	projects, err := s.Load()
 	if err != nil {
@@ -295,29 +211,19 @@ func (s *Store) Rename(path, newName, via string) error {
 		}
 	}
 
-	// Path absent: no-op, no Save, no breadcrumb (nothing was mutated).
 	return nil
 }
 
-// Remove deletes the project with the given path. It is a no-op if the path
-// is not found.
-//
-// via records the mutation origin for the audit breadcrumb (cli for the
-// user-facing TUI delete).
-//
-// Remove always rewrites the file via Save — even removing an absent path
-// re-persists the (unchanged) filtered slice — so it always emits one breadcrumb
-// under the projects component: INFO "rm" (no value attr) on success, or WARN
-// "rm" with the wrapped error and its error_class on a persist failure. The
-// absent-path case still Saves, so it still emits the INFO.
+// Remove deletes the project with the given path. It rewrites the file even when
+// the path is absent, so the breadcrumb is emitted either way. via records the
+// mutation origin for the audit breadcrumb.
 func (s *Store) Remove(path, via string) error {
 	projects, err := s.Load()
 	if err != nil {
 		return fmt.Errorf("failed to load projects: %w", err)
 	}
 
-	// Resolve the removed entry's name (for the project attr) before deleting.
-	// An absent path has no matching entry, so name stays empty.
+	// Read the name before the delete; afterwards the entry is gone.
 	var name string
 	for _, p := range projects {
 		if p.Path == path {

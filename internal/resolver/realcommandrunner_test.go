@@ -9,8 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/resolver"
 )
 
-// TestRealCommandRunner_Run_Success verifies the happy path returns stdout
-// verbatim with a nil error.
 func TestRealCommandRunner_Run_Success(t *testing.T) {
 	r := &resolver.RealCommandRunner{}
 
@@ -23,9 +21,6 @@ func TestRealCommandRunner_Run_Success(t *testing.T) {
 	}
 }
 
-// TestRealCommandRunner_Run_EmbedsArgvAndStderrOnNonZeroExit verifies the
-// wrapped error carries the argv and the child's trimmed stderr on a non-zero
-// exit, and remains errors.As-recoverable to *exec.ExitError.
 func TestRealCommandRunner_Run_EmbedsArgvAndStderrOnNonZeroExit(t *testing.T) {
 	r := &resolver.RealCommandRunner{}
 
@@ -51,9 +46,6 @@ func TestRealCommandRunner_Run_EmbedsArgvAndStderrOnNonZeroExit(t *testing.T) {
 	}
 }
 
-// TestRealCommandRunner_Run_PathLookupErrorWrapsCleanly verifies a missing
-// binary wraps cleanly (empty stderr) and stays errors.As-recoverable to
-// *exec.Error.
 func TestRealCommandRunner_Run_PathLookupErrorWrapsCleanly(t *testing.T) {
 	r := &resolver.RealCommandRunner{}
 

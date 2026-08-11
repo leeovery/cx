@@ -6,26 +6,17 @@ import (
 	"strings"
 )
 
-// PortalDirOption is the tmux session user-option that stamps a session with
-// its resolved directory (the git-root computed in PrepareSession). It is the
-// fast path for mapping a live session back to its directory at grouped render
-// time — a freely-renamed session name cannot do this. It rides the session
-// object, not its name, so it survives rename without a re-stamp.
+// PortalDirOption stamps a session with its resolved directory, so a live
+// session maps back to its directory without going through its renameable name.
 const PortalDirOption = "@portal-dir"
 
-// PortalIDOption is the tmux session user-option that stamps a session with its
-// immutable, rename-immune Portal identity: a fresh opaque token frozen at
-// creation. Like @portal-dir it rides the session object, not its name, so it
-// survives a rename without a re-stamp — but resume hooks key on it precisely so
-// a rename cannot orphan them (the mutable session name cannot serve as that
-// anchor). Parallel to PortalDirOption in shape, it diverges in lifecycle:
-// @portal-dir lazy-re-derives when absent, whereas @portal-id must be persisted
-// across reboots and re-stamped on restore (a Phase 3 concern) because there is
-// no way to re-derive a frozen identity.
+// PortalIDOption stamps a session with an immutable opaque token frozen at
+// creation — the identity resume hooks key on, so a rename cannot orphan them.
+// Unlike a directory it cannot be re-derived, so it must be persisted across
+// reboots and re-stamped on restore.
 //
-// The literal MUST stay byte-identical to the "@portal-id" embedded in
-// tmux.HookKeyFormat so every key-producing site agrees; consistency is achieved
-// by both using the identical literal.
+// The literal must stay byte-identical to the "@portal-id" embedded in
+// tmux.HookKeyFormat, or key-producing sites disagree.
 const PortalIDOption = "@portal-id"
 
 // ShellFromEnv returns the user's shell from $SHELL, falling back to /bin/sh.
@@ -37,10 +28,9 @@ func ShellFromEnv() string {
 	return shell
 }
 
-// BuildShellCommand constructs a tmux shell-command string from a command slice.
-// Returns empty string when command is nil or empty.
-// The format is: $SHELL -ic '<joined_cmd>; exec $SHELL'
-// Single quotes in the command are escaped using the '\” pattern.
+// BuildShellCommand renders command as a tmux shell-command of the form
+// $SHELL -ic '<joined>; exec $SHELL', returning "" for an empty command. A
+// single quote inside command is re-quoted so the outer quoting survives.
 func BuildShellCommand(command []string, shell string) string {
 	if len(command) == 0 {
 		return ""
@@ -67,7 +57,7 @@ type TmuxClient interface {
 	SetSessionOption(session, name, value string) error
 }
 
-// SessionCreator orchestrates the creation of a new tmux session from a directory.
+// SessionCreator creates a new tmux session from a directory.
 type SessionCreator struct {
 	git   GitResolver
 	store ProjectStore
@@ -76,8 +66,7 @@ type SessionCreator struct {
 	shell string
 }
 
-// NewSessionCreator creates a SessionCreator with the given dependencies.
-// The user's shell is resolved from $SHELL at construction time.
+// NewSessionCreator resolves the user's shell from $SHELL at construction time.
 func NewSessionCreator(git GitResolver, store ProjectStore, tmux TmuxClient, gen IDGenerator) *SessionCreator {
 	return &SessionCreator{
 		git:   git,
@@ -88,10 +77,9 @@ func NewSessionCreator(git GitResolver, store ProjectStore, tmux TmuxClient, gen
 	}
 }
 
-// CreateFromDir resolves the directory to a git root, generates a session name,
-// upserts the project in the store, and creates a tmux session.
-// When command is non-nil and non-empty, constructs a shell-command for tmux.
-// Returns the generated session name.
+// CreateFromDir resolves dir to a git root, registers the project, creates the
+// tmux session and returns its generated name. A non-empty command becomes the
+// session's initial shell-command.
 func (sc *SessionCreator) CreateFromDir(dir string, command []string) (string, error) {
 	prepared, err := PrepareSession(dir, command, sc.git, sc.store, sc.tmux, sc.gen, sc.shell)
 	if err != nil {
@@ -102,21 +90,11 @@ func (sc *SessionCreator) CreateFromDir(dir string, command []string) (string, e
 		return "", fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	// Stamp @portal-dir and @portal-id onto the freshly-created session. Both are
-	// best-effort at this point: a stamp failure must never fail session creation.
-	// Swallowed silently — the session package has no log component and the closed
-	// component vocabulary does not include one.
-	//
-	// @portal-dir is the fast-path for directory resolution at grouped render
-	// time; an un-stamped session is re-derived and re-stamped by the lazy
-	// stamp-on-render fallback on its first grouped render.
-	//
-	// @portal-id is the immutable rename-immune identity resume hooks key on. It
-	// is frozen here from a fresh generator token; a generation error skips the
-	// stamp entirely (session left un-stamped, hook keys fall back to the session
-	// name). Fire-and-forget: no uniqueness check, so correctness relies on the
-	// generator's width making a birthday collision negligible — the accepted
-	// residual is hook-key cross-talk between two panes that happen to share an id.
+	// Both stamps are best-effort and swallowed: a stamp failure must never fail
+	// session creation, and this package has no log component to report it. An
+	// unstamped session falls back to a derived directory and to its name as
+	// identity. The id is fire-and-forget with no uniqueness check — collision
+	// resistance rests entirely on the generator's width.
 	_ = sc.tmux.SetSessionOption(prepared.SessionName, PortalDirOption, prepared.ResolvedDir)
 
 	if token, genErr := sc.gen(); genErr == nil {

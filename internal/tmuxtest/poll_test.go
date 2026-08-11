@@ -6,16 +6,11 @@ import (
 	"time"
 )
 
-// TestPollUntil_ReturnsTrueWhenCondBecomesTrueBeforeTimeout exercises
-// the success path: cond flips to true after a handful of ticks and
-// PollUntil returns true well inside the configured timeout.
 func TestPollUntil_ReturnsTrueWhenCondBecomesTrueBeforeTimeout(t *testing.T) {
 	var calls atomic.Int32
 	cond := func() bool {
-		// Flip true on the third invocation so the loop must tick at
-		// least twice before observing success — this rules out a
-		// false positive where the helper happens to short-circuit on
-		// the first iteration.
+		// Flip on the third call so a helper that short-circuits on the first
+		// iteration cannot pass.
 		return calls.Add(1) >= 3
 	}
 	start := time.Now()
@@ -30,9 +25,6 @@ func TestPollUntil_ReturnsTrueWhenCondBecomesTrueBeforeTimeout(t *testing.T) {
 	}
 }
 
-// TestPollUntil_ReturnsFalseWhenTimeoutElapsesWithCondNeverTrue
-// exercises the timeout path: cond is constant-false so PollUntil must
-// return false after at least the configured timeout has elapsed.
 func TestPollUntil_ReturnsFalseWhenTimeoutElapsesWithCondNeverTrue(t *testing.T) {
 	cond := func() bool { return false }
 	start := time.Now()

@@ -11,30 +11,16 @@ import (
 	"syscall"
 )
 
-// hashSizeCap is the inclusive upper bound on file size eligible for
-// SHA-256 content hashing. Files larger than this are still
-// fingerprinted (size + mtime + ctime) but not hashed — content
-// changes that do not move size/mtime/ctime would slip past the
-// backstop for >1 MiB files, which is an acceptable trade-off
-// against the cost of hashing arbitrarily large files in every
-// test cleanup.
-const hashSizeCap = 1 << 20 // 1 MiB
+// Larger files are still fingerprinted but not hashed: a content change that
+// moves neither size nor mtime nor ctime slips past, an accepted trade against
+// hashing arbitrarily large files in every test cleanup.
+const hashSizeCap = 1 << 20
 
-// Fingerprint captures everything needed to detect mutation of a
-// single filesystem entry under a directory tree.
-//
-// All stats are gathered via os.Lstat so symlink mutations (target
-// change, file-to-symlink swap) are visible at the snapshot layer.
-//
-// Hashed reports whether Sha256 was populated; for files >hashSizeCap
-// and for non-regular entries (symlinks, directories) it is false and
-// the snapshot relies on Size/MtimeNanos/CtimeNanos (and SymlinkTarget
-// for symlinks) to detect change.
-//
-// Exported (with exported fields) so out-of-package integration tests
-// can take a directory snapshot at a caller-chosen point in time and
-// compare two snapshots field-by-field. The shared shape keeps the
-// in-package backstop and out-of-package callers from drifting.
+// Fingerprint captures everything needed to detect mutation of a single
+// filesystem entry. Stats come from os.Lstat, so a symlink reports its own
+// metadata rather than its target's. Hashed reports whether Sha256 was
+// populated: it is false for non-regular entries and for files over
+// hashSizeCap, which are then compared on size and timestamps alone.
 type Fingerprint struct {
 	Exists        bool
 	Size          int64
@@ -46,19 +32,10 @@ type Fingerprint struct {
 	SymlinkTarget string
 }
 
-// SnapshotStateDir walks root and returns a map keyed by path
-// relative to root. A non-existent root yields an empty map and
-// nil error — any post-snapshot content then counts as "created".
-//
-// Walk uses os.Lstat (NOT Stat) so symlinks at any depth report
-// their own inode metadata, not the target's. WalkDir does not
-// follow symlinks by default. Sub-symlinks pointing into the
-// directory are recorded as entries but not descended into.
-//
-// Exported for integration tests that need to compare two
-// snapshots at caller-chosen points (e.g. before/after a SIGKILL).
-// The in-package backstop in isolated_env.go consumes the same
-// function so the two paths cannot drift.
+// SnapshotStateDir walks root and returns a fingerprint per entry, keyed by path
+// relative to root. A non-existent root yields an empty map and a nil error, so
+// anything appearing later counts as created. Symlinks are recorded but not
+// descended into.
 func SnapshotStateDir(root string) (map[string]Fingerprint, error) {
 	out := make(map[string]Fingerprint)
 
@@ -71,13 +48,9 @@ func SnapshotStateDir(root string) (map[string]Fingerprint, error) {
 
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Surface walk errors at lower layers; one unreadable
-			// entry should not silently drop the rest.
 			return err
 		}
 		if path == root {
-			// Skip the root itself; the snapshot tracks entries
-			// inside the state dir, not the dir's own metadata.
 			return nil
 		}
 
@@ -99,9 +72,6 @@ func SnapshotStateDir(root string) (map[string]Fingerprint, error) {
 	return out, nil
 }
 
-// fingerprintEntry stats path via Lstat, fills Size/MtimeNanos/
-// CtimeNanos/SymlinkTarget/Sha256, and returns the populated
-// Fingerprint.
 func fingerprintEntry(path string) (Fingerprint, error) {
 	fp := Fingerprint{Exists: true}
 
@@ -132,7 +102,6 @@ func fingerprintEntry(path string) (Fingerprint, error) {
 	return fp, nil
 }
 
-// hashFile returns SHA-256 of path's contents.
 func hashFile(path string) ([32]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -141,17 +110,12 @@ func hashFile(path string) ([32]byte, error) {
 	return sha256.Sum256(data), nil
 }
 
-// errorReporter narrows the surface area to t.Errorf. Production
-// callers pass *testing.T.Errorf; meta-tests pass a recorder so the
-// cleanup logic can be exercised without polluting the host
-// testing.T with intentional failures.
+// errorReporter narrows the surface to t.Errorf so a recorder can stand in for
+// a real *testing.T.
 type errorReporter func(format string, args ...any)
 
-// FingerprintDelta captures a single per-(path, field) change between
-// two snapshots. Path is the relative path within the snapshot root;
-// Field is one of the canonical change classes (see DiffFingerprints).
-// Pre is the zero value when Field == "created"; Post is the zero
-// value when Field == "deleted".
+// FingerprintDelta is a single per-(path, field) change between two snapshots.
+// Pre is the zero value for a created path, Post for a deleted one.
 type FingerprintDelta struct {
 	Path  string
 	Field string
@@ -172,17 +136,10 @@ const (
 	fieldBecameSymlink = "became-symlink"
 )
 
-// DiffFingerprints returns the set of deltas between pre and post.
-// The returned slice is sorted by (Path, Field) so diagnostics built
-// on top of it are reproducible across re-runs.
-//
-// Per-path semantics: a path missing from one side yields a single
-// "created" or "deleted" delta; an IsSymlink flip yields a single
-// "became-symlink" delta (other channels are noise on a type swap);
-// otherwise zero or more field deltas (size, mtime, ctime, content,
-// hashed, symlink-target). "hashed" fires when the Hashed flag
-// flipped (file crossed hashSizeCap); "content" only when both
-// sides were Hashed and Sha256 differs.
+// DiffFingerprints returns the deltas between pre and post, sorted by (Path,
+// Field) so diagnostics are reproducible. A path present on one side only
+// yields a single created/deleted delta and a type swap a single
+// became-symlink delta, since the other channels are noise there.
 func DiffFingerprints(pre, post map[string]Fingerprint) []FingerprintDelta {
 	paths := unionPaths(pre, post)
 	out := make([]FingerprintDelta, 0, len(paths))
@@ -207,8 +164,6 @@ func DiffFingerprints(pre, post map[string]Fingerprint) []FingerprintDelta {
 	return out
 }
 
-// fieldDeltas returns per-field deltas for a path in both snapshots.
-// A type swap short-circuits to the became-symlink signal alone.
 func fieldDeltas(path string, before, after Fingerprint) []FingerprintDelta {
 	mk := func(field string) FingerprintDelta {
 		return FingerprintDelta{Path: path, Field: field, Pre: before, Post: after}
@@ -239,8 +194,7 @@ func fieldDeltas(path string, before, after Fingerprint) []FingerprintDelta {
 	return out
 }
 
-// FormatFingerprint renders fp compactly for error diagnostics where
-// the full fingerprint must be shown (created / deleted deltas).
+// FormatFingerprint renders fp compactly for error diagnostics.
 func FormatFingerprint(fp Fingerprint) string {
 	if fp.IsSymlink {
 		return fmt.Sprintf("symlink(target=%q, mtime=%d ns, ctime=%d ns)",
@@ -254,9 +208,7 @@ func FormatFingerprint(fp Fingerprint) string {
 		fp.Size, fp.MtimeNanos, fp.CtimeNanos)
 }
 
-// FormatDelta renders d as a single line for t.Errorf / t.Fatalf.
-// Created / deleted variants embed FormatFingerprint of the surviving
-// side; field-mutation variants embed pre and post values for the field.
+// FormatDelta renders d as a single diagnostic line.
 func FormatDelta(d FingerprintDelta) string {
 	switch d.Field {
 	case fieldCreated:
@@ -285,13 +237,6 @@ func FormatDelta(d FingerprintDelta) string {
 	}
 }
 
-// reportStateDirDelta snapshots root and reports every delta against
-// pre via report (one call per delta — the caller receives the full
-// picture). Delegates to DiffFingerprints and translates the canonical
-// Field names to the legacy backstop strings the in-package consumers
-// (isolated_env.go t.Cleanup hooks) already match on.
-//
-// Format: "portaltest backstop: developer state dir mutated at %s: %s"
 func reportStateDirDelta(report errorReporter, root string, pre map[string]Fingerprint) {
 	post, err := SnapshotStateDir(root)
 	if err != nil {
@@ -305,11 +250,8 @@ func reportStateDirDelta(report errorReporter, root string, pre map[string]Finge
 
 const deltaFmt = "portaltest backstop: developer state dir mutated at %s: %s"
 
-// backstopFieldLabels maps a canonical DiffFingerprints Field to the
-// legacy backstop string. Existing meta-tests assert exact equality
-// against these, so the legacy "-changed" suffix must be preserved.
-// created / deleted / became-symlink pass through verbatim and are
-// absent from the map.
+// Callers match on these exact strings, so the "-changed" suffix must be
+// preserved. created / deleted / became-symlink pass through verbatim.
 var backstopFieldLabels = map[string]string{
 	fieldSize:          "size-changed",
 	fieldMtime:         "mtime-changed",
@@ -326,7 +268,6 @@ func backstopFieldLabel(field string) string {
 	return field
 }
 
-// unionPaths returns the sorted union of map keys.
 func unionPaths(a, b map[string]Fingerprint) []string {
 	seen := make(map[string]struct{}, len(a)+len(b))
 	for k := range a {
@@ -343,18 +284,9 @@ func unionPaths(a, b map[string]Fingerprint) []string {
 	return out
 }
 
-// resolveDevStateDir resolves the developer's real state directory
-// using PRE-OVERRIDE env semantics. It MUST be called before the
-// helper mutates the spawned subprocess's XDG_CONFIG_HOME so the
-// snapshot targets the developer's live install, not the per-test
-// temp dir.
-//
-// Resolution precedence mirrors internal/xdg.ConfigBase but is
-// inlined here to avoid a dependency cycle and to make the
-// pre-override capture explicit at the call site:
-//  1. $XDG_CONFIG_HOME (verbatim) if non-empty
-//  2. $HOME/.config
-//  3. "" — caller is expected to skip the backstop if HOME is unset
+// resolveDevStateDir reads the ambient env, so it must run before any override
+// is installed or it resolves the per-test temp dir instead of the developer's
+// install. The precedence mirrors internal/xdg, inlined to avoid the dependency.
 func resolveDevStateDir() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "portal", "state")
@@ -365,12 +297,8 @@ func resolveDevStateDir() string {
 	return ""
 }
 
-// statNanos extracts (mtime, ctime) nanoseconds from a FileInfo.
-// Returns (0, 0) when the underlying syscall.Stat_t is not
-// available — on supported platforms (linux, darwin) this never
-// happens; the zero return is a graceful degradation that keeps
-// the backstop functional via size + content-hash even if the
-// stat call returns an unexpected type.
+// statNanos degrades to (0, 0) on a platform whose FileInfo is not backed by a
+// syscall.Stat_t, leaving size and content hash to carry the comparison.
 func statNanos(info os.FileInfo) (mtime, ctime int64) {
 	st, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {

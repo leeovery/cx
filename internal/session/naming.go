@@ -12,12 +12,9 @@ const (
 	suffixLen  = 6
 )
 
-// NanoIDAlphabet is the single shared option-name-safe charset used both for
-// session-name nanoid suffixes and for the spawn package's ack ids
-// (internal/spawn/ackid.go). It contains lowercase, uppercase, and digits only:
-// no ".", ":", or space, and crucially no "-" — the absence of "-" keeps the
-// "<batch>-<token>" spawn-marker split unambiguous. Change it here and both
-// consumers observe it in lockstep.
+// NanoIDAlphabet is the shared option-name-safe charset for generated ids:
+// letters and digits only. The absence of "-" is load-bearing — it keeps the
+// "<batch>-<token>" spawn-marker split unambiguous.
 const NanoIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 // IDGenerator produces a random string suitable for use as a session name suffix.
@@ -26,16 +23,15 @@ type IDGenerator func() (string, error)
 // ExistsFunc reports whether a tmux session with the given name already exists.
 type ExistsFunc func(name string) bool
 
-// SanitiseProjectName replaces characters that are invalid in tmux session names
-// (periods and colons) with hyphens.
+// SanitiseProjectName replaces the characters tmux rejects in a session name —
+// periods and colons — with hyphens.
 func SanitiseProjectName(name string) string {
 	r := strings.NewReplacer(".", "-", ":", "-")
 	return r.Replace(name)
 }
 
-// GenerateSessionName produces a unique tmux session name in the format {project}-{nanoid}.
-// It sanitises the project name, appends a 6-character random suffix from gen,
-// and retries up to 10 times if the generated name collides with an existing session.
+// GenerateSessionName produces a session name of the form {project}-{nanoid},
+// retrying a bounded number of times on collision with an existing session.
 func GenerateSessionName(projectName string, gen IDGenerator, exists ExistsFunc) (string, error) {
 	sanitised := SanitiseProjectName(projectName)
 
@@ -54,8 +50,8 @@ func GenerateSessionName(projectName string, gen IDGenerator, exists ExistsFunc)
 	return "", fmt.Errorf("failed to generate unique session name after %d attempts", maxRetries)
 }
 
-// NewNanoIDGenerator returns an IDGenerator that produces 6-character alphanumeric strings
-// using crypto/rand.
+// NewNanoIDGenerator returns an IDGenerator producing 6-character alphanumeric
+// strings from crypto/rand.
 func NewNanoIDGenerator() IDGenerator {
 	return func() (string, error) {
 		bytes := make([]byte, suffixLen)
