@@ -160,7 +160,6 @@ func TestMigrateConfigFile(t *testing.T) {
 		if err := os.MkdirAll(oldDir, 0o755); err != nil {
 			t.Fatalf("failed to create old dir: %v", err)
 		}
-		// Only aliases exists at old path
 		oldAliases := filepath.Join(oldDir, "aliases")
 		if err := os.WriteFile(oldAliases, []byte("a=/path/a"), 0o644); err != nil {
 			t.Fatalf("failed to write old aliases: %v", err)
@@ -170,7 +169,6 @@ func TestMigrateConfigFile(t *testing.T) {
 		if err := os.MkdirAll(newDir, 0o755); err != nil {
 			t.Fatalf("failed to create new dir: %v", err)
 		}
-		// projects.json already at new path
 		newProjects := filepath.Join(newDir, "projects.json")
 		if err := os.WriteFile(newProjects, []byte("existing"), 0o644); err != nil {
 			t.Fatalf("failed to write new projects: %v", err)
@@ -178,7 +176,6 @@ func TestMigrateConfigFile(t *testing.T) {
 
 		newAliases := filepath.Join(newDir, "aliases")
 
-		// Migrate aliases — should succeed
 		migrateConfigFile(oldAliases, newAliases, "aliases")
 
 		data, err := os.ReadFile(newAliases)
@@ -189,7 +186,6 @@ func TestMigrateConfigFile(t *testing.T) {
 			t.Errorf("aliases content = %q, want %q", string(data), "a=/path/a")
 		}
 
-		// Migrate projects — should be no-op (new path occupied)
 		oldProjects := filepath.Join(oldDir, "projects.json")
 		migrateConfigFile(oldProjects, newProjects, "projects")
 
@@ -238,7 +234,6 @@ func TestMigrateConfigFile(t *testing.T) {
 		if err := os.WriteFile(oldPath, []byte("data"), 0o644); err != nil {
 			t.Fatalf("failed to write old file: %v", err)
 		}
-		// Leave another file in old directory
 		otherFile := filepath.Join(oldDir, "hooks.json")
 		if err := os.WriteFile(otherFile, []byte("hooks"), 0o644); err != nil {
 			t.Fatalf("failed to write other file: %v", err)
@@ -273,7 +268,6 @@ func TestMigrateConfigFile(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		// Do NOT create newDir — migration should create it
 		newPath := filepath.Join(tmpDir, ".config", "portal", "aliases")
 
 		migrateConfigFile(oldPath, newPath, "aliases")
@@ -287,14 +281,9 @@ func TestMigrateConfigFile(t *testing.T) {
 		}
 	})
 
-	// Note: the rename-failure WARN behaviour (previously asserted on stderr
-	// here) moved to a structured log line and is covered by
-	// TestMigrateConfigFileLogging's "write-failed-rename" case.
-
 	t.Run("migration is skipped when stat of new path returns non-not-found error", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Create old file that would normally be migrated.
 		oldDir := filepath.Join(tmpDir, "Library", "Application Support", "portal")
 		if err := os.MkdirAll(oldDir, 0o755); err != nil {
 			t.Fatalf("failed to create old dir: %v", err)
@@ -304,8 +293,8 @@ func TestMigrateConfigFile(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		// Create the parent of newPath but make it unreadable so that
-		// os.Stat(newPath) returns a permission error (not "not exist").
+		// Unreadable parent so os.Stat(newPath) returns a permission error rather
+		// than not-exist.
 		newDir := filepath.Join(tmpDir, ".config", "portal")
 		if err := os.MkdirAll(newDir, 0o755); err != nil {
 			t.Fatalf("failed to create new dir: %v", err)
@@ -321,7 +310,6 @@ func TestMigrateConfigFile(t *testing.T) {
 
 		migrateConfigFile(oldPath, newPath, "projects")
 
-		// Old file must still exist — migration should have been skipped.
 		if _, err := os.Stat(oldPath); err != nil {
 			t.Errorf("old file should still exist when stat of new path fails with non-not-found error: %v", err)
 		}
@@ -367,7 +355,6 @@ func TestConfigFilePathMigration(t *testing.T) {
 		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
 
-		// Create old macOS path with file
 		oldDir := filepath.Join(tmpDir, "Library", "Application Support", "portal")
 		if err := os.MkdirAll(oldDir, 0o755); err != nil {
 			t.Fatalf("failed to create old dir: %v", err)
@@ -377,7 +364,6 @@ func TestConfigFilePathMigration(t *testing.T) {
 			t.Fatalf("failed to write old file: %v", err)
 		}
 
-		// Set per-file env var override
 		overridePath := filepath.Join(tmpDir, "custom", "projects.json")
 		t.Setenv("TEST_MIGRATE_ENVVAR", overridePath)
 
@@ -390,7 +376,6 @@ func TestConfigFilePathMigration(t *testing.T) {
 			t.Errorf("configFilePath() = %q, want %q", got, overridePath)
 		}
 
-		// Old file should still exist — migration should not have run
 		if _, err := os.Stat(oldPath); err != nil {
 			t.Errorf("old file should still exist when env var override is active: %v", err)
 		}
@@ -403,7 +388,6 @@ func TestConfigFilePathMigration(t *testing.T) {
 		xdgDir := filepath.Join(tmpDir, "custom-xdg")
 		t.Setenv("XDG_CONFIG_HOME", xdgDir)
 
-		// Create old macOS path with file
 		oldDir := filepath.Join(tmpDir, "Library", "Application Support", "portal")
 		if err := os.MkdirAll(oldDir, 0o755); err != nil {
 			t.Fatalf("failed to create old dir: %v", err)
@@ -423,12 +407,10 @@ func TestConfigFilePathMigration(t *testing.T) {
 			t.Errorf("configFilePath() = %q, want %q", got, want)
 		}
 
-		// Old file should have been migrated
 		if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
 			t.Errorf("old file should not exist after migration")
 		}
 
-		// New file should exist with correct content
 		data, err := os.ReadFile(want)
 		if err != nil {
 			t.Fatalf("failed to read migrated file: %v", err)

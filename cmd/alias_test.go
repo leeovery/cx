@@ -95,7 +95,6 @@ func TestAliasSetCommand(t *testing.T) {
 		aliasFile := filepath.Join(dir, "aliases")
 		t.Setenv("PORTAL_ALIASES_FILE", aliasFile)
 
-		// Set initial alias
 		resetRootCmd()
 		rootCmd.SetArgs([]string{"alias", "set", "proj", "/first/path"})
 		err := rootCmd.Execute()
@@ -103,7 +102,6 @@ func TestAliasSetCommand(t *testing.T) {
 			t.Fatalf("unexpected error on first set: %v", err)
 		}
 
-		// Overwrite with new path
 		buf := new(bytes.Buffer)
 		resetRootCmd()
 		rootCmd.SetOut(buf)
@@ -191,7 +189,6 @@ func TestAliasRmCommand(t *testing.T) {
 		aliasFile := filepath.Join(dir, "aliases")
 		t.Setenv("PORTAL_ALIASES_FILE", aliasFile)
 
-		// Seed aliases file
 		if err := os.WriteFile(aliasFile, []byte("proj=/Users/lee/Code/project\nwork=/Users/lee/Code/work\n"), 0o644); err != nil {
 			t.Fatalf("failed to write seed file: %v", err)
 		}
@@ -220,7 +217,6 @@ func TestAliasRmCommand(t *testing.T) {
 		aliasFile := filepath.Join(dir, "aliases")
 		t.Setenv("PORTAL_ALIASES_FILE", aliasFile)
 
-		// Empty aliases file
 		if err := os.WriteFile(aliasFile, []byte(""), 0o644); err != nil {
 			t.Fatalf("failed to write seed file: %v", err)
 		}
@@ -300,8 +296,6 @@ func TestAliasListCommand(t *testing.T) {
 		dir := t.TempDir()
 		aliasFile := filepath.Join(dir, "aliases")
 		t.Setenv("PORTAL_ALIASES_FILE", aliasFile)
-
-		// No aliases file exists
 
 		buf := new(bytes.Buffer)
 		resetRootCmd()

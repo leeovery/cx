@@ -1,12 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level state (openBurstDeps, openPathFunc) and
-// MUST NOT use t.Parallel. They exercise buildOpenBurstDeps — the open-burst DI
-// defaulting builder — proving injected fields survive the shared-bundle
-// defaulting and that every unset field (notably the NOVEL LocalMint → openPathFunc
-// default) falls back to its production implementation. Mirrors
-// TestBuildProductionSpawnSeams (spawn_seams_test.go).
-
 import (
 	"io"
 	"log/slog"
@@ -20,16 +13,12 @@ import (
 )
 
 func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T) {
-	// Scenario 1: partially-injected deps. The injected fields (Resolve, LocalMint,
-	// Logger) must win over the shared builder, and every unset field must be
-	// defaulted from the shared production seams / CLI defaults.
 	t.Run("injected fields win, unset fields defaulted", func(t *testing.T) {
 		isolateTerminalsFile(t)
 
 		client := tmux.NewClient(&recordingCommander{})
 		cmd := cmdWithClient(client)
 
-		// Distinguishable sentinels for the three injected fields.
 		injectedAdapter := &spawntest.FakeAdapter{}
 		injectedResolve := func(spawn.Identity) (spawn.Adapter, spawn.Resolution) {
 			return injectedAdapter, spawn.ResolutionConfig
@@ -48,9 +37,8 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 		}
 		t.Cleanup(func() { openBurstDeps = nil })
 
-		// Guard: if the injected LocalMint were wrongly overwritten by the default,
-		// invoking it would route to openPathFunc — record that so the assertion
-		// catches the overwrite instead of executing the real openPath side effect.
+		// Records rather than executing the real openPath side effect, so an
+		// overwritten LocalMint is caught by the assertion instead.
 		origOpenPath := openPathFunc
 		openPathRouted := false
 		openPathFunc = func(*cobra.Command, string, []string) error {
@@ -61,16 +49,13 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 
 		deps := buildOpenBurstDeps(cmd)
 
-		// Injected Resolve must win over the shared builder.
 		gotAdapter, gotResolution := deps.Resolve(spawn.Identity{})
 		if gotAdapter != spawn.Adapter(injectedAdapter) || gotResolution != spawn.ResolutionConfig {
 			t.Errorf("Resolve overwritten: got (%T, %q), want injected (*spawntest.FakeAdapter, %q)", gotAdapter, gotResolution, spawn.ResolutionConfig)
 		}
-		// Injected Logger must win.
 		if deps.Logger != injectedLogger {
 			t.Error("Logger overwritten: want the injected *slog.Logger instance")
 		}
-		// Injected LocalMint must win: invoking it hits the sentinel, NOT openPathFunc.
 		if err := deps.LocalMint(cmd, "/some/dir", nil); err != nil {
 			t.Fatalf("injected LocalMint returned error: %v", err)
 		}
@@ -81,7 +66,6 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 			t.Error("LocalMint overwritten: routed to openPathFunc instead of the injected sentinel")
 		}
 
-		// Unset fields must be filled from the shared production builder.
 		if _, ok := deps.Ack.(*spawn.ServerOptionAckChannel); !ok {
 			t.Errorf("Ack not defaulted from shared builder: got %T, want *spawn.ServerOptionAckChannel", deps.Ack)
 		}
@@ -95,7 +79,6 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 			t.Errorf("defaulted Getenv(PATH) = %q, want os.Getenv value %q", got, want)
 		}
 
-		// The non-shared burst defaults are populated.
 		if deps.Detector == nil {
 			t.Error("Detector default missing (should route through spawnDetector)")
 		}
@@ -107,8 +90,6 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 		}
 	})
 
-	// Scenario 2: LocalMint NOT injected, so it takes the NOVEL production default —
-	// which must route through the openPathFunc package var at CALL time.
 	t.Run("unset LocalMint defaults to openPathFunc", func(t *testing.T) {
 		isolateTerminalsFile(t)
 

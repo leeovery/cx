@@ -1,8 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level state (bootstrapDeps, the
-// memoisation gate) and MUST NOT use t.Parallel.
-
 import (
 	"context"
 	"errors"
@@ -13,10 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// recordingRunner counts Run invocations and returns a configurable
-// (started, warnings, err) tuple. Substituted into BootstrapDeps.Orchestrator
-// to verify PersistentPreRunE memoises the orchestrator call across
-// repeated invocations.
 type recordingRunner struct {
 	calls    int
 	started  bool
@@ -131,11 +124,6 @@ func TestPersistentPreRunE_OrchestratorErrorPropagatesAndContextNotPopulated(t *
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// Probe RunE must NOT execute on orchestrator failure — Cobra short-
-	// circuits the chain after PersistentPreRunE returns an error. If Run
-	// were reached the panic from tmuxClient(cmd) would surface (no
-	// client set in context), which is the exact "fail fast" semantic the
-	// task asks us to preserve.
 	probeRan := false
 	probe := &cobra.Command{
 		Use: "orchprobeerr",
@@ -194,7 +182,4 @@ func TestPersistentPreRunE_DoesNotInvokeOrchestratorForExemptCommands(t *testing
 	}
 }
 
-// Compile-time assertion: bootstrap.Runner is the type the cmd package
-// stores in BootstrapDeps.Orchestrator. Catches any future drift in the
-// interface signature.
 var _ bootstrap.Runner = (*recordingRunner)(nil)

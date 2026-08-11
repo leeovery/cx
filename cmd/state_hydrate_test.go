@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level cobra command state and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -22,7 +21,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// makeFIFO creates a fresh FIFO at <dir>/<name> and returns the path.
 func makeFIFO(t *testing.T, dir, name string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -32,10 +30,7 @@ func makeFIFO(t *testing.T, dir, name string) string {
 	return path
 }
 
-// signalFIFOAsync spawns the canonical "best effort" writer goroutine: open
-// the FIFO O_WRONLY, write a single byte ("X"), close. Errors are ignored —
-// the read side is what's under test. Used to unblock runHydrate's blocking
-// FIFO open in tests that don't care about timing or write payload.
+// Errors are ignored: the read side is what is under test.
 func signalFIFOAsync(t *testing.T, fifo string) {
 	t.Helper()
 	go func() {
@@ -48,10 +43,6 @@ func signalFIFOAsync(t *testing.T, fifo string) {
 	}()
 }
 
-// stubExecShell records the prog and argv passed to ExecShell. Production
-// implementation calls syscall.Exec; the stub just captures. The signature
-// `func(prog string, args []string)` mirrors syscall.Exec's prog+argv shape so
-// hook-chain tests can assert "/bin/sh", []string{"sh", "-c", "<cmd>; exec <SHELL>"}.
 type stubExecShell struct {
 	mu     sync.Mutex
 	called bool
@@ -69,9 +60,6 @@ func (s *stubExecShell) fn() func(string, []string) {
 	}
 }
 
-// recordingCommander (defined in state_cleanup_test.go) is the tmux mock used
-// by these tests; tests that need argv assertions inspect Calls directly.
-
 func TestHydrate_BlocksOnFIFOUntilSignalArrives(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-foo__0.0.fifo")
@@ -84,9 +72,8 @@ func TestHydrate_BlocksOnFIFOUntilSignalArrives(t *testing.T) {
 	exec := &stubExecShell{}
 	cmder := &recordingCommander{}
 
-	// Inline (not signalFIFOAsync) — this test asserts elapsed-time bounds, so
-	// the goroutine needs an embedded 50ms delay and a signalSent channel the
-	// test waits on after runHydrate returns.
+	// Inline rather than signalFIFOAsync: this test asserts elapsed-time
+	// bounds, so it needs the embedded delay and a completion channel.
 	signalSent := make(chan struct{})
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -120,8 +107,6 @@ func TestHydrate_BlocksOnFIFOUntilSignalArrives(t *testing.T) {
 	if !exec.called {
 		t.Fatal("ExecShell not called")
 	}
-	// Hydrate should have blocked until the writer opened (~50ms) and slept
-	// 100ms after the dump. Total >= 50ms + 100ms - small margin.
 	if elapsed < 100*time.Millisecond {
 		t.Errorf("runHydrate returned too quickly: %v (expected blocking on FIFO + 100ms sleep)", elapsed)
 	}
@@ -135,8 +120,8 @@ func TestHydrate_ReadsSingleByteFromFIFOOnSignal(t *testing.T) {
 		t.Fatalf("seed scrollback: %v", err)
 	}
 
-	// Inline (not signalFIFOAsync) — this test deliberately writes a multi-byte
-	// payload ("ABCDE") to assert runHydrate consumes only one byte.
+	// Inline rather than signalFIFOAsync: the multi-byte payload is what proves
+	// only one byte is consumed.
 	go func() {
 		f, err := os.OpenFile(fifo, os.O_WRONLY, 0)
 		if err != nil {
@@ -159,7 +144,6 @@ func TestHydrate_ReadsSingleByteFromFIFOOnSignal(t *testing.T) {
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	// FIFO should have been removed.
 	if _, err := os.Stat(fifo); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("FIFO not removed; stat err = %v", err)
 	}
@@ -389,11 +373,10 @@ func TestHydrate_StreamsLargeScrollbackFile(t *testing.T) {
 	fifo := makeFIFO(t, dir, "hydrate-big__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
 
-	// Write 5MB of pseudo-random bytes (deterministic).
 	const size = 5 * 1024 * 1024
 	body := make([]byte, size)
 	for i := range body {
-		body[i] = byte(i % 251) // 251 is prime; gives non-trivial pattern
+		body[i] = byte(i % 251)
 	}
 	if err := os.WriteFile(scrollback, body, 0o600); err != nil {
 		t.Fatalf("seed scrollback: %v", err)
@@ -414,7 +397,6 @@ func TestHydrate_StreamsLargeScrollbackFile(t *testing.T) {
 	}
 
 	out := stdout.Bytes()
-	// Content must appear between preamble and postamble.
 	preLen := len(hydrateResetPreamble)
 	postLen := len(hydrateResetPostamble)
 	if len(out) != preLen+size+postLen {
@@ -482,7 +464,6 @@ func TestHydrate_DefaultsShellToBinSh(t *testing.T) {
 }
 
 func TestHydrate_DoesNotReadHooksFileInThisPhase(t *testing.T) {
-	// No hooks.json exists in t.TempDir() — should not error.
 	dir := t.TempDir()
 	t.Setenv("PORTAL_CONFIG_HOME", dir)
 
@@ -502,7 +483,6 @@ func TestHydrate_DoesNotReadHooksFileInThisPhase(t *testing.T) {
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
 	}
-	// hooks.json must not have been created or read.
 	if _, err := os.Stat(filepath.Join(dir, "hooks.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("hooks.json must not exist; stat err = %v", err)
 	}
@@ -541,7 +521,6 @@ func TestHydrate_TimeoutPathInvokesHandleTimeout(t *testing.T) {
 		Stdout:    io.Discard,
 		Client:    tmux.NewClient(&recordingCommander{}),
 		ExecShell: (&stubExecShell{}).fn(),
-		// Inject an OpenFIFO that always reports timeout.
 		OpenFIFO: func(_ string, _ time.Duration) (*os.File, error) {
 			return nil, ErrHydrateTimeout
 		},
@@ -562,7 +541,6 @@ func TestHydrate_FileMissingPathInvokesHandleFileMissing(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-m__0.0.fifo")
 	scrollback := filepath.Join(dir, "missing-sb")
-	// Do NOT create scrollback file.
 
 	signalFIFOAsync(t, fifo)
 
@@ -655,18 +633,12 @@ func TestHydrate_FileMissing_PermissionDenied_EmitsPreambleAndExecsShell(t *test
 }
 
 func TestHydrate_FileMissing_MidStreamCopyError_LeavesPartialBytes(t *testing.T) {
-	// Drive the io.Copy mid-stream branch directly via the production handler.
-	// runHydrate uses os.Open + io.Copy on a real file, so to simulate a
-	// mid-stream Read failure we exercise the handler via a test that calls
-	// runHydrate with a real file but a reader-error injection is impossible
-	// without adding a seam. Instead, validate via direct handler invocation:
-	// the handler must NOT re-emit the preamble, must skip the sleep, must
-	// unset the marker, and must succeed (return nil) for any cause.
+	// The handler is invoked directly: injecting a mid-stream Read failure into
+	// runHydrate's os.Open + io.Copy would need a seam that does not exist.
 	dir := t.TempDir()
 	fifo := filepath.Join(dir, "hydrate-mid__0.0.fifo")
 	stdout := new(bytes.Buffer)
-	// Pre-populate stdout with preamble + some "partial" bytes already written
-	// by runHydrate before the mid-stream io.Copy failure.
+	// Stands in for what runHydrate had already written before the failure.
 	stdout.WriteString(hydrateResetPreamble)
 	stdout.WriteString("partial-bytes-already-on-stdout")
 
@@ -683,15 +655,12 @@ func TestHydrate_FileMissing_MidStreamCopyError_LeavesPartialBytes(t *testing.T)
 	}
 	elapsed := time.Since(start)
 
-	// Preamble appears exactly once (handler does not re-emit).
 	if n := strings.Count(stdout.String(), hydrateResetPreamble); n != 1 {
 		t.Errorf("preamble count = %d, want 1 (handler must not re-emit)", n)
 	}
-	// Partial bytes from before the failure are still present (no rollback).
 	if !strings.Contains(stdout.String(), "partial-bytes-already-on-stdout") {
 		t.Errorf("partial bytes were rolled back; stdout = %q", stdout.String())
 	}
-	// Skips the 100ms settle sleep.
 	if elapsed >= 100*time.Millisecond {
 		t.Errorf("handleHydrateFileMissing elapsed %v; expected << 100ms (no settle sleep)", elapsed)
 	}
@@ -914,10 +883,7 @@ func TestHydrate_FileMissing_DoesNotReadHooksFile(t *testing.T) {
 }
 
 func TestHydrate_FileMissing_LeavesPartialBytesOnMidStreamFailure(t *testing.T) {
-	// Direct handler invocation: simulate that runHydrate has already written
-	// the preamble + some bytes from a partial io.Copy before the mid-stream
-	// failure. The handler must not roll back stdout and must not double-emit
-	// the preamble.
+	// Stands in for what runHydrate had already written before the failure.
 	dir := t.TempDir()
 	fifo := filepath.Join(dir, "hydrate-mp__0.0.fifo")
 
@@ -944,15 +910,11 @@ func TestHydrate_FileMissing_LeavesPartialBytesOnMidStreamFailure(t *testing.T) 
 	}
 }
 
-// instantTimeoutOpenFIFO returns ErrHydrateTimeout immediately so timeout-path
-// tests do not have to wait the real 3-second hydrateTimeout.
+// Returns immediately so timeout-path tests do not wait out hydrateTimeout.
 func instantTimeoutOpenFIFO(_ string, _ time.Duration) (*os.File, error) {
 	return nil, ErrHydrateTimeout
 }
 
-// timeoutCfg builds a hydrateConfig wired for the production timeout path:
-// OpenFIFO returns ErrHydrateTimeout immediately and HandleTimeout points at
-// handleHydrateTimeout. Callers override fields as needed.
 func timeoutCfg(t *testing.T, fifo, scrollback, hookKey string, stdout io.Writer, cmder *recordingCommander, exec func(string, []string), logger *slog.Logger) hydrateConfig {
 	t.Helper()
 	return hydrateConfig{
@@ -987,7 +949,7 @@ func TestHydrate_TimeoutWritesNoScrollbackOrPostamble(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tn__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
-	// Seed scrollback so we can verify the timeout path does NOT read it.
+	// Seeded so the assertion can prove the timeout path never reads it.
 	_ = os.WriteFile(scrollback, []byte("SHOULD-NOT-APPEAR"), 0o600)
 
 	stdout := new(bytes.Buffer)
@@ -1020,8 +982,6 @@ func TestHydrate_Timeout_PreservesSettleSleepBeforeExec(t *testing.T) {
 	}
 	elapsed := time.Since(start)
 
-	// Spec § Fix 2 → Specific Changes → 4: 100ms settle-sleep is preserved
-	// before exec on the timeout path — same posture as the success path.
 	if elapsed < hydrateSettleSleep {
 		t.Errorf("runHydrate elapsed %v on timeout path; expected >= %v (settle sleep preserved)", elapsed, hydrateSettleSleep)
 	}
@@ -1052,10 +1012,7 @@ func TestHydrate_TimeoutUnsetsSkeletonMarkerWithSetOptionSU(t *testing.T) {
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	// Spec § Fix 2 → Specific Changes → 1: timeout handler must unset the
-	// @portal-skeleton-<paneKey> marker via `set-option -su <name>`.
-	// paneKey derives from the FIFO basename via state.PaneKeyFromFIFOPath:
-	// hydrate-tu__0.0.fifo → tu__0.0.
+	// The paneKey derives from the FIFO basename: hydrate-tu__0.0.fifo → tu__0.0.
 	want := []string{"set-option", "-su", "@portal-skeleton-tu__0.0"}
 	matches := 0
 	for _, c := range cmder.Calls {
@@ -1129,8 +1086,6 @@ func TestHydrate_TimeoutDoesNotReadHooksFile(t *testing.T) {
 
 func TestHydrate_TimeoutToleratesMissingFIFOSilently(t *testing.T) {
 	dir := t.TempDir()
-	// FIFO path that does not exist — handleHydrateTimeout's os.Remove must
-	// not surface an error.
 	fifo := filepath.Join(dir, "hydrate-tm__0.0.fifo")
 
 	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tm:0.0", io.Discard, &recordingCommander{}, (&stubExecShell{}).fn(), nil)
@@ -1140,20 +1095,8 @@ func TestHydrate_TimeoutToleratesMissingFIFOSilently(t *testing.T) {
 	}
 }
 
-// TestHydrate_TimeoutHandler_OrderingAndTimingInvariants pins the
-// handler-boundary invariants of handleHydrateTimeout directly (no runHydrate
-// wrapping): the handler tolerates a missing FIFO silently and unsets the
-// @portal-skeleton-<paneKey> marker before returning.
-//
-// The 100ms settle-sleep is intentionally NOT asserted here — per spec § Fix 2
-// → Specific Changes → 4 it lives in runHydrate, not the handler. The
-// runHydrate-boundary timing is gated by
-// TestHydrate_Timeout_PreservesSettleSleepBeforeExec.
 func TestHydrate_TimeoutHandler_OrderingAndTimingInvariants(t *testing.T) {
 	dir := t.TempDir()
-	// FIFO path that does not exist — handler must tolerate the missing file
-	// without surfacing an error (defense-in-depth: bootstrap also sweeps
-	// orphan FIFOs).
 	fifo := filepath.Join(dir, "hydrate-ord__0.0.fifo")
 
 	cmder := &recordingCommander{}
@@ -1170,25 +1113,16 @@ func TestHydrate_TimeoutHandler_OrderingAndTimingInvariants(t *testing.T) {
 	}
 	elapsed := time.Since(start)
 
-	// Sleep ownership: per spec § Fix 2 → Specific Changes → 4, the 100ms
-	// settle sleep lives in runHydrate, not the handler. Regression guard:
-	// relocating time.Sleep(hydrateSettleSleep) into handleHydrateTimeout would
-	// trip this assertion. Symmetric with handleHydrateFileMissing's check.
+	// The settle sleep belongs to runHydrate, not the handler.
 	if elapsed >= hydrateSettleSleep {
 		t.Errorf("handleHydrateTimeout elapsed %v; expected << %v (handler must not own settle sleep)", elapsed, hydrateSettleSleep)
 	}
 
-	// FIFO-unlink tolerance: the FIFO never existed and the handler returned
-	// nil — confirm the file is still absent (i.e., os.Remove's ENOENT was
-	// swallowed, not promoted).
 	if _, statErr := os.Stat(fifo); !errors.Is(statErr, os.ErrNotExist) {
 		t.Errorf("FIFO unexpectedly present after handler; stat err = %v", statErr)
 	}
 
-	// Marker-unset ordering: the handler must invoke
-	// `tmux set-option -su @portal-skeleton-<paneKey>` before returning. The
-	// paneKey derives from the FIFO basename via state.PaneKeyFromFIFOPath:
-	// hydrate-ord__0.0.fifo → ord__0.0.
+	// The paneKey derives from the FIFO basename: hydrate-ord__0.0.fifo → ord__0.0.
 	want := []string{"set-option", "-su", "@portal-skeleton-ord__0.0"}
 	matched := false
 	for _, c := range cmder.Calls {
@@ -1202,9 +1136,6 @@ func TestHydrate_TimeoutHandler_OrderingAndTimingInvariants(t *testing.T) {
 	}
 }
 
-// seedHookStore writes a hooks.json containing the given map and returns a
-// *hooks.Store pointing at it. Used by hook-firing tests to drive
-// LookupOnResume against a real on-disk store.
 func seedHookStore(t *testing.T, dir string, contents map[string]map[string]string) *hooks.Store {
 	t.Helper()
 	path := filepath.Join(dir, "hooks.json")
@@ -1264,7 +1195,6 @@ func TestHydrate_SignalArrived_ExecsBareShellWhenNoHookRegistered(t *testing.T) 
 	signalFIFOAsync(t, fifo)
 
 	t.Setenv("SHELL", "/bin/zsh")
-	// Empty hooks file: no entries.
 	store := seedHookStore(t, dir, map[string]map[string]string{})
 
 	exec := &stubExecShell{}
@@ -1294,7 +1224,6 @@ func TestHydrate_FileMissing_ExecsHookChainWhenHookRegistered(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-fmh__0.0.fifo")
 	scrollback := filepath.Join(dir, "missing-sb")
-	// Do NOT create scrollback file — drives the file-missing branch.
 
 	signalFIFOAsync(t, fifo)
 
@@ -1360,10 +1289,6 @@ func TestHydrate_FileMissing_ExecsBareShellWhenNoHookRegistered(t *testing.T) {
 }
 
 func TestHydrate_Timeout_FiresHookWhenRegistered(t *testing.T) {
-	// On the timeout path, hooks MUST fire when one is registered for the
-	// pane's hook-key — same exec contract as the file-missing recovery path
-	// per spec § Fix 2 → Specific Changes → 2. The de-facto verification is
-	// that ExecShell receives the hook-chained argv (sh -c '<HOOK>; exec $SHELL').
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tfh__0.0.fifo")
 
@@ -1392,12 +1317,6 @@ func TestHydrate_Timeout_FiresHookWhenRegistered(t *testing.T) {
 }
 
 func TestHydrate_Timeout_NoHookStore_ExecsBareShell(t *testing.T) {
-	// On the timeout fall-through with cfg.HookStore = nil,
-	// execShellOrHookAndExit must short-circuit to bare $SHELL — no log line
-	// from the lookup-error branch, no hook-chain argv. Mirrors the
-	// file-missing analogue (TestHydrate_FileMissing_ExecsBareShellWhenNoHookRegistered)
-	// but exercises the timeout branch via timeoutCfg.
-	// Spec § Fix 2 → Specific Changes → 2.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tnh__0.0.fifo")
 
@@ -1405,7 +1324,6 @@ func TestHydrate_Timeout_NoHookStore_ExecsBareShell(t *testing.T) {
 
 	exec := &stubExecShell{}
 	cfg := timeoutCfg(t, fifo, filepath.Join(dir, "sb"), "tnh:0.0", io.Discard, &recordingCommander{}, exec.fn(), nil)
-	// HookStore left nil — execShellOrHookAndExit must short-circuit.
 
 	if err := runHydrate(cfg); err != nil {
 		t.Fatalf("runHydrate: %v", err)
@@ -1422,11 +1340,6 @@ func TestHydrate_Timeout_NoHookStore_ExecsBareShell(t *testing.T) {
 }
 
 func TestHydrate_Timeout_LookupNotFound_ExecsBareShell(t *testing.T) {
-	// On the timeout fall-through with a HookStore present but no entry under
-	// cfg.HookKey, hooks.LookupOnResume returns ('', false, nil) and
-	// execShellOrHookAndExit must exec bare $SHELL. Mirrors the file-missing
-	// analogue but exercises the timeout branch via timeoutCfg.
-	// Spec § Fix 2 → Specific Changes → 2.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tlnf__0.0.fifo")
 
@@ -1452,18 +1365,10 @@ func TestHydrate_Timeout_LookupNotFound_ExecsBareShell(t *testing.T) {
 }
 
 func TestHydrate_Timeout_LookupError_ExecsBareShellAndLogsWarning(t *testing.T) {
-	// On the timeout fall-through with a HookStore that yields an I/O error
-	// on lookup, execShellOrHookAndExit must (a) exec bare $SHELL — no
-	// hook-chain — and (b) emit exactly one "lookup on-resume hook for" WARN
-	// log line. Mirrors TestHydrate_LookupErrorDegradesToBareShellAndLogsWarning
-	// but exercises the timeout branch via timeoutCfg. Drive the LookupOnResume
-	// I/O failure by pointing the store at a directory rather than a regular
-	// file → os.ReadFile returns EISDIR.
-	// Spec § Fix 2 → Specific Changes → 2.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tle__0.0.fifo")
 
-	// hooks.json is a directory, not a file — forces EISDIR on read.
+	// A directory forces EISDIR out of the store's os.ReadFile.
 	hooksDir := filepath.Join(dir, "hooks.json")
 	if err := os.Mkdir(hooksDir, 0o700); err != nil {
 		t.Fatalf("mkdir hooks.json: %v", err)
@@ -1489,9 +1394,7 @@ func TestHydrate_Timeout_LookupError_ExecsBareShellAndLogsWarning(t *testing.T) 
 	}
 
 	contents := sink.Body()
-	// Exactly one WARN line from the lookup-error branch — count, not just
-	// presence. (The timeout handler logs its own WARN line; the lookup-error
-	// branch contributes the canonical "lookup on-resume hook failed" entry.)
+	// Counted, not merely present: the timeout handler logs its own WARN too.
 	got := strings.Count(contents, "lookup on-resume hook failed")
 	if got != 1 {
 		t.Errorf("log has %d %q lines, want exactly 1: %q", got, "lookup on-resume hook failed", contents)
@@ -1502,8 +1405,6 @@ func TestHydrate_Timeout_LookupError_ExecsBareShellAndLogsWarning(t *testing.T) 
 }
 
 func TestHydrate_LookupErrorDegradesToBareShellAndLogsWarning(t *testing.T) {
-	// Drive a LookupOnResume I/O failure by pointing the store at a path that
-	// is a directory rather than a regular file → os.ReadFile returns EISDIR.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-le__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
@@ -1511,7 +1412,7 @@ func TestHydrate_LookupErrorDegradesToBareShellAndLogsWarning(t *testing.T) {
 
 	signalFIFOAsync(t, fifo)
 
-	// hooks.json is a directory, not a file.
+	// A directory forces EISDIR out of the store's os.ReadFile.
 	hooksDir := filepath.Join(dir, "hooks.json")
 	if err := os.Mkdir(hooksDir, 0o700); err != nil {
 		t.Fatalf("mkdir hooks.json: %v", err)
@@ -1552,10 +1453,8 @@ func TestHydrate_LookupErrorDegradesToBareShellAndLogsWarning(t *testing.T) {
 }
 
 func TestHydrate_LooksUpHooksByHookKeyVerbatimNotByLivePaneKey(t *testing.T) {
-	// FIFO basename derives livePaneKey "live__1.1" via state.PaneKeyFromFIFOPath, but
-	// HookKey is the saved structural identifier "saved:0.0" — what the spec
-	// pins for hooks lookup under base-index drift. The lookup must use HookKey
-	// (so the saved-key hook fires), not the live paneKey (no entry under which).
+	// The FIFO basename yields the live pane key, but the lookup must use the
+	// saved HookKey so a hook still fires under base-index drift.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-live__1.1.fifo")
 	scrollback := filepath.Join(dir, "sb")
@@ -1566,7 +1465,6 @@ func TestHydrate_LooksUpHooksByHookKeyVerbatimNotByLivePaneKey(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
 	store := seedHookStore(t, dir, map[string]map[string]string{
 		"saved:0.0": {"on-resume": "echo saved"},
-		// No entry under the FIFO-derived live paneKey "live__1.1".
 	})
 
 	exec := &stubExecShell{}
@@ -1591,9 +1489,8 @@ func TestHydrate_LooksUpHooksByHookKeyVerbatimNotByLivePaneKey(t *testing.T) {
 }
 
 func TestHydrate_PassesHookCommandAsSingleArgvElementToShDashC(t *testing.T) {
-	// Single-quote safety: the hook command string sits in its own argv slot
-	// of `sh -c <cmd>` — no manual escaping, no shell-command-line interpolation.
-	// `sh`'s own parser handles embedded single quotes.
+	// The hook command occupies its own argv slot of `sh -c <cmd>`, so sh's own
+	// parser handles embedded quotes — never escape it here.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-q__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
@@ -1635,17 +1532,8 @@ func TestHydrate_PassesHookCommandAsSingleArgvElementToShDashC(t *testing.T) {
 }
 
 func TestHydrate_SignalArrived_LookupHappensAfterSleepAndMarkerUnset(t *testing.T) {
-	// On the signal-arrived path the spec pins the order:
-	//   dump → 100ms sleep → set-option -su <marker> → hooks lookup → exec.
-	// Verified by recording when the marker-unset occurs and asserting it
-	// happens BEFORE LookupOnResume runs. The recorder uses a hooks-store
-	// pointed at a sentinel hooks.json whose first read is timestamped via
-	// a wrapping countingCommander on tmux + a custom hookStore subdir whose
-	// access time is checked relative to the marker-unset timestamp.
-	//
-	// Concretely: capture the timestamps of (a) the set-option -su call and
-	// (b) the os.Stat-able hooks.json read. The set-option must precede the
-	// hooks read.
+	// Order matters: the marker unset must precede the hooks lookup, so the
+	// test timestamps the set-option call and the hooks.json read and compares.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-ord__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
@@ -1705,9 +1593,8 @@ func TestHydrate_SignalArrived_LookupHappensAfterSleepAndMarkerUnset(t *testing.
 }
 
 func TestHydrate_FileMissing_LookupHappensAfterMarkerUnset(t *testing.T) {
-	// On the file-missing path the spec pins the order:
-	//   preamble → set-option -su <marker> → hooks lookup → exec.
-	// (No 100ms sleep — nothing was dumped to settle.)
+	// Order matters: the marker unset must precede the hooks lookup. No settle
+	// sleep here — nothing was dumped.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-fmo__0.0.fifo")
 	scrollback := filepath.Join(dir, "missing-sb")
@@ -1763,8 +1650,7 @@ func TestHydrate_FileMissing_LookupHappensAfterMarkerUnset(t *testing.T) {
 }
 
 func TestHydrate_NilHookStoreDegradesToBareShellOnSignalArrived(t *testing.T) {
-	// Defensive: nil HookStore (production path when loadHookStore failed) must
-	// not panic and must exec bare $SHELL.
+	// A nil HookStore is the production shape when loadHookStore failed.
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-nil__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
@@ -1793,19 +1679,9 @@ func TestHydrate_NilHookStoreDegradesToBareShellOnSignalArrived(t *testing.T) {
 	}
 }
 
-// NOTE: The former TestHydrate_RunEDefersLoggerClose was removed in the
-// observability migration. The hydrate RunE no longer opens or closes a
-// per-process file-backed logger — logging is owned by internal/log's
-// handler (configured once via main -> log.Init), so there is no per-helper
-// fd to defer-close. The behaviour it asserted no longer exists.
-
-// TestHydrate_FileMissing_ClassifiesCauseFromRawChain locks the Boundary
-// class 4 classification contract: handleHydrateFileMissing distinguishes
-// ENOENT vs permission vs generic purely by walking the raw Cause chain with
-// errors.Is. The cases use a wrapped *os.PathError (the shape runHydrate
-// actually passes through verbatim) for the fs.* arms, and a bare error for
-// the generic arm, so the test proves the switch keys off the unwrapped
-// sentinel — not off a pre-classified marker or the error's string form.
+// The fs.* cases use a wrapped *os.PathError — the shape runHydrate passes
+// through verbatim — and the generic case a bare error, so classification is
+// proven to key off the unwrapped sentinel rather than the error's string form.
 func TestHydrate_FileMissing_ClassifiesCauseFromRawChain(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -1830,9 +1706,6 @@ func TestHydrate_FileMissing_ClassifiesCauseFromRawChain(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Sanity: the *os.PathError arms must traverse via %w-equivalent
-			// Unwrap to the fs sentinels — this is the property the handler
-			// relies on.
 			switch tc.name {
 			case "ENOENT":
 				if !errors.Is(tc.cause, fs.ErrNotExist) {
@@ -1862,15 +1735,12 @@ func TestHydrate_FileMissing_ClassifiesCauseFromRawChain(t *testing.T) {
 	}
 }
 
-// TestHydrate_FileMissing_PassesRawCauseVerbatim locks the verbatim-Cause
-// contract for runHydrate's os.Open failure path: the *os.PathError returned
-// by os.Open must reach the handler's Cause WITHOUT pre-wrapping, so
-// errors.Is(ctx.Cause, fs.ErrNotExist) traverses. A pre-wrap with %s (or a
-// substituted errors.New) would break the handler's classification switch.
+// The *os.PathError must reach the handler's Cause unwrapped: a pre-wrap with
+// %s would break errors.Is traversal in the classification switch.
 func TestHydrate_FileMissing_PassesRawCauseVerbatim(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-vc__0.0.fifo")
-	scrollback := filepath.Join(dir, "missing-sb") // never created → ENOENT on os.Open
+	scrollback := filepath.Join(dir, "missing-sb")
 
 	signalFIFOAsync(t, fifo)
 
@@ -1901,9 +1771,6 @@ func TestHydrate_FileMissing_PassesRawCauseVerbatim(t *testing.T) {
 	}
 }
 
-// TestHydrate_FileMissing_PassesPermissionCauseVerbatim is the EACCES sibling
-// of the verbatim-Cause test — confirms a permission-denied os.Open reaches
-// the handler such that errors.Is(Cause, fs.ErrPermission) traverses.
 func TestHydrate_FileMissing_PassesPermissionCauseVerbatim(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses 0o000 mode bits")
@@ -1944,23 +1811,11 @@ func TestHydrate_FileMissing_PassesPermissionCauseVerbatim(t *testing.T) {
 	}
 }
 
-// TestHydrate_MidStreamCopyError_CarriesUnderlyingCauseToHandler locks the
-// io.Copy mid-stream contract: when the scrollback file open succeeds but the
-// stream Read fails mid-dump, runHydrate routes to HandleFileMissing carrying
-// the underlying error verbatim in Cause. Forced by chmod-stripping a file's
-// directory after open is impractical for a mid-stream Read failure, so this
-// instead drives the reachable code path with an open-succeeds-then-Read-fails
-// scrollback: a FIFO standing in for the regular file. os.Open on a FIFO
-// succeeds, and io.Copy's Read then blocks/fails depending on writer state.
-// To keep the test deterministic we instead assert the contract on the
-// directly-reachable path: a scrollback file that is a directory (os.Open
-// succeeds on a dir, io.Copy's Read returns EISDIR mid-stream).
 func TestHydrate_MidStreamCopyError_CarriesUnderlyingCauseToHandler(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-ms__0.0.fifo")
-	// A directory: os.Open succeeds, but io.Copy's first Read fails (EISDIR on
-	// Linux, ENOTSUP/"is a directory" on darwin) — a genuine mid-stream Read
-	// error after a successful open.
+	// A directory is the deterministic open-succeeds-then-Read-fails shape: it
+	// opens cleanly and io.Copy's first Read fails (EISDIR / "is a directory").
 	scrollbackDir := filepath.Join(dir, "sb-as-dir")
 	if err := os.Mkdir(scrollbackDir, 0o700); err != nil {
 		t.Fatalf("mkdir scrollback dir: %v", err)

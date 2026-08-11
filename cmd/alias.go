@@ -25,11 +25,6 @@ var aliasRmCmd = &cobra.Command{
 			return err
 		}
 
-		// DeleteAndSave is the audited mutation path: it emits the rm breadcrumb
-		// under the aliases component (via=cli) on a successful persist. An
-		// absent alias returns existed=false WITHOUT persisting or emitting, so
-		// the pre-instrumentation "alias not found" error path is preserved
-		// exactly.
 		existed, err := store.DeleteAndSave(name, "cli")
 		if !existed {
 			return fmt.Errorf("alias not found: %s", name)
@@ -75,9 +70,6 @@ var aliasSetCmd = &cobra.Command{
 			return err
 		}
 
-		// SetAndSave is the audited mutation path: it classifies set / modify /
-		// set-noop from the pre-mutation map, persists (skipping the write on a
-		// no-op), and emits the breadcrumb under the aliases component (via=cli).
 		if err := store.SetAndSave(name, normalised, "cli"); err != nil {
 			return fmt.Errorf("failed to save aliases: %w", err)
 		}
@@ -86,7 +78,6 @@ var aliasSetCmd = &cobra.Command{
 	},
 }
 
-// loadAliasStore creates and loads an alias store from the configured file path.
 func loadAliasStore() (*alias.Store, error) {
 	aliasFile, err := aliasFilePath()
 	if err != nil {
@@ -101,9 +92,6 @@ func loadAliasStore() (*alias.Store, error) {
 	return store, nil
 }
 
-// aliasFilePath returns the path to the aliases file.
-// Uses PORTAL_ALIASES_FILE env var if set (for testing), otherwise
-// defaults to ~/.config/portal/aliases.
 func aliasFilePath() (string, error) {
 	return configFilePath("PORTAL_ALIASES_FILE", "aliases")
 }

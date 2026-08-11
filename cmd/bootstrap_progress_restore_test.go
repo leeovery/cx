@@ -1,17 +1,5 @@
 package cmd
 
-// Task spectrum-tui-design-5-3 — restore per-session N/M forwarding + the
-// carry-forward ctx-guarded send.
-//
-// These tests cover two things on top of the 5-2 pipe:
-//   - a restore per-session StepEvent (Index 6, RestoreN/RestoreM populated)
-//     maps onto a tui.BootstrapProgressMsg carrying the same N/M (so task 5-4
-//     can render "Restoring sessions (N/M)").
-//   - the progress send unblocks on ctx cancellation rather than blocking the
-//     orchestrator goroutine forever (the >63-events-after-Quit scenario).
-//
-// cmd rule: no t.Parallel.
-
 import (
 	"context"
 	"testing"
@@ -21,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// restoreEmittingRunner drives the context-carried emitter through a fixed
-// set of restore per-session events (Index 6, RestoreN/RestoreM populated)
-// then returns the configured terminal tuple — mirroring how the real step 6
-// streams N/M without standing up the ten step seams.
 type restoreEmittingRunner struct {
 	m       int
 	started bool
@@ -64,10 +48,9 @@ func TestBootstrapProgressPipe_ForwardsRestoreNMOntoProgressMsg(t *testing.T) {
 	}
 }
 
-// blockingRunner emits more events than the channel buffer can hold while the
-// receiver never drains — exercising the carry-forward ctx-guarded send. It
-// signals when its goroutine returns so the test can assert the orchestrator
-// goroutine unblocked on cancellation rather than wedging forever.
+// Emits more events than the channel buffer holds while nothing drains, and
+// signals when its goroutine returns, so the test can tell an unblocked send
+// from a wedged one.
 type blockingRunner struct {
 	events int
 	done   chan struct{}
@@ -85,16 +68,13 @@ func (r *blockingRunner) Run(ctx context.Context) (bool, []bootstrap.Warning, er
 }
 
 func TestBootstrapProgressPipe_SendUnblocksOnContextCancel(t *testing.T) {
-	// > buffer events with NO receiver draining: without a ctx-guarded send the
-	// orchestrator goroutine blocks forever on the (buffer+1)-th send. With the
-	// guard, cancelling ctx unblocks every pending send and the goroutine
-	// returns. bootstrapProgressBufferSize+8 guarantees we overflow the buffer.
+	// Without a ctx-guarded send the goroutine would block forever on the
+	// (buffer+1)-th send; the overflow margin guarantees it gets there.
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := &blockingRunner{events: bootstrapProgressBufferSize + 8, done: make(chan struct{})}
 	pipe := newBootstrapProgressPipe()
 	pipe.start(ctx, runner)
 
-	// Let the goroutine fill the buffer and wedge on the blocking send.
 	time.Sleep(50 * time.Millisecond)
 	select {
 	case <-runner.done:
@@ -106,7 +86,6 @@ func TestBootstrapProgressPipe_SendUnblocksOnContextCancel(t *testing.T) {
 
 	select {
 	case <-runner.done:
-		// good — the guarded send observed ctx.Done() and the runner returned.
 	case <-time.After(2 * time.Second):
 		t.Fatal("orchestrator goroutine never unblocked after ctx cancel — the naked send wedged forever")
 	}

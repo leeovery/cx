@@ -1,14 +1,5 @@
 package cmd
 
-// Tests in this file seed prefs.json / PORTAL_THEMES_DIR through t.Setenv and
-// drive package-level cmd seams, so they MUST NOT use t.Parallel.
-//
-// The panel's constructor slots are asserted BEHAVIOURALLY, over models built
-// through the production chokepoint: the open below proves the theme source and
-// the keys reach a rendered frame, and open_theme_commit_test.go carries the
-// write half — the same wiring taking a keypress all the way to prefs.json, and
-// back out of it on the next launch.
-
 import (
 	"go/ast"
 	"strings"
@@ -21,17 +12,12 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// themeSourceForTest builds the production adapter over a loader emitting
-// into a capture sink, so the `theme: enumerated` cadence is observable
-// while the directory resolution stays the production one (themesDirPath).
 func themeSourceForTest(t *testing.T) (theme.Loader, *logtest.Sink) {
 	t.Helper()
 	sink := installMigrateCapture(t)
 	return newThemeLoader(), sink
 }
 
-// pressThemeKeyOnModel drives a built model's live Update with `t` and returns
-// the frame it then composes.
 func pressThemeKeyOnModel(t *testing.T, m tui.Model) string {
 	t.Helper()
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
@@ -42,17 +28,9 @@ func pressThemeKeyOnModel(t *testing.T, m tui.Model) string {
 	return model.View().Content
 }
 
-// themePanelHeaderCopy is the panel layout's pinned panel header label, restated here rather
-// than reached for: internal/tui holds it unexported, and a cmd-side test
-// asserting the composed frame is asserting the user-visible copy anyway.
+// Restated rather than reached for: internal/tui holds the label unexported.
 const themePanelHeaderCopy = "Themes"
 
-// TestThemeSource_ReadsOnlyWhenOpened pins the cadence half of the lazy-discovery rule/the
-// re-read-on-open rule on the PRODUCTION adapter: constructing it touches nothing, and each
-// Open is one directory read emitting exactly one `theme: enumerated`.
-//
-// The directory is POPULATED and resolved through PORTAL_THEMES_DIR, so a
-// construction-time sweep would be visible as a record and a drop-in row.
 func TestThemeSource_ReadsOnlyWhenOpened(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
@@ -77,10 +55,6 @@ func TestThemeSource_ReadsOnlyWhenOpened(t *testing.T) {
 	}
 }
 
-// TestThemeSource_ReassembleDoesNoIO pins the second method's contract at the
-// production boundary: the picker idiom's post-commit recompute and the re-read-on-open rule's
-// `Esc` re-resolution both re-derive from the RETAINED enumeration with no fresh read,
-// so a directory emptied underneath a live panel changes nothing.
 func TestThemeSource_ReassembleDoesNoIO(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
@@ -100,20 +74,11 @@ func TestThemeSource_ReassembleDoesNoIO(t *testing.T) {
 	}
 }
 
-// TestThemeSource_SharesTheConstructionReadsDedupScope pins the directory-resolution
-// rule's requirement on the loader this adapter is given: ONE loader per launch is ONE
-// dedup scope per launch.
-//
-// The construction-time by-name read and the panel's enumeration hit the same
-// condition — an unusable themes directory — and a Loader owns the `theme`
-// component's per-process dedup state, so a panel handed a SECOND loader would
-// WARN the user twice about one misconfiguration on a single launch. The negative
-// control drives exactly that, or the positive half could pass for want of a
-// second emission being possible at all.
+// A Loader owns the `theme` component's per-process dedup state, so a panel
+// handed a second loader would WARN twice about one misconfiguration.
 func TestThemeSource_SharesTheConstructionReadsDedupScope(t *testing.T) {
-	// A DROP-IN slug, so the by-name read must consult the themes directory and
-	// meet the directory-resolution rule's unusable verdict; a built-in would resolve out of the
-	// embedded set and never look.
+	// A drop-in slug: a built-in would resolve out of the embedded set and
+	// never consult the directory.
 	const dropIn = "a-drop-in"
 
 	openAfterConstruction := func(t *testing.T, panelLoader func(theme.Loader) theme.Loader) int {
@@ -148,17 +113,9 @@ func TestThemeSource_SharesTheConstructionReadsDedupScope(t *testing.T) {
 	})
 }
 
-// TestOpenTUI_BuildsOneThemeLoader guards the sharing the test above depends on,
-// at the one site that decides it: openTUI must build no more than one theme
-// loader, and must hand the panel's theme source a loader already bound in the
-// function rather than one constructed in the argument. Building a second is
-// silent — everything still works, the user just gets every theme WARN twice per
-// launch — and openTUI ends in a running Bubble Tea program, so only a source
-// guard reaches it.
-//
-// BOTH are asserted, because the construction count does not reach the second on
-// its own: `newThemeSource(newThemeLoader())` keeps every constructor at one
-// call and still hands the panel a dedup scope of its own.
+// Building a second loader is silent — everything works, the user just gets
+// every theme WARN twice per launch — and openTUI ends in a running Bubble Tea
+// program, so only a source guard reaches it.
 func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 	fn := funcDeclForTest(t, "open.go", "openTUI")
 
@@ -171,14 +128,8 @@ func TestOpenTUI_BuildsOneThemeLoader(t *testing.T) {
 	assertEnumeratorTakesBoundLoader(t, fn)
 }
 
-// assertEnumeratorTakesBoundLoader fails unless every newThemeSource call
-// inside n takes a bare identifier for its argument.
-//
-// It asserts the argument's SHAPE, not its identity: a call expression in that
-// position is a loader built for the panel alone, whether it is the package-local
-// constructor or an inlined theme.NewLoader(…) — and the inlined form additionally
-// slips the `theme` component logger, nothing forcing an inline construction to
-// pass themeLogger.
+// Asserts the argument's shape, not its identity: any call expression in that
+// position is a loader built for the panel alone.
 func assertEnumeratorTakesBoundLoader(t *testing.T, n ast.Node) {
 	t.Helper()
 	ast.Inspect(n, func(node ast.Node) bool {
@@ -196,7 +147,6 @@ func assertEnumeratorTakesBoundLoader(t *testing.T, n ast.Node) {
 	})
 }
 
-// callCount counts calls to the named package-local function inside n.
 func callCount(n ast.Node, name string) int {
 	count := 0
 	ast.Inspect(n, func(node ast.Node) bool {
@@ -212,19 +162,8 @@ func callCount(n ast.Node, name string) int {
 	return count
 }
 
-// TestThemePanelOpen_WiredThroughBuildTUIModel: it threads the constructor slots
-// end to end.
-//
-// The control-stripped raw keys were deliberately left unthreaded —
-// computed, then discarded — because the construction-time load rule's slot had no consumer
-// until the panel existed. This asserts the whole chain from the cmd config through tui.Build
-// to a rendered frame: `t` on the built model paints the panel layout slide-over, listing a
-// drop-in that only a real directory read could have produced and marking the
-// persisted slug the adapter's own re-resolution names.
-//
-// The `●` is what proves the third method is wired: nothing is injected for it,
-// so the marker exists only if the panel reached themeSource.Resolve and got
-// the constant back.
+// Nothing is injected for the `●`, so the marker exists only if the panel
+// reached themeSource.Resolve and got the constant back.
 func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 	dir := useThemesDir(t)
 	writeThemeFile(t, dir, "sunset", "#101010")
@@ -243,24 +182,16 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 	}
 }
 
-// TestThemePanelOpen_ExecPathUntouched: it does no theme work on the exec path.
-//
-// The `theme` log component records the win this feature is careful to keep: `portal open
-// <target>` constructs no TUI, so the loader never runs there — and the panel seam added
-// here must not change that. The themes directory is poisoned (mode 0000), which
-// makes any read of it LOUD: the directory-resolution rule gives an unusable directory a
-// `theme: directory unusable` WARN where an absent one is silent, so "emitted
-// nothing" is not vacuous.
+// The poisoned (mode 0000) directory makes any read loud: an unusable directory
+// earns a `theme: directory unusable` WARN where an absent one is silent, so
+// "emitted nothing" is not vacuous.
 func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
 	poisonThemesDir(t)
-	// A DROP-IN slug, so resolving it must consult the themes directory — a
-	// built-in would resolve out of the embedded set and never touch the poison.
+	// A drop-in slug: a built-in would never touch the poison.
 	setPrefsFile(t, `{"theme":"a-drop-in"}`)
 
-	// The fixture has to be LOUD or the zero-record assertion below could pass for
-	// want of anything observable. Opening the panel's own seam against the poison
-	// proves the records exist to be seen — and proves it through the seam THIS
-	// task adds rather than through the construction-time read alone.
+	// Vacuity guard, driven through the panel's own seam rather than the
+	// construction-time read.
 	loud := installMigrateCapture(t)
 	newThemeSource(newThemeLoader()).Open(theme.RawKeys{Theme: "a-drop-in"})
 	if len(themeEvents(t, loud)) == 0 {
@@ -276,7 +207,6 @@ func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
 	assertThemeEvents(t, sink)
 }
 
-// themeEventCount counts `theme` component records carrying the given message.
 func themeEventCount(t *testing.T, sink *logtest.Sink, msg string) int {
 	t.Helper()
 	count := 0
@@ -288,7 +218,6 @@ func themeEventCount(t *testing.T, sink *logtest.Sink, msg string) int {
 	return count
 }
 
-// slugListed reports whether the union holds a row for slug.
 func slugListed(union theme.Union, slug string) bool {
 	for _, row := range union.Rows {
 		if row.Slug == slug {
@@ -298,7 +227,6 @@ func slugListed(union theme.Union, slug string) bool {
 	return false
 }
 
-// unionSlugs lists the union's row labels, for failure messages.
 func unionSlugs(union theme.Union) []string {
 	labels := make([]string, 0, len(union.Rows))
 	for _, row := range union.Rows {

@@ -1,12 +1,5 @@
 package cmd
 
-// Tests in this file exercise the shared production spawn-seam builder
-// (buildProductionSpawnSeams) that both the open burst (buildOpenBurstDeps) and
-// the picker (openTUI's tuiConfig population) read from. The file also houses the
-// shared fakeTerminalDetector + cmdWithClient test doubles consumed across the
-// open-burst / doctor / detection-seam tests. Per the cmd-package convention
-// (package-level mutable seams), tests here MUST NOT use t.Parallel.
-
 import (
 	"context"
 	"os"
@@ -21,11 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// fakeTerminalDetector is a fake TerminalDetector that returns a fixed
-// Identity, letting host-terminal-aware command bodies (the open burst, doctor,
-// the picker detection seam) be Executed without real tmux, ps, or defaults
-// reads. It satisfies both cmd.TerminalDetector and tui.TerminalDetector (both
-// declare Detect() spawn.Identity).
 type fakeTerminalDetector struct {
 	id spawn.Identity
 }
@@ -34,18 +22,11 @@ func (f fakeTerminalDetector) Detect() spawn.Identity {
 	return f.id
 }
 
-// isolateTerminalsFile points PORTAL_TERMINALS_FILE at a temp path so
-// buildResolver (reached via buildProductionSpawnSeams) never reads the
-// developer's real terminals.json. The file is absent, so TerminalsStore.Load
-// tolerantly yields an empty (native-only) config.
 func isolateTerminalsFile(t *testing.T) {
 	t.Helper()
 	t.Setenv("PORTAL_TERMINALS_FILE", filepath.Join(t.TempDir(), "terminals.json"))
 }
 
-// cmdWithClient returns a *cobra.Command carrying client under tmuxClientKey,
-// exactly as PersistentPreRunE injects it — so a lazy tmuxClient(cmd) resolution
-// (buildOpenBurstDeps, spawnDetector) finds a client instead of panicking.
 func cmdWithClient(client *tmux.Client) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.WithValue(context.Background(), tmuxClientKey, client))
@@ -106,7 +87,6 @@ func TestBuildProductionSpawnSeams(t *testing.T) {
 		if seams.Getenv == nil {
 			t.Error("Getenv seam is nil")
 		}
-		// Getenv is os.Getenv: it reads the live process env.
 		if got, want := seams.Getenv("PATH"), os.Getenv("PATH"); got != want {
 			t.Errorf("Getenv(PATH) = %q, want os.Getenv value %q", got, want)
 		}

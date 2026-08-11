@@ -208,7 +208,6 @@ func TestPrefsMigrateSuppressesLog(t *testing.T) {
 			t.Errorf("expected no log records for prefs.json migrate, got %d: %+v", len(recs), recs)
 		}
 
-		// The move itself must still have happened.
 		if _, err := os.Stat(got); err != nil {
 			t.Errorf("prefs.json should still migrate when component is empty: %v", err)
 		}
@@ -229,7 +228,6 @@ func TestLoadPrefsStore(t *testing.T) {
 			t.Fatal("loadPrefsStore() returned nil store")
 		}
 
-		// Verify the store is bound to the resolved path via a round-trip Save.
 		if err := load.Store.Save(2); err != nil {
 			t.Fatalf("Save failed: %v", err)
 		}

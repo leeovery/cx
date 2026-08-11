@@ -1,8 +1,5 @@
 package cmd
 
-// Tests in this file seed prefs.json through t.Setenv and drive package-level
-// cmd seams, so they MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"go/ast"
@@ -16,9 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// migratingLoadForTest runs the production migrating prefs load against
-// whatever prefs.json the test seeded, failing on the path-resolution error
-// openTUI degrades from (no test here seeds an unresolvable path).
 func migratingLoadForTest(t *testing.T) prefsLoad {
 	t.Helper()
 
@@ -32,9 +26,6 @@ func migratingLoadForTest(t *testing.T) prefsLoad {
 	return load
 }
 
-// assertLoad asserts the whole computed result in one go — the in-memory keys,
-// whether the marker is still owed, and the slug the write half will
-// re-evaluate. The store is not part of the computation, so want carries none.
 func assertLoad(t *testing.T, got, want prefsLoad) {
 	t.Helper()
 
@@ -49,13 +40,6 @@ func assertLoad(t *testing.T, got, want prefsLoad) {
 	}
 }
 
-// TestLoadPrefsStore_TranslatesDark: it translates a dark pin to the equivalent
-// constant.
-//
-// This is §10.1's protected population — the user who deliberately pinned dark
-// on a light terminal — and the assertion is that THIS LAUNCH already renders
-// their pin as a constant theme, with detection still off, before anything is
-// written.
 func TestLoadPrefsStore_TranslatesDark(t *testing.T) {
 	setPrefsFile(t, `{"appearance":"dark"}`)
 
@@ -64,12 +48,6 @@ func TestLoadPrefsStore_TranslatesDark(t *testing.T) {
 	assertLoad(t, load, prefsLoad{Keys: prefs.ThemeKeys{Theme: theme.DefaultDarkSlug}, TranslationPending: true, TranslatedSlug: theme.DefaultDarkSlug})
 }
 
-// TestLoadPrefsStore_TranslatesLight: it translates a light pin.
-//
-// The mirror of the dark case, and it is worth its own test rather than a table
-// row on the dark one: the two arms map to two different constants, so a
-// mapping that answered with one slug for both would still satisfy either test
-// alone.
 func TestLoadPrefsStore_TranslatesLight(t *testing.T) {
 	setPrefsFile(t, `{"appearance":"light"}`)
 
@@ -78,24 +56,9 @@ func TestLoadPrefsStore_TranslatesLight(t *testing.T) {
 	assertLoad(t, load, prefsLoad{Keys: prefs.ThemeKeys{Theme: theme.DefaultLightSlug}, TranslationPending: true, TranslatedSlug: theme.DefaultLightSlug})
 }
 
-// TestLoadPrefsStore_TranslatedPinRendersAsAConstantThisLaunch: it renders the
-// translated pin this launch.
-//
-// The end-to-end half of the two struct assertions above, driven through the
-// production chain (load → §8.2's setting → §8.4's per-slot load) on exactly
-// §10.1's protected population: a pinned `appearance` and NO theme keys. What
-// renders is a CONSTANT of that pin's shipped default, with detection still off.
-//
-// The file holding no theme keys is what makes this the case only reachable from
-// here: resolving the nomination from a SECOND read of the store would answer
-// with zero keys, and zero keys are the shipped adaptive PAIR — §10.1's silent
-// flip, delivered on the very launch that translated the pin, to the one group
-// who expressed a preference. The keys must therefore reach the resolution as
-// §8.4's post-translation in-memory value, and the struct assertions above
-// cannot tell that apart from a second read: their claim stops at prefsLoad.
-//
-// Both arms are needed: assertConstant on one alone would pass identically for a
-// mapping that answered with the same slug for both pins.
+// The keys must reach the nomination as the post-translation in-memory value:
+// a second read of the store would answer with zero keys, which is the shipped
+// adaptive pair rather than the translated pin.
 func TestLoadPrefsStore_TranslatedPinRendersAsAConstantThisLaunch(t *testing.T) {
 	for _, tc := range []struct{ appearance, want string }{
 		{"dark", theme.DefaultDarkSlug},
@@ -109,15 +72,8 @@ func TestLoadPrefsStore_TranslatedPinRendersAsAConstantThisLaunch(t *testing.T) 
 	}
 }
 
-// TestLoadPrefsStore_NoTranslationCases: it translates nothing for auto, absent
-// or unrecognised.
-//
-// `auto` and an absent field both mean "keep detecting", which the shipped
-// adaptive pair already is — so ignoring them lands exactly where the user was.
-//
-// THE MARKER IS STILL OWED IN EVERY ROW. §10.2's "Nothing" refers to the theme
-// KEYS, not to the migration: leaving the translation pending here would make
-// the condition re-evaluate on every launch forever.
+// The marker is still owed in every row: "nothing translated" refers to the
+// theme keys, and leaving it unrecorded re-evaluates the condition forever.
 func TestLoadPrefsStore_NoTranslationCases(t *testing.T) {
 	for _, tc := range []struct{ name, content string }{
 		{"auto", `{"appearance":"auto"}`},
@@ -135,13 +91,8 @@ func TestLoadPrefsStore_NoTranslationCases(t *testing.T) {
 	}
 }
 
-// TestLoadPrefsStore_MarkerGatesTheTranslation: it does not translate once the
-// marker is set.
-//
-// The trigger is the MARKER, never the absence of theme keys (§10.3). The
-// second case is the one absence-gating gets wrong: a user who hand-edited
-// their theme keys away to return to the shipped pair — §9.9's documented
-// escape hatch — must not be silently re-pinned to what they just undid.
+// The second case is the one absence-gating gets wrong: a user who hand-edited
+// their theme keys away to return to the shipped pair must not be re-pinned.
 func TestLoadPrefsStore_MarkerGatesTheTranslation(t *testing.T) {
 	t.Run("a migrated file with a key set is returned exactly as read", func(t *testing.T) {
 		setPrefsFile(t, `{"appearance":"dark","theme":"`+nordSlug+`","theme_migrated":true}`)
@@ -160,16 +111,8 @@ func TestLoadPrefsStore_MarkerGatesTheTranslation(t *testing.T) {
 	})
 }
 
-// TestLoadPrefsStore_ExistingKeySuppressesTheInMemoryValue: it applies the
-// no-op condition in memory.
-//
-// §10.5 evaluates §10.3's no-op condition against the LOAD-TIME SNAPSHOT for
-// the in-memory half — the only moment early enough to affect what is painted.
-// Whatever the user has already set is what renders, under all three keys.
-//
-// TranslatedSlug survives the check unzeroed on purpose: the condition is
-// checked twice against two reads, and the write half's re-read is what absorbs
-// a commit another instance made in between.
+// TranslatedSlug survives the no-op check unzeroed on purpose: the write half
+// re-checks against its own read, which is what absorbs a concurrent commit.
 func TestLoadPrefsStore_ExistingKeySuppressesTheInMemoryValue(t *testing.T) {
 	for _, tc := range []struct {
 		key  string
@@ -189,16 +132,8 @@ func TestLoadPrefsStore_ExistingKeySuppressesTheInMemoryValue(t *testing.T) {
 	}
 }
 
-// TestLoadPrefsStore_HandEditedSlotWinsOnTheTranslatingLaunch: it renders the
-// hand-edited slot this launch.
-//
-// §10.3's own reachable loss-of-setting sequence, closed end to end through the
-// production chain (load → §8.2's setting → §8.4's per-slot load): a user
-// upgrades, runs only bootstrap-exempt commands so the migration never fires,
-// reads the new docs and hand-edits `theme_dark`, then launches the picker.
-// What paints is NORD, on that launch and every later one — not one launch of
-// Tokyo Night followed by Nord, which is §10.1's failure delivered by the
-// mechanism added to prevent it.
+// The hand-edit must paint on the translating launch itself, not one launch of
+// the translated default followed by it.
 func TestLoadPrefsStore_HandEditedSlotWinsOnTheTranslatingLaunch(t *testing.T) {
 	setPrefsFile(t, `{"appearance":"dark","theme_dark":"`+nordSlug+`"}`)
 
@@ -207,16 +142,8 @@ func TestLoadPrefsStore_HandEditedSlotWinsOnTheTranslatingLaunch(t *testing.T) {
 	assertPair(t, nomination, themetest.Builtin(t, theme.DefaultLightSlug), themetest.Builtin(t, nordSlug))
 }
 
-// TestLoadPrefsStore_ComputesWithoutWriting: it writes nothing.
-//
-// §10.5 separates COMPUTING from PERSISTING, and this task owns only the
-// compute half: the translated theme is used in memory immediately while the
-// on-disk bytes stay exactly as the user left them.
-//
-// The absent-file row carries a second rule (§8.1): the migration never CREATES
-// prefs.json. A fresh install has no appearance to translate, so creating the
-// file purely to record a marker would add a side effect to a path the feature
-// otherwise leaves free.
+// The absent-file row carries a second rule: the migration never creates
+// prefs.json, so a fresh install gains no file just to record a marker.
 func TestLoadPrefsStore_ComputesWithoutWriting(t *testing.T) {
 	t.Run("a translating launch leaves the file byte-identical", func(t *testing.T) {
 		before := []byte(`{"session_list_mode":"by-tag","appearance":"dark"}`)
@@ -246,14 +173,6 @@ func TestLoadPrefsStore_ComputesWithoutWriting(t *testing.T) {
 	})
 }
 
-// TestLoadPrefsStore_TolerantOnDegenerateFiles: it tolerates an absent or
-// corrupt file.
-//
-// Every degenerate read collapses to empty keys with no error — which IS the
-// shipped adaptive pair, what an unconfigured install renders anyway — so an
-// unreadable preferences file can never be fatal to opening the picker. The
-// nomination is resolved as well as the load, because "does not block TUI
-// construction" is a claim about the whole chain rather than about the read.
 func TestLoadPrefsStore_TolerantOnDegenerateFiles(t *testing.T) {
 	for _, tc := range []struct{ name, content string }{
 		{"absent", ""},
@@ -274,19 +193,8 @@ func TestLoadPrefsStore_TolerantOnDegenerateFiles(t *testing.T) {
 	}
 }
 
-// TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing: it keeps the
-// non-migrating read inert.
-//
-// This is the read `portal doctor` uses (§10.5), and its contract is that a
-// diagnosis heals nothing. The fixture is the one file that would otherwise
-// translate — a pending `appearance: dark` — and the variant must return a
-// bound store having read no bytes, computed nothing and written nothing.
-//
-// The mode-0000 fixture is what the RUNTIME half can prove: the load answers
-// with a bound store and NO error against a file it cannot read, and leaves the
-// bytes exactly as they were. It does NOT prove "no read" — the fixture carries
-// no theme keys, so a read would answer with zero keys too. The structural
-// sub-test is what pins the absence of a read.
+// The mode-0000 fixture cannot prove "no read": it carries no theme keys, so a
+// read would answer with zero keys too. The structural sub-test covers that.
 func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 	t.Run("it returns a bound store against an unreadable file", func(t *testing.T) {
 		before := []byte(`{"appearance":"dark"}`)
@@ -315,10 +223,6 @@ func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 			t.Errorf("prefs.json = %s, want it untouched: %s", after, before)
 		}
 
-		// Reading through the returned store afterwards still answers with zero
-		// keys: the variant computed nothing and recorded no translated value on
-		// its behalf. This is not the "no read" claim — the fixture carries no
-		// theme keys, so a read would answer with zero keys as well.
 		keys, err := store.LoadThemeKeys()
 		if err != nil {
 			t.Fatalf("LoadThemeKeys: %v", err)
@@ -329,11 +233,9 @@ func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 	})
 
 	t.Run("its body resolves the path and constructs the store, and nothing else", func(t *testing.T) {
-		// The runtime half above cannot see a read whose error is discarded, and
-		// a discarded read is exactly the shape behaviour creeps in as. This is
-		// the structural half: the closed call set IS the "must never gain
-		// behaviour" contract, so anything added to the body fails here rather
-		// than silently landing on doctor's read-only path.
+		// A read whose error is discarded is invisible to the runtime half, and
+		// is exactly the shape behaviour creeps in as. The closed call set is
+		// the "must never gain behaviour" contract.
 		want := map[string]bool{"prefsFilePath": true, "prefs.NewStore": true}
 
 		var calls []string
@@ -364,8 +266,6 @@ func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 	})
 }
 
-// funcDeclForTest returns the named top-level function declaration from one of
-// the cmd package's production sources.
 func funcDeclForTest(t *testing.T, file, name string) *ast.FuncDecl {
 	t.Helper()
 
@@ -383,15 +283,9 @@ func funcDeclForTest(t *testing.T, file, name string) *ast.FuncDecl {
 	return nil
 }
 
-// TestLoadPrefsStore_SingleProductionCaller: it has one migrating caller.
-//
-// §10.5's "the migration runs only where a TUI is constructed" holds
-// STRUCTURALLY rather than by review, which is what this guard is for: a second
-// caller — a doctor check, a bootstrap step, a shared pre-run — would run the
-// translation on a path that paints nothing and, once task 6-6 adds the write,
-// mutate the user's config from a verb that has no business doing so. The
-// non-migrating variant exists precisely so such a caller has an inert read to
-// use instead.
+// A second caller — a doctor check, a bootstrap step, a shared pre-run — would
+// translate on a path that paints nothing and mutate the user's config from a
+// verb with no business doing so. The non-migrating variant exists for those.
 func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 	var callers []string
 
@@ -404,7 +298,7 @@ func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 		})
 	}
 
-	// parsePackageFilesByName is map-ordered, so sort for a stable failure message.
+	// Map-ordered, so sort for a stable failure message.
 	slices.Sort(callers)
 
 	if len(callers) != 1 || callers[0] != "open.go:openTUI" {
@@ -412,15 +306,9 @@ func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 	}
 }
 
-// TestTranslateAppearance_ExactMatchOnly: it matches the appearance value
-// exactly.
-//
-// §10.2's mapping reproduces THE OLD BINARY'S reading of the value, and the
-// appearance decode §8.8 deleted matched the three tokens exactly — so every
-// value that binary read as `auto` (`Dark`, ` dark`, a trailing newline from a
-// hand-edit) must translate to nothing. Trimming or lowercasing here would
-// change the meaning of a value rather than preserve it, which is the one thing
-// the translation may not do.
+// The deleted appearance decode matched its three tokens exactly, so every
+// value it read as `auto` (`Dark`, ` dark`, a trailing newline) must translate
+// to nothing: trimming or lowercasing would change a value's meaning.
 func TestTranslateAppearance_ExactMatchOnly(t *testing.T) {
 	for _, raw := range []string{"Dark", " dark", "DARK", "dark\n", "Light", "light ", "LIGHT", "auto", "sepia", ""} {
 		t.Run("translates "+raw+" to nothing", func(t *testing.T) {
@@ -431,11 +319,8 @@ func TestTranslateAppearance_ExactMatchOnly(t *testing.T) {
 	}
 }
 
-// TestTranslateAppearance_UsesSharedConstants: it uses the shared default slugs.
-//
-// The two mapped slugs are §7.2's shipped pair, named by the constants Phase 2
-// declared, never by a literal — a hardcoded "tokyo-night" here would go on
-// passing after the shipped default moved.
+// Named by the shared constants, never by a literal: a hardcoded slug here
+// would go on passing after the shipped default moved.
 func TestTranslateAppearance_UsesSharedConstants(t *testing.T) {
 	if theme.DefaultDarkSlug == theme.DefaultLightSlug {
 		t.Fatal("the two shipped default slugs are equal; the assertions below could not tell the two mappings apart")
@@ -449,8 +334,8 @@ func TestTranslateAppearance_UsesSharedConstants(t *testing.T) {
 			if got := translateAppearance(tc.raw); got != tc.want {
 				t.Errorf("translateAppearance(%q) = %q, want %q", tc.raw, got, tc.want)
 			}
-			// A slug that names no built-in would pin the user to §8.5's
-			// fallback rather than to the theme their pin meant.
+			// A slug naming no built-in would pin the user to the fallback
+			// rather than to the theme their pin meant.
 			themetest.Builtin(t, tc.want)
 		})
 	}

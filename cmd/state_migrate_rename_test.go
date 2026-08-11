@@ -1,5 +1,3 @@
-// Tests in this file MUST NOT use t.Parallel — they manipulate filesystem
-// state under t.TempDir and exercise package-level seams in cmd.
 package cmd
 
 import (
@@ -16,15 +14,10 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// silentLogger is a discard *slog.Logger used by migrate-rename tests that
-// do not assert on log output.
 func silentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// newMigrateStore is a small helper that returns a *hooks.Store rooted at a
-// fresh temp dir. The returned path is the hooks file (not necessarily
-// pre-existing).
 func newMigrateStore(t *testing.T) (*hooks.Store, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -32,8 +25,6 @@ func newMigrateStore(t *testing.T) (*hooks.Store, string) {
 	return hooks.NewStore(path), path
 }
 
-// newMigrateLogger returns a capturing *slog.Logger bound to the hooks
-// component plus its sink so tests can read the rendered log body back.
 func newMigrateLogger(t *testing.T) (*slog.Logger, *logtest.Sink) {
 	t.Helper()
 	return newCaptureLoggerForComponent(t, "hooks")
@@ -181,8 +172,6 @@ func TestRunMigrateRename_CollisionLogsAndOverwrites(t *testing.T) {
 	if !strings.Contains(msg, "component=hooks") {
 		t.Errorf("expected component %q on collision log; got %q", "hooks", msg)
 	}
-	// The colliding key now rides the hook_key attr (terse message must not
-	// interpolate values).
 	if !strings.Contains(msg, "hook_key=new:0.0") {
 		t.Errorf("expected colliding key on collision log; got %q", msg)
 	}
@@ -199,11 +188,7 @@ func TestRunMigrateRename_EmitsInternalSaveBreadcrumb(t *testing.T) {
 		"work:1.0": {"on-resume": "c"},
 	})
 
-	// The Save breadcrumb is emitted at the store seam (SaveAudited ->
-	// log.For("hooks")), which routes through the process-wide swap handler —
-	// NOT through the *slog.Logger injected into runMigrateRename (that one
-	// carries only the collision / load diagnostics). Capture via
-	// SetTestHandler to observe the store-seam breadcrumb.
+	// The Save breadcrumb is emitted at the store seam, not through the injected logger.
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
@@ -212,8 +197,6 @@ func TestRunMigrateRename_EmitsInternalSaveBreadcrumb(t *testing.T) {
 	}
 
 	body := sink.Body()
-	// Exactly one audit breadcrumb for the persisted rewrite: INFO modify with
-	// entries=N (the number of rewritten keys) and via=internal, under hooks.
 	if !strings.Contains(body, "INFO modify") {
 		t.Errorf("expected INFO modify breadcrumb; got %q", body)
 	}
@@ -226,7 +209,6 @@ func TestRunMigrateRename_EmitsInternalSaveBreadcrumb(t *testing.T) {
 	if !strings.Contains(body, "via=internal") {
 		t.Errorf("expected via=internal; got %q", body)
 	}
-	// Terse message: no value interpolation, single summary line for the batch.
 	if strings.Count(body, "INFO modify") != 1 {
 		t.Errorf("expected exactly one INFO modify breadcrumb; got %q", body)
 	}
@@ -256,7 +238,6 @@ func TestRunMigrateRename_MalformedJSONIsNoOp(t *testing.T) {
 	if !info.ModTime().Equal(beforeMtime) {
 		t.Errorf("file rewritten despite no matching keys; mtime %v -> %v", beforeMtime, info.ModTime())
 	}
-	// Confirm content is still the malformed bytes (no rewrite at all).
 	got, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read after migrate: %v", err)
@@ -268,7 +249,6 @@ func TestRunMigrateRename_MalformedJSONIsNoOp(t *testing.T) {
 
 func TestRunMigrateRename_MissingFileIsNoOp(t *testing.T) {
 	store, path := newMigrateStore(t)
-	// Do not create the file.
 
 	if err := runMigrateRename(store, "old", "new", silentLogger()); err != nil {
 		t.Fatalf("runMigrateRename should treat missing as empty: %v", err)
@@ -307,10 +287,7 @@ func TestRunMigrateRename_SaveFailurePropagatesAndWarns(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 
-	// The save-failure WARN is now emitted at the store seam (SaveAudited),
-	// which routes through the process-wide swap handler — capture it via
-	// SetTestHandler. It is the terse audit WARN (op=modify) carrying the
-	// write-failed-* error_class, not the old hand-rolled "save hooks failed".
+	// The save-failure WARN is emitted at the store seam, not through the injected logger.
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 
@@ -364,8 +341,6 @@ func TestRunMigrateRename_PreservesEventMapVerbatim(t *testing.T) {
 }
 
 func TestRunMigrateRename_KeyWithColonInRemainder(t *testing.T) {
-	// Trailing-colon prefix means oldName="foo" matches "foo:bar:0.0" —
-	// the entire "bar:0.0" remainder is preserved.
 	store, path := newMigrateStore(t)
 	writeHooksJSON(t, path, map[string]map[string]string{
 		"foo:bar:0.0": {"on-resume": "preserved"},
@@ -384,14 +359,6 @@ func TestRunMigrateRename_KeyWithColonInRemainder(t *testing.T) {
 	}
 }
 
-// TestRunMigrateRename_EmitsHooksComponentToLogger asserts the migration
-// surface routes its diagnostic warnings through the injected *slog.Logger
-// under the canonical hooks component tag rather than fmt.Fprintf(os.Stderr,
-// ...). This is the task 12-5 acceptance: routine reporting in
-// state_migrate_rename must be visible to portal.log so `portal doctor`
-// recent-warnings can surface it. We exercise the collision path (which is the
-// deterministic non-fatal warning path) and verify both the level and
-// component tag.
 func TestRunMigrateRename_EmitsHooksComponentToLogger(t *testing.T) {
 	store, path := newMigrateStore(t)
 	writeHooksJSON(t, path, map[string]map[string]string{

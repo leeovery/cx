@@ -1,4 +1,3 @@
-// Tests in this file inspect on-disk source and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -9,24 +8,10 @@ import (
 	"testing"
 )
 
-// TestHooksCleanStale_NoBootstrapStepIsAnAutomaticCaller is the AC5 structural
-// guard (spec § Daemon-Owned Hooks Cleanup → Decision; § Test Strategy → Branch
-// selection: "assert the daemon's throttled cleanup is the only hooks-CleanStale
-// caller left"). Phase 1 removed the hooks CleanStale step from the orchestrator
-// entirely, so after this feature the daemon's maybeRunHookCleanup and the
-// manual `doctor --fix` prune (pruneDoctorStaleHooks, package cmd) are the ONLY
-// callers — and neither lives under cmd/bootstrap. This test walks the
-// cmd/bootstrap production source and fails if any file re-introduces a call to
-// the hooks Store.CleanStale method or the shared runHookStaleCleanup helper.
-//
-// The `\bCleanStale\b` word-boundary is deliberate: the unrelated marker-sweep
-// step Store method CleanStaleMarkers (which legitimately remains in the
-// orchestrator as step 9) carries a trailing word char after "CleanStale", so
-// the boundary excludes it — only the bare hooks CleanStale method matches.
-//
-// Only production (non-_test) files are scanned: the AC is about bootstrap
-// STEPS (production code), and test files legitimately mention "CleanStale" in
-// prose comments documenting the removal.
+// The \bCleanStale\b word boundary is deliberate: the marker-sweep method
+// CleanStaleMarkers carries a trailing word char, so only the bare hooks
+// method matches. Only production files are scanned — test files legitimately
+// mention the name in prose.
 func TestHooksCleanStale_NoBootstrapStepIsAnAutomaticCaller(t *testing.T) {
 	forbidden := regexp.MustCompile(`\bCleanStale\b|\brunHookStaleCleanup\b`)
 
@@ -56,8 +41,8 @@ func TestHooksCleanStale_NoBootstrapStepIsAnAutomaticCaller(t *testing.T) {
 		}
 	}
 
-	// Sanity: the directory must actually contain production source, else a
-	// path/layout regression would make this guard silently vacuous.
+	// The directory must actually contain production source, else a layout
+	// change would make this guard silently vacuous.
 	if scanned == 0 {
 		t.Fatalf("no production .go files scanned under %q; guard is vacuous", bootstrapDir)
 	}

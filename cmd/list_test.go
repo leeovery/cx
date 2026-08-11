@@ -1,7 +1,5 @@
 package cmd
 
-// Tests in this file mutate package-level state (bootstrapDeps, listDeps) and MUST NOT use t.Parallel.
-
 import (
 	"bytes"
 	"testing"
@@ -9,7 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// mockSessionLister implements SessionLister for testing.
 type mockSessionLister struct {
 	sessions []tmux.Session
 	err      error
@@ -192,7 +189,6 @@ func TestListCommand(t *testing.T) {
 	})
 
 	t.Run("all sessions listed inside tmux including current", func(t *testing.T) {
-		// Inside tmux: all sessions should be listed, no exclusions
 		lister := &mockSessionLister{
 			sessions: []tmux.Session{
 				{Name: "current-session", Windows: 2, Attached: true},

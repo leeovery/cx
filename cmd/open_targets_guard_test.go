@@ -1,13 +1,8 @@
 package cmd
 
-// Drift guard for openTargetPins. orderedOpenTargets (open_targets.go) recovers
-// left-to-right target order from raw argv by classifying each flag token against
-// the static openTargetPins map, which is structurally decoupled from openCmd's
-// live cobra flag set. A value-taking flag added to openCmd but not mirrored into
-// openTargetPins would be treated as arity-0, misrouting its VALUE as a bare
-// positional target. This file walks the live flag set and fails loudly on that
-// drift. No package-level state, no cobra Execute, no tmux — but package cmd, so
-// per CLAUDE.md it MUST NOT use t.Parallel.
+// openTargetPins is structurally decoupled from openCmd's live cobra flag
+// set: a value-taking flag added to one but not the other would be treated
+// as arity-0, misrouting its value as a bare positional target.
 
 import (
 	"slices"
@@ -18,15 +13,9 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// valueTakingFlagMissingPins returns the openTargetPins keys a value-taking flag
-// REQUIRES but that `pins` lacks (its "--long" form, plus its "-short" form when
-// it has a shorthand). A pflag takes a value unless it is a bool or carries a
-// non-empty NoOptDefVal (arity-0 / optional-value); such a flag is correctly
-// skipped by orderedOpenTargets, so this predicate returns nil for it. A
-// value-taking flag already fully covered by `pins` also returns nil. It is the
-// shared predicate driving both the live-openCmd guard and its drift unit below.
-// pins is keyed by cobra flag name (strings, legitimately) — this guard covers
-// flag-name↔pin drift and never inspects the pin's typed resolver.Domain value.
+// A pflag takes a value unless it is a bool or carries a non-empty
+// NoOptDefVal, and orderedOpenTargets correctly skips those, so they report
+// nothing missing.
 func valueTakingFlagMissingPins(f *pflag.Flag, pins map[string]resolver.Domain) []string {
 	if f.Value.Type() == "bool" || f.NoOptDefVal != "" {
 		return nil
@@ -44,9 +33,8 @@ func valueTakingFlagMissingPins(f *pflag.Flag, pins map[string]resolver.Domain) 
 }
 
 func TestValueTakingFlagMissingPins_DetectsDrift(t *testing.T) {
-	// A crafted flag set — the real openCmd is never mutated (a pflag.FlagSet can
-	// not cleanly un-register a flag). "zzz"/"Z" is value-taking and absent from
-	// openTargetPins, so the predicate must report BOTH forms missing.
+	// A crafted flag set — a pflag.FlagSet cannot cleanly un-register a flag, so
+	// the real openCmd is never mutated.
 	fs := pflag.NewFlagSet("crafted", pflag.ContinueOnError)
 	fs.StringP("zzz", "Z", "", "throwaway value-taking flag absent from openTargetPins")
 
@@ -64,25 +52,17 @@ func TestValueTakingFlagMissingPins_SkipsAndCovers(t *testing.T) {
 	fs.Lookup("opt").NoOptDefVal = "sentinel"
 	fs.StringP("session", "s", "", "value-taking flag already present in openTargetPins")
 
-	// A bool flag is arity-0 and must be skipped (nil), never flagged.
 	if got := valueTakingFlagMissingPins(fs.Lookup("verbose"), openTargetPins); got != nil {
 		t.Errorf("bool flag --verbose should be skipped, got %#v", got)
 	}
-	// An optional-value flag (NoOptDefVal set) is likewise skipped.
 	if got := valueTakingFlagMissingPins(fs.Lookup("opt"), openTargetPins); got != nil {
 		t.Errorf("optional-value flag --opt should be skipped, got %#v", got)
 	}
-	// A value-taking flag fully covered by openTargetPins must NOT false-positive.
 	if got := valueTakingFlagMissingPins(fs.Lookup("session"), openTargetPins); got != nil {
 		t.Errorf("fully-pinned flag --session/-s should report nothing missing, got %#v", got)
 	}
 }
 
-// TestOpenTargetPinsCoverValueTakingFlags is the live drift guard: it walks
-// openCmd's real cobra flag set and fails if any value-taking flag is missing
-// from openTargetPins. It passes for the current 7 flags (exec/filter/session/
-// path/alias/zoxide/ack) and fails loudly the moment a value-taking flag is
-// added to openCmd without a matching openTargetPins entry.
 func TestOpenTargetPinsCoverValueTakingFlags(t *testing.T) {
 	openCmd.Flags().VisitAll(func(f *pflag.Flag) {
 		for _, key := range valueTakingFlagMissingPins(f, openTargetPins) {
@@ -91,16 +71,8 @@ func TestOpenTargetPinsCoverValueTakingFlags(t *testing.T) {
 	})
 }
 
-// TestOpenTargetPinsKeysAreLiveFlags is the REVERSE of
-// TestOpenTargetPinsCoverValueTakingFlags: it walks every openTargetPins key and
-// fails if the key does not name a LIVE openCmd flag. The forward guard catches a
-// value-taking flag ADDED to openCmd without a matching pin; this one catches a
-// STALE pin (a flag renamed/removed from openCmd but left in openTargetPins),
-// which would make orderedOpenTargets consume a following token as the value of a
-// flag cobra no longer accepts. Every current key — including the
-// emission-excluded empty-domain entries (-e/--exec, -f/--filter, --ack, the
-// last a hidden flag still present in the flag set) — names a live flag, so
-// nothing is excluded.
+// The reverse guard: a stale pin naming a flag cobra no longer accepts would
+// make orderedOpenTargets consume the following token as its value.
 func TestOpenTargetPinsKeysAreLiveFlags(t *testing.T) {
 	for key := range openTargetPins {
 		var f *pflag.Flag

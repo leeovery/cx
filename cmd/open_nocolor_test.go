@@ -1,7 +1,5 @@
 package cmd
 
-// Tests in this file mutate env state and MUST NOT use t.Parallel.
-
 import (
 	"os"
 	"testing"
@@ -10,10 +8,8 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestNoColorEnabled pins the no-color.org convention the cmd layer reads: the
-// NO_COLOR env var enables the colourless carve-out (§2.5) only when it is
-// PRESENT and NON-EMPTY. A set-but-empty value does not enable it, and an unset
-// var does not enable it. This is the single place NO_COLOR is read.
+// The no-color.org convention: NO_COLOR enables the carve-out only when
+// present and non-empty.
 func TestNoColorEnabled(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -28,10 +24,9 @@ func TestNoColorEnabled(t *testing.T) {
 		{"set to 0 (still non-empty → enabled)", true, "0", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// t.Setenv registers a cleanup that restores the original value (or
-			// unsets it if it was originally absent), so this is safe even when a
-			// developer has NO_COLOR exported. For the "unset" case, Setenv-then-
-			// Unsetenv leaves it genuinely absent for the duration of the test.
+			// t.Setenv restores the original value on cleanup, so this is safe even for
+			// a developer who exports NO_COLOR; Setenv-then-Unsetenv leaves the "unset"
+			// case genuinely absent.
 			t.Setenv("NO_COLOR", tc.val)
 			if !tc.set {
 				if err := os.Unsetenv("NO_COLOR"); err != nil {
@@ -45,11 +40,6 @@ func TestNoColorEnabled(t *testing.T) {
 	}
 }
 
-// TestBuildTUIModel_NoColorSuppressesCanvas asserts the cmd-layer flag threads
-// through buildTUIModel into the colourless render path: with cfg.noColor the
-// rendered View sets NO screen background colour (no OSC 11 canvas), while
-// without it the canvas is painted (BackgroundColor set). This proves the single
-// colourless flag flows cmd → tui.Deps → model.
 func TestBuildTUIModel_NoColorSuppressesCanvas(t *testing.T) {
 	t.Run("noColor suppresses the canvas background", func(t *testing.T) {
 		cfg := defaultTestTUIConfig()
@@ -65,10 +55,9 @@ func TestBuildTUIModel_NoColorSuppressesCanvas(t *testing.T) {
 	t.Run("coloured path still paints the canvas background", func(t *testing.T) {
 		cfg := defaultTestTUIConfig()
 		cfg.noColor = false
-		// Pin a CONSTANT nomination so the gate resolves at construction (an
-		// adaptive pair would hold the blank frame until OSC 11 resolves, which
-		// never fires in a non-program test) — then the coloured path paints its
-		// canvas immediately.
+		// A constant nomination resolves the gate at construction; an adaptive pair
+		// would hold the blank frame waiting on an OSC 11 reply that never comes in
+		// a non-program test.
 		cfg.theme = theme.ConstantNomination(themetest.Builtin(t, theme.DefaultDarkSlug))
 
 		m := buildTUIModel(cfg, "", nil)

@@ -8,8 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// listDeps holds injectable dependencies for the list command.
-// When nil, real implementations are used.
 var listDeps *ListDeps
 
 // SessionLister queries tmux for running sessions.
@@ -23,7 +21,6 @@ type ListDeps struct {
 	IsTTY  func() bool
 }
 
-// isTTY detects whether stdout is a terminal using os.Stdout.Stat().
 func isTTY() bool {
 	stat, err := os.Stdout.Stat()
 	if err != nil {
@@ -32,7 +29,6 @@ func isTTY() bool {
 	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
-// formatSessionLong formats a session in long (full details) format.
 func formatSessionLong(s tmux.Session) string {
 	status := "detached"
 	if s.Attached {
@@ -67,7 +63,6 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 
-		// Determine output mode: long (full details) or short (names only)
 		useLong := ttyDetect()
 		if shortFlag {
 			useLong = false
@@ -93,7 +88,6 @@ var listCmd = &cobra.Command{
 	},
 }
 
-// buildListDeps returns the appropriate dependencies for the list command.
 func buildListDeps(cmd *cobra.Command) (SessionLister, func() bool) {
 	if listDeps != nil {
 		return listDeps.Lister, listDeps.IsTTY

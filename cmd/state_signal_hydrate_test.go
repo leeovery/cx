@@ -1,5 +1,3 @@
-// Tests in this file mutate package-level state (signalHydrateRunFunc) and
-// MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -16,8 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// markersOption renders a `show-options -sv` line for a given paneKey set so
-// tests can drive ListSkeletonMarkers via recordingCommander.RunFunc.
 func markersOption(paneKeys ...string) string {
 	if len(paneKeys) == 0 {
 		return ""
@@ -32,8 +28,6 @@ func markersOption(paneKeys ...string) string {
 	return out.String()
 }
 
-// listPanesOutput renders a `list-panes -s -t <s> -F #{window_index}:#{pane_index}`
-// reply for a list of (window, pane) tuples.
 func listPanesOutput(panes [][2]int) string {
 	var out strings.Builder
 	for i, p := range panes {
@@ -45,9 +39,8 @@ func listPanesOutput(panes [][2]int) string {
 	return out.String()
 }
 
-// signalHydrateClient builds a recordingCommander whose RunFunc replies to the
-// two tmux calls signal-hydrate makes: show-options -sv and
-// list-panes -s -t <session>. Other calls fail the test.
+// signalHydrateClient replies to the two tmux calls signal-hydrate makes;
+// anything else fails the test.
 func signalHydrateClient(t *testing.T, markersRaw string, panes [][2]int) (*tmux.Client, *recordingCommander) {
 	t.Helper()
 	cmder := &recordingCommander{
@@ -90,8 +83,6 @@ func TestSignalHydrate_SignalsEverySkeletonMarkedPane(t *testing.T) {
 		t.Fatalf("runSignalHydrate: %v", err)
 	}
 
-	// Every marked paneKey must receive exactly one SendSignal call at its
-	// canonical FIFO path.
 	wantPaths := map[string]struct{}{
 		state.FIFOPath(dir, keys[0]): {},
 		state.FIFOPath(dir, keys[1]): {},
@@ -110,7 +101,6 @@ func TestSignalHydrate_SkipsPanesWithoutSkeletonMarker(t *testing.T) {
 	dir := t.TempDir()
 	session := "foo"
 	panes := [][2]int{{0, 0}, {0, 1}, {1, 0}}
-	// Only mark window 0, pane 1.
 	markedKey := state.SanitizePaneKey(session, 0, 1)
 
 	client, _ := signalHydrateClient(t, markersOption(markedKey), panes)
@@ -140,7 +130,6 @@ func TestSignalHydrate_ZeroMarkersIsNoOp(t *testing.T) {
 	session := "foo"
 	panes := [][2]int{{0, 0}, {0, 1}}
 
-	// markersRaw is empty — no skeleton markers anywhere on the server.
 	client, _ := signalHydrateClient(t, "", panes)
 	signaler := &statetest.RecordingFIFOSignaler{}
 
@@ -158,12 +147,6 @@ func TestSignalHydrate_ZeroMarkersIsNoOp(t *testing.T) {
 	}
 }
 
-// TestSignalHydrate_PerFIFOFailureDoesNotUnsetMarker pins the soft-fail
-// posture: a SendSignal failure (e.g. ENOENT or retry-exhaustion bubbled up
-// through the production state.FIFOSignaler) must NEVER cause runSignalHydrate
-// to unset the @portal-skeleton-* marker. Marker ownership belongs to the
-// hydrate helper (spec → "The 100ms Settle Sleep") — signal-hydrate must
-// remain marker-read-only.
 func TestSignalHydrate_PerFIFOFailureDoesNotUnsetMarker(t *testing.T) {
 	dir := t.TempDir()
 	session := "foo"
@@ -185,8 +168,7 @@ func TestSignalHydrate_PerFIFOFailureDoesNotUnsetMarker(t *testing.T) {
 		t.Fatalf("runSignalHydrate must soft-fail on signal failure, got %v", err)
 	}
 
-	// Verify NO `set-option -su <marker>` was issued — signal-hydrate
-	// must never touch markers (helper owns marker-unset).
+	// signal-hydrate must never touch markers: the hydrate helper owns the unset.
 	for _, c := range cmder.Calls {
 		if len(c) >= 2 && c[0] == "set-option" && c[1] == "-su" {
 			t.Errorf("signal-hydrate must never call set-option -su; got %v", c)
@@ -261,7 +243,6 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 	key := state.SanitizePaneKey(session, 0, 0)
 	panes := [][2]int{{0, 0}}
 
-	// First call: marker set. Second call: marker absent.
 	var markerSet = true
 	cmder := &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -294,7 +275,6 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 		t.Errorf("first invocation SendSignal calls = %d, want 1", len(first.Calls))
 	}
 
-	// Second invocation: helper has already cleared its marker.
 	markerSet = false
 	second := &statetest.RecordingFIFOSignaler{}
 	cfg2 := signalHydrateConfig{
@@ -311,20 +291,8 @@ func TestSignalHydrate_IsIdempotentAcrossRepeatedInvocations(t *testing.T) {
 	}
 }
 
-// TestSignalHydrate_WARNsRenderUnderSignalComponent pins the cycle-3 signal-vs-
-// hydrate attribution decision (task 9-2, option a): runSignalHydrate's three
-// enumeration/per-FIFO WARNs render under component=signal — matching the
-// structural sibling EagerSignalHydrate — so `grep "signal:"` reconstructs the
-// hook-driven FIFO-signaling path. They must NOT render under component=hydrate
-// (the command's process_role stays hydrate; the subsystem component is signal —
-// the two attrs are orthogonal).
-//
-// cfg.Logger is left nil deliberately so the test exercises the PRODUCTION
-// default (signalLoggerOrDefault → the package-level signalLogger bound via
-// log.For("signal")), not a test-injected component binding. log.SetTestHandler
-// re-points the shared handler indirection at a logtest.Sink so the cached
-// signalLogger's records are captured in-process — this is what would have
-// false-passed had we injected a pre-bound logger, so it is load-bearing.
+// cfg.Logger is left nil deliberately so the production default binding is what
+// emits; injecting a pre-bound logger would false-pass this.
 func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -382,7 +350,6 @@ func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 				Session:  "foo",
 				StateDir: t.TempDir(),
 				Client:   tmux.NewClient(&recordingCommander{RunFunc: tc.runFunc}),
-				// Logger intentionally nil — exercise the production default.
 				Signaler: tc.signal,
 			}
 			if err := runSignalHydrate(cfg); err != nil {
@@ -393,8 +360,6 @@ func TestSignalHydrate_WARNsRenderUnderSignalComponent(t *testing.T) {
 	}
 }
 
-// assertSignalComponentWARN asserts the sink captured a WARN line carrying the
-// given message under component=signal and NOT under component=hydrate.
 func assertSignalComponentWARN(t *testing.T, sink *logtest.Sink, msg string) {
 	t.Helper()
 	body := sink.Body()
@@ -422,26 +387,11 @@ func assertSignalComponentWARN(t *testing.T, sink *logtest.Sink, msg string) {
 	}
 }
 
-// NOTE: The former TestSignalHydrate_RunEDefersLoggerClose was removed in the
-// observability migration. The signal-hydrate RunE no longer opens or closes a
-// per-process file-backed logger — logging is owned by internal/log's handler
-// (configured once via main -> log.Init), so there is no per-helper fd to
-// defer-close. The behaviour it asserted no longer exists.
-
-// TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute exercises
-// the full cobra/pflag argv-parse path with a leading-dash session name (the
-// primary failure mode that motivated the `--` end-of-flags separator).
-// Without `--`, pflag treats `-dotfiles-HM9Zhw` as a short-flag cluster and
-// the command exits non-zero before runSignalHydrate is reached, so no FIFO
-// byte is written and the hydrate helper times out.
+// Without the `--` end-of-flags separator, pflag reads a leading-dash session
+// name as a short-flag cluster and the command exits before runSignalHydrate is
+// reached, so no FIFO byte is ever written.
 func TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute(t *testing.T) {
 	t.Run("with -- separator, leading-dash session name parses, reaches RunE, and signals FIFO", func(t *testing.T) {
-		// AC #2: drive cobra Execute() against a leading-dash positional and
-		// assert exit 0 + Signaler.SendSignal invoked. We install a
-		// signalHydrateRunFunc seam that swaps cfg.Client / cfg.Signaler for
-		// in-memory test doubles then calls the real runSignalHydrate so the
-		// full enumeration → signal pipeline executes against the captured
-		// cobra-parsed session.
 		const sessionName = "-dotfiles-HM9Zhw"
 		paneKey := state.SanitizePaneKey(sessionName, 0, 0)
 
@@ -455,9 +405,6 @@ func TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute(t *testing.
 		prev := signalHydrateRunFunc
 		signalHydrateRunFunc = func(cfg signalHydrateConfig) error {
 			captured = cfg.Session
-			// Replace external dependencies with test doubles, then invoke
-			// the real runSignalHydrate so the SendSignal clause is exercised
-			// end-to-end through the cobra Execute() entry point.
 			cfg.Client = stubClient
 			cfg.Signaler = stubSignaler
 			return runSignalHydrate(cfg)
@@ -487,9 +434,7 @@ func TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute(t *testing.
 	})
 
 	t.Run("without -- separator, leading-dash session is misparsed as short-flag cluster", func(t *testing.T) {
-		// Negative sub-case: confirms the failure mode the `--` fix addresses.
-		// The seam is still installed so an accidental successful parse would
-		// be caught by the captured assertion below.
+		// The seam stays installed so an accidental successful parse is caught.
 		var captured string
 		prev := signalHydrateRunFunc
 		signalHydrateRunFunc = func(cfg signalHydrateConfig) error {

@@ -15,54 +15,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestOpenExecPath_DoesNoThemeWork pins the `theme` log component's recorded win: on the path
-// Portal is most careful to keep free of cost — `portal open <target>`, which execs
-// without painting — this feature adds nothing at all.
-//
-// Both halves are needed, and they fail differently.
-//
-// The SOURCE guard catches a call site added where no TUI is constructed: a
-// theme read in the resolution/exec branch, or in a shared pre-run step every
-// verb passes through, would run on every `x <target>` and leave no trace in a
-// run that execs before anything is painted. Two files are exempt IN FULL, each
-// because it IS a separate verb whose whole job is theme work and which no
-// `portal open` invocation reaches: cmd/theme.go is `portal theme export`, and
-// cmd/doctor_theme.go is `portal doctor`'s themes-directory scan. Unreachability
-// from open — not bootstrap exemption — is the whole basis of both.
-//
-// An exempt file hides every helper it declares, so this half backstops its own
-// exemption by TRACKING that file's entry points as local helpers:
-// collectThemeAdvisories and themeAdvisoryUnion sit in the `local` map below,
-// which leaves the scan's internals unguarded but fails the moment the scan
-// itself is wired into the open
-// path ("open.go: openResolved calls collectThemeAdvisories"). The runtime half
-// below does NOT back the exemption up and must not be read as doing so: doctor
-// hands its loader log.Discard() by design, so a doctor-side helper
-// called from the exec path would read the poisoned directory and still write no
-// record.
-//
-// The RUNTIME half catches the same regression from the other side for theme work
-// that DOES log, and makes the claim about the WHOLE program rather than about
-// this package's call sites: a real `portal open <session>` runs with the themes
-// directory poisoned to a mode-0000 path — any read of it would raise a
-// `theme: directory unusable` WARN — and the `theme` component must emit nothing
-// at all.
+// Two files are exempt in full because each is a separate verb no `portal open`
+// invocation reaches. The runtime half does not back that exemption up: doctor
+// hands its loader log.Discard(), so a doctor-side helper called from the exec
+// path would read the poisoned directory and still write no record.
 func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 	t.Run("no theme call site sits outside TUI construction", func(t *testing.T) {
 		allowed := map[string]bool{
-			// The TUI-construction path — the only place a theme is USED.
-			"openTUI": true,
-			// The construction-time resolution and the two loader constructors it
-			// reaches: prefs' keys → the setting → the per-slot load.
+			"openTUI":          true,
 			"themeResolution":  true,
 			"buildThemeLoader": true,
 			"newThemeLoader":   true,
-			// newThemeSource is deliberately ABSENT. It resolves the themes
-			// directory and reads nothing, so it encloses no theme call site to
-			// permit — and naming it here would licence in advance exactly the
-			// construction-time sweep the lazy-discovery rule forbids, since these names are matched in
-			// EVERY file. What puts the constructor under this guard is the `local`
-			// map below, which tracks it as openTUI's callee.
+			// newThemeSource is deliberately absent: these names are matched in
+			// every file, so permitting it would licence a construction-time
+			// sweep anywhere. The `local` map below tracks it instead.
 		}
 
 		exemptFiles := map[string]bool{"theme.go": true, "doctor_theme.go": true}
@@ -81,13 +47,12 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 
 	t.Run("an exec-path open emits no theme record", func(t *testing.T) {
 		poisonThemesDir(t)
-		// A DROP-IN slug, so resolving it must consult the themes directory — a
-		// built-in would resolve out of the embedded set and never touch the poison.
+		// A drop-in slug: a built-in would resolve out of the embedded set and
+		// never touch the poison.
 		setPrefsFile(t, `{"theme":"a-drop-in"}`)
 
-		// The fixture has to be LOUD or the zero-record assertion below could pass
-		// for want of anything observable. Running the construction-time resolution
-		// against it proves the records exist to be seen.
+		// Vacuity guard: the records must exist to be seen, or the zero-record
+		// assertion below could pass for want of anything observable.
 		loud := installMigrateCapture(t)
 		themeNominationForTest(t)
 		if len(themeEvents(t, loud)) == 0 {
@@ -104,10 +69,9 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 	})
 }
 
-// poisonThemesDir points PORTAL_THEMES_DIR at an existing but UNREADABLE
-// directory, so any attempt to read it is loud: the directory-resolution rule makes an
-// unusable directory the one state that earns a `theme: directory unusable` WARN, where an
-// absent one is silent. Absence would make "emitted nothing" vacuous.
+// An existing but unreadable directory is the one state that earns a
+// `theme: directory unusable` WARN; an absent one is silent, which would make
+// "emitted nothing" vacuous.
 func poisonThemesDir(t *testing.T) {
 	t.Helper()
 
@@ -118,10 +82,8 @@ func poisonThemesDir(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 }
 
-// execOpenSession runs a real `portal open <target>` that resolves in the session
-// domain, and returns the session it handed to the connector. Every tmux-touching
-// seam is injected, so the body runs its production resolution → outcome switch
-// without reaching a server.
+// Every tmux-touching seam is injected, so the body runs its production
+// resolution without reaching a server.
 func execOpenSession(t *testing.T, name string) string {
 	t.Helper()
 
@@ -153,13 +115,9 @@ func execOpenSession(t *testing.T, name string) string {
 	return attached
 }
 
-// TestThemeComponent_BoundOnceInCmd pins CLAUDE.md's bind-once-per-package rule
-// for the `theme` component: one package-level logger, bound once.
-//
-// The component is legitimately emitted from more than one PACKAGE (the
-// loader, the translation, the persister), which is exactly why the per-package
-// rule needs guarding here: a second binding inside cmd would be invisible at
-// review, since every call site would still look correct in isolation.
+// The component is legitimately emitted from more than one package, so a second
+// binding inside cmd would be invisible at review — every call site would still
+// look correct in isolation.
 func TestThemeComponent_BoundOnceInCmd(t *testing.T) {
 	bindings := componentBindings(t, "theme")
 
@@ -171,7 +129,6 @@ func TestThemeComponent_BoundOnceInCmd(t *testing.T) {
 	}
 }
 
-// assertConstant asserts the nomination is the constant state holding want.
 func assertConstant(t *testing.T, n theme.Nomination, want theme.Theme) {
 	t.Helper()
 	if !n.IsConstant() {
@@ -182,8 +139,7 @@ func assertConstant(t *testing.T, n theme.Nomination, want theme.Theme) {
 	}
 }
 
-// canvasOf names a theme by its canvas for a failure message — a whole Theme
-// through %+v is 19 {name value} pairs of noise.
+// A whole Theme through %+v is 19 {name value} pairs of noise.
 func canvasOf(th theme.Theme) string {
 	if th.Canvas.Value == "" {
 		return "zero-theme"
@@ -191,8 +147,6 @@ func canvasOf(th theme.Theme) string {
 	return "theme(canvas " + th.Canvas.Value + ")"
 }
 
-// themeCallSites maps each production source file to the enclosing function of
-// every call it makes into internal/theme or into the local theme helpers.
 func themeCallSites(t *testing.T) map[string]map[string]string {
 	t.Helper()
 	local := map[string]bool{
@@ -200,22 +154,13 @@ func themeCallSites(t *testing.T) map[string]map[string]string {
 		"buildThemeLoader": true,
 		"newThemeLoader":   true,
 		"newThemeSource":   true,
-		// Tracked because their FILE is exempt in full: exempting the file would
-		// otherwise make every helper declared in it invisible to this scan, so a
-		// doctor-side helper called from the exec path would read as no call at
-		// all. Tracking the entry points puts the exempt file's production callers
-		// back under the guard — see the exemption note on the test.
+		// Entry points into doctor's scan, tracked because their file is exempt in
+		// full — otherwise every helper it declares would be invisible here.
 		//
-		// Both names below are entry points into the same scan: collectThemeAdvisories
-		// hands the renderer its line-only block, themeAdvisoryUnion yields that scan
-		// while it still carries the union's identity. An entry point reached from the
-		// exec path is a themes-directory read there, so none may be left untracked.
-		//
-		// doctor's own caller is invisible here only because it sits in doctorCmd's
+		// doctor's own caller escapes the scan only because it sits in doctorCmd's
 		// composite-literal RunE, which is not an *ast.FuncDecl. Extracting it into
-		// a named function in doctor.go trips this guard; keep the call in the
-		// literal rather than widening `allowed`, whose names are matched in every
-		// file including open.go.
+		// a named function trips this guard: keep the call in the literal rather
+		// than widening `allowed`, whose names match in every file.
 		"collectThemeAdvisories": true,
 		"themeAdvisoryUnion":     true,
 	}
@@ -241,7 +186,6 @@ func themeCallSites(t *testing.T) map[string]map[string]string {
 	return sites
 }
 
-// record notes one call site under its file and enclosing function.
 func record(sites map[string]map[string]string, file, fn, call string) {
 	if sites[file] == nil {
 		sites[file] = map[string]string{}
@@ -249,11 +193,8 @@ func record(sites map[string]map[string]string, file, fn, call string) {
 	sites[file][fn] = call
 }
 
-// componentBindings returns one entry per log.For(component) call in the
-// package's production sources, in either of the two shapes a binding can take:
-// the VAR NAME where the call initialises a package-level var (the sanctioned
-// shape), and "file:function" where it sits inside a function body (a second
-// binding by another name, which must still count as one).
+// Returns the var name for the sanctioned package-level shape, and
+// "file:function" for a call inside a function body.
 func componentBindings(t *testing.T, component string) []string {
 	t.Helper()
 	var bound []string
@@ -276,12 +217,9 @@ func componentBindings(t *testing.T, component string) []string {
 			}
 		}
 	}
-	// Any log.For(component) call outside a package-level var is a second binding
-	// by another name, and must count as one.
 	return append(bound, logForCalls(t, component)...)
 }
 
-// isLogForCall reports whether expr is exactly log.For("<component>").
 func isLogForCall(expr ast.Expr, component string) bool {
 	call, ok := expr.(*ast.CallExpr)
 	if !ok || len(call.Args) != 1 {
@@ -299,8 +237,6 @@ func isLogForCall(expr ast.Expr, component string) bool {
 	return ok && lit.Kind == token.STRING && lit.Value == `"`+component+`"`
 }
 
-// logForCalls returns a marker per log.For(component) call made INSIDE a function
-// body — i.e. every binding that is not the package-level var.
 func logForCalls(t *testing.T, component string) []string {
 	t.Helper()
 	var found []string
@@ -315,8 +251,7 @@ func logForCalls(t *testing.T, component string) []string {
 	return found
 }
 
-// parsePackageFilesByName parses the cmd package's production sources, keyed by
-// filename. go test runs in the package's source directory, so the enumeration
+// go test runs in the package's source directory, so the "." enumeration
 // resolves wherever the suite was invoked from.
 func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()

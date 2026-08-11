@@ -1,19 +1,3 @@
-// Tests in this file mutate package-level cobra command state and MUST NOT use t.Parallel.
-//
-// Coverage for the Phase 6 hydrate-helper forensic trail (Task
-// portal-observability-layer-6-4): the success exit-path INFO
-// "hydrate: scrollback replayed bytes=N took=T" emitted on runHydrate's
-// signal-arrived path — after the postamble write + 100ms settle sleep +
-// marker-unset and before the terminal "hydrate: exec" INFO (Task 6-1).
-//
-// bytes is the exact io.Copy byte count (0 for an empty scrollback, the file
-// size for a populated one); took is the measured replay (copy) duration,
-// rendered as a time.Duration (NOT the settle sleep, NOT a quoted string).
-//
-// Spec reference: § Hook-firing observability limit (Mechanical rule 3 —
-// success row: `Info("scrollback replayed", "bytes", n, "took", took)` then
-// exec); § Subsystem prefix taxonomy (Hydrate attr group — `bytes`; text-mode
-// time.Duration rendering of `took`).
 package cmd
 
 import (
@@ -30,10 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// replayCfg builds a hydrateConfig wired for the production success path: the
-// real blocking FIFO open (unblocked by signalFIFOAsync in the caller) and a
-// populated scrollback File the caller controls. HookStore left nil → bare
-// shell exec via execShellAndExit (emits the exec INFO).
 func replayCfg(t *testing.T, fifo, scrollback, hookKey string, stdout io.Writer, exec func(string, []string), logger *slog.Logger) hydrateConfig {
 	t.Helper()
 	return hydrateConfig{
@@ -81,8 +61,8 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-pop__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
-	// Include NUL / non-UTF8 / escape bytes so the count is the verbatim byte
-	// length, not a rune count.
+	// NUL, non-UTF8 and escape bytes so the count is verbatim byte length rather
+	// than a rune count.
 	payload := []byte("line1\r\nline2\x00\xff\x1b[31mred\x1b[0m")
 	if err := os.WriteFile(scrollback, payload, 0o600); err != nil {
 		t.Fatalf("seed scrollback: %v", err)
@@ -102,9 +82,8 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 		t.Errorf("bytes must equal io.Copy count (%d): %q", len(payload), info)
 	}
 
-	// Pin bytes as a structured slog.KindInt64 attr (the rendered bytes=N is
-	// indistinguishable from a stringified count), mirroring the took Kind
-	// assertion in TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep.
+	// Pinned as a structured int attr: the rendered bytes=N is indistinguishable
+	// from a stringified count.
 	rec := scrollbackReplayedRecord(t, sink)
 	if got := rec.IntAttr(t, "bytes"); got != int64(len(payload)) {
 		t.Errorf("bytes attr = %d, want %d", got, len(payload))
@@ -128,7 +107,6 @@ func TestHydrateReplayedLog_ZeroByteScrollbackEmitsBytesZero(t *testing.T) {
 		t.Fatalf("runHydrate: %v", err)
 	}
 
-	// An empty replay is still a successful rehydration — the INFO still fires.
 	info := execLogLine(t, sink.Body(), "INFO", "scrollback replayed")
 	if !strings.Contains(info, "bytes=0") {
 		t.Errorf("zero-byte scrollback must emit bytes=0: %q", info)
@@ -160,11 +138,9 @@ func TestHydrateReplayedLog_FiveMegabyteFileReportsExactByteCount(t *testing.T) 
 	}
 }
 
-// scrollbackReplayedRecord returns the single captured record whose
-// component=hydrate and msg="scrollback replayed", failing if not exactly one
-// was emitted. It is a thin filter over the shared logtest.Sink so the test can
-// assert the took attr's Kind (substring rendering cannot distinguish a
-// slog.KindDuration took attr from a stringified one).
+// scrollbackReplayedRecord returns the single hydrate "scrollback replayed"
+// record. The structured form is what lets a test assert the took attr's Kind,
+// which substring rendering cannot distinguish from a stringified duration.
 func scrollbackReplayedRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
 	var out []logtest.Record
@@ -206,8 +182,7 @@ func TestHydrateReplayedLog_TookIsDurationAcrossReplayNotSettleSleep(t *testing.
 	if took.Kind() != slog.KindDuration {
 		t.Errorf("took kind = %v, want Duration (must be the measured time.Duration, not stringified)", took.Kind())
 	}
-	// took is measured across the io.Copy only — it must NOT include the 100ms
-	// settle sleep. A tiny in-memory copy completes far under 100ms.
+	// took spans the io.Copy only, never the 100ms settle sleep.
 	if took.Duration() >= hydrateSettleSleep {
 		t.Errorf("took = %v, must be the copy duration (well under the %v settle sleep), not the settle sleep", took.Duration(), hydrateSettleSleep)
 	}
@@ -232,12 +207,10 @@ func TestHydrateReplayedLog_PrecedesExecINFOAndFiresOnce(t *testing.T) {
 
 	body := sink.Body()
 
-	// Fires exactly once.
 	if n := countLogLines(body, "INFO", "scrollback replayed"); n != 1 {
 		t.Fatalf("want exactly one INFO scrollback replayed, got %d: %q", n, body)
 	}
 
-	// Ordering: scrollback replayed INFO precedes the exec INFO.
 	replayedIdx := strings.Index(body, "INFO scrollback replayed")
 	execIdx := strings.Index(body, "INFO exec")
 	if replayedIdx < 0 {

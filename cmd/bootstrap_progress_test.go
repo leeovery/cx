@@ -1,17 +1,5 @@
 package cmd
 
-// Task spectrum-tui-design-5-2 — cmd-side progress channel + goroutine wrapper.
-//
-// These tests cover the bootstrapProgressPipe: the buffered channel that
-// carries serverStarted + per-step events + the terminal done marker from the
-// orchestrator goroutine to the loading-page TUI's receiver tea.Cmd. The pipe
-// must: run the orchestrator in a goroutine, emit one event per real step in
-// order, carry serverStarted on the terminal event, close the channel on return
-// (success or fatal), and have its receiver stop re-issuing on a closed channel
-// (no goroutine leak, no blocked receive after Quit).
-//
-// Tests mutate no shared package state but MUST NOT use t.Parallel (cmd rule).
-
 import (
 	"context"
 	"errors"
@@ -23,10 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// emittingRunner is a bootstrap.Runner that drives the context-carried progress
-// emitter through N steps before returning the configured (started, warnings,
-// err) tuple — mirroring the real orchestrator's emit-per-step contract without
-// standing up the ten step seams.
 type emittingRunner struct {
 	steps    int
 	started  bool
@@ -36,7 +20,7 @@ type emittingRunner struct {
 
 func (r *emittingRunner) Run(ctx context.Context) (bool, []bootstrap.Warning, error) {
 	emit := bootstrap.ProgressEmitterFromContextForTest(ctx)
-	if r.err == nil { // a fatal abort emits no step events past the failure
+	if r.err == nil {
 		for i := 1; i <= r.steps; i++ {
 			if emit != nil {
 				emit(bootstrap.StepEvent{Index: i, Name: "step"})
@@ -46,10 +30,6 @@ func (r *emittingRunner) Run(ctx context.Context) (bool, []bootstrap.Warning, er
 	return r.started, r.warnings, r.err
 }
 
-// drainPipe collects every tea.Msg the receiver yields until the channel closes
-// (the receiver returns a bootstrapChannelClosedMsg, which stops the loop). It
-// re-invokes the receiver synchronously, mirroring the model's re-issue-on-
-// progress behaviour but without the Bubble Tea runtime.
 func drainPipe(t *testing.T, receiver tea.Cmd) []tea.Msg {
 	t.Helper()
 	var msgs []tea.Msg
@@ -63,8 +43,6 @@ func drainPipe(t *testing.T, receiver tea.Cmd) []tea.Msg {
 			if _, closed := msg.(bootstrapChannelClosedMsg); closed {
 				return msgs
 			}
-			// A BootstrapCompleteMsg (terminal) is followed by a channel close;
-			// keep pulling so the loop observes the close sentinel and returns.
 		case <-deadline:
 			t.Fatal("drainPipe timed out — receiver blocked (channel never closed?)")
 		}
@@ -137,8 +115,6 @@ func TestBootstrapProgressPipe_CarriesServerStartedOnTerminalEvent(t *testing.T)
 }
 
 func TestBootstrapProgressPipe_FastColdBoot_ZeroRestoreItems(t *testing.T) {
-	// M=0 restore: the orchestrator still emits its per-step events then the
-	// terminal event. steps=11 with no per-session counter exercises this.
 	runner := &emittingRunner{steps: 11, started: true}
 	pipe := newBootstrapProgressPipe()
 	pipe.start(context.Background(), runner)
@@ -161,8 +137,6 @@ func TestBootstrapProgressPipe_FastColdBoot_ZeroRestoreItems(t *testing.T) {
 }
 
 func TestBootstrapProgressPipe_ClosesChannelOnFatal(t *testing.T) {
-	// task 5-6 owns the full fatal contract; here we only assert the pipe still
-	// closes the channel (no leak) and surfaces the fatal so 5-6 can slot in.
 	boom := errors.New("ensure-server boom")
 	runner := &emittingRunner{steps: 0, started: true, err: boom}
 	pipe := newBootstrapProgressPipe()
@@ -184,11 +158,6 @@ func TestBootstrapProgressPipe_ClosesChannelOnFatal(t *testing.T) {
 	}
 }
 
-// TestBootstrapProgressPipe_CarriesWarningsOnTerminalEvent asserts the task-5-7
-// carry-forward: soft warnings the orchestrator accumulated ride the terminal
-// channel EVENT onto tui.BootstrapCompleteMsg.Warnings (value copies read off the
-// event), not the pipe's struct fields — so the receiver never races the
-// goroutine's writes. Multiple warnings preserve orchestrator-observation order.
 func TestBootstrapProgressPipe_CarriesWarningsOnTerminalEvent(t *testing.T) {
 	warnings := []bootstrap.Warning{
 		{Lines: []string{"saver is down", "restart to recover"}},
@@ -226,12 +195,8 @@ func TestBootstrapProgressPipe_ReceiverStopsReIssuingOnClose(t *testing.T) {
 	pipe.start(context.Background(), runner)
 	receiver := pipe.receiver()
 
-	// Drain to completion (channel closes).
 	_ = drainPipe(t, receiver)
 
-	// A post-close receive must return the closed sentinel WITHOUT blocking —
-	// the model's BootstrapProgressMsg arm re-issues, but the closed channel
-	// means no blocked receive remains after Quit (no goroutine leak).
 	got := make(chan tea.Msg, 1)
 	go func() { got <- receiver() }()
 	select {

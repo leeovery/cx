@@ -1,16 +1,3 @@
-// Tests in this file seed PORTAL_* env vars and mutate package-level Cobra/DI
-// state (doctorDeps, rootCmd), so they MUST NOT use t.Parallel.
-//
-// Concern-split from cmd/doctor_theme_test.go, which owns the same source file's
-// FIRST producer — the themes-directory scan. This file owns the SECOND: the
-// persisted-theme producer, which reads prefs.json through the non-migrating
-// variant and reports the pinned copy's `does not resolve` line for a slug the user chose
-// that no longer answers to anything.
-//
-// The two are split rather than merged because their inputs are different files
-// and their failure modes are different diagnoses: the scan is about what is IN a
-// directory, this is about what a user PICKED. The union of the two blocks, and
-// its pinned order, belong to neither and are asserted in doctor_theme_union_test.go.
 package cmd
 
 import (
@@ -29,9 +16,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// prefsJSONWith renders a prefs.json body from raw key/value pairs, so a fixture
-// can carry a control character or an escape sequence VERBATIM without the test
-// hand-rolling JSON's own escaping alongside it.
 func prefsJSONWith(t *testing.T, keys map[string]string) string {
 	t.Helper()
 
@@ -42,10 +26,7 @@ func prefsJSONWith(t *testing.T, keys map[string]string) string {
 	return string(data)
 }
 
-// persistedThemeDeps seeds prefs.json with content — an empty string leaves the
-// file absent — and returns doctor's deps carrying a store built by the
-// PRODUCTION non-migrating read, so every test below drives the same load path
-// resolveDoctorDeps does.
+// An empty content leaves the prefs file absent.
 func persistedThemeDeps(t *testing.T, content, themesDir string) *DoctorDeps {
 	t.Helper()
 
@@ -57,26 +38,18 @@ func persistedThemeDeps(t *testing.T, content, themesDir string) *DoctorDeps {
 	return &DoctorDeps{PrefsStore: store, ThemesDir: themesDir}
 }
 
-// persistedAdvisoriesFor runs the persisted-theme producer over a seeded
-// prefs.json and a themes directory.
 func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []themeAdvisory {
 	t.Helper()
 
 	return persistedAdvisoriesUnder(t, persistedThemeDeps(t, content, themesDir), theme.NewSilentLoader())
 }
 
-// persistedAdvisoriesUnder runs the persisted-theme producer over deps, against
-// the deps' themes directory enumerated the way the union enumerates it — so
-// every fixture here resolves through the same retained parse doctor resolves
-// through.
 func persistedAdvisoriesUnder(t *testing.T, deps *DoctorDeps, loader theme.Loader) []themeAdvisory {
 	t.Helper()
 
 	return persistedThemeAdvisories(deps, loader, enumerateThemesDir(loader, deps.ThemesDir))
 }
 
-// requireNoAdvisories fails unless the producer stayed silent, naming what it
-// produced instead.
 func requireNoAdvisories(t *testing.T, advisories []themeAdvisory) {
 	t.Helper()
 
@@ -85,9 +58,8 @@ func requireNoAdvisories(t *testing.T, advisories []themeAdvisory) {
 	}
 }
 
-// requireDropInSlug fails when slug names a built-in — the vacuity guard every
-// deliberately-unresolvable fixture needs, since a built-in resolves from the
-// embedded set with no directory involved and would produce no line at all.
+// A built-in resolves from the embedded set with no directory involved, so an
+// unresolvable-slug fixture over one would prove nothing.
 func requireDropInSlug(t *testing.T, slug string) {
 	t.Helper()
 
@@ -98,14 +70,6 @@ func requireDropInSlug(t *testing.T, slug string) {
 	}
 }
 
-// TestPersistedThemeAdvisory_ConstantOmitsSlot: it reports an unresolvable
-// constant with no slot parenthetical.
-//
-// The pinned copy omits the parenthetical entirely under a constant, because the
-// constant-or-pair rule's constant state HAS no slots: a `(light)` there would assert a
-// distinction the two-state setting does not have. The identity fields ride alongside for
-// doctor's union — a persisted line is the one that outranks a file line for the
-// same slug, and `fromPrefs` is what says so.
 func TestPersistedThemeAdvisory_ConstantOmitsSlot(t *testing.T) {
 	requireDropInSlug(t, "nord-lee")
 
@@ -126,11 +90,6 @@ func TestPersistedThemeAdvisory_ConstantOmitsSlot(t *testing.T) {
 	}
 }
 
-// TestPersistedThemeAdvisory_SlotRendersLightOrDark: it reports an unresolvable
-// slot by name.
-//
-// Under the constant-or-pair rule's adaptive pair the slot is what tells the user WHICH half
-// to go and fix — the whole reason the pinned copy carries a parenthetical at all.
 func TestPersistedThemeAdvisory_SlotRendersLightOrDark(t *testing.T) {
 	requireDropInSlug(t, "solar")
 
@@ -160,14 +119,6 @@ func TestPersistedThemeAdvisory_SlotRendersLightOrDark(t *testing.T) {
 	}
 }
 
-// TestPersistedThemeAdvisory_BothSlots: it collapses two slots naming one slug
-// to a single both line.
-//
-// The row-rendering rule's `● both` state is reachable in two keypresses, so it is an ordinary
-// setting rather than a curiosity — and doctor's one-slug-one-line rule means it
-// must produce ONE line, not two. The two-different-slugs case is the contrast
-// that keeps the collapse honest: it is a collapse of one slug named twice, not
-// a cap of one line per report.
 func TestPersistedThemeAdvisory_BothSlots(t *testing.T) {
 	t.Run("one slug in both slots collapses to a single line", func(t *testing.T) {
 		requireDropInSlug(t, "solar")
@@ -195,17 +146,6 @@ func TestPersistedThemeAdvisory_BothSlots(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_ConstantWinsOverSlots: it reports only the keys in
-// force.
-//
-// The construction-time load rule: doctor reports the keys IN FORCE, which under the
-// constant-or-pair rule's `theme`-wins tiebreak is the constant alone. A hand-edited file may
-// legally carry all three keys, and reporting the stale slot would send the user to fix
-// something Portal is not reading.
-//
-// The second half is what stops the first being vacuous: the constant IS checked
-// on the very same fixture shape, so "no line for the slot" is evidence about the
-// tiebreak rather than about a producer that reports nothing.
 func TestPersistedThemeAdvisory_ConstantWinsOverSlots(t *testing.T) {
 	requireBuiltinSlug(t, "nord")
 	requireDropInSlug(t, "broken")
@@ -226,13 +166,6 @@ func TestPersistedThemeAdvisory_ConstantWinsOverSlots(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_VirginInstallIsSilent: it produces no line for an
-// unset slot.
-//
-// The shipped adaptive default: an unset slot holds the shipped default, which is a built-in
-// and always resolves — so a virgin install produces nothing, and the SET half of a partial
-// pair is the only thing reported. An unresolvable built-in is the startup fatal,
-// not an advisory.
 func TestPersistedThemeAdvisory_VirginInstallIsSilent(t *testing.T) {
 	cases := []struct{ name, content string }{
 		{name: "an absent prefs.json", content: ""},
@@ -259,19 +192,15 @@ func TestPersistedThemeAdvisory_VirginInstallIsSilent(t *testing.T) {
 	t.Run("an unset slot is not checked even when no built-in resolves", func(t *testing.T) {
 		requireDropInSlug(t, "solar")
 
-		// The RAW keys are what say which values are persisted; the Setting has
-		// already substituted a shipped default into the unset slot. In a correct
-		// binary the two are indistinguishable — the substituted default is a
-		// built-in and always resolves — so the difference is only observable on
-		// the build-time guarantee's should-never-happen binary, staged here. Checking the Setting's
-		// slots would print a line naming a value THE USER NEVER CHOSE, for a
-		// state that is the startup fatal rather than an advisory.
+		// Checking the Setting's slots rather than the raw keys would print a
+		// line naming a shipped default the user never chose — only observable
+		// on the broken-binary loader staged here.
 		dir := t.TempDir()
 		loader := theme.NewSilentLoader()
 		loader.BuiltinSource = func(string) ([]byte, bool) { return nil, false }
 
-		// Vacuity guard: under this loader the shipped default really would fail
-		// to resolve, so its absence below is evidence about which key was read.
+		// Vacuity guard: under this loader the shipped default really would
+		// fail to resolve.
 		if _, rejection := loader.ResolveByName(theme.DefaultLightSlug, dir); rejection == nil {
 			t.Fatalf("the staged loader still resolves the shipped light default %q — the assertion below would be vacuous", theme.DefaultLightSlug)
 		}
@@ -285,13 +214,6 @@ func TestPersistedThemeAdvisory_VirginInstallIsSilent(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_ValidSlugIsSilent: it produces no line for a slug
-// that resolves.
-//
-// The producer reports PROBLEMS, not inventory — the same rule the file scan
-// follows — and it reports them for both routes a slug can resolve by: the
-// embedded set (the construction-time load rule's first step, with no directory involved) and
-// a valid drop-in in the themes directory.
 func TestPersistedThemeAdvisory_ValidSlugIsSilent(t *testing.T) {
 	t.Run("a built-in", func(t *testing.T) {
 		requireBuiltinSlug(t, "nord")
@@ -318,20 +240,6 @@ func TestPersistedThemeAdvisory_ValidSlugIsSilent(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_CharsetFailureIsBadName: it reports a
-// charset-failing value as bad name.
-//
-// The validate-before-use rule: the persisted value comes from a hand-editable file and is
-// used to LOCATE A FILE BY NAME on a path that deliberately does not enumerate, so
-// `../something` would be used verbatim as a path component. The charset check
-// runs BEFORE any path is composed, and its reason is `bad name` rather than
-// `not found` — telling a user their file is missing when they typed an
-// illegal name sends them looking in the wrong place.
-//
-// The traversal case plants a perfectly loadable theme exactly where a naive
-// join would land, so "no path was composed" is a real assertion rather than an
-// unfalsifiable claim: had the value reached a Join, that file would have loaded
-// and this producer would have printed nothing at all.
 func TestPersistedThemeAdvisory_CharsetFailureIsBadName(t *testing.T) {
 	cases := []struct{ name, value string }{
 		{name: "a path traversal", value: "../evil"},
@@ -366,9 +274,7 @@ func TestPersistedThemeAdvisory_CharsetFailureIsBadName(t *testing.T) {
 			t.Fatalf("plant %s: %v", planted, err)
 		}
 
-		// Vacuity guard: the plant really is a theme this resolver would load, so
-		// the assertion below is about the charset check refusing to compose the
-		// path rather than about a file that would have failed anyway.
+		// Vacuity guard: the plant really is a theme this resolver would load.
 		requireNoAdvisories(t, persistedAdvisoriesFor(t, `{"theme":"evil"}`, root))
 
 		got := requireOneAdvisory(t, persistedAdvisoriesFor(t, `{"theme":"../evil"}`, dir))
@@ -378,14 +284,6 @@ func TestPersistedThemeAdvisory_CharsetFailureIsBadName(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_NotFoundVersusUnreadable: it distinguishes not
-// found from unreadable.
-//
-// The directory-resolution rule: a theme made unreachable by an UNUSABLE directory carries
-// `unreadable`, never `not found`. The two send the user to different places — `not found`
-// says check the filename, `unreadable` says check permissions — and permissions
-// is the actual problem. An ABSENT directory is the ordinary case and stays
-// `not found`.
 func TestPersistedThemeAdvisory_NotFoundVersusUnreadable(t *testing.T) {
 	requireDropInSlug(t, "nord-lee")
 
@@ -440,15 +338,6 @@ func TestPersistedThemeAdvisory_NotFoundVersusUnreadable(t *testing.T) {
 	}
 }
 
-// TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports: it still reports a
-// persisted slug with no themes directory.
-//
-// The unresolved-path degradation is scoped to the DIRECTORY SCAN, which has
-// nothing to enumerate — this producer needs no path at all. The construction-time load rule's
-// embedded set resolves first, so a built-in still answers and a drop-in slug is honestly
-// `not found`, with no path composed (a join onto "" would yield a RELATIVE path
-// resolving against the process's working directory). The scan's silence over
-// the same deps is asserted alongside, since that asymmetry is the whole point.
 func TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports(t *testing.T) {
 	requireDropInSlug(t, "nord-lee")
 
@@ -469,20 +358,10 @@ func TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_ControlStrippedUntruncated: it renders the slug
-// control-stripped and untruncated.
-//
-// The row-rendering rule: stripping happens at the point the value is READ, so it is a
-// property of the value every consumer inherits — a pasted newline would otherwise split
-// this frame into two lines, the second looking like a message Portal never
-// wrote, and a bare escape sequence would corrupt the very surface the user is
-// reading in order to FIND the problem. TRUNCATION IS SEPARATE and stays
-// panel-local: doctor has full width and wants the whole value, however long.
 func TestPersistedThemeAdvisory_ControlStrippedUntruncated(t *testing.T) {
-	// Long enough that no terminal width could carry it, and short enough that
-	// the composed basename stays inside the filesystem's per-name limit — past
-	// that the resolver honestly answers `unreadable` (ENAMETOOLONG against a
-	// healthy directory), which would be a different claim entirely.
+	// Long enough that no terminal width could carry it, short enough that the
+	// composed basename stays inside the per-name limit — past that the
+	// resolver honestly answers `unreadable` (ENAMETOOLONG).
 	stripped := strings.Repeat("nord-lee-", 12)
 	requireDropInSlug(t, stripped)
 	raw := "\x1b[31m" + stripped + "\n\t"
@@ -505,16 +384,6 @@ func TestPersistedThemeAdvisory_ControlStrippedUntruncated(t *testing.T) {
 	}
 }
 
-// TestPersistedThemeAdvisory_ControlOnlyValueIsUnset: it treats a control-only
-// value as unset.
-//
-// A value that strips to empty is UNSET rather than an illegal slug: the row-rendering rule
-// makes the stripped form "the value" for every consumer, and the anchored slug charset
-// makes the empty string the unambiguous unset sentinel. A `bad name` line
-// labelled with an empty string would name nothing.
-//
-// The last case is what keeps the rest honest: a control-only constant leaves the
-// SLOTS in force, so the read is genuinely continuing rather than being abandoned.
 func TestPersistedThemeAdvisory_ControlOnlyValueIsUnset(t *testing.T) {
 	const controlOnly = "\x1b[0m\n\t"
 
@@ -545,17 +414,6 @@ func TestPersistedThemeAdvisory_ControlOnlyValueIsUnset(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeSlotLabel_ReadsTheSlotsOwnName: the parenthetical is the
-// slot's own word, and `both` is doctor's.
-//
-// The light/dark words are one vocabulary shared with the `theme` component's
-// `slot` attr, so doctor renders whatever theme.Slot names itself rather than a
-// pair of literals kept beside it — a slot added to the vocabulary must arrive
-// here rendered, not silently labelled with nothing.
-//
-// `both` is the exception and is genuinely doctor's own: one slug occupying the
-// whole pair sits in no single slot, so there is nothing for AttrName to name it
-// by.
 func TestPersistedThemeSlotLabel_ReadsTheSlotsOwnName(t *testing.T) {
 	for _, slot := range []theme.Slot{theme.SlotConstant, theme.SlotLight, theme.SlotDark} {
 		want, _ := slot.AttrName()
@@ -569,10 +427,6 @@ func TestPersistedThemeSlotLabel_ReadsTheSlotsOwnName(t *testing.T) {
 	}
 
 	t.Run("the words are declared nowhere in doctor", func(t *testing.T) {
-		// The behavioural half above passes over a switch that restates the two
-		// words, since a restatement agrees with the definition until the day it
-		// does not. What makes the derivation structural is that the words — and a
-		// per-slot branch to render them from — are absent from doctor entirely.
 		light, _ := theme.SlotLight.AttrName()
 		dark, _ := theme.SlotDark.AttrName()
 		for _, word := range []string{light, dark} {
@@ -598,16 +452,6 @@ func TestPersistedThemeSlotLabel_ReadsTheSlotsOwnName(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs: it tolerates an absent or
-// corrupt prefs file.
-//
-// Every degenerate prefs.json yields zero keys with no error, so it yields zero
-// lines — and the read's error is discarded deliberately. The one thing a
-// diagnosis must not do is fail to diagnose because one of the files it reads is
-// the broken one.
-//
-// The nil-store case is the unresolvable-config-path degradation: the advisory
-// class has no not-evaluable form, so silence is the only shape available.
 func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 	cases := []struct{ name, content string }{
 		{name: "an absent file", content: ""},
@@ -637,8 +481,7 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 			t.Fatalf("chmod 0000 %s: %v", path, err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-		// Called for the vacuity guard alone: a readable fixture would carry a
-		// theme key and the assertion would be arguing about the wrong run.
+		// Vacuity guard: a readable fixture would carry a theme key.
 		_ = requireDeniedRead(t, path)
 
 		requireNoAdvisories(t, persistedAdvisoriesUnder(t, deps, theme.NewSilentLoader()))
@@ -661,27 +504,15 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_UsesNonMigratingRead: it reads prefs through the
-// non-migrating variant.
-//
-// Doctor's theme line: doctor's contract is that it HEALS NOTHING on the read-only path, and a
-// one-shot config mutation as a side effect of running a diagnosis is exactly
-// what would break it. The write-path ownership rule's translation therefore stays behind
-// loadPrefsStore, which doctor must never reach.
-//
-// The Execute half is also the production-wiring proof: no PrefsStore is set on
-// the deps, so the line below can only have arrived through resolveDoctorDeps'
-// own best-effort loadPrefsStoreNoMigrate call — delete that one line and an
-// override-only suite stays green while doctor silently reports nothing about a
-// real user's prefs.json.
+// The Execute half sets no PrefsStore on the deps, so the line can only have
+// arrived through resolveDoctorDeps' own loadPrefsStoreNoMigrate call.
 func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 	t.Run("a pending appearance translation is left pending", func(t *testing.T) {
 		const seeded = `{"appearance":"dark"}`
 		path := setPrefsFile(t, seeded)
 
-		// Vacuity guard: THIS fixture is the one the migrating read would
-		// translate, so the byte-identity below is evidence about doctor rather
-		// than about a file nothing would have touched anyway.
+		// Vacuity guard: this fixture is the one the migrating read would
+		// translate.
 		load, err := loadPrefsStore()
 		if err != nil {
 			t.Fatalf("loadPrefsStore: %v", err)
@@ -734,12 +565,6 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 	})
 
 	t.Run("doctor's sources call only the non-migrating read", func(t *testing.T) {
-		// The runtime halves above cannot see a migrating read whose translation
-		// happened to be a no-op on the day, and the structural guard is what makes
-		// the rule survive a future edit:
-		// TestLoadPrefsStore_SingleProductionCaller pins the migrating loader to
-		// open.go:openTUI, and this pins the other side — doctor reaches only the
-		// inert variant.
 		var migrating, nonMigrating []string
 		for name, file := range parsePackageFilesByName(t) {
 			if !strings.HasPrefix(name, "doctor") {
@@ -769,18 +594,6 @@ func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_NoFallbackAndNoFatal: it resolves without fallbacks
-// and never raises the fatal.
-//
-// ResolveNomination is the wrong resolver here TWICE OVER: it substitutes the per-slot
-// fallback rule's mode-matched default for an unloadable nomination — which would hide the
-// very failure this line exists to report — and it raises the build-time guarantee's
-// broken-built-in fatal when a fallback itself will not resolve, which would abort a diagnosis
-// over a state a diagnosis is supposed to describe.
-//
-// The broken-binary subtest stages exactly that fatal and proves the producer
-// walks straight past it, with the guard that the SAME loader really does raise
-// it through ResolveNomination.
 func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 	t.Run("it names the persisted slug, never the fallback", func(t *testing.T) {
 		requireDropInSlug(t, "solar")
@@ -809,8 +622,7 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 
 		dir := t.TempDir()
 		loader := theme.NewSilentLoader()
-		// The build-time guarantee's should-never-happen binary, staged through the one seam that
-		// can: no built-in resolves at all, so every fallback fails.
+		// No built-in resolves at all, so every fallback fails.
 		loader.BuiltinSource = func(string) ([]byte, bool) { return nil, false }
 
 		// Vacuity guard: the staged loader really does raise the fatal on the
@@ -843,8 +655,6 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 	})
 }
 
-// doctorThemeCallCounts counts the calls doctor's theme source makes, by the
-// method name each one selects.
 func doctorThemeCallCounts(t *testing.T) map[string]int {
 	t.Helper()
 
@@ -867,15 +677,6 @@ func doctorThemeCallCounts(t *testing.T) map[string]int {
 	return calls
 }
 
-// TestThemeAdvisories_DirectoryIsReadOnce: one diagnosis reads the themes
-// directory once and opens no theme file after it.
-//
-// The runtime half of the claim — that neither producer can be made to disagree
-// with the other by a file changing under it — is asserted over the assembled
-// block in doctor_theme_union_test.go. This is the other half: a re-read that
-// happened to AGREE, because nothing disturbed the directory between the two,
-// would leave that fixture green while doctor paid for a second ReadDir and a
-// second parse of every candidate on every run.
 func TestThemeAdvisories_DirectoryIsReadOnce(t *testing.T) {
 	calls := doctorThemeCallCounts(t)
 
@@ -889,19 +690,8 @@ func TestThemeAdvisories_DirectoryIsReadOnce(t *testing.T) {
 	}
 }
 
-// TestPersistedThemeAdvisory_EmitsNoThemeRecords: it emits zero theme log
-// records.
-//
-// The `theme` log component: the `theme` component records where a theme is USED, never where
-// one is DIAGNOSED. This is asserted across a WHOLE `portal doctor` Execute rather than
-// at the producer, because the loader is shared by both theme producers and the
-// claim is about the command: whatever doctor does, nothing lands in the log.
-//
-// The fixture is deliberately the `unreadable`-directory condition, which is the
-// one state that WOULD emit — the resolver reports `theme: directory unusable`
-// from the composed-path read as well as from the enumeration — and its vacuity
-// guard resolves the identical fixture through a real component logger to prove
-// the sink is listening and the condition is emission-worthy.
+// The fixture is the `unreadable`-directory condition — the one state that
+// would emit.
 func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 	skipUnlessModeBitsDeny(t)
 	requireDropInSlug(t, "nord-lee")
@@ -943,11 +733,8 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 			t.Fatalf("Execute err = %v; theme advisories never drive the exit code", err)
 		}
 
-		// Both lines must be PRESENT, since each reaches the emitting condition by
-		// its own route — the enumeration's ReadDir and the by-name read's composed
-		// path. Their relative ORDER is deliberately not asserted here: the block's
-		// pinned order (and the union that dedups it) is asserted in doctor_theme_union_test.go, and
-		// pinning it from this side would put the same rule in two places.
+		// Both lines must be present, each reaching the emitting condition by
+		// its own route; their relative order is deliberately not asserted.
 		out := outBuf.String()
 		for _, want := range []string{
 			"  ⚠ themes directory unreadable: " + dir + "\n",
@@ -966,14 +753,6 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 	})
 }
 
-// TestPersistedThemeAdvisory_FrameIsSingleSourced: it states the persisted frame
-// exactly once.
-//
-// The copy is single-sourced following the convention spawn.UnsupportedNoopMessage
-// set, and this frame is rendered in two shapes — with and without the slot
-// parenthetical — so it is exactly the one a second call site would silently
-// duplicate. One format const with an optional insert is what keeps the two
-// shapes one string.
 func TestPersistedThemeAdvisory_FrameIsSingleSourced(t *testing.T) {
 	sites := cmdLiteralSites(t, "does not resolve")
 
@@ -982,9 +761,6 @@ func TestPersistedThemeAdvisory_FrameIsSingleSourced(t *testing.T) {
 	}
 }
 
-// TestPersistedThemeAdvisories_NothingToReportIsEmptyNotNil pins the shape of the
-// producer's silent answer: an empty slice, so "every persisted key resolves"
-// and "some did not" differ in length alone.
 func TestPersistedThemeAdvisories_NothingToReportIsEmptyNotNil(t *testing.T) {
 	advisories := persistedAdvisoriesFor(t, `{"theme":"nord"}`, t.TempDir())
 
@@ -994,9 +770,6 @@ func TestPersistedThemeAdvisories_NothingToReportIsEmptyNotNil(t *testing.T) {
 	requireNoAdvisories(t, advisories)
 }
 
-// TestScanThemesDirectory_NothingToReportIsEmptyNotNil pins the same shape for
-// the directory scan: an enumeration with no finding to report yields an empty
-// slice, not nil.
 func TestScanThemesDirectory_NothingToReportIsEmptyNotNil(t *testing.T) {
 	advisories := scanThemesDirectory(theme.Enumeration{})
 

@@ -1,9 +1,3 @@
-// Tests in this file mutate package-level cobra command state and MUST NOT use t.Parallel.
-//
-// Coverage for the Phase 6 hydrate-helper forensic trail (Task
-// portal-observability-layer-6-1): the hook-lookup DEBUG breadcrumb and the
-// terminal "hydrate: exec" INFO emitted by execShellOrHookAndExit /
-// execShellAndExit, instrumenting everything up to the syscall.Exec handoff.
 package cmd
 
 import (
@@ -16,11 +10,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// execLogLine returns the single captured line whose message is the given
-// terse phrase (rendered by logtest.Sink as "<LEVEL> <msg> key=value..."),
-// matched on the "<LEVEL> <msg>" prefix so an attr value that happens to
-// contain the phrase cannot false-match. Fails the test if zero or more than
-// one line matches.
+// execLogLine returns the single captured line with the given message, matched
+// on the "<LEVEL> <msg>" prefix so an attr value carrying the same phrase cannot
+// false-match.
 func execLogLine(t *testing.T, body, level, msg string) string {
 	t.Helper()
 	prefix := level + " " + msg
@@ -81,7 +73,7 @@ func TestHydrateExecLog_NilHookStore_MissThenBareShellExec(t *testing.T) {
 
 func TestHydrateExecLog_LookupError_ErrorResultWithAttrWarnRetainedBareShell(t *testing.T) {
 	dir := t.TempDir()
-	// hooks.json is a directory, not a file → LookupOnResume read fails.
+	// hooks.json is a directory, so the lookup read fails.
 	hooksDir := dir + "/hooks.json"
 	if err := os.Mkdir(hooksDir, 0o700); err != nil {
 		t.Fatalf("mkdir hooks.json: %v", err)
@@ -118,7 +110,6 @@ func TestHydrateExecLog_LookupError_ErrorResultWithAttrWarnRetainedBareShell(t *
 		t.Errorf("DEBUG line missing hook_key=err:0.0: %q", dbg)
 	}
 
-	// Existing WARN retained.
 	if n := strings.Count(body, "lookup on-resume hook failed"); n != 1 {
 		t.Errorf("want exactly one existing WARN line, got %d: %q", n, body)
 	}
@@ -134,7 +125,7 @@ func TestHydrateExecLog_LookupError_ErrorResultWithAttrWarnRetainedBareShell(t *
 
 func TestHydrateExecLog_UnregisteredPaneKey_MissThenBareShellExec(t *testing.T) {
 	dir := t.TempDir()
-	store := seedHookStore(t, dir, map[string]map[string]string{}) // empty
+	store := seedHookStore(t, dir, map[string]map[string]string{})
 
 	t.Setenv("SHELL", "/bin/zsh")
 	logger, sink := newCaptureLoggerForComponent(t, "hydrate")
@@ -203,7 +194,6 @@ func TestHydrateExecLog_RegisteredHook_HitThenHookChainExec(t *testing.T) {
 	if !strings.Contains(info, "target=/bin/sh") {
 		t.Errorf("exec INFO missing target=/bin/sh: %q", info)
 	}
-	// args is the space-joined argv: "sh -c echo hi; exec /bin/zsh".
 	if !strings.Contains(info, "args=sh -c echo hi; exec /bin/zsh") {
 		t.Errorf("exec INFO missing joined hook-chain args: %q", info)
 	}
@@ -235,7 +225,6 @@ func TestHydrateExecLog_HitRendersArgsVerbatimIncludingEmbeddedQuotes(t *testing
 
 	body := sink.Body()
 	info := execLogLine(t, body, "INFO", "exec")
-	// args = "sh -c " + "<rawCmd>; exec /bin/zsh", embedded quotes verbatim.
 	wantArgs := "args=sh -c " + rawCmd + "; exec /bin/zsh"
 	if !strings.Contains(info, wantArgs) {
 		t.Errorf("exec INFO args not rendered verbatim; want substring %q in %q", wantArgs, info)
@@ -313,9 +302,8 @@ func TestHydrateExecLog_ExecInfoEmittedImmediatelyBeforeExecShell(t *testing.T) 
 				Logger:    logger,
 				HookStore: tc.hookStore(t, dir),
 				ExecShell: func(_ string, _ []string) {
-					// Snapshot the captured log at the instant of handoff: the
-					// exec INFO must already be present (it is the immediately-
-					// preceding statement).
+					// Snapshot at the instant of handoff: the exec INFO must
+					// already be present.
 					bodyAtExec = sink.Body()
 				},
 			}

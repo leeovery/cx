@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// writeHooksJSON is a test helper that writes a hooks JSON file.
 func writeHooksJSON(t *testing.T, path string, data map[string]map[string]string) {
 	t.Helper()
 	b, err := json.MarshalIndent(data, "", "  ")
@@ -18,7 +17,6 @@ func writeHooksJSON(t *testing.T, path string, data map[string]map[string]string
 	}
 }
 
-// readHooksJSON is a test helper that reads and parses the hooks JSON file.
 func readHooksJSON(t *testing.T, path string) map[string]map[string]string {
 	t.Helper()
 	b, err := os.ReadFile(path)

@@ -1,6 +1,3 @@
-// Tests in this file drive the package-level bootstrapWarnings sink and mutate
-// package-level tmux seams (tmux.BootstrapAliveCheck, tmux.PortalSaverRetryDelay).
-// They MUST NOT use t.Parallel — see cmd/bootstrap_warnings.go.
 package cmd
 
 import (
@@ -17,18 +14,16 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// resetBootstrapWarnings clears the package-level bootstrapWarnings sink before
-// the test body and again on cleanup so warnings never bleed across tests
-// (the sink is package-global and other cmd tests write to it too).
+// The sink is package-global and other cmd tests write to it, so clear it on
+// both sides of the body.
 func resetBootstrapWarnings(t *testing.T) {
 	t.Helper()
 	bootstrapWarnings.Drain()
 	t.Cleanup(func() { bootstrapWarnings.Drain() })
 }
 
-// shrinkSaverRetryDelay collapses the inter-attempt sleep in
-// createPortalSaverWithRetry so the "revive fails across all retries" path
-// completes without real wall-clock delay. Restored on cleanup.
+// Collapses the inter-attempt sleep so the exhaust-all-retries path runs
+// without real wall-clock delay.
 func shrinkSaverRetryDelay(t *testing.T) {
 	t.Helper()
 	prev := tmux.PortalSaverRetryDelay
@@ -36,8 +31,7 @@ func shrinkSaverRetryDelay(t *testing.T) {
 	t.Cleanup(func() { tmux.PortalSaverRetryDelay = prev })
 }
 
-// stubSaverAliveCheck pins tmux.BootstrapAliveCheck for the test so the revive
-// path does not consult real on-disk daemon.pid files. Restored on cleanup.
+// Pinned so the revive path does not consult real on-disk daemon.pid files.
 func stubSaverAliveCheck(t *testing.T, alive bool) {
 	t.Helper()
 	prev := tmux.BootstrapAliveCheck
@@ -45,15 +39,13 @@ func stubSaverAliveCheck(t *testing.T, alive bool) {
 	t.Cleanup(func() { tmux.BootstrapAliveCheck = prev })
 }
 
-// isPanePIDProbe reports whether a list-panes argv carries the "#{pane_pid}"
-// format — the shape used by BOTH the presence probe (SaverPanePIDOrAbsent) and
-// the best-effort pane-pid reads inside BootstrapPortalSaver. The pane-id read
-// (SaverPaneID) carries "#{pane_id}" instead and is dispatched separately.
+// "#{pane_pid}" is the shape used by both the presence probe and the
+// best-effort pane-pid reads; the pane-id read carries "#{pane_id}" and is
+// dispatched separately.
 func isPanePIDProbe(args []string) bool {
 	return len(args) > 0 && args[len(args)-1] == "#{pane_pid}"
 }
 
-// countOp returns how many recorded calls have argv[0] == op.
 func countOp(calls [][]string, op string) int {
 	n := 0
 	for _, c := range calls {
@@ -64,9 +56,9 @@ func countOp(calls [][]string, op string) int {
 	return n
 }
 
-// noSuchSessionErr is a *tmux.CommandError whose stderr carries tmux's
-// canonical lowercase "no such session" phrasing, so SaverPanePIDOrAbsent
-// collapses it to (0, false, nil) — the "absent" classification.
+// Carries tmux's canonical lowercase "no such session" phrasing, so
+// SaverPanePIDOrAbsent collapses it to (0, false, nil) — the "absent"
+// classification.
 func noSuchSessionErr() error {
 	return &tmux.CommandError{
 		Stderr: "no such session: " + tmux.PortalSaverName,
@@ -89,7 +81,6 @@ func TestEnsureSaverLiveness_NoOpWhenSaverPresentAndAlive(t *testing.T) {
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	// Exactly one presence round-trip; no revive / version-gate calls.
 	if got := countOp(cmder.Calls, "list-panes"); got != 1 {
 		t.Errorf("expected exactly 1 presence probe, got %d: %v", got, cmder.Calls)
 	}
@@ -112,7 +103,6 @@ func TestEnsureSaverLiveness_RevivesViaBootstrapPortalSaverWhenAbsent(t *testing
 			switch args[0] {
 			case "list-panes":
 				if isPanePIDProbe(args) {
-					// Presence probe (and best-effort pid reads) -> absent.
 					return "", noSuchSessionErr()
 				}
 				return "%1\n", nil // SaverPaneID (#{pane_id}), best-effort
@@ -123,11 +113,9 @@ func TestEnsureSaverLiveness_RevivesViaBootstrapPortalSaverWhenAbsent(t *testing
 			case "set-option":
 				return "", nil
 			case "respawn-pane":
-				// Fail here to return before BootstrapPortalSaver's daemon-
-				// readiness barrier (no exported seam reachable from package
-				// cmd). new-session is already recorded, proving the create
-				// path ran. The revive failure funnels a warning that is
-				// exercised directly in the warning test below.
+				// Failing here returns before BootstrapPortalSaver's daemon-readiness
+				// barrier, which package cmd has no seam to reach. new-session is already
+				// recorded, proving the create path ran.
 				return "", errors.New("respawn failed")
 			}
 			t.Fatalf("unexpected tmux call: %v", args)
@@ -151,8 +139,7 @@ func TestEnsureSaverLiveness_TreatsProbeTransientErrorAsAbsentAndRevives(t *test
 			switch args[0] {
 			case "list-panes":
 				if isPanePIDProbe(args) {
-					// Non-sentinel transient: a parseable-looking line that is
-					// not a base-10 pid -> ErrPanePIDParse -> (0,false,err).
+					// Non-sentinel transient: parseable-looking but not a base-10 pid.
 					return "not-a-pid\n", nil
 				}
 				return "%1\n", nil
@@ -195,13 +182,6 @@ func TestEnsureSaverLiveness_FunnelsSaverDownWarningWhenReviveFails(t *testing.T
 	}
 }
 
-// TestEnsureSaverLiveness_LogsWarnWithUnderlyingErrorWhenReviveFails asserts
-// that a failed BootstrapPortalSaver on the abridged path emits exactly one
-// bootstrap-component WARN carrying the underlying error — restoring
-// diagnosability parity with the full-bootstrap step-5 "step failed" WARN
-// (cmd/bootstrap/bootstrap.go) — while the SaverDownWarning funnel and the
-// proceed-anyway (no error return) posture stay unchanged. The package-level
-// bootstrapLogger (log.For("bootstrap")) routes through the swapped sink.
 func TestEnsureSaverLiveness_LogsWarnWithUnderlyingErrorWhenReviveFails(t *testing.T) {
 	resetBootstrapWarnings(t)
 	stubSaverAliveCheck(t, false)
@@ -214,23 +194,18 @@ func TestEnsureSaverLiveness_LogsWarnWithUnderlyingErrorWhenReviveFails(t *testi
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	// Assert the WARN carries the UNDERLYING cause, not merely some error attr:
-	// the failing revive op returns errors.New("create denied"), whose leaf text
-	// survives BootstrapPortalSaver's %w wrapping into the rendered error= value.
+	// The WARN must carry the underlying cause, not merely some error attr: the
+	// leaf text survives BootstrapPortalSaver's %w wrapping.
 	if n := countLines(sink, "WARN", "component=bootstrap", "abridged EnsureSaver", "error=", "create denied"); n != 1 {
 		t.Errorf("expected exactly one bootstrap-component WARN carrying the underlying error, got %d in:\n%s", n, sink.Body())
 	}
 
-	// The SaverDownWarning funnel and proceed-anyway posture are unchanged.
 	got := bootstrapWarnings.Drain()
 	if len(got) != 1 || !reflect.DeepEqual(got[0], bootstrap.SaverDownWarning()) {
 		t.Errorf("expected exactly one SaverDownWarning still funneled, got %#v", got)
 	}
 }
 
-// TestEnsureSaverLiveness_LogsNoWarnWhenSaverPresent asserts the successful
-// presence early return emits no WARN (and adds no warning) — the breadcrumb
-// is confined to the revive-failure branch.
 func TestEnsureSaverLiveness_LogsNoWarnWhenSaverPresent(t *testing.T) {
 	resetBootstrapWarnings(t)
 
@@ -272,15 +247,12 @@ func TestEnsureSaverLiveness_NeverInvokesVersionGate(t *testing.T) {
 
 	ensureSaverLiveness(tmux.NewClient(cmder), t.TempDir())
 
-	// No kill-barrier / kill-session is ever issued by the liveness-only helper.
 	if n := countOp(cmder.Calls, "kill-session"); n != 0 {
 		t.Errorf("liveness-only helper must never kill-session, got %d: %v", n, cmder.Calls)
 	}
 
-	// Source-level guard: the abridged helper must not INVOKE the version-gate.
-	// The identifier is intentionally named in the docstring (to document the
-	// contract), so we match a call — identifier immediately followed by "(" —
-	// rather than any mention.
+	// The identifier is deliberately named in the docstring, so match a call —
+	// identifier immediately followed by "(" — rather than any mention.
 	src, err := os.ReadFile("abridged_saver.go")
 	if err != nil {
 		t.Fatalf("read abridged_saver.go: %v", err)

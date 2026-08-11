@@ -7,11 +7,6 @@ import (
 	"testing"
 )
 
-// TestThemesDirPath_EnvVarWins: it returns the env var when set.
-//
-// PORTAL_THEMES_DIR is the first rung of the chain, so it must win over both
-// XDG_CONFIG_HOME and HOME — the same precedence configFilePath gives its
-// per-file env vars.
 func TestThemesDirPath_EnvVarWins(t *testing.T) {
 	t.Setenv("PORTAL_THEMES_DIR", "/tmp/x")
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/cfg")
@@ -27,12 +22,6 @@ func TestThemesDirPath_EnvVarWins(t *testing.T) {
 	}
 }
 
-// TestThemesDirPath_EmptyEnvFallsThrough: it falls through when the env var is
-// empty.
-//
-// An empty PORTAL_THEMES_DIR must be treated as unset. A naive os.LookupEnv
-// would return ("", true) and point the loader at the process working
-// directory.
 func TestThemesDirPath_EmptyEnvFallsThrough(t *testing.T) {
 	t.Setenv("PORTAL_THEMES_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/cfg")
@@ -48,7 +37,6 @@ func TestThemesDirPath_EmptyEnvFallsThrough(t *testing.T) {
 	}
 }
 
-// TestThemesDirPath_XDGConfigHome: it resolves under XDG_CONFIG_HOME.
 func TestThemesDirPath_XDGConfigHome(t *testing.T) {
 	t.Setenv("PORTAL_THEMES_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
@@ -64,8 +52,6 @@ func TestThemesDirPath_XDGConfigHome(t *testing.T) {
 	}
 }
 
-// TestThemesDirPath_HomeFallback: it falls back to ~/.config when
-// XDG_CONFIG_HOME is unset.
 func TestThemesDirPath_HomeFallback(t *testing.T) {
 	t.Setenv("PORTAL_THEMES_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
@@ -81,12 +67,6 @@ func TestThemesDirPath_HomeFallback(t *testing.T) {
 	}
 }
 
-// TestThemesDirPath_HomeResolutionFailurePropagates: it propagates a
-// home-directory resolution failure.
-//
-// With no env var and no XDG_CONFIG_HOME, xdg.ConfigBase's home-dir read is the
-// only remaining source. Its failure must surface as an error rather than an
-// empty path (which a caller would happily read the CWD through) or a panic.
 func TestThemesDirPath_HomeResolutionFailurePropagates(t *testing.T) {
 	t.Setenv("PORTAL_THEMES_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
@@ -101,13 +81,6 @@ func TestThemesDirPath_HomeResolutionFailurePropagates(t *testing.T) {
 	}
 }
 
-// TestThemesDirPath_NeverCreatesDirectory: it never creates or seeds the
-// directory.
-//
-// An absent themes directory is the common, silent case, which is why the
-// published drop-in workflow starts with `mkdir -p`. themesDirPath returns a
-// path and makes no judgement about what is there — no MkdirAll, no Stat, no
-// seeding — however many times it is called.
 func TestThemesDirPath_NeverCreatesDirectory(t *testing.T) {
 	t.Run("resolved under XDG_CONFIG_HOME", func(t *testing.T) {
 		base := t.TempDir()
@@ -125,7 +98,6 @@ func TestThemesDirPath_NeverCreatesDirectory(t *testing.T) {
 		}
 
 		assertAbsent(t, got)
-		// The intermediate portal/ directory must not appear either.
 		assertAbsent(t, filepath.Dir(got))
 	})
 
@@ -143,7 +115,6 @@ func TestThemesDirPath_NeverCreatesDirectory(t *testing.T) {
 	})
 }
 
-// assertAbsent fails the test if path exists on disk.
 func assertAbsent(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -151,14 +122,6 @@ func assertAbsent(t *testing.T, path string) {
 	}
 }
 
-// TestThemesDirPath_IsNotAConfigFilePathMember: it is not a configFilePath
-// member and emits no migrate breadcrumb.
-//
-// The themes directory resolves a *directory* where configFilePath resolves
-// *files*, and it has no old-macOS predecessor to migrate from — so it takes no
-// configFileComponents entry and must not run the one-shot move. Routing it
-// through configFilePath would migrate (and therefore MOVE) anything sitting at
-// ~/Library/Application Support/portal/themes and emit a breadcrumb for it.
 func TestThemesDirPath_IsNotAConfigFilePathMember(t *testing.T) {
 	t.Run("configFileComponents is unchanged", func(t *testing.T) {
 		want := map[string]string{

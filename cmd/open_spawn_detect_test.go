@@ -1,10 +1,5 @@
 package cmd
 
-// restore-host-terminal-windows-6-1 — buildTUIModel detection-seam wiring.
-//
-// Tests here mutate no package-level state but follow the cmd-package convention:
-// no t.Parallel.
-
 import (
 	"testing"
 
@@ -14,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestBuildTUIModel_ThreadsDetectionSeams asserts buildTUIModel threads the
-// cfg.detector + cfg.resolve seams field-for-field into the tui.Model: reaching
-// PageSessions dispatches the async host-terminal detection, which is only
-// possible if both seams were wired end to end (tuiConfig → tui.Deps → model).
 func TestBuildTUIModel_ThreadsDetectionSeams(t *testing.T) {
 	cfg := defaultTestTUIConfig()
 	cfg.detector = fakeTerminalDetector{id: spawn.NewIdentity("com.mitchellh.ghostty", "Ghostty")}

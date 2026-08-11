@@ -18,176 +18,64 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ErrDoctorUnhealthy is returned by `portal doctor` when any check reports a
-// failure. It drives a non-zero process exit while emitting nothing to
-// stderr: the rendered report is already on stdout, and IsSilentExitError
-// (cmd/state_commit_now.go) compile-time-links the stderr-suppression
-// contract. The sentinel exists solely to signal the unhealthy exit code.
+// ErrDoctorUnhealthy signals that a `portal doctor` run found a failing check.
+// It drives a non-zero exit and is deliberately silent on stderr — the rendered
+// report is already on stdout.
 var ErrDoctorUnhealthy = errors.New("doctor unhealthy")
 
-// doctorRuntimeNotRunning is the byte-exact detail the daemon, saver and hooks
-// checks all report when the tmux server is down. It is distinct from the
-// corruption / dead-daemon details on purpose: a down server is an honest
-// "Portal isn't running" state (doctor is bootstrap-exempt and starts nothing),
-// not evidence of corruption. Reported unhealthy → non-zero, per the exit-code
-// contract.
 const doctorRuntimeNotRunning = "Portal runtime not running — run portal open to start"
 
-// runtimeDownResult is the single source of the "runtime not running" result
-// the three runtime checks (daemon / saver / hooks) all report when the tmux
-// server is down. Each passes its own const name; the status/detail are fixed,
-// so a future change to how a down server is reported is a one-line edit here
-// rather than three lockstep edits at the call sites.
 func runtimeDownResult(name string) checkResult {
 	return checkResult{name: name, status: checkFail, detail: doctorRuntimeNotRunning}
 }
 
-// checkStatus is the outcome of a single doctor health check.
 type checkStatus int
 
 const (
-	// checkUnknown is the zero-value sentinel at iota 0: a checkResult built
-	// without an explicit status (a forgotten assignment) reads as checkUnknown,
-	// never as a passing health check. It renders without a pass marker and
-	// counts as unhealthy (doctorUnhealthy), so the scriptable exit-code contract
-	// can never be silently satisfied by an unset status. No production path
-	// constructs it — every checkResult carries an explicit status — so it is a
-	// defensive floor, not a real diagnostic outcome.
+	// Zero value: an unset status counts as unhealthy, never as a passing check.
 	checkUnknown checkStatus = iota
-	// checkPass — the check succeeded; the subject is healthy.
 	checkPass
-	// checkFail — the check found a problem; drives a non-zero exit.
 	checkFail
-	// checkInfo — informational only (e.g. host-terminal identity). Rendered
-	// without a pass/fail marker and never drives the exit code.
+	// checkInfo and checkNotEvaluable never drive the exit code.
 	checkInfo
-	// checkNotEvaluable — the check could not be evaluated in the current
-	// environment (e.g. dead-pane hook staleness with the server down). Never
-	// drives the exit code.
 	checkNotEvaluable
 )
 
-// checkResult is one line of the doctor report: the check's name, its outcome,
-// and a short human-readable detail.
 type checkResult struct {
 	name   string
 	status checkStatus
 	detail string
 }
 
-// advisory is doctor's SECOND class of report line — a user-content diagnostic,
-// as distinct from the Portal-health checkResult above. It carries NO name
-// column, NO pass/fail marker and NO participation in <N>/<T>, and it can never
-// make doctorUnhealthy true: advisories are simply never passed to it, which is
-// the structural form of "an advisory does not drive the exit code".
-//
-// That exclusion is deliberate, not an oversight: there is no repair path for a
-// user's broken theme file, so a failing line would hold a scriptable exit
-// permanently non-zero over something that is not the resurrection machinery the
-// exit code speaks about.
-//
-// line is the full pinned copy INCLUDING its leading "⚠ ". The copy table pins
-// each line together with its glyph, so a producer owns the whole string and the
-// renderer only indents it — prefixing the glyph at render time would split one
-// pinned string across two sites.
-//
-// The line is all a producer supplies: whatever identity a producer's own
-// grouping or dedup rules turn on stays on that producer's own record and is
-// dropped where its block is handed over (see themeAdvisory in
-// cmd/doctor_theme.go).
+// advisory is a user-content diagnostic line, outside the pass/fail catalog and
+// so outside the exit code. line is the whole rendered string, glyph included —
+// the renderer only indents it.
 type advisory struct {
 	line string
 }
 
-// DoctorDeps is the DI seam for the doctor command. In production doctorDeps
-// is nil and resolveDoctorDeps supplies the real collaborators (StateDir from
-// state.Dir()). Tests assign a *DoctorDeps with a hermetic StateDir temp dir so
-// diagnosis runs against seeded fixtures without touching the developer's real
-// ~/.config/portal/state.
+// DoctorDeps is the DI seam for the doctor command. Every field is optional:
+// an unset one falls through to the production default resolved by
+// resolveDoctorDeps, and a store left nil makes its check not-evaluable rather
+// than aborting diagnosis.
 type DoctorDeps struct {
-	// StateDir overrides the resolved state directory. Empty means "resolve
-	// via state.Dir()" (the production path).
-	StateDir string
-	// ThemesDir overrides the resolved user themes directory. Empty means
-	// "resolve via themesDirPath()" (the production path).
-	ThemesDir string
-	// ServerRunning reports whether a tmux server is up. It is the front gate
-	// for the three runtime checks (daemon / saver / hooks): a down server
-	// short-circuits all three to the distinct not-running detail without
-	// touching tmux. Production wires tmux.Client.ServerRunning.
+	StateDir      string
+	ThemesDir     string
 	ServerRunning func() bool
-	// SaverPresent reports whether the _portal-saver session's pane is live.
-	// Production wraps tmux.SaverPanePIDOrAbsent (discarding the pid); a
-	// non-nil error is the transient path (not-evaluable, never a hard fail).
-	SaverPresent func() (present bool, err error)
-	// HookCounts returns the per-managed-event count of Portal-authored global
-	// hook entries. Production wraps tmux.PortalHookCountsByEvent; a non-nil
-	// error is the transient path (not-evaluable).
-	HookCounts func() (map[string]int, error)
-	// HookLister enumerates every live pane's hook key — the live set the
-	// stale-hooks check tests persisted keys against. Production wires the same
-	// tmux.DefaultClient() used by the other runtime seams (it implements
-	// AllPaneLister via ListAllPaneHookKeys). An enumeration error, or a
-	// zero-length result while hooks are persisted, is the not-evaluable path
-	// (never "all stale").
-	HookLister AllPaneLister
-	// HookStore reads hooks.json for the stale-hooks check. Production wraps
-	// loadHookStore(); a nil pointer (unresolvable config path) makes the check
-	// not-evaluable rather than crashing diagnosis.
-	HookStore *hooks.Store
-	// ProjectStore reads projects.json for the stale-projects check. Production
-	// wraps loadProjectStore(); a nil pointer makes the check not-evaluable. The
-	// stale-projects check is filesystem-only (directory existence) and runs
-	// independently of the tmux server state.
-	ProjectStore *project.Store
-	// PrefsStore reads prefs.json for the persisted-theme advisory — the line
-	// reporting that the theme a user CHOSE no longer resolves. Production wraps
-	// loadPrefsStoreNoMigrate(), the NON-migrating variant: see
-	// resolveDoctorDeps for why the migrating one may never appear here. A nil
-	// pointer (an unresolvable config path) produces no lines rather than an
-	// error, matching the advisory class's degrade-to-silence shape.
-	PrefsStore *prefs.Store
-	// Detector resolves the host-terminal identity for the informational
-	// host-terminal line. Production wires it from the shared
-	// buildProductionSpawnSeams bundle (cmd/spawn_seams.go) — the SAME bundle the
-	// picker and the multi-target open burst read, so the three consumers share one
-	// construction site and cannot drift. When nil (a direct-call unit test that
-	// does not exercise the line), the host-terminal line is omitted rather than
-	// invoking a real detector.
-	Detector TerminalDetector
-	// Resolve maps a detected identity to its adapter + resolution class.
-	// Production wires it from the shared buildProductionSpawnSeams bundle (its
-	// config-aware buildResolver().Resolve), so doctor, the picker, and the open
-	// burst construct the resolver identically. Only its Resolution is read here (a
-	// NULL identity short-circuits before Resolve). When nil the host-terminal line
-	// is omitted.
-	Resolve spawn.AdapterResolver
+	SaverPresent  func() (present bool, err error)
+	HookCounts    func() (map[string]int, error)
+	HookLister    AllPaneLister
+	HookStore     *hooks.Store
+	ProjectStore  *project.Store
+	PrefsStore    *prefs.Store
+	Detector      TerminalDetector
+	Resolve       spawn.AdapterResolver
 }
 
-// doctorDeps is the package-level DI seam; nil in production.
 var doctorDeps *DoctorDeps
 
-// resolveDoctorDeps returns a fully-populated *DoctorDeps for one doctor
-// invocation. Unset fields in the package-level doctorDeps fall through to the
-// production defaults independently — same per-field nil-check idiom as
-// commitNowDeps / bootstrapDeps. The returned value is never nil; the three
-// tmux probe seams are guaranteed non-nil.
-//
-// doctor is bootstrap-exempt, so there is no shared tmux.Client in
-// cmd.Context(); the production defaults build ONE tmux.DefaultClient() here
-// and wire all three runtime seams off it (constructing the client is pure —
-// no I/O — so it is cheap even when tests override every seam).
 func resolveDoctorDeps() *DoctorDeps {
 	client := tmux.DefaultClient()
-	// The host-terminal line's Detector + Resolve come from the SAME shared
-	// buildProductionSpawnSeams bundle (cmd/spawn_seams.go) the picker and the
-	// multi-target open burst read, so the three consumers cannot silently diverge
-	// on how the detector + config-aware resolver are constructed — one
-	// construction site, not three. doctor accepts the bundle's single eager
-	// terminals.json read: it is bootstrap-exempt and already reads hooks.json /
-	// projects.json / sessions.json, and buildResolver is read-only and fail-safe
-	// (missing/malformed terminals.json → empty native-only config, never an
-	// error), so the informational host-terminal line is behaviourally unchanged.
 	seams := buildProductionSpawnSeams(client)
 	deps := &DoctorDeps{
 		ServerRunning: client.ServerRunning,
@@ -202,32 +90,17 @@ func resolveDoctorDeps() *DoctorDeps {
 		Detector:   seams.Detector,
 		Resolve:    seams.Resolve,
 	}
-	// The stale-entry stores are built best-effort: a load-path error (an
-	// unresolvable config dir) leaves the pointer nil, and the corresponding
-	// check reports checkNotEvaluable rather than crashing diagnosis. NewStore
-	// itself does no I/O — the file is read lazily by the check's Load call.
 	if hookStore, err := loadHookStore(); err == nil {
 		deps.HookStore = hookStore
 	}
 	if projectStore, err := loadProjectStore(); err == nil {
 		deps.ProjectStore = projectStore
 	}
-	// The prefs store is built on the same best-effort footing, and through the
-	// NON-MIGRATING variant, ALWAYS. loadPrefsStore — the migrating one, which
-	// computes and dispatches the one-shot appearance translation — MUST NEVER
-	// appear anywhere in doctor's call graph: doctor heals nothing on the
-	// read-only path, and a one-shot config mutation as a side effect of running
-	// a diagnosis is precisely what would break that claim. The migrating loader
-	// belongs to TUI construction alone, and this call site must not become its
-	// second caller.
+	// Never the migrating loadPrefsStore: doctor heals nothing on the read-only
+	// path, and that one dispatches the one-shot appearance translation.
 	if prefsStore, err := loadPrefsStoreNoMigrate(); err == nil {
 		deps.PrefsStore = prefsStore
 	}
-	// The themes directory is resolved on the same best-effort footing, and
-	// degrades further: the advisory class has no not-evaluable form, so a
-	// resolution failure leaves the field empty and the theme scan reports
-	// nothing rather than aborting a diagnosis over a path it could not compute.
-	// themesDirPath itself never creates, seeds or stats the directory.
 	if themesDir, err := themesDirPath(); err == nil {
 		deps.ThemesDir = themesDir
 	}
@@ -270,13 +143,6 @@ func resolveDoctorDeps() *DoctorDeps {
 	return deps
 }
 
-// doctorCmd runs an ordered catalog of read-only health checks, renders one
-// line per check to stdout, and drives a scriptable exit code (0 iff every
-// check passes, non-zero if any check fails).
-//
-// doctor is bootstrap-exempt (see skipTmuxCheck in cmd/root.go): it starts no
-// server, registers no hooks, and respawns no daemon, so it observes raw state
-// and heals nothing.
 var doctorCmd = &cobra.Command{
 	Use:           "doctor",
 	Short:         "Diagnose Portal's health across the resurrection machinery",
@@ -289,14 +155,6 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// The theme producers supply this render's advisory block, handed over
-		// already assembled into the one-slug-one-line union so <M> counts
-		// problems rather than detections (collectThemeAdvisories).
-		//
-		// It is computed HERE rather than inside runDoctorDiagnosis because it is
-		// doctor's SECOND class of line, not a check: it never reaches
-		// doctorUnhealthy, so the diagnosis returns only the catalog that drives the
-		// exit code and the two classes never meet in one slice.
 		renderDoctorReport(cmd.OutOrStdout(), results, collectThemeAdvisories(deps))
 
 		fix, _ := cmd.Flags().GetBool("fix")
@@ -307,10 +165,8 @@ var doctorCmd = &cobra.Command{
 			return nil
 		}
 
-		// --fix: apply the reversible repairs (rendering the initial report
-		// above first), then re-diagnose against the same deps so the checks
-		// observe post-repair on-disk state. The exit is driven SOLELY by the
-		// post-repair results — the repairs never touch it directly.
+		// The exit is driven solely by the post-repair re-diagnosis below; the
+		// repairs never touch it directly.
 		if err := runDoctorFix(cmd, deps); err != nil {
 			return err
 		}
@@ -318,20 +174,8 @@ var doctorCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// The advisory block is RE-COLLECTED for this render rather than the first
-		// pass's slice being carried down — the theme scan runs on the `--fix`
-		// path too. Two things ride on that:
-		//
-		// It is what makes the second report a genuine RE-DIAGNOSIS of the same
-		// read-only condition rather than a replay of the first — the same claim the
-		// re-run of runDoctorDiagnosis above makes about the checks. Reusing the
-		// slice would print a stale answer beside freshly-read check lines, and the
-		// two halves of one report would then be describing two different moments.
-		//
-		// And it costs nothing to be honest here, because the scan is read-only:
-		// runDoctorFix deliberately performs no theme repair (see its comment), so
-		// this pass can only differ from the first if the USER's directory changed
-		// under the run — in which case the later answer is the right one to print.
+		// Re-collected, not carried down from the first pass: the whole second
+		// report must describe one moment.
 		renderDoctorReport(cmd.OutOrStdout(), postResults, collectThemeAdvisories(deps))
 		if doctorUnhealthy(postResults) {
 			return ErrDoctorUnhealthy
@@ -340,39 +184,9 @@ var doctorCmd = &cobra.Command{
 	},
 }
 
-// runDoctorFix applies doctor's low-stakes, reversible-by-reconstruction repairs
-// in a fixed order — prune stale hooks, prune stale projects — then runs the
-// unconditional log-sweep maintenance side-action. It is invoked AFTER the
-// initial diagnosis render and BEFORE the re-diagnosis.
-//
-// The exit code is driven exclusively by the post-repair re-diagnosis, never by
-// these repairs directly, so every repair is
-// best-effort: a failure is logged under the bootstrap component and swallowed,
-// leaving the condition for the re-diagnosis to observe and report. The error
-// return is reserved for a future catastrophic pre-diagnosis failure; today
-// runDoctorFix always returns nil.
-//
-// The down-server data-loss safety is NOT a bespoke branch here: the stale-hook
-// prune delegates to runHookStaleCleanup, whose mass-deletion hazard guard
-// already defers when live-pane enumeration is empty or errored (the
-// down/rebooted-server state), so a user-authored — non-reconstructable —
-// on-resume command is never wiped. The stale-project prune is filesystem-only
-// and runs regardless of server state.
-//
-// THE THEME ADVISORIES HAVE NO REPAIR STEP HERE, and their absence from the list
-// above is a decision rather than an omission: doctor can prune a stale hook
-// entry, but it cannot repair someone's colours. The repairs this function
-// owns are reversible BY RECONSTRUCTION — a pruned stale hook or project record
-// is one Portal itself re-derives from live tmux state — whereas every theme
-// "repair" available is the destruction of something only the user can author: a
-// junk `.theme` file is someone's half-written palette, and a prefs.json key
-// naming a missing slug is their choice, still correct the moment they restore
-// the file it names. So there is no file rewrite, no prefs write, no directory
-// creation, no seeding (Portal never creates or seeds the themes directory, and
-// `--fix` is the one doctor path that writes, so it is the one that must
-// decline) and no pruning of an invalid drop-in. The theme lines are
-// read-only in BOTH passes, which is why they need nothing from this function
-// and appear in both renders unchanged.
+// runDoctorFix applies only repairs that are reversible by reconstruction, each
+// best-effort so a failure is left for the re-diagnosis to report. Themes get no
+// repair step: every available one would destroy user-authored content.
 func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) error {
 	w := cmd.OutOrStdout()
 	pruneDoctorStaleHooks(w, deps)
@@ -381,16 +195,9 @@ func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) error {
 	return nil
 }
 
-// pruneDoctorStaleHooks prunes hooks.json of entries whose pane key no longer
-// matches a live tmux pane, printing "Pruned stale hook: <key>" per removal to w.
-// It reuses runHookStaleCleanup VERBATIM: that helper's mass-deletion hazard
-// guard is the sole down-server protection (an empty or errored live set defers
-// with no prune), so there is deliberately no extra down-server branch here — a
-// separate branch would double-guard and risk drift. A nil store (unresolvable
-// config path) skips the prune. The helper's error return is discarded: a
-// hookStore.Load / CleanStale failure leaves the entries in place for the
-// re-diagnosis to report, honouring the repairs-never-drive-the-exit contract
-// (the daemon's idle-tick hook cleanup, maybeRunHookCleanup, swallows it the same way).
+// pruneDoctorStaleHooks defers to runHookStaleCleanup, whose mass-deletion
+// hazard guard is the sole down-server protection — do not add a second guard
+// here.
 func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	if deps.HookStore == nil {
 		return
@@ -400,11 +207,6 @@ func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	})
 }
 
-// pruneDoctorStaleProjects prunes projects.json of records whose directory no
-// longer exists via project.Store.CleanStale (filesystem-only, os.Stat-based),
-// printing "Pruned stale project: <name> (<path>)" per removal to w. It runs
-// regardless of tmux server state. A nil store skips the prune; a CleanStale
-// error is logged under the bootstrap component and swallowed.
 func pruneDoctorStaleProjects(w io.Writer, deps *DoctorDeps) {
 	if deps.ProjectStore == nil {
 		return
@@ -419,13 +221,8 @@ func pruneDoctorStaleProjects(w io.Writer, deps *DoctorDeps) {
 	}
 }
 
-// sweepDoctorLogs runs the log-retention sweep — a deliberate unconditional
-// maintenance side-action OUTSIDE the diagnose→repair loop. It is NOT the repair
-// of a diagnosed condition (there is no stale-logs health check — logs
-// auto-rotate and retention-sweep in the log handler) and its outcome NEVER
-// touches the exit code: an unresolvable state dir or a sweep error is logged
-// under the bootstrap component and swallowed. It reuses deps.StateDir (the
-// hermetic test override) when set, else resolves READ-ONLY via state.Dir().
+// sweepDoctorLogs is unconditional maintenance, not the repair of a diagnosed
+// condition — there is no stale-logs check.
 func sweepDoctorLogs(deps *DoctorDeps) {
 	stateDir := deps.StateDir
 	if stateDir == "" {
@@ -441,12 +238,8 @@ func sweepDoctorLogs(deps *DoctorDeps) {
 	}
 }
 
-// runDoctorDiagnosis resolves the state directory READ-ONLY (state.Dir() when
-// deps.StateDir is empty — never EnsureDir) and runs the ordered catalog of
-// state-directory checks that need no tmux. The error return is reserved for a
-// resolution failure that prevents diagnosis entirely; today it is always nil
-// (a state.Dir() failure is folded into per-check failures so the report still
-// carries every check).
+// runDoctorDiagnosis runs the ordered check catalog. The state directory is
+// resolved read-only — never EnsureDir; doctor creates nothing.
 func runDoctorDiagnosis(deps *DoctorDeps) ([]checkResult, error) {
 	dir := deps.StateDir
 	var dirErr error
@@ -454,9 +247,6 @@ func runDoctorDiagnosis(deps *DoctorDeps) ([]checkResult, error) {
 		dir, dirErr = state.Dir()
 	}
 
-	// Read the server gate once: a down server routes daemon / saver / hooks to
-	// the distinct not-running detail without probing tmux at all. The state-dir
-	// and sessions.json checks are server-independent and always run.
 	serverUp := deps.ServerRunning()
 
 	results := []checkResult{
@@ -468,36 +258,15 @@ func runDoctorDiagnosis(deps *DoctorDeps) ([]checkResult, error) {
 		checkStaleHooks(deps.HookLister, deps.HookStore),
 		checkStaleProjects(deps.ProjectStore),
 	}
-	// The host-terminal identity is INFORMATIONAL — it lives at the END of the
-	// report, after the pass/fail catalog, and never drives the exit code.
-	// Production always wires both seams (resolveDoctorDeps), so the line is
-	// always present there; direct-call unit tests that do not exercise it leave
-	// the seams nil, in which case it is omitted.
 	if deps.Detector != nil && deps.Resolve != nil {
 		results = append(results, checkHostTerminal(deps.Detector, deps.Resolve))
 	}
 	return results, nil
 }
 
-// checkHostTerminal reports which host terminal Portal would drive for a
-// multi-window spawn burst, computed from the same detection recipe the picker
-// and open burst use — the Detector + Resolve seams doctor sources from the
-// shared buildProductionSpawnSeams bundle (resolveDoctorDeps), so there is no
-// bespoke detection path and no independent construction to drift. It is
-// INFORMATIONAL ONLY (checkInfo, rendered without a pass/fail marker): an
-// unsupported or remote host is an environmental state, not a Portal-health
-// defect (single-target `open` still works — only the multi-window burst is
-// unavailable), so the line sits OUTSIDE the pass/fail set and can NEVER drive
-// the exit code (doctorUnhealthy counts only checkFail). Classification:
-//
-//   - a NULL identity (remote/mosh, no host-local client, or a transient detect
-//     failure Detect folds to NULL) → "unsupported (remote session)";
-//   - a recognised-but-undriven terminal (non-null, Resolution == Unsupported) →
-//     "<Name> (unsupported)";
-//   - a driven terminal (Resolution != Unsupported) → "<Name> (supported)".
-//
-// A NULL identity short-circuits before Resolve is consulted, so even a config
-// `*` catch-all can never reclassify a remote client as supported.
+// An unsupported or remote host is an environmental state, not a Portal-health
+// defect, so this line never drives the exit code. A NULL identity short-circuits
+// before Resolve, so a config `*` catch-all cannot reclassify a remote client.
 func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver) checkResult {
 	const name = "host terminal"
 	id := detector.Detect()
@@ -510,20 +279,9 @@ func checkHostTerminal(detector TerminalDetector, resolve spawn.AdapterResolver)
 	return checkResult{name: name, status: checkInfo, detail: fmt.Sprintf("%s (supported)", id.Name)}
 }
 
-// checkStaleHooks reports whether hooks.json holds entries whose pane key no
-// longer matches a live tmux pane. It is strictly READ-ONLY: it DERIVES the
-// stale set from the store-owned hooks.StaleKeys predicate (the single owner of
-// the ∉ classification that hooks.Store.CleanStale prunes through), so the
-// report and the prune provably share one predicate and cannot drift — but it
-// NEVER prunes or Saves (pruning is `doctor --fix`, a separate surface).
-//
-// The mass-deletion hazard guard is NOT part of that shared predicate — it is a
-// cmd-layer repair-safety policy applied here (and in runHookStaleCleanup)
-// BEFORE the ∉ count. The guard order is load-bearing: when live-pane
-// enumeration is empty-or-errored while hooks are present it reports
-// checkNotEvaluable, NEVER "all stale", so a false failure can never mislead a
-// --fix into a mass-delete of user-authored, non-reconstructable on-resume
-// commands. Only the past-the-guard count delegates to hooks.StaleKeys.
+// The guards below must precede the stale count: an unreadable or empty live
+// set would otherwise report every entry stale and mislead a --fix into
+// mass-deleting user-authored on-resume commands.
 func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	const name = "stale hooks"
 	if store == nil {
@@ -535,13 +293,9 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	}
 	live, err := lister.ListAllPaneHookKeys()
 	if err != nil {
-		// Server-down / transient read — NEVER report "all stale".
 		return checkResult{name: name, status: checkNotEvaluable, detail: "could not enumerate live panes"}
 	}
 	if len(live) == 0 {
-		// Hazard-guard deferral: an empty live set with hooks present would make
-		// every entry look orphaned. Mirror runHookStaleCleanup — defer, never
-		// classify them all stale.
 		if len(persisted) == 0 {
 			return checkResult{name: name, status: checkPass, detail: "no hooks"}
 		}
@@ -554,14 +308,6 @@ func checkStaleHooks(lister AllPaneLister, store *hooks.Store) checkResult {
 	return checkResult{name: name, status: checkPass, detail: "no stale hooks"}
 }
 
-// checkStaleProjects reports whether projects.json holds records whose directory
-// no longer exists. It DERIVES the stale set from the store-owned
-// project.Store.StaleEntries predicate (the single owner of the os.Stat
-// tri-state classification — nil → live, ErrNotExist → stale, any other error
-// such as permission-denied → retained, NOT stale — that CleanStale prunes
-// through), so the report and the prune provably share one predicate and cannot
-// drift. It is strictly READ-ONLY (StaleEntries Loads and classifies but never
-// Saves) and filesystem-only, so it runs independently of the tmux server state.
 func checkStaleProjects(store *project.Store) checkResult {
 	const name = "stale projects"
 	if store == nil {
@@ -577,15 +323,8 @@ func checkStaleProjects(store *project.Store) checkResult {
 	return checkResult{name: name, status: checkPass, detail: "no stale projects"}
 }
 
-// checkDaemonAlive reports whether the save daemon is running. With the server
-// down it reports the distinct not-running detail (doctor starts nothing, so a
-// down server is honestly unhealthy, not corrupt). With the server up it is a
-// narrow STATE-based probe reading only the three facts the detail needs: the
-// recorded pid (state.ReadPIDFile), its liveness (state.IsProcessAlive), and the
-// recorded version (state.ReadVersionFile). A live daemon.pid passes with a
-// "running (pid N, version V)" detail; a missing, unparseable, or dead PID fails
-// with "not running". It deliberately does NOT walk the state-dir tree or scan
-// portal.log — a routine doctor run stays cheap.
+// checkDaemonAlive is a narrow state-file probe: it deliberately does not walk
+// the state-dir tree or scan portal.log, so a routine doctor run stays cheap.
 func checkDaemonAlive(serverUp bool, dir string, dirErr error) checkResult {
 	const name = "daemon"
 	if !serverUp {
@@ -598,9 +337,6 @@ func checkDaemonAlive(serverUp bool, dir string, dirErr error) checkResult {
 	if err != nil || !state.IsProcessAlive(pid) {
 		return checkResult{name: name, status: checkFail, detail: "not running"}
 	}
-	// A missing or unreadable daemon.version is the normal "never recorded"
-	// condition — swallow the error and let doctorDaemonVersion substitute
-	// "unknown" so the detail never renders a bare "version )".
 	version, _ := state.ReadVersionFile(dir)
 	return checkResult{
 		name:   name,
@@ -609,11 +345,6 @@ func checkDaemonAlive(serverUp bool, dir string, dirErr error) checkResult {
 	}
 }
 
-// checkSaverUp reports whether the _portal-saver session's pane is live. With
-// the server down it reports the distinct not-running detail. With the server
-// up it probes via the injected saverPresent seam: present passes, absent
-// (present=false, err=nil) fails, and a transient tmux error is not-evaluable
-// (never a hard fail — an unreadable probe must not drive the exit code).
 func checkSaverUp(serverUp bool, saverPresent func() (bool, error)) checkResult {
 	const name = "saver"
 	if !serverUp {
@@ -630,21 +361,9 @@ func checkSaverUp(serverUp bool, saverPresent func() (bool, error)) checkResult 
 	}
 }
 
-// checkHooksRegistered reports whether Portal's global hooks are registered
-// exactly once per managed event. With the server down it reports the distinct
-// not-running detail. With the server up it inspects the per-event count map
-// from the injected hookCounts seam:
-//
-//   - a read error is not-evaluable (transient — never a hard fail);
-//   - any event with >=2 entries fails as a duplicate (the first offending
-//     event in sorted order, so the message is deterministic);
-//   - else any event with 0 entries fails as not-registered (first in sorted
-//     order);
-//   - else (every event == 1) passes.
-//
-// Duplicates are reported ahead of missing entries: a stacked duplicate is the
-// runaway-append failure mode this check exists to catch (tmux 3.6b's blind
-// no-arg read let pane-focus-out / window-layout-changed dups accumulate).
+// Events are reported in sorted order so the message is deterministic, and
+// duplicates ahead of missing entries: a stacked duplicate is the runaway-append
+// failure this check exists to catch.
 func checkHooksRegistered(serverUp bool, hookCounts func() (map[string]int, error)) checkResult {
 	const name = "hooks"
 	if !serverUp {
@@ -674,8 +393,6 @@ func checkHooksRegistered(serverUp bool, hookCounts func() (map[string]int, erro
 	return checkResult{name: name, status: checkPass, detail: "hooks registered (one per event)"}
 }
 
-// doctorDaemonVersion substitutes "unknown" when the daemon never recorded a
-// version marker, so the detail never renders a bare "version )".
 func doctorDaemonVersion(v string) string {
 	if v == "" {
 		return "unknown"
@@ -683,11 +400,6 @@ func doctorDaemonVersion(v string) string {
 	return v
 }
 
-// pluralCount renders "<n> <unit>" with the grammatically-correct unit: the
-// singular form when n == 1, the plural form otherwise. Doctor's count
-// diagnostics use it so a single entry reads "1 stale project", not the
-// ungrammatical "1 stale projects". Same singular-only-for-exactly-1 rule as
-// cmd/list.go's window count.
 func pluralCount(n int, singular, plural string) string {
 	unit := plural
 	if n == 1 {
@@ -696,10 +408,7 @@ func pluralCount(n int, singular, plural string) string {
 	return fmt.Sprintf("%d %s", n, unit)
 }
 
-// checkStateDirSane reports whether the state directory is a usable directory.
-// A not-yet-created directory passes ("not created yet") — a fresh install is
-// healthy — while an existing-but-non-directory path or an unreadable stat
-// fails.
+// A not-yet-created state directory passes: a fresh install is healthy.
 func checkStateDirSane(dir string, dirErr error) checkResult {
 	const name = "state dir"
 	if dirErr != nil {
@@ -718,12 +427,8 @@ func checkStateDirSane(dir string, dirErr error) checkResult {
 	}
 }
 
-// checkSessionsJSON reports whether sessions.json is absent (healthy — nothing
-// saved yet), corrupt, or a valid index. It reads via state.ReadIndex directly
-// rather than the lossy HasLastSave so absent and corrupt are distinguished:
-// ReadIndex returns (idx, false, nil) for a valid document, (Index{}, true,
-// nil) for an absent file, and (Index{}, true, err-wrapping-ErrCorruptIndex)
-// for a present-but-unusable one.
+// state.ReadIndex, not the lossy HasLastSave: absent and corrupt must report
+// differently.
 func checkSessionsJSON(dir string, dirErr error) checkResult {
 	const name = "sessions.json"
 	if dirErr != nil {
@@ -744,45 +449,19 @@ func checkSessionsJSON(dir string, dirErr error) checkResult {
 	}
 }
 
-// renderDoctorReport writes the report's three regions in a fixed order, never
-// interleaved: the "Portal doctor:" header, the ordered check catalog (one line
-// per result — a status marker, the check name, and the detail; checkInfo lines
-// render without a pass/fail marker, a space keeping the name column aligned),
-// then the advisory block, then the closing summary. The summary is the LAST
-// line it writes, once per render — so `doctor --fix`, which renders twice,
-// prints two.
-//
-// The summary's FRAMING is a local choice: the copy table pins the wording only,
-// so the two-space indent (matching the body lines), the
-// absent marker and name columns, and the absence of any blank line before it
-// are chosen here for visual continuity with the report's existing shape. A
-// later layout change therefore has exactly one home. The advisory block adopts
-// the same indent for the same reason.
 func renderDoctorReport(w io.Writer, results []checkResult, advisories []advisory) {
 	_, _ = fmt.Fprintln(w, "Portal doctor:")
 	for _, r := range results {
 		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", checkMarker(r.status), r.name, r.detail)
 	}
-	// Region 2 → region 3. The advisory block trails the WHOLE catalog —
-	// including the informational host-terminal line, which stays a check — and
-	// never interleaves with it: the catalog is one line per check in a fixed
-	// order and a fixed length, whereas advisories are 0..N lines whose
-	// cardinality depends on the contents of a user's themes directory.
-	// Interleaving would make a fixed-order report vary in length and position
-	// with what someone happened to drop in a directory, so a reader could no
-	// longer expect a given check at a given place. Each advisory's line is
-	// written verbatim — the producer owns the whole string, glyph included, and
-	// nothing is prepended or appended beyond the shared body indent. Zero
-	// advisories therefore write zero bytes here: no blank line, no heading.
+	// The variable-length advisory block trails the whole catalog and never
+	// interleaves, so a reader can expect a given check at a given place.
 	for _, a := range advisories {
 		_, _ = fmt.Fprintf(w, "  %s\n", a.line)
 	}
 	_, _ = fmt.Fprintf(w, "  %s\n", doctorSummaryLine(results, advisories))
 }
 
-// checkMarker maps a check status to its single-column report glyph. checkInfo
-// renders as a blank so an informational line carries no pass/fail marker while
-// still aligning with the marked lines.
 func checkMarker(s checkStatus) string {
 	switch s {
 	case checkPass:
@@ -798,12 +477,6 @@ func checkMarker(s checkStatus) string {
 	}
 }
 
-// doctorUnhealthy reports whether any check failed. A checkFail is the ordinary
-// unhealthy outcome; the checkUnknown zero-value sentinel also counts as
-// unhealthy so a forgotten status assignment actively fails the run rather than
-// silently reading as green (no production path constructs checkUnknown — this
-// is a defensive floor for the exit-code contract). checkInfo and
-// checkNotEvaluable never count toward the exit code.
 func doctorUnhealthy(results []checkResult) bool {
 	for _, r := range results {
 		if r.status == checkFail || r.status == checkUnknown {
@@ -813,25 +486,8 @@ func doctorUnhealthy(results []checkResult) bool {
 	return false
 }
 
-// doctorCheckCounts counts the Portal-health checks in results — the class that
-// drives the exit code — returning how many passed and how many were counted at
-// all. It EXPLAINS the exit code and never computes it: doctorUnhealthy remains
-// the sole authority behind ErrDoctorUnhealthy, and this helper exists only so
-// the rendered summary can say what that exit code means. Membership is pinned
-// per status, each arm for its own reason:
-//
-//   - checkPass counts toward BOTH passed and total — the ordinary healthy check.
-//   - checkFail counts toward total only — a counted check that did not pass.
-//   - checkUnknown counts toward total only. The iota-0 sentinel already reads as
-//     unhealthy in doctorUnhealthy, so it must count identically here or the
-//     summary and the exit code would disagree about the same run.
-//   - checkInfo and checkNotEvaluable count toward NEITHER. Both are documented
-//     as never driving the exit code, and counting either in total alone would
-//     render "6 of 7 checks passed" beside exit 0 — exactly the illegibility the
-//     summary exists to remove.
-//
-// The equivalence passed == total ⟺ !doctorUnhealthy(results) follows from those
-// arms; it is asserted directly rather than assumed.
+// doctorCheckCounts explains the exit code and never computes it, so its arms
+// must agree with doctorUnhealthy.
 func doctorCheckCounts(results []checkResult) (passed, total int) {
 	for _, r := range results {
 		switch r.status {
@@ -847,26 +503,8 @@ func doctorCheckCounts(results []checkResult) (passed, total int) {
 	return passed, total
 }
 
-// doctorSummaryLine renders one report's closing summary, carrying both classes'
-// counts. The copy is single-sourced HERE and at no other site. Two forms only
-// for the checks — "<N> checks passed" when every counted check passed, "<N> of
-// <T> checks passed" otherwise, the latter being the case the summary exists for
-// since it is when the exit code needs explaining.
-//
-// There is deliberately NO singular carve-out and no route through pluralCount
-// for the checks count: exactly one form is pinned for it, and doctor's catalog
-// never has a single member. The advisory suffix is the opposite — its count IS
-// routinely 1, so it takes the grammatical form and appends to WHICHEVER checks
-// form applies, one format site rather than two. At M == 0 the suffix is
-// suppressed entirely, so a clean install's report gains no stray punctuation
-// (never " · 0 advisories").
-//
-// <M> is the length of the slice handed in, never a producer's raw finding
-// count: the summary counts LINES, so it counts problems rather than detections
-// — which is what the one-slug-one-line rule exists to keep true. Taking the
-// slice rather than an int is what makes that structural. Like doctorCheckCounts
-// this explains the exit code and never computes it; advisories reach the
-// summary and nothing else.
+// The checks count deliberately skips pluralCount — doctor's catalog never has
+// a single member — while the advisory count, which routinely does, takes it.
 func doctorSummaryLine(results []checkResult, advisories []advisory) string {
 	passed, total := doctorCheckCounts(results)
 	summary := fmt.Sprintf("%d checks passed", passed)

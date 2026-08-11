@@ -1,16 +1,5 @@
 package cmd
 
-// Task spectrum-tui-design-5-6 — openTUI fatal-error exit parity (§10.5).
-//
-// On the concurrent cold/TUI path a fatal bootstrap step parks the model in the
-// error frame and q/Esc quits the Bubble Tea program. processTUIResult must then
-// return the model's carried *bootstrap.FatalError (not nil, no connect) so
-// Execute writes the single user line and main.classify maps it to code 1 — the
-// SAME classification today's synchronous warm/CLI path produces, so the exit is
-// byte-for-byte unchanged.
-//
-// cmd rule: NO t.Parallel().
-
 import (
 	"errors"
 	"testing"
@@ -21,10 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestProcessTUIResult_ReturnsFatalError asserts a model carrying a fatal returns
-// that fatal from processTUIResult (no connect), and the returned error is the
-// original *bootstrap.FatalError instance so classification is byte-for-byte the
-// same as the synchronous path.
 func TestProcessTUIResult_ReturnsFatalError(t *testing.T) {
 	fatal := bootstrap.NewFatal("Portal failed to set @portal-restoring marker: permission denied", errors.New("permission denied"))
 
@@ -41,7 +26,7 @@ func TestProcessTUIResult_ReturnsFatalError(t *testing.T) {
 	if err == nil {
 		t.Fatal("processTUIResult returned nil on a fatal; want the *bootstrap.FatalError")
 	}
-	// Must be the SAME *bootstrap.FatalError instance (byte-for-byte classification parity).
+	// Must be the same instance, so classification stays identical.
 	var got *bootstrap.FatalError
 	if !errors.As(err, &got) {
 		t.Fatalf("returned error is not a *bootstrap.FatalError; got %T", err)
@@ -54,10 +39,6 @@ func TestProcessTUIResult_ReturnsFatalError(t *testing.T) {
 	}
 }
 
-// TestProcessTUIResult_NoFatalUnchanged asserts the no-fatal path is byte-for-byte
-// unchanged by the fatal-precedence addition: a model with NO fatal still connects
-// on a selection and returns nil on a clean exit. This guards the warm/CLI and
-// non-fatal cold paths against regression from the new FatalError() pre-check.
 func TestProcessTUIResult_NoFatalUnchanged(t *testing.T) {
 	t.Run("clean exit returns nil and does not connect", func(t *testing.T) {
 		m := tui.New(&mockSessionLister{})

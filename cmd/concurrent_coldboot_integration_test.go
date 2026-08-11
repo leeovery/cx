@@ -1,44 +1,5 @@
 //go:build integration
 
-// spectrum-tui-design-5-8 — Part D: concurrent cold-boot startup-ordering
-// integration suite.
-//
-// These tests drive the §10.2 CONCURRENT cold-boot route end-to-end against a
-// REAL isolated tmux server with a REAL `_portal-saver` daemon, exercising the
-// production progress pipe (bootstrapProgressPipe) that runs Orchestrator.Run in
-// a goroutine and streams per-step progress over the channel. They assert the
-// invariants the prior incident (slow-open / empty-previews / zombie-session)
-// threatened:
-//
-//   - orchestrator STEP ORDERING preserved on the concurrent route (the ten
-//     StepEvents stream in 1..10 order).
-//   - the @portal-restoring SET-before-restore / CLEAR-before-cleanup window is
-//     intact concurrently (cleared by the time the terminal event lands).
-//   - the daemon is spawned EXACTLY ONCE (singleton) — pgrep + the saver-pane
-//     PID agree — with NO zombie/leaked daemon.
-//   - NO slow-open regression: a FAST cold boot (M=0, nothing to restore) AND a
-//     SLOW restore (saved sessions to skeleton-restore) both reach a clean
-//     terminal complete with the daemon singleton intact.
-//   - WARM-UNLATCHED ROUTING: a hand-started (warm) tmux server carrying NO
-//     @portal-bootstrapped latch, opened via `portal open` (the TUI path), takes
-//     the CONCURRENT / DEFERRED / loading route — the trigger is latch-absent,
-//     NOT server-down (spec § Latch-Check Placement → "Loading-screen trigger:
-//     latch-absent, not server-down") — pinned here via
-//     TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute.
-//
-// Discipline (load-bearing — the prior incident was a leaked test daemon
-// corrupting the dev install):
-//   - portaltest.IsolateStateForTest(t) scrubs the developer XDG_CONFIG_HOME and
-//     registers the fingerprint-diff backstop; PORTAL_STATE_DIR pins every
-//     subprocess (the tmux-server-spawned saver daemon inherits it).
-//   - the saver daemon is reaped by killing _portal-saver in t.Cleanup BEFORE
-//     tmuxtest's kill-server, so the daemon sees SIGHUP and exits — no zombie.
-//   - NO t.Parallel (cmd-package convention; package-level mutable seam state).
-//   - the no-leaked-daemon assertion is EXPLICIT (assertNoExtraDaemons) — the
-//     IsolateStateForTest backstop is defence-in-depth, not a substitute.
-//
-// Build & run:  go test -tags=integration ./cmd/...
-
 package cmd
 
 import (
@@ -60,20 +21,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// concurrentBootDrainBudget bounds the drainPipe poll for the concurrent route.
-// A real cold boot (server start + saver bootstrap + restore + cleanup) is
-// observed at a few hundred ms; 15 s is generous headroom for slow CI hardware
-// while still failing loudly on a wedged goroutine (the slow-open regression
-// shape — a frozen pipe that never sends the terminal event).
 const concurrentBootDrainBudget = 15 * time.Second
 
-// setupConcurrentColdBootEnv builds the per-test scaffolding for a REAL cold
-// boot: isolated state dir (PORTAL_STATE_DIR pinned, fingerprint backstop
-// registered), portal binary on PATH (so restored panes' hydrate helper resolves
-// and the saver daemon spawns), and an isolated tmux socket. It deliberately does
-// NOT pre-start the saver — the orchestrator's EnsureSaver step does that, which
-// is the whole point of exercising the cold route. Returns the socket, client,
-// state dir, and the isolated env slice (for any further subprocess spawn).
+// setupConcurrentColdBootEnv deliberately does not pre-start the saver: the
+// orchestrator's EnsureSaver step is what the cold route exercises.
 func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, string, []string) {
 	t.Helper()
 	if testing.Short() {
@@ -85,13 +36,8 @@ func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, s
 
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	// IsolateStateForTest re-points HOME at a fresh t.TempDir(). tmux-spawned
-	// interactive shells (the saver pane's, restored panes') flush a shell-history
-	// file ($HOME/.zsh_history etc.) on SIGHUP exit DURING teardown — a write that
-	// races the framework's HOME-tempdir RemoveAll ("directory not empty"). Pinning
-	// HISTFILE to /dev/null routes that write away from HOME so the tempdir stays
-	// empty for RemoveAll. The tmux server inherits this env. Orthogonal to the
-	// daemon/state invariants under test — purely a teardown-race mitigation.
+	// tmux-spawned shells flush their history file into the isolated HOME on
+	// SIGHUP exit, racing the framework's tempdir RemoveAll. Route it away.
 	t.Setenv("HISTFILE", os.DevNull)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
@@ -100,14 +46,9 @@ func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, s
 	ts := tmuxtest.New(t, "ptl-cc-coldboot-")
 	client := ts.Client()
 
-	// Reap the saver daemon BEFORE tmuxtest's kill-server runs (t.Cleanup LIFO:
-	// tmuxtest.New registered its kill-server first, so this fires first). Killing
-	// _portal-saver delivers SIGHUP to the daemon so it exits; we then BLOCK until
-	// the daemon process is actually gone so it releases the state-dir fds
-	// (daemon.lock, portal.log, daemon.pid) before the testing framework's
-	// t.TempDir RemoveAll runs — otherwise RemoveAll races a live daemon and fails
-	// with "directory not empty" (load-bearing on macOS). This is the tmux-pane
-	// analogue of the SIGKILL+Wait subprocess reap.
+	// Registered after tmuxtest.New so LIFO reaps the daemon before kill-server:
+	// a live daemon still holding state-dir fds makes the TempDir RemoveAll fail
+	// with "directory not empty" on macOS.
 	t.Cleanup(func() {
 		reapSaverDaemon(t, ts, client, stateDir)
 	})
@@ -117,28 +58,16 @@ func setupConcurrentColdBootEnv(t *testing.T) (*tmuxtest.Socket, *tmux.Client, s
 	return ts, client, stateDir, envSlice
 }
 
-// reapTmuxServer is the shared blocking server reap: kill-server (not just
-// kill-session) so EVERY pane's shell receives SIGHUP and exits, then BLOCK until
-// the server is actually unreachable before returning. Every pane shell holds
-// HOME at the IsolateStateForTest tempdir, and a lingering shell flushing on exit
-// races the framework's HOME-tempdir RemoveAll ("directory not empty"). Tearing
-// the whole server down and waiting for it to go away drains those shells before
-// the cleanup returns. Registered with t.Cleanup so it runs (LIFO) BEFORE
-// tmuxtest.New's own kill-server, which is then an idempotent no-op.
-//
-// Best-effort: it never fails the test (a server still reachable at the budget
-// would surface as the RemoveAll error, which is itself diagnostic). It is the
-// single chokepoint for the SERVER reap so the warm-parity and cold-boot paths
-// cannot diverge again (the warm-parity test previously used a no-op
-// kill-session _portal-saver — a NO-OP because _portal-saver never exists on the
-// warm path — leaving the default-pane shell to race RemoveAll).
+// reapTmuxServer kills the whole server, not just a session, so every pane
+// shell gets SIGHUP, then blocks until the server is unreachable — a lingering
+// shell flushing into the isolated HOME races the framework's RemoveAll.
+// Best-effort: a server still up at the budget surfaces as the RemoveAll error.
 func reapTmuxServer(t *testing.T, ts *tmuxtest.Socket) {
 	t.Helper()
 	ts.KillServer()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		// list-sessions against a dead server errors ("no server running on
-		// ..." / "error connecting"); that error means the server is gone.
+		// An error from list-sessions means the server is gone.
 		if _, err := ts.TryRun("list-sessions"); err != nil {
 			return
 		}
@@ -146,28 +75,17 @@ func reapTmuxServer(t *testing.T, ts *tmuxtest.Socket) {
 	}
 }
 
-// reapSaverDaemon kills the server (via the shared reapTmuxServer) and ADDITIONALLY
-// blocks until the saver-pane daemon process is no longer observable (pane absent
-// AND daemon.pid PID dead), so the daemon has released the state-dir file
-// descriptors (daemon.lock, portal.log, daemon.pid) before t.TempDir cleanup. The
-// shared server reap drains pane shells; this daemon-death wait additionally
-// awaits the daemon PROCESS exit, whose fd release trails the pane vanishing.
-// Best-effort: it never fails the test (a still-running daemon at the budget would
-// surface as the RemoveAll error, which is itself diagnostic).
+// reapSaverDaemon additionally waits for the daemon process itself to exit: its
+// state-dir fd release trails the pane vanishing, and t.TempDir cleanup needs
+// those released. Best-effort.
 func reapSaverDaemon(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, stateDir string) {
 	t.Helper()
-	// Snapshot the daemon PID before kill so we can poll its liveness directly
-	// (the pane vanishes immediately on kill, but the process teardown — fd
-	// release — trails).
+	// Snapshotted before the kill so its liveness can be polled directly.
 	pid, _ := state.ReadPIDFile(stateDir)
-	// Shared blocking server reap: SIGHUP every pane shell and wait for the
-	// server to go unreachable.
 	reapTmuxServer(t, ts)
 	deadline := time.Now().Add(4 * time.Second)
 	for time.Now().Before(deadline) {
-		// During teardown the saver pane is being torn down, so a transient
-		// "can't find session/window" error means absent. Any error or
-		// present=false counts as "saver gone".
+		// Mid-teardown a transient tmux error also means absent.
 		_, present, perr := tmux.SaverPanePIDOrAbsent(client, tmux.PortalSaverName)
 		saverGone := perr != nil || !present
 		daemonDead := pid <= 0 || !pidIsAlive(pid)
@@ -178,8 +96,6 @@ func reapSaverDaemon(t *testing.T, ts *tmuxtest.Socket, client *tmux.Client, sta
 	}
 }
 
-// pidIsAlive reports whether pid is a live process via the canonical signal-0
-// liveness probe. A reaped/dead PID returns false; a live one returns true.
 func pidIsAlive(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -191,13 +107,9 @@ func pidIsAlive(pid int) bool {
 	return proc.Signal(syscall.Signal(0)) == nil
 }
 
-// buildConcurrentColdBootOrchestrator wires a bootstrap.Orchestrator for the
-// cold-boot route: real RestoringMarker (Set/Clear → the @portal-restoring
-// window), real OrphanSweeper (step 4 — the pre-saver sweep), real saver (step 5
-// — spawns the `_portal-saver` daemon), and real RestoreAdapter (step 6 —
-// skeleton-restores saved sessions). Cleanup steps default to NoOp via
-// NewWithDefaults. This is the production step set minus the hook registration
-// (NoOp here so the test does not mutate the host's global hook table).
+// buildConcurrentColdBootOrchestrator wires the production step set minus hook
+// registration, which stays NoOp so the test never mutates the host's global
+// hook table.
 func buildConcurrentColdBootOrchestrator(t *testing.T, client *tmux.Client, stateDir string) *bootstrap.Orchestrator {
 	t.Helper()
 	logger := restoretest.OpenTestLogger(t, stateDir)
@@ -212,9 +124,6 @@ func buildConcurrentColdBootOrchestrator(t *testing.T, client *tmux.Client, stat
 	)
 }
 
-// concurrentBootResult captures everything the assertions need from one
-// concurrent-route drive: the ordered per-step indices, whether the terminal
-// complete (vs fatal) event arrived, and the pipe's post-run terminal return.
 type concurrentBootResult struct {
 	stepOrder     []int
 	sawComplete   bool
@@ -223,10 +132,7 @@ type concurrentBootResult struct {
 }
 
 // driveConcurrentColdBoot runs the orchestrator through the production progress
-// pipe (bootstrapProgressPipe.start → Run in a goroutine + emitter wired through
-// ctx) and drains the channel synchronously, recording the streamed event order.
-// This is the EXACT mechanism cmd/open.go uses on the cold/TUI path — only the
-// Bubble Tea runtime is replaced by drainPipe.
+// pipe, replacing only the Bubble Tea runtime with a synchronous drain.
 func driveConcurrentColdBoot(t *testing.T, orch *bootstrap.Orchestrator, stateDir string) (*bootstrapProgressPipe, concurrentBootResult) {
 	t.Helper()
 	pipe := newBootstrapProgressPipe()
@@ -242,9 +148,8 @@ func driveConcurrentColdBoot(t *testing.T, orch *bootstrap.Orchestrator, stateDi
 		case msg := <-got:
 			switch m := msg.(type) {
 			case tui.BootstrapProgressMsg:
-				// Record only the per-STEP tick (a restore per-session event also
-				// rides Index 6 with RestoreM>0; those are sub-step counters, not a
-				// new step). A step tick carries RestoreN==0 && RestoreM==0.
+				// Restore's per-session events also ride Index 6, so only the
+				// zero-counter ticks are real steps.
 				if m.RestoreM == 0 && m.RestoreN == 0 {
 					res.stepOrder = append(res.stepOrder, m.Index)
 				}
@@ -265,9 +170,6 @@ func driveConcurrentColdBoot(t *testing.T, orch *bootstrap.Orchestrator, stateDi
 	}
 }
 
-// assertTenStepOrder fails unless order is exactly [1,2,...,10]. The ten
-// orchestrator steps must stream in canonical order on the concurrent route —
-// the same load-bearing ordering the synchronous route guaranteed (§10.2 Part A).
 func assertTenStepOrder(t *testing.T, order []int) {
 	t.Helper()
 	if len(order) != 10 {
@@ -280,18 +182,11 @@ func assertTenStepOrder(t *testing.T, order []int) {
 	}
 }
 
-// assertDaemonSingletonNoZombie verifies the daemon singleton: exactly one
-// `portal state daemon` is observable AND it is the `_portal-saver` pane process.
-// pgrep is system-wide and argv-anchored, so it would surface a second/leaked
-// daemon if the concurrent route spawned one. The saver-pane PID cross-check
-// confirms the single daemon is the LEGITIMATE one (not an orphan that survived).
 func assertDaemonSingletonNoZombie(t *testing.T, client *tmux.Client, stateDir string) int {
 	t.Helper()
 
-	// Poll the saver-pane PID up to a short budget: EnsureSaver returns once its
-	// readiness barrier observes the daemon, but on slow CI the pane_pid read can
-	// trail by a tick. A transient read error during the poll is tolerated (treated
-	// as not-yet-ready); only a never-ready saver fails below.
+	// EnsureSaver returns once its readiness barrier observes the daemon, but on a
+	// slow host the pane_pid read can trail by a tick, so poll rather than read once.
 	var panePID int
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
@@ -307,22 +202,16 @@ func assertDaemonSingletonNoZombie(t *testing.T, client *tmux.Client, stateDir s
 			"--- portal.log ---\n%s", portaltest.ReadPortalLogSafe(stateDir))
 	}
 
-	// Singleton: exactly one daemon observable, and it is the saver pane process.
 	assertNoExtraDaemons(t, panePID)
 	return panePID
 }
 
-// assertNoExtraDaemons is the EXPLICIT no-leaked-daemon assertion. It enumerates
-// every `portal state daemon` via the canonical pgrep and fails if any PID other
-// than the legitimate saver-pane PID is present. The IsolateStateForTest
-// fingerprint backstop is defence-in-depth; THIS is the load-bearing check that a
-// concurrent boot did not spawn a second/zombie daemon.
 func assertNoExtraDaemons(t *testing.T, legitPID int) {
 	t.Helper()
 	pids, err := portaltest.PgrepPortalDaemons()
 	if err != nil {
-		// pgrep absence (minimal container) → skip the system-wide check; the
-		// saver-pane cross-check above already proved the legitimate daemon is up.
+		// No pgrep (minimal container): the saver-pane cross-check above already
+		// proved the legitimate daemon is up.
 		t.Logf("pgrep unavailable (%v); skipping system-wide singleton check — "+
 			"saver-pane PID %d cross-check stands", err, legitPID)
 		return
@@ -344,9 +233,8 @@ func assertNoExtraDaemons(t *testing.T, legitPID int) {
 	}
 }
 
-// assertRestoringCleared verifies the @portal-restoring window CLOSED: by the
-// time the terminal event landed (post step-8 Clear), the marker must be unset.
-// A leaked marker would suppress daemon captureAndCommit indefinitely.
+// assertRestoringCleared guards the leak: a marker left set suppresses daemon
+// captureAndCommit indefinitely.
 func assertRestoringCleared(t *testing.T, client *tmux.Client) {
 	t.Helper()
 	set, err := state.IsRestoringSet(client)
@@ -359,16 +247,10 @@ func assertRestoringCleared(t *testing.T, client *tmux.Client) {
 	}
 }
 
-// TestConcurrentColdBoot_StepOrderingAndDaemonSingleton is the flagship Part-D
-// assertion: a REAL concurrent cold boot with saved sessions to restore (the
-// SLOW-restore shape) must (a) stream the ten steps in order, (b) reach the
-// terminal complete with serverStarted=true, (c) clear @portal-restoring, and
-// (d) leave exactly one daemon (the saver pane) with no zombie/leak.
 func TestConcurrentColdBoot_StepOrderingAndDaemonSingleton(t *testing.T) {
 	ts, client, stateDir, _ := setupConcurrentColdBootEnv(t)
 
-	// Slow-restore shape: seed sessions.json so step 6 actually skeleton-restores
-	// (the per-session loop runs — the real per-item progress source).
+	// Seeded so step 6 actually skeleton-restores and the per-session loop runs.
 	restoretest.SeedSessionsJSON(t, stateDir, "cc-ghost-alpha", "cc-ghost-bravo")
 
 	orch := buildConcurrentColdBootOrchestrator(t, client, stateDir)
@@ -389,10 +271,6 @@ func TestConcurrentColdBoot_StepOrderingAndDaemonSingleton(t *testing.T) {
 	assertRestoringCleared(t, client)
 	panePID := assertDaemonSingletonNoZombie(t, client, stateDir)
 
-	// No-slow-open / restored-sessions-live: the saved-only names must be live on
-	// the server by the time the boot completed — the picker (post-transition)
-	// would render them. This is the prior-incident "empty-previews" surface
-	// proven absent at the bootstrap layer.
 	for _, name := range []string{"cc-ghost-alpha", "cc-ghost-bravo"} {
 		if _, err := ts.TryRun("has-session", "-t", name); err != nil {
 			t.Errorf("saved session %q not live post-concurrent-boot: %v "+
@@ -403,16 +281,10 @@ func TestConcurrentColdBoot_StepOrderingAndDaemonSingleton(t *testing.T) {
 	t.Logf("concurrent cold boot OK: 10 steps in order, daemon singleton pane PID=%d, restored sessions live", panePID)
 }
 
-// TestConcurrentColdBoot_FastEmptyRestore_NoZombie covers the FAST cold-boot
-// shape (M=0 — empty sessions.json / nothing to restore). The restore step ticks
-// immediately with zero per-session work, the boot completes quickly, and the
-// daemon singleton must still be intact with no zombie. This is the
-// orchestrator-finishes-fast complement to the slow-restore flagship.
 func TestConcurrentColdBoot_FastEmptyRestore_NoZombie(t *testing.T) {
 	_, client, stateDir, _ := setupConcurrentColdBootEnv(t)
 
-	// Fast shape: no sessions.json seeded → step 6 restore is a zero-item tick
-	// (M=0). The orchestrator finishes around first render.
+	// No sessions.json seeded, so step 6 is a zero-item tick.
 	orch := buildConcurrentColdBootOrchestrator(t, client, stateDir)
 	start := time.Now()
 	_, res := driveConcurrentColdBoot(t, orch, stateDir)
@@ -432,21 +304,12 @@ func TestConcurrentColdBoot_FastEmptyRestore_NoZombie(t *testing.T) {
 	t.Logf("fast (M=0) cold boot OK in %s: 10 steps in order, daemon singleton pane PID=%d", elapsed, panePID)
 }
 
-// TestConcurrentColdBoot_RestoringWindowSetBeforeRestore proves the
-// @portal-restoring SET-before-restore half of the window directly: the
-// RestoreAdapter is wrapped so that, AT THE MOMENT step 6 (Restore) runs, the
-// marker is observed SET. Combined with assertRestoringCleared (the CLEAR-before-
-// cleanup half, asserted post-run in the sibling tests), this pins the full
-// window intact concurrently.
 func TestConcurrentColdBoot_RestoringWindowSetBeforeRestore(t *testing.T) {
 	_, client, stateDir, _ := setupConcurrentColdBootEnv(t)
 	restoretest.SeedSessionsJSON(t, stateDir, "cc-window-ghost")
 
 	logger := restoretest.OpenTestLogger(t, stateDir)
 
-	// Wrap the real RestoreAdapter so we can observe @portal-restoring at the
-	// instant step 6 fires. The probe records whether the marker was SET when
-	// Restore() was entered — it must be, because steps 3 (Set) precede step 6.
 	var restoringWhenRestoreRan bool
 	var probeErr error
 	inner := bootstrapadapter.NewRestoreAdapter(client, stateDir, logger)
@@ -481,15 +344,11 @@ func TestConcurrentColdBoot_RestoringWindowSetBeforeRestore(t *testing.T) {
 		t.Error("@portal-restoring was NOT set when step 6 (Restore) ran — the SET-before-restore " +
 			"window half is broken; steps 3 (Set) must precede step 6 on the concurrent route")
 	}
-	// And the CLEAR half: marker unset post-run.
 	assertRestoringCleared(t, client)
 }
 
-// restoreWindowProbe wraps a bootstrap.Restorer and observes the
-// @portal-restoring marker at the instant Restore() runs, then delegates. It
-// also satisfies bootstrap.RestoreProgressSink by forwarding to the inner adapter
-// so the §10.4 per-session progress still streams (the inner RestoreAdapter
-// implements the sink).
+// restoreWindowProbe observes @portal-restoring at the instant Restore() runs,
+// then delegates. It forwards SetProgress so per-session progress still streams.
 type restoreWindowProbe struct {
 	inner   bootstrap.Restorer
 	client  *tmux.Client
@@ -508,26 +367,6 @@ func (p *restoreWindowProbe) SetProgress(fn func(n, m int)) {
 	}
 }
 
-// TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute pins the
-// WARM-BUT-UNLATCHED routing contract (spec § Latch-Check Placement → "Loading-
-// screen trigger: latch-absent, not server-down"). A hand-started (warm) tmux
-// server with NO @portal-bootstrapped latch stamped, opened via `portal open`
-// (zero args — the TUI path), now takes the CONCURRENT / DEFERRED / loading route
-// — the same route a cold boot takes — NOT the retired synchronous-no-loading-page
-// path. The trigger is latch-absent, not server-down.
-//
-// This supersedes the retired TestConcurrentColdBoot_WarmParity_NoLoadingPage-
-// SynchronousOrdering, whose synchronous-warm-unlatched contract Phase 2 replaced.
-// It is the real-tmux (genuinely WARM, already-running server) analogue of the
-// unit-level TestAbridged_OutcomeMatrix_OpenNotSatisfied_ConcurrentDeferred (which
-// exercises the same route against a down server); driving both against the same
-// deferred-route shape proves the concurrent flip keys off the LATCH, not the
-// server-running probe.
-//
-// We drive PersistentPreRunE with a warm-but-unlatched client and assert (a) the
-// orchestrator was DEFERRED (a deferredBootstrap is stashed for openTUI's
-// goroutine, deferredBootstrapFromContext != nil) and (b) it did NOT run
-// synchronously inside PersistentPreRunE (runner.calls == 0).
 func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test; -short")
@@ -537,8 +376,7 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 
 	_, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
-	// See setupConcurrentColdBootEnv: route shell-history writes away from the
-	// HOME tempdir so they do not race the framework's RemoveAll on teardown.
+	// Keeps shell-history writes out of the HOME tempdir on teardown.
 	t.Setenv("HISTFILE", os.DevNull)
 	if _, err := state.EnsureDir(); err != nil {
 		t.Fatalf("EnsureDir: %v", err)
@@ -546,31 +384,21 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 
 	ts := tmuxtest.New(t, "ptl-cc-warm-")
 	client := ts.Client()
-	// Warm: the server is already running before PersistentPreRunE probes the
-	// latch — but NO @portal-bootstrapped option is ever stamped, so the latch
-	// reads NOT satisfied and the TUI path must route concurrent/deferred.
+	// Warm: the server runs before the latch probe, but nothing stamps
+	// @portal-bootstrapped, so the latch reads not-satisfied.
 	if _, err := client.EnsureServer(); err != nil {
 		t.Fatalf("EnsureServer (pre-warm the server): %v", err)
 	}
-	// Pin the premise: warm server, latch absent ⇒ not satisfied.
 	if state.BootstrappedLatchSatisfied(client, version) {
 		t.Fatal("latch unexpectedly satisfied on a warm-but-unstamped server; the warm-unlatched premise is broken")
 	}
-	// Blocking server reap BEFORE tmuxtest's kill-server (t.Cleanup LIFO): the
-	// warm server's default-pane shell holds HOME at the IsolateStateForTest
-	// tempdir; reapTmuxServer SIGHUPs it and waits for the server to go away so
-	// the shell exits before the framework's HOME-tempdir RemoveAll. The deferred
-	// orchestrator never runs on this route (openTUIFunc is stubbed to a no-op
-	// below), so NO _portal-saver daemon is spawned — reapTmuxServer alone is the
-	// correct reap (no daemon-death wait needed).
+	// No saver daemon is spawned on this route (openTUIFunc is stubbed below), so
+	// the plain server reap is the whole cleanup.
 	t.Cleanup(func() { reapTmuxServer(t, ts) })
 
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)
 
-	// On the concurrent route PersistentPreRunE stashes the runner in context
-	// (deferredBootstrap) and returns WITHOUT calling Run — the recording runner
-	// proves it never ran synchronously.
 	runner := &recordingRunner{started: true}
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
 	t.Cleanup(func() { bootstrapDeps = nil })
@@ -578,8 +406,6 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 	var deferredSeen bool
 	origFunc := openTUIFunc
 	openTUIFunc = func(cmd *cobra.Command, _ string, _ []string, _ bool) error {
-		// On the deferred route the orchestrator has NOT run inside
-		// PersistentPreRunE — openTUI's goroutine would run it (stubbed out here).
 		if runner.calls != 0 {
 			t.Errorf("orchestrator ran synchronously (%d calls) on the warm-unlatched TUI path; want deferred", runner.calls)
 		}
@@ -594,11 +420,9 @@ func TestConcurrentColdBoot_WarmUnlatchedOpen_TakesConcurrentDeferredRoute(t *te
 		t.Fatalf("Execute (warm-unlatched open): %v", err)
 	}
 
-	// (a) DEFERRED: a deferred bootstrap was stashed for openTUI's goroutine.
 	if !deferredSeen {
 		t.Error("warm-unlatched open did not stash a deferred bootstrap; the concurrent + loading route is expected (trigger is latch-absent, not server-down)")
 	}
-	// (b) NOT synchronous: the orchestrator never ran inside PersistentPreRunE.
 	if runner.calls != 0 {
 		t.Errorf("warm-unlatched open: orchestrator calls = %d, want 0 (deferred to openTUI's goroutine, not synchronous)", runner.calls)
 	}

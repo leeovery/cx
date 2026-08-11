@@ -1,9 +1,5 @@
 package cmd
 
-// Pure-function tests over orderedOpenTargets. No package-level state, no cobra,
-// no tmux — but this file lives in package cmd, so per CLAUDE.md it MUST NOT use
-// t.Parallel.
-
 import (
 	"slices"
 	"testing"
@@ -40,9 +36,6 @@ func TestOrderedOpenTargets(t *testing.T) {
 			want: []Target{{Value: "~/new", Domain: "bare"}},
 		},
 		{
-			// An excluded flag's value BETWEEN two positionals is consumed and
-			// dropped, leaving both positionals in left-to-right order — the value
-			// ("claude") is never misrouted as a third bare target.
 			name: "excluded exec value between two positionals",
 			args: []string{"blog", "-e", "claude", "api"},
 			want: []Target{
@@ -129,10 +122,6 @@ func TestOrderedOpenTargets(t *testing.T) {
 			want: []Target{{Value: "blog", Domain: "bare"}},
 		},
 		{
-			// Panic-safety edge: a trailing value-pin with no following token must
-			// not index-out-of-range. The guard emits an empty-Value target of the
-			// pin's domain (the current, correct behaviour); cobra rejects this
-			// input upstream in practice, so this only pins no-panic + emitted shape.
 			name: "trailing value-pin, no following token, no panic",
 			args: []string{"-p", "~/a", "-s"},
 			want: []Target{

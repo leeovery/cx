@@ -1,4 +1,3 @@
-// Tests in this file mutate package-level state via Cobra and MUST NOT use t.Parallel.
 package cmd
 
 import (
@@ -19,7 +18,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// runStateDaemon executes "portal state daemon" with stdout/stderr captured.
 func runStateDaemon(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
 	outBuf := new(bytes.Buffer)
@@ -33,12 +31,9 @@ func runStateDaemon(t *testing.T) (*bytes.Buffer, *bytes.Buffer, error) {
 	return outBuf, errBuf, err
 }
 
-// withImmediateRun installs a daemonTickLoopFunc that returns nil immediately
-// and captures the deps it received, so tests can assert on startup side
-// effects (including the lock-acquire + WritePIDFile ceremony that now lives
-// at the head of defaultDaemonRun). Swapping the tick-loop sub-seam (rather
-// than the top-level daemonRunFunc seam) preserves the production acquire+pid
-// path so tests observing daemon.pid / daemon.lock side effects see them.
+// Swaps the tick-loop sub-seam rather than the top-level daemonRunFunc, so
+// the production lock-acquire + WritePIDFile head still runs and its side
+// effects stay observable.
 func withImmediateRun(t *testing.T) **daemonDeps {
 	t.Helper()
 	holder := new(*daemonDeps)
@@ -98,7 +93,6 @@ func TestStateDaemon_ClearsStaleSaveRequestedOnStartup(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Pre-create save.requested as if a prior daemon left it behind.
 	stalePath := filepath.Join(dir, "save.requested")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("seed dir: %v", err)
@@ -123,7 +117,6 @@ func TestStateDaemon_OverwritesPIDAndVersionAcrossInvocations(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
 
-	// Seed pre-existing PID and version files with stale values.
 	if err := state.WritePIDFile(dir, 42); err != nil {
 		t.Fatalf("seed pid: %v", err)
 	}
@@ -184,9 +177,7 @@ func TestStateDaemon_CreatesStateDirectoryIfMissing(t *testing.T) {
 }
 
 func TestStateDaemon_OpensLogFileInStateDir(t *testing.T) {
-	// The cataloged "daemon: lock acquired" INFO marks startup observably; the
-	// redundant "daemon: starting" line was dropped per spec § Process/subsystem
-	// boundary. Both are INFO, filtered by the default WARN threshold, so bump.
+	// Both lines are INFO, which the default WARN threshold filters out.
 	t.Setenv("PORTAL_LOG_LEVEL", "info")
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -209,10 +200,6 @@ func TestStateDaemon_OpensLogFileInStateDir(t *testing.T) {
 	}
 }
 
-// TestStateDaemon_DoesNotEmitStartingINFO pins the spec drop: the daemon RunE
-// no longer emits the uncataloged "daemon: starting" INFO (spec § Saver and
-// daemon lifecycle event taxonomy → Process/subsystem boundary). Startup stays
-// observable via "process: start process_role=daemon" + "daemon: lock acquired".
 func TestStateDaemon_DoesNotEmitStartingINFO(t *testing.T) {
 	t.Setenv("PORTAL_LOG_LEVEL", "info")
 	dir := t.TempDir()
@@ -233,7 +220,6 @@ func TestStateDaemon_DoesNotEmitStartingINFO(t *testing.T) {
 	if strings.Contains(string(data), "daemon: starting") {
 		t.Errorf("daemon must not emit an uncataloged 'starting' INFO; got:\n%s", data)
 	}
-	// Startup observability is preserved by the cataloged lock-acquired event.
 	if !strings.Contains(string(data), "daemon: lock acquired") {
 		t.Errorf("expected 'daemon: lock acquired' to preserve startup observability; got:\n%s", data)
 	}
@@ -265,7 +251,6 @@ func TestStateDaemon_PassesPreparedDepsToRunFunc(t *testing.T) {
 	}
 }
 
-// fakeCommander records tmux invocations and returns scripted responses.
 type fakeCommander struct {
 	calls    [][]string
 	getValue string
@@ -283,16 +268,11 @@ func (f *fakeCommander) Run(args ...string) (string, error) {
 	return "", nil
 }
 
-// RunRaw mirrors Run for this fake — daemon shutdown tests don't need a
-// distinction between trimmed and raw output.
 func (f *fakeCommander) RunRaw(args ...string) (string, error) {
 	return f.Run(args...)
 }
 
 func TestStateDaemon_ShutdownFlushSkippedWhenRestoringSet(t *testing.T) {
-	// The restoring-skip path emits a "shutdown" INFO with flush_completed=false
-	// (the breadcrumb "skipping final flush" is now DEBUG). At the INFO level
-	// the shutdown line survives the filter and is the observable truth.
 	t.Setenv("PORTAL_LOG_LEVEL", "info")
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -304,7 +284,6 @@ func TestStateDaemon_ShutdownFlushSkippedWhenRestoringSet(t *testing.T) {
 
 	prev := daemonRunFunc
 	daemonRunFunc = func(_ context.Context, deps *daemonDeps) error {
-		// Override the production client with our fake before shutdown runs.
 		deps.Client = client
 		return defaultShutdownFlush(deps)
 	}
@@ -327,9 +306,6 @@ func TestStateDaemon_ShutdownFlushSkippedWhenRestoringSet(t *testing.T) {
 }
 
 func TestStateDaemon_ShutdownFlushRunsWhenRestoringUnset(t *testing.T) {
-	// The flush-attempted path emits a "shutdown" INFO with flush_completed=true
-	// (the breadcrumb "final flush" is now DEBUG). At the INFO level the
-	// shutdown line survives the filter and is the observable truth.
 	t.Setenv("PORTAL_LOG_LEVEL", "info")
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -367,23 +343,15 @@ func TestStateDaemon_DefaultRunReturnsOnContextCancel(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	withDaemonLockFileReset(t)
 
-	// Replace defaultShutdownFlush with a no-op to keep the test
-	// hermetic — we are exercising the run loop's response to ctx.Done(),
-	// not the flush behavior (covered separately).
+	// Stubbed to keep this exercising the run loop's ctx.Done() response rather
+	// than flush behaviour.
 	prevFlush := daemonShutdownFunc
 	daemonShutdownFunc = func(_ *daemonDeps) error { return nil }
 	t.Cleanup(func() { daemonShutdownFunc = prevFlush })
 
-	// defaultDaemonRun now performs the acquire+pid ceremony at its head
-	// before entering the tick loop (spec § Component C step 4 — adjacency
-	// invariant). The real flock against the tempdir succeeds and pid is
-	// written; the pre-cancelled ctx then fires the loop's ctx.Done() case
-	// which delegates to the stubbed daemonShutdownFunc.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	// defaultDaemonRun now emits a "lock acquired" INFO post-acquire, so the
-	// deps need a non-nil Logger (production always sets daemonLogger here).
 	logger, _ := newCaptureLoggerForComponent(t, "daemon")
 	deps := &daemonDeps{Dir: dir, TickerPeriod: time.Hour, Logger: logger}
 	if err := defaultDaemonRun(ctx, deps); err != nil {
@@ -410,10 +378,7 @@ func TestStateDaemon_ReturnsErrorWhenStateDirNotWritable(t *testing.T) {
 }
 
 func TestStateDaemon_StartupLogIncludesVersionAndPID(t *testing.T) {
-	// version/pid ride as baseline attrs injected by the configured handler onto
-	// the cataloged "daemon: lock acquired" startup line (the redundant
-	// "daemon: starting" line was dropped per spec). Both are INFO; the default
-	// WARN threshold filters INFO, so bump to info.
+	// The startup line is INFO, which the default WARN threshold filters out.
 	t.Setenv("PORTAL_LOG_LEVEL", "info")
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -462,9 +427,6 @@ func TestStateDaemon_RunFuncErrorPropagates(t *testing.T) {
 	}
 }
 
-// withAcquireDaemonLockFake swaps the package-level acquireDaemonLock seam for
-// the duration of the test and restores it via t.Cleanup. Tests must not use
-// t.Parallel — the seam is package-level mutable state shared across tests.
 func withAcquireDaemonLockFake(t *testing.T, fake func(string) (*os.File, error)) {
 	t.Helper()
 	prev := acquireDaemonLock
@@ -472,9 +434,8 @@ func withAcquireDaemonLockFake(t *testing.T, fake func(string) (*os.File, error)
 	t.Cleanup(func() { acquireDaemonLock = prev })
 }
 
-// withDaemonLockFileReset clears the package-level daemonLockFile var around
-// the test so a prior test's successful acquisition does not bleed into the
-// post-condition assertions of the test under run.
+// Cleared around the test so a prior successful acquisition does not bleed
+// into the post-condition assertions.
 func withDaemonLockFileReset(t *testing.T) {
 	t.Helper()
 	prev := daemonLockFile
@@ -488,16 +449,13 @@ func TestStateDaemon_AcquiresLockBeforeWritePIDFile(t *testing.T) {
 	_ = withImmediateRun(t)
 	withDaemonLockFileReset(t)
 
-	// Order is asserted by recording whether daemon.pid existed at the moment
-	// acquireDaemonLock was invoked. The contract is: pidfile MUST NOT exist
-	// when the lock is being acquired, because WritePIDFile runs only after a
-	// successful lock acquisition.
+	// daemon.pid must not exist while the lock is being acquired, so the fake
+	// records whether it did at that instant.
 	var pidFileExistsAtLockAcquire bool
 	withAcquireDaemonLockFake(t, func(d string) (*os.File, error) {
 		if _, err := os.Stat(filepath.Join(d, "daemon.pid")); err == nil {
 			pidFileExistsAtLockAcquire = true
 		}
-		// Return the real lock-file fd so the rest of startup proceeds normally.
 		return state.AcquireDaemonLock(d)
 	})
 
@@ -508,7 +466,6 @@ func TestStateDaemon_AcquiresLockBeforeWritePIDFile(t *testing.T) {
 	if pidFileExistsAtLockAcquire {
 		t.Error("daemon.pid existed before acquireDaemonLock was called; lock must precede WritePIDFile")
 	}
-	// Sanity: pidfile is written on the success path.
 	if _, err := state.ReadPIDFile(dir); err != nil {
 		t.Errorf("ReadPIDFile after success: %v", err)
 	}
@@ -543,13 +500,10 @@ func TestStateDaemon_ExitsCleanlyWhenLockHeld(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	withDaemonLockFileReset(t)
 
-	// Seam returns ErrDaemonLockHeld → daemon must return nil (exit 0).
 	withAcquireDaemonLockFake(t, func(_ string) (*os.File, error) {
 		return nil, state.ErrDaemonLockHeld
 	})
 
-	// daemonTickLoopFunc must NOT be invoked on contention — defaultDaemonRun
-	// short-circuits at the acquire-lock err-guard before reaching the loop.
 	called := false
 	prev := daemonTickLoopFunc
 	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
@@ -575,8 +529,6 @@ func TestStateDaemon_DoesNotWritePIDFileWhenLockHeld(t *testing.T) {
 		return nil, state.ErrDaemonLockHeld
 	})
 
-	// daemonTickLoopFunc must NOT be reached on the lock-held path —
-	// defaultDaemonRun short-circuits at the acquire-lock err-guard.
 	prev := daemonTickLoopFunc
 	daemonTickLoopFunc = func(_ context.Context, _ *daemonDeps) error {
 		t.Fatal("daemonTickLoopFunc must not be reached on lock-held path")
@@ -588,13 +540,6 @@ func TestStateDaemon_DoesNotWritePIDFileWhenLockHeld(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Under the post-T7-5 ordering, neither daemon.pid nor daemon.version is
-	// written when the daemon exits on lock contention: defaultDaemonRun now
-	// performs acquireDaemonLock → WritePIDFile → WriteVersionFile in that
-	// order, so a lock-held early-return at the acquire err-guard short-
-	// circuits both writes. This test spot-checks the daemon.pid invariant
-	// and (below) the daemon.version invariant; the acquire-then-write
-	// adjacency itself is pinned structurally by the T4-8 AST adjacency test.
 	if _, err := os.Stat(filepath.Join(dir, "daemon.pid")); !os.IsNotExist(err) {
 		t.Errorf("daemon.pid must not exist when lock is held; stat err = %v", err)
 	}
@@ -608,7 +553,6 @@ func TestStateDaemon_DoesNotOverwritePIDFileWhenLockHeld(t *testing.T) {
 	t.Setenv("PORTAL_STATE_DIR", dir)
 	withDaemonLockFileReset(t)
 
-	// Pre-seed daemon.pid with a known stale value the loser must NOT overwrite.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatalf("seed dir: %v", err)
 	}
@@ -641,10 +585,7 @@ func TestStateDaemon_DoesNotOverwritePIDFileWhenLockHeld(t *testing.T) {
 }
 
 func TestStateDaemon_ReturnsErrorAndLogsWarnOnNonContentionLockFailure(t *testing.T) {
-	// WARN is the production emission level per Component C spec —
-	// non-contention failure mirrors the WARN-on-contention sibling path so
-	// the fatal path is not noisier than contention. Set explicitly so we
-	// are not depending on the env default.
+	// Set explicitly rather than depending on the env default.
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -671,17 +612,10 @@ func TestStateDaemon_ReturnsErrorAndLogsWarnOnNonContentionLockFailure(t *testin
 		t.Errorf("expected wrapped sentinel error; got %v", err)
 	}
 
-	// State files must not be written on the fatal error path.
 	if _, err := os.Stat(filepath.Join(dir, "daemon.pid")); !os.IsNotExist(err) {
 		t.Errorf("daemon.pid must not exist on lock-error path; stat err = %v", err)
 	}
 
-	// Spec § Fix Part 1 → Lock-file create/open semantics requires
-	// non-EWOULDBLOCK open(2)/flock failures to emit a WARN-level log line
-	// (per Component C, mirroring the WARN-on-contention sibling path so
-	// non-contention failure is not noisier than contention). Assert
-	// exactly one such line is present so this fatal path is not silent
-	// and not noisy.
 	data, err := os.ReadFile(filepath.Join(dir, "portal.log"))
 	if err != nil {
 		t.Fatalf("read log: %v", err)
@@ -693,7 +627,6 @@ func TestStateDaemon_ReturnsErrorAndLogsWarnOnNonContentionLockFailure(t *testin
 	if !strings.Contains(got, "acquire daemon lock") {
 		t.Errorf("expected lock-acquire error log content; got:\n%s", got)
 	}
-	// Exactly one matching line — the fatal path must not be noisy.
 	var matches int
 	for line := range strings.SplitSeq(got, "\n") {
 		if strings.Contains(line, "WARN") && strings.Contains(line, "acquire daemon lock") {
@@ -719,17 +652,14 @@ func TestStateDaemon_RetainsLockFdAcrossDaemonLifetime(t *testing.T) {
 	if daemonLockFile == nil {
 		t.Fatal("daemonLockFile package-level var must be non-nil after a successful daemon RunE")
 	}
-	// The retained fd must still be open — closing it would release the
-	// flock. Probe Fd() returns a positive integer; calling Stat on the
-	// underlying file should not error on an open fd.
+	// The retained fd must still be open — closing it would release the flock.
 	if _, err := daemonLockFile.Stat(); err != nil {
 		t.Errorf("retained lock fd appears closed: %v", err)
 	}
 }
 
 func TestStateDaemon_EmitsWarnOnLockContention(t *testing.T) {
-	// WARN is above the default INFO threshold, but we set the level
-	// explicitly so we are not depending on the env default.
+	// Set explicitly rather than depending on the env default.
 	t.Setenv("PORTAL_LOG_LEVEL", "warn")
 	dir := t.TempDir()
 	t.Setenv("PORTAL_STATE_DIR", dir)
@@ -762,26 +692,11 @@ func TestStateDaemon_EmitsWarnOnLockContention(t *testing.T) {
 	if !strings.Contains(got, "another daemon holds the lock") {
 		t.Errorf("expected contention log content; got:\n%s", got)
 	}
-	// Exactly one such line — the loser path must not be noisy.
 	if n := strings.Count(got, "another daemon holds the lock"); n != 1 {
 		t.Errorf("expected exactly one contention WARN line; got %d in:\n%s", n, got)
 	}
 }
 
-// TestSelfSupervisionHysteresisTicks_ClampInvariant pins the spec
-// § Component D acceptance criteria: "A unit test asserts
-// selfSupervisionHysteresisTicks >= 1 to prevent accidental zeroing".
-// The full clamp envelope (3 ≤ N ≤ 9) is the explicit lower-floor /
-// upper-ceiling from the task body; the in-source comment above the
-// constant records the per-scenario measurements, and the integration
-// harness re-verifies the safety-factor invariant whenever it runs.
-//
-// This test is the cheap default-lane guard against the
-// constant being accidentally edited out of the safe envelope (e.g.
-// a refactor that introduces a different value, or a mistaken `var`
-// → `const` swap that defaults to zero). Without it, the only check
-// would be the integration-tagged harness — which most developer
-// runs skip.
 func TestSelfSupervisionHysteresisTicks_ClampInvariant(t *testing.T) {
 	if selfSupervisionHysteresisTicks < 3 {
 		t.Errorf("selfSupervisionHysteresisTicks=%d below clamp floor of 3 "+
@@ -797,14 +712,6 @@ func TestSelfSupervisionHysteresisTicks_ClampInvariant(t *testing.T) {
 	}
 }
 
-// membershipFakeCommander scripts the two tmux subprocesses the
-// defaultSaverMembershipProbe issues per call: `has-session` and `list-panes`.
-// It records all args for diagnostic prints on failure but assertions key off
-// the returned bool, so call-shape pinning lives in the SaverPanePID test
-// suite, not here.
-//
-// hasSessionErr models the HasSession failure branch (non-zero tmux exit on
-// `has-session -t =<name>`). listOutput / listErr drive SaverPanePID.
 type membershipFakeCommander struct {
 	calls         [][]string
 	hasSessionErr error
@@ -830,23 +737,6 @@ func (f *membershipFakeCommander) RunRaw(args ...string) (string, error) {
 	return f.Run(args...)
 }
 
-// TestDefaultSaverMembershipProbe pins the four observable shapes of the
-// production probe that Component D's tick-loop integration (Task 5-3) will
-// consume:
-//
-//  1. HasSession false → false. SaverPanePID is never invoked.
-//  2. HasSession true, SaverPanePID errors → false. The spec mandates "treat
-//     any error as absent" so the daemon's hysteresis counter increments
-//     uniformly across race-induced ErrNoSuchSession, ErrEmptyPaneList,
-//     ErrPanePIDParse, and generic exec failures.
-//  3. HasSession true, SaverPanePID returns pid == selfPID → true. The
-//     legitimate daemon's happy path; counter resets in Task 5-3.
-//  4. HasSession true, SaverPanePID returns pid != selfPID → false. The
-//     orphan-daemon condition — bound by Component A/B sweeps at bootstrap
-//     and by Component D's self-eject between bootstraps.
-//
-// The probe is not invoked from the tick loop in this task — Task 5-3 owns
-// that integration.
 func TestDefaultSaverMembershipProbe(t *testing.T) {
 	t.Run("it returns false when HasSession is false", func(t *testing.T) {
 		fc := &membershipFakeCommander{hasSessionErr: fmt.Errorf("exit status 1")}
@@ -855,7 +745,6 @@ func TestDefaultSaverMembershipProbe(t *testing.T) {
 		if defaultSaverMembershipProbe(client, os.Getpid()) {
 			t.Errorf("probe = true, want false when HasSession returns false")
 		}
-		// SaverPanePID must not have been invoked — short-circuit on HasSession.
 		for _, call := range fc.calls {
 			if len(call) >= 1 && call[0] == "list-panes" {
 				t.Errorf("list-panes invoked despite HasSession false; calls = %v", fc.calls)
@@ -864,9 +753,6 @@ func TestDefaultSaverMembershipProbe(t *testing.T) {
 	})
 
 	t.Run("it returns false when SaverPanePID errors", func(t *testing.T) {
-		// HasSession returns nil → present; SaverPanePID then sees a
-		// "no such session" stderr (the documented race) — probe must
-		// classify as absent.
 		fc := &membershipFakeCommander{
 			listPanesErr: &tmux.CommandError{
 				Stderr: "no such session: _portal-saver",
@@ -900,14 +786,6 @@ func TestDefaultSaverMembershipProbe(t *testing.T) {
 	})
 }
 
-// TestStateDaemon_HooksCleanupWiring pins task 3-1: the daemon RunE must carry
-// a *hooks.Store built once from loadHookStore() (resolving the SAME hooks.json
-// foreground commands mutate) plus a lastCleanup throttle anchor initialised to
-// the daemon-start instant. Both are the inputs the throttled daemon-owned
-// hooks stale-cleanup gate (tasks 3-2/3-3) will consume; this task wires the
-// fields only. withImmediateRun short-circuits the tick loop, so no daemon
-// subprocess is spawned (these are in-process unit tests, not the
-// IsolateStateForTest daemon-spawning class).
 func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 	t.Run("it builds the hook store from loadHookStore at startup", func(t *testing.T) {
 		dir := t.TempDir()
@@ -950,8 +828,8 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		if deps.lastCleanup.IsZero() {
 			t.Fatal("deps.lastCleanup is the zero time.Time; want the daemon-start instant so the first cleanup fires one interval after start, not on the first idle tick")
 		}
-		// Loosely bounded to absorb CI scheduling jitter: lastCleanup is set to
-		// time.Now() inside RunE, a hair before this post-run capture.
+		// Loosely bounded to absorb scheduling jitter: lastCleanup is set a hair
+		// before this capture.
 		if delta := now.Sub(deps.lastCleanup); delta < 0 || delta > 2*time.Second {
 			t.Errorf("deps.lastCleanup = %v; want within 2s of %v (delta %v)", deps.lastCleanup, now, delta)
 		}
@@ -963,9 +841,8 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		hooksPath := filepath.Join(t.TempDir(), "hooks.json")
 		t.Setenv("PORTAL_HOOKS_FILE", hooksPath)
 
-		// Seed one entry through the very path a foreground `portal hooks set`
-		// resolves, so a daemon store pointed at a DIFFERENT file would visibly
-		// fail to read it back.
+		// Seeded through the same path a foreground `portal hook set` resolves, so a
+		// daemon store pointed at a different file would fail to read it back.
 		const key = "proj-AbC123:0.0"
 		if err := hooks.NewStore(hooksPath).Set(key, "on-resume", "echo hi", "cli"); err != nil {
 			t.Fatalf("seed hooks.json: %v", err)
@@ -995,16 +872,11 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		}
 	})
 
-	// RECONCILED (analysis cycle 1, task 4-2): loadHookStore() failure must NOT
-	// abort the daemon. Capture (the daemon's primary job) cannot be gated on the
-	// best-effort hooks stale-cleanup store, so a resolution failure disables only
-	// cleanup — one observable WARN (component=daemon, error attr) and RunE
-	// proceeds to the tick loop with a nil store — mirroring the runtime
-	// "never crash the daemon" posture. loadHookStore() only errors on path
-	// resolution; with PORTAL_HOOKS_FILE unset that reduces to os.UserHomeDir()
-	// failing, induced deterministically on darwin by blanking $HOME.
-	// PORTAL_STATE_DIR still drives EnsureDir, so only the hooks-path branch is
-	// perturbed.
+	// A loadHookStore failure must not abort the daemon: capture cannot be gated
+	// on the best-effort cleanup store, so the failure only disables cleanup.
+	// With PORTAL_HOOKS_FILE unset the path resolution reduces to
+	// os.UserHomeDir(), which blanking $HOME fails deterministically on darwin;
+	// PORTAL_STATE_DIR still drives EnsureDir, so only that branch is perturbed.
 	t.Run("it disables cleanup with a WARN rather than aborting the daemon on a loadHookStore error", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Setenv("PORTAL_STATE_DIR", dir)
@@ -1037,23 +909,16 @@ func TestStateDaemon_HooksCleanupWiring(t *testing.T) {
 		if !strings.Contains(body, "component=daemon") {
 			t.Errorf("expected the disabled-cleanup WARN under the daemon component; got:\n%s", body)
 		}
-		// Exactly one WARN on this path — the disabled-cleanup notice must not be noisy.
 		if n := strings.Count(body, warnMsg); n != 1 {
 			t.Errorf("expected exactly one disabled-cleanup WARN; got %d in:\n%s", n, body)
 		}
 	})
 }
 
-// TestSaverMembershipProbeSeam_DefaultsToProduction guards the wiring
-// invariant: production must reach defaultSaverMembershipProbe through the
-// saverMembershipProbe seam. A regression here (e.g., a future refactor that
-// silently overrides the default at init time) would break Task 5-3's
-// integration without triggering the per-behaviour cases above.
 func TestSaverMembershipProbeSeam_DefaultsToProduction(t *testing.T) {
-	// Function-value equality is not defined in Go, so we exercise the seam
-	// against the same fakeCommander shape the default uses and assert the
-	// observable behaviour matches. A mis-wired seam would either short
-	// HasSession or return true on a pid mismatch.
+	// Function values are not comparable in Go, so the seam is exercised
+	// behaviourally: a mis-wired one would short HasSession or return true on a
+	// pid mismatch.
 	const selfPID = 4242
 	fc := &membershipFakeCommander{listPanesOut: fmt.Sprintf("%d\n", selfPID)}
 	client := tmux.NewClient(fc)

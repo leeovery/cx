@@ -7,46 +7,12 @@ import (
 	"github.com/leeovery/portal/internal/spawn"
 )
 
-// resolveOpenSurfaces is the read-only classify engine for the multi-target open
-// burst: it walks the ordered target set and resolves each element into ordered
-// attach/mint surfaces, expanding session/alias globs to K surfaces that join the
-// list IN PLACE and reducing every mint to a literal existing directory so the
-// spawned window never re-resolves (spec § Burst exec-argv & mint responsibility —
-// alias/zoxide/-p all reduce to the literal dir; the query never travels).
-//
-// It is STRICTLY READ-ONLY (spec § Atomic pre-flight): it only READS (session set,
-// alias store, zoxide, filesystem existence) and performs no mint and no tmux
-// mutation. Net-N dispatch (Task 3-6) and the aggregated abort message that
-// consumes misses (Task 3-4) live elsewhere; this task produces only the engine.
-//
-// The third return value distinguishes the two failure modes:
-//   - IMMEDIATE HARD ERROR (returned err, aborting the whole resolve): ONLY
-//     resolver.ErrZoxideNotInstalled — an environment fault (zoxide unavailable),
-//     not a per-target resolution failure. Reporting it once immediately is
-//     clearer than listing each -z query as an unresolvable target.
-//   - COLLECTED MISS (raw target appended to misses, resolve continues): EVERY
-//     other non-resolution — bare total miss, session not-found, alias
-//     unknown-key/glob-zero, alias/zoxide gone-dir, -p non-existent dir, -p
-//     non-directory file, -z no-match. The aggregated pre-flight (Task 3-4)
-//     reports every unresolvable target, so a -p file (an unresolvable target) is
-//     better reported alongside the others than promoted to an immediate abort;
-//     only ErrZoxideNotInstalled is a clean errors.Is sentinel to branch on.
-//     (Planner note: the tentative split of "non-directory -p" as an immediate
-//     hard error is deliberately folded into COLLECTED MISS here — flagged for
-//     review.)
+// Strictly read-only — no mint, no tmux mutation — so the pre-flight can abort a
+// burst with nothing opened. Every mint surface carries a literal existing
+// directory: the query must never travel to the spawned window.
 func resolveOpenSurfaces(qr *resolver.QueryResolver, targets []Target) (surfaces []spawn.Surface, results []resolver.QueryResult, misses []string, err error) {
-	// collect classifies a []QueryResult from an All-variant into the ordered
-	// surface/miss slices: a SessionResult is an attach surface (Value = name), a
-	// PathResult is a mint surface (Value = the resolved literal dir), a MissResult
-	// appends its raw target. These are the only three shapes the All-variants and
-	// the mint pins produce.
-	//
-	// results is retained in LOCKSTEP with surfaces: results[i] is the resolver
-	// QueryResult that produced surfaces[i] (both appended together in the same
-	// switch arm; miss results produce no surface and are NOT retained here). The
-	// degenerate single-surviving-surface dispatch (dispatchOpenBurst) threads
-	// results[0] — the TRUE resolver result, carrying its real Domain provenance —
-	// into openResolved, so no domain is fabricated from the lossy Surface.
+	// results stays in lockstep with surfaces: results[i] is the resolver result
+	// that produced surfaces[i], carrying the true domain provenance a Surface loses.
 	collect := func(classified []resolver.QueryResult) {
 		for _, r := range classified {
 			switch res := r.(type) {
@@ -65,13 +31,8 @@ func resolveOpenSurfaces(qr *resolver.QueryResolver, targets []Target) (surfaces
 	for _, t := range targets {
 		switch t.Domain {
 		case resolver.DomainBare:
-			// The bare guessing chain. Emit the single resolve decision line ONCE
-			// per non-glob bare target (spec § Wrong-guess feedback), single-sourced
-			// via emitResolveDecision (it owns the !HasGlobMeta gate + the locked
-			// attr set, shared with the single-target open path). A non-glob
-			// ResolveBareAll always returns exactly one result; globs are
-			// deterministic (session-domain by construction), not guesses, so the
-			// helper's gate suppresses their line.
+			// A glob is deterministic, not a guess: emitResolveDecision gates it itself,
+			// so results[0] only ever reads a single-result non-glob resolve.
 			results, _ := qr.ResolveBareAll(t.Value)
 			emitResolveDecision(t.Value, results[0])
 			collect(results)
@@ -82,8 +43,6 @@ func resolveOpenSurfaces(qr *resolver.QueryResolver, targets []Target) (surfaces
 			results, _ := qr.ResolveAliasPinAll(t.Value)
 			collect(results)
 		case resolver.DomainPath:
-			// Single-domain: reuse the existing single-result pin. A resolution
-			// failure (non-existent dir, non-directory file) is a collected miss.
 			r, perr := qr.ResolvePathPin(t.Value)
 			if perr != nil {
 				misses = append(misses, t.Value)
@@ -91,9 +50,8 @@ func resolveOpenSurfaces(qr *resolver.QueryResolver, targets []Target) (surfaces
 			}
 			collect([]resolver.QueryResult{r})
 		case resolver.DomainZoxide:
-			// Single-domain: reuse the existing single-result pin. Only
-			// ErrZoxideNotInstalled (an environment fault) aborts the whole resolve;
-			// a no-match or gone best-match dir is a collected miss.
+			// A missing zoxide is an environment fault, not a per-target miss, so it
+			// aborts the whole resolve rather than joining the collected misses.
 			r, zerr := qr.ResolveZoxidePin(t.Value)
 			if zerr != nil {
 				if errors.Is(zerr, resolver.ErrZoxideNotInstalled) {
