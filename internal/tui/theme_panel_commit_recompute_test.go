@@ -516,24 +516,11 @@ func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlu
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       themeRowsUnion(opened),
 		reassembled: &reassembly,
-		resolution: theme.Resolution{
-			Nomination: theme.ConstantNomination(target.Theme),
-			Slots: []theme.SlotResolution{{
-				Slot:      theme.SlotConstant,
-				Requested: cursorSlug,
-				Resolved:  cursorSlug,
-				Theme:     target.Theme,
-			}},
-		},
+		resolution:  constantResolution(cursorSlug, target.Theme),
 	}
 	persister := &fakeThemePersister{}
-	deps := Deps{
-		Lister:         fakeLister{},
-		Theme:          theme.ConstantNomination(target.Theme),
-		ThemeSource:    enumerator,
-		ThemeKeys:      theme.RawKeys{Theme: cursorSlug},
-		ThemePersister: persister,
-	}
+	deps := stubPanelDeps(enumerator, theme.ConstantNomination(target.Theme), theme.RawKeys{Theme: cursorSlug})
+	deps.ThemePersister = persister
 	return openCommitPanel(t, deps, PageSessions, cursorSlug), enumerator, persister
 }
 

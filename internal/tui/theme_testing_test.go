@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -180,6 +181,103 @@ func requireCommitDoesNoOtherIO(
 	}
 	if len(entries) != 1 || entries[0].Name() != "sunset.theme" {
 		t.Errorf("the themes directory holds %d entries after %s, want only the seeded drop-in", len(entries), subject)
+	}
+}
+
+// constantResolution is what a stub theme seam answers with under a CONSTANT
+// setting: the one loaded palette, plus the single slot record naming slug as
+// both the slug that was asked for and the slug that loaded.
+//
+// Requested and Resolved are set from ONE argument deliberately: theme.Badges keys
+// its map on Requested and the cursor anchors on the in-force slot's Resolved, so a
+// shape free to transpose them can be wrong in one file while every reader of it
+// still resolves.
+func constantResolution(slug string, th theme.Theme) theme.Resolution {
+	return theme.Resolution{
+		Nomination: theme.ConstantNomination(th),
+		Slots: []theme.SlotResolution{{
+			Slot:      theme.SlotConstant,
+			Requested: slug,
+			Resolved:  slug,
+			Theme:     th,
+		}},
+	}
+}
+
+// pairResolution is constantResolution's ADAPTIVE counterpart: the pair the two
+// rows nominate, plus one record per slot in light-then-dark order, each carrying
+// its own row's slug and palette.
+func pairResolution(light, dark theme.Row) theme.Resolution {
+	return theme.Resolution{
+		Nomination: theme.AdaptivePair(theme.MemberLight.Palette(light.Theme), dark.Theme),
+		Slots: []theme.SlotResolution{
+			{Slot: theme.SlotLight, Requested: light.Slug, Resolved: light.Slug, Theme: light.Theme},
+			{Slot: theme.SlotDark, Requested: dark.Slug, Resolved: dark.Slug, Theme: dark.Theme},
+		},
+	}
+}
+
+// stubPanelDeps is the stub-backed panel seam skeleton: the stub theme source,
+// the nomination the model is constructed with, and the raw keys the panel reads
+// its persisted setting from.
+//
+// A builder adds only what it differs by — its rows, its priming, its persister.
+func stubPanelDeps(source *fakeThemeSource, nomination theme.Nomination, keys theme.RawKeys) Deps {
+	return Deps{
+		Lister:      fakeLister{},
+		Theme:       nomination,
+		ThemeSource: source,
+		ThemeKeys:   keys,
+	}
+}
+
+// TestConstantResolution_IsTheConstantStubShape pins what the shared constant
+// fixture answers with — the shape a stub-backed suite's badges and in-force slot
+// are derived from under a constant setting.
+func TestConstantResolution_IsTheConstantStubShape(t *testing.T) {
+	th := testDarkTheme(t)
+	got := constantResolution("aurora", th)
+
+	if !got.Nomination.IsConstant() {
+		t.Errorf("the nomination is %+v, want the CONSTANT shape", got.Nomination)
+	}
+	if palette := got.Nomination.Constant(); palette != th {
+		t.Errorf("the nomination carries canvas %s, want the given palette's %s", palette.Canvas.Value, th.Canvas.Value)
+	}
+	want := []theme.SlotResolution{{
+		Slot:      theme.SlotConstant,
+		Requested: "aurora",
+		Resolved:  "aurora",
+		Theme:     th,
+	}}
+	if !reflect.DeepEqual(got.Slots, want) {
+		t.Errorf("the slots are %+v, want the single constant record %+v", got.Slots, want)
+	}
+}
+
+// TestPairResolution_IsTheAdaptiveStubShape pins the adaptive counterpart: two
+// records in light-then-dark order, each carrying ITS OWN row's slug and palette,
+// under a nomination selecting the same two.
+func TestPairResolution_IsTheAdaptiveStubShape(t *testing.T) {
+	light := theme.Row{Slug: "day", Source: theme.SourceBuiltin, Theme: testLightTheme(t)}
+	dark := theme.Row{Slug: "night", Source: theme.SourceBuiltin, Theme: testDarkTheme(t)}
+	got := pairResolution(light, dark)
+
+	if got.Nomination.IsConstant() {
+		t.Errorf("the nomination is %+v, want the ADAPTIVE shape", got.Nomination)
+	}
+	if palette := got.Nomination.Select(theme.MemberLight); palette != light.Theme {
+		t.Errorf("the nomination's light member carries canvas %s, want %s", palette.Canvas.Value, light.Theme.Canvas.Value)
+	}
+	if palette := got.Nomination.Select(theme.MemberDark); palette != dark.Theme {
+		t.Errorf("the nomination's dark member carries canvas %s, want %s", palette.Canvas.Value, dark.Theme.Canvas.Value)
+	}
+	want := []theme.SlotResolution{
+		{Slot: theme.SlotLight, Requested: "day", Resolved: "day", Theme: light.Theme},
+		{Slot: theme.SlotDark, Requested: "night", Resolved: "night", Theme: dark.Theme},
+	}
+	if !reflect.DeepEqual(got.Slots, want) {
+		t.Errorf("the slots are %+v, want the light-then-dark pair %+v", got.Slots, want)
 	}
 }
 

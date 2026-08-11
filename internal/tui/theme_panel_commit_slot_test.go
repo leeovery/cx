@@ -142,22 +142,11 @@ func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Mode
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       themeRowsUnion(opened),
 		reassembled: &reassembly,
-		resolution: theme.Resolution{
-			Nomination: theme.ConstantNomination(dark.Theme),
-			Slots: []theme.SlotResolution{
-				{Slot: theme.SlotLight, Requested: light.Slug, Resolved: light.Slug, Theme: light.Theme},
-				{Slot: theme.SlotDark, Requested: dark.Slug, Resolved: dark.Slug, Theme: dark.Theme},
-			},
-		},
+		resolution:  pairResolution(light, dark),
 	}
 	persister := &fakeThemePersister{}
-	deps := Deps{
-		Lister:         fakeLister{},
-		Theme:          theme.ConstantNomination(dark.Theme),
-		ThemeSource:    enumerator,
-		ThemeKeys:      theme.RawKeys{Light: light.Slug, Dark: dark.Slug},
-		ThemePersister: persister,
-	}
+	deps := stubPanelDeps(enumerator, theme.ConstantNomination(dark.Theme), theme.RawKeys{Light: light.Slug, Dark: dark.Slug})
+	deps.ThemePersister = persister
 	return openCommitPanel(t, deps, PageSessions, dark.Slug), enumerator, persister
 }
 

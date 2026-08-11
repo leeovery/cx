@@ -69,15 +69,7 @@ func newEntryEnumerator(t *testing.T, dirUnusable bool) *fakeThemeSource {
 	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
 		union:       themeRowsUnionDirUnusable(rows, dirUnusable),
-		resolution: theme.Resolution{
-			Nomination: theme.ConstantNomination(rows[0].Theme),
-			Slots: []theme.SlotResolution{{
-				Slot:      theme.SlotConstant,
-				Requested: rows[0].Slug,
-				Resolved:  rows[0].Slug,
-				Theme:     rows[0].Theme,
-			}},
-		},
+		resolution:  constantResolution(rows[0].Slug, rows[0].Theme),
 	}
 }
 

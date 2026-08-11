@@ -132,23 +132,11 @@ func arrowRowBySlug(t *testing.T, rows []theme.Row, slug string) theme.Row {
 func newArrowPanelDeps(t *testing.T, rows []theme.Row, cursorSlug string) Deps {
 	t.Helper()
 	target := arrowRowBySlug(t, rows, cursorSlug)
-	return Deps{
-		Lister: fakeLister{},
-		Theme:  theme.ConstantNomination(target.Theme),
-		ThemeSource: &fakeThemeSource{
-			union: themeRowsUnion(rows),
-			resolution: theme.Resolution{
-				Nomination: theme.ConstantNomination(target.Theme),
-				Slots: []theme.SlotResolution{{
-					Slot:      theme.SlotConstant,
-					Requested: cursorSlug,
-					Resolved:  cursorSlug,
-					Theme:     target.Theme,
-				}},
-			},
-		},
-		ThemeKeys: theme.RawKeys{Theme: cursorSlug},
+	source := &fakeThemeSource{
+		union:      themeRowsUnion(rows),
+		resolution: constantResolution(cursorSlug, target.Theme),
 	}
+	return stubPanelDeps(source, theme.ConstantNomination(target.Theme), theme.RawKeys{Theme: cursorSlug})
 }
 
 // arrowRejectedCount counts the unselectable fixture rows.

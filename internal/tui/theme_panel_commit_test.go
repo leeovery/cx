@@ -107,21 +107,11 @@ func commitPairPanelDeps(t *testing.T, rows []theme.Row) Deps {
 	t.Helper()
 
 	light, dark := rows[0], rows[1]
-	return Deps{
-		Lister: fakeLister{},
-		Theme:  theme.ConstantNomination(dark.Theme),
-		ThemeSource: &fakeThemeSource{
-			union: themeRowsUnion(rows),
-			resolution: theme.Resolution{
-				Nomination: theme.ConstantNomination(dark.Theme),
-				Slots: []theme.SlotResolution{
-					{Slot: theme.SlotLight, Requested: light.Slug, Resolved: light.Slug, Theme: light.Theme},
-					{Slot: theme.SlotDark, Requested: dark.Slug, Resolved: dark.Slug, Theme: dark.Theme},
-				},
-			},
-		},
-		ThemeKeys: theme.RawKeys{Light: light.Slug, Dark: dark.Slug},
+	source := &fakeThemeSource{
+		union:      themeRowsUnion(rows),
+		resolution: pairResolution(light, dark),
 	}
+	return stubPanelDeps(source, theme.ConstantNomination(dark.Theme), theme.RawKeys{Light: light.Slug, Dark: dark.Slug})
 }
 
 // newCommitPairPanelModel is the commit fixture under an ADAPTIVE PAIR, with a

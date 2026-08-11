@@ -313,10 +313,7 @@ func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 	target := theme.Row{Slug: "nord", Source: theme.SourceBuiltin, Theme: themetest.Builtin(t, "nord")}
 	above := theme.Row{Slug: "aurora", Source: theme.SourceFile, Filename: "aurora.theme", Theme: testDarkTheme(t)}
-	resolution := theme.Resolution{
-		Nomination: theme.ConstantNomination(target.Theme),
-		Slots:      []theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord", Theme: target.Theme}},
-	}
+	resolution := constantResolution("nord", target.Theme)
 
 	for _, tc := range []struct {
 		name      string
@@ -351,10 +348,7 @@ func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 // binary. The clamp is a structural guard, not a live path, which is why it is
 // driven through a stub: nothing else can produce the state.
 func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
-	ghost := theme.Resolution{
-		Nomination: theme.ConstantNomination(testDarkTheme(t)),
-		Slots:      []theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "ghost", Resolved: "ghost", Theme: testDarkTheme(t)}},
-	}
+	ghost := constantResolution("ghost", testDarkTheme(t))
 
 	t.Run("it clamps to the first selectable row", func(t *testing.T) {
 		rows := []theme.Row{
@@ -409,12 +403,9 @@ func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 	nord := themetest.Builtin(t, "nord")
 	rows := []theme.Row{{Slug: "nord", Source: theme.SourceBuiltin, Theme: nord}}
 	enumerator := &fakeThemeSource{
-		union: themeRowsUnion(rows),
-		resolution: theme.Resolution{
-			Nomination: theme.ConstantNomination(nord),
-			Slots:      []theme.SlotResolution{{Slot: theme.SlotConstant, Requested: "nord", Resolved: "nord", Theme: nord}},
-		},
-		err: theme.BrokenBuiltinError(theme.DefaultDarkSlug),
+		union:      themeRowsUnion(rows),
+		resolution: constantResolution("nord", nord),
+		err:        theme.BrokenBuiltinError(theme.DefaultDarkSlug),
 	}
 	m := New(fakeLister{}, WithThemeSource(enumerator), WithThemeKeys(theme.RawKeys{Theme: "nord"}))
 	before := m.themeState.active
