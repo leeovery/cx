@@ -249,8 +249,10 @@ func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader, enumeration
 	keys, _ := deps.PrefsStore.LoadThemeKeys()
 	raw := theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark)
 
-	var advisories []themeAdvisory
-	for _, nomination := range persistedThemeNominations(raw) {
+	nominations := persistedThemeNominations(raw)
+
+	advisories := make([]themeAdvisory, 0, len(nominations))
+	for _, nomination := range nominations {
 		if a, reported := persistedThemeAdvisory(loader, enumeration, nomination); reported {
 			advisories = append(advisories, a)
 		}
@@ -369,7 +371,7 @@ func scanThemesDirectory(enumeration theme.Enumeration) []themeAdvisory {
 		return []themeAdvisory{{line: fmt.Sprintf(themesDirUnreadableFormat, enumeration.DirPath)}}
 	}
 
-	var advisories []themeAdvisory
+	advisories := make([]themeAdvisory, 0, len(enumeration.Entries))
 	for _, entry := range enumeration.Entries {
 		if a, reported := themeFileAdvisory(entry); reported {
 			advisories = append(advisories, a)

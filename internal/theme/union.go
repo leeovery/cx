@@ -354,8 +354,10 @@ func fileRows(entries []Entry) []Row {
 // selection is InForceKeys'. Only the value of each key is read here, because
 // which slot a value sits in makes no difference to the row it earns.
 func persistedRows(listed []Row, e Enumeration, keys RawKeys) []Row {
-	var rows []Row
-	for _, key := range InForceKeys(keys) {
+	inForce := InForceKeys(keys)
+
+	rows := make([]Row, 0, len(inForce))
+	for _, key := range inForce {
 		if listedUnder(listed, key.Value) {
 			continue
 		}

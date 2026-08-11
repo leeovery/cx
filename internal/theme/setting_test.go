@@ -784,3 +784,17 @@ func assertSingleLine(t *testing.T, what, value string) {
 		t.Errorf("%s = %q still carries a control character — the value must render as one line", what, value)
 	}
 }
+
+// TestInForceKeys_NoKeySetIsEmptyNotNil pins the shape of the answer when the
+// user has set no theme key at all: an empty slice, not nil, so every surface
+// reading "which keys are in force" sees one shape for "none of them".
+func TestInForceKeys_NoKeySetIsEmptyNotNil(t *testing.T) {
+	got := theme.InForceKeys(theme.RawKeys{})
+
+	if got == nil {
+		t.Errorf("InForceKeys over unset keys = nil, want an empty slice")
+	}
+	if len(got) != 0 {
+		t.Errorf("InForceKeys over unset keys = %+v, want no keys — nothing the user set is in force", got)
+	}
+}

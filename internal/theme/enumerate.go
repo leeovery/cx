@@ -64,7 +64,7 @@ func (l Loader) Enumerate(dir string) ([]Entry, *Rejection) {
 		return nil, rejection
 	}
 
-	var entries []Entry
+	entries := make([]Entry, 0, len(dirEntries))
 	for _, dirEntry := range dirEntries {
 		name := dirEntry.Name()
 		if !isCandidate(name) {

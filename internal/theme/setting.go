@@ -234,7 +234,7 @@ func InForceKeys(keys RawKeys) []InForceKey {
 		return []InForceKey{{Value: raw.Light, Slot: SlotLight, Both: true}}
 	}
 
-	var inForce []InForceKey
+	inForce := make([]InForceKey, 0, 2)
 	if raw.Light != "" {
 		inForce = append(inForce, InForceKey{Value: raw.Light, Slot: SlotLight})
 	}

@@ -43,3 +43,17 @@ func TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder(t *testing.T) 
 		t.Errorf("the trailing row's label = %q, want %q — the rejected file, not a second copy of the built-in", got, want)
 	}
 }
+
+// TestPersistedRows_NothingContributedIsEmptyNotNil pins the accumulator's empty
+// answer as an empty slice, the same shape every other row producer in this
+// package hands back when it finds nothing.
+func TestPersistedRows_NothingContributedIsEmptyNotNil(t *testing.T) {
+	rows := persistedRows(nil, Enumeration{}, RawKeys{})
+
+	if rows == nil {
+		t.Errorf("persistedRows over unset keys = nil, want an empty slice — one shape for \"nothing found\"")
+	}
+	if len(rows) != 0 {
+		t.Errorf("persistedRows over unset keys = %+v, want no rows", rows)
+	}
+}

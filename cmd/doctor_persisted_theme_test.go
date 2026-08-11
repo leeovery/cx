@@ -981,3 +981,27 @@ func TestPersistedThemeAdvisory_FrameIsSingleSourced(t *testing.T) {
 		t.Errorf("the literal %q is declared at %v; want %v — one const in the file that owns doctor's theme copy", "does not resolve", sites, want)
 	}
 }
+
+// TestPersistedThemeAdvisories_NothingToReportIsEmptyNotNil pins the shape of the
+// producer's silent answer: an empty slice, so "every persisted key resolves"
+// and "some did not" differ in length alone.
+func TestPersistedThemeAdvisories_NothingToReportIsEmptyNotNil(t *testing.T) {
+	advisories := persistedAdvisoriesFor(t, `{"theme":"nord"}`, t.TempDir())
+
+	if advisories == nil {
+		t.Errorf("the persisted producer returned nil over a resolvable key, want an empty slice")
+	}
+	requireNoAdvisories(t, advisories)
+}
+
+// TestScanThemesDirectory_NothingToReportIsEmptyNotNil pins the same shape for
+// the directory scan: an enumeration with no finding to report yields an empty
+// slice, not nil.
+func TestScanThemesDirectory_NothingToReportIsEmptyNotNil(t *testing.T) {
+	advisories := scanThemesDirectory(theme.Enumeration{})
+
+	if advisories == nil {
+		t.Errorf("the directory scan returned nil over an enumeration with no findings, want an empty slice")
+	}
+	requireNoAdvisories(t, advisories)
+}

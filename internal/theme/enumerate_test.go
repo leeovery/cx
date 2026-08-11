@@ -572,3 +572,23 @@ func unreadableDir(t *testing.T) string {
 
 	return dir
 }
+
+// TestEnumerate_UsableDirectoryWithNoCandidatesIsEmptyNotNil pins the shape of a
+// readable themes directory holding nothing to enumerate: an empty slice, not
+// nil, so "the directory is usable and holds no themes" reads the same as every
+// other empty answer this package gives.
+func TestEnumerate_UsableDirectoryWithNoCandidatesIsEmptyNotNil(t *testing.T) {
+	dir := t.TempDir()
+
+	entries, rejection := theme.Loader{}.Enumerate(dir)
+
+	if rejection != nil {
+		t.Fatalf("Enumerate(%q) = %v, want no rejection — an empty directory is usable", dir, rejection)
+	}
+	if entries == nil {
+		t.Errorf("Enumerate(%q) returned nil entries, want an empty slice", dir)
+	}
+	if len(entries) != 0 {
+		t.Errorf("Enumerate(%q) returned %+v, want no entries", dir, entries)
+	}
+}
