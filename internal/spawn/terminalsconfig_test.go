@@ -11,9 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// installSpawnCapture swaps a fresh logtest.Sink into the process-wide log
-// indirection for the duration of the test so the package-level spawn-component
-// spawnLogger (log.For("spawn")) routes its WARN records into the sink.
 func installSpawnCapture(t *testing.T) *logtest.Sink {
 	t.Helper()
 	sink := &logtest.Sink{}
@@ -21,9 +18,6 @@ func installSpawnCapture(t *testing.T) *logtest.Sink {
 	return sink
 }
 
-// warnRecords returns only the captured WARN-level records — Load emits nothing
-// on the happy paths, so an assertion of "exactly one spawn WARN" is a count of
-// these.
 func warnRecords(sink *logtest.Sink) []logtest.Record {
 	var out []logtest.Record
 	for _, r := range sink.Records() {

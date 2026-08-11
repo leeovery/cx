@@ -8,44 +8,20 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// spawnLogger is the spawn-component-bound package logger. Binding it once at
-// package init via log.For introduces the new `spawn` component into Portal's
-// closed logging taxonomy (a spec-governed amendment, not a call-site
-// invention) and routes every record through the shared handler indirection so
-// it observes later log.Init / SetTestHandler swaps.
-//
-// It is deliberately NOT named a bare `logger`: `logger` reads as a
-// function-parameter name and a package var of that name invites shadowing.
-// internal/spawn may import internal/log (internal/log never imports
-// internal/spawn), so this binding is cycle-free.
 var spawnLogger = log.For("spawn")
 
-// spawn detection-outcome message strings — the Phase-1 slice of the `spawn`
-// closed event catalog (detection outcome: identity / NULL-bundle / transient).
-// The handler renders each under the `spawn:` component prefix.
 const (
 	msgDetectionResolved   = "detection resolved host terminal"
 	msgDetectionNullBundle = "detection resolved no host-local terminal"
 	msgDetectionTransient  = "detection transient failure"
 )
 
-// Detection-route detail strings — the opaque `detail` attr value describing
-// which resolution path produced the outcome. The value is opaque to consumers
-// (its presence is the contract, not its exact text).
 const (
 	routeInsideTmux  = "inside-tmux client walk"
 	routeOutsideTmux = "outside-tmux env/self walk"
 )
 
-// Detector orchestrates host-terminal detection: it branches on whether Portal
-// is running inside tmux, drives the appropriate resolution path (client-walk
-// inside, env fast-path + self-walk outside), folds a transient failure into
-// the same NULL outcome as a clean no-host-local result, and emits the
-// spawn-component detection-outcome breadcrumb.
-//
-// Every field is an injectable seam so Detect is unit-testable with fabricated
-// ancestry, client sets, and a capture logger — no real tmux, ps, or defaults.
-// NewDetector wires the production seams.
+// Detector resolves the host terminal Portal is running under.
 type Detector struct {
 	insideTmux     func() bool
 	getenv         func(string) string
@@ -57,10 +33,8 @@ type Detector struct {
 	logger         *slog.Logger
 }
 
-// NewDetector builds the production Detector, wiring the real seams: tmux.
-// InsideTmux for the branch, os.Getenv / os.Getpid for the outside path, the
-// real `ps`/`defaults`-backed walker and reader, the tmux client-list adapter
-// and current-session read for the inside path, and the spawn-component logger.
+// NewDetector builds the production Detector, wiring the real tmux, ps and
+// defaults seams.
 func NewDetector(client *tmux.Client) *Detector {
 	return &Detector{
 		insideTmux:     tmux.InsideTmux,
@@ -74,16 +48,9 @@ func NewDetector(client *tmux.Client) *Detector {
 	}
 }
 
-// Detect resolves the host-terminal Identity and emits exactly one
-// spawn-component detection-outcome record:
-//
-//   - transient failure (a flaky ps/list-clients, or an unreadable current
-//     session): a WARN carrying the opaque underlying-error detail, folded to
-//     the NULL identity — the same unsupported/no-op path as a clean NULL.
-//   - resolved host-local terminal: an INFO carrying terminal + bundle_id and
-//     the opaque route detail.
-//   - clean NULL (remote/mosh, or no local client): an INFO NULL-bundle outcome
-//     with neither terminal nor bundle_id, and no WARN.
+// Detect resolves the host-terminal Identity, emitting exactly one
+// spawn-component record. A transient failure folds to the NULL identity — the
+// same unsupported no-op path as a clean NULL — with a WARN rather than an INFO.
 func (d *Detector) Detect() Identity {
 	id, route, err := d.resolve()
 
@@ -100,11 +67,8 @@ func (d *Detector) Detect() Identity {
 	}
 }
 
-// resolve runs the branch-appropriate detection path and returns its identity,
-// the route detail describing that path, and any error. It normalises the
-// current-session read failure into an ErrDetectTransient-wrapped error so
-// Detect treats it uniformly with a mid-walk transient failure; every non-nil
-// error returned here therefore satisfies errors.Is(err, ErrDetectTransient).
+// Every non-nil error returned here satisfies errors.Is(err,
+// ErrDetectTransient), including the normalised current-session read failure.
 func (d *Detector) resolve() (Identity, string, error) {
 	if d.insideTmux() {
 		session, err := d.currentSession()

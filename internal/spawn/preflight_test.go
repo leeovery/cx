@@ -22,8 +22,6 @@ func TestPreflightMissing(t *testing.T) {
 	})
 
 	t.Run("it collects every gone session preserving input order", func(t *testing.T) {
-		// s3 appears before s1 in the arg list; the result must follow input
-		// order (not be sorted or reordered).
 		gone := map[string]bool{"s3": true, "s1": true}
 		exists := func(name string) bool { return !gone[name] }
 		got := PreflightMissing([]string{"s3", "s2", "s1", "s0"}, exists)

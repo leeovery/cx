@@ -7,28 +7,15 @@ import (
 	"github.com/leeovery/portal/internal/session"
 )
 
-// SpawnMarkerPrefix is the tmux server-option name prefix used to key each
-// spawned window's token-ack confirmation. It is deliberately distinct from
-// internal/state's SkeletonMarkerPrefix ("@portal-skeleton-") so the two
-// server-option enumerators are blind to each other's markers.
+// SpawnMarkerPrefix is the tmux server-option name prefix keying each spawned
+// window's token-ack confirmation. It is deliberately distinct from
+// internal/state's SkeletonMarkerPrefix so the two server-option enumerators
+// stay blind to each other's markers.
 const SpawnMarkerPrefix = "@portal-spawn-"
 
-// The option-name-safe charset for ack ids is the single shared
-// session.NanoIDAlphabet: no ".", no ":", no space, and crucially no "-". The
-// absence of "-" is load-bearing: it makes the "<batch>-<token>" marker name
-// split on its single hyphen delimiter unambiguous (see SpawnMarkerName /
-// ParseSpawnMarkerName).
-
-// NewSpawnID produces an option-name-safe ack id from gen. It exists so batch
-// and per-window token ids are drawn from one vocabulary and are never the
-// renameable session name (which can carry set-option-invalid characters).
-//
-// A generator error is wrapped and propagated — it never collapses to an empty
-// id. On success the result is defensively verified to be non-empty and wholly
-// within session.NanoIDAlphabet; a non-option-safe value yields an error and an empty
-// id rather than a marker name that set-option would reject. Production callers
-// pass session.NewNanoIDGenerator(); batch and each per-window token are
-// independent NewSpawnID calls (independent → collision-resistant).
+// NewSpawnID produces an option-name-safe ack id from gen. A generator error is
+// wrapped and propagated; a value outside session.NanoIDAlphabet yields an
+// error and an empty id rather than a marker name set-option would reject.
 func NewSpawnID(gen func() (string, error)) (string, error) {
 	id, err := gen()
 	if err != nil {
@@ -40,25 +27,21 @@ func NewSpawnID(gen func() (string, error)) (string, error) {
 	return id, nil
 }
 
-// isOptionSafeID reports whether s is non-empty and every rune is in
-// session.NanoIDAlphabet.
 func isOptionSafeID(s string) bool {
 	return s != "" && strings.IndexFunc(s, func(r rune) bool {
 		return !strings.ContainsRune(session.NanoIDAlphabet, r)
 	}) < 0
 }
 
-// SpawnMarkerName renders the tmux server-option name for a batch's token ack:
-// "@portal-spawn-<batch>-<token>". Because batch and token are hyphen-free
-// option-safe ids, the single hyphen between them is an unambiguous delimiter.
+// SpawnMarkerName renders the tmux server-option name for a batch's token ack.
+// Option-safe ids are hyphen-free, so the hyphen joining batch and token is an
+// unambiguous delimiter.
 func SpawnMarkerName(batch, token string) string {
 	return SpawnMarkerPrefix + batch + "-" + token
 }
 
-// ParseSpawnMarkerName is the inverse of SpawnMarkerName. It returns
-// (batch, token, true) for a well-formed name and ("", "", false) for a foreign
-// prefix, a missing delimiter, or an empty batch or token. The first hyphen
-// after the prefix is the sole delimiter (ids are hyphen-free).
+// ParseSpawnMarkerName is the inverse of SpawnMarkerName. It reports false for
+// a foreign prefix, a missing delimiter, or an empty batch or token.
 func ParseSpawnMarkerName(name string) (batch, token string, ok bool) {
 	rest, found := strings.CutPrefix(name, SpawnMarkerPrefix)
 	if !found {
@@ -72,15 +55,14 @@ func ParseSpawnMarkerName(name string) (batch, token string, ok bool) {
 }
 
 // FormatSpawnAckFlag renders the "<batch>:<token>" value carried by the open
-// command's hidden --ack flag. The colon is unambiguous because option-safe
-// ids are colon-free.
+// command's --ack flag. Option-safe ids are colon-free, so the colon is an
+// unambiguous delimiter.
 func FormatSpawnAckFlag(batch, token string) string {
 	return batch + ":" + token
 }
 
-// ParseSpawnAckFlag is the inverse of FormatSpawnAckFlag. It returns
-// (batch, token, true) for a well-formed value and ("", "", false) for a
-// missing colon or an empty batch or token.
+// ParseSpawnAckFlag is the inverse of FormatSpawnAckFlag. It reports false for
+// a missing colon or an empty batch or token.
 func ParseSpawnAckFlag(value string) (batch, token string, ok bool) {
 	b, t, found := strings.Cut(value, ":")
 	if !found || b == "" || t == "" {

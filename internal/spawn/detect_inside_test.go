@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// fakeClientLister is a map-free fake clientLister: it returns a fabricated
-// ClientActivity slice (or an error) and records the sessions it was asked
-// about so a test can assert the session passthrough.
 type fakeClientLister struct {
 	clients []ClientActivity
 	err     error
@@ -19,8 +16,6 @@ func (f *fakeClientLister) ListClients(session string) ([]ClientActivity, error)
 	return f.clients, f.err
 }
 
-// ghosttyCommand/terminalCommand are single-hop ancestries (paired with their
-// .app bundle paths) that resolve to a .app.
 var (
 	ghosttyCommand  = "/Applications/Ghostty.app/Contents/MacOS/ghostty"
 	ghosttyAppPath  = "/Applications/Ghostty.app"
@@ -44,11 +39,6 @@ func localWalkSeams() (*fakeWalker, *fakeReader) {
 }
 
 func TestDetectInsideTmux(t *testing.T) {
-	// The happy path is a single behaviour — winner-select-then-locality-gate —
-	// exercised across a matrix of attached-client sets. Each row shares the
-	// localWalkSeams() fixture and asserts a resolved identity (NULL, or a
-	// bundle id / name). The error paths below wire bespoke walker/reader fakes
-	// and assert on ErrDetectTransient chains, so they stay separate subtests.
 	tests := []struct {
 		name         string
 		clients      []ClientActivity
@@ -67,64 +57,48 @@ func TestDetectInsideTmux(t *testing.T) {
 		{
 			name: "it returns the single local client's identity without a tiebreak",
 			clients: []ClientActivity{
-				{PID: 501, Activity: 0}, // zero activity must not matter for a sole local client
+				{PID: 501, Activity: 0},
 			},
 			wantBundleID: "com.mitchellh.ghostty",
 			wantName:     "Ghostty",
 		},
 		{
-			// Higher-activity client listed SECOND so a passing test proves a
-			// max-by-activity comparison, not merely last-wins.
 			name: "it picks the highest-client_activity local client among 2+ locals",
 			clients: []ClientActivity{
-				{PID: 501, Activity: 100}, // Ghostty
-				{PID: 502, Activity: 200}, // Terminal — higher
+				{PID: 501, Activity: 100},
+				{PID: 502, Activity: 200},
 			},
 			wantBundleID: "com.apple.Terminal",
 		},
 		{
 			name: "it picks the highest activity when the higher-activity client is listed first",
 			clients: []ClientActivity{
-				{PID: 502, Activity: 200}, // Terminal — higher, listed first
-				{PID: 501, Activity: 100}, // Ghostty
+				{PID: 502, Activity: 200},
+				{PID: 501, Activity: 100},
 			},
 			wantBundleID: "com.apple.Terminal",
 		},
 		{
 			name: "it prefers the first local client on an exact activity tie",
 			clients: []ClientActivity{
-				{PID: 501, Activity: 150}, // Ghostty — first
-				{PID: 502, Activity: 150}, // Terminal — equal activity
+				{PID: 501, Activity: 150},
+				{PID: 502, Activity: 150},
 			},
 			wantBundleID: "com.mitchellh.ghostty",
 		},
 		{
-			// The remote client is the most-active — it is the triggering client.
-			// Under winner-first locality gating it is selected and walked, and its
-			// ancestry resolves a clean NULL, so detection is an honest no-op even
-			// though a lower-activity local client is also attached to the session.
-			// This is the reported bug's shape: before the fix the local bystander
-			// was (wrongly) driven, spawning windows on a machine the triggering
-			// user is not at.
 			name: "it returns NULL when the most-active client is remote even with a local bystander",
 			clients: []ClientActivity{
-				{PID: 601, Activity: 9999}, // remote/mosh, most active — the trigger
-				{PID: 501, Activity: 1},    // local Ghostty, idle bystander
+				{PID: 601, Activity: 9999},
+				{PID: 501, Activity: 1},
 			},
 			wantNull: true,
 		},
 		{
-			// The mirror of the reported bug: a LOCAL client is the most-active
-			// (triggering) client while a lower-activity REMOTE client is merely a
-			// bystander attached to the same session. Winner-first locality gating
-			// must select and walk the local winner and resolve its .app identity —
-			// it must NOT refuse a legitimate local spawn just because a remote
-			// client is attached. The remote is listed FIRST and the local SECOND
-			// so a pass proves max-by-activity selection, not first-listed luck.
 			name: "it drives the local client when it is most-active despite an idle remote bystander",
 			clients: []ClientActivity{
-				{PID: 601, Activity: 50},  // remote/mosh, idle bystander — listed first
-				{PID: 501, Activity: 200}, // local Ghostty, most active — the trigger
+				{PID: 601, Activity: 50},
+				{PID: 501, Activity: 200},
 			},
 			wantBundleID: "com.mitchellh.ghostty",
 			wantName:     "Ghostty",
@@ -145,8 +119,6 @@ func TestDetectInsideTmux(t *testing.T) {
 			if err != nil {
 				t.Fatalf("detectInsideTmux returned error: %v, want nil", err)
 			}
-			// Session passthrough: the lister must be asked about exactly the
-			// session under detection, once.
 			if len(lister.calls) != 1 || lister.calls[0] != "dev" {
 				t.Errorf("lister calls = %v, want exactly [dev]", lister.calls)
 			}
@@ -211,16 +183,10 @@ func TestDetectInsideTmux(t *testing.T) {
 	})
 
 	t.Run("it fails safe to NULL when the most-active winner walk transiently fails", func(t *testing.T) {
-		// Under walk-only-the-winner the flaky high-activity client IS the
-		// winner, so a transient walk failure on it fails safe to NULL + an
-		// ErrDetectTransient-wrapped error (which Detect() folds to a spawn
-		// WARN) rather than falling back to the resolvable lower-activity local.
-		// This is the deliberately-dropped walk-resilience property — never
-		// spawn on uncertainty — locked in on purpose.
 		psFailure := errors.New("ps: operation not permitted")
 		lister := &fakeClientLister{clients: []ClientActivity{
-			{PID: 601, Activity: 100}, // most active — winner — transient walk failure
-			{PID: 501, Activity: 50},  // local Ghostty resolves, but is never walked
+			{PID: 601, Activity: 100},
+			{PID: 501, Activity: 50},
 		}}
 		walker := &fakeWalker{procs: map[int]fakeProc{
 			601: {err: psFailure},

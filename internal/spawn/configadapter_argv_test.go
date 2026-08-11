@@ -7,10 +7,6 @@ import (
 	"testing"
 )
 
-// fakeRecipeRunner is a test double for recipeRunner: it records the final argv
-// it is handed and returns a fabricated (out, exitCode, err) outcome, so the
-// argvRecipeAdapter exec boundary and mapRecipeResult are unit-testable without
-// running any real program or opening a real window.
 type fakeRecipeRunner struct {
 	gotArgv  []string
 	out      string
@@ -23,9 +19,6 @@ func (f *fakeRecipeRunner) Run(argv []string) (string, int, error) {
 	return f.out, f.exitCode, f.err
 }
 
-// spacedCommand is a composed attach argv whose space-join yields a
-// multi-space {command} string, so a substitution that shell-split would
-// balloon the element count and mangle the command.
 func spacedCommand() []string {
 	return []string{
 		"/usr/bin/env", "PATH=/opt/homebrew/bin:/usr/bin",
@@ -142,10 +135,6 @@ func TestArgvRecipeAdapterOpenWindow(t *testing.T) {
 	})
 }
 
-// TestMapRecipeResult pins the pure mapping directly, notably that a config
-// recipe can NEVER surface OutcomePermissionRequired — there is no AppleEvent
-// code for Portal to read from a generic argv, so that path is structurally
-// unreachable here (permission-required stays native-adapter-only).
 func TestMapRecipeResult(t *testing.T) {
 	t.Run("it maps a clean exit to success with a trimmed opaque detail", func(t *testing.T) {
 		result := mapRecipeResult("  ok  ", 0, nil)
@@ -179,9 +168,6 @@ func TestMapRecipeResult(t *testing.T) {
 	})
 
 	t.Run("it never returns permission-required from a config recipe", func(t *testing.T) {
-		// A config recipe is a generic argv Portal cannot read AppleEvent codes
-		// from — even output that LOOKS like a permission signal must fold to
-		// spawn-failed, never permission-required.
 		cases := []struct {
 			name     string
 			out      string

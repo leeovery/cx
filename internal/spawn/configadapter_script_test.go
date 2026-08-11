@@ -9,10 +9,6 @@ import (
 	"testing"
 )
 
-// writeExecutableScript writes a trivial shebang script with the exec bit set,
-// so newScriptRecipeAdapter's stat gate accepts it. The body is never run on the
-// unit lane (the fake runner records the argv without exec'ing) — the mode bits
-// are what the constructor checks.
 func writeExecutableScript(t *testing.T, path string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
@@ -98,10 +94,6 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 	t.Run("it skips a non-executable script with a WARN and no adapter", func(t *testing.T) {
 		sink := installSpawnCapture(t)
 		scriptPath := filepath.Join(t.TempDir(), "plain.sh")
-		// 0o644: a real file with a shebang but NO exec bit. Portal execs the
-		// escape-hatch script directly, so a file that cannot run is rejected —
-		// the check is a mode-bit test (Perm()&0o111), root-safe (root does not
-		// grant a 0o644 file exec bits).
 		if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o644); err != nil {
 			t.Fatalf("writing non-executable script: %v", err)
 		}
@@ -129,9 +121,8 @@ func TestNewScriptRecipeAdapter(t *testing.T) {
 
 	t.Run("it skips a directory path with a WARN and no adapter", func(t *testing.T) {
 		sink := installSpawnCapture(t)
-		// A directory exists AND carries exec bits (t.TempDir is 0o700), so only the
-		// IsDir() arm of the validity gate can reject it — pinning that half distinctly
-		// from the no-exec-bit half above.
+		// t.TempDir is 0o700, so a directory carries exec bits: only the IsDir()
+		// arm of the gate can reject it.
 		dirPath := t.TempDir()
 
 		adapter, ok := newScriptRecipeAdapter(key, dirPath, &fakeRecipeRunner{})

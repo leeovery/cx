@@ -6,9 +6,6 @@ import (
 	"testing"
 )
 
-// TestRunArgvCombined exercises the shared exec boundary directly (real exec of
-// trivial hermetic programs — no tmux, no daemon, no built binary), pinning the
-// three-way outcome contract both production runner seams delegate to.
 func TestRunArgvCombined(t *testing.T) {
 	t.Run("clean exit returns the stdout, a zero code, and a nil err", func(t *testing.T) {
 		out, code, err := runArgvCombined([]string{"sh", "-c", "echo ok"})
@@ -53,8 +50,6 @@ func TestRunArgvCombined(t *testing.T) {
 	})
 }
 
-// TestExecFailureDetail pins the shared failure-detail formatter across every
-// branch, including the never-empty fallback rendered per fallback label.
 func TestExecFailureDetail(t *testing.T) {
 	const ghosttyLabel = "ghostty osascript exit %d"
 	const recipeLabel = "recipe exit %d"
@@ -87,10 +82,6 @@ func TestExecFailureDetail(t *testing.T) {
 	})
 }
 
-// TestFailureDetailWrappersDelegate proves both wrappers return exactly what
-// execFailureDetail returns for their own fallback label across representative
-// inputs — so the extraction preserves each side's behaviour and only the
-// fallback label differs.
 func TestFailureDetailWrappersDelegate(t *testing.T) {
 	cases := []struct {
 		name     string

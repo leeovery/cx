@@ -103,8 +103,6 @@ func TestValidRecipeForEntry(t *testing.T) {
 		if !strings.Contains(detail, key) {
 			t.Errorf("WARN detail = %q, want it to name the entry key %q", detail, key)
 		}
-		// The breadcrumb's stated purpose is diagnosability, so it must also carry
-		// the rejection reason, not just the entry key.
 		if !strings.Contains(detail, "both argv and script") {
 			t.Errorf("WARN detail = %q, want it to name the rejection reason %q", detail, "both argv and script")
 		}
@@ -178,10 +176,8 @@ func TestRenderCommandString(t *testing.T) {
 	})
 
 	t.Run("it keeps an element containing a space as one quoted word so a shell re-split reproduces the argv", func(t *testing.T) {
-		// A session name from a spaced directory basename (SanitiseProjectName
-		// strips only "."/":", not spaces) is e.g. "My Project-abc123". A naive
-		// space-join would let a downstream shell re-split it into two words and
-		// shred the attach target; single-quoting keeps it one word.
+		// A session name can carry a space ("My Project-abc123"); a naive space-join
+		// would let a downstream shell re-split it and shred the attach target.
 		got := renderCommandString([]string{"/abs/portal", "open", "My Project-abc123"})
 
 		want := "'/abs/portal' 'open' 'My Project-abc123'"

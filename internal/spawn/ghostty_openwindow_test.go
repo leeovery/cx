@@ -7,10 +7,6 @@ import (
 	"testing"
 )
 
-// fakeOsascriptRunner is a test double for osascriptRunner: it records the argv
-// it is handed and returns a fabricated (out, exitCode, err) outcome, so the
-// OpenWindow exec boundary and mapGhosttyResult are unit-testable without ever
-// running real osascript or opening a real window.
 type fakeOsascriptRunner struct {
 	gotArgv  []string
 	out      string
@@ -82,14 +78,9 @@ func TestGhosttyOpenWindow(t *testing.T) {
 	})
 }
 
-// TestMapGhosttyResult pins the pure outcome mapping directly (no runner), so
-// the Phase-3 permission-code recognition and the preserved Phase-2 catch-all
-// behaviour are asserted at the mapping seam itself.
 func TestMapGhosttyResult(t *testing.T) {
 	t.Run("it maps a -1743 or -1712 osascript outcome to permission-required with driver-composed guidance", func(t *testing.T) {
 		// -1743 = AppleEvent not-permitted/denied; -1712 = AppleEvent timeout.
-		// Both are the OS's permission-wall signals, mapped to the generic
-		// permission-required outcome with the driver-composed opaque guidance.
 		cases := []struct {
 			name string
 			out  string
@@ -104,12 +95,9 @@ func TestMapGhosttyResult(t *testing.T) {
 				if result.Outcome != OutcomePermissionRequired {
 					t.Fatalf("Outcome = %v, want OutcomePermissionRequired", result.Outcome)
 				}
-				// The opaque combined output rides up verbatim as Detail.
 				if !strings.Contains(result.Detail, tc.out) {
 					t.Errorf("Detail = %q, want it to carry the opaque output %q", result.Detail, tc.out)
 				}
-				// The driver-composed guidance names the target terminal and the
-				// Automation-settings hint (opaque; general code never parses it).
 				if strings.TrimSpace(result.Guidance) == "" {
 					t.Fatalf("Guidance = %q, want a non-empty driver-composed hint", result.Guidance)
 				}
@@ -124,8 +112,6 @@ func TestMapGhosttyResult(t *testing.T) {
 	})
 
 	t.Run("it still maps a non-permission non-zero exit to spawn-failed (regression)", func(t *testing.T) {
-		// -1728 (no such object) is a genuine spawn failure with no permission
-		// signal, so the Phase-2 catch-all still folds it to spawn-failed.
 		const body = "0:47: execution error: Ghostty got an error: AppleScript error (-1728)"
 		result := mapGhosttyResult(body, 1, nil)
 

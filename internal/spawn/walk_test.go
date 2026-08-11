@@ -5,15 +5,12 @@ import (
 	"testing"
 )
 
-// fakeProc is one map-backed process record for the fake ProcessWalker seam.
 type fakeProc struct {
 	ppid    int
 	command string
 	err     error
 }
 
-// fakeWalker is a map-backed ProcessWalker: pid -> fakeProc. It records the
-// pids it was asked about so a test can assert the walk order / call count.
 type fakeWalker struct {
 	procs map[int]fakeProc
 	calls []int
@@ -28,15 +25,12 @@ func (f *fakeWalker) ProcessInfo(pid int) (int, string, error) {
 	return p.ppid, p.command, p.err
 }
 
-// fakeBundle is one map-backed bundle record for the fake BundleReader seam.
 type fakeBundle struct {
 	bundleID string
 	name     string
 	err      error
 }
 
-// fakeReader is a map-backed BundleReader: appPath -> fakeBundle. It records
-// the app paths it was asked to read.
 type fakeReader struct {
 	bundles map[string]fakeBundle
 	calls   []string
@@ -51,10 +45,8 @@ func (f *fakeReader) Read(appPath string) (string, string, error) {
 	return b.bundleID, b.name, b.err
 }
 
-// monotonicWalker is a ProcessWalker that never reaches a .app and never
-// reaches ppid 1: for any pid it reports a parent of pid+1 with a shell
-// command. It never repeats a pid, so only the hop bound can terminate the
-// walk — this exercises the runaway/over-long guard specifically.
+// monotonicWalker never reaches a .app, never reaches ppid 1 and never repeats
+// a pid, so only the hop bound can terminate the walk.
 type monotonicWalker struct {
 	calls int
 }
@@ -193,8 +185,6 @@ func TestWalkToBundle(t *testing.T) {
 	})
 
 	t.Run("it terminates on a self-referential cycle", func(t *testing.T) {
-		// A 2-cycle (100 <-> 200) must terminate via the repeated-pid guard,
-		// well before the hop bound, and resolve to clean NULL.
 		walker := &fakeWalker{procs: map[int]fakeProc{
 			100: {ppid: 200, command: "/bin/zsh"},
 			200: {ppid: 100, command: "/bin/zsh"},

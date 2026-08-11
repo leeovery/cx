@@ -4,12 +4,6 @@ package spawn
 
 import "testing"
 
-// TestArgvRecipeAdapterOpenWindow_RealExec is the real-exec inch off the unit
-// lane: it drives argvRecipeAdapter through the production execRecipeRunner
-// against trivial real programs (/usr/bin/true, /usr/bin/false) — no tmux, no
-// daemon, no built portal binary — to confirm the exit status maps to
-// Success / SpawnFailed. The {command} token substitutes into a real argv
-// element and the program ignores it.
 func TestArgvRecipeAdapterOpenWindow_RealExec(t *testing.T) {
 	command := []string{"/abs/portal", "attach", "proj-abc123"}
 

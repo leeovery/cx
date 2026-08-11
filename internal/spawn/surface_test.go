@@ -22,7 +22,6 @@ func TestSurfaceKindString(t *testing.T) {
 }
 
 func TestSurfaceKindIota(t *testing.T) {
-	// The engine and its tests depend on the zero value being SurfaceAttach.
 	if SurfaceAttach != 0 {
 		t.Errorf("SurfaceAttach = %d, want 0 (iota zero value)", SurfaceAttach)
 	}

@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// fixedExe builds an ExecutableResolver that always resolves to path with no
-// error — the happy-path seam for the burster's command-composition tests.
 func fixedExe(path string) ExecutableResolver {
 	return func() (string, error) { return path, nil }
 }
@@ -42,9 +40,6 @@ func TestComposeOpenArgv(t *testing.T) {
 	})
 
 	t.Run("it injects only PATH and strips TMUX/TMUX_PANE via explicit -u unsets", func(t *testing.T) {
-		// The strip is structural: the argv carries the -u TMUX / -u TMUX_PANE
-		// unsets and its ONLY env assignment is PATH= — never a TMUX=/TMUX_PANE=
-		// assignment, so a picker composing from inside tmux cannot leak them.
 		got := composeOpenArgv("/abs/portal", "/opt/homebrew/bin:/usr/bin", Surface{Kind: SurfaceAttach, Value: "proj-abc123"}, "b1", "t1", nil)
 
 		var pathAssignments, tmuxAssignments, tmuxPaneAssignments int
@@ -75,8 +70,6 @@ func TestComposeOpenArgv(t *testing.T) {
 	t.Run("it keeps a session name with spaces as a single unquoted argv element", func(t *testing.T) {
 		got := composeOpenArgv("/abs/portal", "/usr/bin", Surface{Kind: SurfaceAttach, Value: "my session"}, "b1", "t1", nil)
 
-		// The name sits immediately after "--session"; it is a discrete argv
-		// element (no shell quoting) even with an embedded space.
 		flagIdx := slices.Index(got, "--session")
 		if flagIdx < 0 || flagIdx+1 >= len(got) {
 			t.Fatalf("no '--session' element (or nothing after it) in argv %#v", got)
@@ -84,7 +77,6 @@ func TestComposeOpenArgv(t *testing.T) {
 		if name := got[flagIdx+1]; name != "my session" {
 			t.Fatalf("session argv element = %q, want a single unquoted %q; argv = %#v", name, "my session", got)
 		}
-		// No shell quoting is added anywhere: no element carries a stray quote.
 		for _, elem := range got {
 			if strings.ContainsAny(elem, `"'`) {
 				t.Errorf("argv element %q contains a shell quote, want none added; argv = %#v", elem, got)
@@ -95,8 +87,6 @@ func TestComposeOpenArgv(t *testing.T) {
 	t.Run("it keeps a mint directory with spaces as a single unquoted argv element", func(t *testing.T) {
 		got := composeOpenArgv("/abs/portal", "/usr/bin", Surface{Kind: SurfaceMint, Value: "/Users/me/my projects/foo"}, "b1", "t1", nil)
 
-		// The literal dir sits immediately after "--path"; it stays one discrete
-		// argv element even with an embedded space.
 		flagIdx := slices.Index(got, "--path")
 		if flagIdx < 0 || flagIdx+1 >= len(got) {
 			t.Fatalf("no '--path' element (or nothing after it) in argv %#v", got)
@@ -114,8 +104,6 @@ func TestComposeOpenArgv(t *testing.T) {
 	t.Run("it uses the provided executable path rather than a bare portal lookup", func(t *testing.T) {
 		got := composeOpenArgv("/usr/local/bin/portal-v2", "/usr/bin", Surface{Kind: SurfaceAttach, Value: "s1"}, "b1", "t1", nil)
 
-		// The exe element sits immediately before "open"; it must be the provided
-		// absolute path, never a bare "portal" PATH lookup.
 		openIdx := slices.Index(got, "open")
 		if openIdx < 1 {
 			t.Fatalf("no 'open' element (or nothing before it) in argv %#v", got)
@@ -140,8 +128,6 @@ func TestComposeOpenArgv(t *testing.T) {
 		if value := got[len(got)-1]; value != "batchA:tokenB" {
 			t.Errorf("final argv element = %q, want the %q ack value; argv = %#v", value, "batchA:tokenB", got)
 		}
-		// The ack flag is exactly two discrete argv elements — never a single
-		// "--ack=batchA:tokenB" joined element and never shell-quoted.
 		if slices.Contains(got[:len(got)-1], "--ack=batchA:tokenB") {
 			t.Errorf("argv carries a joined --ack=value element, want two discrete elements; argv = %#v", got)
 		}
@@ -174,15 +160,12 @@ func TestComposeOpenArgv(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Errorf("composeOpenArgv attach+command argv = %#v, want %#v (attach windows never carry the command)", got, want)
 		}
-		// Structural belt-and-braces: no `--` passthrough terminator on an attach argv.
 		if slices.Contains(got, "--") {
 			t.Errorf("attach argv carries a `--` passthrough terminator, want none; argv = %#v", got)
 		}
 	})
 
 	t.Run("a mint surface with an empty command appends no bare -- terminator", func(t *testing.T) {
-		// Both nil and an explicit empty slice mean "no command" — neither may leave a
-		// dangling `--` on the argv.
 		for _, cmd := range [][]string{nil, {}} {
 			got := composeOpenArgv("/abs/portal", "/usr/bin", Surface{Kind: SurfaceMint, Value: "/Users/me/projects/foo"}, "b1", "t1", cmd)
 
@@ -202,9 +185,6 @@ func TestComposeOpenArgv(t *testing.T) {
 	})
 
 	t.Run("a single-string command stays ONE argv element after -- (no word-splitting)", func(t *testing.T) {
-		// A `-e "npm run dev"` command is parsed to a single element ["npm run dev"];
-		// composeOpenArgv must carry it verbatim as ONE argv element after `--`, never
-		// splitting it into ["npm", "run", "dev"].
 		got := composeOpenArgv("/abs/portal", "/usr/bin", Surface{Kind: SurfaceMint, Value: "/repo/api"}, "b1", "t1", []string{"npm run dev"})
 
 		want := []string{
@@ -217,7 +197,6 @@ func TestComposeOpenArgv(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Errorf("composeOpenArgv single-string command argv = %#v, want %#v (one element after --, no word-split)", got, want)
 		}
-		// The command sits as the SOLE element after `--`.
 		dashIdx := slices.Index(got, "--")
 		if dashIdx < 0 || dashIdx+1 >= len(got) {
 			t.Fatalf("no `--` element (or nothing after it) in argv %#v", got)

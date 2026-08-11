@@ -8,12 +8,9 @@ import (
 	"github.com/leeovery/portal/internal/spawntest"
 )
 
-// FakeAdapter must satisfy the production Adapter contract so it can stand in
-// for a real driver anywhere the pipeline expects a spawn.Adapter.
 var _ spawn.Adapter = (*spawntest.FakeAdapter)(nil)
 
 func TestFakeAdapter_RecordsArgvPerCallInOrder(t *testing.T) {
-	// "the fake adapter records the exact composed argv per call in order"
 	f := &spawntest.FakeAdapter{}
 	first := []string{"/usr/bin/env", "-u", "TMUX", "/abs/portal", "attach", "s1"}
 	second := []string{"/usr/bin/env", "-u", "TMUX", "/abs/portal", "attach", "s2"}
@@ -33,13 +30,11 @@ func TestFakeAdapter_RecordsArgvPerCallInOrder(t *testing.T) {
 }
 
 func TestFakeAdapter_RecordsDefensiveCopy(t *testing.T) {
-	// Edge case: the recording is a defensive copy, so a later mutation of the
-	// caller's slice cannot corrupt the recorded argv.
 	f := &spawntest.FakeAdapter{}
 	arg := []string{"/usr/bin/env", "/abs/portal", "attach", "s1"}
 
 	f.OpenWindow(arg)
-	arg[3] = "MUTATED" // mutate the caller's slice AFTER the call
+	arg[3] = "MUTATED"
 
 	if got := f.Calls[0][3]; got != "s1" {
 		t.Errorf("Calls[0][3] = %q, want %q — recording is not a defensive copy", got, "s1")
@@ -47,8 +42,6 @@ func TestFakeAdapter_RecordsDefensiveCopy(t *testing.T) {
 }
 
 func TestFakeAdapter_ReturnsScriptedResultsThenDefaultsToSuccess(t *testing.T) {
-	// "the fake adapter returns scripted results per call and defaults to
-	// success when exhausted"
 	f := &spawntest.FakeAdapter{
 		Results: []spawn.Result{
 			spawn.Success("first"),
@@ -66,7 +59,6 @@ func TestFakeAdapter_ReturnsScriptedResultsThenDefaultsToSuccess(t *testing.T) {
 		t.Errorf("call 2 = %+v, want SpawnFailed(\"second boom\")", got2)
 	}
 
-	// Results exhausted → default to spawn.Success("").
 	got3 := f.OpenWindow([]string{"c"})
 	if !got3.OK() || got3.Detail != "" {
 		t.Errorf("call 3 (exhausted) = %+v, want default Success(\"\")", got3)
@@ -74,7 +66,6 @@ func TestFakeAdapter_ReturnsScriptedResultsThenDefaultsToSuccess(t *testing.T) {
 }
 
 func TestFakeAdapter_DefaultsToSuccessWhenResultsEmpty(t *testing.T) {
-	// With no scripted results at all, every call defaults to Success("").
 	f := &spawntest.FakeAdapter{}
 
 	got := f.OpenWindow([]string{"a"})

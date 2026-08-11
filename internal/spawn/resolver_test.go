@@ -49,9 +49,6 @@ func TestResolveAdapter(t *testing.T) {
 				t.Errorf("resolution = %q, want %q", resolution, tt.wantResolution)
 			}
 
-			// Invariants that must hold for every resolution: the resolver
-			// never returns the Phase-4 config tier, and an unsupported
-			// resolution always carries a nil adapter.
 			if resolution == ResolutionConfig {
 				t.Errorf("resolution = %q, want never ResolutionConfig in Phase 2", resolution)
 			}
