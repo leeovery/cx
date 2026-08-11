@@ -27,11 +27,14 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 
 // The rule spans the border column and sits above the label so it shares the
 // page's rule lane — do not reorder or notch it: a full-height border makes the
-// panel read as a second column rather than a layer.
+// panel read as a second column rather than a layer. Rule-then-label is
+// deliberate and must not be flipped to label-then-rule: with the rule in the
+// page's lane, `Themes` lands on the `Sessions` section-header row, which
+// is the alignment the panel is meant to keep. The width is the panel's own —
+// it never takes the page's fallback.
 func themePanelHeaderBlock(shape themePanelHeaderShape, width int, th theme.Theme, colourless bool) []string {
 	rows := make([]string, shape.rows)
-	rows[shape.ruleRow] = headerStyle(th.Border, th, colourless).
-		Render(strings.Repeat(headerRuleGlyph, max(width, 0)))
+	rows[shape.ruleRow] = ruleOfWidth(width, th, colourless)
 	rows[shape.labelRow] = headerStyle(th.AccentMode, th, colourless).Bold(true).
 		Render(themePanelHeaderLabel)
 	return rows

@@ -65,10 +65,15 @@ func headerShowsSubtitle(width int) bool {
 	return width >= headerSubtitleMinWidth
 }
 
-func headerSeparatorRule(width int, th theme.Theme, colourless bool) string {
-	w := headerWidthOrFallback(width)
-	rule := strings.Repeat(headerRuleGlyph, w)
+// The panel's rule shares the page header's lane, so it renders here too — a
+// change of glyph or token must move both.
+func ruleOfWidth(w int, th theme.Theme, colourless bool) string {
+	rule := strings.Repeat(headerRuleGlyph, max(w, 0))
 	return headerStyle(th.Border, th, colourless).Render(rule)
+}
+
+func headerSeparatorRule(width int, th theme.Theme, colourless bool) string {
+	return ruleOfWidth(headerWidthOrFallback(width), th, colourless)
 }
 
 func blankCanvasRow(w int, th theme.Theme, colourless bool) string {
