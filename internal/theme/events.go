@@ -147,12 +147,16 @@ func slotAttr(slot Slot) (string, bool) {
 	return slot.AttrName()
 }
 
-// tokenAttr joins Rejection.Tokens and never parses Detail: rendered
-// user-facing copy is not re-parsed downstream.
+// tokenAttr renders from the structured name/value pair and never parses
+// Detail: rendered user-facing copy is not re-parsed downstream. A bad colour
+// keeps the offending value in the attr rather than the names alone — dropping
+// it would leave the log with no record of what the file actually declared.
 func tokenAttr(r *Rejection) (string, bool) {
 	switch r.Reason {
-	case ReasonMissingTokens, ReasonBadColour:
+	case ReasonMissingTokens:
 		return strings.Join(r.Tokens, ", "), true
+	case ReasonBadColour:
+		return strings.Join(renderedPairs(r.Tokens, r.Values), ", "), true
 	default:
 		return "", false
 	}

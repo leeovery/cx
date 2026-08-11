@@ -36,37 +36,40 @@ func themeFromPairs(pairs []Pair) (Theme, *Rejection) {
 // Offenders are collected and reported together, so a file with several typos
 // is one message. The stored value is upper-cased because downstream hex
 // comparisons (the retained startup canvas hex, background diffing) depend on
-// it; the offender detail is deliberately not canonicalised, echoing back what
+// it; the offending value is deliberately not canonicalised, echoing back what
 // the user wrote.
 func applyPairs(refs []fieldRef, pairs []Pair) *Rejection {
 	index := indexByName(refs)
 
-	offenders := []string{}
+	names, values := []string{}, []string{}
 	for _, pair := range pairs {
 		ref, known := index[pair.Key]
 		if !known {
 			continue
 		}
 		if !wellFormedHex(pair.Value) {
-			offenders = append(offenders, fmt.Sprintf(detailBadColourPair, pair.Key, pair.Value))
+			names = append(names, pair.Key)
+			values = append(values, pair.Value)
 			continue
 		}
 		*ref.Field = Token{Name: ref.Name, Value: strings.ToUpper(pair.Value)}
 	}
 
-	if len(offenders) == 0 {
+	if len(names) == 0 {
 		return nil
 	}
 	return &Rejection{
 		Reason: ReasonBadColour,
-		Detail: strings.Join(offenders, ", "),
-		Tokens: offenders,
+		Detail: strings.Join(renderedPairs(names, values), ", "),
+		Tokens: names,
+		Values: values,
 	}
 }
 
 // A theme file must declare the whole palette — no partial file, no
 // merge-over-a-base: the canvas is itself a token, so a partial theme would put
-// a foreground against a background it was never tuned for.
+// a foreground against a background it was never tuned for. The absent names are
+// the whole story, so the rejection carries no values.
 func requireEveryToken(refs []fieldRef) *Rejection {
 	missing := []string{}
 	for _, ref := range refs {
@@ -83,6 +86,22 @@ func requireEveryToken(refs []fieldRef) *Rejection {
 		Detail: fmt.Sprintf(detailMissingTokens, strings.Join(missing, ", ")),
 		Tokens: missing,
 	}
+}
+
+// renderedPairs composes the "<name> = <value>" copy from the structured name
+// and value lists. A name with no matching value renders bare, so a
+// hand-constructed Rejection with unpaired lists degrades to names rather than
+// panicking.
+func renderedPairs(names, values []string) []string {
+	rendered := make([]string, 0, len(names))
+	for i, name := range names {
+		if i >= len(values) {
+			rendered = append(rendered, name)
+			continue
+		}
+		rendered = append(rendered, fmt.Sprintf(detailBadColourPair, name, values[i]))
+	}
+	return rendered
 }
 
 // The lookup is case-sensitive: `Text.Primary` is an unknown key, not

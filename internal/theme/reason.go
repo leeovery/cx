@@ -21,16 +21,21 @@ const (
 
 // Rejection carries exactly one reason, never two, with a Detail rendered where
 // the rejection is produced, in the exact form its surfaces print — nothing
-// downstream re-derives or re-parses it. Line, BadNameCause, Tokens and Err are
-// the structured sources behind Detail, each populated only for the reason it
-// belongs to and zero on every other.
+// downstream re-derives or re-parses it. Line, BadNameCause, Tokens, Values and
+// Err are the structured sources behind Detail, each populated only for the
+// reason it belongs to and zero on every other.
 type Rejection struct {
 	Reason       Reason
 	Detail       string
 	Line         int
 	BadNameCause BadNameCause
-	Tokens       []string
-	Err          error
+	// Tokens holds bare token names for every reason that names tokens. Values
+	// holds the offending value each name was declared with, index-aligned with
+	// Tokens and populated only for ReasonBadColour — empty for
+	// ReasonMissingTokens, where an absent token has no value.
+	Tokens []string
+	Values []string
+	Err    error
 }
 
 // Error renders the rejection as "<reason>: <detail>", or the bare reason when

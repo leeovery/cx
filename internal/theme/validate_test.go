@@ -143,22 +143,25 @@ func TestValidate_MissingTokensCarriesTheAbsentNamesAsData(t *testing.T) {
 	if got, want := rejection.Tokens, []string{"text.primary", "bg.subtle"}; !slices.Equal(got, want) {
 		t.Errorf("rejection tokens = %v, want %v", got, want)
 	}
+	if len(rejection.Values) != 0 {
+		t.Errorf("rejection values = %v, want none — a missing token has no offending value", rejection.Values)
+	}
 	if got, want := rejection.Detail, "missing "+strings.Join(rejection.Tokens, ", "); got != want {
 		t.Errorf("rejection detail = %q, want %q — the detail is the token list rendered", got, want)
 	}
 }
 
-func TestValidate_BadColourCarriesTheOffendingPairsAsData(t *testing.T) {
-	declared := valued(valued(wellFormedPairs(), "canvas", "blue"), "text.primary", "#GGGGGG")
+func TestValidate_BadColourCarriesTheOffendingNamesAndValuesAsData(t *testing.T) {
+	declared := valued(valued(wellFormedPairs(), "canvas", "blue"), "text.primary", "#gGgGgG")
 
 	built, rejection := themeFromPairs(declared)
 
-	requireRejection(t, built, rejection, ReasonBadColour, "text.primary = #GGGGGG, canvas = blue")
-	if got, want := rejection.Tokens, []string{"text.primary = #GGGGGG", "canvas = blue"}; !slices.Equal(got, want) {
+	requireRejection(t, built, rejection, ReasonBadColour, "text.primary = #gGgGgG, canvas = blue")
+	if got, want := rejection.Tokens, []string{"text.primary", "canvas"}; !slices.Equal(got, want) {
 		t.Errorf("rejection tokens = %v, want %v", got, want)
 	}
-	if got, want := rejection.Detail, strings.Join(rejection.Tokens, ", "); got != want {
-		t.Errorf("rejection detail = %q, want %q — the detail is the pair list rendered", got, want)
+	if got, want := rejection.Values, []string{"#gGgGgG", "blue"}; !slices.Equal(got, want) {
+		t.Errorf("rejection values = %v, want %v — echoed back as the user wrote them", got, want)
 	}
 }
 

@@ -50,6 +50,7 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 		reason    theme.Reason
 		detail    string
 		tokens    []string
+		values    []string
 		wantToken string
 	}{
 		{
@@ -61,7 +62,8 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 		{
 			reason:    theme.ReasonBadColour,
 			detail:    "text.primary = #GGGGGG, canvas = blue",
-			tokens:    []string{"text.primary = #GGGGGG", "canvas = blue"},
+			tokens:    []string{"text.primary", "canvas"},
+			values:    []string{"#GGGGGG", "blue"},
 			wantToken: "text.primary = #GGGGGG, canvas = blue",
 		},
 		{reason: theme.ReasonBadName},
@@ -76,7 +78,7 @@ func TestEventLogger_TokenAttrOnlyWhereReasonNamesOne(t *testing.T) {
 			logger, sink := logtest.NewCaptureLogger(t)
 			events := theme.NewEventLogger(logger)
 
-			events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: tt.reason, Detail: tt.detail, Tokens: tt.tokens})
+			events.Rejected("nord-lee", "/themes/nord-lee.theme", &theme.Rejection{Reason: tt.reason, Detail: tt.detail, Tokens: tt.tokens, Values: tt.values})
 
 			record := sink.OnlyRecord(t)
 			if tt.wantToken == "" {
@@ -112,7 +114,8 @@ func TestEventLogger_TokenAttrRendersFromTokensNotDetail(t *testing.T) {
 			rejection: theme.Rejection{
 				Reason: theme.ReasonBadColour,
 				Detail: "canvas (blue) and text.primary (#GGGGGG) are not hex",
-				Tokens: []string{"canvas = blue", "text.primary = #GGGGGG"},
+				Tokens: []string{"canvas", "text.primary"},
+				Values: []string{"blue", "#GGGGGG"},
 			},
 			wantToken: "canvas = blue, text.primary = #GGGGGG",
 		},
