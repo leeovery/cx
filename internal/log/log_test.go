@@ -10,10 +10,6 @@ import (
 	"testing"
 )
 
-// initLogger is bound at package init — before any test body runs — to assert
-// that internal/log's own package init constructs root before any For call.
-// If For returned nil (or panicked) during init, this var would be nil or the
-// package would fail to load.
 var initLogger = For("init-probe")
 
 func TestFor_ReturnsNonNilBeforeInit(t *testing.T) {
@@ -34,7 +30,6 @@ func TestFor_EmptyComponentReturnsValidLogger(t *testing.T) {
 	if logger == nil {
 		t.Fatal("For(\"\") returned a nil logger")
 	}
-	// A valid logger must accept records without panicking.
 	logger.Info("probe")
 }
 
@@ -42,7 +37,6 @@ func TestFor_CachedLoggerRoutesToHandlerInstalledAfterSwap(t *testing.T) {
 	restore := snapshotHandler()
 	t.Cleanup(restore)
 
-	// Cache a logger BEFORE the swap, mirroring package-init binding.
 	cached := For("daemon")
 
 	rec := &recordingHandler{}
@@ -85,9 +79,6 @@ func TestFor_RaceFreeUnderConcurrentForAndSwap(t *testing.T) {
 }
 
 func TestDefaultHandler_DropsDebugEmitsInfoToStderr(t *testing.T) {
-	// The default-handler behaviour (writing INFO+ as text to os.Stderr) is
-	// observed in a subprocess so we can capture real stderr without mutating
-	// process-global state in this test process.
 	if os.Getenv("PORTAL_LOG_DEFAULT_HANDLER_PROBE") == "1" {
 		logger := For("daemon")
 		logger.Debug("debug-line")
@@ -112,14 +103,11 @@ func TestDefaultHandler_DropsDebugEmitsInfoToStderr(t *testing.T) {
 	}
 }
 
-// snapshotHandler captures the current inner handler and returns a restore func
-// so tests that call setHandler do not leak a handler into sibling tests.
 func snapshotHandler() func() {
 	prev := swap.load()
 	return func() { setHandler(prev) }
 }
 
-// recordingHandler is an in-memory slog.Handler that records every Handle call.
 type recordingHandler struct {
 	mu      sync.Mutex
 	records []slog.Record

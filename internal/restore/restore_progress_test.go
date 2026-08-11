@@ -9,16 +9,11 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// progressCall records one (n, m) callback invocation so tests can assert the
-// exact firing sequence the per-session loop produced.
 type progressCall struct {
 	n int
 	m int
 }
 
-// newProgressOrchestrator builds an Orchestrator with the Progress callback
-// wired to append into the supplied slice. Mirrors newOrchestrator (restore_test.go)
-// but for the §10.4 N/M progress source.
 func newProgressOrchestrator(t *testing.T, mock *mockCommander, dir string, calls *[]progressCall) *restore.Orchestrator {
 	t.Helper()
 	client := tmux.NewClient(mock)
@@ -70,19 +65,14 @@ func TestProgress_FiresOncePerSessionWithNAdvancingAgainstFixedM(t *testing.T) {
 func TestProgress_AdvancesNOnLiveSkippedSessionsSoCounterReachesMM(t *testing.T) {
 	dir := t.TempDir()
 	sessions := []state.Session{
-		// already live — skipped, but must still tick N.
 		{Name: "live", Windows: []state.Window{{Index: 0, Name: "m", Panes: []state.Pane{
 			{Index: 0, CWD: "/live", ScrollbackFile: "scrollback/live__0.0.bin"},
 		}}}},
-		// underscore-prefixed — skipped, but must still tick N.
 		{Name: "_portal-saver", Windows: []state.Window{{Index: 0, Name: "m", Panes: []state.Pane{
 			{Index: 0, CWD: "/x", ScrollbackFile: "scrollback/x.bin"},
 		}}}},
-		// zero windows — invalid topology, skipped, but must still tick N.
 		{Name: "nowin", Windows: []state.Window{}},
-		// a window with zero panes — invalid topology, skipped, but must still tick N.
 		{Name: "nopane", Windows: []state.Window{{Index: 0, Name: "m", Panes: []state.Pane{}}}},
-		// restorable — ticks N.
 		{Name: "ok", Windows: []state.Window{{Index: 0, Name: "m", Panes: []state.Pane{
 			{Index: 0, CWD: "/ok", ScrollbackFile: "scrollback/ok__0.0.bin", Active: true},
 		}}}},
@@ -97,8 +87,6 @@ func TestProgress_AdvancesNOnLiveSkippedSessionsSoCounterReachesMM(t *testing.T)
 		t.Fatalf("Restore: %v", err)
 	}
 
-	// M is fixed at len(idx.Sessions)==5; N advances 1..5 even though four of
-	// the five sessions are skipped — the counter must reach M/M.
 	want := []progressCall{{1, 5}, {2, 5}, {3, 5}, {4, 5}, {5, 5}}
 	if len(calls) != len(want) {
 		t.Fatalf("progress calls = %v, want %v", calls, want)
@@ -113,7 +101,6 @@ func TestProgress_AdvancesNOnLiveSkippedSessionsSoCounterReachesMM(t *testing.T)
 func TestProgress_AdvancesNOnSwallowedPerSessionRestoreFailure(t *testing.T) {
 	dir := t.TempDir()
 	sessions := []state.Session{
-		// "broken" — new-session fails; restoreOne logs + swallows. N must still tick.
 		{Name: "broken", Windows: []state.Window{{Index: 0, Name: "m", Panes: []state.Pane{
 			{Index: 0, CWD: "/x", ScrollbackFile: "scrollback/x.bin"},
 		}}}},
@@ -193,9 +180,6 @@ func TestProgress_FiresZeroCallbacksWhenMIsZero(t *testing.T) {
 }
 
 func TestProgress_NilCallbackLeavesRestoreOutcomesUnchanged(t *testing.T) {
-	// Restore the same fixture twice — once with a nil Progress callback, once
-	// with a recording callback — and assert the tmux call sequence is identical.
-	// Additive instrumentation must not alter per-session restore behaviour.
 	sessions := []state.Session{
 		{Name: "work", Windows: []state.Window{{Index: 0, Name: "main", Panes: []state.Pane{
 			{Index: 0, CWD: "/work", ScrollbackFile: "scrollback/work__0.0.bin", Active: true},
@@ -205,11 +189,8 @@ func TestProgress_NilCallbackLeavesRestoreOutcomesUnchanged(t *testing.T) {
 		}}}},
 	}
 
-	// Both runs share ONE state dir so the absolute FIFO/scrollback paths in the
-	// recorded tmux args are byte-identical — the only thing under test is whether
-	// the Progress callback perturbs the per-session restore call sequence, not
-	// the temp-dir naming. The dir is re-seeded between runs (the second
-	// Restore sees no live sessions, so it re-runs the same skeleton sequence).
+	// Both runs share one state dir so the absolute FIFO and scrollback paths in
+	// the recorded tmux args are byte-identical between them.
 	dir := t.TempDir()
 	run := func(progress func(n, m int)) [][]string {
 		writeValidIndex(t, dir, sessions)

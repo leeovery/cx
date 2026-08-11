@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-// recordsByMessage returns every captured record whose message equals msg.
 func recordsByMessage(captured *[]capturedRecord, msg string) []capturedRecord {
 	var out []capturedRecord
 	for _, r := range *captured {
@@ -19,8 +18,6 @@ func recordsByMessage(captured *[]capturedRecord, msg string) []capturedRecord {
 	return out
 }
 
-// sweptSentinelName builds the retention single-winner sentinel basename for a
-// given date — used by tests to pre-seed the gate or stale sentinels.
 func sweptSentinelName(date string) string {
 	return portalLogName + ".swept." + date
 }
@@ -28,10 +25,8 @@ func sweptSentinelName(date string) string {
 func TestRunRetentionSweep_ReturnsImmediatelyWhenGateLost(t *testing.T) {
 	dir := t.TempDir()
 
-	// Pre-seed today's sentinel so the O_EXCL gate is lost.
 	touchFile(t, dir, sweptSentinelName("2026-05-30"))
 
-	// Seed a clearly-deletable past-day file: if the sweep ran it would be removed.
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 
 	rec, captured := newComponentCapture()
@@ -51,7 +46,6 @@ func TestRunRetentionSweep_EmitsInfoBeforeEachRemove(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
 
-	// 30-day window from 2026-05-30 → cutoff 2026-04-30. This file predates it.
 	old := touchFile(t, dir, "portal.log.2026-01-15")
 
 	rec, captured := newComponentCapture()
@@ -73,8 +67,6 @@ func TestRunRetentionSweep_EmitsInfoBeforeEachRemove(t *testing.T) {
 	if got := info.attrs["retention"]; got != "30" {
 		t.Errorf("INFO retention = %q, want 30", got)
 	}
-	// The INFO record exists AND the file is gone after — the INFO precedes the
-	// os.Remove (it landed in today's already-open file before the unlink).
 	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("file %s still present after sweep; want deleted", filepath.Base(old))
 	}
@@ -84,12 +76,10 @@ func TestRunRetentionSweep_DeletesOlderKeepsWithinWindow(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
 
-	// today 2026-05-30, 30-day window → cutoff 2026-04-30. Strictly older < cutoff
-	// is deleted; on-or-after cutoff is kept.
-	deleted1 := touchFile(t, dir, "portal.log.2026-04-29")   // < cutoff: delete
-	deleted2 := touchFile(t, dir, "portal.log.2026-04-29.1") // segment < cutoff: delete
-	keptCutoff := touchFile(t, dir, "portal.log.2026-04-30") // == cutoff: keep
-	keptRecent := touchFile(t, dir, "portal.log.2026-05-29") // within window: keep
+	deleted1 := touchFile(t, dir, "portal.log.2026-04-29")
+	deleted2 := touchFile(t, dir, "portal.log.2026-04-29.1")
+	keptCutoff := touchFile(t, dir, "portal.log.2026-04-30")
+	keptRecent := touchFile(t, dir, "portal.log.2026-05-29")
 
 	runRetentionSweep(dir, "2026-05-30", true)
 
@@ -109,8 +99,6 @@ func TestRunRetentionSweep_FallsBackTo30WithWarnOnInvalidEnv(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "banana")
 
-	// With fallback 30 days from 2026-05-30 the cutoff is 2026-04-30; this file
-	// predates it and must still be deleted (fallback retention is applied).
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 
 	rec, captured := newComponentCapture()
@@ -141,13 +129,9 @@ func TestRunRetentionSweep_NeverDeletesSymlinkTmpOrSweptSentinel(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "0")
 
-	// retention=0 → cutoff = today, so EVERYTHING with a strict past date is
-	// deleted. The non-log siblings must survive the cutoff walk regardless. The
-	// winner creates today's sentinel itself via claimSweepGate — we assert that
-	// live claim survives the walk too, so today's sentinel is NOT pre-seeded
-	// (pre-seeding would lose the gate and the walk would never run).
 	tmp := touchFile(t, dir, "portal.log."+strconv.Itoa(os.Getpid())+".symlink.tmp")
 	other := touchFile(t, dir, "portal.log.notes")
+	// Not seeded: claimSweepGate creates it as the winner of this sweep.
 	sentinel := sweptSentinelFile(dir, "2026-05-30")
 
 	runRetentionSweep(dir, "2026-05-30", true)
@@ -162,10 +146,10 @@ func TestRunRetentionSweep_NeverDeletesSymlinkTmpOrSweptSentinel(t *testing.T) {
 func TestRunRetentionSweep_PrunesStaleSweptSentinelsKeepsToday(t *testing.T) {
 	dir := t.TempDir()
 
-	// Today's sentinel is NOT pre-seeded — claimSweepGate creates it as the winner.
-	// Pre-seeding it would lose the gate and abort before the prune ever runs.
 	stale1 := touchFile(t, dir, sweptSentinelName("2026-05-28"))
 	stale2 := touchFile(t, dir, sweptSentinelName("2026-05-29"))
+	// Today's sentinel is deliberately not seeded: claimSweepGate creates it as
+	// the winner, and seeding it would lose the gate before the prune runs.
 	todaySentinel := sweptSentinelFile(dir, "2026-05-30")
 
 	runRetentionSweep(dir, "2026-05-30", true)
@@ -184,7 +168,6 @@ func TestRunRetentionSweep_WarnsAndContinuesOnRemoveFailure(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "0")
 
-	// retention=0 → cutoff = today, so both past-day files are deletion candidates.
 	failPath := filepath.Join(dir, "portal.log.2026-04-01")
 	okPath := touchFile(t, dir, "portal.log.2026-04-02")
 	touchFile(t, dir, "portal.log.2026-04-01")
@@ -218,7 +201,6 @@ func TestRunRetentionSweep_WarnsAndContinuesOnRemoveFailure(t *testing.T) {
 		t.Errorf("WARN missing error attr")
 	}
 
-	// The sweep continued past the failure: the other candidate was deleted.
 	if _, err := os.Stat(okPath); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("%s still present; sweep must continue past a remove failure", filepath.Base(okPath))
 	}
@@ -228,14 +210,12 @@ func TestRunRetentionSweep_SingleSourcesBreadcrumbsAcrossConcurrentStartups(t *t
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
 
-	touchFile(t, dir, "portal.log.2026-01-15") // deletion candidate
+	touchFile(t, dir, "portal.log.2026-01-15")
 
 	rec, captured := newComponentCapture()
 	SetTestHandler(t, rec)
 
-	// First winner sweeps (creates today's sentinel via O_EXCL, deletes, emits).
 	runRetentionSweep(dir, "2026-05-30", true)
-	// Second process the same day loses the gate: must add NO further breadcrumbs.
 	runRetentionSweep(dir, "2026-05-30", true)
 
 	infos := recordsByMessage(captured, "deleted")
@@ -252,8 +232,6 @@ func TestRunRetentionSweep_UngatedAlwaysRunsRegardlessOfSentinel(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
 
-	// today's sentinel is present — a gated sweep would no-op. The ungated path
-	// (portal doctor --fix, Task 2-9) must run anyway.
 	touchFile(t, dir, sweptSentinelName("2026-05-30"))
 	old := touchFile(t, dir, "portal.log.2026-01-15")
 
@@ -278,15 +256,11 @@ func TestRotatingSink_RunsRetentionSweepOnRealDayRoll(t *testing.T) {
 		t.Fatalf("day-one Write: %v", err)
 	}
 
-	// Seed an aged-out file AFTER the first-of-day write (which now fires its own
-	// gated sweep — PART 1). It must survive until the next day's roll deletes it.
-	// cutoff on 2026-05-30 with 30-day retention is 2026-04-30; this predates it.
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 	if _, err := os.Stat(old); err != nil {
 		t.Fatalf("aged file removed before the roll; want untouched until the day roll")
 	}
 
-	// Roll past midnight — the dayRoll seam must now run retention alongside seal.
 	set(mustDate(2026, 5, 30))
 	if _, err := s.Write([]byte("day-two\n")); err != nil {
 		t.Fatalf("day-two Write: %v", err)

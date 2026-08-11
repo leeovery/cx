@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// TestTook_KeyAndDurationKind pins the reserved cycle-summary attr contract:
-// the returned attr is keyed "took" and carries a slog.KindDuration value.
 func TestTook_KeyAndDurationKind(t *testing.T) {
 	attr := Took(time.Now())
 
@@ -19,9 +17,6 @@ func TestTook_KeyAndDurationKind(t *testing.T) {
 	}
 }
 
-// TestTook_MeasuresElapsedSinceStart confirms Took carries a non-negative
-// duration derived from the supplied start time (i.e. it is time.Since(start),
-// not a zero/sentinel value).
 func TestTook_MeasuresElapsedSinceStart(t *testing.T) {
 	start := time.Now().Add(-5 * time.Millisecond)
 

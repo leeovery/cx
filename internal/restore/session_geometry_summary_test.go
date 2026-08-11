@@ -10,9 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// geometrySummaryLine returns the single "geometry complete" INFO line the sink
-// recorded, or "" if none was emitted. Fails the test if more than one such
-// line was recorded — the spec mandates exactly one per ApplyWindowGeometry call.
 func geometrySummaryLine(t *testing.T, sink *captureSink) string {
 	t.Helper()
 	var found []string
@@ -36,7 +33,6 @@ func TestApplyWindowGeometry_EmitsGeometryCompleteSummaryOnCleanReplay(t *testin
 	logger, sink := newCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
-	// 2 windows: window 0 has 2 panes, window 1 has 1 pane = 3 live panes total.
 	sess := geometrySession("work",
 		geomWindow(0, "L0", false, activePane(0), inactivePane(1)),
 		geomWindow(1, "L1", false, activePane(0)),
@@ -68,7 +64,7 @@ func TestApplyWindowGeometry_SummaryPanesEqualsLivePaneCount(t *testing.T) {
 	sess := geometrySession("work",
 		geomWindow(0, "L", false, activePane(0), inactivePane(1), inactivePane(2)),
 	)
-	live := liveCoordsFromSaved(sess, 0, 0) // 3 live panes
+	live := liveCoordsFromSaved(sess, 0, 0)
 
 	r.ApplyWindowGeometry(sess, live)
 
@@ -123,8 +119,6 @@ func TestApplyWindowGeometry_EmitsExactlyOneSummaryPerCall(t *testing.T) {
 }
 
 func TestApplyWindowGeometry_SelectLayoutFailureIncrementsAnomalousAndRetainsWarn(t *testing.T) {
-	// Saved layout fails but tiled fallback succeeds — still ONE anomalous
-	// (the saved layout wasn't applied → degraded), and the per-step WARN fires.
 	mock := &mockCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) >= 4 && args[0] == "select-layout" && args[3] == "broken" {
@@ -147,19 +141,15 @@ func TestApplyWindowGeometry_SelectLayoutFailureIncrementsAnomalousAndRetainsWar
 	if !strings.Contains(line, "anomalous=1") {
 		t.Errorf("summary %q: select-layout failure must increment anomalous to 1", line)
 	}
-	// Existing per-step WARN must still fire.
 	if !strings.Contains(sink.Body(), "falling back to tiled") {
 		t.Errorf("per-step WARN about saved-layout failure must still fire; body:\n%s", sink.Body())
 	}
-	// Replay continues to the next step (select-pane).
 	if findCallTarget(mock.Calls, "select-pane", "=work:0.0") < 0 {
 		t.Errorf("expected select-pane to still run after layout failure; calls: %v", mock.Calls)
 	}
 }
 
 func TestApplyWindowGeometry_DoubleLayoutFailureIsOneAnomalous(t *testing.T) {
-	// Both saved layout AND tiled fallback fail — still ONE anomalous (one
-	// degraded geometry operation), and BOTH per-step WARNs fire.
 	mock := &mockCommander{
 		RunFunc: func(args ...string) (string, error) {
 			if len(args) > 0 && args[0] == "select-layout" {
@@ -253,14 +243,10 @@ func TestApplyWindowGeometry_EmptySavedWindowGroupSkippedNotAnomalous(t *testing
 	logger, sink := newCaptureLogger(t)
 	r := &restore.SessionRestorer{Client: client, Logger: logger}
 
-	// Two saved windows but only enough live panes to cover window 0; window 1
-	// maps to an empty group and must be skipped without counting as anomalous
-	// and without calling its apply* helpers.
 	sess := geometrySession("work",
 		geomWindow(0, "L0", false, activePane(0)),
 		geomWindow(1, "L1", true, activePane(0)),
 	)
-	// Only one live pane → window 1's group is empty.
 	live := []tmux.PaneCoord{{Window: 0, Pane: 0}}
 
 	r.ApplyWindowGeometry(sess, live)
@@ -272,7 +258,6 @@ func TestApplyWindowGeometry_EmptySavedWindowGroupSkippedNotAnomalous(t *testing
 	if !strings.Contains(line, "panes=1") {
 		t.Errorf("summary %q: panes must equal len(livePanes)=1", line)
 	}
-	// Window 1's apply* helpers must NOT have been called.
 	if findSelectLayoutTarget(mock.Calls, "work:1", "L1") >= 0 {
 		t.Errorf("did not expect select-layout for empty-group window 1; calls: %v", mock.Calls)
 	}
@@ -284,7 +269,6 @@ func TestApplyWindowGeometry_EmptySavedWindowGroupSkippedNotAnomalous(t *testing
 	}
 }
 
-// equalStringSlices reports whether a and b contain the same elements in order.
 func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

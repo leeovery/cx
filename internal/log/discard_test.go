@@ -10,8 +10,6 @@ func TestOrDiscard_NilReturnsNonNilDiscardingLogger(t *testing.T) {
 	if got == nil {
 		t.Fatal("OrDiscard(nil) returned nil; expected the shared discard logger")
 	}
-	// The returned logger must accept records at every level without panicking,
-	// and its handler must discard rather than emit anywhere observable.
 	got.Debug("probe")
 	got.Info("probe")
 	got.Warn("probe")
@@ -48,8 +46,6 @@ func TestDiscard_MatchesOrDiscardNil(t *testing.T) {
 	}
 }
 
-// discardWriterForTest is an io.Writer that drops everything; used to build a
-// distinct non-nil logger whose identity OrDiscard must preserve.
 type discardWriterForTest struct{}
 
 func (discardWriterForTest) Write(p []byte) (int, error) { return len(p), nil }

@@ -9,33 +9,17 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// SeedSessionsJSON writes a minimal sessions.json containing one
-// single-window/single-pane session per supplied name. The pane's
-// ScrollbackFile points at a placeholder path under
-// stateDir/scrollback/ — the file does not have to exist for skeleton
-// restoration to succeed (Restore only reads the index; the in-pane
-// hydrate helper reads the file).
-//
-// SavedAt is left zero — callers that need to assert SavedAt is
-// preserved across a Run window should use SeedSessionsJSONWithSavedAt
-// to plant a known-good timestamp.
-//
-// The encoded shape is byte-identical to the seven inline blocks this
-// helper replaced (cmd/reattach_integration_test.go and the six
-// cmd/bootstrap/*_integration_test.go sites) — single window at
-// Index 0, Layout "tiled", Active true; single pane at Index 0, Active
-// true, ScrollbackFile "scrollback/<name>-w0-p0.bin".
+// SeedSessionsJSON writes a minimal sessions.json holding one
+// single-window/single-pane session per supplied name, with a zero SavedAt. The
+// pane's ScrollbackFile is a placeholder path that need not exist: Restore reads
+// only the index, and the in-pane hydrate helper reads the file.
 func SeedSessionsJSON(t *testing.T, stateDir string, names ...string) {
 	t.Helper()
 	SeedSessionsJSONWithSavedAt(t, stateDir, time.Time{}, names...)
 }
 
-// SeedSessionsJSONWithSavedAt is the savedAt-aware variant of
-// SeedSessionsJSON. The supplied savedAt is encoded verbatim into the
-// Index so the caller can capture it pre-Run and assert that it is not
-// advanced by anything in the orchestrator's pipeline (the suppression
-// invariant from spec "Save-Side Architecture → Triggers & Serialization
-// → Properties → Restoration guard").
+// SeedSessionsJSONWithSavedAt encodes savedAt verbatim, so a caller can capture
+// it before a run and assert nothing in the pipeline advanced it.
 func SeedSessionsJSONWithSavedAt(t *testing.T, stateDir string, savedAt time.Time, names ...string) {
 	t.Helper()
 	sessions := make([]state.Session, 0, len(names))

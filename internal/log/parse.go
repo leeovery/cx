@@ -6,45 +6,31 @@ import (
 	"time"
 )
 
-// LogLine holds the fields parsed from one rendered portal.log text line.
+// LogLine holds the fields parsed from one rendered portal.log text line. Message
+// is the human message only: contextual attrs and the pid/version/process_role
+// baselines are excluded.
 type LogLine struct {
-	Time      time.Time // parsed from the RFC3339Nano timestamp token
-	Level     string    // "DEBUG" | "INFO" | "WARN" | "ERROR"
-	Component string    // subsystem prefix (trailing ':' removed); "" if absent
-	Message   string    // human message only — contextual attrs and the
-	// pid/version/process_role baselines excluded
+	Time      time.Time
+	Level     string
+	Component string
+	Message   string
 }
 
-// attrKeyToken matches a whitespace-delimited token that opens a key=value attr
-// pair, anchored so only a genuine attr key (e.g. "pid=", "took=", "version=")
-// matches — never a key=value-shaped fragment buried inside a quoted multi-word
-// attr value. It is the message/attrs boundary: the first matching token ends
-// the human message and begins the trailing attrs + baselines region.
+// Anchored so only a token that genuinely opens a key=value attr pair matches,
+// never a key=value-shaped fragment inside a quoted multi-word value. It marks
+// the boundary between the message and the trailing attrs.
 var attrKeyToken = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*=`)
 
-// ParseLogLine parses one portal.log text line and is the single inverse of the
-// writer's line format (textHandler.Handle):
-//
-//	<RFC3339Nano> <LEVEL> <component>: <msg> <attrs k=v…> pid=… version=… process_role=…
-//
-// It lives in the writer's package so any future writer-format change forces
-// this parser to change with it.
-//
-// ok == false for any line that does not match the layout — specifically when
-// any of: the line contains no ':' (no component delimiter); the line has fewer
-// than two whitespace-delimited tokens; or the first token does not parse as an
-// RFC3339Nano timestamp. The empty string falls under these (no tokens / no
-// colon) and so yields ok == false.
+// ParseLogLine is the inverse of textHandler's line format. ok is false for any
+// line that does not match it: fewer than two whitespace-delimited tokens, a
+// first token that is not an RFC3339Nano timestamp, or no component-delimiting
+// colon.
 func ParseLogLine(line string) (parsed LogLine, ok bool) {
-	// Level: second whitespace-delimited token. Splitting the leading portion
-	// into at most three fields isolates the timestamp and level tokens while
-	// leaving the component/message/attrs remainder intact in the third field.
 	tokens := strings.Fields(line)
 	if len(tokens) < 2 {
 		return LogLine{}, false
 	}
 
-	// Time: first whitespace-delimited token, parsed with the writer's layout.
 	t, err := time.Parse(time.RFC3339Nano, tokens[0])
 	if err != nil {
 		return LogLine{}, false
@@ -52,11 +38,8 @@ func ParseLogLine(line string) (parsed LogLine, ok bool) {
 	parsed.Time = t
 	parsed.Level = tokens[1]
 
-	// Component: text between the level token and the first ':' that follows the
-	// level token, surrounding whitespace trimmed. The search begins after the
-	// level token so colons inside the RFC3339 timestamp are ignored. Component
-	// names carry no ':' so the first such ':' reliably ends the component; any
-	// later ':' belongs to the message.
+	// The colon scan starts after the level token so the timestamp's own colons
+	// cannot end the component.
 	levelEnd := levelTokenEnd(line, tokens[0], tokens[1])
 	rel := strings.IndexByte(line[levelEnd:], ':')
 	if rel < 0 {
@@ -65,19 +48,11 @@ func ParseLogLine(line string) (parsed LogLine, ok bool) {
 	colon := levelEnd + rel
 	parsed.Component = strings.TrimSpace(line[levelEnd:colon])
 
-	// Message: text after the component's "colon-space", up to (but excluding)
-	// the first whitespace-delimited token matching attrKeyToken. That single
-	// boundary drops both contextual attrs and the trailing baselines in one
-	// pass; trailing whitespace from the split is trimmed.
 	rest := strings.TrimPrefix(line[colon+1:], " ")
 	parsed.Message = messageBeforeAttrs(rest)
 	return parsed, true
 }
 
-// levelTokenEnd returns the byte offset in line immediately after the level
-// token. It locates the timestamp token, then the level token that follows it,
-// so the component scan starts at the correct position regardless of the
-// (single-space) inter-token spacing the writer emits.
 func levelTokenEnd(line, timeToken, levelToken string) int {
 	tsIdx := strings.Index(line, timeToken)
 	afterTS := tsIdx + len(timeToken)
@@ -85,14 +60,9 @@ func levelTokenEnd(line, timeToken, levelToken string) int {
 	return afterTS + levelIdx + len(levelToken)
 }
 
-// messageBeforeAttrs returns the human message portion of the post-colon
-// remainder: everything up to but excluding the first whitespace-delimited
-// token that opens a key=value attr pair, with trailing whitespace trimmed. An
-// empty remainder (or one that begins immediately with an attr token) yields "".
 func messageBeforeAttrs(rest string) string {
 	end := len(rest)
 	for i := 0; i < len(rest); {
-		// Skip leading whitespace, recording the start of this token.
 		if rest[i] == ' ' {
 			i++
 			continue

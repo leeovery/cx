@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// fakeFataller captures Fatalf invocations without aborting the
-// test process. It satisfies the unexported fataller interface so
-// the timeout branch of waitForFileExists can be exercised in-process.
 type fakeFataller struct {
 	helperCalls int
 	fatalMsg    string
@@ -27,9 +24,6 @@ func (f *fakeFataller) Fatalf(format string, args ...any) {
 	f.fatalMsg = fmt.Sprintf(format, args...)
 }
 
-// TestWaitForFileExists_FilePresentImmediately asserts the helper
-// returns promptly when the target path already exists when polling
-// begins — no sleep, no spurious failure.
 func TestWaitForFileExists_FilePresentImmediately(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ready")
@@ -44,9 +38,6 @@ func TestWaitForFileExists_FilePresentImmediately(t *testing.T) {
 	}
 }
 
-// TestWaitForFileExists_FileAppearsMidPoll asserts the helper
-// observes a file that is created after polling has begun, before
-// the budget elapses.
 func TestWaitForFileExists_FileAppearsMidPoll(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "delayed")
@@ -62,11 +53,6 @@ func TestWaitForFileExists_FileAppearsMidPoll(t *testing.T) {
 	<-done
 }
 
-// TestWaitForFileExists_TimeoutFatals asserts the helper calls
-// Fatalf when the file never appears within the budget, and that
-// the diagnostic includes the absolute path + the elapsed budget
-// (the task's edge case). Driven via a fake fataller so the
-// real test process is not aborted by t.Fatalf.
 func TestWaitForFileExists_TimeoutFatals(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "never-appears")

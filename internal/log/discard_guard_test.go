@@ -9,26 +9,12 @@ import (
 	"github.com/leeovery/portal/internal/portalbintest"
 )
 
-// forbiddenDiscardConstruction is the literal fragment of a discard-backed
-// *slog.Logger construction. Per the spec's "Call-site logging pattern"
-// Prohibited rule ("Direct construction of *slog.Logger outside the
-// internal/log package"), the single canonical io.Discard sink lives only in
-// internal/log/discard.go; every nil-tolerant fallback site routes through
-// log.OrDiscard / log.Discard instead of re-declaring its own.
 const forbiddenDiscardConstruction = "slog.NewTextHandler(io.Discard"
 
-// discardConstructionAllowed is the only production file permitted to construct
-// the discard sink: internal/log's own declaration.
 var discardConstructionAllowed = map[string]bool{
 	filepath.Join("internal", "log", "discard.go"): true,
 }
 
-// TestNoDiscardLoggerConstructionInProductionSource walks every production
-// .go file in the repository and fails if any (outside internal/log/discard.go)
-// constructs a discard-backed *slog.Logger. This is the standing guard for the
-// consolidation: a future contributor cannot reintroduce a per-package
-// discardLogger declaration without this test going red, eliminating the
-// drift-with-no-compiler-signal risk that motivated the consolidation.
 func TestNoDiscardLoggerConstructionInProductionSource(t *testing.T) {
 	root, err := portalbintest.ProjectRoot()
 	if err != nil {

@@ -13,18 +13,12 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// orchestratorRunFunc returns a RunFunc that dispatches list-sessions and
-// list-panes to per-call hooks, and treats every other command as a
-// successful no-op. Hooks may be nil; nil hooks pass through to the default
-// success behavior.
 type orchestratorRunFunc struct {
 	listSessionsOut string
 	listSessionsErr error
 	listPanesOut    string
 	listPanesErr    error
-	// onCmd lets a specific command be intercepted (e.g., return an error on
-	// the first new-session call to drive a per-session-failure path).
-	onCmd map[string]func(args ...string) (string, error)
+	onCmd           map[string]func(args ...string) (string, error)
 }
 
 func (o *orchestratorRunFunc) run(args ...string) (string, error) {
@@ -46,8 +40,6 @@ func (o *orchestratorRunFunc) run(args ...string) (string, error) {
 	return "", nil
 }
 
-// writeValidIndex writes a minimally valid sessions.json for the supplied
-// sessions to dir/sessions.json. Returns the canonical absolute path.
 func writeValidIndex(t *testing.T, dir string, sessions []state.Session) {
 	t.Helper()
 	idx := state.Index{
@@ -64,8 +56,6 @@ func writeValidIndex(t *testing.T, dir string, sessions []state.Session) {
 	}
 }
 
-// writeRawIndex writes raw bytes to dir/sessions.json. Used to drive the
-// corrupt-JSON path.
 func writeRawIndex(t *testing.T, dir string, raw []byte) {
 	t.Helper()
 	if err := os.WriteFile(state.SessionsJSON(dir), raw, 0o600); err != nil {
@@ -73,11 +63,6 @@ func writeRawIndex(t *testing.T, dir string, raw []byte) {
 	}
 }
 
-// orchestrator builds an Orchestrator wired against the supplied mock
-// commander, state directory, and optional logger. Stderr emission was
-// removed in Phase 6 task 6-9 — the corrupt-index case now returns a
-// wrapped state.ErrCorruptIndex and the bootstrap orchestrator surfaces
-// the user-facing warning via cmd.BootstrapWarningsSink.
 func newOrchestrator(t *testing.T, mock *mockCommander, dir string, logger *slog.Logger) *restore.Orchestrator {
 	t.Helper()
 	client := tmux.NewClient(mock)
@@ -88,10 +73,6 @@ func newOrchestrator(t *testing.T, mock *mockCommander, dir string, logger *slog
 	}
 }
 
-// openTestLogger returns a capturing *slog.Logger plus its captureSink so
-// call sites can assert on the rendered log body. Replaces the old
-// file-backed logger after the observability migration; the body is
-// now in-memory.
 func openTestLogger(t *testing.T, dir string) (*slog.Logger, *captureSink) {
 	t.Helper()
 	_ = dir
@@ -146,7 +127,6 @@ func TestOrchestrator_ReturnsWrappedErrCorruptIndexAndLogsWhenSessionsJSONCorrup
 		t.Errorf("log %q lacks WARN/ReadIndex entry", bodyStr)
 	}
 
-	// No tmux calls should have happened — restoration is fully skipped.
 	for _, c := range mock.Calls {
 		if len(c) > 0 && c[0] == "list-sessions" {
 			t.Errorf("did not expect list-sessions when sessions.json corrupt; got %v", mock.Calls)
@@ -168,8 +148,6 @@ func TestOrchestrator_OnlyListsSessionsWhenIndexEmpty(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	// No new-session, no list-panes, no list-sessions either — empty Sessions
-	// returns before listing live names.
 	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0", got)
 	}
@@ -196,7 +174,7 @@ func TestOrchestrator_SkeletonRestoresSingleMissingSession(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{
-		listSessionsOut: "", // no live sessions
+		listSessionsOut: "",
 		listPanesOut:    "0:0",
 	}
 	mock := &mockCommander{RunFunc: rf.run}
@@ -212,7 +190,6 @@ func TestOrchestrator_SkeletonRestoresSingleMissingSession(t *testing.T) {
 	if got := len(findAllCalls(mock.Calls, "set-environment")); got != 1 {
 		t.Errorf("set-environment calls = %d, want 1", got)
 	}
-	// One @portal-skeleton- marker for the single live pane.
 	wantMarker := "@portal-skeleton-" + state.SanitizePaneKey("work", 0, 0)
 	found := false
 	for _, c := range mock.Calls {
@@ -237,7 +214,6 @@ func TestOrchestrator_SilentlySkipsLiveSession(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{
-		// Live session named "work" already exists.
 		listSessionsOut: "work|1|0|",
 	}
 	mock := &mockCommander{RunFunc: rf.run}
@@ -338,12 +314,6 @@ func TestOrchestrator_LogsAndSkipsZeroPaneWindow(t *testing.T) {
 	}
 }
 
-// TestOrchestrator_NoGeometrySummaryForZeroPaneSession locks the phase-B
-// criterion (task 5-4) that a session rejected before geometry replay emits no
-// "geometry complete" summary. A zero-pane-window session is gated out upstream
-// (validateTopology / sr.Restore) so ApplyWindowGeometry is never reached; this
-// asserts that contract end-to-end through Orchestrator.Restore rather than
-// relying on the upstream guard staying in place.
 func TestOrchestrator_NoGeometrySummaryForZeroPaneSession(t *testing.T) {
 	dir := t.TempDir()
 	sess := state.Session{
@@ -368,13 +338,8 @@ func TestOrchestrator_NoGeometrySummaryForZeroPaneSession(t *testing.T) {
 }
 
 func TestOrchestrator_IsolatesPerSessionErrors(t *testing.T) {
-	// First session: "broken" — uses a non-existent state subdir for FIFO
-	// creation so Restore returns an error. Second session: "ok" — succeeds.
 	dir := t.TempDir()
 	stateOK := dir
-	// "broken" will use a different StateDir via a separate Orchestrator? No;
-	// the orchestrator owns one StateDir. Instead drive a per-call hook to
-	// fail "broken"'s new-session call.
 	sessBroken := state.Session{
 		Name: "broken",
 		Windows: []state.Window{
@@ -394,7 +359,6 @@ func TestOrchestrator_IsolatesPerSessionErrors(t *testing.T) {
 		listPanesOut:    "0:0",
 		onCmd: map[string]func(args ...string) (string, error){
 			"new-session": func(args ...string) (string, error) {
-				// Fail iff -s is "broken".
 				for i, a := range args {
 					if a == "-s" && i+1 < len(args) && args[i+1] == "broken" {
 						return "", errors.New("new-session boom")
@@ -412,11 +376,9 @@ func TestOrchestrator_IsolatesPerSessionErrors(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	// Two new-session attempts — one failed, one succeeded.
 	if got := len(findAllCalls(mock.Calls, "new-session")); got != 2 {
 		t.Errorf("new-session calls = %d, want 2 (broken + ok)", got)
 	}
-	// The "ok" session's marker must still have been set.
 	wantMarker := "@portal-skeleton-" + state.SanitizePaneKey("ok", 0, 0)
 	foundOK := false
 	for _, c := range mock.Calls {
@@ -446,7 +408,6 @@ func TestOrchestrator_LogsAndReturnsNilWhenListSessionsFails(t *testing.T) {
 	writeValidIndex(t, dir, []state.Session{sess})
 
 	rf := &orchestratorRunFunc{
-		// Malformed line — ListSessions fails parsing.
 		listSessionsOut: "malformed-line",
 	}
 	mock := &mockCommander{RunFunc: rf.run}
@@ -456,7 +417,6 @@ func TestOrchestrator_LogsAndReturnsNilWhenListSessionsFails(t *testing.T) {
 		t.Fatalf("Restore returned error: %v", err)
 	}
 
-	// No new-session attempts — list-sessions failure aborts.
 	if got := len(findAllCalls(mock.Calls, "new-session")); got != 0 {
 		t.Errorf("new-session calls = %d, want 0 when list-sessions fails", got)
 	}
@@ -491,15 +451,11 @@ func TestOrchestrator_ReturnsNilWhenEverySessionErrors(t *testing.T) {
 		t.Fatalf("Restore returned error %v, expected nil even when every session errors", err)
 	}
 
-	// Both new-sessions still attempted.
 	if got := len(findAllCalls(mock.Calls, "new-session")); got != 2 {
 		t.Errorf("new-session calls = %d, want 2 (per-session isolation)", got)
 	}
 }
 
-// skeletonSummaryLine returns the single "skeleton complete" INFO line the
-// sink recorded, or "" if none was emitted. Fails the test if more than one
-// such line was recorded (the spec mandates exactly one per restore cycle).
 func skeletonSummaryLine(t *testing.T, sink *captureSink) string {
 	t.Helper()
 	var found []string
@@ -519,9 +475,6 @@ func skeletonSummaryLine(t *testing.T, sink *captureSink) string {
 
 func TestOrchestrator_EmitsSkeletonCompleteSummaryAfterRestoringSessions(t *testing.T) {
 	dir := t.TempDir()
-	// Two restorable sessions: "work" (1 window / 1 pane) and "side"
-	// (2 windows: 2 panes + 1 pane = 3 panes). Restored totals must be
-	// sessions=2, windows=3, panes=4.
 	sessions := []state.Session{
 		{
 			Name: "work",
@@ -579,7 +532,6 @@ func TestOrchestrator_SkeletonSummaryExcludesLiveSkippedSession(t *testing.T) {
 				{Index: 0, CWD: "/work", ScrollbackFile: "scrollback/work__0.0.bin", Active: true},
 			}},
 		}},
-		// "live" already exists in tmux — must be excluded from all counts.
 		{Name: "live", Windows: []state.Window{
 			{Index: 0, Name: "main", Panes: []state.Pane{
 				{Index: 0, CWD: "/live", ScrollbackFile: "scrollback/live__0.0.bin"},
@@ -654,9 +606,7 @@ func TestOrchestrator_SkeletonSummaryExcludesInvalidTopologySessions(t *testing.
 				{Index: 0, CWD: "/work", ScrollbackFile: "scrollback/work__0.0.bin", Active: true},
 			}},
 		}},
-		// zero windows — invalid topology, excluded.
 		{Name: "nowin", Windows: []state.Window{}},
-		// a window with zero panes — invalid topology, excluded.
 		{Name: "nopane", Windows: []state.Window{
 			{Index: 0, Name: "main", Panes: []state.Pane{}},
 		}},
@@ -723,13 +673,11 @@ func TestOrchestrator_SkeletonSummaryExcludesRestoreErroredSessionButKeepsWarn(t
 	if line == "" {
 		t.Fatalf("expected one skeleton-complete summary; sink body:\n%s", sink.Body())
 	}
-	// Only "ok" was restored: sessions=1, windows=1, panes=1.
 	for _, want := range []string{"sessions=1", "windows=1", "panes=1"} {
 		if !strings.Contains(line, want) {
 			t.Errorf("summary %q missing %q (errored session must be excluded)", line, want)
 		}
 	}
-	// The per-session WARN for "broken" must still fire.
 	body := sink.Body()
 	if !strings.Contains(body, "WARN") || !strings.Contains(body, "broken") {
 		t.Errorf("expected per-session WARN for broken session; body:\n%s", body)
@@ -806,16 +754,6 @@ func TestOrchestrator_EmitsNoSkeletonSummaryOnCorruptIndex(t *testing.T) {
 }
 
 func TestOrchestrator_AlwaysRunsApplySkeletonMarkersAfterApplyWindowGeometry(t *testing.T) {
-	// ApplyWindowGeometry never fails the orchestrator (it returns void).
-	// Markers must always run after geometry — drive a session with a layout
-	// that fails (forcing fallback) and assert the call ordering. After the
-	// 7-9 re-query rework only ONE list-panes call exists per session — the
-	// arm phase queries it, then threads the resulting []tmux.PaneCoord
-	// through to ApplyWindowGeometry and ApplySkeletonMarkers (neither of
-	// which calls list-panes themselves). Expected ordering:
-	//   new-session → list-panes (arm) → respawn-pane → select-layout → set-option
-	// The invariant under test is that geometry's first call (select-layout)
-	// runs before markers' first call (set-option).
 	dir := t.TempDir()
 	sess := state.Session{
 		Name: "work",
@@ -831,8 +769,6 @@ func TestOrchestrator_AlwaysRunsApplySkeletonMarkersAfterApplyWindowGeometry(t *
 		listPanesOut:    "0:0",
 		onCmd: map[string]func(args ...string) (string, error){
 			"select-layout": func(args ...string) (string, error) {
-				// Fail saved layout and tiled fallback alike, exercising the
-				// full geometry failure-tolerance path.
 				return "", errors.New("layout failed")
 			},
 		},

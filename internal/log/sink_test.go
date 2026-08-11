@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-// fixedClock returns a nowFunc that yields a controllable instant. The returned
-// setter advances the clock so date-change behaviour is deterministic.
 func fixedClock(t *testing.T, initial time.Time) (set func(time.Time)) {
 	t.Helper()
 	cur := initial
@@ -32,8 +30,6 @@ func fixedClock(t *testing.T, initial time.Time) (set func(time.Time)) {
 	}
 }
 
-// statDevIno returns the (Dev, Ino) of path, following symlinks. Fails the test
-// on a stat error so the assertion is unambiguous.
 func statDevIno(t *testing.T, path string) (uint64, uint64) {
 	t.Helper()
 	info, err := os.Stat(path)
@@ -68,7 +64,6 @@ func TestRotatingSink_FirstHandleCreatesDayFileViaExclusive(t *testing.T) {
 		t.Errorf("day file contents = %q, want %q", string(b), "line one\n")
 	}
 
-	// The portal.log symlink must point at today's file.
 	target, err := os.Readlink(filepath.Join(dir, "portal.log"))
 	if err != nil {
 		t.Fatalf("readlink portal.log: %v", err)
@@ -123,15 +118,9 @@ func TestRotatingSink_ReopensOnSameDayInodeMismatchWithoutSweeps(t *testing.T) {
 	if _, err := s.Write([]byte("before\n")); err != nil {
 		t.Fatalf("first Write: %v", err)
 	}
-	// The first-ever write is the first-of-day Handle and fires one sweep (PART 1).
-	// Record that baseline; the same-day inode mismatch below must add NO further
-	// sweep — only the FIRST-EVER branch is a sweep trigger, not a same-day reopen.
 	baselineSweeps := sweeps
 	origIno := s.ino
 
-	// Replace today's file out from under the open fd with a brand-new inode,
-	// and swing the symlink to it (mimics a peer's size-cap rotation onto a new
-	// same-day file). The open fd now points at an orphaned inode.
 	dayPath := filepath.Join(dir, "portal.log.2026-05-29")
 	if err := os.Remove(dayPath); err != nil {
 		t.Fatalf("remove day file: %v", err)
@@ -153,11 +142,9 @@ func TestRotatingSink_ReopensOnSameDayInodeMismatchWithoutSweeps(t *testing.T) {
 	if sweeps != baselineSweeps {
 		t.Errorf("day-roll sweeps ran %d times across the same-day inode mismatch; want %d (mismatch reopen must not sweep)", sweeps, baselineSweeps)
 	}
-	// The post-reopen fd's inode must match the live file.
 	if s.ino != newIno {
 		t.Errorf("sink inode = %d after reopen, want live inode %d", s.ino, newIno)
 	}
-	// "after" must have landed in the live (reopened) file, not the orphan.
 	b, err := os.ReadFile(dayPath)
 	if err != nil {
 		t.Fatalf("read live day file: %v", err)
@@ -181,12 +168,8 @@ func TestRotatingSink_RecreatesDayFileWhenSymlinkTargetENOENT(t *testing.T) {
 	if _, err := s.Write([]byte("before\n")); err != nil {
 		t.Fatalf("first Write: %v", err)
 	}
-	// The first-ever write is the first-of-day Handle and fires one sweep (PART 1).
-	// The ENOENT mid-day reopen below must add NO further sweep — it is a same-day
-	// recovery, not a date change.
 	baselineSweeps := sweeps
 
-	// Unlink today's file entirely: stat(symlink) now yields ENOENT.
 	dayPath := filepath.Join(dir, "portal.log.2026-05-29")
 	if err := os.Remove(dayPath); err != nil {
 		t.Fatalf("remove day file: %v", err)
@@ -199,7 +182,6 @@ func TestRotatingSink_RecreatesDayFileWhenSymlinkTargetENOENT(t *testing.T) {
 	if sweeps != baselineSweeps {
 		t.Errorf("day-roll sweeps ran %d times across the ENOENT mid-day reopen; want %d (same-day reopen must not sweep)", sweeps, baselineSweeps)
 	}
-	// Day file recreated and "after" landed in it.
 	b, err := os.ReadFile(dayPath)
 	if err != nil {
 		t.Fatalf("read recreated day file: %v", err)
@@ -223,14 +205,10 @@ func TestRotatingSink_OpensNewDayFileAndFlagsSweepsOnDateChange(t *testing.T) {
 	if _, err := s.Write([]byte("day-one\n")); err != nil {
 		t.Fatalf("day-one Write: %v", err)
 	}
-	// The first-ever write IS the first-of-day Handle for this fresh process, so
-	// the day-roll sweeps fire (the gated retention sweep dedupes via the
-	// swept.<today> sentinel; seal-of-past-day is idempotent). See PART 1 fix.
 	if sweeps != 1 {
 		t.Fatalf("sweeps ran %d times on first-ever write; want 1 (first-of-day)", sweeps)
 	}
 
-	// Advance past local midnight.
 	set(time.Date(2026, 5, 30, 0, 0, 1, 0, time.UTC))
 
 	if _, err := s.Write([]byte("day-two\n")); err != nil {
@@ -241,7 +219,6 @@ func TestRotatingSink_OpensNewDayFileAndFlagsSweepsOnDateChange(t *testing.T) {
 		t.Errorf("day-roll sweeps ran %d times after a date change; want 2 (first-of-day + roll)", sweeps)
 	}
 
-	// New day's file created and written.
 	b2, err := os.ReadFile(filepath.Join(dir, "portal.log.2026-05-30"))
 	if err != nil {
 		t.Fatalf("read day-two file: %v", err)
@@ -249,7 +226,6 @@ func TestRotatingSink_OpensNewDayFileAndFlagsSweepsOnDateChange(t *testing.T) {
 	if string(b2) != "day-two\n" {
 		t.Errorf("day-two file = %q, want %q", string(b2), "day-two\n")
 	}
-	// Day-one's file is unchanged (not appended to after the roll).
 	b1, err := os.ReadFile(filepath.Join(dir, "portal.log.2026-05-29"))
 	if err != nil {
 		t.Fatalf("read day-one file: %v", err)
@@ -257,7 +233,6 @@ func TestRotatingSink_OpensNewDayFileAndFlagsSweepsOnDateChange(t *testing.T) {
 	if string(b1) != "day-one\n" {
 		t.Errorf("day-one file = %q, want %q (untouched after roll)", string(b1), "day-one\n")
 	}
-	// Symlink follows today's file.
 	target, err := os.Readlink(filepath.Join(dir, "portal.log"))
 	if err != nil {
 		t.Fatalf("readlink: %v", err)
@@ -273,9 +248,6 @@ func TestRotatingSink_FallsBackToAppendOnEEXISTWhenLosingCreateRace(t *testing.T
 
 	dir := t.TempDir()
 
-	// A peer process already created today's file (won the create race) and
-	// wrote a line. Our sink's first-of-day O_CREAT|O_EXCL must fail EEXIST and
-	// fall back to O_APPEND, preserving the peer's line.
 	dayPath := filepath.Join(dir, "portal.log.2026-05-29")
 	if err := os.WriteFile(dayPath, []byte("peer-line\n"), 0o600); err != nil {
 		t.Fatalf("seed peer file: %v", err)
@@ -324,7 +296,6 @@ func TestRotatingSink_RaceFreeUnderConcurrentWrite(t *testing.T) {
 	}
 	wg.Wait()
 
-	// All lines accounted for (locked critical section serialises writes).
 	b, err := os.ReadFile(filepath.Join(dir, "portal.log.2026-05-29"))
 	if err != nil {
 		t.Fatalf("read day file: %v", err)
@@ -346,10 +317,6 @@ func TestRotatingSink_MigratesLegacyRegularFilePortalLogToSymlinkOnReopen(t *tes
 
 	dir := t.TempDir()
 
-	// Pre-migration slate: a regular-file portal.log plus a single portal.log.old,
-	// exactly what the old logger left behind. The first write under the new sink
-	// must run the migration guard (clearing the legacy slate) and then swing
-	// portal.log into a symlink — guard + swing composing correctly.
 	link := filepath.Join(dir, "portal.log")
 	if err := os.WriteFile(link, []byte("legacy regular log\n"), 0o600); err != nil {
 		t.Fatalf("seed legacy regular-file portal.log: %v", err)
@@ -366,8 +333,6 @@ func TestRotatingSink_MigratesLegacyRegularFilePortalLogToSymlinkOnReopen(t *tes
 		t.Fatalf("Write: %v", err)
 	}
 
-	// portal.log must now be a symlink (NOT the legacy regular file) pointing at
-	// today's day file.
 	info, err := os.Lstat(link)
 	if err != nil {
 		t.Fatalf("lstat portal.log after reopen: %v", err)
@@ -383,12 +348,10 @@ func TestRotatingSink_MigratesLegacyRegularFilePortalLogToSymlinkOnReopen(t *tes
 		t.Errorf("symlink target = %q, want portal.log.2026-05-29", target)
 	}
 
-	// The legacy portal.log.old must have been removed by the guard.
 	if _, err := os.Lstat(oldPath); !os.IsNotExist(err) {
 		t.Errorf("portal.log.old still present after reopen (lstat err = %v); want removed by guard", err)
 	}
 
-	// The write landed in the fresh day file, not the deleted legacy regular file.
 	b, err := os.ReadFile(filepath.Join(dir, "portal.log.2026-05-29"))
 	if err != nil {
 		t.Fatalf("read day file: %v", err)
@@ -398,20 +361,12 @@ func TestRotatingSink_MigratesLegacyRegularFilePortalLogToSymlinkOnReopen(t *tes
 	}
 }
 
-// TestRotatingSink_FirstEverWriteRunsGatedRetentionSweep pins PART 1: the
-// first-ever write of a fresh (short-lived OR just-started) process IS its
-// first-of-day Handle, so it must fire the gated retention sweep. An aged-out
-// rotated file (date < cutoff) is deleted and the single-winner sentinel
-// portal.log.swept.<today> is created — the spec § Retention "first Handle of
-// each calendar date" trigger, which for a fresh process is its process: start
-// line, not a within-process date advance.
 func TestRotatingSink_FirstEverWriteRunsGatedRetentionSweep(t *testing.T) {
 	fixedClock(t, mustDate(2026, 5, 30))
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
 
 	dir := t.TempDir()
 
-	// cutoff on 2026-05-30 with 30-day retention is 2026-04-30; this predates it.
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 
 	s := newRotatingSink(dir, defaultRotateSize)
@@ -430,12 +385,6 @@ func TestRotatingSink_FirstEverWriteRunsGatedRetentionSweep(t *testing.T) {
 	}
 }
 
-// TestRotatingSink_SecondFreshSinkSameDayDoesNotResweep pins PART 1's
-// single-winner dedupe: a SECOND fresh sink the same day (the swept.<today>
-// sentinel already exists from the first winner) loses the O_EXCL gate, so its
-// first-ever write's sweep no-ops — it does NOT re-delete an already-deleted
-// file nor re-create the sentinel. This is what makes firing the sweep on every
-// fresh startup safe under the reboot-morning crowd.
 func TestRotatingSink_SecondFreshSinkSameDayDoesNotResweep(t *testing.T) {
 	fixedClock(t, mustDate(2026, 5, 30))
 	t.Setenv("PORTAL_LOG_RETENTION_DAYS", "30")
@@ -443,7 +392,6 @@ func TestRotatingSink_SecondFreshSinkSameDayDoesNotResweep(t *testing.T) {
 	dir := t.TempDir()
 	old := touchFile(t, dir, "portal.log.2026-01-01")
 
-	// First fresh sink wins the gate, sweeps, deletes old, creates the sentinel.
 	s1 := newRotatingSink(dir, defaultRotateSize)
 	t.Cleanup(func() { _ = s1.close() })
 	if _, err := s1.Write([]byte("winner\n")); err != nil {
@@ -453,14 +401,11 @@ func TestRotatingSink_SecondFreshSinkSameDayDoesNotResweep(t *testing.T) {
 		t.Fatalf("first winner did not delete the aged file; test precondition unmet")
 	}
 
-	// Capture the sentinel's identity so we can prove the loser does not recreate it.
 	sentinel := sweptSentinelFile(dir, "2026-05-30")
 	sentinelIno := mustIno(t, sentinel)
 
-	// Re-seed a NEW aged-out file: if the loser re-ran the sweep it would delete this.
 	resed := touchFile(t, dir, "portal.log.2026-01-02")
 
-	// Second fresh sink the same day: sentinel present => gate lost => sweep no-ops.
 	s2 := newRotatingSink(dir, defaultRotateSize)
 	t.Cleanup(func() { _ = s2.close() })
 	if _, err := s2.Write([]byte("loser\n")); err != nil {
@@ -475,20 +420,10 @@ func TestRotatingSink_SecondFreshSinkSameDayDoesNotResweep(t *testing.T) {
 	}
 }
 
-// TestRotatingSink_FirstWriteCreatesNonExistentStateDir pins the first-run
-// regression: log.Init runs in main BEFORE bootstrap's state.EnsureDir, so on a
-// first-ever run the state dir does not exist yet. The first Write must create
-// the state dir, the day file, and the portal.log symlink — the record (e.g.
-// process: start) lands in the FILE, not on stderr. Without openDayFile's
-// MkdirAll the O_CREATE|O_EXCL open fails ENOENT, the probe fails, and Init
-// falls back to the stderr handler — leaking lifecycle markers to the user's
-// terminal while portal.log is never created.
 func TestRotatingSink_FirstWriteCreatesNonExistentStateDir(t *testing.T) {
 	day := time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC)
 	fixedClock(t, day)
 
-	// A non-existent subpath of t.TempDir() — the state dir as it is on a
-	// first-ever run, before bootstrap's EnsureDir has created it.
 	dir := filepath.Join(t.TempDir(), "state-not-created-yet")
 	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("test precondition: %s must not exist yet (stat err = %v)", dir, err)
@@ -501,14 +436,12 @@ func TestRotatingSink_FirstWriteCreatesNonExistentStateDir(t *testing.T) {
 		t.Fatalf("Write to non-existent state dir: %v", err)
 	}
 
-	// The state dir must now exist.
 	if info, err := os.Stat(dir); err != nil {
 		t.Fatalf("state dir not created by first Write: %v", err)
 	} else if !info.IsDir() {
 		t.Fatalf("state dir path is not a directory: mode %v", info.Mode())
 	}
 
-	// The day file must exist and contain the record (NOT stderr).
 	dayPath := filepath.Join(dir, "portal.log.2026-05-29")
 	b, err := os.ReadFile(dayPath)
 	if err != nil {
@@ -518,7 +451,6 @@ func TestRotatingSink_FirstWriteCreatesNonExistentStateDir(t *testing.T) {
 		t.Errorf("day file = %q, want %q (record must land in the file, not stderr)", string(b), "process: start\n")
 	}
 
-	// The portal.log symlink must point at today's day file.
 	target, err := os.Readlink(filepath.Join(dir, "portal.log"))
 	if err != nil {
 		t.Fatalf("readlink portal.log: %v", err)
@@ -528,13 +460,6 @@ func TestRotatingSink_FirstWriteCreatesNonExistentStateDir(t *testing.T) {
 	}
 }
 
-// TestRotatingSink_DayRollFiresOutsideWriteCriticalSection pins the deadlock
-// fix (the 2026-07-06 daemon midnight freeze): the day-roll callback must run
-// AFTER Write's critical section, so a callback that re-enters Write — as the
-// real sweeps do via their rotateLogger breadcrumbs — completes instead of
-// self-deadlocking on s.mu. It also pins the callback's today argument and the
-// ordering guarantee: the record that triggered the roll lands in the new
-// day's file BEFORE the callback's re-entrant record.
 func TestRotatingSink_DayRollFiresOutsideWriteCriticalSection(t *testing.T) {
 	set := fixedClock(t, mustDate(2026, 5, 29))
 
@@ -545,14 +470,11 @@ func TestRotatingSink_DayRollFiresOutsideWriteCriticalSection(t *testing.T) {
 	var rolls []string
 	s.dayRoll = func(today string) {
 		rolls = append(rolls, today)
-		// Re-enter Write exactly as a sweep breadcrumb does through rotateLogger.
 		if _, err := s.Write([]byte("sweep-breadcrumb\n")); err != nil {
 			t.Errorf("re-entrant Write from dayRoll: %v", err)
 		}
 	}
 
-	// Each Write runs in a goroutine with a deadline so a regression (dayRoll
-	// fired under s.mu) fails fast instead of wedging the whole test binary.
 	write := func(line string) {
 		t.Helper()
 		done := make(chan struct{})
@@ -577,8 +499,6 @@ func TestRotatingSink_DayRollFiresOutsideWriteCriticalSection(t *testing.T) {
 		t.Errorf("dayRoll fired with dates %v, want %v", rolls, want)
 	}
 
-	// The triggering record precedes the re-entrant sweep record in the new
-	// day's file: the roll fires only after the crossing write completes.
 	b, err := os.ReadFile(filepath.Join(dir, "portal.log.2026-05-30"))
 	if err != nil {
 		t.Fatalf("read day-two file: %v", err)
@@ -588,12 +508,6 @@ func TestRotatingSink_DayRollFiresOutsideWriteCriticalSection(t *testing.T) {
 	}
 }
 
-// TestRotatingSink_ProbeQueuesFirstOfDayRollForFirstWrite pins the breadcrumb
-// half of the fix: probe (which Init runs BEFORE installing the configured
-// handler) must NOT fire the day-roll sweeps — it queues the roll, and the
-// first Write (process: start in production) fires it. Firing at probe time
-// would route the sweep breadcrumbs to the pre-Init stderr default and lose
-// them from portal.log.
 func TestRotatingSink_ProbeQueuesFirstOfDayRollForFirstWrite(t *testing.T) {
 	fixedClock(t, mustDate(2026, 5, 29))
 
@@ -619,7 +533,6 @@ func TestRotatingSink_ProbeQueuesFirstOfDayRollForFirstWrite(t *testing.T) {
 	}
 }
 
-// mustIno returns the inode of path, following symlinks.
 func mustIno(t *testing.T, path string) uint64 {
 	t.Helper()
 	_, ino := statDevIno(t, path)
