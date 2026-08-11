@@ -46,12 +46,10 @@ func (f fakeThemeSource) Resolve(theme.Enumeration, theme.RawKeys) (theme.Resolu
 	}, nil
 }
 
-// The slug comes out of the keys through the same collapse the production
-// adapter runs, so the record names the slug that adapter would have loaded.
-func (f fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error) {
-	setting, _ := theme.ResolveSetting(keys)
-	slug := setting.Slug(slot)
-	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug, Theme: f.palette}, nil
+// A fixture has nowhere to record a load, and the error-only return carries no
+// palette, so the frame stays whatever the answering methods reported.
+func (f fakeThemeSource) LoadSlot(theme.Enumeration, theme.Slot, theme.RawKeys) error {
+	return nil
 }
 
 // Rejected rows are left alone deliberately: a rejected row carrying a palette

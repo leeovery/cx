@@ -28,12 +28,14 @@ func (e DirThemeSource) Resolve(enumeration Enumeration, keys RawKeys) (Resoluti
 	return e.Loader.ResolveNominationFrom(enumeration, setting)
 }
 
-// ResolveSlot runs the same resolution for one slot against the retained
-// enumeration; a slot the user never set resolves the shipped default rather
-// than an empty slug. It reads no directory, for Resolve's reason.
-func (e DirThemeSource) ResolveSlot(enumeration Enumeration, slot Slot, keys RawKeys) (SlotResolution, error) {
-	setting, _ := ResolveSetting(keys)
-	return e.Loader.ResolveSlot(enumeration, slot, setting.Slug(slot))
+// LoadSlot runs the same resolution for one slot against the retained
+// enumeration and records the load; a slot the user never set loads the shipped
+// default rather than an empty slug. Only the error is returned: the palette
+// belongs to the nomination Resolve hands back, and a second copy of it would be
+// free to disagree. It reads no directory, for Resolve's reason.
+func (e DirThemeSource) LoadSlot(enumeration Enumeration, slot Slot, keys RawKeys) error {
+	_, err := e.Loader.ResolveSlot(enumeration, slot, SlugForSlot(keys, slot))
+	return err
 }
 
 func (e DirThemeSource) assembler() Assembler {

@@ -329,15 +329,12 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		if len(resolution.Slots) != len(fx.themeSlots) {
 			t.Errorf("Resolve returned %d slot(s), want the declared %d", len(resolution.Slots), len(fx.themeSlots))
 		}
-		res, err := seam.ResolveSlot(enumeration, theme.SlotLight, theme.RawKeys{Light: "nord"})
-		if err != nil {
-			t.Fatalf("ResolveSlot returned %v", err)
+		keys := theme.RawKeys{Light: "nord"}
+		if err := seam.LoadSlot(enumeration, theme.SlotLight, keys); err != nil {
+			t.Errorf("LoadSlot returned %v, want no error — a fixture's load reads nothing and cannot fail", err)
 		}
-		if res.Slot != theme.SlotLight || res.Requested != "nord" || res.Resolved != "nord" {
-			t.Errorf("ResolveSlot answered slot=%v requested=%q resolved=%q, want the light slot and %q on both slugs", res.Slot, res.Requested, res.Resolved, "nord")
-		}
-		if res.Theme != palette {
-			t.Errorf("ResolveSlot answered canvas %q, want the injected palette's %q — the fourth method must report the same palette as the other three", res.Theme.Canvas.Value, palette.Canvas.Value)
+		if got := theme.SlugForSlot(keys, theme.SlotLight); got != "nord" {
+			t.Errorf("the light slot collapses to %q, want %q — the slug the load names", got, "nord")
 		}
 		if _, err := os.Stat(missing); !os.IsNotExist(err) {
 			t.Errorf("the poisoned themes directory %s now exists (%v); something on the render path created it", missing, err)

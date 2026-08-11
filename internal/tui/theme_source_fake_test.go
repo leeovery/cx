@@ -17,8 +17,7 @@ type fakeThemeSource struct {
 
 	resolution theme.Resolution
 
-	// Returned by both resolvers: Resolve alongside the declared resolution,
-	// ResolveSlot with a zero SlotResolution.
+	// Returned by both Resolve, alongside the declared resolution, and LoadSlot.
 	err error
 
 	opens          int
@@ -54,25 +53,9 @@ func (e *fakeThemeSource) Resolve(_ theme.Enumeration, keys theme.RawKeys) (them
 	return e.resolution, e.err
 }
 
-// The fallback branch is the live one on a conversion. Answering from the
-// nomination keeps a fake-driven conversion on a real palette — a zero Theme
-// would render through lipgloss's no-colour sentinel.
-func (e *fakeThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error) {
-	setting, _ := theme.ResolveSetting(keys)
-	slug := setting.Slug(slot)
-	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: slug})
-	if e.err != nil {
-		return theme.SlotResolution{}, e.err
-	}
-	for _, declared := range e.resolution.Slots {
-		if declared.Slot == slot {
-			return declared, nil
-		}
-	}
-	return theme.SlotResolution{
-		Slot:      slot,
-		Requested: slug,
-		Resolved:  slug,
-		Theme:     e.resolution.Nomination.Select(memberForSlot(slot)),
-	}, nil
+// The slug is recorded rather than answered with, so a test can see which slot
+// the commit asked for and on which slug.
+func (e *fakeThemeSource) LoadSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) error {
+	e.slotLoads = append(e.slotLoads, slotLoad{slot: slot, slug: theme.SlugForSlot(keys, slot)})
+	return e.err
 }

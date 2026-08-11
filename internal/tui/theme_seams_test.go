@@ -28,10 +28,9 @@ func (f fixtureThemeSource) Resolve(theme.Enumeration, theme.RawKeys) (theme.Res
 	return f.resolution, nil
 }
 
-func (f fixtureThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, keys theme.RawKeys) (theme.SlotResolution, error) {
-	setting, _ := theme.ResolveSetting(keys)
-	slug := setting.Slug(slot)
-	return theme.SlotResolution{Slot: slot, Requested: slug, Resolved: slug}, nil
+// A fixture records nothing anywhere, so the load lands nowhere and cannot fail.
+func (f fixtureThemeSource) LoadSlot(theme.Enumeration, theme.Slot, theme.RawKeys) error {
+	return nil
 }
 
 func TestThemeSourceIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
@@ -97,18 +96,24 @@ func TestThemeSourceResolvesFromTheRawKeys(t *testing.T) {
 	}
 }
 
-func TestThemeSourceResolvesASlotFromTheRawKeys(t *testing.T) {
+func TestThemeSourceLoadsASlotFromTheRawKeys(t *testing.T) {
+	loader := theme.NewSilentLoader()
 	var source tui.ThemeSource = theme.DirThemeSource{
-		Loader: theme.NewSilentLoader(),
+		Loader: loader,
 		Dir:    filepath.Join(t.TempDir(), "themes"),
 	}
+	keys := theme.RawKeys{Light: "nord"}
 
 	enumeration, _ := source.Open(theme.RawKeys{})
-	slot, err := source.ResolveSlot(enumeration, theme.SlotDark, theme.RawKeys{Light: "nord"})
+	if err := source.LoadSlot(enumeration, theme.SlotDark, keys); err != nil {
+		t.Fatalf("LoadSlot: %v", err)
+	}
+
+	// The record the seam narrows away, taken from the rule body it runs.
+	slot, err := loader.ResolveSlot(enumeration, theme.SlotDark, theme.SlugForSlot(keys, theme.SlotDark))
 	if err != nil {
 		t.Fatalf("ResolveSlot: %v", err)
 	}
-
 	if slot.Requested != theme.DefaultDarkSlug {
 		t.Errorf("the unset dark slot requested %q, want the shipped default %q", slot.Requested, theme.DefaultDarkSlug)
 	}

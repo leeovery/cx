@@ -94,6 +94,15 @@ func (s Setting) Slug(slot Slot) string {
 	}
 }
 
+// SlugForSlot is the collapse from the persisted raw keys to the slug one slot
+// nominates: the tiebreak a constant wins, then the shipped default substituted
+// for an unset slot. Every surface that needs a single slot's slug goes through
+// it, so the two halves cannot be paired anywhere else and drift.
+func SlugForSlot(keys RawKeys, slot Slot) string {
+	setting, _ := ResolveSetting(keys)
+	return setting.Slug(slot)
+}
+
 // InForceKey is one persisted value Portal is actually reading, and where in the
 // setting it sits. The value is as persisted, never validated, resolved or
 // defaulted: a value the charset check rejects is still in force and still has

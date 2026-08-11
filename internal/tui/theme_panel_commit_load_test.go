@@ -556,7 +556,7 @@ func TestCommitSlotLoad_SharesTheResolverBody(t *testing.T) {
 	for _, slug := range []string{"nord", "ghostly", conversionConstant, "nope", "../escape"} {
 		t.Run(slug, func(t *testing.T) {
 			keys := theme.RawKeys{Light: slug, Dark: theme.DefaultDarkSlug}
-			one, err := enumerator.ResolveSlot(enumeration, theme.SlotLight, keys)
+			one, err := loader.ResolveSlot(enumeration, theme.SlotLight, theme.SlugForSlot(keys, theme.SlotLight))
 			if err != nil {
 				t.Fatalf("ResolveSlot(%q) returned %v", slug, err)
 			}

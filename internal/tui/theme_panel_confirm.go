@@ -64,16 +64,16 @@ func (m *Model) confirmSlotAssignment() {
 }
 
 // The classification is assigned first and unconditionally — gating it on the
-// load would let a failed palette decide which half is in force. The palette is
-// deliberately discarded: applyCommittedSetting owns the nomination. Never
-// ApplyTheme — the screen keeps previewing the cursor's row.
+// load would let a failed palette decide which half is in force, so the load's
+// error is nothing this site can act on. The newly-live slot's palette stays out
+// of the nomination too: applyCommittedSetting is its single owner, and a second
+// writer would put two sources of truth behind one screen. Never ApplyTheme —
+// the screen keeps previewing the cursor's row.
 func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
 	m.themeState.adoptRetainedReply()
 
 	newlyLive := assigned.Opposite()
-	if _, err := m.themeState.source.ResolveSlot(m.themePanel.enumeration, newlyLive.Slot(), m.themeState.keys); err != nil {
-		return
-	}
+	_ = m.themeState.source.LoadSlot(m.themePanel.enumeration, newlyLive.Slot(), m.themeState.keys)
 }
 
 // Must stay in step with the letters themePanelConfirmKeymap advertises.
