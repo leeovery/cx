@@ -11,7 +11,8 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// Sweep outcomes belong to the clean log component, not to bootstrap.
+// Deliberately a second component in this package: the clean component is
+// shared with internal/state's sweeps so one grep reconstructs them all.
 var cleanLogger = log.For("clean")
 
 const totalSteps = 10

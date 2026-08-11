@@ -7,7 +7,8 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// FIFO-signal outcomes belong to the signal log component, not to bootstrap.
+// Deliberately a second component in this package: FIFO-signal outcomes are
+// grepped as `signal:`, not as bootstrap's.
 var signalLogger = log.For("signal")
 
 // EagerSignalCore writes the hydrate signal byte to every freshly-armed
