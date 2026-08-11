@@ -624,14 +624,14 @@ func TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow(t *testing.T) {
 	rows := []theme.Row{valid, broken}
 
 	deps := newArrowPanelDeps(t, rows, valid.Slug)
-	deps.Capture.ThemeCursor = broken.SortKey()
+	deps.Capture.ThemeCursor = broken.Identity()
 	m := Build(deps)
 	m.termWidth, m.termHeight = geometryTerm(geometryWideW, geometryContentH)
 
 	if broken.Selectable() {
 		t.Fatal("fixture: the seeded row is selectable, so the skip is not exercised")
 	}
-	if themePanelRowIndex(rows, broken.SortKey()) == 1 {
+	if themePanelRowIndex(rows, broken.Identity()) == 1 {
 		t.Fatalf("fixture: the seeded identity resolves to index 1, the rejected row itself")
 	}
 

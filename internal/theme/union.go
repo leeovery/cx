@@ -69,28 +69,45 @@ func (r Row) Selectable() bool {
 	return r.Rejection == nil
 }
 
-// SortKey is the row's ordering value: the slug wherever one exists, else the
-// filename, else the persisted string itself.
+// Identity is what the row IS, whatever order it happens to be listed in: the
+// slug wherever one exists, else the filename, else the persisted string itself.
 //
-// Every row shape yields exactly one non-empty key, which is what makes the order
-// total (see sortRows). The three arms are the identity fields in the one order
-// that leaves no row unplaceable:
+// It is what the badge table keys on and what the panel's cursor anchors to
+// across a recompute, so every row shape must yield exactly one non-empty value —
+// a row identified by nothing is a row that cannot be found again. The three arms
+// are the identity fields in the one order that leaves no row unidentified:
 //
 //   - The slug, for every row that has one — including a `reserved name` row,
-//     whose slug is valid and identical to the built-in's it collides with, so
-//     sorting on it stands the row explaining the collision immediately beside
-//     the thing it collides with even though that row is labelled by its
-//     filename. A `not found` persisted row sorts by its slug too.
+//     whose slug is valid and identical to the built-in's it collides with, and a
+//     `not found` persisted row.
 //   - The filename, for the one row shape that has no slug: a `bad name` file,
 //     since names are rejected rather than normalised.
 //   - The persisted string, for a charset-rejected persisted value, which has
-//     neither a slug nor a file and so has nothing else the comparator could
-//     place it by. Display truncation is a render concern and never reaches this
-//     key.
+//     neither a slug nor a file. Display truncation is a render concern and never
+//     reaches this value.
+//
+// It is not an ordering value: what a row is and where it sits are separate
+// questions, and identity must hold still while the ordering is free to change —
+// see SortKey.
+func (r Row) Identity() string {
+	return cmp.Or(r.Slug, r.Filename, r.Persisted)
+}
+
+// SortKey is the row's ordering value, which today is the row's Identity.
+//
+// The two coincide by choice rather than by necessity — listing rows
+// alphabetically by what each one is happens to be what the panel wants — and may
+// diverge: ordering by label, or standing the built-ins first, would change this
+// value alone and leave identity untouched.
+//
+// Every row therefore yields exactly one non-empty key, which is what makes the
+// order total (see sortRows). Sorting a `reserved name` row on its slug stands the
+// row explaining the collision immediately beside the thing it collides with, even
+// though that row is labelled by its filename.
 //
 // It is not derived from Label, and Label is not derived from it — see Label.
 func (r Row) SortKey() string {
-	return cmp.Or(r.Slug, r.Filename, r.Persisted)
+	return r.Identity()
 }
 
 // Label is the row's display value, deliberately a separate value from SortKey

@@ -344,6 +344,7 @@ var wantExports = []string{
 	"Result",
 	"Row",
 	"Row.BadgeKey",
+	"Row.Identity",
 	"Row.Label",
 	"Row.Selectable",
 	"Row.SortKey",

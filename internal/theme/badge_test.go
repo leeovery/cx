@@ -321,7 +321,7 @@ func badgeSource(t *testing.T) parsedThemeSource {
 // map by: its IDENTITY — the slug where one exists, else the filename, else the
 // raw persisted string.
 //
-// It is the same value SortKey derives from, and that is what makes the
+// It is the row's Identity, and that is what makes the
 // charset-rejected persisted row — keyed on its raw string, having neither slug
 // nor file — match the badge keyed on the same string. A key derived any other
 // way would drop the badge on precisely the row the union rule minted to carry it.
@@ -367,6 +367,9 @@ func TestBadgeKey_MatchesRowIdentity(t *testing.T) {
 			if got := tt.row.BadgeKey(); got != tt.want {
 				t.Errorf("BadgeKey() = %q, want %q", got, tt.want)
 			}
+			if got, want := tt.row.BadgeKey(), tt.row.Identity(); got != want {
+				t.Errorf("BadgeKey() = %q, want the row's identity %q", got, want)
+			}
 		})
 	}
 }
@@ -395,6 +398,9 @@ func TestBadgeKey_ReservedNameRowHasNone(t *testing.T) {
 
 		if got := row.BadgeKey(); got != "" {
 			t.Errorf("BadgeKey() = %q, want no key — the rejected file is not what is persisted", got)
+		}
+		if got, want := row.Identity(), "nord"; got != want {
+			t.Errorf("Identity() = %q, want %q — the row still IS the slug it collides on", got, want)
 		}
 		if got, want := row.SortKey(), "nord"; got != want {
 			t.Errorf("SortKey() = %q, want %q — the row still sorts beside the built-in it collides with", got, want)

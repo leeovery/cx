@@ -79,11 +79,10 @@ func Badges(slots []SlotResolution) map[string]Badge {
 
 // BadgeKey is the value a Row is looked up in Badges' map by.
 //
-// It is the row's identity — the slug wherever one exists, else the filename,
-// else the raw persisted string — the same value SortKey derives from. That is
-// what makes a charset-rejected persisted row match its badge: the row is keyed
-// on its raw string, having neither a slug nor a file, and the badge is keyed on
-// the same string.
+// It is the row's Identity, and never a value derived from where the row is
+// listed. That is what makes a charset-rejected persisted row match its badge:
+// the row is identified by its raw string, having neither a slug nor a file, and
+// the badge is keyed on the same string.
 //
 // A `reserved name` row is the exception and returns the empty string, so it
 // never carries a badge: its slug is identical to the built-in's by definition —
@@ -103,7 +102,7 @@ func (r Row) BadgeKey() string {
 	if r.Rejection != nil && r.Rejection.Reason == ReasonReservedName {
 		return ""
 	}
-	return r.SortKey()
+	return r.Identity()
 }
 
 // isConstantSetting reports whether these slots are the constant state: the

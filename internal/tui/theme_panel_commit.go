@@ -305,18 +305,17 @@ func (m *Model) recomputeThemePanel() {
 }
 
 // previewedThemeIdentity is the identity of the row the panel is previewing — the
-// value anchorThemePanelCursor matches on, which is Row.SortKey: the slug wherever
-// one exists, else the filename, else the raw persisted string.
+// value anchorThemePanelCursor matches on, which is Row.Identity.
 //
 // The empty string is the anchor's own no-op, and it covers the two shapes that
 // have no identity to preserve: a cursor on nothing at all, and the union shape
-// that carries no key. Both leave the cursor exactly where SetItems left it.
+// that carries no identity. Both leave the cursor exactly where SetItems left it.
 func previewedThemeIdentity(l list.Model) string {
 	row, ok := selectedThemeRow(l)
 	if !ok {
 		return ""
 	}
-	return row.SortKey()
+	return row.Identity()
 }
 
 // applyCommittedSetting re-resolves the mutated setting against the retained

@@ -532,14 +532,13 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 // themePanelRowIndex is the index of the selectable row identified by slug,
 // degrading to the first selectable row and then to zero.
 //
-// The identity is Row.SortKey — the slug wherever one exists, else the filename,
-// else the raw persisted string — the same value the ordering and the badge
-// lookup key on, so a row can be found by exactly what it is listed under. A
-// `reserved name` row shares its key with the built-in it collides with by
-// definition, and the built-in sorts first, so the first match is always the
-// selectable one the slug actually resolved to.
+// The match is on Row.Identity, so a row is found by what it is rather than by
+// where the ordering happens to have put it. A `reserved name` row shares its
+// identity with the built-in it collides with by definition, and the Selectable
+// filter is what picks out the built-in of that pair — the one the slug actually
+// resolved to — rather than the rejected file.
 //
-// The Selectable filter is not redundant with that order. The capture seed
+// That filter also carries a second case. The capture seed
 // (themeState.initialCursor) re-anchors by identity from a string a fixture
 // declares, and fixtures are built from an invalid drop-in and an unreadable
 // themes directory — whose rows are exactly the unselectable ones. A cursor
@@ -552,7 +551,7 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 // alternative to degrading is indexing out of range inside a list the user is
 // looking at.
 func themePanelRowIndex(rows []theme.Row, slug string) int {
-	identified := func(row theme.Row) bool { return row.SortKey() == slug && row.Selectable() }
+	identified := func(row theme.Row) bool { return row.Identity() == slug && row.Selectable() }
 	if at := slices.IndexFunc(rows, identified); at >= 0 {
 		return at
 	}

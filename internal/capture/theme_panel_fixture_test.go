@@ -103,7 +103,7 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 			}
 
 			enumeration, union := deps.ThemeSource.Open(fx.themeKeys)
-			if got, want := rowSortKeys(union.Rows), rowSortKeys(fx.themeUnion.Rows); !slices.Equal(got, want) {
+			if got, want := rowIdentities(union.Rows), rowIdentities(fx.themeUnion.Rows); !slices.Equal(got, want) {
 				t.Errorf("the seam's union lists %v, want the declared %v", got, want)
 			}
 			if got, want := enumeration.DirPath, fx.themeEnumeration.DirPath; got != want {
@@ -113,13 +113,13 @@ func TestPanelFixture_FourInputs(t *testing.T) {
 	}
 }
 
-// rowSortKeys is a union's rows by identity, for comparing a seam's answer
+// rowIdentities is a union's rows by identity, for comparing a seam's answer
 // against a fixture's declaration without comparing palettes (which the fake
 // deliberately rewrites — see newFakeThemeSource).
-func rowSortKeys(rows []theme.Row) []string {
+func rowIdentities(rows []theme.Row) []string {
 	keys := make([]string, 0, len(rows))
 	for _, row := range rows {
-		keys = append(keys, row.SortKey())
+		keys = append(keys, row.Identity())
 	}
 	return keys
 }
@@ -468,10 +468,10 @@ func TestFakeThemeSource_NoIO(t *testing.T) {
 		seam := fx.Deps(palette).ThemeSource
 
 		enumeration, union := seam.Open(fx.themeKeys)
-		if got, want := rowSortKeys(union.Rows), rowSortKeys(fx.themeUnion.Rows); !slices.Equal(got, want) {
+		if got, want := rowIdentities(union.Rows), rowIdentities(fx.themeUnion.Rows); !slices.Equal(got, want) {
 			t.Errorf("Open listed %v, want the declared %v", got, want)
 		}
-		if got, want := rowSortKeys(seam.Reassemble(enumeration, fx.themeKeys).Rows), rowSortKeys(fx.themeUnion.Rows); !slices.Equal(got, want) {
+		if got, want := rowIdentities(seam.Reassemble(enumeration, fx.themeKeys).Rows), rowIdentities(fx.themeUnion.Rows); !slices.Equal(got, want) {
 			t.Errorf("Reassemble listed %v, want the declared %v", got, want)
 		}
 		resolution, err := seam.Resolve(enumeration, theme.Setting{})
