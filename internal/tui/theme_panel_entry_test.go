@@ -15,9 +15,9 @@ import (
 // Written out verbatim rather than read from the production constants — a test
 // that asserts a constant against itself pins nothing.
 const (
-	specNoColorEntryFlash = "theme picker needs colour — NO_COLOR is set"
-	specNarrowEntryFlash  = "terminal too narrow for the theme picker"
-	specShortEntryFlash   = "terminal too short for the theme picker"
+	wantNoColorEntryFlash = "theme picker needs colour — NO_COLOR is set"
+	wantNarrowEntryFlash  = "terminal too narrow for the theme picker"
+	wantShortEntryFlash   = "terminal too short for the theme picker"
 )
 
 const (
@@ -209,8 +209,8 @@ func TestPanelEntry_NoColorBlocked(t *testing.T) {
 
 			m, cmd := pressThemeKeyCmd(t, m)
 
-			requireBlocked(t, m, cmd, specNoColorEntryFlash)
-			requireFlashBandVisible(t, m, specNoColorEntryFlash)
+			requireBlocked(t, m, cmd, wantNoColorEntryFlash)
+			requireFlashBandVisible(t, m, wantNoColorEntryFlash)
 			if rec.opens != 0 {
 				t.Errorf("the blocked t ran %d enumerations, want 0 — the NO_COLOR block is proactive", rec.opens)
 			}
@@ -230,9 +230,9 @@ func TestPanelEntry_FloorBlocked(t *testing.T) {
 		contentH  int
 		wantFlash string
 	}{
-		{name: "too narrow", contentW: themePanelMinWidth - 1, contentH: entryContentH, wantFlash: specNarrowEntryFlash},
-		{name: "too short", contentW: entryContentW, contentH: floor - 1, wantFlash: specShortEntryFlash},
-		{name: "both fail", contentW: themePanelMinWidth - 1, contentH: floor - 1, wantFlash: specNarrowEntryFlash},
+		{name: "too narrow", contentW: themePanelMinWidth - 1, contentH: entryContentH, wantFlash: wantNarrowEntryFlash},
+		{name: "too short", contentW: entryContentW, contentH: floor - 1, wantFlash: wantShortEntryFlash},
+		{name: "both fail", contentW: themePanelMinWidth - 1, contentH: floor - 1, wantFlash: wantNarrowEntryFlash},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m, rec := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
@@ -298,8 +298,8 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 
 		m, cmd := pressThemeKeyCmd(t, m)
 
-		requireBlocked(t, m, cmd, specShortEntryFlash)
-		requireFlashBandVisible(t, m, specShortEntryFlash)
+		requireBlocked(t, m, cmd, wantShortEntryFlash)
+		requireFlashBandVisible(t, m, wantShortEntryFlash)
 		if rec.opens != 1 {
 			t.Errorf("the re-evaluation ran %d enumerations, want exactly 1 — the read happens, then the floor refuses", rec.opens)
 		}
@@ -376,7 +376,7 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 				}
 				return
 			}
-			if got, want := entered.flashText, specEntryFlash(dim); got != want {
+			if got, want := entered.flashText, wantEntryFlash(dim); got != want {
 				t.Errorf("the blocked entry raised %q, want the %v copy %q", got, dim, want)
 			}
 			// Reads production's own selector, so what is asserted here is that the two
@@ -390,11 +390,11 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 
 // Stated here rather than taken from production's own selector: an expectation
 // derived from the code under test asserts nothing about which copy is right.
-func specEntryFlash(dim themePanelDim) string {
+func wantEntryFlash(dim themePanelDim) string {
 	if dim == dimHeight {
-		return specShortEntryFlash
+		return wantShortEntryFlash
 	}
-	return specNarrowEntryFlash
+	return wantNarrowEntryFlash
 }
 
 func mustEntryModel(t *testing.T, contentW, contentH int) Model {
@@ -507,7 +507,7 @@ func TestPanelEntry_BlockedFlashLifecycle(t *testing.T) {
 				contentH:   entryContentH,
 			})
 			m, cmd := pressThemeKeyCmd(t, m)
-			requireBlocked(t, m, cmd, specNoColorEntryFlash)
+			requireBlocked(t, m, cmd, wantNoColorEntryFlash)
 			return m
 		}
 
@@ -537,9 +537,9 @@ func TestPanelEntry_PinnedCopy(t *testing.T) {
 	for _, tc := range []struct {
 		got, want string
 	}{
-		{got: themePanelNoColorFlash, want: specNoColorEntryFlash},
-		{got: themePanelNarrowEntryFlash, want: specNarrowEntryFlash},
-		{got: themePanelShortEntryFlash, want: specShortEntryFlash},
+		{got: themePanelNoColorFlash, want: wantNoColorEntryFlash},
+		{got: themePanelNarrowEntryFlash, want: wantNarrowEntryFlash},
+		{got: themePanelShortEntryFlash, want: wantShortEntryFlash},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("the pinned constant is %q, want %q", tc.got, tc.want)

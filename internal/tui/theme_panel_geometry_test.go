@@ -81,7 +81,7 @@ func TestPanelGeometry_WidthFloor(t *testing.T) {
 
 // Written out here rather than read from the production arithmetic: a floor
 // asserted against whatever the header happens to measure pins nothing.
-const specPanelHeaderRows = 2
+const wantPanelHeaderRows = 2
 
 // The message row is counted although the slot is not reserved when empty, because
 // both of its contenders are non-suppressible: a floor computed without it puts
@@ -94,10 +94,10 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	}
 
 	const listRow, messageRow = 1, 1
-	want := specPanelHeaderRows + footer + listRow + messageRow
+	want := wantPanelHeaderRows + footer + listRow + messageRow
 	if got := themePanelMinHeight(entries, false); got != want {
 		t.Errorf("themePanelMinHeight = %d, want header(%d) + footer(%d) + %d list row + %d message row = %d",
-			got, specPanelHeaderRows, footer, listRow, messageRow, want)
+			got, wantPanelHeaderRows, footer, listRow, messageRow, want)
 	}
 	if got, wantDir := themePanelMinHeight(entries, true), want+1; got != wantDir {
 		t.Errorf("themePanelMinHeight with an unusable directory = %d, want %d — the same composition plus the pinned row", got, wantDir)
@@ -111,7 +111,7 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	if shorterFooter >= footer {
 		t.Fatalf("fixture: the substituted footer is %d rows, not shorter than the panel scope's %d", shorterFooter, footer)
 	}
-	if got, wantShort := themePanelMinHeight(shorter, false), specPanelHeaderRows+shorterFooter+listRow+messageRow; got != wantShort {
+	if got, wantShort := themePanelMinHeight(shorter, false), wantPanelHeaderRows+shorterFooter+listRow+messageRow; got != wantShort {
 		t.Errorf("themePanelMinHeight under a %d-row footer = %d, want %d — the floor reads the MEASURED footer height", shorterFooter, got, wantShort)
 	}
 }
@@ -555,8 +555,8 @@ func TestPanelGeometry_ResizeDoesNotReflowTheBase(t *testing.T) {
 // Written out verbatim rather than read from the production constants — a test
 // that asserts a constant against itself pins nothing.
 const (
-	specNarrowClosedFlash = "terminal too narrow — theme picker closed"
-	specShortClosedFlash  = "terminal too short — theme picker closed"
+	wantNarrowClosedFlash = "terminal too narrow — theme picker closed"
+	wantShortClosedFlash  = "terminal too short — theme picker closed"
 )
 
 func geometryBelowWidthFloor() (contentW, contentH int) {
@@ -589,9 +589,9 @@ func TestPanelGeometry_ResizeBelowWidthFloorClosesWithFlash(t *testing.T) {
 
 	m = resizeForTest(t, m, contentW, contentH)
 
-	requireForcedClose(t, m, specNarrowClosedFlash)
-	if got := themePanelNarrowClosedFlash; got != specNarrowClosedFlash {
-		t.Errorf("the pinned constant is %q, want %q", got, specNarrowClosedFlash)
+	requireForcedClose(t, m, wantNarrowClosedFlash)
+	if got := themePanelNarrowClosedFlash; got != wantNarrowClosedFlash {
+		t.Errorf("the pinned constant is %q, want %q", got, wantNarrowClosedFlash)
 	}
 }
 
@@ -606,12 +606,12 @@ func TestPanelGeometry_ResizeBelowHeightFloorClosesWithFlash(t *testing.T) {
 
 	m = resizeForTest(t, m, contentW, contentH)
 
-	requireForcedClose(t, m, specShortClosedFlash)
-	if got := themePanelShortClosedFlash; got != specShortClosedFlash {
-		t.Errorf("the pinned constant is %q, want %q", got, specShortClosedFlash)
+	requireForcedClose(t, m, wantShortClosedFlash)
+	if got := themePanelShortClosedFlash; got != wantShortClosedFlash {
+		t.Errorf("the pinned constant is %q, want %q", got, wantShortClosedFlash)
 	}
-	if got := ansi.Strip(m.View().Content); !strings.Contains(got, specShortClosedFlash) {
-		t.Errorf("the post-close frame carries no %q band:\n%s", specShortClosedFlash, got)
+	if got := ansi.Strip(m.View().Content); !strings.Contains(got, wantShortClosedFlash) {
+		t.Errorf("the post-close frame carries no %q band:\n%s", wantShortClosedFlash, got)
 	}
 }
 
@@ -735,8 +735,8 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if len(lines) != floor {
 			t.Fatalf("the panel rendered %d rows at its floor of %d", len(lines), floor)
 		}
-		if listRow := lines[specPanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
-			t.Errorf("row %d is not the single list row (%q): %q", specPanelHeaderRows, rows[0].Label(), listRow)
+		if listRow := lines[wantPanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
+			t.Errorf("row %d is not the single list row (%q): %q", wantPanelHeaderRows, rows[0].Label(), listRow)
 		}
 		slot := strings.TrimRight(lines[floor-footer-1], " ")
 		if !strings.Contains(slot, themeRowEllipsis) {
@@ -770,8 +770,8 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if got, want := chromeWords(themePanelSlotText(slot)), chromeWords(geometryMessageText()); got != want {
 			t.Errorf("the wrapped slot reads %q, want the whole message %q", got, want)
 		}
-		if listRow := lines[specPanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
-			t.Errorf("row %d is not the single list row (%q): %q", specPanelHeaderRows, rows[0].Label(), listRow)
+		if listRow := lines[wantPanelHeaderRows]; !strings.Contains(listRow, rows[0].Label()) {
+			t.Errorf("row %d is not the single list row (%q): %q", wantPanelHeaderRows, rows[0].Label(), listRow)
 		}
 	})
 }
@@ -811,7 +811,7 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 				if got, want := strings.TrimRight(lines[1], " "), themePanelContentPrefix()+themePanelHeaderLabel; got != want {
 					t.Errorf("the header label row = %q, want %q directly beneath the rule", got, want)
 				}
-				at := specPanelHeaderRows
+				at := wantPanelHeaderRows
 				if dirUnusable {
 					if got, want := strings.TrimRight(lines[at], " "), themePanelContentPrefix()+themePanelDirUnreadable; got != want {
 						t.Errorf("the directory row = %q, want %q", got, want)
@@ -868,7 +868,7 @@ func TestPanelGeometry_RendersAcrossTheCompactBand(t *testing.T) {
 					if got := strings.TrimRight(lines[1], " "); got != themePanelContentPrefix()+themePanelHeaderLabel {
 						t.Errorf("row 1 = %q, want the label directly beneath the rule", got)
 					}
-					body := specPanelHeaderRows + themePanelDirRowHeight(dirUnusable)
+					body := wantPanelHeaderRows + themePanelDirRowHeight(dirUnusable)
 					if got := lines[body]; !strings.Contains(got, rows[0].Label()) {
 						t.Errorf("row %d = %q, want the list row %q", body, got, rows[0].Label())
 					}
@@ -990,7 +990,7 @@ func TestPanelGeometry_HeaderShapeFollowsTheHeight(t *testing.T) {
 		}
 		if got := lines[2]; !strings.Contains(got, rows[0].Label()) {
 			t.Errorf("row 2 = %q, want the first list row %q — the compact header costs %d rows",
-				got, rows[0].Label(), specPanelHeaderRows)
+				got, rows[0].Label(), wantPanelHeaderRows)
 		}
 	})
 }

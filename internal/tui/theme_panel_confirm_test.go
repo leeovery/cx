@@ -812,7 +812,7 @@ func TestSlotConfirm_ForcedCloseCancels(t *testing.T) {
 	contentW, contentH := geometryBelowHeightFloor()
 	m = resizeForTest(t, m, contentW, contentH)
 
-	requireForcedClose(t, m, specShortClosedFlash)
+	requireForcedClose(t, m, wantShortClosedFlash)
 	if got := m.themePanel.pending; got != (themeSlotConfirm{}) {
 		t.Errorf("the forced close retained the pending assignment %+v, want it cancelled with the panel", got)
 	}

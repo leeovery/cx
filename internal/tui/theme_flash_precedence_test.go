@@ -125,7 +125,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 					m, _ = pressThemeKeyCmd(t, m)
 					return m
 				},
-				want: specNoColorEntryFlash,
+				want: wantNoColorEntryFlash,
 			},
 			{
 				name: "the width-floor block",
@@ -134,7 +134,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 					m, _ := pressThemeKeyCmd(t, mustEntryModel(t, themePanelMinWidth-1, entryContentH))
 					return m
 				},
-				want: specNarrowEntryFlash,
+				want: wantNarrowEntryFlash,
 			},
 			{
 				name: "the height-floor block",
@@ -143,7 +143,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 					m, _ := pressThemeKeyCmd(t, mustEntryModel(t, entryContentW, floorH-1))
 					return m
 				},
-				want: specShortEntryFlash,
+				want: wantShortEntryFlash,
 			},
 			{
 				name: "the forced close below the width floor",
@@ -152,7 +152,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 					contentW, contentH := geometryBelowWidthFloor()
 					return resizeForTest(t, newGeometryPanelModel(t, geometryWideW, geometryContentH), contentW, contentH)
 				},
-				want: specNarrowClosedFlash,
+				want: wantNarrowClosedFlash,
 			},
 			{
 				name: "the forced close below the height floor",
@@ -161,7 +161,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 					contentW, contentH := geometryBelowHeightFloor()
 					return resizeForTest(t, newGeometryPanelModel(t, geometryWideW, geometryContentH), contentW, contentH)
 				},
-				want: specShortClosedFlash,
+				want: wantShortClosedFlash,
 			},
 			{
 				name: "the close report",
@@ -171,7 +171,7 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 					m, _ = closePanelForTest(t, m)
 					return m
 				},
-				want: specThemeNotSavedFlash,
+				want: wantThemeNotSavedFlash,
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -448,7 +448,7 @@ func requireBandAboveTheFilterRow(t *testing.T, s themeFlashSurface, m Model, fl
 func raiseBlockedThemeFlash(t *testing.T, m Model) Model {
 	t.Helper()
 	m, cmd := pressThemeKeyCmd(t, m)
-	requireBlocked(t, m, cmd, specNoColorEntryFlash)
+	requireBlocked(t, m, cmd, wantNoColorEntryFlash)
 	if m.flashOrigin != flashOriginTheme {
 		t.Fatalf("the blocked `t` raised a flash with origin %v, want the theme origin", m.flashOrigin)
 	}
@@ -477,9 +477,9 @@ func TestThemeFlash_OutranksAppliedFilterOnSessions(t *testing.T) {
 
 	m = raiseBlockedThemeFlash(t, m)
 
-	requireBandOwnsTheSlot(t, s, m, specNoColorEntryFlash)
+	requireBandOwnsTheSlot(t, s, m, wantNoColorEntryFlash)
 	requireFilterRowUnaffected(t, s, m, baseline, s.query)
-	requireBandAboveTheFilterRow(t, s, m, specNoColorEntryFlash, s.query)
+	requireBandAboveTheFilterRow(t, s, m, wantNoColorEntryFlash, s.query)
 	if got := s.filterState(m); got != list.FilterApplied {
 		t.Errorf("the flash moved the filter state to %v, want it left applied", got)
 	}
@@ -491,11 +491,11 @@ func TestThemeFlash_OutranksLiveFilterOnSessions(t *testing.T) {
 	s := sessionsFlashSurface()
 	m, baseline := filteredThemeFlashModel(t, s, false, list.Filtering)
 
-	(&m).setThemeFlash(specNoColorEntryFlash)
+	(&m).setThemeFlash(wantNoColorEntryFlash)
 
-	requireBandOwnsTheSlot(t, s, m, specNoColorEntryFlash)
+	requireBandOwnsTheSlot(t, s, m, wantNoColorEntryFlash)
 	requireFilterRowUnaffected(t, s, m, baseline, s.query)
-	requireBandAboveTheFilterRow(t, s, m, specNoColorEntryFlash, s.query)
+	requireBandAboveTheFilterRow(t, s, m, wantNoColorEntryFlash, s.query)
 	if got := s.filterState(m); got != list.Filtering {
 		t.Errorf("the flash moved the filter state to %v, want the input left focused", got)
 	}
@@ -512,12 +512,12 @@ func TestThemeFlash_OutranksAppliedFilterOnProjects(t *testing.T) {
 			if tc.lock {
 				m = raiseBlockedThemeFlash(t, m)
 			} else {
-				(&m).setThemeFlash(specNoColorEntryFlash)
+				(&m).setThemeFlash(wantNoColorEntryFlash)
 			}
 
-			requireBandOwnsTheSlot(t, s, m, specNoColorEntryFlash)
+			requireBandOwnsTheSlot(t, s, m, wantNoColorEntryFlash)
 			requireFilterRowUnaffected(t, s, m, baseline, s.query)
-			requireBandAboveTheFilterRow(t, s, m, specNoColorEntryFlash, s.query)
+			requireBandAboveTheFilterRow(t, s, m, wantNoColorEntryFlash, s.query)
 			if got := s.filterState(m); got != tc.want {
 				t.Errorf("the flash moved the filter state to %v, want %v", got, tc.want)
 			}
@@ -584,12 +584,12 @@ func TestThemeFlash_SingleSlotHolds(t *testing.T) {
 			t.Run(s.name+"/"+tc.name, func(t *testing.T) {
 				m, _ := filteredThemeFlashModel(t, s, tc.lock, tc.want)
 
-				(&m).setThemeFlash(specNoColorEntryFlash)
+				(&m).setThemeFlash(wantNoColorEntryFlash)
 
 				if got := lipgloss.Height(s.renderedBand(m)); got != 1 {
 					t.Errorf("%s: the arbitrated band is %d rows, want 1 at this width", s.name, got)
 				}
-				requireBandOwnsTheSlot(t, s, m, specNoColorEntryFlash)
+				requireBandOwnsTheSlot(t, s, m, wantNoColorEntryFlash)
 
 				(&m).clearFlash()
 				if got := noticeSlotBandRows(s, m); got != 0 {
@@ -637,14 +637,14 @@ func TestThemeFlash_ComposesWithMultiSelect(t *testing.T) {
 	m = raiseBlockedThemeFlash(t, m)
 
 	role, message, ok := m.activeNoticeBand()
-	if !ok || role != bandWarning || message != specNoColorEntryFlash {
+	if !ok || role != bandWarning || message != wantNoColorEntryFlash {
 		t.Errorf("the arbitrated band is (role %v, message %q, ok %v), want the theme flash over the multi-select banner", role, message, ok)
 	}
 	if !m.MultiSelectActive() || m.SelectedSessionCount() != marked {
 		t.Errorf("the flash disturbed the mode: active=%v marked=%d, want active with %d marked", m.MultiSelectActive(), m.SelectedSessionCount(), marked)
 	}
 	lines := strings.Split(ansi.Strip(m.viewSessionList()), "\n")
-	bandIdx := lineIndexContaining(lines, specNoColorEntryFlash)
+	bandIdx := lineIndexContaining(lines, wantNoColorEntryFlash)
 	bannerIdx := lineIndexContaining(lines, "selected")
 	if bandIdx < 0 || bannerIdx < 0 {
 		t.Fatalf("missing a landmark (band=%d banner=%d):\n%s", bandIdx, bannerIdx, strings.Join(lines, "\n"))
@@ -679,7 +679,7 @@ func TestThemeFlash_LifecycleUntouched(t *testing.T) {
 
 			updated, _ := m.Update(flashTickMsg{Gen: m.flashGen - 1})
 
-			if got := updated.(Model).flashText; got != specNoColorEntryFlash {
+			if got := updated.(Model).flashText; got != wantNoColorEntryFlash {
 				t.Errorf("a superseded tick left the theme flash %q, want it standing", got)
 			}
 		})

@@ -593,10 +593,10 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 
 		m, _ = closePanelForTest(t, m)
 
-		if got := m.flashText; got != specThemeNotSavedFlash {
-			t.Errorf("the close raised %q, want %q", got, specThemeNotSavedFlash)
+		if got := m.flashText; got != wantThemeNotSavedFlash {
+			t.Errorf("the close raised %q, want %q", got, wantThemeNotSavedFlash)
 		}
-		requireFlashBandVisible(t, m, specThemeNotSavedFlash)
+		requireFlashBandVisible(t, m, wantThemeNotSavedFlash)
 		if m.themeState.commitFailed {
 			t.Error("the report was raised with the failure still outstanding; raising it DISCHARGES the state")
 		}
@@ -622,8 +622,8 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 		if m.themePanel.open {
 			t.Fatal("the resize below the floor left the panel open")
 		}
-		if got := m.flashText; got != specThemeNotSavedFlash {
-			t.Errorf("the forced close raised %q, want the commit-failure report to win the single band slot over %q", got, specNarrowClosedFlash)
+		if got := m.flashText; got != wantThemeNotSavedFlash {
+			t.Errorf("the forced close raised %q, want the commit-failure report to win the single band slot over %q", got, wantNarrowClosedFlash)
 		}
 		if m.themeState.commitFailed {
 			t.Error("the forced close left the failure outstanding; the report was made, so the state is discharged")
@@ -631,8 +631,8 @@ func TestThemePanelBehaviour_FailureStateMachine(t *testing.T) {
 
 		control, _ := behaviourFailureModel(t)
 		control = resizeForTest(t, control, contentW, contentH)
-		if got := control.flashText; got != specNarrowClosedFlash {
-			t.Errorf("the control's forced close raised %q, want %q", got, specNarrowClosedFlash)
+		if got := control.flashText; got != wantNarrowClosedFlash {
+			t.Errorf("the control's forced close raised %q, want %q", got, wantNarrowClosedFlash)
 		}
 	})
 }

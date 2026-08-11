@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	specSessionsFooterCluster = "⏎ attach · / filter · ␣ preview · s switch view · x projects · t theme · m multi"
-	specProjectsFooterCluster = "⏎ new session · x sessions · e edit · / filter · t theme"
-	specFooterHelpAnchor      = "? help"
+	wantSessionsFooterCluster = "⏎ attach · / filter · ␣ preview · s switch view · x projects · t theme · m multi"
+	wantProjectsFooterCluster = "⏎ new session · x sessions · e edit · / filter · t theme"
+	wantFooterHelpAnchor      = "? help"
 )
 
 func footerRowVisible(t *testing.T, footer string) string {
@@ -28,8 +28,8 @@ func footerRowVisible(t *testing.T, footer string) string {
 }
 
 func splitFooterRow(row string) (cluster, anchor string) {
-	if trimmed := strings.TrimRight(row, " "); strings.HasSuffix(trimmed, specFooterHelpAnchor) {
-		return strings.TrimRight(strings.TrimSuffix(trimmed, specFooterHelpAnchor), " "), specFooterHelpAnchor
+	if trimmed := strings.TrimRight(row, " "); strings.HasSuffix(trimmed, wantFooterHelpAnchor) {
+		return strings.TrimRight(strings.TrimSuffix(trimmed, wantFooterHelpAnchor), " "), wantFooterHelpAnchor
 	}
 	return strings.TrimRight(row, " "), ""
 }
@@ -38,11 +38,11 @@ func TestFooterRevision_SessionsPinnedCopy(t *testing.T) {
 	row := footerRowVisible(t, renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false))
 	cluster, anchor := splitFooterRow(row)
 
-	if cluster != specSessionsFooterCluster {
-		t.Errorf("Sessions footer cluster:\n got  %q\n want %q", cluster, specSessionsFooterCluster)
+	if cluster != wantSessionsFooterCluster {
+		t.Errorf("Sessions footer cluster:\n got  %q\n want %q", cluster, wantSessionsFooterCluster)
 	}
-	if anchor != specFooterHelpAnchor {
-		t.Errorf("Sessions footer anchor = %q, want the right-aligned %q", anchor, specFooterHelpAnchor)
+	if anchor != wantFooterHelpAnchor {
+		t.Errorf("Sessions footer anchor = %q, want the right-aligned %q", anchor, wantFooterHelpAnchor)
 	}
 }
 
@@ -50,11 +50,11 @@ func TestFooterRevision_ProjectsPinnedCopy(t *testing.T) {
 	row := footerRowVisible(t, renderProjectsFooter(projectsKeymap(), referenceFooterWidth, testDarkTheme(t), false))
 	cluster, anchor := splitFooterRow(row)
 
-	if cluster != specProjectsFooterCluster {
-		t.Errorf("Projects footer cluster:\n got  %q\n want %q", cluster, specProjectsFooterCluster)
+	if cluster != wantProjectsFooterCluster {
+		t.Errorf("Projects footer cluster:\n got  %q\n want %q", cluster, wantProjectsFooterCluster)
 	}
-	if anchor != specFooterHelpAnchor {
-		t.Errorf("Projects footer anchor = %q, want the right-aligned %q", anchor, specFooterHelpAnchor)
+	if anchor != wantFooterHelpAnchor {
+		t.Errorf("Projects footer anchor = %q, want the right-aligned %q", anchor, wantFooterHelpAnchor)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestFooterRevision_BlockedThemeKeyFilteredInLockstep(t *testing.T) {
 			keymap:   Model.sessionsHelpKeymap,
 			footer:   Model.renderSessionsFooterForFilterState,
 			view:     Model.viewSessionList,
-			clusters: specSessionsFooterCluster,
+			clusters: wantSessionsFooterCluster,
 		},
 		{
 			page:     "projects",
@@ -175,7 +175,7 @@ func TestFooterRevision_BlockedThemeKeyFilteredInLockstep(t *testing.T) {
 			keymap:   Model.projectsHelpKeymap,
 			footer:   Model.renderProjectsFooterForFilterState,
 			view:     Model.viewProjectList,
-			clusters: specProjectsFooterCluster,
+			clusters: wantProjectsFooterCluster,
 		},
 	} {
 		t.Run(tc.page, func(t *testing.T) {
@@ -360,7 +360,7 @@ func TestFooterRevision_HelpAnchorSurvivesNarrowing(t *testing.T) {
 		row := footerRowVisible(t, renderSessionsFooter(sessionsKeymap(), w, th, false))
 		cluster, anchor := splitFooterRow(row)
 
-		if anchor != specFooterHelpAnchor {
+		if anchor != wantFooterHelpAnchor {
 			t.Fatalf("at width %d the ? help anchor was dropped; it is never dropped while it fits:\n%q", w, row)
 		}
 		if !slices.Contains(allowed, cluster) {
@@ -389,8 +389,8 @@ func TestFooterRevision_ExtremeNarrowLadder(t *testing.T) {
 	t.Run("anchor alone", func(t *testing.T) {
 		footer := renderSessionsFooter(sessionsKeymap(), anchorW, th, false)
 		row := footerRowVisible(t, footer)
-		if got := strings.TrimSpace(row); got != specFooterHelpAnchor {
-			t.Errorf("at width %d the row = %q, want the bare %q", anchorW, got, specFooterHelpAnchor)
+		if got := strings.TrimSpace(row); got != wantFooterHelpAnchor {
+			t.Errorf("at width %d the row = %q, want the bare %q", anchorW, got, wantFooterHelpAnchor)
 		}
 		if got := lipgloss.Width(strings.Split(footer, "\n")[1]); got != anchorW {
 			t.Errorf("at width %d the row is %d cells wide, want exactly %d", anchorW, got, anchorW)

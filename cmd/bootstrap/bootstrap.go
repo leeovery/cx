@@ -1,5 +1,5 @@
-// Package bootstrap composes the ten-step PersistentPreRunE sequence as
-// interfaces plus Run. Step ordering is load-bearing.
+// Package bootstrap runs the tmux server bootstrap sequence invoked from root's
+// PersistentPreRunE. Step ordering is load-bearing.
 package bootstrap
 
 import (
@@ -102,8 +102,8 @@ type LatchWriter interface {
 	SetServerOption(name, value string) error
 }
 
-// Orchestrator runs the ten-step bootstrap sequence. A nil Logger is tolerated
-// — Run substitutes a discard sink so step sites can dispatch unconditionally.
+// Orchestrator runs the bootstrap sequence. A nil Logger is tolerated — Run
+// substitutes a discard sink so step sites can dispatch unconditionally.
 type Orchestrator struct {
 	Server        ServerBootstrapper
 	Hooks         HookRegistrar
@@ -119,10 +119,10 @@ type Orchestrator struct {
 	Logger        *slog.Logger
 }
 
-// Run executes the ten bootstrap steps in order, returning the serverStarted
-// flag, the soft warnings in step order, and any fatal error. Only EnsureServer,
-// RegisterPortalHooks and the two @portal-restoring marker steps are fatal;
-// every other step logs its failure and continues.
+// Run executes the bootstrap steps in order, returning the serverStarted flag,
+// the soft warnings in step order, and any fatal error. Only EnsureServer,
+// RegisterPortalHooks and the @portal-restoring marker steps are fatal; every
+// other step logs its failure and continues.
 func (o *Orchestrator) Run(ctx context.Context) (bool, []Warning, error) {
 	emit := progressEmitterFromContext(ctx)
 	emitStep := func(index int, name string) {

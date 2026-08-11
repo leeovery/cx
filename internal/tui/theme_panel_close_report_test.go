@@ -13,9 +13,9 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// specThemeNotSavedFlash is written out verbatim rather than read from the
+// wantThemeNotSavedFlash is written out verbatim rather than read from the
 // production constant — a test that asserts a constant against itself pins nothing.
-const specThemeNotSavedFlash = "theme not saved — see portal.log"
+const wantThemeNotSavedFlash = "theme not saved — see portal.log"
 
 func newCloseReportModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
@@ -32,8 +32,8 @@ func newCloseReportModel(t *testing.T) (Model, *fakeThemePersister) {
 func requireReportRaised(t *testing.T, m Model) {
 	t.Helper()
 
-	if got := m.flashText; got != specThemeNotSavedFlash {
-		t.Errorf("the close raised %q, want %q", got, specThemeNotSavedFlash)
+	if got := m.flashText; got != wantThemeNotSavedFlash {
+		t.Errorf("the close raised %q, want %q", got, wantThemeNotSavedFlash)
 	}
 	if m.flashOrigin != flashOriginTheme {
 		t.Errorf("the report carries origin %v, want the theme origin — it claims the band over a filter line", m.flashOrigin)
@@ -85,9 +85,9 @@ func TestCloseReport_RaisesTheFlash(t *testing.T) {
 		t.Fatal("Esc left the panel open")
 	}
 	requireReportRaised(t, m)
-	requireFlashBandVisible(t, m, specThemeNotSavedFlash)
-	if got := themeNotSavedFlash; got != specThemeNotSavedFlash {
-		t.Errorf("the pinned constant is %q, want %q", got, specThemeNotSavedFlash)
+	requireFlashBandVisible(t, m, wantThemeNotSavedFlash)
+	if got := themeNotSavedFlash; got != wantThemeNotSavedFlash {
+		t.Errorf("the pinned constant is %q, want %q", got, wantThemeNotSavedFlash)
 	}
 	if got, want := m.flashGen, gen+1; got != want {
 		t.Errorf("the report left the flash generation at %d, want %d — it rides the shared counter", got, want)
@@ -95,7 +95,7 @@ func TestCloseReport_RaisesTheFlash(t *testing.T) {
 	requireReportTick(t, m, cmd)
 
 	superseded, _ := m.Update(flashTickMsg{Gen: m.flashGen - 1})
-	if got := superseded.(Model).flashText; got != specThemeNotSavedFlash {
+	if got := superseded.(Model).flashText; got != wantThemeNotSavedFlash {
 		t.Errorf("a superseded tick left the report %q, want it standing", got)
 	}
 	cleared, _ := m.Update(flashTickMsg{Gen: m.flashGen})
@@ -109,8 +109,8 @@ var closeReportFloorCrossings = []struct {
 	region       func() (contentW, contentH int)
 	wantGeometry string
 }{
-	{name: "below the width floor", region: geometryBelowWidthFloor, wantGeometry: specNarrowClosedFlash},
-	{name: "below the height floor", region: geometryBelowHeightFloor, wantGeometry: specShortClosedFlash},
+	{name: "below the width floor", region: geometryBelowWidthFloor, wantGeometry: wantNarrowClosedFlash},
+	{name: "below the height floor", region: geometryBelowHeightFloor, wantGeometry: wantShortClosedFlash},
 }
 
 // The resize is handled in a pre-step of Update, so the report's auto-clear tick
@@ -123,7 +123,7 @@ func TestCloseReport_ForcedCloseCommitFlashWins(t *testing.T) {
 
 			m, cmd := resizeForTestCmd(t, m, contentW, contentH)
 
-			requireForcedClose(t, m, specThemeNotSavedFlash)
+			requireForcedClose(t, m, wantThemeNotSavedFlash)
 			requireReportRaised(t, m)
 			requireReportTick(t, m, cmd)
 			if got := m.flashText; got == tc.wantGeometry {
@@ -322,11 +322,11 @@ func TestCloseReport_ProjectsFlashSlot(t *testing.T) {
 		t.Fatalf("the close moved the active page to %d, want it left on Projects", m.activePage)
 	}
 	role, message, ok := m.activeProjectNoticeBand()
-	if !ok || role != bandWarning || message != specThemeNotSavedFlash {
-		t.Errorf("the Projects band is (role %v, message %q, ok %v), want (bandWarning, %q, true)", role, message, ok, specThemeNotSavedFlash)
+	if !ok || role != bandWarning || message != wantThemeNotSavedFlash {
+		t.Errorf("the Projects band is (role %v, message %q, ok %v), want (bandWarning, %q, true)", role, message, ok, wantThemeNotSavedFlash)
 	}
-	if got := ansi.Strip(m.viewProjectList()); !strings.Contains(got, specThemeNotSavedFlash) {
-		t.Errorf("the composed Projects frame carries no %q band:\n%s", specThemeNotSavedFlash, got)
+	if got := ansi.Strip(m.viewProjectList()); !strings.Contains(got, wantThemeNotSavedFlash) {
+		t.Errorf("the composed Projects frame carries no %q band:\n%s", wantThemeNotSavedFlash, got)
 	}
 }
 
@@ -358,9 +358,9 @@ func TestCloseReport_OutranksFilterLine(t *testing.T) {
 	m, _ = closePanelForTest(t, m)
 
 	requireReportRaised(t, m)
-	requireBandOwnsTheSlot(t, s, m, specThemeNotSavedFlash)
+	requireBandOwnsTheSlot(t, s, m, wantThemeNotSavedFlash)
 	requireFilterRowUnaffected(t, s, m, baseline, s.query)
-	requireBandAboveTheFilterRow(t, s, m, specThemeNotSavedFlash, s.query)
+	requireBandAboveTheFilterRow(t, s, m, wantThemeNotSavedFlash, s.query)
 	if got := s.filterState(m); got != list.FilterApplied {
 		t.Errorf("the report moved the filter state to %v, want it left applied", got)
 	}

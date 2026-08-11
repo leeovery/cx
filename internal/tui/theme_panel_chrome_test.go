@@ -280,11 +280,11 @@ func TestPanelChrome_LadderEnds(t *testing.T) {
 // panel with every row it needs.
 func chromeMeasuredFloor(t *testing.T, m Model) int {
 	t.Helper()
-	if got := chromeMeasuredAffordance(t, m); got <= specPanelHeaderRows+themePanelFooterHeight(themePanelKeymap())+2 {
-		t.Fatalf("fixture: the page-aligned header costs no more than the %d rows the panel draws, so the floor and the affordance are the same number", specPanelHeaderRows)
+	if got := chromeMeasuredAffordance(t, m); got <= wantPanelHeaderRows+themePanelFooterHeight(themePanelKeymap())+2 {
+		t.Fatalf("fixture: the page-aligned header costs no more than the %d rows the panel draws, so the floor and the affordance are the same number", wantPanelHeaderRows)
 	}
 	const listRow, messageRow = 1, 1
-	return specPanelHeaderRows + themePanelFooterHeight(themePanelKeymap()) + listRow + messageRow
+	return wantPanelHeaderRows + themePanelFooterHeight(themePanelKeymap()) + listRow + messageRow
 }
 
 func chromeMeasuredAffordance(t *testing.T, m Model) int {
@@ -314,8 +314,8 @@ func TestPanelChrome_FloorFollowsTheHeader(t *testing.T) {
 	if got := themePanelHeaderRows(affordance, false); got != affordance-themePanelFooterHeight(entries)-2 {
 		t.Errorf("at %d rows the header costs %d, want the rows the page spends before its first session row", affordance, got)
 	}
-	if got := themePanelHeaderRows(affordance-1, false); got != specPanelHeaderRows {
-		t.Errorf("one row below the page's rhythm the header costs %d, want the %d rows it draws", got, specPanelHeaderRows)
+	if got := themePanelHeaderRows(affordance-1, false); got != wantPanelHeaderRows {
+		t.Errorf("one row below the page's rhythm the header costs %d, want the %d rows it draws", got, wantPanelHeaderRows)
 	}
 
 	th := testDarkTheme(t)
