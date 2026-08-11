@@ -2,46 +2,28 @@ package theme
 
 import "cmp"
 
-// RawKeys are prefs.json's three theme keys as they were read — no defaults
-// substituted, no charset check applied, no state collapsed.
-//
-// They exist alongside the resolved Setting because the resolution discards
-// things the surfaces still need: a slot the user never set, a slug the tiebreak
-// left unread, and a value no theme file answers to are all invisible in a
-// Setting, and all three have to be reportable.
-//
-// Truncation is separate and stays panel-local: it is a geometry concern of one
-// surface, and doctor has full width and wants the whole value.
+// RawKeys are prefs.json's three theme keys as read — no defaults
+// substituted, no charset check, no state collapsed. They travel alongside
+// the resolved Setting because resolution discards what the surfaces still
+// have to report: an unset slot, a slug the tiebreak left unread, and a value
+// no theme file answers to are all invisible in a Setting.
 type RawKeys struct {
 	Theme string
 	Light string
 	Dark  string
 }
 
-// NewRawKeys builds the raw keys from prefs.json's three values, control-stripped.
-//
-// Stripping belongs to constructing the value rather than to drawing it, which
-// makes the removal a property every consumer inherits. A pasted newline, tab or
-// ANSI escape would otherwise corrupt whichever surface the user is reading in
-// order to find the problem.
-//
-// A value that is only control characters therefore strips to empty and counts as
-// unset rather than as an illegal slug: treating it as set would mint a panel row
-// labelled with an empty string.
-//
-// Nothing else is normalised — no trimming, no lowercasing. A value that is
-// merely wrong reaches the charset check as the user typed it, so it is reported
-// as `bad name` rather than quietly resolved to a different theme.
-//
-// It is idempotent, so already-stripped keys pass through unchanged.
+// NewRawKeys builds the raw keys from prefs.json's three values,
+// control-stripped and idempotently. A value that is only control characters
+// strips to empty and so counts as unset, not as an illegal slug. Nothing
+// else is normalised: a merely wrong value reaches the charset check as the
+// user typed it.
 func NewRawKeys(theme, light, dark string) RawKeys {
 	return RawKeys{Theme: theme, Light: light, Dark: dark}.stripped()
 }
 
-// stripped is these keys with every value control-stripped. Construction and
-// resolution normalise through it rather than taking the keys apart into a
-// positional triple, where light and dark could be handed over the wrong way
-// round.
+// Keys normalise through this rather than a positional triple, where light
+// and dark could be handed over the wrong way round.
 func (k RawKeys) stripped() RawKeys {
 	return RawKeys{
 		Theme: StripControl(k.Theme),
@@ -51,29 +33,17 @@ func (k RawKeys) stripped() RawKeys {
 }
 
 // WithConstant is these keys with slug as the constant theme and both slots
-// cleared — the setting's mutual exclusion in the constant direction, as a value.
-//
-// Nothing of the receiver survives, and that is the rule rather than an
-// oversight: the clear is performed by constructing a value that holds only the
-// constant, so no edit can half-apply it by forgetting a line.
-//
-// It states in memory what a commit performs on the file, so a surface holding
-// keys alongside a write does not author the rule a second time.
+// cleared. Nothing of the receiver survives — the mutual exclusion is
+// performed by constructing a value that holds only the constant, so no edit
+// can half-apply it.
 func (k RawKeys) WithConstant(slug string) RawKeys {
 	return RawKeys{Theme: slug}
 }
 
-// WithMember is these keys with slug in the named half of the adaptive pair, the
-// other half carried across verbatim, and the constant gone — the same mutual
-// exclusion in the slot direction.
-//
-// The clear is structural exactly as WithConstant's is. The untouched other half
-// is what makes one slug reachable in both slots by two separate assignments.
-//
-// The half is named by a Member rather than a Slot, and the narrowing is what
-// makes this total: a Slot carries a constant position, which is no half of the
-// pair and names nothing to put a slug in. Member has two values and no third to
-// answer for.
+// WithMember is these keys with slug in the named half of the adaptive pair,
+// the other half carried across verbatim and the constant cleared. The half
+// is a Member, not a Slot, which is what makes this total: a Slot's constant
+// position is no half of the pair and names nothing to put a slug in.
 func (k RawKeys) WithMember(m Member, slug string) RawKeys {
 	if m == MemberLight {
 		return RawKeys{Light: slug, Dark: k.Dark}
@@ -81,63 +51,32 @@ func (k RawKeys) WithMember(m Member, slug string) RawKeys {
 	return RawKeys{Light: k.Light, Dark: slug}
 }
 
-// Setting is the theme setting: exactly two states, derived from the three raw
-// keys.
-//
-//   - Constant — one slug, detection never consulted.
-//   - Adaptive — a light and a dark slug, with detection choosing between them.
-//
-// It holds slugs, never palettes. Nothing here inspects a theme's colours, and it
-// could not: under the adaptive form the slot classifies the theme, so "light" is
-// a statement about when a theme is used rather than about what is in it.
+// Setting is the theme setting collapsed to its two states: constant (one
+// slug, detection never consulted) or adaptive (a light and a dark slug). It
+// holds slugs, never palettes — the slot classifies the theme, so "light" says
+// when a theme is used, not what is in it.
 type Setting struct {
-	// IsConstant is which of the two states this is: Constant is non-empty iff
-	// it is true, and Light and Dark are both non-empty iff it is false.
+	// Constant is non-empty iff IsConstant, and Light and Dark are both
+	// non-empty iff not.
 	IsConstant bool
 
-	// Constant is the constant state's single slug.
 	Constant string
 
-	// Light and Dark are the adaptive state's two slugs.
 	Light string
 	Dark  string
 }
 
-// ResolveSetting collapses prefs.json's three raw theme keys onto the two-state
-// setting, and returns the raw keys alongside it.
-//
-// The tiebreak: a non-empty `theme` wins and the slots are not read at all. A
-// hand-edited file may legally carry all three keys — mutual exclusion is
-// enforced on write, not on the file — so the read side needs a deterministic
-// answer, and the panel's guarantee that the two setting states never coexist on
-// screen holds because this rule makes the pair invisible. The stale slots are
-// left untouched on disk, which is why they are still returned in RawKeys.
-//
-// Otherwise the pair, with a shipped default per unset slot. "Nothing set" and
-// "pair nominated" are the same state, so there is no unconfigured branch — only
-// a default value per slot. Partial pairs therefore do not exist: `theme_dark =
-// nord` alone resolves to {DefaultLightSlug, nord}, so there is no
-// incomplete-pair state for anything downstream to validate, explain or render
-// around.
-//
-// The two defaults are DefaultLightSlug and DefaultDarkSlug — the same constants
-// the per-slot fallback resolves to, never literals — so an unresolvable slot
-// lands on the theme the shipped default already nominates rather than on a
-// different mechanism.
-//
-// The empty string is the unambiguous unset sentinel, which lets cmp.Or stand in
-// for the whole rule: the anchored slug charset makes an empty slug illegal, so
-// an empty value can never be a theme's real name.
-//
-// The Setting and the RawKeys come from one evaluation, so what a surface later
-// lists and what it marks cannot disagree about which slug a badge sits on.
-//
-// Every input is legal, including a nonsense one: an unrecognised value is a
-// resolution problem for a later step rather than a decode one here.
+// ResolveSetting collapses prefs.json's three raw theme keys onto the
+// two-state setting and returns the stripped raw keys alongside it. A
+// non-empty `theme` wins the tiebreak and the slots are not read at all — a
+// hand-edited file may legally carry all three, and the stale slots are left
+// untouched on disk. Otherwise the pair, with a shipped default per unset
+// slot, so a partial pair is not a state anything downstream must handle.
+// Every input is legal: an unrecognised value is a resolution problem for a
+// later step, not a decode error here.
 func ResolveSetting(keys RawKeys) (Setting, RawKeys) {
-	// Stripped first, before anything is decided, so every rule below reads the
-	// stripped form — whether the caller built its keys through NewRawKeys or as a
-	// plain literal.
+	// Stripped before anything is decided, so every rule below reads the
+	// stripped form even when the caller built its keys as a plain literal.
 	raw := keys.stripped()
 
 	if raw.Theme != "" {
@@ -150,21 +89,11 @@ func ResolveSetting(keys RawKeys) (Setting, RawKeys) {
 	}, raw
 }
 
-// Slug is the slug one slot of this setting nominates, with the shipped default
-// substituted for a slot left unset.
-//
-// It is the per-slot half of ResolveSetting's substitution, so a caller resolving
-// ONE slot reaches the same rule the whole-setting collapse applies rather than
-// authoring a second one: a slot read raw would arrive empty and be reported as a
-// fallback of a slug nobody set.
-//
-// The constant is the slot with no default to substitute. The shipped defaults
-// are a light one and a dark one, and a constant is neither, so an unset constant
-// answers the empty string — the unset sentinel this package reads elsewhere.
-//
-// It is total over the three slots and reads the fields as they stand, so it does
-// not gate on which state the tiebreak settled on: the pair slots of a constant
-// setting are unset, and answer the shipped defaults accordingly.
+// Slug is the slug one slot nominates, with the shipped default substituted
+// for an unset slot — the per-slot half of ResolveSetting's substitution, so a
+// single-slot caller does not author a second rule and report a fallback of a
+// slug nobody set. An unset constant answers the empty string; there is no
+// constant default to substitute.
 func (s Setting) Slug(slot Slot) string {
 	switch slot {
 	case SlotLight:
@@ -176,54 +105,31 @@ func (s Setting) Slug(slot Slot) string {
 	}
 }
 
-// InForceKey is one persisted value Portal is actually reading, and where in the
-// setting it sits.
-//
-// It is the value as persisted rather than a slug: nothing here has been
-// validated, resolved or defaulted, because a value the charset check rejects is
-// still in force — it is what the user set, and therefore what a surface has to
-// report back to them.
+// InForceKey is one persisted value Portal is actually reading, and where in
+// the setting it sits. The value is as persisted, never validated, resolved
+// or defaulted: a value the charset check rejects is still in force and still
+// has to be reportable.
 type InForceKey struct {
-	// Value is the persisted value itself, control-stripped. It may be no legal
-	// slug at all.
+	// Value may be no legal slug at all.
 	Value string
 
-	// Slot is the position the value occupies: SlotConstant under a constant, else
-	// the pair's light or dark slot — and the light one where Both is set, since a
-	// collapsed key occupies that slot as well as the other.
+	// Slot is SlotLight where Both is set, since a collapsed key occupies
+	// that slot as well as the other.
 	Slot Slot
 
-	// Both reports that this one value occupies both slots of the pair.
-	//
-	// It is a flag rather than a third Slot value because the setting has exactly
-	// two slots: a third would name a position that does not exist, and every
-	// surface reading a slot's own name would then have to special-case it.
+	// Both is a flag rather than a third Slot value: the setting has exactly
+	// two slots, and a third would name a position that does not exist.
 	Both bool
 }
 
-// InForceKeys selects which of prefs.json's three keys a surface reports on: the
-// keys in force, never every key present.
-//
-// The tiebreak is ResolveSetting's, applied here rather than restated: a
-// non-empty `theme` wins and the slots are not read at all, and reporting two
-// values Portal is not reading would put the user to work fixing something with
-// no effect. The raw keys are resolved here rather than taken pre-resolved so a
-// caller cannot skip that step; handing back keys ResolveSetting already produced
-// is safe, because stripping is idempotent and the resolution is pure and total.
-//
-// The Setting and the raw keys are both read, and neither substitutes for the
-// other: the Setting says which state the tiebreak settled on, the raw keys say
-// which values are actually persisted. Under a pair only the slots with a
-// non-empty raw value are in force — an unset slot arrives in the Setting as the
-// shipped default, and the raw value is what distinguishes "the user chose this"
-// from "Portal substituted it".
-//
-// Two slots naming the same value collapse to one entry, keyed on the persisted
-// value rather than on a derived slug, so a value yielding no slug at all
-// collapses by the same rule. One value the user set is one problem, however many
-// slots it sits in.
-//
-// The order is light then dark, and a constant is the single entry.
+// InForceKeys selects which of prefs.json's three keys a surface reports on —
+// the keys in force, never every key present, since reporting a value Portal
+// is not reading would put the user to work fixing something with no effect.
+// Under a pair only slots with a non-empty raw value are in force: the raw
+// value is what distinguishes "the user chose this" from "Portal substituted
+// the default". Two slots naming the same value collapse to one entry, keyed
+// on the persisted value so a value yielding no slug collapses too. The order
+// is light then dark; a constant is the single entry.
 func InForceKeys(keys RawKeys) []InForceKey {
 	setting, raw := ResolveSetting(keys)
 	if setting.IsConstant {

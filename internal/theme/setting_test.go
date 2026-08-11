@@ -11,12 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestResolveSetting_ConstantWins pins the constant-or-pair rule's tiebreak: a non-empty
-// `theme` key resolves to the CONSTANT state, whatever else the file carries.
-//
-// The rule is what keeps "two states, not three" a resolution rule rather than a
-// file constraint — a hand-edited prefs.json may legally carry every key at once,
-// and the deterministic answer is that the constant is the setting.
 func TestResolveSetting_ConstantWins(t *testing.T) {
 	got, raw := theme.ResolveSetting(theme.RawKeys{Theme: "nord"})
 
@@ -31,14 +25,6 @@ func TestResolveSetting_ConstantWins(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_ConstantIgnoresSlots pins the half of the tiebreak that is
-// easy to lose: `theme` winning means the slots are NOT READ AT ALL.
-//
-// The resolved Setting carries no slot values, which is what makes the row-rendering rule's
-// "the two setting states never coexist on screen" hold — the panel has no pair to
-// render badges for. The stale slots are still returned in RawKeys, because they
-// are on disk and untouched: nothing prunes them, and the surfaces that report
-// what the file says (the union rule's list, the pinned copy's advisory line) need them.
 func TestResolveSetting_ConstantIgnoresSlots(t *testing.T) {
 	got, raw := theme.ResolveSetting(theme.RawKeys{Theme: "nord", Light: "solarized", Dark: "gruvbox"})
 
@@ -53,14 +39,6 @@ func TestResolveSetting_ConstantIgnoresSlots(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_UnsetSlotsTakeShippedDefaults pins the shipped adaptive default: "nothing
-// set" and "pair nominated" are THE SAME STATE. There is no unconfigured branch — only a
-// default value per slot.
-//
-// Partial pairs therefore do not exist. `theme_dark = nord` alone is the whole
-// pair {tokyo-night-day, nord}, because light was never overridden rather than
-// half-missing, so there is no incomplete-pair state to validate, explain or
-// render around.
 func TestResolveSetting_UnsetSlotsTakeShippedDefaults(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -112,19 +90,6 @@ func TestResolveSetting_UnsetSlotsTakeShippedDefaults(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_DefaultsAreTheSharedConstants pins WHERE the substituted
-// values come from: DefaultLightSlug and DefaultDarkSlug, the same two constants
-// the per-slot fallback resolves to.
-//
-// The coincidence is load-bearing rather than incidental — the shipped adaptive default's "the
-// adaptive pair degrades to a constant dark default" argument is true only because an
-// unresolvable slot lands on the theme the shipped default already nominates. A
-// literal here would leave that argument silently untrue the day either constant
-// moves, so the substitution is asserted against the constants themselves.
-//
-// The substitution is also MODE-MATCHED: the light slot takes the light default
-// and the dark slot the dark one, which the distinctness check below is what
-// makes a real assertion rather than one a swapped pair would also pass.
 func TestResolveSetting_DefaultsAreTheSharedConstants(t *testing.T) {
 	if theme.DefaultLightSlug == theme.DefaultDarkSlug {
 		t.Fatalf("DefaultLightSlug and DefaultDarkSlug are both %q — a swapped substitution would be undetectable", theme.DefaultLightSlug)
@@ -140,9 +105,6 @@ func TestResolveSetting_DefaultsAreTheSharedConstants(t *testing.T) {
 	}
 }
 
-// settingKeyReaders names the three prefs.json theme keys and pulls the resolved
-// slug and the raw key for each back out of ONE evaluation, so a payload can be
-// exercised in every position without three near-identical tables.
 var settingKeyReaders = []struct {
 	name string
 	read func(value string) (slug, raw string)
@@ -170,15 +132,6 @@ var settingKeyReaders = []struct {
 	},
 }
 
-// TestResolveSetting_ControlStripsAllThree pins the row-rendering rule: a slug that came from
-// prefs.json is control-stripped AT THE POINT IT IS READ, not at the point it is
-// drawn.
-//
-// Stripping here makes it a property of the value, so every consumer inherits it
-// — the panel row and doctor's advisory line alike. A pasted newline, tab or
-// ANSI escape would otherwise corrupt whichever of those the user is reading to
-// FIND the problem. All three keys are covered because all three are echoed:
-// truncation is the only display concern left, and that stays panel-local.
 func TestResolveSetting_ControlStripsAllThree(t *testing.T) {
 	payloads := []struct {
 		name string
@@ -210,14 +163,6 @@ func TestResolveSetting_ControlStripsAllThree(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_ControlOnlyValueIsUnset records a deliberate resolution of
-// an ambiguity the spec leaves open: it pins control-stripping and it pins
-// "a non-empty `theme` wins", but not which happens first for a value that is
-// ONLY control characters.
-//
-// Stripping happens first, so such a value is UNSET rather than an illegal slug.
-// The row-rendering rule makes the stripped form "the value" for every consumer, and the
-// alternative would mint a panel row labelled with an empty string.
 func TestResolveSetting_ControlOnlyValueIsUnset(t *testing.T) {
 	t.Run("a control-only theme does not win the tiebreak", func(t *testing.T) {
 		got, raw := theme.ResolveSetting(theme.RawKeys{Theme: "\x1b[31m\n\t"})
@@ -245,15 +190,6 @@ func TestResolveSetting_ControlOnlyValueIsUnset(t *testing.T) {
 	})
 }
 
-// TestResolveSetting_NoTrimOrLowercase pins the negative half of the stripping
-// rule: it normalises NOTHING ELSE.
-//
-// A value that is merely wrong — a stray leading space, the wrong case — arrives
-// at the charset check unaltered, so it is reported as `bad name` for what
-// the user typed rather than quietly corrected into a different slug. Trimming
-// `"  nord"` to `"nord"` would silently resolve a theme the file does not name;
-// lowercasing `"Nord"` would let a hand-edit shadow a built-in, which is the very
-// thing the reserved-slug rule exists to prevent.
 func TestResolveSetting_NoTrimOrLowercase(t *testing.T) {
 	values := []struct {
 		name string
@@ -281,16 +217,6 @@ func TestResolveSetting_NoTrimOrLowercase(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_ReturnsRawKeysForTheSameEvaluation pins why the raw keys
-// ride back alongside the Setting: the construction-time load rule's "the nomination alone is
-// insufficient for the panel".
-//
-// The two answer different questions from ONE evaluation, so they cannot
-// disagree. The Setting says what is ACTIVE — with the shipped defaults already
-// substituted, which is why a never-set slot is indistinguishable from one set to
-// the same slug. The raw keys say what is PERSISTED — empty where the user set
-// nothing, and still populated for slots a winning constant left unread. Deriving
-// them separately is what would let the panel's list and its badges drift.
 func TestResolveSetting_ReturnsRawKeysForTheSameEvaluation(t *testing.T) {
 	t.Run("a default substituted into the setting never reaches the raw keys", func(t *testing.T) {
 		got, raw := theme.ResolveSetting(theme.RawKeys{Dark: "nord"})
@@ -322,13 +248,6 @@ func TestResolveSetting_ReturnsRawKeysForTheSameEvaluation(t *testing.T) {
 	})
 }
 
-// TestResolveSetting_IsPureAndDeterministic pins the property every later phase
-// leans on without re-checking: resolution is a total function of the keys it is
-// handed.
-//
-// It reads no file, no environment and no clock, returns no error, and answers
-// the same triple identically every time — so a surface may resolve whenever it
-// needs to, and two surfaces resolving the same keys cannot disagree.
 func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	t.Run("it answers the same triple identically", func(t *testing.T) {
 		first, firstRaw := theme.ResolveSetting(theme.RawKeys{Theme: "\x1b[31mno\trd", Dark: "gruvbox"})
@@ -382,17 +301,6 @@ func TestResolveSetting_IsPureAndDeterministic(t *testing.T) {
 	})
 }
 
-// TestSetting_Slug pins the per-slot read every caller resolving ONE slot goes
-// through: the slug that slot nominates, with the shipped default already
-// substituted for a slot left unset.
-//
-// The substitution is the point. A caller resolving an untouched slot from a raw
-// empty string would report a fallback of a slug nobody set, so the rule lives
-// here — beside the collapse that applies it to a whole setting — rather than in
-// whichever surface happens to need one slot.
-//
-// The constant is the one slot with no default to substitute: light and dark are
-// what the shipped defaults name, and there is no constant Portal ships.
 func TestSetting_Slug(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -447,16 +355,6 @@ func TestSetting_Slug(t *testing.T) {
 	}
 }
 
-// TestInForceKeys_SelectsTheKeysInForce pins all three clauses of the construction-time load
-// rule's "the keys in force" rule in the one place they are now decided: the `theme`-wins
-// tiebreak, the non-empty-raw-value rule, and the same-value collapse.
-//
-// The three used to be authored twice — once for the union rule's panel rows and once for
-// the pinned copy's doctor lines — and it is their single home, not this table, that moves
-// both surfaces at once; the table holds that home to its rule. The slot each
-// entry carries is what doctor's parenthetical is rendered from, so it is
-// asserted alongside the value rather than left to the caller's own reading of
-// the keys.
 func TestInForceKeys_SelectsTheKeysInForce(t *testing.T) {
 	tests := []struct {
 		name string
@@ -519,13 +417,6 @@ func TestInForceKeys_SelectsTheKeysInForce(t *testing.T) {
 	}
 }
 
-// TestInForceKeys_UnsetSlotIsNeverInForce pins the half of the rule the Setting
-// alone cannot express: an unset slot holds the SHIPPED DEFAULT, and that
-// substituted value is not something the user set.
-//
-// The vacuity guard is the whole test: the default really is in the Setting, so
-// its absence from the keys in force is evidence that the RAW value is what was
-// read rather than the resolved slot.
 func TestInForceKeys_UnsetSlotIsNeverInForce(t *testing.T) {
 	setting, _ := theme.ResolveSetting(theme.RawKeys{Dark: "gruv"})
 	if setting.Light != theme.DefaultLightSlug {
@@ -540,12 +431,6 @@ func TestInForceKeys_UnsetSlotIsNeverInForce(t *testing.T) {
 	}
 }
 
-// TestInForceKeys_AcceptsAlreadyResolvedKeys pins the property the RawKeys
-// parameter rests on: handing back the keys ResolveSetting already produced
-// answers identically to handing over the values as they were read.
-//
-// That is what lets a caller holding either form ask the same question of the
-// same function — stripping is idempotent, and the resolution is pure and total.
 func TestInForceKeys_AcceptsAlreadyResolvedKeys(t *testing.T) {
 	asRead := theme.RawKeys{Light: "\x1b[31msolar\n", Dark: "gruv\t"}
 	_, resolved := theme.ResolveSetting(asRead)
@@ -561,13 +446,6 @@ func TestInForceKeys_AcceptsAlreadyResolvedKeys(t *testing.T) {
 	}
 }
 
-// TestRawKeysWithConstant_HoldsOnlyTheConstant pins the constant direction of the
-// setting's mutual exclusion as a value: the named slug, and NOTHING of the
-// receiver.
-//
-// The clear is what the rule is FOR, so the fixture arrives carrying both slots
-// and a stale constant — over empty keys the transformation and a plain field
-// assignment are the same value.
 func TestRawKeysWithConstant_HoldsOnlyTheConstant(t *testing.T) {
 	keys := theme.RawKeys{Theme: "nord-lee", Light: "solar", Dark: "gruv"}
 
@@ -578,8 +456,6 @@ func TestRawKeysWithConstant_HoldsOnlyTheConstant(t *testing.T) {
 	}
 }
 
-// TestRawKeysWithMember_ReplacesTheNamedHalf pins the other direction: one half
-// of the pair replaced, the other carried across verbatim, and the constant gone.
 func TestRawKeysWithMember_ReplacesTheNamedHalf(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -641,9 +517,6 @@ func TestRawKeysWithMember_ReplacesTheNamedHalf(t *testing.T) {
 	}
 }
 
-// TestRawKeys_TransformationsLeaveTheReceiverAlone pins that both are VALUES
-// rather than mutations: the caller's own keys are untouched, so a caller that
-// discards the result changes nothing.
 func TestRawKeys_TransformationsLeaveTheReceiverAlone(t *testing.T) {
 	original := theme.RawKeys{Theme: "nord-lee", Light: "solar", Dark: "gruv"}
 
@@ -658,9 +531,6 @@ func TestRawKeys_TransformationsLeaveTheReceiverAlone(t *testing.T) {
 	}
 }
 
-// TestNewRawKeys_StripsControlFromEveryKey pins that the removal is a property of
-// CONSTRUCTING the value: a caller building keys at the prefs boundary gets the
-// stripped form without running a step of its own.
 func TestNewRawKeys_StripsControlFromEveryKey(t *testing.T) {
 	got := theme.NewRawKeys("\x1b[31mnord\x1b[0m", "so\tlar", "gruv\n")
 
@@ -669,10 +539,6 @@ func TestNewRawKeys_StripsControlFromEveryKey(t *testing.T) {
 	}
 }
 
-// TestNewRawKeys_ControlOnlyValueStripsToEmpty pins the resolution of an
-// ambiguity: a value that is ONLY control characters is unset rather than an
-// illegal slug, because stripping happens as the value is built and the empty
-// string is the unset sentinel every later rule reads.
 func TestNewRawKeys_ControlOnlyValueStripsToEmpty(t *testing.T) {
 	keys := theme.NewRawKeys("\x1b[31m\n\t", "\r", "\x1b[0m")
 
@@ -693,9 +559,6 @@ func TestNewRawKeys_ControlOnlyValueStripsToEmpty(t *testing.T) {
 	}
 }
 
-// TestNewRawKeys_IsIdempotent pins that construction over already-stripped values
-// is a no-op, which is what lets a caller holding either form hand its keys to
-// ResolveSetting and get the same answer.
 func TestNewRawKeys_IsIdempotent(t *testing.T) {
 	once := theme.NewRawKeys("\x1b[31mnord", "so\tlar", "gruv\n")
 
@@ -704,9 +567,6 @@ func TestNewRawKeys_IsIdempotent(t *testing.T) {
 	}
 }
 
-// TestResolveSetting_StripsKeysItIsHandedUnstripped pins that the collapse owns
-// the normalisation: keys built as a plain literal from bytes off disk resolve
-// exactly as constructed ones do.
 func TestResolveSetting_StripsKeysItIsHandedUnstripped(t *testing.T) {
 	asRead := theme.RawKeys{Light: "so\tlar", Dark: "\x1b[31mgruv\n"}
 
@@ -720,10 +580,6 @@ func TestResolveSetting_StripsKeysItIsHandedUnstripped(t *testing.T) {
 	}
 }
 
-// impureSettingImports names the routes out of a pure function, and what each
-// one would let in. It is a deny-list rather than an allow-list because the
-// property being guarded is "no I/O, no environment, no clock", not "these exact
-// imports" — a later phase reaching for another pure stdlib helper is fine.
 var impureSettingImports = map[string]string{
 	"bufio":         "reads streams",
 	"crypto/rand":   "is nondeterministic",
@@ -740,8 +596,6 @@ var impureSettingImports = map[string]string{
 	"time":          "reads the clock",
 }
 
-// settingSource returns the parsed setting.go, failing rather than passing
-// vacuously when the file is not found.
 func settingSource(t *testing.T) parsedThemeSource {
 	t.Helper()
 
@@ -754,15 +608,11 @@ func settingSource(t *testing.T) parsedThemeSource {
 	return parsedThemeSource{}
 }
 
-// fieldKind is one expected struct field: its name and the kind of its type.
 type fieldKind struct {
 	name string
 	kind reflect.Kind
 }
 
-// assertFieldKinds fails unless the struct declares exactly the given fields, in
-// order, each of the given kind. It is what pins "slugs only": a field carrying a
-// Theme, a Token or a canvas value would be a struct kind, not a string.
 func assertFieldKinds(t *testing.T, structType reflect.Type, want []fieldKind) {
 	t.Helper()
 
@@ -775,8 +625,6 @@ func assertFieldKinds(t *testing.T, structType reflect.Type, want []fieldKind) {
 	}
 }
 
-// assertSingleLine fails when a value still carries a control character, which is
-// the checkable form of the row-rendering rule's "renders as one line of ordinary text".
 func assertSingleLine(t *testing.T, what, value string) {
 	t.Helper()
 
@@ -785,9 +633,6 @@ func assertSingleLine(t *testing.T, what, value string) {
 	}
 }
 
-// TestInForceKeys_NoKeySetIsEmptyNotNil pins the shape of the answer when the
-// user has set no theme key at all: an empty slice, not nil, so every surface
-// reading "which keys are in force" sees one shape for "none of them".
 func TestInForceKeys_NoKeySetIsEmptyNotNil(t *testing.T) {
 	got := theme.InForceKeys(theme.RawKeys{})
 

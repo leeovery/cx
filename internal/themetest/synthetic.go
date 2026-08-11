@@ -7,43 +7,29 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// syntheticGreenBase / syntheticBlueBase are the per-token ramps: token i takes
-// green base+i and blue base+i, so the values within one palette are unique and
-// every component stays three decimal digits.
+// Per-token ramps: token i takes green base+i and blue base+i, so values
+// within one palette are unique and every component stays three decimal
+// digits.
 const (
-	syntheticGreenBase = 0x80 // 128
-	syntheticBlueBase  = 0xC8 // 200
+	syntheticGreenBase = 0x80
+	syntheticBlueBase  = 0xC8
 )
 
-// syntheticRedFloor is the lowest red channel that still renders as three
-// decimal digits.
-const syntheticRedFloor = 0x64 // 100
+// The lowest red channel that still renders as three decimal digits.
+const syntheticRedFloor = 0x64
 
-// SyntheticPalette builds a whole palette from a fixed red channel: every token
-// in the vocabulary carries a value, unique within the palette, and two palettes
-// built from different reds share none.
+// SyntheticPalette builds a whole palette from a fixed red channel: every
+// token carries a value, unique within the palette, and two palettes built
+// from different reds share none. Shipped palettes are deliberately unusable
+// as swap probes — a token both themes value identically renders the same
+// either side, so the probe passes whether or not the site updated.
 //
-// SHIPPED PALETTES ARE DELIBERATELY NOT USED as probes. Two shipped themes fail
-// two ways: a hex both palettes happen to set identically survives a swap
-// LEGITIMATELY, so a probe fails permanently for a non-bug; and — worse, because
-// it is silent — a token with the same value either side renders identically
-// before and after, so the probe cannot tell whether that site updated. It
-// passes whether or not it did, and the site is uncovered with no signal.
-//
-// Every channel is THREE decimal digits (red at or above syntheticRedFloor,
-// green and blue from the ramps), so a rendered SGR core is fixed-width
-// `38;2;RRR;GGG;BBB` and one token's core can never be a substring of another's
-// — which would otherwise let the "the stale value is absent" half of a probe's
-// assertions pass vacuously. A red below the floor is fatal rather than
-// silently narrow.
-//
-// theme.Theme is an ordinary struct, so a palette built here needs no loader, no
-// file and no embedded set — which is what keeps probes independent of anything
-// done to the shipped themes. It is also why the completeness assertion below
-// earns its place: a token added to the vocabulary would otherwise leave this
-// literal compiling with a zero-valued field, and a probe reading a zero token
-// can neither diff it nor detect a stale value. The assertion turns that into a
-// loud failure, naming the token, in every guard that probes with this palette.
+// Every channel is three decimal digits, so a rendered SGR core is fixed-width
+// and one token's core can never be a substring of another's, which would let
+// the "stale value is absent" half of a probe pass vacuously. The completeness
+// assertion catches a token added to the vocabulary but not to this literal,
+// which would otherwise compile with a zero-valued field a probe cannot
+// diff.
 func SyntheticPalette(t *testing.T, red uint8) theme.Theme {
 	t.Helper()
 
@@ -89,10 +75,8 @@ func SyntheticPalette(t *testing.T, red uint8) theme.Theme {
 }
 
 // SyntheticPair builds two palettes that share no token value — the before and
-// after a swap probe diffs against each other.
-//
-// Equal reds are fatal: the pair would be identical, and every "the stale value
-// is gone" assertion made with it would pass vacuously.
+// after a swap probe diffs. Equal reds are fatal: an identical pair would make
+// every "the stale value is gone" assertion pass vacuously.
 func SyntheticPair(t *testing.T, redA, redB uint8) (a, b theme.Theme) {
 	t.Helper()
 

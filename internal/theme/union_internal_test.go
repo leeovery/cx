@@ -5,22 +5,6 @@ import (
 	"testing"
 )
 
-// TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder pins the row-rendering rule's
-// third leg as what it claims to be: a RULE that settles the one tie guaranteed
-// by construction, and not a side effect of the built-ins being assembled first.
-//
-// The distinction is invisible from outside the package and that is precisely
-// why it is asserted here. Reassemble always appends the file rows AFTER the
-// built-in rows, so a stable sort alone would produce a built-in-first result
-// for every union the assembler can build — and would go on producing one right
-// up until someone reordered the assembly, at which point the panel would start
-// leading with the row explaining why a theme is unusable instead of with the
-// theme. The input below is therefore the reverse of anything Reassemble
-// produces: the `reserved name` file FIRST, its built-in second.
-//
-// The rows are minimal on purpose. The tie is the whole fixture — an identical
-// sort key, which is the definition of `reserved name` — so nothing else
-// about them may participate in the outcome.
 func TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder(t *testing.T) {
 	collider := Row{
 		Slug:      "nord",
@@ -44,9 +28,6 @@ func TestSortRows_BuiltinFirstIsARuleNotAnArtefactOfAssemblyOrder(t *testing.T) 
 	}
 }
 
-// TestPersistedRows_NothingContributedIsEmptyNotNil pins the accumulator's empty
-// answer as an empty slice, the same shape every other row producer in this
-// package hands back when it finds nothing.
 func TestPersistedRows_NothingContributedIsEmptyNotNil(t *testing.T) {
 	rows := persistedRows(nil, Enumeration{}, RawKeys{})
 

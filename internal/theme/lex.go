@@ -6,53 +6,34 @@ import (
 	"unicode"
 )
 
-// utf8BOM is the UTF-8 byte-order mark. It is stripped from the first bytes of a
-// theme file and nowhere else.
 const utf8BOM = "\uFEFF"
 
-// The detail phrases a `bad syntax` rejection is built from. badSyntax renders
-// one behind "line N: ", producing the exact string doctor prints verbatim —
-// `line 4: quoted value`, `line 7: not a key = value pair`,
-// `line 12: duplicate key text.primary`.
+// User-facing copy: badSyntax renders these behind "line N: ", and doctor
+// prints the result verbatim.
 const (
 	detailNotAPair     = "not a key = value pair"
 	detailQuotedValue  = "quoted value"
 	detailDuplicateKey = "duplicate key %s"
 )
 
-// Pair is one `key = value` line a theme file declared, with the 1-based line it
-// was written on.
-//
-// A Pair is lexical only: the key is whatever the file wrote, not necessarily
-// one of the 19 token names, and the value is an untouched string that has not
-// been near a colour parser. Line is retained because it is the only carrier of
-// WHICH line is wrong in a later rejection detail.
+// Pair is one `key = value` line a theme file declared, with the 1-based line
+// it was written on. A Pair is lexical only: the key is whatever the file
+// wrote and the value is untouched. Line is retained for later rejection
+// details.
 type Pair struct {
 	Key, Value string
 	Line       int
 }
 
-// lexPairs turns theme-file bytes into the pairs the file declares, in file
-// order, or into exactly one `bad syntax` rejection.
-//
-// It is purely lexical. It never asks whether a key is one of the 19, never
-// validates a value, and never compares two values — which is what the rejection
-// ladder requires, since a lexical failure aborts the parse before any
-// value-level or presence check runs. It is also why the duplicate-key check
-// here is unconditional rather than scoped to known keys or to differing values.
-//
-// A file that declares nothing — empty, blank, or comments only — is NOT a
-// lexical failure. It lexes to zero pairs and fails later as `missing tokens`:
-// it parsed; it declares nothing.
-//
-// On rejection the pairs are nil. A caller never sees a partial file alongside
-// an error.
+// lexPairs is purely lexical — no key or value validation. A file that
+// declares nothing lexes to zero pairs and fails later as `missing tokens`;
+// on rejection the pairs are nil.
 func lexPairs(data []byte) ([]Pair, *Rejection) {
 	pairs := []Pair{}
 	seen := map[string]struct{}{}
 
-	// Splitting the BOM-stripped text on "\n" makes the slice index the 1-based
-	// line number of the original file, comments and blanks included.
+	// The slice index maps to the original file's 1-based line number,
+	// comments and blanks included.
 	for index, raw := range strings.Split(strings.TrimPrefix(string(data), utf8BOM), "\n") {
 		line := index + 1
 
@@ -76,14 +57,9 @@ func lexPairs(data []byte) ([]Pair, *Rejection) {
 	return pairs, nil
 }
 
-// lexLine turns one trimmed, non-blank, non-comment line into its pair, or
-// rejects it.
-//
-// The BOM check lands here rather than at the top of the loop so it covers only
-// the lines the lexer actually interprets: a BOM that survived the file-start
-// strip is invisible garbage that would otherwise corrupt a key into an unknown
-// one — reported as `missing tokens` — or a value into a `bad colour`, both of
-// which name the wrong thing.
+// A BOM surviving the file-start strip is rejected as `bad syntax`: left
+// alone it would corrupt a key or value and be reported under a reason naming
+// the wrong thing.
 func lexLine(text string, line int) (Pair, *Rejection) {
 	if strings.Contains(text, utf8BOM) {
 		return Pair{}, badSyntax(line, detailNotAPair)
@@ -94,9 +70,8 @@ func lexLine(text string, line int) (Pair, *Rejection) {
 		return Pair{}, badSyntax(line, detailNotAPair)
 	}
 
-	// Cut splits on the FIRST '=' only, so everything after it is the value
-	// verbatim: a '#', a second '=' or interior spaces are all part of it. The
-	// format never re-interprets anything right of the separator.
+	// Cut splits on the first '=' only: everything after it is the value
+	// verbatim — a '#', a second '=' or interior spaces are all part of it.
 	key, value := strings.TrimSpace(rawKey), strings.TrimSpace(rawValue)
 	if !wellFormedKey(key) {
 		return Pair{}, badSyntax(line, detailNotAPair)
@@ -108,25 +83,14 @@ func lexLine(text string, line int) (Pair, *Rejection) {
 	return Pair{Key: key, Value: value, Line: line}, nil
 }
 
-// trimLine drops one trailing carriage return, so a CRLF file lexes identically
-// to its LF twin, then trims both ends — before anything is classified, so
-// indentation ahead of a key gets the same tolerance the comment rule already
-// grants '#'.
+// A CRLF file must lex identically to its LF twin.
 func trimLine(raw string) string {
 	return strings.TrimSpace(strings.TrimSuffix(raw, "\r"))
 }
 
-// wellFormedKey reports whether key is non-empty and free of whitespace and
-// '='.
-//
-// Without the whitespace half, `text primary = …` would be a well-formed pair
-// with an unknown key, which is IGNORED — and the file would then fail as
-// `missing tokens`, a reason pointing at the wrong thing for what is plainly a
-// typo in a key that is otherwise right.
-//
-// The '=' half has no case reachable through lexPairs, because the left part of
-// a first-'=' split cannot contain one. It is stated anyway so a well-formed key
-// is defined here in full rather than half-delegated to the splitter.
+// Without the whitespace half, `text primary = …` would lex as an unknown key
+// and the file would fail as `missing tokens` — the wrong reason for a plain
+// typo.
 func wellFormedKey(key string) bool {
 	if key == "" || strings.Contains(key, "=") {
 		return false
@@ -134,23 +98,15 @@ func wellFormedKey(key string) bool {
 	return !strings.ContainsFunc(key, unicode.IsSpace)
 }
 
-// startsQuoted reports whether the value opens with a quote.
-//
-// "Quoted" is defined by the FIRST character alone — matched or not, either
-// quote — so `"#FFFFFF"`, `'#FFFFFF'` and `"#FFFFFF` are alike. Defining it by a
-// matched outer pair would send the unmatched case on down the ladder to
-// `bad colour`, telling the user their colour is wrong when their quoting is.
+// Judged by the first character alone, matched or not: requiring a matched
+// pair would send the unmatched case on to `bad colour`, telling the user
+// their colour is wrong when their quoting is.
 func startsQuoted(value string) bool {
 	return strings.HasPrefix(value, `"`) || strings.HasPrefix(value, "'")
 }
 
-// badSyntax builds the one rejection a lexical failure produces, rendering the
-// "line N: <phrase>" detail; Line carries the same number in machine-readable
-// form.
-//
 // Every lexical failure routes through here, so a second detail shape cannot
-// grow: a rejected theme carries exactly one reason, and `bad syntax` has
-// exactly one detail format.
+// grow.
 func badSyntax(line int, phrase string) *Rejection {
 	return &Rejection{
 		Reason: ReasonBadSyntax,

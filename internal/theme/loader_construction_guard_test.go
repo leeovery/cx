@@ -12,31 +12,11 @@ import (
 	"github.com/leeovery/portal/internal/sourceguard"
 )
 
-// loaderConstructionFile is the production file allowed to assemble a Loader,
-// and loaderConstructionFunc is the function inside it that may do so. Together
-// they are the single exemption below: the constructor that populates the
-// reserved set, named rather than matched by pattern, so an assembly appearing
-// anywhere else in the same file is caught.
 var (
 	loaderConstructionFile = filepath.Join("internal", "theme", "load.go")
 	loaderConstructionFunc = "NewLoader"
 )
 
-// TestLoader_HasNoProductionCompositeLiteral asserts no production file
-// anywhere in the repository assembles a theme.Loader literal.
-//
-// Loader's fields are exported so the rejection ladder can be driven with a
-// synthetic reserved set, which makes `theme.Loader{}` a legal expression in
-// every package — one that judges files through the whole ladder while
-// reserving nothing. Under it a user's `tokyo-night.theme` shadows the built-in
-// a slot falls back to, which is the one property the constructors exist to make
-// impossible. NewLoader refuses a nil event seam loudly for the same reason; the
-// zero value bypasses that check and fails silently instead.
-//
-// The scan is repo-wide rather than package-local because the hazard is not
-// here: a `theme.Loader{}` in cmd, internal/tui, internal/capture or the capture
-// harness is invisible from inside this package, and those are where such a
-// value would actually be written.
 func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 	root, err := portalbintest.ProjectRoot()
 	if err != nil {
@@ -92,9 +72,6 @@ func TestLoader_HasNoProductionCompositeLiteral(t *testing.T) {
 	}
 }
 
-// isLoaderTypeExpr reports whether the composite literal's type is theme.Loader,
-// in either spelling: the qualified `theme.Loader{…}` any package can write, and
-// the bare `Loader{…}` that means this type only inside internal/theme.
 func isLoaderTypeExpr(expr ast.Expr, packageLocal bool) bool {
 	switch typ := expr.(type) {
 	case *ast.Ident:

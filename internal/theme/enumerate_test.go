@@ -13,14 +13,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestEnumerate_AbsentDirectoryIsSilent pins the first row of the directory-resolution rule's
-// directory-state table: an absent themes directory is THE COMMON CASE and is
-// completely silent — no entries, no rejection, and no doctor line. Zero
-// drop-ins is not an error, and Portal never creates or seeds the directory.
-//
-// The verdict has to stay distinguishable from the unusable-directory one below,
-// because that is what the `theme` log component's emission decision rests on:
-// an unusable directory owes the user a record, an absent one owes nothing.
 func TestEnumerate_AbsentDirectoryIsSilent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "themes")
 
@@ -34,23 +26,6 @@ func TestEnumerate_AbsentDirectoryIsSilent(t *testing.T) {
 	}
 }
 
-// TestEnumerate_RegularFileWhereDirectoryBelongs pins the other row of the
-// directory-resolution rule's table on the state that is easiest to mistake for the silent
-// one: the path EXISTS, so an absent-directory check alone would report nothing, yet nothing
-// there can ever be read as a themes directory. It is a genuine misconfiguration
-// and reports `unreadable`.
-//
-// `unreadable`, never `not found`: `not found` sends the user to check the
-// filename, `unreadable` sends them to check the directory — and the directory is
-// the actual problem. The errno is asserted structurally rather than by
-// its rendered text, which is the platform's wording rather than Portal's.
-//
-// This is the one state whose error nothing hands back — the stat decides it, so
-// no failed read is left to carry one and the error is reconstructed. The detail
-// is checked against what the OS ITSELF produces for the same path, because the pinned copy
-// makes that field the OS error verbatim: a reconstruction that renders any other
-// wording — a verb no code path in Go produces, say — would be a fabrication
-// sitting in the one field whose whole contract is that it is not.
 func TestEnumerate_RegularFileWhereDirectoryBelongs(t *testing.T) {
 	dir := writeFile(t, t.TempDir(), "themes", "this is not a directory\n")
 
@@ -70,15 +45,6 @@ func TestEnumerate_RegularFileWhereDirectoryBelongs(t *testing.T) {
 	}
 }
 
-// TestEnumerate_UnreadableDirectory pins the directory-resolution rule's misconfiguration row
-// on the case it is actually written for: a real themes directory whose bytes cannot be
-// listed. The reason is `unreadable` because permissions are what the user has
-// to go and fix.
-//
-// The directory holds a perfectly valid theme, which is what makes the verdict
-// load-bearing rather than incidental: the file exists and would enumerate, and
-// the assertion is that the directory's failure suppresses it entirely rather
-// than half-reporting a set nobody could read.
 func TestEnumerate_UnreadableDirectory(t *testing.T) {
 	dir := unreadableDir(t)
 
@@ -94,15 +60,6 @@ func TestEnumerate_UnreadableDirectory(t *testing.T) {
 	}
 }
 
-// TestEnumerate_FollowsSymlinkedRoot pins the enumeration rule's root rule: the RESOLVED
-// themes directory may itself be a symlink, and it is followed. Dotfiles users symlink
-// ~/.config/portal and its contents as a matter of course, and not following the
-// root would make every drop-in vanish with no row and no doctor line — the
-// "completely in the dark" state the union rule exists to prevent.
-//
-// This is what makes os.Stat rather than os.Lstat the load-bearing choice at the
-// root: an Lstat would see a symlink, not a directory, and report the whole
-// directory `unreadable`.
 func TestEnumerate_FollowsSymlinkedRoot(t *testing.T) {
 	real := t.TempDir()
 	themetest.Write(t, real, "nord-lee.theme", themetest.Lines())
@@ -121,12 +78,6 @@ func TestEnumerate_FollowsSymlinkedRoot(t *testing.T) {
 	}
 }
 
-// TestEnumerate_TopLevelOnly pins the enumeration rule's first bullet: enumeration matches
-// files in the directory ITSELF and never recurses.
-//
-// The nested file is a perfectly valid theme, so the only thing keeping it out
-// of the result is the rule. It must not be listed and must not be rejected
-// either — the user never asked for a theme there.
 func TestEnumerate_TopLevelOnly(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "top.theme", themetest.Lines())
@@ -145,13 +96,6 @@ func TestEnumerate_TopLevelOnly(t *testing.T) {
 	requireValidEntry(t, entry, "top")
 }
 
-// TestEnumerate_FollowsSymlinkedFiles pins the enumeration rule's symlinked-file rule and the
-// half of it that decides identity: the link IS followed — the standard dotfiles
-// shape, and dotfiles users are exactly who hand-authors a theme — and the slug
-// derives from the LINK NAME as enumerated, not from the target's.
-//
-// The target is deliberately named something else entirely, so a slug taken from
-// the resolved path would be visibly wrong rather than accidentally right.
 func TestEnumerate_FollowsSymlinkedFiles(t *testing.T) {
 	target := themetest.Write(t, t.TempDir(), "original-name.theme", themetest.Lines())
 	dir := t.TempDir()
@@ -166,14 +110,6 @@ func TestEnumerate_FollowsSymlinkedFiles(t *testing.T) {
 	requireValidEntry(t, entry, "link")
 }
 
-// TestEnumerate_DanglingSymlinkIsUnreadable pins the enumeration rule's other half of the
-// symlink rule: a dangling link ENUMERATES and then fails to read, reason
-// `unreadable` — which covers every read failure, not only permissions.
-//
-// It is the case that stops "what does this entry resolve to?" being answered
-// with a skip: the link resolves to nothing, and a skip would make the user's
-// broken link silently absent instead of present and named. The slug
-// survives because the FILENAME is fine — only the bytes behind it are not.
 func TestEnumerate_DanglingSymlinkIsUnreadable(t *testing.T) {
 	dir := t.TempDir()
 	writeDanglingThemeLink(t, dir, "gone.theme")
@@ -190,18 +126,6 @@ func TestEnumerate_DanglingSymlinkIsUnreadable(t *testing.T) {
 	}
 }
 
-// TestEnumerate_SkipsDirectoryValuedEntriesSilently pins the enumeration rule's
-// one-rule-not-two clause: a `.theme`-named entry that RESOLVES to a directory is skipped
-// silently, whether it is a real subdirectory or a symlink pointing at one.
-// "What the entry resolves to is what decides, not whether a link is involved."
-//
-// Silently is the operative word — enumeration matches files, and a directory is
-// not a candidate that failed, it is not a candidate at all. So it must produce
-// neither an entry nor a rejection, which is what separates this rule from every
-// other enumeration bullet.
-//
-// A valid theme sits beside it in both cases, so the assertion is that
-// enumeration skipped one entry and carried on rather than stopping at it.
 func TestEnumerate_SkipsDirectoryValuedEntriesSilently(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -243,21 +167,6 @@ func TestEnumerate_SkipsDirectoryValuedEntriesSilently(t *testing.T) {
 	}
 }
 
-// TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName pins the enumeration rule's
-// two-part extension rule, and both parts are load-bearing.
-//
-// Matched case-insensitively for ENUMERATION, so the file is VISIBLE — a
-// silently absent file is the "completely in the dark" state the union rule exists to
-// prevent, and it would be absent most often on the case-insensitive filesystem
-// where a user is most likely to type it that way. Accepted only at the exact
-// lowercase `.theme`, so the file is rejected `bad name` on its EXTENSION and
-// contributes no slug — which is what makes a duplicate slug impossible and
-// leaves no precedence rule or ordering tie-break to define.
-//
-// The empty slug is asserted for that reason: it is the mechanism, not a detail.
-//
-// `Nord.THEME` carries the slug cause rather than the extension one: its stem is
-// illegal too, and the extension message claims the stem is fine.
 func TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName(t *testing.T) {
 	cases := []struct {
 		base      string
@@ -292,17 +201,6 @@ func TestEnumerate_CaseInsensitiveExtensionVisibleThenBadName(t *testing.T) {
 	}
 }
 
-// TestEnumerate_IllegalStemIsBadNameWithNoSlug pins `bad name`'s OTHER cause at
-// the enumeration entry point: an exact lowercase `.theme` extension over a stem
-// that is not a legal slug. The extension is fine here, so nothing about
-// the file's visibility is in question — it is the identity that fails.
-//
-// Both causes are asserted at this level, rather than only in the loader's own
-// suite, because the empty slug is re-derived here (the reason vocabulary's rung 1 is what
-// makes it empty, but enumeration is what asks again after a rejection). A re-derivation
-// that consulted only the extension would answer `Nord` for this file — a slug
-// the slug charset rule refuses to mint, and the exact quiet normalisation the reserved-slug
-// rule's no-shadowing rule depends on never happening.
 func TestEnumerate_IllegalStemIsBadNameWithNoSlug(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "Nord.theme", themetest.Lines())
@@ -322,23 +220,6 @@ func TestEnumerate_IllegalStemIsBadNameWithNoSlug(t *testing.T) {
 	}
 }
 
-// TestEnumerate_AppliesTheInjectedReservedSlugs pins that enumeration runs
-// candidates through the loader IT WAS CALLED ON, not a fresh zero one.
-//
-// The reserved set is the only rung whose input arrives on the Loader, so it is
-// the only one that can prove this — and it is the rung that must not be lost.
-// The reserved-slug rule is a hard constraint, not a preference: an invalid theme falls back
-// to a built-in, so a user file that could shadow the built-in could break the very
-// thing Portal falls back to, and "that must be impossible". An enumeration that
-// dropped the injected set would list a shadowing drop-in as a VALID, SELECTABLE
-// panel row — the failure would surface as a broken fallback rather than as a
-// missing check.
-//
-// The slug survives the rejection, which is the same "only a bad name costs an
-// entry its slug" rule the rejected entries elsewhere assert: `reserved name` is
-// decided FROM a perfectly good slug, so the row is listed under the name that
-// collided — which is what makes the reserved-slug rule's two-second fix (rename it
-// `nord-lee`) self-evident from the panel.
 func TestEnumerate_AppliesTheInjectedReservedSlugs(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
@@ -356,16 +237,6 @@ func TestEnumerate_AppliesTheInjectedReservedSlugs(t *testing.T) {
 	}
 }
 
-// TestEnumerate_IgnoresNonThemeFiles pins the other side of the candidate
-// filter: a file that is not a theme file is ignored ENTIRELY — no entry, no
-// reason, and no log line. It did not fail to be a theme; it
-// never was one.
-//
-// The three fixtures are the near misses the filter has to get right: a
-// different extension, no extension at all, and the bare word `theme` — which
-// contains the extension's letters but carries no dot, so filepath.Ext yields
-// nothing to match. The valid file beside them is what proves the filter
-// discriminated rather than rejecting everything.
 func TestEnumerate_IgnoresNonThemeFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "notes.txt", "not a theme\n")
@@ -382,24 +253,6 @@ func TestEnumerate_IgnoresNonThemeFiles(t *testing.T) {
 	requireValidEntry(t, entry, "nord-lee")
 }
 
-// TestEnumerate_ValidAndInvalidFilesBothProduceEntries pins the union rule's reason for
-// enumerating everything: an invalid theme is PRESENT AND NAMED, so the user
-// sees "there's my theme, it's registered, but it's invalid" rather than being
-// completely in the dark about why it did not appear. Five files in, five
-// entries out — the valid ones carrying their whole palette, each invalid one
-// carrying exactly one reason and no palette.
-//
-// The order is asserted too. Entries come back in os.ReadDir's filename order,
-// which is BYTE-WISE, so a caller gets a deterministic result; the row-rendering rule's
-// display sort key (slug with a filename fallback, case-insensitive with a byte-wise
-// tie-break) belongs to Reassemble (see sortRows) and is deliberately NOT applied
-// here. The names
-// are staged in an order that differs from their sorted order, so a result that
-// merely echoed the staging would fail — and `Zed.THEME` beside `apple.theme` is
-// what makes the two orders DISTINGUISHABLE: byte-wise the capital sorts first,
-// case-insensitively it would sort last. Without that pair every fixture sorts
-// identically under both rules and the assembler's sort key applied here would
-// pass unnoticed.
 func TestEnumerate_ValidAndInvalidFilesBothProduceEntries(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
@@ -427,10 +280,6 @@ func TestEnumerate_ValidAndInvalidFilesBothProduceEntries(t *testing.T) {
 	requireRejectedEntry(t, entries[3], theme.ReasonMissingTokens)
 	requireValidEntry(t, entries[4], "valid")
 
-	// Slug empty exactly when the rejection is `bad name`, asserted as the
-	// biconditional across the whole set: every other entry — valid or rejected —
-	// keeps the identity its filename yields, so a broken file is still listed
-	// under a name.
 	for _, entry := range entries {
 		badName := entry.Rejection != nil && entry.Rejection.Reason == theme.ReasonBadName
 		if gotEmpty := entry.Slug == ""; gotEmpty != badName {
@@ -439,8 +288,6 @@ func TestEnumerate_ValidAndInvalidFilesBothProduceEntries(t *testing.T) {
 	}
 }
 
-// requireSingleEntry fails the test unless exactly one entry came back, and
-// returns it.
 func requireSingleEntry(t *testing.T, entries []theme.Entry) theme.Entry {
 	t.Helper()
 
@@ -450,8 +297,6 @@ func requireSingleEntry(t *testing.T, entries []theme.Entry) theme.Entry {
 	return entries[0]
 }
 
-// requireValidEntry fails the test unless the entry loaded cleanly under the
-// expected slug, carrying the whole parsed palette and no rejection.
 func requireValidEntry(t *testing.T, entry theme.Entry, wantSlug string) {
 	t.Helper()
 
@@ -469,9 +314,6 @@ func requireValidEntry(t *testing.T, entry theme.Entry, wantSlug string) {
 	}
 }
 
-// requireRejectedEntry fails the test unless the entry carries exactly the one
-// expected reason and no palette. A rejected entry never comes back
-// half-populated: the ladder returns the zero Result with every rejection.
 func requireRejectedEntry(t *testing.T, entry theme.Entry, wantReason theme.Reason) {
 	t.Helper()
 
@@ -486,10 +328,6 @@ func requireRejectedEntry(t *testing.T, entry theme.Entry, wantReason theme.Reas
 	}
 }
 
-// requireDirectoryUnusable fails the test unless Enumerate reported the
-// directory itself as `unreadable`, returned no entries alongside that verdict,
-// and kept the OS error — verbatim in the detail and structured on Err,
-// which is the only thing distinguishing a denial from a non-directory.
 func requireDirectoryUnusable(t *testing.T, entries []theme.Entry, rejection *theme.Rejection) {
 	t.Helper()
 
@@ -510,7 +348,6 @@ func requireDirectoryUnusable(t *testing.T, entries []theme.Entry, rejection *th
 	}
 }
 
-// filenamesOf lists the entries' filenames in the order they came back.
 func filenamesOf(entries []theme.Entry) []string {
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -519,9 +356,6 @@ func filenamesOf(entries []theme.Entry) []string {
 	return names
 }
 
-// writeFile writes contents as a file named base inside dir and returns its
-// path. Unlike themetest.Write it takes raw bytes, so it can stage the things
-// that are NOT theme files.
 func writeFile(t *testing.T, dir, base, contents string) string {
 	t.Helper()
 
@@ -532,7 +366,6 @@ func writeFile(t *testing.T, dir, base, contents string) string {
 	return path
 }
 
-// linkAt symlinks path to target.
 func linkAt(t *testing.T, target, path string) {
 	t.Helper()
 
@@ -541,13 +374,8 @@ func linkAt(t *testing.T, target, path string) {
 	}
 }
 
-// unreadableDir stages a themes directory holding one valid theme and then
-// removes every permission bit, so the only thing wrong with it is that it
-// cannot be listed.
-//
-// Mode bits do not deny root, so the fixture is impossible there and the test
-// skips rather than asserting something the platform will not do. The mode is
-// restored on cleanup so the temp dir tears down predictably.
+// Mode bits do not deny root, so this fixture is impossible there and the test
+// skips. The mode is restored on cleanup so the temp dir tears down.
 func unreadableDir(t *testing.T) string {
 	t.Helper()
 
@@ -573,10 +401,6 @@ func unreadableDir(t *testing.T) string {
 	return dir
 }
 
-// TestEnumerate_UsableDirectoryWithNoCandidatesIsEmptyNotNil pins the shape of a
-// readable themes directory holding nothing to enumerate: an empty slice, not
-// nil, so "the directory is usable and holds no themes" reads the same as every
-// other empty answer this package gives.
 func TestEnumerate_UsableDirectoryWithNoCandidatesIsEmptyNotNil(t *testing.T) {
 	dir := t.TempDir()
 

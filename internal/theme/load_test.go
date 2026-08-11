@@ -12,10 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// TestLoadFile_ValidThemeReturnsSlugAndTheme pins the accepting path end to end:
-// the slug comes from the filename, the palette from the contents, and the 19
-// values arrive in the hex-only value rule's canonical upper case even though the file wrote
-// them lower.
 func TestLoadFile_ValidThemeReturnsSlugAndTheme(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.Lines())
 
@@ -32,14 +28,6 @@ func TestLoadFile_ValidThemeReturnsSlugAndTheme(t *testing.T) {
 	}
 }
 
-// TestLoadFile_LadderShortCircuits is the pin the whole function exists for:
-// every file below fails TWO of the reason vocabulary's rungs at once, and each reports only
-// the higher one.
-//
-// Nothing else in the feature asserts this ordering, and without it a file that
-// is simultaneously duplicate-keyed and missing tokens has two defensible
-// answers — which would make the panel's single-reason row a choice rather than
-// a fact, and let doctor and the panel disagree about the same file.
 func TestLoadFile_LadderShortCircuits(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -75,7 +63,6 @@ func TestLoadFile_LadderShortCircuits(t *testing.T) {
 		{
 			name: "bad syntax beats missing tokens",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				// 19 tokens less bg.subtle is 18 lines, so the duplicate lands on line 19.
 				lines := append(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "text.primary = #010203")
 				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", lines)
 			},
@@ -104,13 +91,6 @@ func TestLoadFile_LadderShortCircuits(t *testing.T) {
 	}
 }
 
-// TestLoadFile_BadNameDecidedBeforeOpen pins rung 1's position: the FILENAME is
-// checked before the file is opened, so a bad-name file can never also report
-// `unreadable` or anything about its contents.
-//
-// Every path here is inside a directory that does not exist, so a read would
-// certainly fail — which is what makes the verdict evidence of ordering rather
-// than a coincidence. Both causes are covered, because both live on this rung.
 func TestLoadFile_BadNameDecidedBeforeOpen(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -140,15 +120,6 @@ func TestLoadFile_BadNameDecidedBeforeOpen(t *testing.T) {
 	}
 }
 
-// TestLoadFile_ReservedNameDecidedFromSlugAlone pins rung 2 and the reserved-slug rule's
-// no-shadowing rule: a user file whose slug collides with a built-in is rejected
-// whatever its contents are — including when there are no contents to have.
-//
-// The three fixtures are the three states the file can be in behind the same
-// name, and all three land on the same rung, which is what "decided from the
-// slug alone, before any read" means. The unreserved neighbour is the near miss:
-// reservation is EXACT STRING EQUALITY, so `nord-lee` is not a collision with
-// `nord` and loads normally.
 func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 	loader := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}, "tokyo-night": {}}}
 
@@ -200,19 +171,6 @@ func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 	})
 }
 
-// TestLoadFile_EmptyInjectedReservedSetNeverRejects pins the SEAM the built-in
-// slugs are populated through: the set is an INJECTED field, so a Loader
-// carrying an empty one produces `reserved name` for no input at all.
-//
-// That stays true now that NewLoader populates the field from the embedded set,
-// and it is what keeps the rung drivable from a test with a synthetic
-// set — the injection point is a seam rather than a formality. Both empty forms
-// are covered because both are reachable: a zero-value Loader carries a nil map,
-// and a caller assembling a set from an empty collection produces an allocated
-// one.
-//
-// The files include a real built-in's slug, so the acceptance is proved to
-// follow the INJECTED set rather than the embedded one.
 func TestLoadFile_EmptyInjectedReservedSetNeverRejects(t *testing.T) {
 	loaders := []struct {
 		name   string
@@ -247,14 +205,6 @@ func TestLoadFile_EmptyInjectedReservedSetNeverRejects(t *testing.T) {
 	}
 }
 
-// TestLoadFile_UnreadableKeepsOSErrorVerbatim pins rung 3 and the pinned copy's detail for
-// it. `unreadable` covers EVERY read failure, not only permissions, and the OS
-// error is kept verbatim because it is the only thing distinguishing a
-// permission denial from a dangling symlink — the two cases below.
-//
-// The expected error is taken from os.ReadFile on the same path rather than
-// spelled out, because its text is the platform's rather than Portal's; what is
-// pinned is that nothing rewords, wraps or truncates it.
 func TestLoadFile_UnreadableKeepsOSErrorVerbatim(t *testing.T) {
 	tests := []struct {
 		name string
@@ -286,14 +236,6 @@ func TestLoadFile_UnreadableKeepsOSErrorVerbatim(t *testing.T) {
 	}
 }
 
-// TestLoadFile_NotFoundIsOutsideTheLadder pins the reason vocabulary's seventh reason as
-// deliberately unreachable from a path: `not found` applies only to a slug named
-// by prefs.json with no corresponding file, where there is nothing to
-// check. An absent file handed to LoadFile is `unreadable`, which is the reason
-// that sends the user to check permissions rather than the filename.
-//
-// The corpus is every rung plus the accepting path, and each case states the
-// reason it DOES produce, so the test cannot pass by failing to reach the loader.
 func TestLoadFile_NotFoundIsOutsideTheLadder(t *testing.T) {
 	for _, tt := range rejectionCorpus() {
 		t.Run(tt.name, func(t *testing.T) {
@@ -320,9 +262,6 @@ func TestLoadFile_NotFoundIsOutsideTheLadder(t *testing.T) {
 	}
 }
 
-// TestLoadFile_TokensCarriedOnlyByTheReasonsThatNameTokens pins the structured
-// token list against every rung: populated for exactly `missing tokens` and
-// `bad colour`, and empty for every other reason.
 func TestLoadFile_TokensCarriedOnlyByTheReasonsThatNameTokens(t *testing.T) {
 	naming := map[theme.Reason]bool{
 		theme.ReasonMissingTokens: true,
@@ -351,16 +290,7 @@ func TestLoadFile_TokensCarriedOnlyByTheReasonsThatNameTokens(t *testing.T) {
 	}
 }
 
-// TestLoadFile_DetailNeverSpansTwoReasons pins the reason vocabulary's other half: doctor
-// enumerates WITHIN the reason, never across reasons, so it never reports a file
-// as both `bad colour` and `missing tokens`.
-//
-// One file is repaired one fault at a time. It starts with three faults at once,
-// and each state asserts the whole detail plus the absence of every fault the
-// file still has — which is what distinguishes "the detail is scoped" from "the
-// detail happens to look right".
 func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
-	// 19 tokens less bg.subtle is 18 lines, so an appended duplicate lands on line 19.
 	badColourAndMissing := themetest.WithValue(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "canvas", "blue")
 
 	tests := []struct {
@@ -409,20 +339,6 @@ func TestLoadFile_DetailNeverSpansTwoReasons(t *testing.T) {
 	}
 }
 
-// TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung pins what an EXPLICIT PATH is:
-// an input, not a directory entry. The reason vocabulary's two filename rungs are not run, and
-// no slug is derived — the Go-side data shape gives a Theme no identity field, so a theme
-// loaded from a path has none.
-//
-// Every file below is perfectly valid content behind a name LoadFile refuses, and
-// each case asserts that refusal alongside the acceptance. That pairing is the
-// whole test: without it a passing LoadPath would be indistinguishable from a
-// LoadFile whose fixtures happened to have legal names.
-//
-// The reserved case carries an INJECTED reserved set, so the rung it skips is the
-// one a directory entry would certainly hit rather than a hypothetical. The
-// loader in the table is the LoadFile half's alone: LoadPath is a function, so
-// the set it must not consult is not even reachable from it.
 func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
 	reserving := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}, "tokyo-night": {}}}
 
@@ -486,13 +402,6 @@ func TestLoadPath_DerivesNoSlugAndRunsNoFilenameRung(t *testing.T) {
 	}
 }
 
-// TestLoadPath_RunsTheContentRungs pins the other half: the four rungs that read
-// the file DO apply, in the reason vocabulary's order, with the same reasons and the same
-// pinned-copy details LoadFile produces.
-//
-// Only the content reasons are reachable, which is what makes the harness's
-// hard-error contract exhaustive: `bad syntax`, `bad colour`,
-// `missing tokens` and `unreadable` are everything a path can be wrong in.
 func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -503,7 +412,6 @@ func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 			name:       "a duplicate key",
 			wantReason: theme.ReasonBadSyntax,
 			setup: func(t *testing.T, dir string) (string, string) {
-				// 19 token lines, so the appended duplicate lands on line 20.
 				lines := append(themetest.Lines(), "text.primary = #010203")
 				return themetest.Write(t, dir, "nord-lee.theme", lines), "line 20: duplicate key text.primary"
 			},
@@ -549,17 +457,12 @@ func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 	}
 }
 
-// loadCase is one staged file plus the verdict the ladder must reach on it. An
-// empty wantReason means the file loads.
 type loadCase struct {
 	name       string
 	setup      func(t *testing.T, dir string) (theme.Loader, string)
 	wantReason theme.Reason
 }
 
-// rejectionCorpus stages one file per the reason vocabulary's rung, plus the accepting path
-// and the three shapes of read failure — the absent file among them, which is the case
-// `not found` would otherwise be tempting for.
 func rejectionCorpus() []loadCase {
 	return []loadCase{
 		{
@@ -636,11 +539,6 @@ func rejectionCorpus() []loadCase {
 	}
 }
 
-// wantThemeTokens renders the tokens themetest.Lines() must parse into: the same
-// values in the hex-only value rule's canonical upper case, in canonical table order.
-//
-// The expectation is read back off the fixture's own lines rather than rebuilt
-// from a second copy of its value generator, so the two cannot drift apart.
 func wantThemeTokens() []theme.Token {
 	lines := themetest.Lines()
 	tokens := make([]theme.Token, 0, len(lines))
@@ -651,13 +549,8 @@ func wantThemeTokens() []theme.Token {
 	return tokens
 }
 
-// writeUnreadableTheme writes a perfectly valid theme file and then removes
-// every permission bit, so the only thing wrong with it is that the bytes cannot
-// be read.
-//
-// Mode bits do not deny root, so the fixture is impossible there and the test
-// skips rather than asserting something the platform will not do. The mode is
-// restored on cleanup so the temp dir tears down predictably.
+// Mode bits do not deny root, so this fixture is impossible there and the test
+// skips. The mode is restored on cleanup so the temp dir tears down.
 func writeUnreadableTheme(t *testing.T, dir, base string) string {
 	t.Helper()
 
@@ -678,8 +571,6 @@ func writeUnreadableTheme(t *testing.T, dir, base string) string {
 	return path
 }
 
-// writeDanglingThemeLink stages a theme file that enumerates but cannot be read
-// for an entirely different reason: it is a symlink to a file that is not there.
 func writeDanglingThemeLink(t *testing.T, dir, base string) string {
 	t.Helper()
 
@@ -690,21 +581,6 @@ func writeDanglingThemeLink(t *testing.T, dir, base string) string {
 	return path
 }
 
-// requireLoadRejection fails the test unless the load rejected with the one
-// expected reason and the complete pinned-copy detail.
-//
-// It serves both loader entry points — LoadFile's full ladder and LoadPath's
-// content half — because the rejection contract is the same on either: exactly
-// one reason, the whole pinned-copy detail, and the zero Result alongside it.
-//
-// It also pins the invariants every rejection from the ladder shares: no
-// populated Result comes back alongside one — never a slug, never a partial
-// palette, never the source bytes — and Line is 0 for every reason but
-// `bad syntax`, which is the only one that has a line.
-//
-// The zero-Result check is a DeepEqual rather than a ==: a Result carries the
-// bytes it parsed, which makes the struct uncomparable. The assertion is
-// unchanged.
 func requireLoadRejection(t *testing.T, got theme.Result, rejection *theme.Rejection, wantReason theme.Reason, wantDetail string) {
 	t.Helper()
 

@@ -9,14 +9,6 @@ import (
 	"testing"
 )
 
-// TestValidate_AcceptsNineteenWellFormedTokens pins the shape of a file that
-// validates: every one of the 19 keys present, every value a well-formed hex,
-// and the result a Theme carrying them.
-//
-// The two assertions are complementary. All() reports the canonical table's
-// names whatever the fields hold, so it pins the ordered result but is blind to
-// a Theme populated with values alone; storedTokens reads the fields directly
-// and is what pins that each field carries its own name.
 func TestValidate_AcceptsNineteenWellFormedTokens(t *testing.T) {
 	built, rejection := themeFromPairs(wellFormedPairs())
 
@@ -31,14 +23,6 @@ func TestValidate_AcceptsNineteenWellFormedTokens(t *testing.T) {
 	}
 }
 
-// TestValidate_RejectsMalformedHexForms covers the hex-only value rule's value domain: exactly
-// '#' and six hex digits, and nothing else.
-//
-// The last four forms are the ones that make Portal own a validator at all —
-// lipgloss.Color never returns an error and accepts every one of them silently:
-// `blue` is a named colour, `212` an ANSI-256 index, `-5` is abs'd to 5, and
-// `16777215` is reinterpreted as packed RGB. Without this check a typo'd value
-// becomes an invisible wrong colour rather than one honest message.
 func TestValidate_RejectsMalformedHexForms(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -66,10 +50,6 @@ func TestValidate_RejectsMalformedHexForms(t *testing.T) {
 	}
 }
 
-// TestValidate_CanonicalisesHexToUppercase pins the hex-only value rule's canonical form. Two
-// hex comparison sites depend on it — the startup canvas hex retained for the
-// exit-time restore and background diffing — so a file written
-// `#c0caf5` must not fail to match one written `#C0CAF5`.
 func TestValidate_CanonicalisesHexToUppercase(t *testing.T) {
 	lower := valued(pairsFrom(lowercaseHexForRow), "text.primary", "#c0caf5")
 	upper := uppercased(lower)
@@ -88,12 +68,6 @@ func TestValidate_CanonicalisesHexToUppercase(t *testing.T) {
 	}
 }
 
-// TestValidate_IgnoresUnknownKeyAndItsValue pins the unknown-key rule's forward-compatibility
-// lever: an unknown key is ignored ENTIRELY, key and value both. Were a removed
-// token's stale line able to reject a file on its value, "old files keep
-// working" would hold only for values that happen to still be well-formed hex —
-// a far weaker guarantee than the one the file-contents rule states — so the value here is one
-// no hex validator would accept.
 func TestValidate_IgnoresUnknownKeyAndItsValue(t *testing.T) {
 	pairs := append(wellFormedPairs(), Pair{Key: "legacy.thing", Value: "nonsense", Line: 20})
 
@@ -106,11 +80,6 @@ func TestValidate_IgnoresUnknownKeyAndItsValue(t *testing.T) {
 	}
 }
 
-// TestValidate_WrongCaseKeyFailsAsMissingTokens pins the reason vocabulary's consequence of
-// case-sensitive matching: `Text.Primary` is an unknown key, so it is ignored
-// and the file fails on the token it did not declare. That reason is technically
-// accurate but capable of misdirecting, which is precisely why the detail names
-// the missing token — it is what makes the mistake findable.
 func TestValidate_WrongCaseKeyFailsAsMissingTokens(t *testing.T) {
 	pairs := rekeyed(wellFormedPairs(), "text.primary", "Text.Primary")
 
@@ -119,9 +88,6 @@ func TestValidate_WrongCaseKeyFailsAsMissingTokens(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonMissingTokens, "missing text.primary")
 }
 
-// TestValidate_EmptyFileMissesAllNineteen pins the verdict on a file that
-// declares nothing. It is not a lexical failure — it parsed; it simply declares
-// nothing — so the presence check is what fails it, naming all 19.
 func TestValidate_EmptyFileMissesAllNineteen(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -142,13 +108,6 @@ func TestValidate_EmptyFileMissesAllNineteen(t *testing.T) {
 	}
 }
 
-// TestValidate_BadColourDetailEnumeratesEveryOffendingPair pins doctor's
-// "enumerate within the reason" contract on the value stage: a file with three
-// typos is one message naming all three, not three runs of the loader.
-//
-// The pairs are declared in REVERSE table order, so the detail's ordering is
-// provably the file's rather than the canonical table's, and the unknown key
-// carries a malformed value of its own to pin that it reaches no detail.
 func TestValidate_BadColourDetailEnumeratesEveryOffendingPair(t *testing.T) {
 	offending := []Pair{
 		{Key: "text.primary", Value: "#GGGGGG"},
@@ -167,14 +126,6 @@ func TestValidate_BadColourDetailEnumeratesEveryOffendingPair(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonBadColour, "bg.subtle = #FFF, canvas = blue, text.primary = #GGGGGG")
 }
 
-// TestValidate_MissingTokensDetailEnumeratesEveryAbsentName is the presence
-// stage's half of the same contract, and pins the order the names come back in.
-// An absent token has no file position, so the ordering can only come from the
-// canonical table — canonical table order, not alphabetical, which for this pair would
-// invert them.
-//
-// The two names are the pinned copy's own example, so the detail is the exact string the
-// spec pins for it.
 func TestValidate_MissingTokensDetailEnumeratesEveryAbsentName(t *testing.T) {
 	declared := reversed(without(wellFormedPairs(), "text.primary", "bg.subtle"))
 
@@ -183,10 +134,6 @@ func TestValidate_MissingTokensDetailEnumeratesEveryAbsentName(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonMissingTokens, "missing text.primary, bg.subtle")
 }
 
-// TestValidate_MissingTokensCarriesTheAbsentNamesAsData pins that the absent
-// names ride the rejection in structured form, and that the detail is that list
-// rendered — so a consumer wanting the names reads them rather than unpicking
-// the sentence.
 func TestValidate_MissingTokensCarriesTheAbsentNamesAsData(t *testing.T) {
 	declared := reversed(without(wellFormedPairs(), "text.primary", "bg.subtle"))
 
@@ -201,9 +148,6 @@ func TestValidate_MissingTokensCarriesTheAbsentNamesAsData(t *testing.T) {
 	}
 }
 
-// TestValidate_BadColourCarriesTheOffendingPairsAsData is the value stage's half
-// of the same claim: the offending `key = value` pairs ride the rejection in
-// structured form, and the detail is those pairs joined.
 func TestValidate_BadColourCarriesTheOffendingPairsAsData(t *testing.T) {
 	declared := valued(valued(wellFormedPairs(), "canvas", "blue"), "text.primary", "#GGGGGG")
 
@@ -218,13 +162,6 @@ func TestValidate_BadColourCarriesTheOffendingPairsAsData(t *testing.T) {
 	}
 }
 
-// TestValidate_BadColourPrecedesMissingTokens pins the reason vocabulary's ladder across the
-// two rungs this file owns: the presence check runs LAST, on a file whose every
-// known value is well-formed, so a file that is both bad-coloured and short of a
-// token is `bad colour` alone.
-//
-// The detail is asserted whole, which is what pins the invariant that matters —
-// it enumerates within the reason and carries no presence information at all.
 func TestValidate_BadColourPrecedesMissingTokens(t *testing.T) {
 	declared := without(valued(wellFormedPairs(), "canvas", "blue"), "text.primary")
 
@@ -233,17 +170,10 @@ func TestValidate_BadColourPrecedesMissingTokens(t *testing.T) {
 	requireRejection(t, built, rejection, ReasonBadColour, "canvas = blue")
 }
 
-// wellFormedPairs returns one pair per canonical table token, in table order, each carrying
-// a distinct well-formed value — the lexer output of a file that validates.
 func wellFormedPairs() []Pair {
 	return pairsFrom(hexForRow)
 }
 
-// pairsFrom returns one pair per canonical table token, in table order, valued by row.
-//
-// The names come from TokenNames() rather than a restatement: theme_test.go
-// holds the ONE deliberate restatement of the vocabulary, and this file
-// exercises the validator rather than the vocabulary.
 func pairsFrom(value func(row int) string) []Pair {
 	names := TokenNames()
 	pairs := make([]Pair, 0, len(names))
@@ -253,7 +183,6 @@ func pairsFrom(value func(row int) string) []Pair {
 	return pairs
 }
 
-// wantTokens renders the tokens wellFormedPairs() should produce, in canonical table order.
 func wantTokens() []Token {
 	names := TokenNames()
 	tokens := make([]Token, 0, len(names))
@@ -263,19 +192,14 @@ func wantTokens() []Token {
 	return tokens
 }
 
-// hexForRow renders a distinct well-formed value for the given canonical table row.
 func hexForRow(row int) string {
 	return fmt.Sprintf("#0000%02d", row)
 }
 
-// lowercaseHexForRow renders a distinct value carrying lower-case letters, so
-// canonicalisation has something to bite on — hexForRow's values are all digits
-// and read the same in either case.
 func lowercaseHexForRow(row int) string {
 	return fmt.Sprintf("#abcd%02x", row)
 }
 
-// tokenMap keys tokens by name, the form storedTokens is compared against.
 func tokenMap(tokens []Token) map[string]string {
 	byName := make(map[string]string, len(tokens))
 	for _, tok := range tokens {
@@ -284,12 +208,6 @@ func tokenMap(tokens []Token) map[string]string {
 	return byName
 }
 
-// storedTokens returns what the Theme's struct FIELDS carry, keyed by the name
-// each field itself holds.
-//
-// Reading the fields rather than All() is the point: All() derives every name
-// from the canonical table, so a Theme whose fields were populated with values
-// alone looks correct through it and collapses here into a single "" key.
 func storedTokens(t *testing.T, built Theme) map[string]string {
 	t.Helper()
 
@@ -305,8 +223,6 @@ func storedTokens(t *testing.T, built Theme) map[string]string {
 	return stored
 }
 
-// valued returns pairs with the named key's value replaced, in the same file
-// order.
 func valued(pairs []Pair, key, value string) []Pair {
 	replaced := slices.Clone(pairs)
 	for i := range replaced {
@@ -317,23 +233,18 @@ func valued(pairs []Pair, key, value string) []Pair {
 	return replaced
 }
 
-// without returns pairs with the named keys removed — a file that never declared
-// them.
 func without(pairs []Pair, keys ...string) []Pair {
 	return slices.DeleteFunc(slices.Clone(pairs), func(pair Pair) bool {
 		return slices.Contains(keys, pair.Key)
 	})
 }
 
-// reversed returns pairs in the opposite file order, which for a set built from
-// the canonical table is an order no canonical-table-driven enumeration could produce.
 func reversed(pairs []Pair) []Pair {
 	backwards := slices.Clone(pairs)
 	slices.Reverse(backwards)
 	return backwards
 }
 
-// rekeyed returns pairs with one key rewritten, in the same file order.
 func rekeyed(pairs []Pair, from, to string) []Pair {
 	renamed := slices.Clone(pairs)
 	for i := range renamed {
@@ -344,8 +255,6 @@ func rekeyed(pairs []Pair, from, to string) []Pair {
 	return renamed
 }
 
-// uppercased returns pairs with every value upper-cased — the same file written
-// in the other case.
 func uppercased(pairs []Pair) []Pair {
 	twin := slices.Clone(pairs)
 	for i := range twin {
@@ -354,7 +263,6 @@ func uppercased(pairs []Pair) []Pair {
 	return twin
 }
 
-// requireAccepted fails the test unless the validator accepted the pairs.
 func requireAccepted(t *testing.T, rejection *Rejection) {
 	t.Helper()
 
@@ -363,13 +271,6 @@ func requireAccepted(t *testing.T, rejection *Rejection) {
 	}
 }
 
-// requireRejection fails the test unless the validator rejected the pairs with
-// the one expected reason and the complete pinned-copy detail, which every caller
-// states literally rather than re-deriving from the implementation's format.
-//
-// It also pins the two invariants every rejection from here shares: no partial
-// Theme comes back alongside one, and Line is 0 because `bad syntax` is the only
-// reason that carries a line.
 func requireRejection(t *testing.T, built Theme, rejection *Rejection, wantReason Reason, wantDetail string) {
 	t.Helper()
 

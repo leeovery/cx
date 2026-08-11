@@ -12,17 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// These tests pin the fixture format against the REAL loader rather than against
-// a restatement of it: every consumer stages files with these helpers and asserts
-// on what the loader made of them, so a fixture that stopped being accepted — or
-// stopped being rejected for the reason its consumer named — would fail far from
-// here, in tests about something else entirely.
-//
-// No t.Parallel(), matching the project-wide rule.
-
-// TestLines_ProducesAFileTheLoaderAccepts is the positive half: a file built from
-// Lines() alone loads, and the 19 values arrive as written (in the loader's
-// canonical upper case).
 func TestLines_ProducesAFileTheLoaderAccepts(t *testing.T) {
 	lines := themetest.Lines()
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", lines)
@@ -40,10 +29,6 @@ func TestLines_ProducesAFileTheLoaderAccepts(t *testing.T) {
 	}
 }
 
-// TestLines_GivesEveryTokenADistinctValue pins the half of Lines()' contract the
-// loader cannot: consumers tell two fixture files apart by ONE token's value, and
-// a fixture whose tokens shared a value could not say which token a rejection
-// named.
 func TestLines_GivesEveryTokenADistinctValue(t *testing.T) {
 	lines := themetest.Lines()
 
@@ -61,9 +46,6 @@ func TestLines_GivesEveryTokenADistinctValue(t *testing.T) {
 	}
 }
 
-// TestWithValue_SubstitutesTheNamedTokenInPlace pins the substituter's accepting
-// path: the file still loads, the named token carries the new value, and the
-// order the loader reads is unchanged.
 func TestWithValue_SubstitutesTheNamedTokenInPlace(t *testing.T) {
 	const canvas = "#1A2B3C"
 	lines := themetest.WithValue(themetest.Lines(), "canvas", canvas)
@@ -82,9 +64,6 @@ func TestWithValue_SubstitutesTheNamedTokenInPlace(t *testing.T) {
 	}
 }
 
-// TestWithValue_ProducesTheBadColourRejection is the class every consumer's
-// broken-file fixture depends on: a value the loader cannot parse as a colour
-// fails on the bad-colour rung, not on a rung above it.
 func TestWithValue_ProducesTheBadColourRejection(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
 
@@ -93,8 +72,6 @@ func TestWithValue_ProducesTheBadColourRejection(t *testing.T) {
 	requireReason(t, rejection, theme.ReasonBadColour)
 }
 
-// TestWithoutKey_ProducesTheMissingTokenRejection is the other class consumers
-// name: a file that never declared a token fails the presence check.
 func TestWithoutKey_ProducesTheMissingTokenRejection(t *testing.T) {
 	lines := themetest.WithoutKey(themetest.Lines(), "bg.subtle")
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", lines)
@@ -110,10 +87,6 @@ func TestWithoutKey_ProducesTheMissingTokenRejection(t *testing.T) {
 	}
 }
 
-// TestWithDuplicateKeyAt_ProducesTheBadSyntaxRejection is the third class
-// consumers name, and the one whose detail is positional: the file is refused at
-// the SECOND occurrence — the line the user has to delete — so the requested
-// position has to be the one the loader reports.
 func TestWithDuplicateKeyAt_ProducesTheBadSyntaxRejection(t *testing.T) {
 	const at = 12
 	lines := themetest.WithDuplicateKeyAt(themetest.Lines(), "text.primary", at)
@@ -133,9 +106,6 @@ func TestWithDuplicateKeyAt_ProducesTheBadSyntaxRejection(t *testing.T) {
 	}
 }
 
-// TestWithDuplicateKeyAt_LeavesAnUndeclaredKeyAlone pins the no-op the siblings
-// share: a key the lines never declared cannot be duplicated, and the result is
-// the input rather than a file with a bare key spliced into it.
 func TestWithDuplicateKeyAt_LeavesAnUndeclaredKeyAlone(t *testing.T) {
 	lines := themetest.Lines()
 
@@ -146,9 +116,6 @@ func TestWithDuplicateKeyAt_LeavesAnUndeclaredKeyAlone(t *testing.T) {
 	}
 }
 
-// TestMutatorsLeaveTheirInputAlone pins the copy-on-write every mutator
-// promises. Consumers derive several fixtures from one base slice, so a mutator
-// that wrote through would silently corrupt every later file built from it.
 func TestMutatorsLeaveTheirInputAlone(t *testing.T) {
 	base := themetest.Lines()
 	before := slices.Clone(base)
@@ -162,8 +129,6 @@ func TestMutatorsLeaveTheirInputAlone(t *testing.T) {
 	}
 }
 
-// TestWrite_WritesTheNamedFileAtTheOneFixtureMode pins the writer's two
-// observable outputs: where the file lands, and the single mode it writes.
 func TestWrite_WritesTheNamedFileAtTheOneFixtureMode(t *testing.T) {
 	dir := t.TempDir()
 
@@ -181,12 +146,6 @@ func TestWrite_WritesTheNamedFileAtTheOneFixtureMode(t *testing.T) {
 	}
 }
 
-// TestBody_IsTheBytesWriteStages pins the one thing a consumer staging its own
-// file needs: Body() is byte-for-byte what Write would have put on disk.
-//
-// A consumer that writes the bytes itself — a decoy drop-in in a directory it
-// then asserts about — otherwise hand-rolls the join, and a change to the file
-// shape moves the writer while leaving that copy behind.
 func TestBody_IsTheBytesWriteStages(t *testing.T) {
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.Lines())
 	staged, err := os.ReadFile(path)
@@ -199,9 +158,6 @@ func TestBody_IsTheBytesWriteStages(t *testing.T) {
 	}
 }
 
-// TestRender_IsTheBytesWriteStages is the same claim as Body()'s, over lines a
-// consumer derived itself: a fixture staged by hand is byte-for-byte the one
-// Write would have staged, whatever mutations produced it.
 func TestRender_IsTheBytesWriteStages(t *testing.T) {
 	lines := themetest.WithValue(themetest.WithoutKey(themetest.Lines(), "bg.subtle"), "canvas", "blue")
 	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", lines)
@@ -215,15 +171,12 @@ func TestRender_IsTheBytesWriteStages(t *testing.T) {
 	}
 }
 
-// TestBody_IsRenderOfLines pins the two renderers as one: Body() is the whole
-// valid file, so a consumer reaching for either gets the same bytes.
 func TestBody_IsRenderOfLines(t *testing.T) {
 	if got, want := string(themetest.Body()), string(themetest.Render(themetest.Lines())); got != want {
 		t.Errorf("Body() =\n%q\nwant Render(Lines()):\n%q", got, want)
 	}
 }
 
-// requireReason fails unless the rejection carries exactly want.
 func requireReason(t *testing.T, rejection *theme.Rejection, want theme.Reason) {
 	t.Helper()
 
@@ -235,8 +188,6 @@ func requireReason(t *testing.T, rejection *theme.Rejection, want theme.Reason) 
 	}
 }
 
-// wantTokensFrom renders the tokens the given fixture lines must parse into: the
-// same values in the loader's canonical upper case, in file order.
 func wantTokensFrom(lines []string) []theme.Token {
 	tokens := make([]theme.Token, 0, len(lines))
 	for _, line := range lines {
@@ -246,7 +197,6 @@ func wantTokensFrom(lines []string) []theme.Token {
 	return tokens
 }
 
-// tokenNamesFrom lists the keys the fixture lines declare, in file order.
 func tokenNamesFrom(t *testing.T, lines []string) []string {
 	t.Helper()
 
@@ -258,7 +208,6 @@ func tokenNamesFrom(t *testing.T, lines []string) []string {
 	return names
 }
 
-// splitLine parses one fixture line into its key and value.
 func splitLine(t *testing.T, line string) (string, string) {
 	t.Helper()
 
