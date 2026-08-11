@@ -24,8 +24,10 @@ type Loader struct {
 	// The zero value — a nil map — reserves nothing, which is why the production
 	// constructors exist: anything resolving a user's theme goes through NewLoader
 	// or NewSilentLoader, which populate it identically, or it has no shadowing
-	// protection. A zero-value Loader is a test shape for driving the ladder with a
-	// synthetic set.
+	// protection. Assembling a Loader rather than constructing one is therefore a
+	// test shape, for driving the ladder with a synthetic set, and a source guard
+	// keeps it out of production code, where NewLoader's own construction is
+	// exempt.
 	ReservedSlugs map[string]struct{}
 
 	// BuiltinSource is where LoadBuiltin gets a built-in's bytes. Nil — the
