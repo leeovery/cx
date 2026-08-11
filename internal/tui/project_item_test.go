@@ -24,13 +24,6 @@ func TestProjectItem(t *testing.T) {
 			t.Errorf("FilterValue() = %q, want %q", got, "portal")
 		}
 	})
-
-	// The project name (line 1) and path (line 2) are produced solely by the live
-	// render path (ProjectDelegate.Render → renderRowLine); the former
-	// ProjectItem.Title()/Description() projection methods were dead (no
-	// production caller, list.Item needs only FilterValue) and are gone. Their
-	// vocabulary is asserted against the live render in TestProjectDelegate
-	// ("renders project name and path").
 }
 
 func TestProjectDelegate(t *testing.T) {
@@ -84,18 +77,12 @@ func TestProjectDelegate(t *testing.T) {
 	})
 
 	t.Run("highlights selected item with the full-height bar, not a cursor", func(t *testing.T) {
-		// The §6.2 reskin replaced the legacy "> " pink cursor with a full-height
-		// accent.primary ▌ left bar over a bg.selection tint. The selected row carries
-		// the ▌ bar on both lines; an unselected row carries no bar. (The exact SGR
-		// roles are pinned in project_row_anatomy_test.go; this is the behavioural
-		// selected-vs-unselected check that replaces the old cursor assertion.)
 		d := tui.ProjectDelegate{}
 		items := []list.Item{
 			tui.ProjectItem{Project: project.Project{Name: "first", Path: "/home/user/first"}},
 			tui.ProjectItem{Project: project.Project{Name: "second", Path: "/home/user/second"}},
 		}
 		m := list.New(items, d, 80, 10)
-		// m.Index() defaults to 0, so index 0 is selected
 
 		var selectedBuf bytes.Buffer
 		d.Render(&selectedBuf, m, 0, items[0])
@@ -108,7 +95,6 @@ func TestProjectDelegate(t *testing.T) {
 		if !strings.Contains(selectedOutput, "▌") {
 			t.Errorf("selected item should carry the ▌ full-height bar: %q", selectedOutput)
 		}
-		// The legacy "> " cursor must be gone.
 		if strings.Contains(selectedOutput, "> ") {
 			t.Errorf("selected item should not carry the legacy '> ' cursor: %q", selectedOutput)
 		}
@@ -118,9 +104,6 @@ func TestProjectDelegate(t *testing.T) {
 	})
 
 	t.Run("over-long project path truncates with an ellipsis (2.7)", func(t *testing.T) {
-		// The §6.2 reskin pins each row to the list width and truncates an over-long
-		// path with an ellipsis (§2.7) so the two-line height stays uniform and
-		// pagination never drifts (the legacy delegate rendered the full path verbatim).
 		longPath := "/home/user/very/deeply/nested/directory/structure/that/goes/on/and/on/project"
 		d := tui.ProjectDelegate{}
 		items := []list.Item{

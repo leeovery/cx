@@ -1,21 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-8-3 — run pre-flight before the unsupported gate on
-// the picker burst path.
-//
-// The multi-target open burst (cmd/open_burst_run.go) pre-flights the whole batch
-// FIRST — ahead of the N≥2 unsupported gate — so a gone session aborts with the
-// more-actionable gone-session message even on an unsupported terminal. These
-// white-box (package tui) tests pin
-// the same ordering on the picker: decideBurst evaluates spawn.PreflightMissing over
-// the marked set before the DetectUnsupported() atomic no-op, so a gone session on an
-// unsupported terminal surfaces the abort banner + prunes the selection (matching
-// handlePreflightAbort) instead of re-asserting the unsupported banner. Both entry
-// points into decideBurst are covered: the already-resolved N≥2 Enter and the
-// deferred-detection resolution.
-//
-// No t.Parallel: consistent with the rest of the tui test surface.
-
 import (
 	"testing"
 
@@ -24,10 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// assertUnsupportedPreflightAbort asserts the §8-3 outcome shared by both entry
-// points: a gone session on an unsupported terminal takes the pre-flight-abort arm
-// (gone banner + prune keeping survivors) and NOT the unsupported no-op — nothing
-// spawned, no flash, still in multi-select mode, no self-attach.
 func assertUnsupportedPreflightAbort(t *testing.T, m Model, adapter *spawntest.FakeAdapter) {
 	t.Helper()
 	if want := spawn.GoneMessage([]string{"bravo"}); m.abortBannerText != want {
@@ -59,11 +39,6 @@ func assertUnsupportedPreflightAbort(t *testing.T, m Model, adapter *spawntest.F
 	}
 }
 
-// TestBurstUnsupported_PreflightAbortBeforeNoop drives the already-resolved N≥2
-// Enter on a resolved-unsupported terminal (Apple Terminal) with one marked session
-// externally killed. Pre-flight runs BEFORE the unsupported no-op, so the gone
-// session surfaces the abort banner and is pruned — matching the open burst — instead
-// of the unsupported banner re-asserting.
 func TestBurstUnsupported_PreflightAbortBeforeNoop(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -73,11 +48,7 @@ func TestBurstUnsupported_PreflightAbortBeforeNoop(t *testing.T) {
 	adapter := &spawntest.FakeAdapter{Ack: ack}
 	m := NewModelWithSessions(sessions)
 	wireUnsupportedBurstSeams(&m, adapter, ack)
-	// bravo vanished between marking and Enter.
 	m.sessionExists = func(name string) bool { return name != "bravo" }
-	// Enter multi-select during the async in-flight window (markTwo runs BEFORE
-	// detection resolves, so the §3 proactive entry block is inert), then resolve
-	// unsupported — the Enter still exercises decideBurst's retained reactive path.
 	m = markTwo(t, m)
 	m = resolveDetection(t, m, appleTerminalIdentity())
 	if !m.DetectUnsupported() {
@@ -92,11 +63,6 @@ func TestBurstUnsupported_PreflightAbortBeforeNoop(t *testing.T) {
 	}
 }
 
-// TestBurstUnsupported_DeferredPreflightAbortBeforeNoop covers the deferred entry
-// point: an N≥2 Enter pressed while detection is in flight DEFERS, and the
-// deferred-Enter resolution (the terminalDetectedMsg arm → decideBurst) still runs
-// pre-flight before the unsupported no-op when it resolves to an unsupported
-// identity — so the same gone-session abort lands on the deferred path.
 func TestBurstUnsupported_DeferredPreflightAbortBeforeNoop(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -107,7 +73,6 @@ func TestBurstUnsupported_DeferredPreflightAbortBeforeNoop(t *testing.T) {
 	m := NewModelWithSessions(sessions)
 	wireUnsupportedBurstSeams(&m, adapter, ack)
 	m.sessionExists = func(name string) bool { return name != "bravo" }
-	// Detection dispatched but not resolved (in-flight).
 	m.detectDispatched = true
 
 	m = markTwo(t, m)
@@ -116,8 +81,6 @@ func TestBurstUnsupported_DeferredPreflightAbortBeforeNoop(t *testing.T) {
 		t.Fatal("N≥2 Enter while detection is in flight must DEFER, not act")
 	}
 
-	// Detection resolves to the unsupported Apple Terminal identity → the deferred
-	// Enter resolution runs pre-flight BEFORE the unsupported no-op and aborts.
 	updated, cmd2 := m.Update(terminalDetectedMsg{identity: appleTerminalIdentity()})
 	m = updated.(Model)
 

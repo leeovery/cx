@@ -7,11 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Pre-refactor goldens — captured from the ORIGINAL renderKillModalContent /
-// renderDeleteModalContent (before the destructiveConfirmSpec consolidation), so the
-// byte-identical regression below genuinely proves the refactor produced zero drift.
-// The colourless (NoCol) goldens are mode-independent (all hue dropped), so dark and
-// light share one literal each.
 const (
 	goldenKillModalDarkCol    = "\x1b[38;2;41;46;66m╭─────────────────────────────────────────────────────╮\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;247;118;142;48;2;11;12;20m▲\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[1;38;2;247;118;142;48;2;11;12;20mKill session?\x1b[m\x1b[48;2;11;12;20m                                  \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m├─────────────────────────────────────────────────────┤\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;247;118;142;48;2;11;12;20maviva-proxy-qNyfEO\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m· 3 windows\x1b[m\x1b[48;2;11;12;20m                  \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[48;2;11;12;20m\x1b[m\x1b[48;2;11;12;20m                                                 \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mEnds the tmux session and all its panes. Can't be\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mundone.\x1b[m\x1b[48;2;11;12;20m                                          \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m├─────────────────────────────────────────────────────┤\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20my\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mkill\x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mesc\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mcancel\x1b[m\x1b[48;2;11;12;20m                              \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m╰─────────────────────────────────────────────────────╯\x1b[m"
 	goldenDeleteModalDarkCol  = "\x1b[38;2;41;46;66m╭────────────────────────────────────────────────────╮\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;247;118;142;48;2;11;12;20m▲\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[1;38;2;247;118;142;48;2;11;12;20mDelete project?\x1b[m\x1b[48;2;11;12;20m                               \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m├────────────────────────────────────────────────────┤\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;247;118;142;48;2;11;12;20mflow-v1-api\x1b[m\x1b[48;2;11;12;20m                                     \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m/Users/leeovery/Code/fabric/flow-v1-api\x1b[m\x1b[48;2;11;12;20m         \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[48;2;11;12;20m\x1b[m\x1b[48;2;11;12;20m                                                \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mRemoves this project from Portal (name, aliases,\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mtags). Your sessions and files are untouched.\x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m├────────────────────────────────────────────────────┤\x1b[m\n\x1b[38;2;41;46;66m│\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20my\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mdelete\x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;122;162;247;48;2;11;12;20mesc\x1b[m\x1b[48;2;11;12;20m \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mcancel\x1b[m\x1b[48;2;11;12;20m                           \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;41;46;66m│\x1b[m\n\x1b[38;2;41;46;66m╰────────────────────────────────────────────────────╯\x1b[m"
@@ -21,10 +16,6 @@ const (
 	goldenDeleteModalNoCol    = "╭────────────────────────────────────────────────────╮\n│  \x1b[1m▲\x1b[m \x1b[1mDelete project?\x1b[m                                 │\n├────────────────────────────────────────────────────┤\n│  \x1b[1mflow-v1-api\x1b[m                                       │\n│  /Users/leeovery/Code/fabric/flow-v1-api           │\n│                                                    │\n│  Removes this project from Portal (name, aliases,  │\n│  tags). Your sessions and files are untouched.     │\n├────────────────────────────────────────────────────┤\n│  y delete   esc cancel                             │\n╰────────────────────────────────────────────────────╯"
 )
 
-// TestKillDeleteModalContent_ByteIdenticalGolden is the heart of the consolidation:
-// it pins renderKillModalContent and renderDeleteModalContent against goldens captured
-// from the PRE-refactor render, proving the destructiveConfirmSpec consolidation
-// produced zero output drift for both modals in both modes and the colourless carve-out.
 func TestKillDeleteModalContent_ByteIdenticalGolden(t *testing.T) {
 	const (
 		killName    = "aviva-proxy-qNyfEO"
@@ -78,9 +69,6 @@ func TestKillDeleteModalContent_ByteIdenticalGolden(t *testing.T) {
 	})
 }
 
-// TestRenderDestructiveConfirm_KillSpec asserts the shared renderer reproduces the kill
-// modal output byte-for-byte when fed a kill spec (no extra body rows — the count rides
-// the name row via nameTrailer), in both modes and with colourless true/false.
 func TestRenderDestructiveConfirm_KillSpec(t *testing.T) {
 	spec := destructiveConfirmSpec{
 		title:        killTitle,
@@ -111,9 +99,6 @@ func TestRenderDestructiveConfirm_KillSpec(t *testing.T) {
 	}
 }
 
-// TestRenderDestructiveConfirm_DeleteSpec asserts the shared renderer reproduces the
-// delete modal output byte-for-byte when fed a delete spec WITH the project-path
-// extra-body row, in both modes and with colourless true/false.
 func TestRenderDestructiveConfirm_DeleteSpec(t *testing.T) {
 	spec := destructiveConfirmSpec{
 		title:         deleteTitle,
@@ -123,7 +108,6 @@ func TestRenderDestructiveConfirm_DeleteSpec(t *testing.T) {
 		confirmKey:    deleteKeyConfirm,
 		confirmLabel:  deleteLabelConfirm,
 	}
-	// extraBodyRows are already-styled rows; re-style per mode/colourless inside each case.
 	cases := []struct {
 		label      string
 		th         theme.Theme
@@ -146,10 +130,6 @@ func TestRenderDestructiveConfirm_DeleteSpec(t *testing.T) {
 	}
 }
 
-// TestDestructiveConsequenceRows_WordWrapAt52 asserts the shared consequence word-wrap
-// at the single body-width const (52) matches the prior per-modal line-splitting for a
-// multi-line consequence — the kill and delete copies both wrap to their known line
-// shapes, proving the factored wrap loop preserves the §8.3/§8.6 break points.
 func TestDestructiveConsequenceRows_WordWrapAt52(t *testing.T) {
 	cases := []struct {
 		name string
@@ -184,7 +164,6 @@ func TestDestructiveConsequenceRows_WordWrapAt52(t *testing.T) {
 					t.Errorf("line %d: got %q, want %q", i, got, tc.want[i])
 				}
 			}
-			// Every wrapped line stays within the body width.
 			for i, row := range rows {
 				if w := len([]rune(ansi.Strip(row))); w > destructiveBodyWidth {
 					t.Errorf("line %d width %d exceeds body width %d: %q", i, w, destructiveBodyWidth, ansi.Strip(row))

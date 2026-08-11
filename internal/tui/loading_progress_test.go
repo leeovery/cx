@@ -1,13 +1,5 @@
 package tui_test
 
-// Task spectrum-tui-design-5-4 — step mapping (10 real bootstrap steps → 5
-// friendly labels). The mapping is the single-source-of-truth contract between
-// the streamed per-step progress (task 5-2) and the rendered tick-list (task
-// 5-5). These tests pin the §10.4 table, the bar advance (10 increments,
-// reaching 100% only after step 10), the done/active/pending label states, the
-// (N/M) counter on Restoring sessions only, and the M=0 / zero-resume-command
-// degenerate cases. Non-visual / vhs-exempt — verification is behavioural.
-
 import (
 	"math"
 	"reflect"
@@ -18,8 +10,6 @@ import (
 
 const floatEps = 1e-9
 
-// progress feeds a BootstrapProgressMsg into a fresh accumulator chain. Helper
-// for terse table-driven assertions.
 func feed(acc tui.LoadingProgress, events ...tui.BootstrapProgressMsg) tui.LoadingProgress {
 	for _, e := range events {
 		acc = acc.Apply(e)
@@ -27,8 +17,6 @@ func feed(acc tui.LoadingProgress, events ...tui.BootstrapProgressMsg) tui.Loadi
 	return acc
 }
 
-// activeLabelText returns the Text of the single label currently in the active
-// state, or "" if none is active.
 func activeLabelText(v tui.LoadingProgressView) string {
 	for _, l := range v.Labels {
 		if l.State == tui.LabelActive {
@@ -38,11 +26,6 @@ func activeLabelText(v tui.LoadingProgressView) string {
 	return ""
 }
 
-// TestStepMapsToFriendlyLabel asserts each of the 10 real steps resolves to its
-// §10.4 friendly label via the pure LabelForStep mapping, including step 6's
-// RestoreM>0 → "Restoring sessions" vs RestoreM==0 → "Replaying scrollback"
-// discrimination. This is the literal "maps each step to its label" contract,
-// independent of the active/done lifecycle.
 func TestStepMapsToFriendlyLabel(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -71,9 +54,6 @@ func TestStepMapsToFriendlyLabel(t *testing.T) {
 	}
 }
 
-// TestBarAdvancesEveryStep asserts the bar advances on every real step (10
-// increments of 1/10) and reaches exactly 1.0 only after step 10 — not 5
-// increments.
 func TestBarAdvancesEveryStep(t *testing.T) {
 	acc := tui.LoadingProgress{}
 	if f := acc.View().BarFraction; f != 0 {
@@ -95,13 +75,9 @@ func TestBarAdvancesEveryStep(t *testing.T) {
 	}
 }
 
-// TestLabelStateTransitions asserts that as the stream progresses (events signal
-// step COMPLETION) completed labels are done, the current frontier label is
-// active, and future labels are pending.
 func TestLabelStateTransitions(t *testing.T) {
 	acc := tui.LoadingProgress{}
 
-	// Before any step: every label pending.
 	assertStates(t, acc.View(), map[string]tui.LabelState{
 		tui.LabelStartedTmuxServer:     tui.LabelPending,
 		tui.LabelRegisteredHooks:       tui.LabelPending,
@@ -110,8 +86,6 @@ func TestLabelStateTransitions(t *testing.T) {
 		tui.LabelRunningResumeCommands: tui.LabelPending,
 	})
 
-	// After step 1 COMPLETES: "Started tmux server" done; the frontier advances
-	// to the now-executing "Registered hooks" group (active); rest pending.
 	acc = acc.Apply(tui.BootstrapProgressMsg{Index: 1})
 	assertStates(t, acc.View(), map[string]tui.LabelState{
 		tui.LabelStartedTmuxServer:     tui.LabelDone,
@@ -121,8 +95,6 @@ func TestLabelStateTransitions(t *testing.T) {
 		tui.LabelRunningResumeCommands: tui.LabelPending,
 	})
 
-	// After steps 2-5 complete: "Registered hooks" done; frontier at
-	// "Restoring sessions" (step 6 not yet complete).
 	for step := 2; step <= 5; step++ {
 		acc = acc.Apply(tui.BootstrapProgressMsg{Index: step})
 	}
@@ -134,7 +106,6 @@ func TestLabelStateTransitions(t *testing.T) {
 		tui.LabelRunningResumeCommands: tui.LabelPending,
 	})
 
-	// After step 10 (the last real step): every label is done; no active frontier.
 	for step := 6; step <= 10; step++ {
 		acc = acc.Apply(tui.BootstrapProgressMsg{Index: step})
 	}
@@ -150,9 +121,6 @@ func TestLabelStateTransitions(t *testing.T) {
 	}
 }
 
-// TestMultiStepLabelStaysActiveUntilLastStep asserts a label spanning multiple
-// steps ("Registered hooks": steps 2-5) stays active until its LAST constituent
-// step (5) completes — at step 4 it is still active, not yet done.
 func TestMultiStepLabelStaysActiveUntilLastStep(t *testing.T) {
 	acc := feed(tui.LoadingProgress{},
 		tui.BootstrapProgressMsg{Index: 1},
@@ -160,8 +128,6 @@ func TestMultiStepLabelStaysActiveUntilLastStep(t *testing.T) {
 		tui.BootstrapProgressMsg{Index: 3},
 		tui.BootstrapProgressMsg{Index: 4},
 	)
-	// Through step 4 (steps 2-4 of the 2-5 group done), "Registered hooks" is
-	// still active because step 5 has not completed.
 	if got := labelState(acc.View(), tui.LabelRegisteredHooks); got != tui.LabelActive {
 		t.Errorf("Registered hooks state after step 4 = %v; want active (last step 5 not done)", got)
 	}
@@ -172,9 +138,6 @@ func TestMultiStepLabelStaysActiveUntilLastStep(t *testing.T) {
 	}
 }
 
-// TestRestoringSessionsCounter asserts the (N/M) counter is rendered ONLY on
-// "Restoring sessions" and advances N against M from the restore skeleton
-// events; no other label carries a counter.
 func TestRestoringSessionsCounter(t *testing.T) {
 	acc := feed(tui.LoadingProgress{},
 		tui.BootstrapProgressMsg{Index: 1},
@@ -188,20 +151,15 @@ func TestRestoringSessionsCounter(t *testing.T) {
 	if got := counterText(v, tui.LabelRestoringSessions); got != "1/3" {
 		t.Errorf("Restoring sessions counter = %q; want %q", got, "1/3")
 	}
-	// Mid-flight (skeleton event, M>0): step 6 is NOT yet complete, so
-	// "Restoring sessions" stays the active frontier and "Replaying scrollback"
-	// is still pending — the counter ticks but the step has not advanced.
 	if got := labelState(v, tui.LabelRestoringSessions); got != tui.LabelActive {
 		t.Errorf("mid-flight Restoring sessions state = %v; want active (step 6 not yet complete)", got)
 	}
 	if got := labelState(v, tui.LabelReplayingScrollback); got != tui.LabelPending {
 		t.Errorf("mid-flight Replaying scrollback state = %v; want pending", got)
 	}
-	// Bar at 5/10 (steps 1-5 completed; the skeleton event advances no step).
 	if want := 5.0 / 10.0; math.Abs(v.BarFraction-want) > floatEps {
 		t.Errorf("mid-flight bar fraction = %v; want %v (skeleton event must not advance step 6)", v.BarFraction, want)
 	}
-	// No other label carries a counter.
 	for _, l := range v.Labels {
 		if l.Text == tui.LabelRestoringSessions {
 			continue
@@ -211,15 +169,11 @@ func TestRestoringSessionsCounter(t *testing.T) {
 		}
 	}
 
-	// N advances against M as later skeleton events arrive.
 	acc = acc.Apply(tui.BootstrapProgressMsg{Index: 6, RestoreN: 3, RestoreM: 3})
 	if got := counterText(acc.View(), tui.LabelRestoringSessions); got != "3/3" {
 		t.Errorf("Restoring sessions counter after N=3 = %q; want %q", got, "3/3")
 	}
 
-	// The trailing completion tick (RestoreM==0) is what marks step 6 done:
-	// "Restoring sessions" flips to done and the bar advances to 6/10. The
-	// counter stays sticky at the last N/M.
 	acc = acc.Apply(tui.BootstrapProgressMsg{Index: 6})
 	done := acc.View()
 	if got := labelState(done, tui.LabelRestoringSessions); got != tui.LabelDone {
@@ -233,10 +187,6 @@ func TestRestoringSessionsCounter(t *testing.T) {
 	}
 }
 
-// TestEmptyRestoreSuppressesCounterAndTicksDone asserts the M=0 degenerate case:
-// the restore step completes immediately with RestoreM==0, so "Restoring
-// sessions" renders no (N/M) and ticks done immediately (done, not stalled),
-// while the bar still advances through step 6.
 func TestEmptyRestoreSuppressesCounterAndTicksDone(t *testing.T) {
 	acc := feed(tui.LoadingProgress{},
 		tui.BootstrapProgressMsg{Index: 1},
@@ -244,7 +194,6 @@ func TestEmptyRestoreSuppressesCounterAndTicksDone(t *testing.T) {
 		tui.BootstrapProgressMsg{Index: 3},
 		tui.BootstrapProgressMsg{Index: 4},
 		tui.BootstrapProgressMsg{Index: 5},
-		// Restore completes immediately, no per-session events: RestoreM==0.
 		tui.BootstrapProgressMsg{Index: 6},
 	)
 	v := acc.View()
@@ -255,35 +204,26 @@ func TestEmptyRestoreSuppressesCounterAndTicksDone(t *testing.T) {
 	if got := labelState(v, tui.LabelRestoringSessions); got != tui.LabelDone {
 		t.Errorf("M=0: Restoring sessions state = %v; want done (not stalled)", got)
 	}
-	// Bar advanced through step 6 (6/10).
 	want := 6.0 / 10.0
 	if math.Abs(v.BarFraction-want) > floatEps {
 		t.Errorf("M=0: bar fraction after step 6 = %v; want %v", v.BarFraction, want)
 	}
 }
 
-// TestRunningResumeCommandsTicksDoneWithNoItems asserts "Running resume
-// commands" (steps 8-10) ticks done once its constituent steps complete, with no
-// per-item counter and no stall — the cleanup steps 8-10 fold under it.
 func TestRunningResumeCommandsTicksDoneWithNoItems(t *testing.T) {
 	var acc tui.LoadingProgress
-	// Before step 6 even completes, "Running resume commands" is pending.
 	for step := 1; step <= 5; step++ {
 		acc = acc.Apply(tui.BootstrapProgressMsg{Index: step})
 	}
 	if got := labelState(acc.View(), tui.LabelRunningResumeCommands); got != tui.LabelPending {
 		t.Fatalf("Running resume commands before its group = %v; want pending", got)
 	}
-	// After steps 6-9 complete (the "Replaying scrollback" group done, step 10
-	// pending), "Running resume commands" is the frontier — active, no per-item
-	// counter, not stalled.
 	for step := 6; step <= 9; step++ {
 		acc = acc.Apply(tui.BootstrapProgressMsg{Index: step})
 	}
 	if got := labelState(acc.View(), tui.LabelRunningResumeCommands); got != tui.LabelActive {
 		t.Errorf("Running resume commands at step 9 = %v; want active (last step 10 not done)", got)
 	}
-	// Step 10: done. No counter ever.
 	acc = acc.Apply(tui.BootstrapProgressMsg{Index: 10})
 	v := acc.View()
 	if got := labelState(v, tui.LabelRunningResumeCommands); got != tui.LabelDone {
@@ -294,10 +234,7 @@ func TestRunningResumeCommandsTicksDoneWithNoItems(t *testing.T) {
 	}
 }
 
-// TestIdempotentPerStepIndex asserts duplicate / out-of-order step events do not
-// double-advance the bar — the bar tracks distinct completed step indices.
 func TestIdempotentPerStepIndex(t *testing.T) {
-	// Duplicates: step 1 three times advances the bar to exactly 1/10.
 	acc := feed(tui.LoadingProgress{},
 		tui.BootstrapProgressMsg{Index: 1},
 		tui.BootstrapProgressMsg{Index: 1},
@@ -307,8 +244,6 @@ func TestIdempotentPerStepIndex(t *testing.T) {
 		t.Errorf("3× step 1: bar = %v; want %v (no double-advance)", got, 1.0/10.0)
 	}
 
-	// Out-of-order: receiving step 3 then step 2 advances by exactly 2 distinct
-	// indices (2/10), never 3/10.
 	acc = feed(tui.LoadingProgress{},
 		tui.BootstrapProgressMsg{Index: 3},
 		tui.BootstrapProgressMsg{Index: 2},
@@ -318,10 +253,6 @@ func TestIdempotentPerStepIndex(t *testing.T) {
 	}
 }
 
-// TestMappingCoversAllTenStepsNoGaps is the coverage/drift guard: the §10.4
-// table must cover exactly step indices 1..10 with no gaps and no duplicate
-// index, so a future bootstrap-step change cannot silently leave a step
-// unmapped. Each index must resolve to one of the five canonical labels.
 func TestMappingCoversAllTenStepsNoGaps(t *testing.T) {
 	valid := map[string]bool{
 		tui.LabelStartedTmuxServer:     true,
@@ -331,7 +262,6 @@ func TestMappingCoversAllTenStepsNoGaps(t *testing.T) {
 		tui.LabelRunningResumeCommands: true,
 	}
 	for step := 1; step <= 10; step++ {
-		// Every step index must map to a valid §10.4 label (no gap).
 		got := tui.LabelForStep(tui.BootstrapProgressMsg{Index: step})
 		if got == "" {
 			t.Errorf("step %d resolved to no label (gap in the §10.4 mapping)", step)
@@ -341,9 +271,6 @@ func TestMappingCoversAllTenStepsNoGaps(t *testing.T) {
 			t.Errorf("step %d resolved to unknown label %q", step, got)
 		}
 	}
-	// Out-of-range indices must not map and must not advance the bar (defensive —
-	// no phantom steps). The removed step 11 (formerly CleanStale) is now
-	// out-of-range too.
 	for _, bad := range []int{0, 11, 12, 99} {
 		if got := tui.LabelForStep(tui.BootstrapProgressMsg{Index: bad}); got != "" {
 			t.Errorf("out-of-range step %d mapped to label %q; want none", bad, got)
@@ -354,7 +281,6 @@ func TestMappingCoversAllTenStepsNoGaps(t *testing.T) {
 		}
 	}
 
-	// Exactly five labels, in stable order, every time.
 	v := tui.LoadingProgress{}.View()
 	if len(v.Labels) != 5 {
 		t.Fatalf("View().Labels length = %d; want 5", len(v.Labels))
@@ -373,10 +299,6 @@ func TestMappingCoversAllTenStepsNoGaps(t *testing.T) {
 	}
 }
 
-// TestRemovedStep11IsUnmapped asserts the dropped step 11 (formerly CleanStale,
-// removed from the orchestrator in task 1-3) is now out of range: LabelForStep
-// returns "" and feeding Index: 11 leaves the bar at 0 — defensive against a
-// stale producer emitting the old index.
 func TestRemovedStep11IsUnmapped(t *testing.T) {
 	if got := tui.LabelForStep(tui.BootstrapProgressMsg{Index: 11}); got != "" {
 		t.Errorf("LabelForStep(step 11) = %q; want empty (step 11 removed)", got)
@@ -387,13 +309,6 @@ func TestRemovedStep11IsUnmapped(t *testing.T) {
 	}
 }
 
-// TestBootstrapProgressMsgCarriesOnlyConsumedFields is the single-authority
-// guard for the §10.4 mapping: the wire message must carry ONLY the fields the
-// consumer (LoadingProgress.Apply / LabelForStep) actually reads — the stable
-// Index key plus the restore N/M counter. It must NOT carry a friendly Label or
-// a raw Name StepName: those would be a second, drift-prone encoding of the
-// §10.4 step→label mapping (the authority lives ONCE in loading_progress.go).
-// This pins the dead-field removal in the type itself, not just behaviourally.
 func TestBootstrapProgressMsgCarriesOnlyConsumedFields(t *testing.T) {
 	want := map[string]bool{"Index": true, "RestoreN": true, "RestoreM": true}
 	tp := reflect.TypeFor[tui.BootstrapProgressMsg]()
@@ -413,7 +328,6 @@ func TestBootstrapProgressMsgCarriesOnlyConsumedFields(t *testing.T) {
 	}
 }
 
-// assertStates checks each named label's state in the view against want.
 func assertStates(t *testing.T, v tui.LoadingProgressView, want map[string]tui.LabelState) {
 	t.Helper()
 	for text, wantState := range want {
@@ -423,7 +337,6 @@ func assertStates(t *testing.T, v tui.LoadingProgressView, want map[string]tui.L
 	}
 }
 
-// labelState returns the state of the label with the given text, or -1 if absent.
 func labelState(v tui.LoadingProgressView, text string) tui.LabelState {
 	for _, l := range v.Labels {
 		if l.Text == text {
@@ -433,7 +346,6 @@ func labelState(v tui.LoadingProgressView, text string) tui.LabelState {
 	return tui.LabelState(-1)
 }
 
-// counterText returns the Counter string of the label with the given text.
 func counterText(v tui.LoadingProgressView, text string) string {
 	for _, l := range v.Labels {
 		if l.Text == text {

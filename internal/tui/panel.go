@@ -8,19 +8,12 @@ import (
 )
 
 const (
-	// panelRuleGlyph is the horizontal box-drawing glyph for the divider AND every
-	// frame edge run (top / bottom border + the divider). Single-tone: it renders in
-	// border everywhere (the 2-tone footer leg was dropped).
 	panelRuleGlyph = "─"
-	// panelRowInset is the per-row L/R inset (in cells) the header text and body rows
-	// carry inside the hand-drawn frame. It matches the reference's ~22px
-	// paddingInline. The divider does NOT carry this inset — it runs the full inner
-	// width (W) so its `├`/`┤` junctions meet both side borders.
+	// The per-row L/R inset the header text and body rows carry. The divider
+	// does not take it — it runs the full inner width so its `├`/`┤` junctions
+	// meet both side borders.
 	panelRowInset = 2
 
-	// The hand-drawn frame glyphs (a rounded box with real header-divider junctions).
-	// EVERY one renders in border (single-tone). The top/bottom corners and
-	// the divider tees join the side `│` runs into one continuous frame.
 	panelFrameTopLeft     = "╭"
 	panelFrameTopRight    = "╮"
 	panelFrameBottomLeft  = "╰"
@@ -30,32 +23,15 @@ const (
 	panelFrameTeeRight    = "┤"
 )
 
-// renderJoinedPanel is the shared single-tone, hand-drawn, border-joined panel —
-// the chrome the help modal, the kill modal AND the full-screen
-// preview overlay all compose through. It draws a rounded box (╭─╮ / │…│ / ╰─╯)
-// whose EVERY glyph — corners, sides, and the compartment dividers — renders in the
-// caller-supplied borderToken (single-tone — there is no second footer tone),
-// with the dividers joined to the side borders via real ├/┤
-// junctions. The modals pass the theme's border token (grey); the preview
-// passes its accent.mode token (the "peek mode" hue).
+// renderJoinedPanel draws the shared hand-drawn panel: a rounded box whose
+// every glyph renders in borderToken, with joined ├/┤ dividers between
+// adjacent compartments. Input is a list of compartments, each a slice of
+// already-styled rows at their natural width; every assembled line comes out
+// innerWidth+2 cells so the frame columns align.
 //
-// Input is a list of compartments, each a slice of already-styled content rows (at
-// their natural width). The helper:
-//
-//   - measures the widest row across ALL compartments → contentWidth,
-//   - pads/insets every row to a uniform innerWidth (contentWidth + 2·panelRowInset)
-//     and wraps it in the │ side borders,
-//   - interleaves a joined ├───┤ divider between EACH adjacent pair of compartments
-//     (so N compartments → N-1 dividers), the divider spanning the full innerWidth
-//     so its tees meet both sides,
-//   - brackets the whole stack with the ╭─╮ top and ╰─╯ bottom borders.
-//
-// The vertical spacing is FLUSH (terminal-native, diverging from the Paper px
-// padding): no blank frame rows are added — any blank rows a caller wants inside a
-// compartment are passed as empty content rows, so they are inset-and-bordered
-// like every other row (not bare). Every assembled line is exactly innerWidth+2
-// cells, so the frame columns align top to bottom. The frame is mode- and
-// colourless-aware via the shared panelFrameStyle / panelInsetRow primitives.
+// Spacing is flush — no blank frame rows are added. A caller wanting a blank
+// row inside a compartment passes an empty content row, so it is inset and
+// bordered like any other row rather than left bare.
 func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	contentWidth := 0
 	totalRows := 0
@@ -67,9 +43,8 @@ func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th them
 			}
 		}
 	}
-	innerWidth := contentWidth + 2*panelRowInset // the span of every frame edge.
+	innerWidth := contentWidth + 2*panelRowInset
 
-	// top + bottom borders + one divider per gap between compartments + every row.
 	rows := make([]string, 0, totalRows+len(compartments)+1)
 	rows = append(rows, panelFrameTop(innerWidth, borderToken, th, colourless))
 	for i, comp := range compartments {
@@ -85,11 +60,8 @@ func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th them
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// panelFrameStyle returns the single-tone frame paint: the borderToken foreground
-// from the active theme, or a bare style (native fg) under the NO_COLOR carve-out — so the
-// frame glyphs survive colourless but carry no hue. NO background is set (the frame
-// glyphs sit on whatever the placed canvas supplies). The modals pass
-// the border token; the preview passes accent.mode.
+// No background is set — the frame glyphs sit on whatever the placed canvas
+// supplies.
 func panelFrameStyle(borderToken theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -97,37 +69,28 @@ func panelFrameStyle(borderToken theme.Token, th theme.Theme, colourless bool) l
 	return lipgloss.NewStyle().Foreground(borderToken.Color())
 }
 
-// panelFrameTop renders the top border line: `╭` + `─`×w + `╮`, all in borderToken.
 func panelFrameTop(w int, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	line := panelFrameTopLeft + strings.Repeat(panelRuleGlyph, w) + panelFrameTopRight
 	return panelFrameStyle(borderToken, th, colourless).Render(line)
 }
 
-// panelFrameBottom renders the bottom border line: `╰` + `─`×w + `╯`.
 func panelFrameBottom(w int, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	line := panelFrameBottomLeft + strings.Repeat(panelRuleGlyph, w) + panelFrameBottomRight
 	return panelFrameStyle(borderToken, th, colourless).Render(line)
 }
 
-// panelFrameDivider renders the joined compartment divider: `├` + `─`×w + `┤`, all
-// in borderToken (single-tone). The `├`/`┤` tees visibly join the side borders.
 func panelFrameDivider(w int, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	line := panelFrameTeeLeft + strings.Repeat(panelRuleGlyph, w) + panelFrameTeeRight
 	return panelFrameStyle(borderToken, th, colourless).Render(line)
 }
 
-// panelFrameContentLine wraps a content row (already exactly w cells wide) with the
-// left/right `│` side borders (in borderToken), yielding a w+2 cell frame line.
 func panelFrameContentLine(row string, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	side := panelFrameStyle(borderToken, th, colourless).Render(panelFrameSide)
 	return lipgloss.JoinHorizontal(lipgloss.Top, side, row, side)
 }
 
-// panelInsetRow wraps a content row (whose natural width is at most contentWidth)
-// with the per-row L/R canvas inset (panelRowInset cells each side) and pads the
-// content out to contentWidth, so every header/body row is exactly innerWidth cells
-// (contentWidth + 2·panelRowInset) — the divider's width. The inset and pad are canvas-
-// painted so the row carries the owned canvas with no terminal-bg island.
+// The inset and pad are canvas-painted so the row carries the owned canvas
+// with no terminal-bg island.
 func panelInsetRow(row string, contentWidth int, th theme.Theme, colourless bool) string {
 	inset := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", panelRowInset))
 	padded := headerPadRight(row, lipgloss.Width(row), contentWidth, th, colourless)

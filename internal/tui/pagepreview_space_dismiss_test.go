@@ -6,12 +6,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// TestPreviewSpaceEmitsDismissedMsg locks the Space-dismiss contract at the
-// previewModel.Update level: a tea.KeyPressMsg{Code: tea.KeySpace, Text: " "} delivered to
-// the preview must return a non-nil tea.Cmd whose execution yields a
-// previewDismissedMsg{}, mirroring Esc exactly. Construction follows the
-// hermetic pattern (NewPreviewModel + lightweight stub seams) used by the
-// peer Esc-dismiss assertions in pagepreview_hermetic_test.go.
 func TestPreviewSpaceEmitsDismissedMsg(t *testing.T) {
 	enum := &hermeticEnumerator{}
 	reader := &hermeticReader{}

@@ -1,25 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-10 — spawn batch-summary observability from the
-// burst completion chokepoint.
-//
-// White-box (package tui) tests of the picker burst's spawn-component emission:
-//   - full success  → one INFO `opened N/N` (the trigger self-attach counted) +
-//     one DEBUG per external window (session/ack/detail),
-//   - partial/permission failure → `opened k/N` where k counts ONLY confirmed
-//     external windows (the skipped trigger self-attach is NOT counted),
-//   - unsupported N≥2 no-op → one INFO `resolution=unsupported` (terminal/bundle_id),
-//     no per-window records,
-//   - pre-flight abort → one INFO naming the gone session(s), no per-window records,
-//   - every emitted record carries ONLY the closed spawn attr keys.
-//
-// The spawn logger is injected white-box via a logtest.Sink-backed *slog.Logger; a
-// nil logger is discard-safe (log.OrDiscard) so the sibling burst tests that never
-// set it keep passing. Shared seam/model helpers (newPendingBurstModel,
-// injectComplete, wireUnsupportedBurstSeams, markTwo, resolveDetection,
-// ghosttyIdentity, appleTerminalIdentity, pressEnter) live in the sibling burst
-// test files. No t.Parallel: consistent with the rest of the tui test surface.
-
 import (
 	"log/slog"
 	"strings"
@@ -31,8 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// obsTwoSessions is the two-session set the unsupported-no-op observability cases
-// mark and Enter through.
 func obsTwoSessions() []tmux.Session {
 	return []tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -40,9 +18,6 @@ func obsTwoSessions() []tmux.Session {
 	}
 }
 
-// closedSpawnAttrKeys is the §6-10 closed attr-key set every emitted spawn record
-// must stay within (the baseline pid/version/process_role are injected by the
-// production handler, not the call site, so they never appear via the raw sink).
 var closedSpawnAttrKeys = map[string]bool{
 	"batch":      true,
 	"terminal":   true,
@@ -55,7 +30,6 @@ var closedSpawnAttrKeys = map[string]bool{
 	"detail":     true,
 }
 
-// recordsByLevel returns the captured records at the given slog level, in order.
 func recordsByLevel(recs []logtest.Record, level slog.Level) []logtest.Record {
 	var out []logtest.Record
 	for _, r := range recs {
@@ -66,7 +40,6 @@ func recordsByLevel(recs []logtest.Record, level slog.Level) []logtest.Record {
 	return out
 }
 
-// onlyInfoRecord fails unless exactly one INFO record was captured and returns it.
 func onlyInfoRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	t.Helper()
 	infos := recordsByLevel(sink.Records(), slog.LevelInfo)
@@ -76,8 +49,6 @@ func onlyInfoRecord(t *testing.T, sink *logtest.Sink) logtest.Record {
 	return infos[0]
 }
 
-// assertClosedSpawnKeys fails if any captured record carries an attr key outside
-// the closed spawn set.
 func assertClosedSpawnKeys(t *testing.T, sink *logtest.Sink) {
 	t.Helper()
 	for _, r := range sink.Records() {
@@ -89,11 +60,8 @@ func assertClosedSpawnKeys(t *testing.T, sink *logtest.Sink) {
 	}
 }
 
-// TestBurstObservability_FullSuccessOpenedNofN asserts a full-success burst emits
-// one INFO `spawn: opened N/N` counting the trigger self-attach, with the closed
-// batch/terminal/bundle_id/resolution/opened/total attrs.
 func TestBurstObservability_FullSuccessOpenedNofN(t *testing.T) {
-	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"}) // external=[alpha,bravo], trigger=charlie, N=3
+	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	logger, sink := logtest.NewCaptureLogger(t)
 	m.spawnLogger = logger
 
@@ -139,15 +107,11 @@ func TestBurstObservability_FullSuccessOpenedNofN(t *testing.T) {
 	assertClosedSpawnKeys(t, sink)
 }
 
-// TestBurstObservability_PartialFailureOpenedKofN asserts a partial failure (one
-// external times out) emits `opened k/N` where k counts ONLY confirmed externals —
-// the skipped trigger self-attach is NOT counted.
 func TestBurstObservability_PartialFailureOpenedKofN(t *testing.T) {
-	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"}) // external=[alpha,bravo], trigger=charlie, N=3
+	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	logger, sink := logtest.NewCaptureLogger(t)
 	m.spawnLogger = logger
 
-	// alpha confirms; bravo (window 2) times out → k=1 confirmed external, trigger skipped.
 	msg := spawnCompleteMsg{
 		Batch:      "batch-xyz",
 		Identity:   ghosttyIdentity(),
@@ -181,13 +145,6 @@ func TestBurstObservability_PartialFailureOpenedKofN(t *testing.T) {
 	assertClosedSpawnKeys(t, sink)
 }
 
-// TestBurstObservability_PerExternalWindowSplitByOutcome asserts the per-window
-// records split by outcome: a confirmed external window emits DEBUG "external window"
-// while a non-permission failed window (here an AckTimeout) emits WARN "external
-// window failed" — both carrying session + ack + the opaque driver detail. This is
-// the picker-side witness of the shared spawn.LogWindowResults split (mirrored on the
-// CLI); it closes the INFO-level invisibility gap where a failed window logged THAT it
-// failed but not WHY.
 func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -204,7 +161,6 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 	}
 	injectComplete(t, m, msg)
 
-	// alpha (confirmed) → DEBUG "external window".
 	debugs := recordsByLevel(sink.Records(), slog.LevelDebug)
 	if len(debugs) != 1 {
 		t.Fatalf("want exactly 1 DEBUG spawn record (the confirmed window), got %d: %+v", len(debugs), debugs)
@@ -222,8 +178,6 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 		t.Errorf("DEBUG detail = %q, want the opaque driver detail", got)
 	}
 
-	// bravo (AckTimeout, non-permission) → WARN "external window failed" carrying the
-	// opaque detail; ack=timeout distinguishes the mode.
 	warns := recordsByLevel(sink.Records(), slog.LevelWarn)
 	if len(warns) != 1 {
 		t.Fatalf("want exactly 1 WARN spawn record (the failed window), got %d: %+v", len(warns), warns)
@@ -243,17 +197,13 @@ func TestBurstObservability_PerExternalWindowSplitByOutcome(t *testing.T) {
 	assertClosedSpawnKeys(t, sink)
 }
 
-// TestBurstObservability_UnsupportedNoopNoPerWindow asserts the N≥2 unsupported
-// no-op emits one INFO `resolution=unsupported` with terminal/bundle_id and NO
-// per-window records (nothing was attempted).
 func TestBurstObservability_UnsupportedNoopNoPerWindow(t *testing.T) {
 	m := NewModelWithSessions(obsTwoSessions())
 	ack := &spawntest.FakeAckChannel{}
 	adapter := &spawntest.FakeAdapter{Ack: ack}
 	wireUnsupportedBurstSeams(&m, adapter, ack)
-	// Enter multi-select during the async in-flight window (markTwo BEFORE
-	// resolveDetection, so the §3 proactive entry block is inert), then resolve
-	// unsupported — the Enter drives decideBurst's retained reactive no-op.
+	// markTwo must precede resolveDetection: entering multi-select after
+	// detection resolves is blocked, and the reactive no-op never runs.
 	m = markTwo(t, m)
 	m = resolveDetection(t, m, appleTerminalIdentity())
 	if !m.DetectUnsupported() {
@@ -283,8 +233,6 @@ func TestBurstObservability_UnsupportedNoopNoPerWindow(t *testing.T) {
 	assertClosedSpawnKeys(t, sink)
 }
 
-// TestBurstObservability_PreflightAbortNamesGone asserts the pre-flight abort emits
-// one INFO naming the gone session(s) with no per-window records.
 func TestBurstObservability_PreflightAbortNamesGone(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -303,13 +251,9 @@ func TestBurstObservability_PreflightAbortNamesGone(t *testing.T) {
 	assertClosedSpawnKeys(t, sink)
 }
 
-// TestBurstObservability_OnlyClosedSpawnAttrKeys drives full-success, partial,
-// unsupported, and pre-flight-abort into one shared sink and asserts every captured
-// record stays within the closed spawn attr-key set.
 func TestBurstObservability_OnlyClosedSpawnAttrKeys(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 
-	// Full success.
 	full := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	full.spawnLogger = logger
 	injectComplete(t, full, spawnCompleteMsg{
@@ -320,7 +264,6 @@ func TestBurstObservability_OnlyClosedSpawnAttrKeys(t *testing.T) {
 		},
 	})
 
-	// Partial (with a permission window carrying opaque detail).
 	partial := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	partial.spawnLogger = logger
 	injectComplete(t, partial, spawnCompleteMsg{
@@ -331,18 +274,15 @@ func TestBurstObservability_OnlyClosedSpawnAttrKeys(t *testing.T) {
 		},
 	})
 
-	// Unsupported no-op.
 	unsupAck := &spawntest.FakeAckChannel{}
 	unsup := NewModelWithSessions(obsTwoSessions())
 	wireUnsupportedBurstSeams(&unsup, &spawntest.FakeAdapter{Ack: unsupAck}, unsupAck)
-	// Enter multi-select in-flight (markTwo BEFORE resolveDetection → §3 entry block
-	// inert), then resolve unsupported so the Enter drives the reactive no-op.
+	// markTwo before resolveDetection, as above.
 	unsup = markTwo(t, unsup)
 	unsup = resolveDetection(t, unsup, appleTerminalIdentity())
 	unsup.spawnLogger = logger
 	unsup, _ = pressEnter(t, unsup)
 
-	// Pre-flight abort.
 	abort := newPendingBurstModel(t, []string{"alpha", "bravo"})
 	abort.spawnLogger = logger
 	abort.Update(spawnAbortMsg{Gone: []string{"alpha", "bravo"}})
@@ -353,25 +293,13 @@ func TestBurstObservability_OnlyClosedSpawnAttrKeys(t *testing.T) {
 	assertClosedSpawnKeys(t, sink)
 }
 
-// wantPermissionBody is the exact rendered body the shared spawn.LogPermission
-// produces and the picker's emitPermission must reproduce for the same identity /
-// resolution / detail — the closed `spawn` permission event both the picker and the
-// open burst's permission arm delegate to. internal/spawn's logemit_test.go pins
-// spawn.LogPermission to this same literal, so a drift in either emitter fails its
-// own golden and the picker + open-burst paths stay byte-identical.
 const wantPermissionBody = "INFO permission required — nothing self-attached resolution=native terminal=Ghostty bundle_id=com.mitchellh.ghostty detail=evt -1743"
 
-// TestBurstObservability_PermissionRequiredEmitsPermissionEvent asserts a picker
-// permission-required burst emits exactly the emitPermission INFO event (closed
-// resolution/terminal/bundle_id/detail attrs) and NOT the generic opened/total
-// summary — matching spawn.LogPermission's skip-the-summary contract (the open burst
-// takes the same path).
 func TestBurstObservability_PermissionRequiredEmitsPermissionEvent(t *testing.T) {
-	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"}) // external=[alpha,bravo], trigger=charlie
+	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	logger, sink := logtest.NewCaptureLogger(t)
 	m.spawnLogger = logger
 
-	// alpha confirms; bravo hits the permission wall (AckFailed + OutcomePermissionRequired).
 	msg := spawnCompleteMsg{
 		Batch:      "batch-xyz",
 		Identity:   ghosttyIdentity(),
@@ -399,11 +327,9 @@ func TestBurstObservability_PermissionRequiredEmitsPermissionEvent(t *testing.T)
 	if got := info.AttrString(t, "detail"); got != "evt -1743" {
 		t.Errorf("detail = %q, want the opaque driver detail (evt -1743)", got)
 	}
-	// The permission event carries NO opened/total/batch summary attrs.
 	if info.HasAttr("opened") || info.HasAttr("total") || info.HasAttr("batch") {
 		t.Errorf("permission event must carry no opened/total/batch attrs: keys=%v", info.Keys)
 	}
-	// No generic opened summary INFO may be emitted on the permission arm.
 	for _, r := range sink.Records() {
 		if r.Level == slog.LevelInfo && strings.HasPrefix(r.Msg, "opened") {
 			t.Errorf("permission arm must NOT emit the generic %q summary", r.Msg)
@@ -412,15 +338,11 @@ func TestBurstObservability_PermissionRequiredEmitsPermissionEvent(t *testing.T)
 	assertClosedSpawnKeys(t, sink)
 }
 
-// TestBurstObservability_PartialFailureNoPermissionEmitsSummary asserts a partial
-// failure WITHOUT a permission wall still emits the generic emitBurstSummary
-// (opened k/N) and no permission event.
 func TestBurstObservability_PartialFailureNoPermissionEmitsSummary(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	logger, sink := logtest.NewCaptureLogger(t)
 	m.spawnLogger = logger
 
-	// alpha confirms; bravo times out (no permission wall).
 	msg := spawnCompleteMsg{
 		Batch:      "batch-xyz",
 		Identity:   ghosttyIdentity(),
@@ -443,10 +365,6 @@ func TestBurstObservability_PartialFailureNoPermissionEmitsSummary(t *testing.T)
 	}
 }
 
-// TestEmitPermission_ParityWithCLI asserts the picker's emitPermission renders the
-// exact same body (message + closed attr set) as the shared spawn.LogPermission (the
-// same emitter the open burst's permission arm uses) for the same
-// identity/resolution/detail — the cross-caller one-service lockstep.
 func TestEmitPermission_ParityWithCLI(t *testing.T) {
 	logger, sink := logtest.NewCaptureLogger(t)
 	m := Model{spawnLogger: logger}
@@ -458,10 +376,7 @@ func TestEmitPermission_ParityWithCLI(t *testing.T) {
 	}
 }
 
-// TestBurstObservability_TotalIncludesTriggerOnEveryPath asserts total == N (the
-// external set + the trigger self-attach target) on both batch-summary paths.
 func TestBurstObservability_TotalIncludesTriggerOnEveryPath(t *testing.T) {
-	// Full success → total N.
 	full := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	fullLogger, fullSink := logtest.NewCaptureLogger(t)
 	full.spawnLogger = fullLogger
@@ -476,7 +391,6 @@ func TestBurstObservability_TotalIncludesTriggerOnEveryPath(t *testing.T) {
 		t.Errorf("full-success total = %d, want 3 (N incl. trigger)", got)
 	}
 
-	// Partial → total N (still counts the skipped trigger target).
 	partial := newPendingBurstModel(t, []string{"alpha", "bravo", "charlie"})
 	partialLogger, partialSink := logtest.NewCaptureLogger(t)
 	partial.spawnLogger = partialLogger

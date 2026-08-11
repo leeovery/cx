@@ -12,19 +12,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6 / §6.2 Projects two-line row anatomy gate. These tests pin the restyled
-// ProjectDelegate: two-line rows (name text.primary heavy on line 1, path
-// text.muted dim on line 2), a full-height accent.primary left bar spanning BOTH
-// lines over a bg.selection tint on the selected row (name text.on-selection, path
-// text.tertiary), no bar/tint on unselected rows, and uniform two-line height
-// for pagination parity. Colour roles are asserted in exact mode-resolved SGR (like
-// the §4.1 session-row tests), so a token swap is caught, not merely glyph
-// presence. Matches testdata/vhs/reference/projects-mv.png.
-//
-// No t.Parallel() — the shared canvas helpers make parallelism unsafe.
-
-// renderProjectRow renders one project row at the given list width with the cursor
-// on selIndex, then returns the styled string the delegate emitted for `index`.
 func renderProjectRow(d ProjectDelegate, width int, items []list.Item, index, selIndex int) string {
 	m := list.New(items, d, width, 10)
 	m.Select(selIndex)
@@ -41,9 +28,6 @@ func projectItems(specs ...project.Project) []list.Item {
 	return items
 }
 
-// TestProjectRow_TwoLinesNamePrimaryPathDetail asserts each row renders as TWO
-// lines — the name (text.primary, heavy/bold) on line 1, the path (text.muted,
-// dim) on line 2 — on an UNSELECTED row (so the base, non-selection tokens apply).
 func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := ProjectDelegate{Theme: th}
@@ -51,7 +35,6 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 			project.Project{Name: "row-zero", Path: "/home/user/code/row-zero"},
 			project.Project{Name: "portal", Path: "/home/user/code/portal"},
 		)
-		// Render row 1 while the cursor is on row 0 → row 1 is unselected.
 		out := renderProjectRow(d, 80, items, 1, 0)
 
 		lines := strings.Split(out, "\n")
@@ -64,14 +47,12 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 		if !strings.Contains(ansi.Strip(lines[1]), "/home/user/code/portal") {
 			t.Errorf("[%v] line 2 missing the project path: %q", themeLabel(th), ansi.Strip(lines[1]))
 		}
-		// Name in text.primary, path in text.muted.
 		if seq := tokenFgSeq(t, th.TextPrimary); !strings.Contains(lines[0], seq) {
 			t.Errorf("[%v] name line missing text.primary fg %q", themeLabel(th), seq)
 		}
 		if seq := tokenFgSeq(t, th.TextMuted); !strings.Contains(lines[1], seq) {
 			t.Errorf("[%v] path line missing text.detail fg %q", themeLabel(th), seq)
 		}
-		// The name is heavy/bold (SGR 1 in the name line's first style run).
 		boldName := lipgloss.NewStyle().Bold(true).Foreground(testDarkTheme(t).TextPrimary.Color()).Render("portal")
 		if !strings.Contains(lines[0], "1;") && !strings.Contains(boldName, "1;") {
 			t.Errorf("[%v] precondition: bold name run should carry SGR bold", themeLabel(th))
@@ -82,9 +63,6 @@ func TestProjectRow_TwoLinesNamePrimaryPathDetail(t *testing.T) {
 	}
 }
 
-// TestProjectRow_SelectedFullHeightBarTintAcrossBothLines asserts the §6.2
-// selection treatment: a full-height accent.primary ▌ left bar on BOTH lines of the
-// selected row, every structural cell tinted with bg.selection on BOTH lines.
 func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := ProjectDelegate{Theme: th}
@@ -98,14 +76,12 @@ func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 		violet := tokenFgSeq(t, th.AccentPrimary)
 		bgParams := selectionBgParams(t, th)
 		for i, line := range lines {
-			// The ▌ bar is present on BOTH lines (the full-height bar), in accent.primary.
 			if !strings.Contains(ansi.Strip(line), "▌") {
 				t.Errorf("[%v] selected line %d missing the ▌ full-height bar: %q", themeLabel(th), i, ansi.Strip(line))
 			}
 			if !strings.Contains(line, violet) {
 				t.Errorf("[%v] selected line %d bar missing accent.violet fg %q", themeLabel(th), i, violet)
 			}
-			// The bg.selection tint spans BOTH lines.
 			if !lineHasBgParams(line, bgParams) {
 				t.Errorf("[%v] selected line %d missing the bg.selection tint %q: %q", themeLabel(th), i, bgParams, escSeq(line))
 			}
@@ -113,9 +89,6 @@ func TestProjectRow_SelectedFullHeightBarTintAcrossBothLines(t *testing.T) {
 	}
 }
 
-// TestProjectRow_SelectedNameOnSelectionPathMutedBright asserts the §6.2 / §2.9
-// selected-row foreground roles: the name becomes text.on-selection and the path
-// becomes text.tertiary (the path-on-selection token).
 func TestProjectRow_SelectedNameOnSelectionPathMutedBright(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := ProjectDelegate{Theme: th}
@@ -132,9 +105,6 @@ func TestProjectRow_SelectedNameOnSelectionPathMutedBright(t *testing.T) {
 	}
 }
 
-// TestProjectRow_UnselectedHasNoBarOrTint asserts the negative of §6.2: an
-// unselected row carries neither the ▌ bar nor the bg.selection tint — it paints on
-// the plain canvas on both lines.
 func TestProjectRow_UnselectedHasNoBarOrTint(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := ProjectDelegate{Theme: th}
@@ -159,10 +129,6 @@ func TestProjectRow_UnselectedHasNoBarOrTint(t *testing.T) {
 	}
 }
 
-// TestProjectRow_UniformTwoLineHeightForPagination asserts the §3.5 / §6.2
-// pagination invariant: every row (selected and unselected) renders exactly two
-// lines and the delegate Height stays 2, so bubbles/list pagination row counts are
-// unchanged.
 func TestProjectRow_UniformTwoLineHeightForPagination(t *testing.T) {
 	d := ProjectDelegate{}
 	if d.Height() != 2 {
@@ -185,9 +151,6 @@ func TestProjectRow_UniformTwoLineHeightForPagination(t *testing.T) {
 	}
 }
 
-// TestProjectRow_OverLongNameAndPathTruncate asserts §2.7: an over-long name or
-// path truncates with an ellipsis so neither line overflows the list width, and the
-// two-line height stays uniform (pagination never drifts).
 func TestProjectRow_OverLongNameAndPathTruncate(t *testing.T) {
 	const w = 40
 	longName := "this-is-a-really-very-long-project-name-that-overflows-the-row"
@@ -204,7 +167,6 @@ func TestProjectRow_OverLongNameAndPathTruncate(t *testing.T) {
 			t.Errorf("line %d width = %d, overflows the list width %d: %q", i, lw, w, ansi.Strip(line))
 		}
 	}
-	// Both lines carry the ellipsis (the full name/path do not fit at width 40).
 	if !strings.Contains(ansi.Strip(lines[0]), "…") {
 		t.Errorf("over-long name line should carry the ellipsis glyph: %q", ansi.Strip(lines[0]))
 	}
@@ -213,8 +175,6 @@ func TestProjectRow_OverLongNameAndPathTruncate(t *testing.T) {
 	}
 }
 
-// TestProjectRow_NeverOverflowsAtNarrowWidths is the §3.5/§2.7 no-overflow guard at
-// pathological narrow widths: neither line of either row may exceed the list width.
 func TestProjectRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 	for _, w := range []int{1, 4, 8, 20, 40, 80} {
 		items := projectItems(project.Project{
@@ -232,12 +192,6 @@ func TestProjectRow_NeverOverflowsAtNarrowWidths(t *testing.T) {
 	}
 }
 
-// TestProjectRow_NoLegacyCursorOrColourLiterals asserts the reskin removed the
-// legacy `> ` pink cursor and the #777777 grey path: the delegate emits no run
-// opening the OLD scattered literals (pink ANSI-256 index 212, grey hex #777777),
-// and the selected row no longer prefixes a literal `> ` cursor (it carries the ▌
-// bar instead). The source-level guard is colour_literal_guard_test.go; this is the
-// render-level cross-check.
 func TestProjectRow_NoLegacyCursorOrColourLiterals(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := ProjectDelegate{Theme: th}
@@ -252,17 +206,12 @@ func TestProjectRow_NoLegacyCursorOrColourLiterals(t *testing.T) {
 		if strings.Contains(out, "38;2;119;119;119") {
 			t.Errorf("[%v] delegate emitted the legacy #777777 grey: %q", themeLabel(th), escSeq(out))
 		}
-		// The selected row carries the ▌ bar, NOT a `> ` cursor prefix.
 		if strings.Contains(ansi.Strip(out), "> ") {
 			t.Errorf("[%v] selected row should use the ▌ bar, not a '> ' cursor: %q", themeLabel(th), ansi.Strip(out))
 		}
 	}
 }
 
-// TestProjectRow_ColourlessDropsHueAndCanvas asserts the NO_COLOR carve-out (§2.5):
-// a colourless project row carries no canvas/selection background SGR and no
-// foreground hue — name + path text and the two-line structure intact, the bar
-// glyph still present for glyph-distinct selection (§2.2).
 func TestProjectRow_ColourlessDropsHueAndCanvas(t *testing.T) {
 	d := ProjectDelegate{Theme: testDarkTheme(t), Colourless: true}
 	items := projectItems(project.Project{Name: "portal", Path: "/home/user/code/portal"})

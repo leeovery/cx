@@ -9,11 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newProjectsTransitionModel builds a Model parked on the projects page with a
-// wired SessionLister, so the projects-page s/x → sessions transition has a
-// lister to dispatch its re-group refresh against. projects seeds the cached
-// project records (consulted by the mode-aware re-render path) and mode sets
-// the active grouping mode.
 func newProjectsTransitionModel(t *testing.T, lister SessionLister, projects []project.Project, mode prefs.SessionListMode) Model {
 	t.Helper()
 	m := Model{
@@ -30,10 +25,6 @@ func newProjectsTransitionModel(t *testing.T, lister SessionLister, projects []p
 	return m
 }
 
-// pressProjectsKey drives a single printable rune through the projects-page
-// handler via the top-level Update (which routes to updateProjectsPage while
-// activePage == PageProjects) and returns the resulting Model plus the
-// dispatched tea.Cmd.
 func pressProjectsKey(t *testing.T, m Model, r rune) (Model, tea.Cmd) {
 	t.Helper()
 	updated, cmd := m.Update(keyRune(r))
@@ -45,8 +36,6 @@ func pressProjectsKey(t *testing.T, m Model, r rune) (Model, tea.Cmd) {
 }
 
 func TestProjectsTransitionDispatchesRefresh(t *testing.T) {
-	// §12.2: x is the sole both-directions page toggle — the Projects-side s alias
-	// is dropped, so only x carries the return-to-Sessions re-group refresh.
 	for _, key := range []rune{'x'} {
 		t.Run(string(key), func(t *testing.T) {
 			lister := &stepListerStub{steps: [][]tmux.Session{{
@@ -74,11 +63,6 @@ func TestProjectsTransitionDispatchesRefresh(t *testing.T) {
 }
 
 func TestProjectsTransitionRegroupsWithUpdatedTags(t *testing.T) {
-	// By Tag mode active. The project carries a freshly-edited tag ("work"); the
-	// live session's Dir resolves to that project. After the x-transition
-	// refresh (§12.2: x is the sole page toggle), the session must re-group under
-	// the "work" heading (mode-aware re-render path), proving tags are re-resolved
-	// live on return.
 	projects := []project.Project{
 		{Path: "/p/one", Name: "one", Tags: []string{"work"}},
 	}
@@ -93,8 +77,6 @@ func TestProjectsTransitionRegroupsWithUpdatedTags(t *testing.T) {
 		t.Fatalf("expected a non-nil refresh cmd, got nil")
 	}
 
-	// Round-trip the refresh message through Update so applySessions runs and
-	// re-groups per the active ByTag mode.
 	updated, refilter := got.Update(cmd())
 	got2, ok := updated.(Model)
 	if !ok {
@@ -114,7 +96,6 @@ func TestProjectsTransitionRegroupsWithUpdatedTags(t *testing.T) {
 	if si.GroupHeading != "work" || si.GroupKey != "work" {
 		t.Errorf("expected session re-grouped under tag heading %q, got heading=%q key=%q", "work", si.GroupHeading, si.GroupKey)
 	}
-	// The interleaved "work" header is present ahead of its row.
 	headers := headerRows(items)
 	if len(headers) != 1 || headers[0].Heading != "work" {
 		t.Errorf("expected a single 'work' header, got %v", headers)
@@ -122,7 +103,6 @@ func TestProjectsTransitionRegroupsWithUpdatedTags(t *testing.T) {
 }
 
 func TestProjectsTransitionToleratesNilLister(t *testing.T) {
-	// §12.2: only x toggles the page now (the s alias is dropped).
 	for _, key := range []rune{'x'} {
 		t.Run(string(key), func(t *testing.T) {
 			m := newProjectsTransitionModel(t, nil, nil, prefs.ModeFlat)
@@ -164,9 +144,6 @@ func TestProjectsTransitionPreservesCommandPendingGuard(t *testing.T) {
 }
 
 func TestProjectsNonTransitionKeyDoesNotRefresh(t *testing.T) {
-	// A projects-page key that does NOT transition to the sessions page must not
-	// dispatch the re-group refresh. "?" is swallowed by updateProjectsPage and
-	// keeps the page on PageProjects.
 	lister := &stepListerStub{steps: [][]tmux.Session{{
 		{Name: "alpha", Windows: 1, Attached: false},
 	}}}

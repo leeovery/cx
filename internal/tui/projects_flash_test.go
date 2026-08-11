@@ -11,23 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/spawn"
 )
 
-// Tests for task 8-12: the §14A Projects transient-flash slot. The §11 notice
-// band was a SESSIONS-only arbiter, yet §9.6 binds `t` on Projects, §14.2 puts
-// `t theme` in its footer, and all six of §14A's theme flashes are reachable
-// there — so a flash raised on Projects set state and rendered nothing.
-//
-// Projects gets the FLASH CONTENDER ALONE (§14A), arbitrated against the
-// existing §11.4 command-pending banner and rendered through the SAME
-// renderNoticeBand primitive the Sessions band uses. No other contender has a
-// Projects analogue.
-//
-// No t.Parallel() — the package's shared canvas/mock helpers make parallelism
-// unsafe across these tests.
-
-// newProjectsFlashModel builds a Projects-page Model seeded with the sample
-// projects at the given size, sized so the band/footer budgets are applied. It
-// takes the Model options so the NO_COLOR carve-out variant can be built from the
-// same fixture rather than a second near-copy.
 func newProjectsFlashModel(t *testing.T, w, h int, opts ...Option) Model {
 	t.Helper()
 	m := New(fakeLister{}, opts...)
@@ -41,11 +24,6 @@ func newProjectsFlashModel(t *testing.T, w, h int, opts ...Option) Model {
 	return m
 }
 
-// newSessionsFlashPeer builds the SESSIONS-page peer of a Projects flash model at
-// the same size, so the two pages' arbitrated band renders can be compared
-// byte-for-byte (the §14A "same band, other page" contract). Both models take the
-// constructor's dark seed with no nomination applied, so the palette matches
-// without either side naming a theme.
 func newSessionsFlashPeer(t *testing.T, w, h int) Model {
 	t.Helper()
 	m := New(fakeLister{})
@@ -55,11 +33,6 @@ func newSessionsFlashPeer(t *testing.T, w, h int) Model {
 	return m
 }
 
-// bandSlotRowCount counts the `▌` band rows in the composed Projects view's
-// NOTICE SLOT — the region between the title separator and the `Projects` section
-// header. The scan stops at the section header because the selected project ROW
-// draws its cursor with the same glyph further down the page; the single-slot rule
-// is about the slot, so the count has to be about the slot too.
 func bandSlotRowCount(view string) int {
 	n := 0
 	for line := range strings.SplitSeq(ansi.Strip(view), "\n") {
@@ -73,30 +46,21 @@ func bandSlotRowCount(view string) int {
 	return n
 }
 
-// sectionHeaderRow returns line 0 of a bubbles/list view — the row
-// applyProjectsSectionHeader swaps its header into.
 func sectionHeaderRow(listView string) string {
 	return strings.SplitN(listView, "\n", 2)[0]
 }
 
-// TestProjectsFlash_RendersInTheBandSlot asserts a flash raised while the
-// Projects page is active renders the §11 `▌` band beneath the title separator
-// (above the section header, with the one blank breathing row between) and that
-// its bytes are IDENTICAL to the Sessions band for the same message and width.
 func TestProjectsFlash_RendersInTheBandSlot(t *testing.T) {
 	const flash = "__PROJECTS_FLASH__"
 	m := newProjectsFlashModel(t, 90, 30)
 	m.setFlash(flash)
 
-	// Byte-identical to the Sessions band: same role, tint, glyph, width.
 	peer := newSessionsFlashPeer(t, 90, 30)
 	peer.setFlash(flash)
 	if got, want := m.renderActiveProjectNoticeBand(), peer.renderActiveNoticeBand(); got != want {
 		t.Errorf("Projects flash band differs from the Sessions band for the same message/width:\n got %q\nwant %q", got, want)
 	}
 
-	// Placement: under the title separator rule, above the section header, with
-	// exactly one blank breathing row between band and section header.
 	lines := strings.Split(ansi.Strip(m.viewProjectList()), "\n")
 	ruleIdx := -1
 	for i, l := range lines {
@@ -119,16 +83,11 @@ func TestProjectsFlash_RendersInTheBandSlot(t *testing.T) {
 	if blank := lines[bandIdx+1]; strings.TrimSpace(blank) != "" {
 		t.Errorf("row between the band and section header must be blank, got %q", blank)
 	}
-	// The ⚠ glyph treatment travels with the role.
 	if !strings.Contains(lines[bandIdx], flashWarningGlyph) {
 		t.Errorf("Projects flash band missing the %q status glyph: %q", flashWarningGlyph, lines[bandIdx])
 	}
 }
 
-// TestProjectsFlash_RecomputesListHeight asserts the Projects list height shrinks
-// by the slot's MEASURED height when the flash appears and is restored when it
-// clears — asserted through projectBandHeight, with no separate arithmetic, so
-// the one-row-per-delegate pagination invariant holds by construction.
 func TestProjectsFlash_RecomputesListHeight(t *testing.T) {
 	m := newProjectsFlashModel(t, 90, 30)
 	base := m.projectList.Height()
@@ -151,9 +110,6 @@ func TestProjectsFlash_RecomputesListHeight(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_WinsTheSlotOverCommandPending asserts the flash outranks the
-// §11.4 command-pending banner for its duration, and the banner returns to the
-// slot once the flash clears.
 func TestProjectsFlash_WinsTheSlotOverCommandPending(t *testing.T) {
 	const flash = "__OUTRANKS__"
 	m := newCommandPendingTestModel(t, 90, 30, sampleProjects(), []string{"npm", "run", "dev"})
@@ -179,9 +135,6 @@ func TestProjectsFlash_WinsTheSlotOverCommandPending(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_SingleSlot asserts the band never CO-RENDERS with the
-// command-pending banner: exactly one band row set is present, carrying the
-// flash and none of the banner's caret / fixed text / command chip.
 func TestProjectsFlash_SingleSlot(t *testing.T) {
 	const flash = "__SINGLE_SLOT__"
 	m := newCommandPendingTestModel(t, 90, 30, sampleProjects(), []string{"npm", "run", "dev"})
@@ -200,16 +153,11 @@ func TestProjectsFlash_SingleSlot(t *testing.T) {
 	if got, want := bandSlotRowCount(view), lipgloss.Height(m.renderActiveProjectNoticeBand()); got != want {
 		t.Errorf("notice slot carries %d `%s` band rows, want %d (exactly one arbitrated band)", got, noticeBarGlyph, want)
 	}
-	// The slot is the one arbitrated band plus its single blank breathing row —
-	// never two stacked bands.
 	if got, want := lipgloss.Height(m.renderProjectBandSlot()), lipgloss.Height(m.renderActiveProjectNoticeBand())+1; got != want {
 		t.Errorf("Projects band slot height = %d, want %d (one band + one blank row)", got, want)
 	}
 }
 
-// TestProjectsFlash_ActionableKeyClearsAndFallsThrough asserts an actionable
-// keypress on Projects clears the flash AND still reaches its normal handler —
-// "one key, one intent", exactly as the Sessions arm behaves.
 func TestProjectsFlash_ActionableKeyClearsAndFallsThrough(t *testing.T) {
 	t.Run("x clears the flash and still switches to Sessions", func(t *testing.T) {
 		m := projectsDispatchModel(t)
@@ -238,8 +186,6 @@ func TestProjectsFlash_ActionableKeyClearsAndFallsThrough(t *testing.T) {
 	})
 }
 
-// TestProjectsFlash_SurvivesWindowSize asserts a NON-key event does not clear a
-// Projects flash — window size, focus, and blur never enter the KeyPressMsg arm.
 func TestProjectsFlash_SurvivesWindowSize(t *testing.T) {
 	const flash = "__SURVIVES__"
 	for _, tc := range []struct {
@@ -266,22 +212,10 @@ func TestProjectsFlash_SurvivesWindowSize(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_PageEnteredByMessageIsSized closes the frame-overflow hole the
-// §14A slot opened. A page is NOT only ever entered by a keypress: a MESSAGE can
-// enter one too, and a message never runs the actionable-key flash clear.
-//
-// The live route is the §10.2 concurrent cold boot (driven end-to-end by
-// TestProjectsFlash_ColdBootWarningsLandOnASizedProjectsFrame below): the flash is
-// raised while Sessions is active, then the post-restore refetch's SessionsMsg
-// flips the page to Projects with the flash still live. Whichever page the flash is
-// raised on, BOTH lists must already reserve the slot they would render, so the
-// page that is entered is sized for the band it is carrying.
 func TestProjectsFlash_PageEnteredByMessageIsSized(t *testing.T) {
 	m := newProjectsFlashModel(t, 90, 30)
 	base := m.projectList.Height()
 
-	// Raise the flash while SESSIONS is active, then flip to Projects with no
-	// keypress in between — the message route, in miniature.
 	m.activePage = PageSessions
 	m.setFlash("__ENTERED_BY_MESSAGE__")
 	m.activePage = PageProjects
@@ -295,39 +229,17 @@ func TestProjectsFlash_PageEnteredByMessageIsSized(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_ColdBootWarningsLandOnASizedProjectsFrame drives the REAL route
-// the off-page flash arrives by, end to end: a cold TUI boot with soft bootstrap
-// warnings and zero sessions after restore — a degraded or first-run install.
-//
-//  1. transitionFromLoading lands PageSessions and RETURNS EARLY on this route
-//     (progressReceiver != nil), deliberately leaving defaultPageEvaluated false —
-//     it has not landed the final page.
-//  2. surfaceBufferedWarnings raises the warnings flash there.
-//  3. The post-restore refetch's SessionsMsg sets sessionsLoaded and runs
-//     evaluateDefaultPage, which flips to PageProjects for an empty list. It is a
-//     MESSAGE, so the actionable-key clear never runs and the flash is still live
-//     (the 3 s tick has not fired — the refetch resolves in milliseconds).
-//
-// The composed Projects frame must still fit its content region: fillCanvas CLAMPS
-// at contentHeight, so a list budgeted for no band silently loses the footer off the
-// bottom of the frame.
 func TestProjectsFlash_ColdBootWarningsLandOnASizedProjectsFrame(t *testing.T) {
 	const warningLine = "the session saver is not running"
 
-	// §10.2 cold/TUI route: the non-nil progress receiver is the discriminator; the
-	// project store makes Projects a real landing surface.
 	var model tea.Model = New(postloadStubLister{},
 		WithServerStarted(true),
 		WithProgressReceiver(func() tea.Msg { return nil }),
 		WithProjectStore(stubProjectStore{}),
 	)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	// projectsLoaded must be true BEFORE the transition, as production delivers it
-	// (Init dispatches loadProjects on frame one).
 	model, _ = model.Update(ProjectsLoadedMsg{Projects: oneProjectLoaded()})
 
-	// Both loading gates close: the transition lands Sessions undecided and the
-	// warnings flash is raised there.
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 	model, _ = model.Update(BootstrapCompleteMsg{Warnings: []BootstrapWarning{{Lines: []string{warningLine}}}})
 	interim := model.(Model)
@@ -338,9 +250,6 @@ func TestProjectsFlash_ColdBootWarningsLandOnASizedProjectsFrame(t *testing.T) {
 		t.Fatal("route invariant: expected the post-load warnings flash to be live on Sessions")
 	}
 
-	// The post-restore refetch's SessionsMsg, fed directly rather than by draining
-	// the transition batch (which also carries the flash's 3 s auto-clear tick, a
-	// real timer). Zero sessions → evaluateDefaultPage flips to Projects.
 	model, _ = interim.Update(SessionsMsg{})
 	final := model.(Model)
 	if final.ActivePage() != PageProjects {
@@ -356,13 +265,10 @@ func TestProjectsFlash_ColdBootWarningsLandOnASizedProjectsFrame(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_TickClearsWithGenerationGuard asserts a Projects flash rides
-// the EXISTING shared tick: a matching generation clears it, a superseded one is
-// dropped. No Projects-specific duration, kind, or tick exists.
 func TestProjectsFlash_TickClearsWithGenerationGuard(t *testing.T) {
 	t.Run("a matching tick clears the flash", func(t *testing.T) {
 		m := newProjectsFlashModel(t, 90, 30)
-		m.setFlash("timeout-me") // gen 1
+		m.setFlash("timeout-me")
 
 		updated, _ := m.Update(flashTickMsg{Gen: m.flashGen})
 		mm := updated.(Model)
@@ -373,8 +279,8 @@ func TestProjectsFlash_TickClearsWithGenerationGuard(t *testing.T) {
 
 	t.Run("a superseded tick does not clear a newer flash", func(t *testing.T) {
 		m := newProjectsFlashModel(t, 90, 30)
-		m.setFlash("first")  // gen 1
-		m.setFlash("second") // gen 2 — supersedes
+		m.setFlash("first")
+		m.setFlash("second")
 
 		updated, _ := m.Update(flashTickMsg{Gen: 1})
 		mm := updated.(Model)
@@ -384,15 +290,8 @@ func TestProjectsFlash_TickClearsWithGenerationGuard(t *testing.T) {
 	})
 }
 
-// TestProjectsFlash_OnlyTheFlashContender asserts Projects gained the FLASH
-// CONTENDER ALONE (§14A): with every Sessions-only contender's model state set
-// and no flash live, the Projects slot stays empty and none of their copy leaks
-// onto the page.
 func TestProjectsFlash_OnlyTheFlashContender(t *testing.T) {
 	m := newProjectsFlashModel(t, 90, 30, WithInitialBurstOpening(1, 3))
-	// Every Sessions-only contender's state, all at once: the §11.3 no-tags
-	// signpost, §5 multi-select, a resolved-unsupported named terminal, and the
-	// §6-5 in-burst Opening band (seeded by the option above).
 	m.byTagSignpost = true
 	m.multiSelectMode = true
 	m.selectedSessions = map[string]struct{}{"alpha": {}}
@@ -417,9 +316,6 @@ func TestProjectsFlash_OnlyTheFlashContender(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_Colourless asserts the NO_COLOR carve-out (§2.5) on the
-// Projects band: hue and tint drop, while the `▌` bar and the ⚠ / ✓ status
-// glyphs survive — the band's state stays glyph-backed, never colour-only.
 func TestProjectsFlash_Colourless(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -447,9 +343,6 @@ func TestProjectsFlash_Colourless(t *testing.T) {
 	}
 }
 
-// TestProjectsFlash_SessionsBandUnchanged asserts this task left the SESSIONS
-// arbiter alone — including its deliberate multi-select CO-RENDER exception,
-// which has no Projects analogue and must not have been "unified" away.
 func TestProjectsFlash_SessionsBandUnchanged(t *testing.T) {
 	const flash = "__SESSIONS_UNCHANGED__"
 
@@ -481,11 +374,6 @@ func TestProjectsFlash_SessionsBandUnchanged(t *testing.T) {
 	})
 }
 
-// TestProjectsFlash_FilterHeaderPrecedenceUnchanged pins the deliberate
-// NON-change: §14A's filter-line precedence flip (theme flashes outranking the
-// filter line) is PHASE 9's. An applied Projects filter still owns its
-// section-header row byte-for-byte while a flash holds the band slot beneath it —
-// the two are different rows in this phase, and nothing yet suppresses either.
 func TestProjectsFlash_FilterHeaderPrecedenceUnchanged(t *testing.T) {
 	const query = "portal"
 	m := newProjectsFlashModel(t, 90, 30)
@@ -497,9 +385,6 @@ func TestProjectsFlash_FilterHeaderPrecedenceUnchanged(t *testing.T) {
 	if m.projectList.FilterState() != list.FilterApplied {
 		t.Fatalf("precondition: project filter state = %v, want FilterApplied", m.projectList.FilterState())
 	}
-	// Compare the section-header ROW alone: the flash legitimately shortens the
-	// list body beneath it (the slot's reserve), which is the F10 recompute, not a
-	// precedence change.
 	baseline := sectionHeaderRow(m.applyProjectsSectionHeader(m.projectList.View()))
 
 	m.setFlash("__FILTER_PRECEDENCE__")

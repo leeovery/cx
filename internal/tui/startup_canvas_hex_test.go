@@ -7,17 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// TestStartupCanvasHex_CapturedAtGateResolution pins §8.4's timing rule for the
-// §11.4 retained hex: it is captured from the theme the gate SELECTED, at the
-// single moment the gate resolves — which is also the moment the first frame is
-// composed, so it is defined for every frame that exists.
-//
-// The pre-resolution assertion is the other half of that rule and is not
-// incidental: while the detect-or-timeout window is open View paints the neutral
-// blank frame and sets no OSC 11 background, so nothing has been painted and
-// there is nothing to restore. An empty hex is the honest value there —
-// sameHexColour returns false for it, so a Portal that dies mid-window emits the
-// set-back to the terminal's own original, a harmless no-op write.
 func TestStartupCanvasHex_CapturedAtGateResolution(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -47,11 +36,6 @@ func TestStartupCanvasHex_CapturedAtGateResolution(t *testing.T) {
 	}
 }
 
-// TestStartupCanvasHex_ConstantCapturedAtConstruction pins the constant half of
-// §8.4: a constant nomination is active from frame one, so its gate is built
-// already resolved and the hex is captured at construction — before any frame is
-// composed. No View is rendered here, deliberately: the value must be in hand
-// without one.
 func TestStartupCanvasHex_ConstantCapturedAtConstruction(t *testing.T) {
 	for _, tc := range []struct {
 		name string

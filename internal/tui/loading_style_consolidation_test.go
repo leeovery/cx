@@ -8,22 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Task spectrum-tui-design-8-5 consolidation gate. loadingFg / loadingStyle were
-// a third independent copy of the header.go leaf canvas-paint pair (headerStyle /
-// headerCanvasBg). These tests prove the post-consolidation loading render is
-// byte-identical to the PRE-refactor source:
-//   - the helper-level probes pin loadingFg ≡ headerStyle and loadingStyle ≡
-//     headerCanvasBg (so the loading names delegate to the single header source,
-//     never re-implement);
-//   - preLoadingFg / preLoadingStyle reproduce the ORIGINAL inline-logic bodies
-//     verbatim, and the loading-screen + loading-error full-screen goldens are
-//     rendered from those originals, so any drift in the consolidated helpers'
-//     style composition is caught byte-for-byte across light, dark, and NO_COLOR.
-//
-// No t.Parallel() — the shared canvas helpers make parallelism unsafe.
-
-// preLoadingFg reproduces the ORIGINAL loadingFg inline logic verbatim — the
-// golden the consolidation must preserve.
 func preLoadingFg(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -33,8 +17,6 @@ func preLoadingFg(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Styl
 		Background(th.Canvas.Color())
 }
 
-// preLoadingStyle reproduces the ORIGINAL loadingStyle inline logic verbatim —
-// the golden the consolidation must preserve.
 func preLoadingStyle(th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -42,11 +24,6 @@ func preLoadingStyle(th theme.Theme, colourless bool) lipgloss.Style {
 	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
-// TestLoadingFg_DelegatesToHeaderStyle asserts the consolidated loadingFg renders
-// a probe string byte-identically to headerStyle (the single header.go source)
-// AND to the original inline loadingFg logic, across a representative token × both
-// modes × colourless on/off. Pins that loadingFg no longer re-implements the leaf
-// paint — it routes through the header helper.
 func TestLoadingFg_DelegatesToHeaderStyle(t *testing.T) {
 	roles := []string{"text.primary", "accent.primary", "state.destructive", "text.faint"}
 	for _, role := range roles {
@@ -68,10 +45,6 @@ func TestLoadingFg_DelegatesToHeaderStyle(t *testing.T) {
 	}
 }
 
-// TestLoadingStyle_DelegatesToHeaderCanvasBg asserts the consolidated loadingStyle
-// renders a probe string byte-identically to headerCanvasBg (the single header.go
-// source) AND to the original inline loadingStyle logic, across both modes ×
-// colourless on/off.
 func TestLoadingStyle_DelegatesToHeaderCanvasBg(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
@@ -89,13 +62,6 @@ func TestLoadingStyle_DelegatesToHeaderCanvasBg(t *testing.T) {
 	}
 }
 
-// TestLoadingScreen_ByteIdenticalAcrossConsolidation asserts the full loading
-// screen render (both the normal mid-restore frame and the §10.5 error frame) is
-// byte-for-byte identical across the consolidation, in light, dark, and NO_COLOR.
-// The goldens in loadingScreenGoldens were CAPTURED from the PRE-refactor source
-// (loadingFg/loadingStyle forked bodies, via a throwaway generator run — see the
-// task notes), so a drift in canvas composition or the NO_COLOR carve-out after
-// the consolidation is caught verbatim.
 func TestLoadingScreen_ByteIdenticalAcrossConsolidation(t *testing.T) {
 	const w, h = 80, 24
 	frames := map[string]LoadingProgressView{
@@ -123,11 +89,6 @@ type goldenKey struct {
 	colourless bool
 }
 
-// loadingScreenGoldens are the EXACT bytes the PRE-refactor loading render
-// (forked loadingFg/loadingStyle bodies) emitted for the mid-restore and §10.5
-// error frames at 80×24, captured from a throwaway generator run against the
-// pre-consolidation source. Keyed by {frame, mode, colourless}. The
-// post-consolidation render MUST reproduce these byte-for-byte.
 var loadingScreenGoldens = map[goldenKey]string{
 	{"loading-screen", "dark", false}:  "                                                                                \n                                                                                \n                                                                                \n                                                                                \n                    \x1b[1;38;2;192;202;245;48;2;11;12;20m█████ █████ █████ █████ █████ █    \x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m█\x1b[m                     \n                    \x1b[1;38;2;192;202;245;48;2;11;12;20m█   █ █   █ █   █   █   █   █ █    \x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m█\x1b[m                     \n                    \x1b[1;38;2;192;202;245;48;2;11;12;20m█████ █   █ █████   █   █████ █    \x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m█\x1b[m                     \n                    \x1b[1;38;2;192;202;245;48;2;11;12;20m█     █   █ █  █    █   █   █ █    \x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m█\x1b[m                     \n                    \x1b[1;38;2;192;202;245;48;2;11;12;20m█     █████ █   █   █   █   █ █████\x1b[m\x1b[48;2;11;12;20m   \x1b[m\x1b[38;2;187;154;247;48;2;11;12;20m█\x1b[m                     \n                                        \x1b[48;2;11;12;20m\x1b[m                                        \n                                        \x1b[48;2;11;12;20m\x1b[m                                        \n                    \x1b[38;2;187;154;247;48;2;187;154;247m████████████████████\x1b[m\x1b[38;2;38;40;58;48;2;38;40;58m███████████████████\x1b[m                     \n                                        \x1b[48;2;11;12;20m\x1b[m                                        \n                                        \x1b[48;2;11;12;20m\x1b[m                                        \n                         \x1b[38;2;158;206;106;48;2;11;12;20m✓ \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;130;139;184;48;2;11;12;20mStarted tmux server\x1b[m                                \n                         \x1b[38;2;158;206;106;48;2;11;12;20m✓ \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;130;139;184;48;2;11;12;20mRegistered hooks\x1b[m                                   \n                         \x1b[38;2;125;207;255;48;2;11;12;20m◐ \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[1;38;2;192;202;245;48;2;11;12;20mRestoring sessions\x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20m8 / 12\x1b[m                         \n                         \x1b[38;2;59;66;97;48;2;11;12;20m· \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;83;92;134;48;2;11;12;20mReplaying scrollback\x1b[m                               \n                         \x1b[38;2;59;66;97;48;2;11;12;20m· \x1b[m\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;83;92;134;48;2;11;12;20mRunning resume commands\x1b[m                            \n                                                                                \n                                                                                \n                                                                                \n                                                                                \n                                                                                ",
 	{"loading-screen", "dark", true}:   "                                                                                \n                                                                                \n                                                                                \n                                                                                \n                    \x1b[1m█████ █████ █████ █████ █████ █    \x1b[m   █                     \n                    \x1b[1m█   █ █   █ █   █   █   █   █ █    \x1b[m   █                     \n                    \x1b[1m█████ █   █ █████   █   █████ █    \x1b[m   █                     \n                    \x1b[1m█     █   █ █  █    █   █   █ █    \x1b[m   █                     \n                    \x1b[1m█     █████ █   █   █   █   █ █████\x1b[m   █                     \n                                                                                \n                                                                                \n                    ███████████████████████████████████████                     \n                                                                                \n                                                                                \n                         ✓   Started tmux server                                \n                         ✓   Registered hooks                                   \n                         ◐   \x1b[1mRestoring sessions\x1b[m  8 / 12                         \n                         ·   Replaying scrollback                               \n                         ·   Running resume commands                            \n                                                                                \n                                                                                \n                                                                                \n                                                                                \n                                                                                ",

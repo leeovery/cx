@@ -7,19 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Tests for task 9-4: the §2.7 narrow-degrade fitter is unified across the standard
-// keymap footer (fitLeftCluster) and the per-glyph filter footer (fitFilterCluster)
-// into the shared fitClusterToWidth helper. Both fitters must produce byte-identical
-// output to the pre-refactor algorithm across every width regime (wide/full,
-// narrow-degrade prefix+`· …`, ellipsis-only, and sub-ellipsis empty).
-//
-// No t.Parallel() — the package's shared canvas/mock helpers make parallelism unsafe.
-
-// referenceFitCluster is an independent copy of the pre-refactor narrow-degrade
-// algorithm (try full → greedy leading prefix with `<cluster> sep …` → bare ellipsis
-// → empty). The through-fitter tests below assert each production fitter matches this
-// reference byte-for-byte, pinning the caller wiring (budget + renderer + sep/ellipsis)
-// as well as the shared loop.
 func referenceFitCluster(count, budget int, render func(n int) (string, int), sep, ellipsis string) (string, int) {
 	if full, fullWidth := render(count); fullWidth <= budget {
 		return full, fullWidth
@@ -46,14 +33,10 @@ func referenceFitCluster(count, budget int, render func(n int) (string, int), se
 	return "", 0
 }
 
-// TestFitClusterToWidth_AlgorithmAcrossWidthRegimes drives the shared helper directly
-// with deterministic plain-string clusters (no ANSI) so the four width regimes and the
-// exact fitted output are asserted crisply. Each pseudo-entry is 5 cells wide; sep is
-// 3 cells (` · `) and the ellipsis 1 cell (`…`).
 func TestFitClusterToWidth_AlgorithmAcrossWidthRegimes(t *testing.T) {
-	const sep = " · "    // width 3
-	const ellipsis = "…" // width 1
-	const count = 4      // full cluster = 4 * 5 = 20 cells
+	const sep = " · "
+	const ellipsis = "…"
+	const count = 4
 	render := func(n int) (string, int) {
 		s := strings.Repeat("X", n*5)
 		return s, lipgloss.Width(s)
@@ -72,7 +55,6 @@ func TestFitClusterToWidth_AlgorithmAcrossWidthRegimes(t *testing.T) {
 			wantWid: 20,
 		},
 		{
-			// full(20) does not fit; n=2 gives 10+3+1=14 ≤ 15, n=3 gives 15+3+1=19 > 15.
 			name:    "narrow budget returns leading prefix plus separator and ellipsis",
 			budget:  15,
 			wantStr: strings.Repeat("X", 10) + sep + ellipsis,
@@ -106,8 +88,6 @@ func TestFitClusterToWidth_AlgorithmAcrossWidthRegimes(t *testing.T) {
 	}
 }
 
-// TestFitClusterToWidth_EmptyClusterCount asserts the count==0 fast path: the empty
-// cluster (width 0) fits any non-negative budget and is returned verbatim.
 func TestFitClusterToWidth_EmptyClusterCount(t *testing.T) {
 	render := func(n int) (string, int) { return "", 0 }
 	got, gotWid := fitClusterToWidth(0, 10, render, " · ", "…")
@@ -116,11 +96,6 @@ func TestFitClusterToWidth_EmptyClusterCount(t *testing.T) {
 	}
 }
 
-// TestFitFilterCluster_MatchesSharedHelperAcrossWidths asserts the multi-select
-// (per-glyph) fitter delegates to the shared narrow-degrade helper with a full-width
-// budget and the renderFilterCluster renderer — byte-identical to the reference
-// algorithm across every width regime, with the returned width never exceeding the
-// budget (the full width).
 func TestFitFilterCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 	th := testDarkTheme(t)
 	const colourless = false
@@ -144,7 +119,6 @@ func TestFitFilterCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 		{"sub-ellipsis empty", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// fitFilterCluster's budget is the full width (no right anchor reserved).
 			wantStr, wantWid := referenceFitCluster(len(entries), tc.w, render, sep, ellipsis)
 			gotStr, gotWid := fitFilterCluster(entries, tc.w, th, colourless)
 			if gotStr != wantStr {
@@ -160,11 +134,6 @@ func TestFitFilterCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 	}
 }
 
-// TestFitLeftCluster_MatchesSharedHelperAcrossWidths asserts the standard keymap
-// fitter delegates to the shared narrow-degrade helper with its right-anchor-reserved
-// budget (full width minus the right anchor plus one spacer) and the renderFooterCluster
-// renderer — byte-identical to the reference algorithm across every width regime, with
-// the returned width never exceeding the reserved budget.
 func TestFitLeftCluster_MatchesSharedHelperAcrossWidths(t *testing.T) {
 	th := testDarkTheme(t)
 	const colourless = false

@@ -7,9 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// multiSelectFixtureSessions is the sessions-flat set (same 12 names / order) the
-// capture fixture reuses — declared here so the cursor-anchor tests drive the same
-// deterministic list the harness renders.
 func multiSelectFixtureSessions() []tmux.Session {
 	return []tmux.Session{
 		{Name: "agentic-workflows-code-based", Windows: 3, Attached: true},
@@ -27,9 +24,6 @@ func multiSelectFixtureSessions() []tmux.Session {
 	}
 }
 
-// TestWithInitialMultiSelect verifies the capture-only §5 seed seam: the option
-// enters multi-select mode with the named sessions pre-marked, and an empty/nil
-// name slice is a no-op that leaves the model in normal mode.
 func TestWithInitialMultiSelect(t *testing.T) {
 	t.Run("seeds multi-select mode and the marked set at construction", func(t *testing.T) {
 		names := []string{"agentic-workflows-codify", "fab-flowx-explore", "designlab-web-r8suyU"}
@@ -46,8 +40,6 @@ func TestWithInitialMultiSelect(t *testing.T) {
 				t.Errorf("selectedSessions missing %q", n)
 			}
 		}
-		// The delegate must reflect the seeded state so the ● arms from the first
-		// frame (the list is constructed with a default MultiSelect==false delegate).
 		d := m.sessionDelegate()
 		if !d.MultiSelect {
 			t.Error("sessionDelegate().MultiSelect = false, want true")
@@ -75,9 +67,6 @@ func TestWithInitialMultiSelect(t *testing.T) {
 	})
 }
 
-// TestWithInitialCursor verifies the capture-only cursor anchor: after the session
-// list loads, the highlighted row is the named session (not the default index 0),
-// and an empty name is a no-op that leaves the cursor at index 0.
 func TestWithInitialCursor(t *testing.T) {
 	t.Run("positions the cursor on the named row after items load", func(t *testing.T) {
 		m := New(fakeLister{}, WithInitialMode(prefs.ModeFlat), WithInitialCursor("fab-flowx-explore"))

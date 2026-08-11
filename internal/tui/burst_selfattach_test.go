@@ -1,26 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-4 — full-success self-attach (net N) + marker
-// self-clean.
-//
-// These white-box (package tui) tests drive a FULL-success N≥2 burst end-to-end —
-// every external window confirms its token ack via the FakeAdapter/FakeAckChannel
-// confirm-all path — and assert the terminal spawnCompleteMsg arm:
-//   - Selected() == the trigger and the returned cmd is tea.Quit (driving the
-//     existing AttachConnector/SwitchConnector via processTUIResult; NO adapter),
-//   - the batch markers are self-cleaned by the burst goroutine BEFORE the
-//     terminal message / before the self-attach handoff,
-//   - no success flash / "N/N ✓" nag renders,
-//   - includes-self and confirmed-while-attached-elsewhere both self-attach
-//     (no special-casing, no dup guard),
-//   - the non-all-confirmed path stays UNCHANGED (§6-3 record + clear pending, no
-//     quit — the partial-failure/abort behaviour is tasks 6-6/6-7).
-//
-// The seam helpers (wireBurstSeams, allPresent, resolveDetection, markRow,
-// spawnedSession, ghosttyIdentity, markedSupportedBurstModel) live in
-// burst_dispatch_test.go. No t.Parallel: consistent with the rest of the tui test
-// surface.
-
 import (
 	"testing"
 
@@ -30,11 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// setupConfirmingBurst builds a resolved-supported model with every named session
-// marked (multi-select), wired to a FakeAdapter + FakeAckChannel whose default
-// confirm-all path writes every window's token — so pressing Enter drives a
-// FULL-success burst. It returns the model (ready for pressEnter), the adapter,
-// and the ack channel for post-drain assertions.
 func setupConfirmingBurst(t *testing.T, names []string) (Model, *spawntest.FakeAdapter, *spawntest.FakeAckChannel) {
 	t.Helper()
 	m, adapter, ack := markedSupportedBurstModel(t, names)
@@ -44,12 +18,6 @@ func setupConfirmingBurst(t *testing.T, names []string) (Model, *spawntest.FakeA
 	return m, adapter, ack
 }
 
-// driveBurstToTerminal runs the burst receiver chain from cmd, feeding each
-// spawnProgressMsg back through Update to re-issue the receiver, and returns the
-// model as it stood JUST BEFORE the terminal event plus the terminal tea.Msg
-// (spawnCompleteMsg or spawnAbortMsg). The caller applies the terminal message
-// itself, so it can assert pre-application state (e.g. the ack Clean ordering and
-// that Selected() is still unset before the self-attach handoff).
 func driveBurstToTerminal(t *testing.T, m Model, cmd tea.Cmd) (Model, tea.Msg) {
 	t.Helper()
 	for range 50 {
@@ -69,10 +37,6 @@ func driveBurstToTerminal(t *testing.T, m Model, cmd tea.Cmd) (Model, tea.Msg) {
 	return m, nil
 }
 
-// TestBurst_FullSuccess_SelfAttachesToTriggerAndQuits is the core assertion: a
-// burst where every external window confirms sets Selected() to the trigger and
-// returns tea.Quit — driving the picker's existing connector via processTUIResult
-// (net N windows, never N+1).
 func TestBurst_FullSuccess_SelfAttachesToTriggerAndQuits(t *testing.T) {
 	m, adapter, _ := setupConfirmingBurst(t, []string{"alpha", "bravo", "charlie"})
 
@@ -117,20 +81,12 @@ func TestBurst_FullSuccess_SelfAttachesToTriggerAndQuits(t *testing.T) {
 	}
 }
 
-// TestBurst_FullSuccess_CleansMarkersBeforeSelfAttachHandoff pins the
-// self-clean-before-self-exec ordering: the burst goroutine records
-// AckChannel.Clean(batch) STRICTLY before emitting the terminal spawnCompleteMsg,
-// so by the time the terminal message is in hand — and BEFORE Selected() is set
-// (the exec handoff) — the markers are already swept.
 func TestBurst_FullSuccess_CleansMarkersBeforeSelfAttachHandoff(t *testing.T) {
 	m, _, ack := setupConfirmingBurst(t, []string{"alpha", "bravo", "charlie"})
 
 	m, cmd := pressEnter(t, m)
 	mBefore, term := driveBurstToTerminal(t, m, cmd)
 
-	// Clean has already run (goroutine calls it before emitting the terminal
-	// event), and Selected() is not yet set (only the terminal-message apply sets
-	// it) — so Clean is strictly before the self-attach handoff.
 	if len(ack.Cleaned) != 1 {
 		t.Fatalf("batch markers must be cleaned before the terminal spawnCompleteMsg; Clean calls = %d, want 1", len(ack.Cleaned))
 	}
@@ -153,8 +109,6 @@ func TestBurst_FullSuccess_CleansMarkersBeforeSelfAttachHandoff(t *testing.T) {
 	}
 }
 
-// TestBurst_FullSuccess_RendersNoSuccessFlash guards the silent self-attach: a
-// full-success burst sets NO flash — no "N/N ✓" nag.
 func TestBurst_FullSuccess_RendersNoSuccessFlash(t *testing.T) {
 	m, _, _ := setupConfirmingBurst(t, []string{"alpha", "bravo", "charlie"})
 
@@ -173,10 +127,6 @@ func TestBurst_FullSuccess_RendersNoSuccessFlash(t *testing.T) {
 	}
 }
 
-// TestBurst_FullSuccess_IncludesSelfSelectionSelfAttaches covers the includes-self
-// edge: the trigger is one of the marked sessions (no special-casing at the model
-// layer). The trigger self-attaches; the rest of the marked set spawns externally
-// and the trigger is never in the external open set.
 func TestBurst_FullSuccess_IncludesSelfSelectionSelfAttaches(t *testing.T) {
 	m, adapter, _ := setupConfirmingBurst(t, []string{"alpha", "bravo"})
 
@@ -208,10 +158,6 @@ func TestBurst_FullSuccess_IncludesSelfSelectionSelfAttaches(t *testing.T) {
 	}
 }
 
-// TestBurst_FullSuccess_ConfirmedWhileAttachedElsewhere covers the
-// attached-elsewhere edge: a session already attached on another client still
-// confirms via the token ack (the FakeAdapter writes OUR new window's token) — no
-// dup guard — so the burst is full-success and self-attaches.
 func TestBurst_FullSuccess_ConfirmedWhileAttachedElsewhere(t *testing.T) {
 	m, _, _ := setupConfirmingBurst(t, []string{"alpha", "bravo"})
 
@@ -238,20 +184,12 @@ func TestBurst_FullSuccess_ConfirmedWhileAttachedElsewhere(t *testing.T) {
 	}
 }
 
-// TestBurst_NotAllConfirmed_ClearsPendingWithoutQuit guards the end-to-end
-// non-all-confirmed path: a single external spawn-failure (→ AckFailed, classified
-// WITHOUT an ack wait so the test stays fast) clears burst-pending and does NOT
-// self-attach or quit. The full §6-6 leave-what-opened selection mutation + flash is
-// exercised in burst_partial_failure_test.go; this asserts only that the full-success
-// arm (Task 6.4) does NOT fire on a non-all-confirmed terminal event.
 func TestBurst_NotAllConfirmed_ClearsPendingWithoutQuit(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 	}
 	ack := &spawntest.FakeAckChannel{}
-	// external = [alpha]; a spawn-failed Result classifies AckFailed immediately
-	// (no await), so the terminal message is not full-success.
 	adapter := &spawntest.FakeAdapter{Ack: ack, Results: []spawn.Result{spawn.SpawnFailed("boom")}}
 	m := NewModelWithSessions(sessions)
 	wireBurstSeams(&m, adapter, spawn.ResolutionNative, allPresent, ack)
@@ -283,9 +221,6 @@ func TestBurst_NotAllConfirmed_ClearsPendingWithoutQuit(t *testing.T) {
 	if rm.BurstPending() {
 		t.Error("the non-all-confirmed path must still clear burst-pending")
 	}
-	// §6-6 leave-what-opened: the failed alpha stays marked (a retry re-opens it) and
-	// the picker stays in multi-select mode — the detailed mutation/flash coverage is
-	// in burst_partial_failure_test.go.
 	if !rm.IsSessionSelected("alpha") {
 		t.Error("the spawn-failed alpha must stay marked for a retry")
 	}

@@ -9,12 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for task 3-7: the By-Tag zero-tags-anywhere "No tags yet" signpost
-// (spec § Mode Persistence & Empty States → Empty states → By Tag with zero
-// tags). When By Tag mode is active but no project carries any tag, the view
-// renders the plain flat session list plus a persistent dimmed signpost — a
-// degrade-with-message, not a silent flatten.
-
 func TestAnyTagsExist(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -68,7 +62,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 			if gi != asSessionItem(t, want[i]) {
 				t.Errorf("item %d = %+v, want flat %+v", i, gi, want[i])
 			}
-			// Flat items carry no group metadata — no Untagged heading.
 			if gi.GroupKey != "" || gi.GroupHeading != "" || gi.CatchAll {
 				t.Errorf("item %d is grouped (key=%q heading=%q catchAll=%v), want flat",
 					i, gi.GroupKey, gi.GroupHeading, gi.CatchAll)
@@ -108,8 +101,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		// Reopen-persisted path: an initial ModeByTag injected with zero-tag
-		// projects. The first re-render must show the signpost.
 		m := newRebuildTestModel(t, prefs.ModeByTag, sessions, projects)
 		m.rebuildSessionList()
 
@@ -119,7 +110,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		if !strings.Contains(m.View().Content, "No tags yet") {
 			t.Errorf("rendered view does not contain %q:\n%s", "No tags yet", m.View().Content)
 		}
-		// And the list itself is the plain flat slice.
 		got := m.sessionList.Items()
 		want := ToListItems(sessions)
 		if len(got) != len(want) {
@@ -146,7 +136,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		if strings.Contains(m.View().Content, "No tags yet") {
 			t.Errorf("signpost rendered when a tag exists:\n%s", m.View().Content)
 		}
-		// Normal By Tag grouping renders the tag heading.
 		want := buildByTag(sessions, project.NewIndex(projects))
 		if len(m.sessionList.Items()) != len(want) {
 			t.Errorf("len(items) = %d, want %d (normal By Tag build)", len(m.sessionList.Items()), len(want))
@@ -155,9 +144,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 
 	t.Run("does not show the signpost when tags exist but all live sessions are tagged", func(t *testing.T) {
 		dir := t.TempDir()
-		// A project WITH a tag whose live session resolves to it: buildByTag
-		// groups it under the tag heading, no Untagged bucket, no signpost.
-		// This is empty-Untagged-suppression, NOT zero-tags-anywhere.
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
@@ -170,7 +156,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 		if strings.Contains(m.View().Content, "No tags yet") {
 			t.Errorf("signpost rendered when tags exist (all sessions tagged):\n%s", m.View().Content)
 		}
-		// All sessions are tagged → grouped under the tag, no Untagged heading.
 		if strings.Contains(m.View().Content, untaggedHeading) {
 			t.Errorf("Untagged heading rendered when all sessions are tagged:\n%s", m.View().Content)
 		}
@@ -179,7 +164,6 @@ func TestByTagZeroTagsSignpost(t *testing.T) {
 				t.Errorf("found a CatchAll (Untagged) item; all sessions should be tagged")
 			}
 		}
-		// And no Untagged HeaderItem either.
 		for _, h := range headerRows(m.sessionList.Items()) {
 			if h.Heading == untaggedHeading {
 				t.Errorf("found an Untagged header; all sessions should be tagged")

@@ -8,9 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// stubScrollbackReader is a minimal mock that satisfies tui.ScrollbackReader
-// using only a paneKey lookup — proving stateDir is hidden behind the
-// interface and not part of the method signature.
 type stubScrollbackReader struct {
 	bytes []byte
 	err   error
@@ -21,22 +18,14 @@ func (s stubScrollbackReader) Tail(paneKey string) ([]byte, error) {
 }
 
 func TestTmuxEnumeratorIsSatisfiedByTmuxClient(t *testing.T) {
-	// Compile-time assertion: *tmux.Client implements tui.TmuxEnumerator
-	// via its Phase 1 ListWindowsAndPanesInSession method. If the method
-	// signature drifts, this test fails to compile.
 	var _ tui.TmuxEnumerator = (*tmux.Client)(nil)
 }
 
 func TestScrollbackReaderHidesStateDir(t *testing.T) {
-	// Compile-time assertion: a mock implementing only Tail(paneKey string)
-	// ([]byte, error) satisfies tui.ScrollbackReader. If a stateDir
-	// parameter were ever added to Tail, this would fail to compile.
 	var _ tui.ScrollbackReader = stubScrollbackReader{}
 }
 
 func TestScrollbackReaderSupportsThreeReturnShapes(t *testing.T) {
-	// Three observable shapes per spec — each compiles against the interface
-	// and is callable through it.
 	tests := []struct {
 		name      string
 		reader    tui.ScrollbackReader

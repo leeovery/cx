@@ -13,29 +13,13 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// multi_select_sticky_test.go pins task 5.6: the §5 multi-select set is keyed on
-// Session.Name (model state independent of the list items), so marks are STICKY
-// across filtering, paging, regrouping, and the Space-preview round-trip. The one
-// active mutation is the externally-killed prune on the sessions-refresh
-// chokepoint (applySessions): a session absent from the refreshed list is dropped
-// from the set while every survivor is kept.
-//
-// No t.Parallel() — the package injects mocks via package-level mutable state.
-
-// pageDownKey / pageUpKey are the §12.2 arrow-only paging keys (Ctrl+↓ / Ctrl+↑,
-// bound by pinArrowOnlyNav to NextPage / PrevPage).
 var (
 	pageDownKey = tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModCtrl}
 	pageUpKey   = tea.KeyPressMsg{Code: tea.KeyUp, Mod: tea.ModCtrl}
 )
 
-// markTwoFlatSessions enters multi-select mode on a flat model and marks the
-// sessions at the two given row indices, asserting the resulting count. It
-// leaves the cursor on the second marked row.
 func markTwoFlatSessions(t *testing.T, m Model, idxA, idxB int) Model {
 	t.Helper()
-	// Land the cursor on idxA BEFORE entering so mark-on-entry marks it, then mark
-	// idxB — yielding exactly {idxA, idxB}. Leaves the cursor on the second marked row.
 	m.sessionList.Select(idxA)
 	m = enterMultiSelect(t, m)
 	m.sessionList.Select(idxB)
@@ -46,20 +30,17 @@ func markTwoFlatSessions(t *testing.T, m Model, idxA, idxB int) Model {
 	return m
 }
 
-// TestMultiSelectMarksSurviveRegroup covers stickiness across an s-regroup: after
-// cycling the grouping mode the same sessions stay selected and the banner count
-// (len(selectedSessions)) is unchanged.
 func TestMultiSelectMarksSurviveRegroup(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 		{Name: "charlie", Windows: 3},
 	})
-	m = markTwoFlatSessions(t, m, 0, 2) // mark alpha + charlie
+	m = markTwoFlatSessions(t, m, 0, 2)
 	beforeMode := m.sessionListMode
 	beforeCount := m.SelectedSessionCount()
 
-	m = pressSession(t, m, keyS) // regroup Flat → By Project
+	m = pressSession(t, m, keyS)
 
 	if m.sessionListMode == beforeMode {
 		t.Fatalf("precondition: s must cycle the grouping mode; mode unchanged at %v", beforeMode)
@@ -76,8 +57,6 @@ func TestMultiSelectMarksSurviveRegroup(t *testing.T) {
 	}
 }
 
-// TestMultiSelectMarksSurvivePaging covers stickiness across paging: navigating
-// across pages (Ctrl+↓ / Ctrl+↑) does not clear the set.
 func TestMultiSelectMarksSurvivePaging(t *testing.T) {
 	var sessions []tmux.Session
 	for i := range 60 {
@@ -87,7 +66,7 @@ func TestMultiSelectMarksSurvivePaging(t *testing.T) {
 	if m.sessionList.Paginator.TotalPages < 2 {
 		t.Fatalf("test setup: want >1 page, got %d", m.sessionList.Paginator.TotalPages)
 	}
-	m = markTwoFlatSessions(t, m, 0, 1) // mark sess-00 + sess-01 on page 0
+	m = markTwoFlatSessions(t, m, 0, 1)
 	if m.sessionList.Paginator.Page != 0 {
 		t.Fatalf("precondition: expected to start on page 0, got %d", m.sessionList.Paginator.Page)
 	}
@@ -111,14 +90,10 @@ func TestMultiSelectMarksSurvivePaging(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFilteredOutSessionStaysMarked covers the filter round-trip: a row
-// filtered out by an active query stays in the set and its ● reappears when the
-// filter clears.
+// Build, not a raw struct literal: the latter batches a cursor-blink cmd with
+// the FilterMatchesMsg, which the shared drain does not unwrap, so the list
+// would never narrow.
 func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
-	// Build the full production model (mirroring filteringTestModel) so the live
-	// filter input narrows VisibleItems via the standard typeKeys drain: a raw
-	// struct-literal model batches a cursor-blink cmd with the FilterMatchesMsg,
-	// which the shared drain does not unwrap, so it would never narrow.
 	m := Build(Deps{Lister: fakeLister{}})
 	m.termWidth = filteringReskinWidth
 	m.termHeight = filteringReskinHeight
@@ -126,8 +101,6 @@ func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 2},
 	})
-	// Enter mode with the cursor on bravo (index 1) so mark-on-entry marks bravo
-	// only — the test needs bravo to be the ONLY marked row.
 	m.sessionList.Select(1)
 	m = enterMultiSelect(t, m)
 	if !m.IsSessionSelected("bravo") {
@@ -140,7 +113,6 @@ func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
 		t.Fatalf("precondition: marked bravo must render a ● before filtering")
 	}
 
-	// Filter to "alpha" — bravo is filtered out of the visible set.
 	m = pressSlash(t, m)
 	m = typeKeys(t, m, "alpha")
 	if m.sessionList.FilterState() != list.Filtering {
@@ -149,16 +121,13 @@ func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
 	if names := visibleSessionNames(m); len(names) != 1 || names[0] != "alpha" {
 		t.Fatalf("precondition: filter must narrow to [alpha], got %v", names)
 	}
-	// The set is untouched by filtering even though bravo's row is hidden.
 	if !m.IsSessionSelected("bravo") {
 		t.Errorf("a filtered-out row must stay in the selection set; bravo dropped")
 	}
-	// bravo is hidden, so no ● renders while the query excludes it.
 	if strings.Contains(ansi.Strip(m.sessionList.View()), multiSelectMarker) {
 		t.Errorf("no ● should render while the only marked row is filtered out: %q", ansi.Strip(m.sessionList.View()))
 	}
 
-	// Clear the filter (focused-filter Esc) — bravo reappears with its ●.
 	m = pressSession(t, m, keyEsc)
 	if m.sessionList.FilterState() != list.Unfiltered {
 		t.Fatalf("precondition: Esc must clear the filter; state = %v", m.sessionList.FilterState())
@@ -174,9 +143,6 @@ func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
 	}
 }
 
-// TestMultiSelectPreviewRoundTripKeepsSelection covers the Space-preview
-// round-trip with no external kill: dismissing the preview returns to the
-// Sessions page still in multi-select mode with the whole selection intact.
 func TestMultiSelectPreviewRoundTripKeepsSelection(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "alpha", Windows: 1},
@@ -189,11 +155,10 @@ func TestMultiSelectPreviewRoundTripKeepsSelection(t *testing.T) {
 		},
 	}
 	reader := &recordingReader{bytes: []byte("hi")}
-	// The refresh returns the unchanged list — nothing killed during preview.
 	lister := &stepListerStub{steps: [][]tmux.Session{sessions}}
 	m := modelWithSeamsAndLister(t, sessions, enum, reader, lister)
 
-	m = markTwoFlatSessions(t, m, 0, 2) // mark alpha + charlie
+	m = markTwoFlatSessions(t, m, 0, 2)
 
 	got := pressSpaceThenEscWithRefresh(t, m)
 
@@ -215,18 +180,12 @@ func TestMultiSelectPreviewRoundTripKeepsSelection(t *testing.T) {
 	}
 }
 
-// TestMultiSelectPrunesExternallyKilledSession covers the one genuinely-new
-// behaviour: a session marked and then externally killed during the Space
-// preview is pruned from the selection on the post-dismiss refresh, while every
-// surviving marked session stays selected.
 func TestMultiSelectPrunesExternallyKilledSession(t *testing.T) {
 	first := []tmux.Session{
 		{Name: "alpha", Windows: 1},
 		{Name: "bravo", Windows: 1},
 		{Name: "charlie", Windows: 1},
 	}
-	// alpha is externally killed while preview is open — the refresh returns
-	// the survivors only.
 	postKill := []tmux.Session{
 		{Name: "bravo", Windows: 1},
 		{Name: "charlie", Windows: 1},
@@ -240,7 +199,6 @@ func TestMultiSelectPrunesExternallyKilledSession(t *testing.T) {
 	lister := &stepListerStub{steps: [][]tmux.Session{postKill}}
 	m := modelWithSeamsAndLister(t, first, enum, reader, lister)
 
-	// Mark alpha (index 0, killed) and charlie (index 2, survivor).
 	m = markTwoFlatSessions(t, m, 0, 2)
 	if !m.IsSessionSelected("alpha") || !m.IsSessionSelected("charlie") {
 		t.Fatalf("precondition: expected alpha and charlie marked")
@@ -260,17 +218,11 @@ func TestMultiSelectPrunesExternallyKilledSession(t *testing.T) {
 	if c := got.SelectedSessionCount(); c != 1 {
 		t.Errorf("selection count after prune = %d, want 1 (killed dropped, survivor kept)", c)
 	}
-	// The pruned session's row is gone from the list and its ● with it; the
-	// survivor still renders a ●.
 	if !strings.Contains(ansi.Strip(got.sessionList.View()), multiSelectMarker) {
 		t.Errorf("survivor's ● must remain after the prune: %q", ansi.Strip(got.sessionList.View()))
 	}
 }
 
-// TestMultiSelectMarkedSessionSurvivesBucketMove covers the bucket-independence
-// edge: a marked session that moves to a different heading on an s-regroup
-// (By-Project → By-Tag) stays marked (the set is keyed on Session.Name, not on
-// the render bucket).
 func TestMultiSelectMarkedSessionSurvivesBucketMove(t *testing.T) {
 	dir := t.TempDir()
 	projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work"}}}
@@ -278,7 +230,6 @@ func TestMultiSelectMarkedSessionSurvivesBucketMove(t *testing.T) {
 
 	m := newSwitchViewTestModel(t, prefs.ModeByProject, nil, sessions, projects)
 
-	// Land the cursor on the (single) session row, then enter so mark-on-entry marks it.
 	rows := sessionRowIndices(m.sessionList.Items())
 	if len(rows) != 1 {
 		t.Fatalf("precondition: expected 1 session row, got %d", len(rows))
@@ -288,12 +239,10 @@ func TestMultiSelectMarkedSessionSurvivesBucketMove(t *testing.T) {
 	if !m.IsSessionSelected("portal-abc") {
 		t.Fatalf("precondition: portal-abc must be marked")
 	}
-	// By Project → the session sits under the project heading "Portal".
 	if h := sessionRows(m.sessionList.Items())[0].GroupHeading; h != "Portal" {
 		t.Fatalf("precondition: By Project heading = %q, want Portal", h)
 	}
 
-	// Regroup By Project → By Tag: the session moves into the "work" bucket.
 	m = pressSession(t, m, keyS)
 	if m.sessionListMode != prefs.ModeByTag {
 		t.Fatalf("precondition: expected ModeByTag after regroup, got %v", m.sessionListMode)
@@ -303,7 +252,6 @@ func TestMultiSelectMarkedSessionSurvivesBucketMove(t *testing.T) {
 		t.Fatalf("precondition: session must move to the work bucket; rows = %+v", moved)
 	}
 
-	// The mark survives the bucket move (keyed on name, bucket-independent).
 	if !m.IsSessionSelected("portal-abc") {
 		t.Errorf("a marked session must stay marked when it moves buckets on regroup")
 	}

@@ -9,10 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// newPreviewHelpModel constructs a single-window single-pane previewModel at a
-// roomy 80x24 with canned scrollback, then assigns the resolved canvas mode +
-// colourless flag the same way the Space handler propagates them. Used by the
-// §8.5/§9.3 Preview `?` help-overlay tests.
 func newPreviewHelpModel(t *testing.T, th theme.Theme, colourless bool) previewModel {
 	t.Helper()
 	enum := &stubEnumerator{
@@ -30,8 +26,6 @@ func newPreviewHelpModel(t *testing.T, th theme.Theme, colourless bool) previewM
 	return m
 }
 
-// pressPreviewKey feeds one key into the preview Update and returns the next
-// previewModel plus the cmd it emitted.
 func pressPreviewKey(t *testing.T, m previewModel, msg tea.KeyPressMsg) (previewModel, tea.Cmd) {
 	t.Helper()
 	return m.Update(msg)
@@ -41,9 +35,6 @@ func keyQuestionMark() tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: '?', Text: "?"}
 }
 
-// TestPreviewHelpOpensOnQuestionMark asserts `?` toggles the preview help open
-// and the View then lists the COMPLETE Preview keymap from the descriptor —
-// scroll, ←→ window, Tab pane, Enter attach, Space/Esc back (§8.5/§12.1).
 func TestPreviewHelpOpensOnQuestionMark(t *testing.T) {
 	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 
@@ -58,12 +49,12 @@ func TestPreviewHelpOpensOnQuestionMark(t *testing.T) {
 
 	view := stripANSI(m.View())
 	for _, action := range []string{
-		"Scroll up / down",   // ↑/↓ scroll
-		"Page up / down",     // ^↑/↓ page
-		"Prev / next window", // ←→ window
-		"Next pane",          // Tab pane
-		"Attach this pane",   // Enter attach
-		"Back to sessions",   // Space/Esc back
+		"Scroll up / down",
+		"Page up / down",
+		"Prev / next window",
+		"Next pane",
+		"Attach this pane",
+		"Back to sessions",
 	} {
 		if !strings.Contains(view, action) {
 			t.Errorf("preview help must list %q (complete keymap from descriptor); missing in:\n%s", action, view)
@@ -71,24 +62,18 @@ func TestPreviewHelpOpensOnQuestionMark(t *testing.T) {
 	}
 }
 
-// TestPreviewHelpOverlaysWithoutBlanking asserts the help OVERLAYS the preview —
-// the preview chrome (the ◉ preview marker + the cyan border) is still present
-// behind the help panel; it must NOT route through the blank-screen path.
 func TestPreviewHelpOverlaysWithoutBlanking(t *testing.T) {
 	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
 
 	view := stripANSI(m.View())
 
-	// The help panel itself is present.
 	if !strings.Contains(view, "Keybindings") {
 		t.Errorf("preview help overlay must show the 'Keybindings' header; missing in:\n%s", view)
 	}
 	if !strings.Contains(view, "esc close") {
 		t.Errorf("preview help overlay must show the 'esc close' dismiss hint; missing in:\n%s", view)
 	}
-	// The preview content/chrome is STILL visible behind the help (not blanked):
-	// the ◉ preview marker and the cyan-bordered scrollback survive.
 	if !strings.Contains(view, "◉ preview") {
 		t.Errorf("preview help must OVERLAY (not blank) the preview; the ◉ preview marker must still be present:\n%s", view)
 	}
@@ -97,10 +82,6 @@ func TestPreviewHelpOverlaysWithoutBlanking(t *testing.T) {
 	}
 }
 
-// TestPreviewHelpReusesGenericRenderer asserts the overlay is the descriptor-
-// driven generic renderer (renderHelpModalContent), not hand-authored Preview
-// copy: the help panel content is byte-identical to renderHelpModalContent over
-// the Preview descriptor.
 func TestPreviewHelpReusesGenericRenderer(t *testing.T) {
 	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
@@ -118,8 +99,6 @@ func TestPreviewHelpReusesGenericRenderer(t *testing.T) {
 	}
 }
 
-// TestPreviewHelpTogglesClosedOnSecondQuestionMark asserts a second `?` closes
-// the help.
 func TestPreviewHelpTogglesClosedOnSecondQuestionMark(t *testing.T) {
 	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
@@ -135,15 +114,12 @@ func TestPreviewHelpTogglesClosedOnSecondQuestionMark(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("second ? must consume the key (no dismiss cmd); got non-nil")
 	}
-	// With help closed, the overlay panel is gone.
 	view := stripANSI(m.View())
 	if strings.Contains(view, "Keybindings") {
 		t.Errorf("the help panel must disappear after toggle-close; still present in:\n%s", view)
 	}
 }
 
-// TestPreviewHelpEscDismissesWithoutBackingOut asserts Esc dismisses the help
-// and does NOT trigger the preview-back path (no previewDismissedMsg).
 func TestPreviewHelpEscDismissesWithoutBackingOut(t *testing.T) {
 	m := newPreviewHelpModel(t, testDarkTheme(t), false)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
@@ -161,8 +137,6 @@ func TestPreviewHelpEscDismissesWithoutBackingOut(t *testing.T) {
 	}
 }
 
-// TestPreviewHelpConsumesOtherKeysWhileOpen asserts every other preview key
-// (scroll/window/pane/attach) is inert while the help is open.
 func TestPreviewHelpConsumesOtherKeysWhileOpen(t *testing.T) {
 	cases := []struct {
 		name string
@@ -199,8 +173,6 @@ func TestPreviewHelpConsumesOtherKeysWhileOpen(t *testing.T) {
 	}
 }
 
-// TestPreviewBackResumesWhenHelpClosed asserts normal Esc/Space back behaviour
-// resumes when the help is closed — each emits a previewDismissedMsg.
 func TestPreviewBackResumesWhenHelpClosed(t *testing.T) {
 	cases := []struct {
 		name string
@@ -228,8 +200,6 @@ func TestPreviewBackResumesWhenHelpClosed(t *testing.T) {
 	}
 }
 
-// TestPreviewHelpRendersColourlessUnderNoColor asserts the help overlay renders
-// colourless (no SGR foreground) under NO_COLOR, over a colourless preview.
 func TestPreviewHelpRendersColourlessUnderNoColor(t *testing.T) {
 	m := newPreviewHelpModel(t, testDarkTheme(t), true)
 	m, _ = pressPreviewKey(t, m, keyQuestionMark())
@@ -237,16 +207,12 @@ func TestPreviewHelpRendersColourlessUnderNoColor(t *testing.T) {
 	view := m.View()
 	stripped := stripANSI(view)
 
-	// The help panel content survives, and the preview is still behind it.
 	if !strings.Contains(stripped, "Keybindings") {
 		t.Errorf("colourless preview help must still show the header; missing in:\n%s", stripped)
 	}
 	if !strings.Contains(stripped, "◉ preview") {
 		t.Errorf("colourless preview help must still overlay the preview marker; missing in:\n%s", stripped)
 	}
-	// Colourless (§2.5): the composited overlay must carry NO foreground or
-	// background colour SGR — the same carve-out the rest of the preview chrome
-	// honours (bold/structure survives, hue does not).
 	if strings.Contains(view, "\x1b[38;") {
 		t.Errorf("colourless preview help carries a foreground colour SGR; must be colourless. view=%q", view)
 	}

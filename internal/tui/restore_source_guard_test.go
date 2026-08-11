@@ -15,63 +15,27 @@ import (
 )
 
 const (
-	// restoreFileName is the file declaring the exit-time restore helper, parsed
-	// directly: the external test package shares the package DIRECTORY, so a
-	// relative path resolves wherever the suite was invoked from.
-	restoreFileName = "restore.go"
-	// restoreHelperName is the exit-time restore helper §11.4 re-anchors.
+	restoreFileName   = "restore.go"
 	restoreHelperName = "RestoreTerminalBackground"
 )
 
-// retiredCanvasHexHelper is the helper §11.4 deletes outright — the one that
-// re-derived the echo guard's comparison value from a theme at exit.
-//
-// It is spelled in two halves so this guard file does not itself contain the
-// string it forbids anywhere in the tree (the same trick oldThemeSubpackage uses
-// for the retired import path).
+// Spelled in halves so this file does not itself contain the string it forbids
+// tree-wide — do not join it.
 var retiredCanvasHexHelper = "canvasHex" + "For"
 
-// restoreComparisonReads is the closed set of selector paths the restore helper
-// may read off its Model, relative to the parameter it binds. It is small and
-// closed on purpose: the ONLY comparison input is the retained startup canvas
-// hex, and everything else is either the captured original or the NO_COLOR
-// carve-out.
-//
-// Anything else — the active theme, the nomination, the canvas mode — would
-// re-derive the comparison from a theme at exit, which is the exact regression
-// §11.4 exists to prevent: a theme committed mid-session, or a quit with an
-// uncommitted preview active, makes the active theme diverge from the canvas the
-// startup window actually painted.
-//
-// The paths are WHOLE PATHS rather than leaf field names, which is what keeps the
-// guard honest now that the theme state is one grouped struct: permitting the
-// prefix `themeState` alone would admit every theme field it holds, which is the
-// entire set this guard exists to keep out.
 var restoreComparisonReads = []string{
-	"OriginalBackground",          // the captured original background
-	"colourless",                  // the §2.5 NO_COLOR carve-out
-	"themeState.startupCanvasHex", // the retained startup canvas hex — the §11.4 anchor
+	"OriginalBackground",
+	"colourless",
+	"themeState.startupCanvasHex",
 }
 
-// restoreAnchorRead is the read the comparison MUST make, without which the
-// closed set above would pass vacuously.
 const restoreAnchorRead = "themeState.startupCanvasHex"
 
-// restoreLaunchSites are the two program-launch sites that call the shared helper
-// after p.Run() returns. Both must pass the program's output writer, so they
-// restore identically.
 var restoreLaunchSites = []string{
 	filepath.Join("cmd", "open.go"),
 	filepath.Join("cmd", "capturetool", "main.go"),
 }
 
-// TestRestorePath_ReadsNoTheme is the source half of §11.4's named verification.
-//
-// The swap-and-diff guard (§13.4) structurally cannot cover this path — it scans
-// rendered fixture output, and this is an OSC 11 write that happens after the last
-// render — so the exit path gets its own guards. The behavioural anchor is
-// TestRestoreTerminalBackground_AnchoredToStartupHex; this proves the same thing
-// structurally, which is what stops a future edit reaching for a theme again.
 func TestRestorePath_ReadsNoTheme(t *testing.T) {
 	fset := token.NewFileSet()
 	path := filepath.Join(".", restoreFileName)
@@ -117,9 +81,8 @@ func TestRestorePath_ReadsNoTheme(t *testing.T) {
 					anchored = true
 				}
 			}
-			// The WHOLE path has been judged, so the walk stops rather than
-			// re-judging its own prefix: descending would report the permitted
-			// nested read as its bare `themeState` prefix.
+			// The whole path has been judged; descending would re-judge a
+			// permitted nested read as its bare prefix.
 			return false
 		})
 
@@ -145,9 +108,6 @@ func TestRestorePath_ReadsNoTheme(t *testing.T) {
 	})
 }
 
-// TestLaunchSites_RestoreIdentically pins that the two program-launch sites
-// restore the same way: the same shared helper, handed the program's output
-// writer, once each — and that there is no third site to diverge from them.
 func TestLaunchSites_RestoreIdentically(t *testing.T) {
 	root := repoRoot(t)
 	sites := restoreCallSites(t, root)
@@ -182,8 +142,6 @@ func TestLaunchSites_RestoreIdentically(t *testing.T) {
 	})
 }
 
-// restoreHelperDecl returns the restore helper's declaration, failing the test if
-// the file no longer declares it.
 func restoreHelperDecl(t *testing.T, file *ast.File) *ast.FuncDecl {
 	t.Helper()
 	for _, decl := range file.Decls {
@@ -196,9 +154,6 @@ func restoreHelperDecl(t *testing.T, file *ast.File) *ast.FuncDecl {
 	return nil
 }
 
-// modelParamName returns the name the helper binds its Model parameter to, so the
-// body scan can attribute selector reads to the model rather than assume an
-// identifier.
 func modelParamName(t *testing.T, fn *ast.FuncDecl) string {
 	t.Helper()
 	for _, param := range fn.Type.Params.List {
@@ -212,12 +167,6 @@ func modelParamName(t *testing.T, fn *ast.FuncDecl) string {
 	return ""
 }
 
-// restoreCallSites maps each production file that calls the restore helper to the
-// rendered first argument of every such call, keyed by path relative to root.
-//
-// It matches both the qualified call an out-of-package caller writes
-// (tui.RestoreTerminalBackground) and a bare in-package one, so a third site
-// cannot hide by living inside internal/tui.
 func restoreCallSites(t *testing.T, root string) map[string][]string {
 	t.Helper()
 	sites := map[string][]string{}
@@ -246,8 +195,6 @@ func restoreCallSites(t *testing.T, root string) map[string][]string {
 	return sites
 }
 
-// callsRestoreHelper reports whether a call expression invokes the restore helper,
-// qualified (pkg.RestoreTerminalBackground) or bare.
 func callsRestoreHelper(call *ast.CallExpr) bool {
 	switch fn := call.Fun.(type) {
 	case *ast.Ident:
@@ -258,9 +205,6 @@ func callsRestoreHelper(call *ast.CallExpr) bool {
 	return false
 }
 
-// selectorPath renders a selector expression as its dotted identifier path,
-// reporting false for anything that is not a pure chain of identifiers (a field
-// read off a call result, an index expression) — which names no path to check.
 func selectorPath(sel *ast.SelectorExpr) (string, bool) {
 	switch x := sel.X.(type) {
 	case *ast.Ident:
@@ -276,9 +220,6 @@ func selectorPath(sel *ast.SelectorExpr) (string, bool) {
 	}
 }
 
-// exprText renders the identifier or qualified identifier an expression names, for
-// a failure message and for the os.Stdout comparison. Anything else renders as its
-// AST type, which reads as "not the writer we asked for" in the failure.
 func exprText(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
@@ -290,9 +231,6 @@ func exprText(expr ast.Expr) string {
 	}
 }
 
-// allGoFiles returns every .go file under root. The guards above need PATHS —
-// one reads raw bytes, one parses full ASTs — which forEachGoFile's
-// imports-only parse cannot supply.
 func allGoFiles(t *testing.T, root string) []string {
 	t.Helper()
 	paths, err := sourceguard.GoSourceFiles(root)

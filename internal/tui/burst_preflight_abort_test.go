@@ -1,28 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-7 — pre-flight abort UI: gone flash + prune
-// keeping survivors.
-//
-// White-box (package tui) tests of the spawnAbortMsg handler and its render
-// surfaces. If pre-flight (has-session over every marked session on Enter) finds a
-// marked session gone, the burst aborts atomically — nothing spawns, no window
-// opens, no self-attach. These tests assert Portal:
-//   - aborts with ZERO adapter calls, no self-attach (Selected()=="" / no tea.Quit),
-//     stays in multi-select mode, and sets no leave-what-opened flash,
-//   - renders the red `⚠ '<session>' is gone — nothing opened` banner at the
-//     section-header row with a right-aligned dim `esc dismiss`,
-//   - flags the gone row with a red ⚠ marker + red `session gone` badge while every
-//     surviving marked row keeps its violet ●,
-//   - prunes the gone session(s) from the selection keeping survivors marked (a
-//     second Enter proceeds with the survivors, not a re-abort),
-//   - names every gone session in the one-line message,
-//   - dismisses the banner + gone flags on Esc WITHOUT exiting multi-select mode.
-//
-// Shared seam helpers (wireBurstSeams, allPresent, resolveDetection, markRow,
-// driveBurstToTerminal, newPendingBurstModel, markedSet, renderRow, visibleColOf,
-// bannerFirstLine) live in the sibling burst / row / banner test files. No
-// t.Parallel: consistent with the rest of the tui test surface.
-
 import (
 	"slices"
 	"strings"
@@ -38,12 +15,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// TestBurstPreflightAbort_AbortsAtomicallyNoAdapterNoSelfAttach drives an
-// end-to-end N≥2 Enter where one marked session vanished between marking and Enter
-// (the sessionExists probe returns false for it). The goroutine pre-flights, finds
-// the gone session, and emits a terminal spawnAbortMsg BEFORE calling the burster —
-// so nothing spawns. The handler self-attaches nothing, quits nothing, stays in
-// multi-select mode, and sets no leave-what-opened flash.
 func TestBurstPreflightAbort_AbortsAtomicallyNoAdapterNoSelfAttach(t *testing.T) {
 	sessions := []tmux.Session{
 		{Name: "fab-flowx-explore", Windows: 2},
@@ -53,7 +24,6 @@ func TestBurstPreflightAbort_AbortsAtomicallyNoAdapterNoSelfAttach(t *testing.T)
 	ack := &spawntest.FakeAckChannel{}
 	adapter := &spawntest.FakeAdapter{Ack: ack}
 	m := NewModelWithSessions(sessions)
-	// fab-flowx-explore vanished between marking and Enter.
 	exists := func(name string) bool { return name != "fab-flowx-explore" }
 	wireBurstSeams(&m, adapter, spawn.ResolutionNative, exists, ack)
 	m = resolveDetection(t, m, ghosttyIdentity())
@@ -76,7 +46,6 @@ func TestBurstPreflightAbort_AbortsAtomicallyNoAdapterNoSelfAttach(t *testing.T)
 	if !slices.Equal(abort.Gone, []string{"fab-flowx-explore"}) {
 		t.Fatalf("abort.Gone = %v, want [fab-flowx-explore]", abort.Gone)
 	}
-	// Zero adapter calls — the goroutine aborted before Burster.Run, so nothing spawned.
 	if len(adapter.Calls) != 0 {
 		t.Errorf("pre-flight abort must open NOTHING; adapter OpenWindow calls = %d, want 0", len(adapter.Calls))
 	}
@@ -107,9 +76,6 @@ func TestBurstPreflightAbort_AbortsAtomicallyNoAdapterNoSelfAttach(t *testing.T)
 	}
 }
 
-// TestBurstPreflightAbort_BannerNamesGoneSessionWithEscDismiss asserts the exact
-// abort banner copy: `'<session>' is gone — nothing opened` (byte-matching the
-// delivered design frame), with the ⚠ glyph added by renderPreflightAbortHeader.
 func TestBurstPreflightAbort_BannerNamesGoneSessionWithEscDismiss(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"fab-flowx-explore", "agentic-workflows-codify"})
 	updated, _ := m.Update(spawnAbortMsg{Gone: []string{"fab-flowx-explore"}})
@@ -127,15 +93,11 @@ func TestBurstPreflightAbort_BannerNamesGoneSessionWithEscDismiss(t *testing.T) 
 	if !strings.Contains(first, "esc dismiss") {
 		t.Errorf("section-header row must show the right-aligned %q hint:\n%s", "esc dismiss", first)
 	}
-	// The abort banner OUTRANKS the multi-select `N selected` banner (per the frame).
 	if strings.Contains(first, "selected") {
 		t.Errorf("abort banner must own the row over the multi-select banner:\n%s", first)
 	}
 }
 
-// TestPreflightAbortHeader_RedGlyphMessageDimHint pins the colour roles of the
-// standalone renderer: the ⚠ + message in state.destructive, the `esc dismiss`
-// hint in text.muted, on both the dark and light canvas.
 func TestPreflightAbortHeader_RedGlyphMessageDimHint(t *testing.T) {
 	const msg = "'fab-flowx-explore' is gone — nothing opened"
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
@@ -156,8 +118,6 @@ func TestPreflightAbortHeader_RedGlyphMessageDimHint(t *testing.T) {
 	}
 }
 
-// TestPreflightAbortHeader_RightAlignedOneRow asserts the hint is right-anchored and
-// the single rendered row is exactly the content width (§3.5 pagination budget).
 func TestPreflightAbortHeader_RightAlignedOneRow(t *testing.T) {
 	header := renderPreflightAbortHeader("'x' is gone — nothing opened", sectionHeaderWidth, testDarkTheme(t), false)
 
@@ -178,9 +138,6 @@ func TestPreflightAbortHeader_RightAlignedOneRow(t *testing.T) {
 	}
 }
 
-// TestPreflightAbortHeader_ColourlessDropsHueAndCanvas asserts the NO_COLOR
-// carve-out (§2.5): a colourless banner carries no canvas background SGR and no
-// foreground hue — the ⚠, the message, and `esc dismiss` survive on the native fg/bg.
 func TestPreflightAbortHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 	header := renderPreflightAbortHeader("'x' is gone — nothing opened", sectionHeaderWidth, testDarkTheme(t), true)
 	stripped := ansi.Strip(header)
@@ -200,10 +157,6 @@ func TestPreflightAbortHeader_ColourlessDropsHueAndCanvas(t *testing.T) {
 	}
 }
 
-// TestSessionRow_GoneFlaggedShowsRedWarningAndBadge asserts the delegate render: a
-// GoneFlagged row draws a red ⚠ in the left-bar column (in place of the ●/▌) and a
-// red `session gone` badge in place of the attached badge, while a surviving marked
-// row keeps its violet ●.
 func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 	d := SessionDelegate{
 		Theme:       testDarkTheme(t),
@@ -217,7 +170,6 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 		tmux.Session{Name: "designlab-web-r8suyU", Windows: 3, Attached: true},
 	)
 
-	// The gone row is the cursor/banded row in the frame (index 1, selected).
 	gone := renderRow(d, 80, items, 1, 1)
 	strippedGone := ansi.Strip(gone)
 
@@ -237,7 +189,6 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 		t.Errorf("gone row missing the state.red role sequence %q: %q", seq, escSeq(gone))
 	}
 
-	// A surviving marked row keeps its violet ● and never renders the ⚠.
 	survivor := renderRow(d, 80, items, 0, 1)
 	if col := visibleColOf(survivor, multiSelectMarker); col != 0 {
 		t.Errorf("survivor row must keep its ● at col 0, got col %d: %q", col, ansi.Strip(survivor))
@@ -250,10 +201,6 @@ func TestSessionRow_GoneFlaggedShowsRedWarningAndBadge(t *testing.T) {
 	}
 }
 
-// TestSessionRow_GoneFlaggedWidthByteUnchanged is the one-delegate-line invariant
-// (§3.5 / §4.1): the gone flag must NOT change the row width or shift the name/count
-// columns — the ⚠ occupies the same 2-cell left-bar column, and the `session gone`
-// badge occupies the same fixed (attached slot + right margin) trailing region.
 func TestSessionRow_GoneFlaggedWidthByteUnchanged(t *testing.T) {
 	const w = 80
 	items := flatItems(
@@ -277,9 +224,6 @@ func TestSessionRow_GoneFlaggedWidthByteUnchanged(t *testing.T) {
 	}
 }
 
-// TestSessionRow_GoneFlaggedColourlessSurvives asserts the NO_COLOR carve-out
-// for the row: the ⚠ glyph and the `session gone` badge text survive with no
-// state.destructive hue and no canvas background.
 func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), Colourless: true, MultiSelect: true, GoneFlagged: markedSet("fab-flowx-explore")}
 	items := flatItems(tmux.Session{Name: "fab-flowx-explore", Windows: 2, Attached: false})
@@ -300,8 +244,6 @@ func TestSessionRow_GoneFlaggedColourlessSurvives(t *testing.T) {
 	}
 }
 
-// TestSessionRow_HeaderNeverGoneFlagged asserts a HeaderItem never carries the gone
-// flag (the header render arm is untouched), mirroring the ● marker guard.
 func TestSessionRow_HeaderNeverGoneFlagged(t *testing.T) {
 	d := SessionDelegate{Theme: testDarkTheme(t), MultiSelect: true, GoneFlagged: markedSet("work")}
 	items := []list.Item{HeaderItem{Heading: "work", Count: 3, Key: "work"}}
@@ -311,10 +253,6 @@ func TestSessionRow_HeaderNeverGoneFlagged(t *testing.T) {
 	}
 }
 
-// TestBurstPreflightAbort_PrunesGoneKeepsSurvivorsMarked asserts the prune rule: the
-// gone session leaves the selection while every survivor stays marked, so a second
-// Enter proceeds with the survivors (not a re-abort loop). The delegate is refreshed
-// so the survivors keep their ● and the gone row shows the red flag.
 func TestBurstPreflightAbort_PrunesGoneKeepsSurvivorsMarked(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"fab-flowx-explore", "agentic-workflows-codify", "designlab-web-r8suyU"})
 	updated, _ := m.Update(spawnAbortMsg{Gone: []string{"fab-flowx-explore"}})
@@ -334,16 +272,12 @@ func TestBurstPreflightAbort_PrunesGoneKeepsSurvivorsMarked(t *testing.T) {
 	if !rm.MultiSelectActive() {
 		t.Error("prune must stay in multi-select mode")
 	}
-	// The delegate reflects the pruned set + gone flag: the survivors keep their ●,
-	// the gone row shows the red flag (not a ●).
 	view := ansi.Strip(rm.sessionList.View())
 	if !strings.Contains(view, goneBadge) {
 		t.Errorf("the rendered list must show the %q badge on the gone row:\n%s", goneBadge, view)
 	}
 }
 
-// TestBurstPreflightAbort_MultipleGoneAllNamed asserts the plural-safe message: two
-// gone sessions are BOTH named, with the plural verb `are`.
 func TestBurstPreflightAbort_MultipleGoneAllNamed(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"s1", "s2", "s3", "s4"})
 	updated, _ := m.Update(spawnAbortMsg{Gone: []string{"s2", "s4"}})
@@ -367,10 +301,6 @@ func TestBurstPreflightAbort_MultipleGoneAllNamed(t *testing.T) {
 	}
 }
 
-// TestBurstPreflightAbort_EscDismissesWithoutExitingMode asserts the dismissal
-// precedence: a first Esc while the abort banner shows clears the banner + the gone
-// flags and STAYS in multi-select mode; a second Esc (no banner) exits the mode as
-// normal.
 func TestBurstPreflightAbort_EscDismissesWithoutExitingMode(t *testing.T) {
 	m := newPendingBurstModel(t, []string{"fab-flowx-explore", "agentic-workflows-codify"})
 	updated, _ := m.Update(spawnAbortMsg{Gone: []string{"fab-flowx-explore"}})
@@ -394,13 +324,11 @@ func TestBurstPreflightAbort_EscDismissesWithoutExitingMode(t *testing.T) {
 	if !am.IsSessionSelected("agentic-workflows-codify") {
 		t.Error("the survivor must stay marked after dismissal")
 	}
-	// AC6: the multi-select footer is unchanged after dismissal (still in mode).
 	am.termWidth = 120
 	if footer := footerVisible(am.renderSessionsFooterForFilterState()); !strings.Contains(footer, "m toggle") {
 		t.Errorf("after dismissal the multi-select footer must render (missing 'm toggle'):\n%s", footer)
 	}
 
-	// A second Esc (no abort banner) exits the mode as normal (Task 5.1).
 	after2, _ := am.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEscape})
 	am2 := after2.(Model)
 	if am2.MultiSelectActive() {

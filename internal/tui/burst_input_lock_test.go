@@ -1,18 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-5 — input-lock while a burst is pending + the
-// `Opening n/N…` in-burst feedback band.
-//
-// These white-box (package tui) tests drive the §6-5 behaviour: while burstPending
-// the picker is INERT to row actions (a second Enter, m, navigation, Space, /, s
-// are swallowed) and only Ctrl-C / Esc stay live (routed to cancelBurst — §6-8);
-// each streamed spawnProgressMsg advances the Opening counter while the denominator
-// holds at N; and the `Opening n/N…` band owns the section-header row with
-// precedence just below the live filter input (above the multi-select and
-// unsupported banners), surviving NO_COLOR.
-//
-// No t.Parallel: consistent with the rest of the tui test surface.
-
 import (
 	"strings"
 	"testing"
@@ -27,12 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// burstPendingModel builds a resolved-supported multi-select model with every named
-// session marked and burst-pending FORCED true (without a real async dispatch — so
-// the input-lock is exercised in isolation, no goroutine, no pipe). The cursor is
-// reset to the first row so a navigation key would move it if it were not swallowed.
-// A subsequent Enter would dispatch a burst if it reached handleMultiSelectEnter, so
-// a swallowed key proves the input-lock intercepts ahead of every handler.
 func burstPendingModel(t *testing.T, names ...string) (Model, *spawntest.FakeAdapter) {
 	t.Helper()
 	m, adapter, _ := markedSupportedBurstModel(t, names)
@@ -43,9 +24,6 @@ func burstPendingModel(t *testing.T, names ...string) (Model, *spawntest.FakeAda
 	return m, adapter
 }
 
-// TestBurstInputLock_IgnoresSecondEnter covers the second-Enter guard: a second
-// Enter while burst-pending is swallowed — it does not re-dispatch (no new pipe, no
-// additional adapter call) and the burst stays pending.
 func TestBurstInputLock_IgnoresSecondEnter(t *testing.T) {
 	m, adapter := burstPendingModel(t, "alpha", "bravo", "charlie")
 	pipeBefore := m.burstPipe
@@ -67,10 +45,6 @@ func TestBurstInputLock_IgnoresSecondEnter(t *testing.T) {
 	}
 }
 
-// TestBurstInputLock_IgnoresRowActions covers the row-action lock: m, navigation,
-// Space, /, and s are all no-ops while burst-pending (each would change state if it
-// reached its handler — mark toggle, cursor move, preview page, filter focus,
-// grouping cycle — so an unchanged model proves the swallow).
 func TestBurstInputLock_IgnoresRowActions(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -118,12 +92,6 @@ func TestBurstInputLock_IgnoresRowActions(t *testing.T) {
 	}
 }
 
-// TestBurstInputLock_CtrlCAndEscStayLive covers the cancellation carve-out: Ctrl-C
-// and Esc reach cancelBurst while pending — Ctrl-C does NOT quit and Esc does NOT exit
-// multi-select mode, so they are intercepted by the input-lock rather than falling
-// through to the normal quit / exit handlers. cancelBurst KEEPS burstPending true
-// (§6-8: it stays locked until the goroutine's terminal event lands); the full cancel
-// lifecycle (ctx cancel + selection mutation) is covered in burst_cancel_test.go.
 func TestBurstInputLock_CtrlCAndEscStayLive(t *testing.T) {
 	t.Run("Ctrl-C routes to cancelBurst (does not quit)", func(t *testing.T) {
 		m, _ := burstPendingModel(t, "alpha", "bravo")
@@ -156,9 +124,6 @@ func TestBurstInputLock_CtrlCAndEscStayLive(t *testing.T) {
 	})
 }
 
-// TestBurstInputLock_AdvancesOpeningCounter covers the progress fold: each
-// spawnProgressMsg advances BurstDone() and the rendered `Opening n/N…` band, so a
-// 3-session batch reads `Opening 1/3…` then `Opening 2/3…`.
 func TestBurstInputLock_AdvancesOpeningCounter(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}})
 	m.termWidth = 80
@@ -167,8 +132,6 @@ func TestBurstInputLock_AdvancesOpeningCounter(t *testing.T) {
 	m.burstTotal = 3
 	m.burstDone = 0
 
-	// The progress denominator (msg.Total) is the external count N-1 = 2; it must NOT
-	// change the N=3 band denominator.
 	updated, _ := m.Update(spawnProgressMsg{Done: 1, Total: 2})
 	m = updated.(Model)
 	if got := m.BurstDone(); got != 1 {
@@ -188,10 +151,6 @@ func TestBurstInputLock_AdvancesOpeningCounter(t *testing.T) {
 	}
 }
 
-// TestBurstInputLock_HoldsDenominatorAtN covers the denominator invariant: the
-// Opening band denominator holds at the dispatch-time N (marked-set size, incl. the
-// trigger) across every progress message — msg.Total (the external count N-1) never
-// overwrites BurstTotal, so the band never reads `2/2` and never reaches `3/3`.
 func TestBurstInputLock_HoldsDenominatorAtN(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}})
 	m.termWidth = 80
@@ -211,16 +170,11 @@ func TestBurstInputLock_HoldsDenominatorAtN(t *testing.T) {
 			t.Errorf("section-header row = %q must not use the external denominator (/2)", first)
 		}
 	}
-	// The counter never reaches N (the trigger self-attaches silently — no N/N nag).
 	if strings.Contains(ansi.Strip(bannerFirstLine(m)), "3/3") {
 		t.Error("the Opening band must never reach 3/3 (the trigger self-attaches silently)")
 	}
 }
 
-// TestBurstInputLock_OpeningBandPrecedence covers the section-header precedence: the
-// Opening band owns the row just below the live filter input — it outranks the
-// multi-select banner, the unsupported banner, and the standard header, and steps
-// aside only for the live filter input.
 func TestBurstInputLock_OpeningBandPrecedence(t *testing.T) {
 	newOpeningModel := func() Model {
 		m := NewModelWithSessions([]tmux.Session{
@@ -283,9 +237,6 @@ func TestBurstInputLock_OpeningBandPrecedence(t *testing.T) {
 	})
 }
 
-// TestOpeningBand_RendersVioletCounter pins the render contract: the band reads
-// `Opening n/N…` (with the U+2026 ellipsis) in accent.primary, exactly one row, at
-// the full content width (a canvas-painted flex spacer pads the right).
 func TestOpeningBand_RendersVioletCounter(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		band := renderOpeningBand(1, 3, sectionHeaderWidth, th, false)
@@ -308,9 +259,6 @@ func TestOpeningBand_RendersVioletCounter(t *testing.T) {
 	}
 }
 
-// TestOpeningBand_ColourlessDropsHueAndCanvas covers the NO_COLOR carve-out (§2.5):
-// a colourless band carries no canvas background SGR and no foreground hue — the
-// `Opening n/N…` text survives on the terminal's native fg/bg.
 func TestOpeningBand_ColourlessDropsHueAndCanvas(t *testing.T) {
 	band := renderOpeningBand(2, 3, sectionHeaderWidth, testDarkTheme(t), true)
 

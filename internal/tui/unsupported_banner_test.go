@@ -10,43 +10,15 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6.2 proactive unsupported terminal banner: a filter-line analogue that
-// REPLACES the standard `Sessions ··· N` section header when detection has resolved
-// the host terminal to a NAMED unsupported resolution (a non-NULL
-// recognised-but-undriven identity like com.apple.Terminal). It is named-only: amber
-// `⚠ unsupported terminal` + a dim `— <name> · <bundleID>` identity (copy-paste key)
-// on the left, a right-anchored blue `see docs` hint. NO `▌` left-bar (it is a
-// section-header analogue, not a §11 notice band). A NULL (remote/mosh) identity is
-// no longer a banner case — the gate (unsupportedBannerActive) carries the !IsNull()
-// discriminator, so a NULL client renders the standard `Sessions ··· N` header
-// (covered by TestApplySectionHeader_UnsupportedNullShowsStandardHeader). These
-// tests pin the colour roles, the exact copy, the right-alignment, the single-row
-// height, the NO_COLOR carve-out, and the applySectionHeader precedence (below
-// multi-select, above the standard header).
-//
-// No t.Parallel() — the package-level mock convention and shared canvas helpers
-// make parallelism unsafe across this package's tests.
-
-// unsupportedResolvedModel drives a warm-direct Sessions model through the 6.1
-// detection path with the given host identity resolved through the production
-// native→unsupported resolver, landing on PageSessions with detection cached. A
-// com.apple.Terminal identity resolves unsupported (non-NULL undriven); a NULL
-// identity resolves unsupported (remote/mosh); a ghostty identity resolves native.
 func unsupportedResolvedModel(t *testing.T, identity spawn.Identity) Model {
 	t.Helper()
 	return warmResolvedModel(t, &fakeDetector{identity: identity}, nativeResolve())
 }
 
-// TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs asserts the named-identity
-// render: the `⚠ unsupported terminal` cluster in accent.attention, the dim
-// `— <name> · <bundleID>` identity in text.muted (the exact em-dash / middot
-// separators from the delivered frame), and the right-anchored `see docs` hint in
-// accent.key — on both the dark and light canvas.
 func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, th, false)
 
-		// The exact visible left cluster + separators from the delivered frame.
 		const wantVisible = "⚠ unsupported terminal — Apple Terminal · com.apple.Terminal"
 		if !strings.Contains(ansi.Strip(header), wantVisible) {
 			t.Errorf("banner missing the exact copy %q:\n%s", wantVisible, ansi.Strip(header))
@@ -54,22 +26,18 @@ func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 		if !strings.Contains(ansi.Strip(header), "see docs") {
 			t.Errorf("banner missing the %q hint:\n%s", "see docs", ansi.Strip(header))
 		}
-		// It is a section-header analogue, not a §11 notice band: NO `▌` left-bar.
 		if strings.Contains(ansi.Strip(header), noticeBarGlyph) {
 			t.Errorf("banner must not carry the %q notice-bar glyph:\n%s", noticeBarGlyph, ansi.Strip(header))
 		}
 
-		// The `⚠ unsupported terminal` label run is accent.attention (amber).
 		amberRun := headerStyle(th.AccentAttention, th, false).Render(flashWarningGlyph + " " + "unsupported terminal")
 		if !strings.Contains(header, amberRun) {
 			t.Errorf("banner missing the accent.orange label run:\n%s", header)
 		}
-		// The identity run is dim text.muted.
 		dimRun := headerStyle(th.TextMuted, th, false).Render(" — Apple Terminal · com.apple.Terminal")
 		if !strings.Contains(header, dimRun) {
 			t.Errorf("banner missing the text.detail identity run:\n%s", header)
 		}
-		// The `see docs` hint is accent.key and carries the OSC 8 hyperlink wrapper.
 		blueRun := headerStyle(th.AccentKey, th, false).Hyperlink(unsupportedDocsURL).Render("see docs")
 		if !strings.Contains(header, blueRun) {
 			t.Errorf("banner missing the hyperlinked accent.blue %q run:\n%s", "see docs", header)
@@ -77,9 +45,6 @@ func TestUnsupportedHeader_NamedIdentityAmberDimSeeDocs(t *testing.T) {
 	})
 }
 
-// TestUnsupportedHeader_RightAlignedSeeDocs asserts the `see docs` hint is
-// right-aligned (the left cluster and the hint are separated by a flex spacer to
-// the content width) and the single rendered row is exactly the content width.
 func TestUnsupportedHeader_RightAlignedSeeDocs(t *testing.T) {
 	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, testDarkTheme(t), false)
 
@@ -96,9 +61,6 @@ func TestUnsupportedHeader_RightAlignedSeeDocs(t *testing.T) {
 	}
 }
 
-// TestUnsupportedHeader_ExactlyOneRow asserts the named banner is exactly one
-// rendered row — it REPLACES the section-header row and must not perturb the
-// one-row-per-delegate pagination budget (§3.5).
 func TestUnsupportedHeader_ExactlyOneRow(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -113,27 +75,18 @@ func TestUnsupportedHeader_ExactlyOneRow(t *testing.T) {
 	}
 }
 
-// TestUnsupportedHeader_NarrowDegradeDropsHint asserts the §2.7 narrow degrade:
-// below the width at which the left cluster + a spacer + the hint fit, the right
-// `see docs` hint drops and the row never overflows — matching the standard
-// section header's degrade exactly (both route through the shared right-anchor
-// core). The identity-bearing left cluster is never truncated (like the standard
-// header's own left cluster), so the degrade width must still admit the cluster.
 func TestUnsupportedHeader_NarrowDegradeDropsHint(t *testing.T) {
-	// Wide: hint present.
 	wide := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, testDarkTheme(t), false)
 	if !strings.Contains(wide, "see docs") {
 		t.Fatalf("wide banner missing the hint:\n%s", wide)
 	}
 	clusterWidth := lipgloss.Width("⚠ unsupported terminal — Apple Terminal · com.apple.Terminal")
 
-	// Narrow: admits the left cluster but not the cluster + a spacer + `see docs`.
 	narrow := clusterWidth + 4
 	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", narrow, testDarkTheme(t), false)
 	if strings.Contains(header, "see docs") {
 		t.Errorf("narrow banner at width %d still shows the %q hint (degrade failed):\n%s", narrow, "see docs", header)
 	}
-	// The identity cluster survives the degrade.
 	if !strings.Contains(ansi.Strip(header), "unsupported terminal — Apple Terminal · com.apple.Terminal") {
 		t.Errorf("narrow banner dropped the identity cluster:\n%s", ansi.Strip(header))
 	}
@@ -144,10 +97,6 @@ func TestUnsupportedHeader_NarrowDegradeDropsHint(t *testing.T) {
 	}
 }
 
-// TestUnsupportedHeader_ColourlessGlyphBacked asserts the NO_COLOR carve-out
-// (§2.5): a colourless banner carries no canvas background SGR and no foreground
-// hue — the `⚠`, the label, the identity, and `see docs` survive on the terminal's
-// native fg/bg (glyph-backed, never colour-only).
 func TestUnsupportedHeader_ColourlessGlyphBacked(t *testing.T) {
 	header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, testDarkTheme(t), true)
 
@@ -167,9 +116,6 @@ func TestUnsupportedHeader_ColourlessGlyphBacked(t *testing.T) {
 	}
 }
 
-// TestUnsupportedHeader_PaintsCanvasNoEdgeBleed asserts the banner cells carry the
-// owned canvas background (leaf .Background(canvas)) so the right-aligned spacer
-// gap is canvas-painted, not a terminal-bg island.
 func TestUnsupportedHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		header := renderUnsupportedHeader("Apple Terminal", "com.apple.Terminal", sectionHeaderWidth, th, false)
@@ -179,11 +125,6 @@ func TestUnsupportedHeader_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_UnsupportedShowsBanner asserts that on a resolved-
-// unsupported non-NULL undriven terminal (com.apple.Terminal), outside multi-select
-// mode, the section-header row swaps to the unsupported banner naming the identity
-// with a blue `see docs`, and the standard `Sessions` header is NOT shown. Driven
-// through the 6.1 detection path.
 func TestApplySectionHeader_UnsupportedShowsBanner(t *testing.T) {
 	m := unsupportedResolvedModel(t, appleTerminalIdentity())
 	if !m.DetectUnsupported() {
@@ -199,20 +140,13 @@ func TestApplySectionHeader_UnsupportedShowsBanner(t *testing.T) {
 	if strings.Contains(first, "Sessions") {
 		t.Errorf("unsupported section-header row must NOT show the standard %q header:\n%s", "Sessions", first)
 	}
-	// The label cluster is painted amber (accent.attention).
 	if seq := tokenFgSeq(t, m.themeState.active.AccentAttention); !strings.Contains(bannerFirstLine(m), seq) {
 		t.Errorf("unsupported banner missing the accent.orange fg sequence %q:\n%s", seq, bannerFirstLine(m))
 	}
 }
 
-// TestApplySectionHeader_UnsupportedNullShowsStandardHeader asserts a resolved NULL
-// (remote/mosh) identity now renders the standard `Sessions ··· N` header at the
-// section-header row. The IsNull() discriminator on unsupportedBannerActive() makes
-// the banner named-only, so a NULL client keeps its session count and grouping
-// indicator — no banner, no `no host-local terminal` / `unsupported terminal` /
-// `see docs`.
 func TestApplySectionHeader_UnsupportedNullShowsStandardHeader(t *testing.T) {
-	m := unsupportedResolvedModel(t, spawn.Identity{}) // NULL (remote/mosh)
+	m := unsupportedResolvedModel(t, spawn.Identity{})
 	if !m.DetectUnsupported() {
 		t.Fatalf("precondition: a NULL identity must resolve unsupported")
 	}
@@ -228,12 +162,7 @@ func TestApplySectionHeader_UnsupportedNullShowsStandardHeader(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_InFlightShowsStandardHeader asserts that while detection
-// is in-flight (detectDispatched && !detectResolved) the standard `Sessions ··· N`
-// header shows — no banner.
 func TestApplySectionHeader_InFlightShowsStandardHeader(t *testing.T) {
-	// dispatchWarmDetection lands PageSessions and dispatches detection but does NOT
-	// drain the async command, so detection is in-flight.
 	m, _ := dispatchWarmDetection(t, &fakeDetector{identity: appleTerminalIdentity()}, nativeResolve())
 	if !m.DetectDispatched() || m.DetectResolved() {
 		t.Fatalf("precondition: in-flight must be dispatched && !resolved; dispatched=%v resolved=%v", m.DetectDispatched(), m.DetectResolved())
@@ -248,9 +177,6 @@ func TestApplySectionHeader_InFlightShowsStandardHeader(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_SupportedShowsStandardHeader asserts a resolved SUPPORTED
-// identity (ghostty → native) shows the standard header — being non-NULL is NOT
-// sufficient to hide the banner; being SUPPORTED is.
 func TestApplySectionHeader_SupportedShowsStandardHeader(t *testing.T) {
 	m := unsupportedResolvedModel(t, ghosttyIdentity())
 	if m.DetectUnsupported() {
@@ -266,10 +192,6 @@ func TestApplySectionHeader_SupportedShowsStandardHeader(t *testing.T) {
 	}
 }
 
-// TestApplySectionHeader_MultiSelectStepsUnsupportedAside asserts entering multi-
-// select mode replaces the unsupported banner with the violet `N selected` banner
-// — the multi-select banner owns the section-header row and the unsupported banner
-// steps aside.
 func TestApplySectionHeader_MultiSelectStepsUnsupportedAside(t *testing.T) {
 	m := unsupportedResolvedModel(t, appleTerminalIdentity())
 	if !m.DetectUnsupported() {
@@ -284,17 +206,11 @@ func TestApplySectionHeader_MultiSelectStepsUnsupportedAside(t *testing.T) {
 	if strings.Contains(first, "unsupported terminal") {
 		t.Errorf("multi-select mode must step the unsupported banner aside:\n%s", first)
 	}
-	// The helper agrees: the unsupported banner is not active while in the mode.
 	if m.unsupportedBannerActive() {
 		t.Errorf("unsupportedBannerActive() must be false in multi-select mode")
 	}
 }
 
-// TestActiveNoticeBand_SuppressesSignpostWhenUnsupported asserts the By-Tag
-// "No tags yet" signpost does NOT own the notice slot while the unsupported banner
-// owns the section-header row (the banner outranks the signpost per the §11
-// precedence). Mirrors the multi-select suppression sibling by setting the
-// resolved-unsupported detection cache directly on the By-Tag signpost model.
 func TestActiveNoticeBand_SuppressesSignpostWhenUnsupported(t *testing.T) {
 	m := signpostModel(t)
 	if _, _, ok := m.activeNoticeBand(); !ok {
@@ -313,19 +229,13 @@ func TestActiveNoticeBand_SuppressesSignpostWhenUnsupported(t *testing.T) {
 	}
 }
 
-// TestActiveNoticeBand_NullReturnsSignpost asserts a resolved-unsupported NULL
-// (remote/mosh) identity does NOT suppress the By-Tag "No tags yet" signpost. With
-// the banner gate now named-only (unsupportedBannerActive() false for NULL), no
-// banner competes for the section-header row, so the signpost owns the notice slot
-// again. Mirror of TestActiveNoticeBand_SuppressesSignpostWhenUnsupported (which
-// uses a named identity and stays valid).
 func TestActiveNoticeBand_NullReturnsSignpost(t *testing.T) {
 	m := signpostModel(t)
 	if _, _, ok := m.activeNoticeBand(); !ok {
 		t.Fatalf("precondition: the signpost must own the slot before detection resolves")
 	}
 
-	m.detectIdentity = spawn.Identity{} // NULL (remote/mosh)
+	m.detectIdentity = spawn.Identity{}
 	m.detectResolution = spawn.ResolutionUnsupported
 	m.detectResolved = true
 	if m.unsupportedBannerActive() {
@@ -337,10 +247,6 @@ func TestActiveNoticeBand_NullReturnsSignpost(t *testing.T) {
 	}
 }
 
-// TestActiveNoticeBand_FlashOutranksUnsupported asserts a transient flash still
-// owns the notice slot even when the unsupported banner is active — the flash arm
-// stays FIRST, so a flash outranks both the (section-header) unsupported banner and
-// the suppressed signpost.
 func TestActiveNoticeBand_FlashOutranksUnsupported(t *testing.T) {
 	m := signpostModel(t)
 	m.detectIdentity = appleTerminalIdentity()

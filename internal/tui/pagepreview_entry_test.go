@@ -8,15 +8,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// keySpaceMsg synthesises a standalone Space keypress, matching the shape
-// produced by bubbletea v1.
 func keySpaceMsg() tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 }
 
-// modelWithSeams returns a Model on the Sessions page seeded with the given
-// sessions and the given enumerator/reader seam values. The Model is sized so
-// SettingFilter() and SelectedItem() behave as in production.
 func modelWithSeams(t *testing.T, sessions []tmux.Session, enum TmuxEnumerator, reader ScrollbackReader) Model {
 	t.Helper()
 	items := ToListItems(sessions)
@@ -107,9 +102,6 @@ func TestSpaceOnSessionsPageNoOpWhenSelectedItemNil(t *testing.T) {
 	}
 	reader := &recordingReader{}
 	m := modelWithSeams(t, sessions, enum, reader)
-	// Apply a filter that matches nothing so the visible list is empty and
-	// SelectedItem() returns nil. Filter must be applied (committed), not
-	// SettingFilter, so we route through the existing key handler.
 	m.sessionList.SetFilterText("zzzzzzz")
 	m.sessionList.SetFilterState(list.FilterApplied)
 
@@ -192,8 +184,6 @@ func TestSpaceDuringSettingFilterDoesNotCallNewPreviewModel(t *testing.T) {
 	}
 	reader := &recordingReader{}
 	m := modelWithSeams(t, sessions, enum, reader)
-	// Open the filter-input mode on the underlying bubbles/list so
-	// SettingFilter() returns true. The list's "/" rune key opens it.
 	updatedList, _ := m.sessionList.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
 	m.sessionList = updatedList
 
@@ -275,7 +265,6 @@ func TestPagePreviewRoutesUpdateToPreviewModel(t *testing.T) {
 	reader := &recordingReader{bytes: []byte("hello")}
 	m := modelWithSeams(t, sessions, enum, reader)
 
-	// Transition to pagePreview via Space.
 	updated, _ := m.Update(keySpaceMsg())
 	got, ok := updated.(Model)
 	if !ok {
@@ -285,8 +274,6 @@ func TestPagePreviewRoutesUpdateToPreviewModel(t *testing.T) {
 		t.Fatalf("test setup invariant: expected pagePreview after Space, got %v", got.activePage)
 	}
 
-	// Send an arbitrary key — the top-level Update must route to preview's
-	// Update without panicking and without changing activePage.
 	updated2, _ := got.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	got2, ok := updated2.(Model)
 	if !ok {
@@ -297,7 +284,6 @@ func TestPagePreviewRoutesUpdateToPreviewModel(t *testing.T) {
 	}
 }
 
-// errStub is a minimal error type for tests that need an error sentinel.
 type errStub string
 
 func (e errStub) Error() string { return string(e) }

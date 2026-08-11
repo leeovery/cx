@@ -12,16 +12,11 @@ import (
 	"github.com/leeovery/portal/internal/portalbintest"
 )
 
-// oldThemeSubpackage is the import path of the retired internal/tui/theme package.
-// The token layer moved out to the internal/theme leaf, so nothing in the tree
-// may import this path and the directory itself must be gone.
+// Split so this declaration is not itself an importer of the retired path.
 const oldThemeSubpackage = "github.com/leeovery/portal/internal/tui" + "/theme"
 
-// TestOldThemeSubpackageIsGone walks the whole module and fails if any file still
-// imports the retired internal/tui/theme package, or if the package directory
-// survives. It is the cheap source guard that relocation needs: a leftover
-// importer would keep the old paired-token vocabulary compiling alongside the new
-// single-palette one, which is precisely the drift the move exists to end.
+// A leftover importer would keep the old paired-token vocabulary compiling
+// alongside the single-palette one.
 func TestOldThemeSubpackageIsGone(t *testing.T) {
 	root := repoRoot(t)
 
@@ -39,40 +34,9 @@ func TestOldThemeSubpackageIsGone(t *testing.T) {
 	})
 }
 
-// TestNoPackageLevelThemeVar fails if any production file in internal/tui declares
-// a PACKAGE-SCOPE var holding theme data — a Theme, a Token, or anything derived
-// from the theme package at init time.
-//
-// The completeness risk names `pagepreview.go`'s package-init Token copy as one of two
-// offenders "fixed outright, not guarded around", and is explicit that "the guard is what
-// stops them returning": a value captured at package init can never see a theme
-// swap, so the element it paints silently keeps the previous theme's colours. The active-theme
-// plumbing forbids the same shape for a different reason — package-level mutable theme
-// state on the render path, in a suite that already forbids t.Parallel().
-//
-// It scans production files only, matching the colour-literal guard's scope: a
+// A theme captured at package init can never see a swap, so the element it
+// paints silently keeps the previous theme's colours. Production files only: a
 // test-file copy cannot reach the render path.
-//
-// # Reach (probed, not assumed)
-//
-// A `theme.`-qualified rule alone is NOT enough: since the retired package-level
-// theme.MV is gone, an init-time capture can now only be written by calling an
-// IN-PACKAGE theme source, which carries no `theme.` selector at the call site.
-// Each shape below was probed against this guard by dropping it into a temporary
-// production file in this package and running the test:
-//
-//	CAUGHT  var x theme.Token = defaultDarkTheme().AccentMode   (declared type)
-//	CAUGHT  var x = theme.Token{Name: ..., Value: ...}          (initialiser selector)
-//	CAUGHT  var x = defaultDarkTheme().AccentMode               (in-package source call)
-//	CAUGHT  var x = defaultDarkTheme()                          (in-package source call)
-//	CAUGHT  var x Model                                         (declared local theme-bearing type)
-//	CAUGHT  var x = lipgloss.NewStyle().Foreground(defaultDarkTheme().AccentMode.Color())
-//	QUIET   var x = 4                                           (negative control)
-//	QUIET   var x = someNonThemeFunc()                          (negative control)
-//
-// The in-package arm is structural, not name-based: themeSources derives the
-// source set from the declarations themselves, so a theme accessor named without
-// the word "theme" is still caught.
 func TestNoPackageLevelThemeVar(t *testing.T) {
 	names := centralisedColourSites(t)
 	fset := token.NewFileSet()
@@ -100,8 +64,7 @@ func TestNoPackageLevelThemeVar(t *testing.T) {
 	}
 }
 
-// parseProductionFiles parses each named file in the package directory, keyed by
-// name, sharing one FileSet so reported positions are comparable across files.
+// One shared FileSet, so reported positions are comparable across files.
 func parseProductionFiles(t *testing.T, fset *token.FileSet, names []string) map[string]*ast.File {
 	t.Helper()
 	files := make(map[string]*ast.File, len(names))
@@ -115,27 +78,16 @@ func parseProductionFiles(t *testing.T, fset *token.FileSet, names []string) map
 	return files
 }
 
-// themeSources is the in-package vocabulary that yields theme data without ever
-// writing `theme.` at the call site: the local struct types carrying theme fields
-// (Model, which holds both the active Theme and the injected Nomination) and the
-// functions whose results carry theme data either directly (defaultDarkTheme,
-// loadBuiltinTheme) or through one of those types (New, NewModelWithSessions).
+// The in-package vocabulary that yields theme data without writing `theme.` at
+// the call site — a `theme.`-qualified rule alone would miss it.
 type themeSources struct {
 	types map[string]bool
 	funcs map[string]bool
 }
 
-// collectThemeSources derives the source vocabulary from the package's own
-// declarations, in two ordered passes: every theme-bearing struct type first
-// (a function may return a type declared in another file), then every function
-// whose results carry theme data directly or through one of those types — the
-// single transitive step that reaches the model constructors.
-//
-// Methods are collected alongside plain functions; a method name is inert here,
-// because the matching arm only fires on a bare-identifier call. Its one known
-// blind spot is therefore a var initialised by a METHOD call
-// (`someNomination.Select(...)`), which needs a package-scope receiver that these
-// same arms already reject.
+// Two ordered passes: types first, because a function may return a type
+// declared in another file. Blind spot: a var initialised by a method call,
+// which needs a package-scope receiver these same arms already reject.
 func collectThemeSources(files map[string]*ast.File) themeSources {
 	sources := themeSources{types: map[string]bool{}, funcs: map[string]bool{}}
 	for _, file := range files {
@@ -169,7 +121,6 @@ func collectThemeSources(files map[string]*ast.File) themeSources {
 	return sources
 }
 
-// typeSpecs returns every top-level type declaration in a file.
 func typeSpecs(file *ast.File) []*ast.TypeSpec {
 	specs := []*ast.TypeSpec{}
 	for _, decl := range file.Decls {
@@ -186,10 +137,6 @@ func typeSpecs(file *ast.File) []*ast.TypeSpec {
 	return specs
 }
 
-// themeReference reports whether a package-scope var spec holds theme data — by
-// naming the theme package or a local theme-bearing type in its declared type, or
-// by naming the theme package or calling an in-package theme source in any
-// initialiser — and where.
 func themeReference(fset *token.FileSet, value *ast.ValueSpec, sources themeSources) (token.Position, bool) {
 	if value.Type != nil && (namesThemePackage(value.Type) || sources.namesLocalThemeType(value.Type)) {
 		return fset.Position(value.Pos()), true
@@ -202,9 +149,6 @@ func themeReference(fset *token.FileSet, value *ast.ValueSpec, sources themeSour
 	return token.Position{}, false
 }
 
-// namesThemePackage reports whether an expression mentions the theme package
-// anywhere within it (theme.Theme, theme.Token, []theme.Token, a call taking a
-// theme constant, ...).
 func namesThemePackage(expr ast.Expr) bool {
 	found := false
 	ast.Inspect(expr, func(n ast.Node) bool {
@@ -221,8 +165,6 @@ func namesThemePackage(expr ast.Expr) bool {
 	return found
 }
 
-// namesLocalThemeType reports whether a type expression names one of the local
-// theme-bearing struct types, bare or under a pointer/slice/map.
 func (s themeSources) namesLocalThemeType(expr ast.Expr) bool {
 	found := false
 	ast.Inspect(expr, func(n ast.Node) bool {
@@ -235,10 +177,8 @@ func (s themeSources) namesLocalThemeType(expr ast.Expr) bool {
 	return found
 }
 
-// callsThemeSource reports whether an initialiser calls an in-package theme
-// source at ANY depth, so a var built through a chain — lipgloss.NewStyle().
-// Foreground(defaultDarkTheme().AccentMode.Color()) — is caught alongside the
-// bare `= defaultDarkTheme()`.
+// Matches at any depth, so a var built through a style chain is caught
+// alongside a bare call.
 func (s themeSources) callsThemeSource(expr ast.Expr) bool {
 	found := false
 	ast.Inspect(expr, func(n ast.Node) bool {
@@ -255,7 +195,6 @@ func (s themeSources) callsThemeSource(expr ast.Expr) bool {
 	return found
 }
 
-// repoRoot resolves the module root the repo-wide guards walk.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	root, err := portalbintest.ProjectRoot()
@@ -265,7 +204,6 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// forEachGoFile parses every .go file under root and hands it to fn.
 func forEachGoFile(t *testing.T, root string, fn func(path string, file *ast.File)) {
 	t.Helper()
 	fset := token.NewFileSet()

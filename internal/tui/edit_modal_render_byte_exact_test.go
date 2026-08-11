@@ -7,23 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/project"
 )
 
-// TestRenderEditProjectContent_ByteExact pins the full ANSI-stripped layout of the
-// §13.1 MV edit-project modal across the navigate-name, chip-focused, and editing
-// states. The colour-role assertions live in edit_modal_test.go; this oracle guards
-// the STRUCTURE (panel frame, field labels, the rounded NAME box, the square chip
-// boxes, the faint `+ add` slot, and the contextual footers) byte-for-byte so a
-// layout regression (a box overrunning the frame, a missing inset, a wrong glyph)
-// fails loudly. The render is deterministic once ANSI is stripped.
-//
-// All three states render at the SAME panel width: the header reserves the
-// `◉ EDIT MODE` badge's slot in navigate (blank) and right-aligns the badge in the
-// far corner while editing, and the panel width is anchored by the (fixed-width)
-// header / name box / footer — so toggling navigate↔edit never resizes the panel
-// (the "jaggedy" resize bug) even though an editing chip box is one cell wider for
-// its live cursor (a navigate chip is sized to its content). The editing-in-place
-// footer additionally right-aligns its `empty on save = delete` consequence note to
-// the far-right corner (the same fixed-width-row + flexible-spacer technique as the
-// header badge); the navigate footers stay left-packed.
 func TestRenderEditProjectContent_ByteExact(t *testing.T) {
 	tests := []struct {
 		name  string

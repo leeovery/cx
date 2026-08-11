@@ -11,57 +11,18 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The picker idiom's `Enter`: it COMMITS A CONSTANT — `theme = <the cursor's slug>`, both
-// slots cleared in one atomic prefs write — and the panel STAYS OPEN.
-//
-// Four decisions that read as small all bite on this one keypress, and each is a
-// named test below rather than a comment:
-//
-//   - IT DOES NOT CLOSE. A user who had just set both slots would press `Enter` to
-//     leave and thereby commit a constant, wiping the pair they just built. `Esc`
-//     is the only way out — one exit key, no dual-purpose keys, and the pair flow
-//     needs no special case. The accepted cost is that "pick one and go" is two
-//     keys rather than one.
-//   - IT COMMITS THE CURSOR'S SLUG, never the persisted one. The row-rendering rule draws that
-//     split deliberately: `●` is what is SET, the cursor is what is PREVIEWED.
-//   - IT DOES NOT RE-THEME. A commit is a WRITE, NOT A NAVIGATION, so the frame is
-//     unchanged across the keypress and committing to a non-active slot
-//     will change nothing on screen.
-//   - THE IN-MEMORY MUTATION IS ON THE CONSTRUCTION-TIME SNAPSHOT, never on
-//     the merged bytes the persister's read-modify-write just had in hand —
-//     re-deriving from those would make the panel jump to another instance's
-//     choices at the moment the user presses a key, the cross-instance sync the
-//     construction-time load rule explicitly declines.
-//
-// Most of the file is therefore NEGATIVES, and every negative carries a positive
-// control: `Enter` was inert before this task, so an assertion that nothing
-// happened passes just as readily over a keypress that was never wired.
-//
-// No t.Parallel() — the package-level mock convention makes parallelism unsafe
-// across this package's tests.
-
-// commitEnter is the picker idiom's commit-a-constant press.
 var commitEnter = tea.KeyPressMsg{Code: tea.KeyEnter}
 
-// errThemeCommitFailed is the failure a persister raises in this file. It is a
-// package-level sentinel so the identity comparison on the returned value is
-// exact — the failed-commit rule's report is rendered FROM that value, so "the error came
-// back" has to mean this error rather than any error.
+// A package-level sentinel so the identity comparison on the returned value is
+// exact: the report is rendered from that value.
 var errThemeCommitFailed = errors.New("prefs.json: no such file or directory")
 
-// commitPanelProjects are the rows the Projects page carries in the fixtures that
-// need both pages populated — the panel is bound on both, so `Enter` is a
-// statement about both.
 func commitPanelProjects() []project.Project {
 	return []project.Project{{Path: "/p/one", Name: "one"}, {Path: "/p/two", Name: "two"}}
 }
 
-// openCommitPanel builds a renderable model with BOTH pages populated at the given
-// page, and opens the panel through the production `t` keypress.
-//
-// It takes the whole seam set rather than wiring a persister for itself, because
-// the NIL persister is one of the states under test (a fixture / capturetool
-// model) and a helper that always wired one would leave it unreachable.
+// Takes the whole seam set rather than wiring a persister for itself: the nil
+// persister is one of the states under test.
 func openCommitPanel(t *testing.T, deps Deps, p page, cursorSlug string) Model {
 	t.Helper()
 
@@ -77,9 +38,6 @@ func openCommitPanel(t *testing.T, deps Deps, p page, cursorSlug string) Model {
 	return m
 }
 
-// newCommitPanelModelAt is the standard commit fixture on the given page: the stub
-// union, a RECORDING persister, and the panel already open with the cursor on the
-// persisted constant's row.
 func newCommitPanelModelAt(t *testing.T, rows []theme.Row, cursorSlug string, p page) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -89,20 +47,13 @@ func newCommitPanelModelAt(t *testing.T, rows []theme.Row, cursorSlug string, p 
 	return openCommitPanel(t, deps, p, cursorSlug), persister
 }
 
-// newCommitPanelModel is the fixture on the Sessions page.
 func newCommitPanelModel(t *testing.T, rows []theme.Row, cursorSlug string) (Model, *fakeThemePersister) {
 	t.Helper()
 	return newCommitPanelModelAt(t, rows, cursorSlug, PageSessions)
 }
 
-// commitPairPanelDeps is the ADAPTIVE PAIR fixture's seam set, WITHOUT a
-// persister: the light slot on rows[0], the dark slot on rows[1], and the DARK
-// one in force (the standing no-answer canvas, the appearance-gate rule) — so the cursor opens
-// on the dark slot's row and there are two slots for a commit to act on.
-//
-// The persister is left out because the NIL one is a state under test (a
-// slot commit over a capture model), exactly as openCommitPanel takes the whole
-// seam set rather than wiring one for itself.
+// The dark slot is in force (the standing no-answer fallback), so the cursor opens
+// on its row. No persister: the nil one is a state under test.
 func commitPairPanelDeps(t *testing.T, rows []theme.Row) Deps {
 	t.Helper()
 
@@ -114,8 +65,6 @@ func commitPairPanelDeps(t *testing.T, rows []theme.Row) Deps {
 	return stubPanelDeps(source, theme.ConstantNomination(dark.Theme), theme.RawKeys{Light: light.Slug, Dark: dark.Slug})
 }
 
-// newCommitPairPanelModel is the commit fixture under an ADAPTIVE PAIR, with a
-// RECORDING persister and the panel already open on the dark slot's row.
 func newCommitPairPanelModel(t *testing.T, rows []theme.Row) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -125,20 +74,12 @@ func newCommitPairPanelModel(t *testing.T, rows []theme.Row) (Model, *fakeThemeP
 	return openCommitPanel(t, deps, PageSessions, rows[1].Slug), persister
 }
 
-// pressCommitKey drives `Enter` through the live Update and returns the command
-// alongside the model.
-//
-// The COMMAND is the observation a counter cannot make: a write deferred off the
-// keypress would have to be scheduled as a tea.Cmd.
 func pressCommitKey(t *testing.T, m Model) (Model, tea.Cmd) {
 	t.Helper()
 	updated, cmd := m.Update(commitEnter)
 	return updated.(Model), cmd
 }
 
-// requireCommitted fails unless the persister recorded exactly the given sequence
-// of CONSTANT commits — CommitTheme calls, never the slot saver the picker idiom gives
-// `d`/`l`.
 func requireCommitted(t *testing.T, p *fakeThemePersister, want ...string) {
 	t.Helper()
 
@@ -155,8 +96,6 @@ func requireCommitted(t *testing.T, p *fakeThemePersister, want ...string) {
 	}
 }
 
-// requireConstantKeys fails unless the model's raw keys are the constant-or-pair rule's
-// constant shape: the given slug, with BOTH slots cleared.
 func requireConstantKeys(t *testing.T, m Model, slug string) {
 	t.Helper()
 	if got := m.themeState.keys; got != (theme.RawKeys{Theme: slug}) {
@@ -164,14 +103,9 @@ func requireConstantKeys(t *testing.T, m Model, slug string) {
 	}
 }
 
-// arrowToThemeRow presses `↓` until the panel's cursor lands on the row labelled
-// label, so a fixture moves the cursor the way a user does rather than by seeding
-// an index — which is what keeps "the cursor's slug" the slug PRODUCTION put
-// there.
-//
-// The walk is bounded by the row count, which is enough: `↓` steps one selectable
-// row at a time and reverses at the end, so every reachable row is
-// visited within one pass.
+// Moves the cursor the way a user does rather than by seeding an index, so "the
+// cursor's slug" stays the slug production put there. The walk is bounded by the
+// row count: `↓` reverses at the end, so one pass visits every reachable row.
 func arrowToThemeRow(t *testing.T, m Model, label string) Model {
 	t.Helper()
 
@@ -185,14 +119,8 @@ func arrowToThemeRow(t *testing.T, m Model, label string) Model {
 	return m
 }
 
-// TestPanelEnter_CommitsTheCursorSlug: it commits the cursor's slug, not the
-// persisted one.
-//
-// The row-rendering rule draws the split deliberately — `●` is what is SET, the cursor is what
-// is PREVIEWED — so the commit takes the row the user is looking at. The fixture
-// ARROWS AWAY from the persisted row first, which is the only shape in which the
-// two are distinguishable: with the cursor still on the constant's row a commit of
-// the persisted slug and a commit of the cursor's are the same string.
+// The fixture arrows away from the persisted row first — the only shape in which
+// the persisted slug and the cursor's slug are distinguishable strings.
 func TestPanelEnter_CommitsTheCursorSlug(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug
@@ -209,15 +137,8 @@ func TestPanelEnter_CommitsTheCursorSlug(t *testing.T) {
 	requireConstantKeys(t, m, target)
 }
 
-// TestPanelEnter_DoesNotClose: it keeps the panel open.
-//
-// The picker idiom: "**`Enter` does not close.** If it did, a user who had just set both slots
-// would press `Enter` to exit and thereby commit a constant, wiping the pair they
-// just built." Asserted on BOTH pages, because `t` is bound on both and the
-// panel owns the keyboard identically over each.
-//
-// The COMMIT is the control. `Enter` was swallowed before this task, so "the panel
-// is still open" is true of a keypress that did nothing at all.
+// `Enter` must not close: a user who had just set both slots would press it to
+// exit and thereby commit a constant, wiping the pair they just built.
 func TestPanelEnter_DoesNotClose(t *testing.T) {
 	for _, tc := range entryPages {
 		t.Run(tc.name, func(t *testing.T) {
@@ -240,12 +161,8 @@ func TestPanelEnter_DoesNotClose(t *testing.T) {
 	}
 }
 
-// TestPanelEnter_MutatesRawKeysToAConstant: it clears both slots in memory.
-//
-// The constant-or-pair rule's mutual exclusion is performed ON DISK by prefs.SaveTheme in one
-// atomic write; the panel MIRRORS the same rule on its own raw keys rather than
-// re-implementing it or reading anything back. Driven from an ADAPTIVE PAIR, so
-// there are two slots there to be cleared.
+// The store performs the mutual exclusion on disk in one atomic write; the panel
+// mirrors the same rule on its own raw keys rather than reading anything back.
 func TestPanelEnter_MutatesRawKeysToAConstant(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	m, persister := newCommitPairPanelModel(t, rows)
@@ -260,19 +177,9 @@ func TestPanelEnter_MutatesRawKeysToAConstant(t *testing.T) {
 	requireConstantKeys(t, m, before.Dark)
 }
 
-// TestPanelEnter_IsAWriteNotANavigation: it does not re-theme.
-//
-// The picker idiom: "A commit is a **write, not a navigation** — the panel keeps previewing
-// whatever the cursor is on; the display resolves from persisted state only on
-// close." So the composed frame is BYTE-IDENTICAL across the keypress and the
-// active theme does not move.
-//
-// THE FIXTURE ARROWS AWAY FIRST, which is what makes the byte comparison
-// load-bearing in the direction that matters: a commit that re-resolved from
-// persisted state would flip the frame back to the persisted row's palette, which
-// is a visible change. The direction it CANNOT see is an ApplyTheme call with the
-// cursor's own palette — that is a no-op by construction, since the cursor's row is
-// already what is painted — so the structural half below covers it.
+// The fixture arrows away first, so a commit that re-resolved from persisted state
+// would visibly flip the frame back. An ApplyTheme with the cursor's own palette
+// is invisible by construction, which is what the structural half below covers.
 func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 	t.Run("the frame is byte-identical across the keypress", func(t *testing.T) {
 		rows := arrowValidRows(t, 4)
@@ -297,9 +204,6 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 		}
 	})
 
-	// The non-vacuity control on that byte comparison: an ARROW over the same
-	// fixture does change the frame, so "identical" is a commit that re-themed
-	// nothing rather than a frame that never moves.
 	t.Run("an arrow over the same fixture does change the frame", func(t *testing.T) {
 		rows := arrowValidRows(t, 4)
 		m, _ := newCommitPanelModel(t, rows, rows[0].Slug)
@@ -310,20 +214,16 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 		}
 	})
 
-	// The structural half. Committing the cursor's own palette is invisible — it is
-	// already what is painted — so a stray ApplyTheme on this path costs a restyle
-	// per keypress and reaches no assertion. The picker idiom says the commit takes the degrade
-	// POLICY without taking the apply, and this is what holds it there.
+	// A stray ApplyTheme on this path costs a restyle per keypress and reaches no
+	// behavioural assertion, so the scan holds it out.
 	t.Run("the commit path calls no ApplyTheme", func(t *testing.T) {
 		if sites := applyThemeCallSitesIn(t, "theme_panel_commit.go"); len(sites) != 0 {
 			t.Errorf("%v call Model.ApplyTheme; a commit is a WRITE, not a navigation (§9.2) — the frame must not move on this keypress", sites)
 		}
 	})
 
-	// The non-vacuity control on that scan, which is a NEGATIVE: a scan looking for
-	// the wrong shape passes it exactly as readily as a file that genuinely calls
-	// nothing. The panel's own file DOES apply — the open, the close and the
-	// arrow-preview all route through Model.ApplyTheme — so the scan must see those.
+	// A scan looking for the wrong shape passes as readily as a file that calls
+	// nothing, so it must see the panel file's own applies.
 	t.Run("the scan reports the applies that are there", func(t *testing.T) {
 		if sites := applyThemeCallSitesIn(t, "theme_panel.go"); len(sites) == 0 {
 			t.Error("the scan found no ApplyTheme call in theme_panel.go, where the open, the close and the arrow-preview all make one; it would pass over the commit path whatever that file held")
@@ -331,8 +231,6 @@ func TestPanelEnter_IsAWriteNotANavigation(t *testing.T) {
 	})
 }
 
-// applyThemeCallSitesIn returns the name of every function in the named production
-// file that calls ApplyTheme, at any depth within its body.
 func applyThemeCallSitesIn(t *testing.T, file string) []string {
 	t.Helper()
 
@@ -350,18 +248,8 @@ func applyThemeCallSitesIn(t *testing.T, file string) []string {
 	return sites
 }
 
-// TestPanelEnter_EscResolvesTheCommittedTheme: it makes `Esc` resolve to the new
-// constant.
-//
-// The picker idiom: "`Esc` discards the preview and renders the resolved persisted state" —
-// which equals "what you had before" ONLY when nothing was committed. This is the
-// whole reason the in-memory key mutation exists: without it the close
-// re-resolves the STALE keys and lands the user back on the theme they just
-// replaced.
-//
-// It runs against a REAL loader over a REAL themes directory, because the
-// stub seam answers with a fixed resolution whatever it is handed — which is
-// precisely the thing this test must not fake.
+// Runs against a real loader over a real themes directory: the stub seam answers
+// with a fixed resolution whatever it is handed, which is what must not be faked.
 func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -389,16 +277,6 @@ func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 	}
 }
 
-// TestPanelEnter_FailedWriteLeavesKeysAlone: it mutates nothing on a failed write.
-//
-// The failed-commit rule: a failed commit "does not move the `●` — the marker means 'what is
-// persisted' and would be lying if it moved". The marker is derived from the raw
-// keys, so the mechanism is that the keys are not touched at all.
-//
-// The error is RETURNED rather than swallowed, and the commit path also REPORTS
-// it: the failed-commit rule's message-slot line and its outstanding-failure state are raised
-// inside the commit, so a path that only logged would recreate the silent "applied but not
-// persisted" state.
 func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug
@@ -431,12 +309,7 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 	})
 }
 
-// TestPanelEnter_NilPersisterIsInert: it tolerates a nil persister.
-//
-// A fixture or `capturetool` model carries NO persister, so a commit
-// during a capture writes nowhere. It is the ABSENCE OF A WRITER rather than a
-// failed write — it raises no message and no outstanding-failure state
-// — which is why it mutates nothing either: there is nothing on disk for the
+// The absence of a writer, not a failed write: there is nothing on disk for the
 // in-memory keys to mirror.
 func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
 	rows := arrowValidRows(t, 4)
@@ -465,19 +338,12 @@ func TestPanelEnter_NilPersisterIsInert(t *testing.T) {
 		t.Errorf("`Enter` over a nil persister changed the frame\nbefore: %q\nafter:  %q", escSeq(before), escSeq(got))
 	}
 
-	// Positive control: the SAME fixture with a persister wired does mutate the
-	// keys, so the untouched keys above are the nil seam rather than a dead arm.
 	wired, persister := newCommitPanelModel(t, rows, persisted)
 	wired, _ = pressCommitKey(t, arrowToThemeRow(t, wired, target))
 	requireCommitted(t, persister, target)
 	requireConstantKeys(t, wired, target)
 }
 
-// TestPanelEnter_RepeatCommitIsIdempotent: it is idempotent.
-//
-// The failed-commit rule: "A commit is always re-attemptable. The commit keys are
-// unconditional writes, so pressing `d`/`l`/`Enter` again simply retries — no special
-// retry affordance, and no state to clear first."
 func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	target := rows[2].Slug
@@ -506,11 +372,6 @@ func TestPanelEnter_RepeatCommitIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestPanelEnter_NoOtherIO: it reads nothing and writes nothing else.
-//
-// The constant commit's half of the shared contract — a persisted constant on the
-// way in, `Enter` as the keypress, and the one recorded write is a CommitTheme of
-// the cursor's slug.
 func TestPanelEnter_NoOtherIO(t *testing.T) {
 	requireCommitDoesNoOtherIO(t,
 		theme.RawKeys{Theme: "sunset"},
@@ -520,15 +381,9 @@ func TestPanelEnter_NoOtherIO(t *testing.T) {
 	)
 }
 
-// TestPanelEnter_UnselectableRowWritesNothing: it refuses a non-selectable row.
-//
-// STRUCTURALLY UNREACHABLE, so the guard is DEFENSIVE: the arrows skip
-// unselectable rows and the open-time anchor lands on a selectable one.
-// The cursor is therefore placed DIRECTLY here, bypassing both.
-//
-// The empty-slug arm is the same kind of guard one step further out — a selectable
-// row with no slug is a shape the real union assembly cannot produce, and writing
-// its empty string as a theme name would persist a setting nothing can resolve.
+// Structurally unreachable — the arrows skip unselectable rows and the open-time
+// anchor lands on a selectable one — so the cursor is placed directly, bypassing
+// both. Writing an empty slug would persist a setting nothing can resolve.
 func TestPanelEnter_UnselectableRowWritesNothing(t *testing.T) {
 	t.Run("an unselectable row", func(t *testing.T) {
 		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
@@ -565,8 +420,6 @@ func TestPanelEnter_UnselectableRowWritesNothing(t *testing.T) {
 		requireConstantKeys(t, m, rows[0].Slug)
 	})
 
-	// Positive control: the same keypress on a SELECTABLE row does write, so the
-	// two refusals above are a guard rather than an unwired arm.
 	t.Run("a selectable row does write", func(t *testing.T) {
 		rows := []theme.Row{arrowValidRow(t, arrowSlug(0), 0), arrowInvalidRow(arrowSlug(1))}
 		m, persister := newCommitPanelModel(t, rows, rows[0].Slug)
@@ -578,17 +431,8 @@ func TestPanelEnter_UnselectableRowWritesNothing(t *testing.T) {
 	})
 }
 
-// TestPanelEnter_NoConfirmOverAPair: it raises no confirm over a pair.
-//
-// The picker idiom: "**The reverse direction needs no confirm.** `Enter` on a theme while a
-// pair is set clears both slots — but `Enter` visibly does what it says: you get
-// the theme you are looking at, and it is the theme already previewing behind the
-// panel." The asymmetry with `d`/`l` is the point — the confirm guards
-// the case where the RESOLVED theme changes as a side effect of a write the user
-// was told is inert.
-//
-// So the write lands on the SAME keypress, with nothing in the panel layout's message slot and
-// the panel's standing footer untouched.
+// The asymmetry with `d`/`l` is deliberate: the confirm guards the case where the
+// resolved theme changes as a side effect of a write the user was told is inert.
 func TestPanelEnter_NoConfirmOverAPair(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

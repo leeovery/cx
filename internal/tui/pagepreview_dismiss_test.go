@@ -8,9 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// drainCmd executes a tea.Cmd to retrieve its tea.Msg, mirroring how the
-// bubbletea event loop fans out commands. Used to round-trip
-// previewDismissedMsg through Update without spinning up tea.Program.
 func drainCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
 	t.Helper()
 	if cmd == nil {
@@ -19,9 +16,6 @@ func drainCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
 	return cmd()
 }
 
-// pressSpaceThenEsc opens the preview via Space, then sends Esc, executes
-// the returned cmd, and feeds the resulting message back into Update. The
-// final Model is returned for assertions.
 func pressSpaceThenEsc(t *testing.T, m Model) Model {
 	t.Helper()
 	updated, _ := m.Update(keySpaceMsg())
@@ -174,8 +168,6 @@ func TestSecondEscClearsCommittedFilterViaListDefault(t *testing.T) {
 		t.Fatalf("test setup invariant: expected committed filter to survive first Esc, got cleared")
 	}
 
-	// A second Esc on the Sessions page must reach bubbles/list's default
-	// Esc handler, which clears the committed filter (FilterApplied -> Unfiltered).
 	updated, _ := afterFirstEsc.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	got, ok := updated.(Model)
 	if !ok {
@@ -201,7 +193,6 @@ func TestPreviewReopenAfterDismissConstructsFreshPreviewModel(t *testing.T) {
 	reader := &recordingReader{bytes: []byte("hi")}
 	m := modelWithSeams(t, sessions, enum, reader)
 
-	// First open / dismiss cycle.
 	afterFirst := pressSpaceThenEsc(t, m)
 	if enum.calls != 1 {
 		t.Fatalf("expected 1 enumerator call after first open, got %d", enum.calls)
@@ -210,8 +201,6 @@ func TestPreviewReopenAfterDismissConstructsFreshPreviewModel(t *testing.T) {
 		t.Fatalf("expected 1 reader call after first open, got %d", len(reader.calls))
 	}
 
-	// Second open via Space — must trigger fresh enumeration AND fresh
-	// tail-N read, evidenced by both call counts incrementing.
 	updated, _ := afterFirst.Update(keySpaceMsg())
 	got, ok := updated.(Model)
 	if !ok {

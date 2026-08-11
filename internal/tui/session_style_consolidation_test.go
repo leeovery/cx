@@ -11,26 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Task spectrum-tui-design-9-3 consolidation gate. SessionDelegate.canvasBg /
-// tokenStyle (session_item.go) were a fork of the header.go leaf canvas-paint
-// pair (headerCanvasBg / headerStyle) — the same "role-token foreground over
-// Background(canvas), bare under NO_COLOR" rule already exported as the single
-// canonical source (and that loadingStyle/loadingFg + rowBg/rowToken already
-// delegate to). These tests prove the post-consolidation delegate render is
-// byte-identical to the PRE-refactor source:
-//   - the helper-level probes pin canvasBg ≡ headerCanvasBg and tokenStyle ≡
-//     headerStyle(...).Inherit(base) (so the delegate names delegate to the single
-//     header source, never re-implement);
-//   - preCanvasBg / preTokenStyle reproduce the ORIGINAL inline-logic bodies
-//     verbatim, and the header-row + session-row goldens are rendered from those
-//     originals, so any drift in the leaf-paint composition or the NO_COLOR
-//     carve-out after the consolidation is caught byte-for-byte across light,
-//     dark, and NO_COLOR (selected + unselected).
-//
-// No t.Parallel() — the shared canvas helpers make parallelism unsafe.
-
-// preCanvasBg reproduces the ORIGINAL SessionDelegate.canvasBg inline logic
-// verbatim — the golden the consolidation must preserve.
 func preCanvasBg(th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -38,9 +18,6 @@ func preCanvasBg(th theme.Theme, colourless bool) lipgloss.Style {
 	return lipgloss.NewStyle().Background(th.Canvas.Color())
 }
 
-// preTokenStyle reproduces the ORIGINAL SessionDelegate.tokenStyle inline logic
-// verbatim (base + token foreground over canvas, base unchanged under NO_COLOR) —
-// the golden the consolidation must preserve.
 func preTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return base
@@ -50,10 +27,6 @@ func preTokenStyle(base lipgloss.Style, fg theme.Token, th theme.Theme, colourle
 		Background(th.Canvas.Color())
 }
 
-// TestSessionCanvasBg_DelegatesToHeaderCanvasBg asserts the consolidated
-// canvasBg renders a probe string byte-identically to headerCanvasBg (the single
-// header.go source) AND to the original inline canvasBg logic, across both modes ×
-// colourless on/off. Pins that canvasBg no longer re-implements the leaf paint.
 func TestSessionCanvasBg_DelegatesToHeaderCanvasBg(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
@@ -72,12 +45,6 @@ func TestSessionCanvasBg_DelegatesToHeaderCanvasBg(t *testing.T) {
 	}
 }
 
-// TestSessionTokenStyle_DelegatesToHeaderStyle asserts the consolidated
-// tokenStyle renders a probe string byte-identically to headerStyle(...).Inherit(base)
-// (the single header.go source composited with the caller-supplied base) AND to
-// the original inline tokenStyle logic, across a representative token × both modes ×
-// colourless on/off × an empty base and a Bold base. Pins that tokenStyle no longer
-// re-implements the leaf token-over-canvas paint.
 func TestSessionTokenStyle_DelegatesToHeaderStyle(t *testing.T) {
 	roles := []string{"text.muted", "text.subtle", "text.primary", "state.positive"}
 	bases := map[string]lipgloss.Style{
@@ -106,14 +73,6 @@ func TestSessionTokenStyle_DelegatesToHeaderStyle(t *testing.T) {
 	}
 }
 
-// TestSessionDelegateRender_ByteIdenticalAcrossConsolidation asserts the full
-// delegate render of a HeaderItem (the row that routes through canvasBg/tokenStyle)
-// and of a grouped session row (selected + unselected) is byte-for-byte identical
-// across the consolidation, in light, dark, and NO_COLOR. The goldens in
-// sessionStyleGoldens were CAPTURED from the PRE-refactor source (forked
-// canvasBg/tokenStyle bodies, via a throwaway generator run — see the task notes),
-// so a drift in the leaf-paint composition or the NO_COLOR carve-out after the
-// consolidation is caught verbatim.
 func TestSessionDelegateRender_ByteIdenticalAcrossConsolidation(t *testing.T) {
 	const w = 80
 	modeNames := map[theme.Theme]string{testDarkTheme(t): "dark", testLightTheme(t): "light"}
@@ -136,8 +95,8 @@ func TestSessionDelegateRender_ByteIdenticalAcrossConsolidation(t *testing.T) {
 
 			sm := list.New(sessions, d, w, 10)
 			var sel, unsel bytes.Buffer
-			d.Render(&sel, sm, 0, sessions[0])   // index 0 == selected
-			d.Render(&unsel, sm, 1, sessions[1]) // index 1 != selected
+			d.Render(&sel, sm, 0, sessions[0])
+			d.Render(&unsel, sm, 1, sessions[1])
 			assertSessionGolden(t, "session-selected", modeName, colourless, sel.String())
 			assertSessionGolden(t, "session-unselected", modeName, colourless, unsel.String())
 		}
@@ -162,12 +121,6 @@ type sessionStyleGoldenKey struct {
 	colourless bool
 }
 
-// sessionStyleGoldens are the EXACT bytes the PRE-refactor delegate render (forked
-// canvasBg/tokenStyle bodies) emitted for a Portal HeaderItem and a grouped
-// session row (selected + unselected) at width 80, captured from a throwaway
-// generator run against the pre-consolidation source. Keyed by
-// {frame, mode, colourless}. The post-consolidation render MUST reproduce these
-// byte-for-byte.
 var sessionStyleGoldens = map[sessionStyleGoldenKey]string{
 	{"header", "dark", false}:              "\x1b[48;2;11;12;20m  \x1b[m\x1b[38;2;115;122;162;48;2;11;12;20mPortal \x1b[m\x1b[38;2;83;92;134;48;2;11;12;20m··· 2\x1b[m",
 	{"session-selected", "dark", false}:    "\x1b[48;2;40;36;58m  \x1b[m\x1b[38;2;187;154;247;48;2;40;36;58m▌\x1b[m\x1b[48;2;40;36;58m \x1b[m\x1b[1;38;2;255;255;255;48;2;40;36;58mdev\x1b[m\x1b[48;2;40;36;58m                                                \x1b[m\x1b[48;2;40;36;58m  \x1b[m\x1b[38;2;169;177;214;48;2;40;36;58m3 windows\x1b[m\x1b[48;2;40;36;58m  \x1b[m\x1b[38;2;158;206;106;48;2;40;36;58m● attached\x1b[m\x1b[48;2;40;36;58m\x1b[m\x1b[48;2;40;36;58m  \x1b[m",

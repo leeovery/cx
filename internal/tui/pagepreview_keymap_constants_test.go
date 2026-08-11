@@ -7,14 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// These tests pin the §9.1 peek-mode marker, the §9.3 footer nav-hint content
-// (derived from the previewKeymap descriptor), and the role token the preview
-// chrome resolves. Drift is caught loudly — the spec is the source of truth and
-// any change to these literals must be a deliberate spec update.
-
-// TestPreviewFooterCanonicalByteContent pins the §9.1 footer's exact stripped
-// content: `←→ window  ⇥ pane  ⏎ attach  ␣ back` — glyphs + labels,
-// space-separated (no middots), in descriptor order.
 func TestPreviewFooterCanonicalByteContent(t *testing.T) {
 	const want = "←→ window  ⇥ pane  ⏎ attach  ␣ back"
 	got := stripANSI(composePreviewFooterRow(200, testDarkTheme(t), false))
@@ -23,9 +15,6 @@ func TestPreviewFooterCanonicalByteContent(t *testing.T) {
 	}
 }
 
-// TestPreviewFooterNoMiddots pins the shared footer convention: the §9.1 footer
-// is SPACE-separated, never middot-separated (the verbose-bar middots were
-// dropped in the §9 restructure).
 func TestPreviewFooterNoMiddots(t *testing.T) {
 	got := stripANSI(composePreviewFooterRow(200, testDarkTheme(t), false))
 	if strings.ContainsRune(got, '·') {
@@ -33,12 +22,7 @@ func TestPreviewFooterNoMiddots(t *testing.T) {
 	}
 }
 
-// TestPreviewFooterCompactGlyphsOnly pins the narrow-width cascade: when the
-// labelled form does not fit, the footer compacts to accent.key glyphs only,
-// dropping the labels but keeping every nav-hint glyph present.
 func TestPreviewFooterCompactGlyphsOnly(t *testing.T) {
-	// A content width too narrow for the labelled form (~38 cells) but wide
-	// enough for the full compact glyph form (13 cells) forces the compact path.
 	got := stripANSI(composePreviewFooterRow(20, testDarkTheme(t), false))
 	const want = "←→  ⇥  ⏎  ␣"
 	if got != want {
@@ -58,11 +42,6 @@ func TestPreviewMarkerExactByteContent(t *testing.T) {
 	}
 }
 
-// TestPreviewBorderResolvesTheModeAccentToken pins that the §9.1 preview chrome
-// border resolves the accent.mode role token off the ACTIVE THEME — never a raw
-// hex, and never a token copied at package init (§11.2's named offender, whose
-// package-scope copy is gone and whose return TestNoPackageLevelThemeVar blocks).
-// The retired explicit border hex `#7B95BD` must not reappear either.
 func TestPreviewBorderResolvesTheModeAccentToken(t *testing.T) {
 	th := testDarkTheme(t)
 	m := newPeekPreviewModel(t, "work", []tmux.WindowGroup{

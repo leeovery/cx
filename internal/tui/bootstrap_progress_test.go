@@ -1,14 +1,5 @@
 package tui_test
 
-// Task spectrum-tui-design-5-2 — progress-channel receiver + Update arm (cold/TUI path).
-//
-// On the §10.2 concurrent cold-boot route the model receives live per-step
-// progress over a channel: a receiver tea.Cmd blocks on a channel receive and
-// re-issues itself on every BootstrapProgressMsg, with the terminal
-// BootstrapCompleteMsg driving the transition to Sessions. These tests assert
-// the Update arm, the gated transition, and that the model stays inert during
-// loading (no enumeration / no page nav before complete).
-
 import (
 	"testing"
 	"time"
@@ -18,12 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// TestBootstrapProgressMsg_ReIssuesReceiver asserts the BootstrapProgressMsg
-// Update arm returns a command (the re-issued receiver) so the next channel
-// event is pulled, and stays on PageLoading (a progress event is not terminal).
 func TestBootstrapProgressMsg_ReIssuesReceiver(t *testing.T) {
 	lister := &mockSessionLister{sessions: []tmux.Session{}}
-	// Wire a receiver that, when re-issued, yields a sentinel we can detect.
 	reissued := make(chan struct{}, 1)
 	receiver := tea.Cmd(func() tea.Msg {
 		select {
@@ -45,7 +32,6 @@ func TestBootstrapProgressMsg_ReIssuesReceiver(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("BootstrapProgressMsg returned nil cmd; want the re-issued receiver")
 	}
-	// Invoking the returned cmd must re-run the receiver (pull the next event).
 	if _, ok := cmd().(tui.BootstrapProgressMsg); !ok {
 		t.Error("re-issued cmd did not produce a BootstrapProgressMsg")
 	}
@@ -56,9 +42,6 @@ func TestBootstrapProgressMsg_ReIssuesReceiver(t *testing.T) {
 	}
 }
 
-// TestBootstrapComplete_TransitionGatedOnTerminalEvent asserts the model only
-// transitions to Sessions once the terminal BootstrapCompleteMsg arrives (paired
-// with LoadingMinElapsedMsg) — progress events alone never transition.
 func TestBootstrapComplete_TransitionGatedOnTerminalEvent(t *testing.T) {
 	lister := &mockSessionLister{sessions: []tmux.Session{}}
 	receiver := tea.Cmd(func() tea.Msg { return tui.BootstrapProgressMsg{Index: 1} })
@@ -66,7 +49,6 @@ func TestBootstrapComplete_TransitionGatedOnTerminalEvent(t *testing.T) {
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Min elapsed, plus several progress events — still on loading.
 	model, _ = model.Update(tui.LoadingMinElapsedMsg{})
 	for i := 1; i <= 10; i++ {
 		model, _ = model.Update(tui.BootstrapProgressMsg{Index: i})
@@ -75,16 +57,12 @@ func TestBootstrapComplete_TransitionGatedOnTerminalEvent(t *testing.T) {
 		t.Fatalf("transitioned before terminal event; got %d", model.(tui.Model).ActivePage())
 	}
 
-	// Terminal event arrives — now transition.
 	model, _ = model.Update(tui.BootstrapCompleteMsg{})
 	if model.(tui.Model).ActivePage() == tui.PageLoading {
 		t.Error("did not transition to Sessions on terminal BootstrapCompleteMsg")
 	}
 }
 
-// TestConcurrentInit_DoesNotSynthesizeBootstrapComplete asserts that on the
-// concurrent route (a progress receiver is wired) Init does NOT synthesize
-// BootstrapCompleteMsg — the terminal event must come over the channel instead.
 func TestConcurrentInit_DoesNotSynthesizeBootstrapComplete(t *testing.T) {
 	lister := &mockSessionLister{sessions: []tmux.Session{}}
 	receiver := tea.Cmd(func() tea.Msg { return tui.BootstrapProgressMsg{Index: 1} })
@@ -110,13 +88,10 @@ func TestConcurrentInit_DoesNotSynthesizeBootstrapComplete(t *testing.T) {
 				t.Error("concurrent Init synthesized BootstrapCompleteMsg; the channel must own the terminal event")
 			}
 		case <-time.After(50 * time.Millisecond):
-			// loadingPadTick or a blocking receiver — ignore.
 		}
 	}
 }
 
-// TestConcurrentInit_IncludesProgressReceiver asserts the concurrent Init wires
-// the progress receiver into its batch so channel events flow into Update.
 func TestConcurrentInit_IncludesProgressReceiver(t *testing.T) {
 	lister := &mockSessionLister{sessions: []tmux.Session{}}
 	hit := make(chan struct{}, 1)
@@ -158,9 +133,6 @@ func TestConcurrentInit_IncludesProgressReceiver(t *testing.T) {
 	}
 }
 
-// TestLoadingInert_NoEnumerationBeforeComplete asserts the model does not flip
-// sessionsLoaded (no enumeration drives the page) while on PageLoading — even
-// after a SessionsMsg arrives — until the terminal complete event transitions.
 func TestLoadingInert_NoEnumerationBeforeComplete(t *testing.T) {
 	lister := &mockSessionLister{sessions: []tmux.Session{{Name: "a"}}}
 	receiver := tea.Cmd(func() tea.Msg { return tui.BootstrapProgressMsg{Index: 1} })
@@ -168,15 +140,12 @@ func TestLoadingInert_NoEnumerationBeforeComplete(t *testing.T) {
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// A session list arrives during loading; it must be ingested but NOT drive
-	// a transition (sessionsLoaded stays false; page stays PageLoading).
 	model, _ = model.Update(tui.SessionsMsg{Sessions: []tmux.Session{{Name: "a"}}})
 	model, _ = model.Update(tui.BootstrapProgressMsg{Index: 1})
 	if model.(tui.Model).ActivePage() != tui.PageLoading {
 		t.Error("model left PageLoading before terminal complete (not inert)")
 	}
 
-	// A page-nav key during loading is swallowed (inert) — must not change page.
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if model.(tui.Model).ActivePage() != tui.PageLoading {
 		t.Error("page-nav key was honoured during loading; want inert")

@@ -9,36 +9,15 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The panel layout vertical-footer gate. These tests pin the theme panel's footer: the pinned
-// copy's four rows verbatim, the two-column key-column geometry it borrows from
-// helpModalRow, the accent.key / text.muted split it borrows from the horizontal
-// footer, its self-measured height, and the substitution point the nested
-// confirm scope replaces it through.
-//
-// Colour roles are asserted as DISTINCT theme-resolved SGR runs (like the
-// session-row and panel-row anatomy tests), so the assertion says WHICH text a
-// token painted rather than merely that the token appears somewhere on the line.
-//
-// No t.Parallel() — the package-level mock convention and the shared canvas
-// helpers make parallelism unsafe across this package's tests.
-
-// The two ends of the inner content width the panel's column band leaves for its
-// footer — the ladder's two stages less the border and the inner gutter. They are
-// derived rather than restated so a move of the ladder reaches the footer's own
-// assertions instead of leaving them measuring a width the panel no longer renders
-// at.
+// Derived rather than restated so a move of the width ladder reaches these
+// assertions instead of leaving them measuring a width the panel never renders at.
 var (
 	themePanelFooterTestWidth    = themePanelInnerWidth(themePanelPreferredWidth)
 	themePanelFooterTestMinWidth = themePanelInnerWidth(themePanelMinWidth)
 )
 
-// themePanelFooterPinnedRows is the pinned copy's panel-footer copy, verbatim: "footer
-// `⏎ set theme` / `d set as dark` / `l set as light` / `esc close`". The rendered
-// rows are asserted against THESE strings rather than against anything re-derived
-// from the descriptor, so a copy change has to be made here and in the pinned copy together.
-//
-// It is a FUNCTION rather than a package-level var, following this package's
-// test-side convention (see testDarkTheme): a shared mutable slice is one careless
+// Verbatim rather than re-derived from the descriptor, so a copy change has to be
+// made in two places. A function rather than a var: a shared mutable slice is one
 // index assignment away from a test rewriting another test's expectations.
 func themePanelFooterPinnedRows() []string {
 	return []string{
@@ -49,27 +28,18 @@ func themePanelFooterPinnedRows() []string {
 	}
 }
 
-// themePanelFooterLines splits a rendered footer block into its rows with every
-// SGR sequence stripped — the text a user actually reads.
 func themePanelFooterLines(block string) []string {
 	return strings.Split(ansi.Strip(block), "\n")
 }
 
-// themePanelFooterCopy reduces one rendered row to its `<glyph> <label>` reading:
-// the key column's padding and the row's pad-to-width collapse away, leaving the
-// pinned phrase. It is what lets the pinned copy be asserted verbatim against a row
-// whose glyph sits in a fixed-width column.
+// Collapses the key column's padding and the row's pad-to-width, so a pinned
+// phrase can be asserted verbatim against a row whose glyph sits in a fixed column.
 func themePanelFooterCopy(row string) string {
 	return strings.Join(strings.Fields(row), " ")
 }
 
-// TestThemePanelFooter_PinnedCopy asserts the rendered footer is EXACTLY the four
-// the pinned copy rows, in descriptor order, one line each.
-//
-// The copy is a layout constraint as much as a copy choice — it has to fit
-// 24–30 columns — so it is pinned verbatim rather than paraphrased, and the row
-// count is pinned with it: a fifth row would silently grow the panel's height
-// floor.
+// The copy is a layout constraint as much as a copy choice — it has to fit 24–30
+// columns — and a fifth row would silently grow the panel's height floor.
 func TestThemePanelFooter_PinnedCopy(t *testing.T) {
 	block := renderThemePanelFooter(themePanelKeymap(), themePanelFooterTestWidth, testDarkTheme(t), false)
 	lines := themePanelFooterLines(block)
@@ -87,13 +57,9 @@ func TestThemePanelFooter_PinnedCopy(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooter_NonCoreEntriesAreNotRendered asserts the descriptor-governed keymap
-// rule split from the render side: the arrows and paging the descriptor must carry are ABSENT
-// from the footer.
-//
-// The two halves are one rule, not two: the descriptor is complete for the
-// dispatch guard, and the footer filters to Core — so neither the six-entry scope
-// nor the pinned copy's four-row footer is a special case of the other.
+// The descriptor is complete for the dispatch guard and the footer filters to
+// Core, so neither the six-entry scope nor the four-row footer is a special case
+// of the other.
 func TestThemePanelFooter_NonCoreEntriesAreNotRendered(t *testing.T) {
 	entries := themePanelKeymap()
 	visible := ansi.Strip(renderThemePanelFooter(entries, themePanelFooterTestWidth, testDarkTheme(t), false))
@@ -113,10 +79,6 @@ func TestThemePanelFooter_NonCoreEntriesAreNotRendered(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooter_KeyIsAccentKeyLabelIsTextMuted asserts the panel layout's token table
-// for the footer — "key glyphs accent.key, labels text.muted, the same split the
-// horizontal footer uses" — as DISTINCT SGR runs, so the assertion says which text
-// each token painted rather than merely that both tokens appear on the line.
 func TestThemePanelFooter_KeyIsAccentKeyLabelIsTextMuted(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		block := renderThemePanelFooter(themePanelKeymap(), themePanelFooterTestWidth, th, false)
@@ -137,14 +99,9 @@ func TestThemePanelFooter_KeyIsAccentKeyLabelIsTextMuted(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooter_KeyColumnIsFixedWidth asserts the labels share one left
-// edge: the key column is padded to a FIXED width, so `⏎`, `d`, `l` and `esc` all
-// hand off to their labels at the same column.
-//
-// The width is fixed rather than derived from the entries it is handed, and the
-// substituted confirm scope is asserted to land on the SAME edge — the
-// `y`/`n` footer replaces this one in place, and a per-slice column would step
-// every label two cells left as the confirm raises and back as it resolves.
+// The key column width is fixed rather than derived from the entries it is handed:
+// a per-slice column would step every label two cells left as the confirm raises
+// and back as it resolves.
 func TestThemePanelFooter_KeyColumnIsFixedWidth(t *testing.T) {
 	th := testDarkTheme(t)
 	wantEdge := themePanelFooterKeyColumnWidth + lipgloss.Width(footerKeyLabelGap)
@@ -185,13 +142,8 @@ func TestThemePanelFooter_KeyColumnIsFixedWidth(t *testing.T) {
 	})
 }
 
-// TestThemePanelFooter_AcceptsASubstitutedScope is the substitution point:
-// handed the nested confirm scope's entries the SAME renderer produces the
-// confirm's footer, with no change to the renderer and no second one.
-//
-// The picker idiom switches the panel footer to `y confirm` / `n cancel` while the
-// slot-from-constant confirm is live and back when it resolves, so a renderer that
-// reached for themePanelKeymap() internally would have to be forked to do it.
+// A renderer that reached for themePanelKeymap() internally would have to be
+// forked to render the confirm scope.
 func TestThemePanelFooter_AcceptsASubstitutedScope(t *testing.T) {
 	block := renderThemePanelFooter(themePanelConfirmKeymap(), themePanelFooterTestWidth, testDarkTheme(t), false)
 	rows := themePanelFooterLines(block)
@@ -212,12 +164,8 @@ func TestThemePanelFooter_AcceptsASubstitutedScope(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooter_HeightMatchesRender asserts themePanelFooterHeight is the
-// height of the block that actually renders — for the panel scope AND the
-// substituted confirm scope, at both ends of the width band and in both palettes.
-//
-// The panel's layout subtracts this value and its height floor adds it, so
-// a height that is merely CORRECT rather than MEASURED is one refactor away from
+// The panel's layout subtracts this value and its height floor adds it, so a
+// height that is merely correct rather than measured is one refactor away from
 // reserving a row the footer does not draw.
 func TestThemePanelFooter_HeightMatchesRender(t *testing.T) {
 	for _, tc := range []struct {
@@ -245,13 +193,8 @@ func TestThemePanelFooter_HeightMatchesRender(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooter_WidestRowIsMeasured: it pins the widest composed footer row.
-//
-// The panel's assembly argues that no row it composes can exceed the minimum inner
-// width, and it cites this figure to make the case. A cited measurement nobody
-// executes is a claim that quietly goes stale the first time a label or the key
-// column moves, so the number is asserted against the rendered rows — and against
-// the minimum inner width it has to clear.
+// The panel's assembly relies on no composed row exceeding the minimum inner
+// width, so the figure is measured against the rendered rows rather than cited.
 func TestThemePanelFooter_WidestRowIsMeasured(t *testing.T) {
 	const wantWidest = 16
 
@@ -271,13 +214,8 @@ func TestThemePanelFooter_WidestRowIsMeasured(t *testing.T) {
 	}
 }
 
-// TestThemePanelFooter_Colourless asserts the NO_COLOR carve-out: the
-// footer drops the canvas and every hue and renders on the terminal's native
-// fg/bg, with the pinned copy structurally intact.
-//
-// The NO_COLOR panel block blocks the panel under NO_COLOR outright, so this is the defence
-// rather than the daily path — the footer must not be the one surface that reintroduces
-// a colour the carve-out removed everywhere else.
+// The panel is blocked under NO_COLOR outright, so this is the defence rather than
+// the daily path: the footer must not reintroduce a colour the carve-out removed.
 func TestThemePanelFooter_Colourless(t *testing.T) {
 	th := testDarkTheme(t)
 	block := renderThemePanelFooter(themePanelKeymap(), themePanelFooterTestWidth, th, true)
@@ -299,9 +237,7 @@ func TestThemePanelFooter_Colourless(t *testing.T) {
 	}
 }
 
-// themePanelFooterCoreEntries is the panel scope's Core entries in descriptor
-// order — the rows the footer renders, resolved from the descriptor so a test
-// cannot hold its own second copy of the split.
+// Resolved from the descriptor so a test cannot hold its own second copy of the split.
 func themePanelFooterCoreEntries(t *testing.T) []keymapEntry {
 	t.Helper()
 	core := coreEntriesOf(themePanelKeymap())
@@ -311,11 +247,8 @@ func themePanelFooterCoreEntries(t *testing.T) []keymapEntry {
 	return core
 }
 
-// themePanelFooterLabelColumn returns the CELL column a row's label starts at.
-//
-// It measures in cells rather than bytes because the key glyphs are multi-byte
-// (`⏎` alone is three), and a byte offset would report a shared left edge as three
-// different columns — which is the thing the test is trying to tell apart.
+// Measures in cells rather than bytes: the key glyphs are multi-byte, and a byte
+// offset would report a shared left edge as three different columns.
 func themePanelFooterLabelColumn(t *testing.T, row, label string) int {
 	t.Helper()
 	at := strings.Index(row, label)
@@ -325,7 +258,6 @@ func themePanelFooterLabelColumn(t *testing.T, row, label string) int {
 	return lipgloss.Width(row[:at])
 }
 
-// coreEntriesOf filters any entry slice to its Core entries, preserving order.
 func coreEntriesOf(entries []keymapEntry) []keymapEntry {
 	core := make([]keymapEntry, 0, len(entries))
 	for _, e := range entries {

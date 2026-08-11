@@ -1,21 +1,5 @@
 package tui
 
-// persistent-no-host-terminal-banner-2-2 — Proactive Multi-Select Entry Block +
-// TUI-local blocked-entry flash helper (spec §3 / §5).
-//
-// These white-box (package tui) tests drive the `m` keypress through
-// updateSessionList → handleMultiSelectToggle and assert the §3 proactive block:
-// once detection has resolved unsupported (NULL or named), pressing `m` does NOT
-// open multi-select — it sets a transient blocked-entry flash (§5 copy) and
-// returns, instead of walking the user to a guaranteed dead-end at the N≥2 Enter.
-// The retained reactive backstop (decideBurst) covers only the async in-flight
-// window, so an in-flight `m` still enters (A1). WithInitialMultiSelect (the
-// capture-harness construction seam) is deliberately NOT gated. A supported
-// terminal is unaffected.
-//
-// No t.Parallel: consistent with the rest of the tui test surface (package-level
-// mocks + shared canvas helpers).
-
 import (
 	"strings"
 	"testing"
@@ -25,11 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/spawn"
 )
 
-// TestMultiSelectBlockedFlashText pins the §5 blocked-entry copy at the
-// pure-function level: NULL/remote vs named shape selected via id.IsNull()
-// (mirroring unsupportedFlashText's branch), and — unlike the reactive no-op —
-// NO ⚠ glyph in either string (the notice band prepends it) and NO
-// `— nothing opened` suffix (a pre-emptive block attempts nothing).
 func TestMultiSelectBlockedFlashText(t *testing.T) {
 	tests := []struct {
 		name string
@@ -62,9 +41,6 @@ func TestMultiSelectBlockedFlashText(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_NamedUnsupported asserts the core §3 block on a
-// resolved-unsupported NAMED terminal: `m` does NOT enter the mode, marks
-// nothing, and sets the named block flash.
 func TestMultiSelectEntryBlock_NamedUnsupported(t *testing.T) {
 	m := unsupportedResolvedModel(t, appleTerminalIdentity())
 	if !m.DetectUnsupported() {
@@ -85,9 +61,6 @@ func TestMultiSelectEntryBlock_NamedUnsupported(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_NullRemote asserts the §3 block on a resolved NULL /
-// remote terminal (spawn.Identity{}): the mode stays closed and the remote block
-// flash is set.
 func TestMultiSelectEntryBlock_NullRemote(t *testing.T) {
 	m := unsupportedResolvedModel(t, spawn.Identity{})
 	if !m.DetectUnsupported() {
@@ -108,9 +81,6 @@ func TestMultiSelectEntryBlock_NullRemote(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_FlashClearsOnNextActionableKey asserts the block
-// flash self-clears on the next actionable key (the authoritative §11 key-driven
-// clear path at the top of updateSessionList).
 func TestMultiSelectEntryBlock_FlashClearsOnNextActionableKey(t *testing.T) {
 	m := unsupportedResolvedModel(t, appleTerminalIdentity())
 	m = pressSession(t, m, pressM)
@@ -125,11 +95,6 @@ func TestMultiSelectEntryBlock_FlashClearsOnNextActionableKey(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_NamedTwoRowCoRender asserts the §5 named two-row
-// co-render after a blocked m: the persistent banner on the header row and the
-// block flash on the notice-band row, BOTH carrying the ⚠ glyph, with the notice
-// band NOT repeating the banner's `unsupported terminal` text, the identity
-// string, or `see docs` (intent-only copy — the non-repetition constraint).
 func TestMultiSelectEntryBlock_NamedTwoRowCoRender(t *testing.T) {
 	m := unsupportedResolvedModel(t, appleTerminalIdentity())
 	m = pressSession(t, m, pressM)
@@ -138,7 +103,6 @@ func TestMultiSelectEntryBlock_NamedTwoRowCoRender(t *testing.T) {
 		t.Fatal("a blocked m on a named terminal must keep the persistent banner active")
 	}
 
-	// Row 1 — the section-header row carries the ⚠ unsupported-terminal banner.
 	first := ansi.Strip(bannerFirstLine(m))
 	if !strings.Contains(first, flashWarningGlyph) {
 		t.Errorf("banner row must carry the %q glyph:\n%s", flashWarningGlyph, first)
@@ -147,7 +111,6 @@ func TestMultiSelectEntryBlock_NamedTwoRowCoRender(t *testing.T) {
 		t.Errorf("banner row must carry %q:\n%s", "unsupported terminal", first)
 	}
 
-	// Row 2 — the notice band carries the ⚠ + the intent-only block flash.
 	band := ansi.Strip(m.renderActiveNoticeBand())
 	if !strings.Contains(band, flashWarningGlyph) {
 		t.Errorf("notice band must carry the %q glyph:\n%s", flashWarningGlyph, band)
@@ -155,8 +118,6 @@ func TestMultiSelectEntryBlock_NamedTwoRowCoRender(t *testing.T) {
 	if !strings.Contains(band, "multi-select isn't available on this terminal") {
 		t.Errorf("notice band must carry the block flash string:\n%s", band)
 	}
-	// Non-repetition constraint (§5): the block flash is intent-only — it must NOT
-	// repeat what the co-rendered banner already supplies.
 	for _, forbidden := range []string{"unsupported terminal", "Apple Terminal", "com.apple.Terminal", "see docs"} {
 		if strings.Contains(band, forbidden) {
 			t.Errorf("notice band must NOT repeat %q (the banner already supplies it):\n%s", forbidden, band)
@@ -164,9 +125,6 @@ func TestMultiSelectEntryBlock_NamedTwoRowCoRender(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_RepeatedMReBlocks asserts a second m while the block
-// flash shows clears then re-blocks + re-flashes (intentional §5 behaviour): the
-// mode stays closed and the block flash is re-set.
 func TestMultiSelectEntryBlock_RepeatedMReBlocks(t *testing.T) {
 	m := unsupportedResolvedModel(t, appleTerminalIdentity())
 	m = pressSession(t, m, pressM)
@@ -181,10 +139,6 @@ func TestMultiSelectEntryBlock_RepeatedMReBlocks(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_InFlightStillEnters asserts the async in-flight
-// window is NOT blocked (A1): while detection is dispatched but not resolved,
-// DetectUnsupported() is false so pressing m still enters the mode — the retained
-// reactive backstop (decideBurst) covers this path.
 func TestMultiSelectEntryBlock_InFlightStillEnters(t *testing.T) {
 	m, _ := dispatchWarmDetection(t, &fakeDetector{identity: appleTerminalIdentity()}, nativeResolve())
 	if !m.DetectDispatched() {
@@ -204,10 +158,6 @@ func TestMultiSelectEntryBlock_InFlightStillEnters(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_WithInitialMultiSelectNotGated asserts the
-// construction seam is NOT gated: WithInitialMultiSelect combined with
-// resolved-unsupported detection still opens the mode at construction (the
-// capture harness sets multiSelectMode directly, not via a keypress).
 func TestMultiSelectEntryBlock_WithInitialMultiSelectNotGated(t *testing.T) {
 	id := appleTerminalIdentity()
 	m := New(fakeLister{},
@@ -223,9 +173,6 @@ func TestMultiSelectEntryBlock_WithInitialMultiSelectNotGated(t *testing.T) {
 	}
 }
 
-// TestMultiSelectEntryBlock_SupportedEntersNoFlash guards the supported path: a
-// resolved-supported (ghostty → native) terminal still enters the mode on m and
-// sets no flash.
 func TestMultiSelectEntryBlock_SupportedEntersNoFlash(t *testing.T) {
 	m := unsupportedResolvedModel(t, ghosttyIdentity())
 	if m.DetectUnsupported() {

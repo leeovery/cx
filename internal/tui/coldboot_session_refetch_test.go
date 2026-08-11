@@ -1,30 +1,5 @@
 package tui
 
-// spectrum-tui-design-5-8 — Part B carry-forward fix.
-//
-// On the §10.2 concurrent cold-boot route the orchestrator runs in a goroutine
-// CONCURRENTLY with the live event loop. fetchSessions fires once from Init
-// (frame one) — BEFORE Restore (bootstrap step 6) has created the saved
-// skeleton sessions. That Init snapshot is therefore STALE/EMPTY: the restored
-// sessions do not exist yet when Init enumerates. Without a re-fetch the picker
-// renders the stale Init snapshot post-transition — the prior-incident
-// "empty-previews / slow-open" surface (§10.2 prior-incident history).
-//
-// The fix: on the terminal BootstrapCompleteMsg (cold/TUI route only, i.e. a
-// non-nil progressReceiver), dispatch a fresh ListSessions so the Sessions page
-// that appears post-transition reflects post-restore tmux state, NOT the empty
-// Init snapshot. The warm/synchronous route (nil progressReceiver) must NOT
-// re-fetch: its Init snapshot is already post-restore (PersistentPreRunE ran the
-// orchestrator synchronously before the model was built), so a re-fetch there
-// would be wasted work and a behaviour change.
-//
-// These tests live in package tui (white-box) so they can read the model's
-// internal sessionList state via the visibleSessionNames helper and set
-// progressReceiver directly.
-//
-// No t.Parallel: consistent with the cmd-package convention and the rest of the
-// tui test surface (which mutates list state through Update).
-
 import (
 	"errors"
 	"fmt"
@@ -36,11 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// coldBootStepLister returns a DIFFERENT session snapshot per call, modelling
-// the concurrent cold boot: call 1 (Init fetchSessions, fired at frame one
-// before Restore) sees the EMPTY pre-restore server; call 2 (the post-complete
-// re-fetch this task adds) sees the restored sessions. calls counts invocations
-// so a test can assert the re-fetch happened exactly once.
 type coldBootStepLister struct {
 	steps [][]tmux.Session
 	calls int
@@ -55,36 +25,19 @@ func (l *coldBootStepLister) ListSessions() ([]tmux.Session, error) {
 	return l.steps[idx], nil
 }
 
-// driveColdBootToSessions runs the cold/TUI loading lifecycle on m to the point
-// just past transitionFromLoading, draining the re-fetch the terminal
-// BootstrapCompleteMsg dispatches. It returns the final Model on PageSessions.
-//
-// Ordering mirrors production on the cold/TUI route:
-//  1. Init's fetchSessions delivers the STALE (pre-restore) SessionsMsg while on
-//     PageLoading — ingested but does not transition.
-//  2. LoadingMinElapsedMsg sets minElapsed.
-//  3. The terminal BootstrapCompleteMsg arrives — bootstrapComplete + minElapsed
-//     both true → transitionFromLoading fires AND the post-complete re-fetch
-//     command is dispatched.
-//  4. The re-fetch's SessionsMsg (post-restore snapshot) is fed back through
-//     Update on PageSessions, re-rendering the list.
 func driveColdBootToSessions(t *testing.T, m Model, staleSnapshot []tmux.Session) Model {
 	t.Helper()
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Step 1 — stale Init snapshot ingested while on PageLoading.
 	model, _ = model.Update(SessionsMsg{Sessions: staleSnapshot})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after stale SessionsMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Step 2 — min-display floor elapsed.
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 
-	// Step 3 — terminal complete event. On the cold/TUI route this both
-	// transitions off PageLoading AND dispatches the post-complete re-fetch.
 	model, completeCmd := model.Update(BootstrapCompleteMsg{})
 	if model.(Model).ActivePage() != PageSessions {
 		t.Fatalf("expected PageSessions after min+complete, got %v", model.(Model).ActivePage())
@@ -93,25 +46,13 @@ func driveColdBootToSessions(t *testing.T, m Model, staleSnapshot []tmux.Session
 		t.Fatal("expected a post-complete re-fetch command from BootstrapCompleteMsg on the cold/TUI route, got nil")
 	}
 
-	// Step 4 — feed the re-fetch result (post-restore snapshot) back through
-	// Update so the list re-renders. The re-fetch cmd is batched with the
-	// warnings-surface cmd; drain the batch so the SessionsMsg lands.
 	return drainBatchToModel(t, model.(Model), completeCmd)
 }
 
-// oneProjectLoaded is the shared single-project record the cold-route landing
-// tests deliver via ProjectsLoadedMsg so PageProjects is a meaningful landing
-// surface rather than an empty page. Folding it into one place keeps the literal
-// from drifting across the cluster of tests that deliver it.
 func oneProjectLoaded() []project.Project {
 	return []project.Project{{Path: "/p/one", Name: "one"}}
 }
 
-// twoRestoredSessions is the shared two-element post-restore snapshot the
-// cold-route refetch tests return as the restored fixture. Folding it into one
-// place keeps the literal from drifting across the cluster of tests that use it,
-// and twoRestoredSessionNames derives the paired expected-names list from these
-// same records so the fixture and its assertion cannot silently diverge.
 func twoRestoredSessions() []tmux.Session {
 	return []tmux.Session{
 		{Name: "restored-alpha", Windows: 1},
@@ -119,10 +60,6 @@ func twoRestoredSessions() []tmux.Session {
 	}
 }
 
-// twoRestoredSessionNames is the expected visible-names list paired with
-// twoRestoredSessions. It derives the names from the fixture itself so editing a
-// session name in twoRestoredSessions automatically tracks here — there is no
-// hand-synced second literal to drift.
 func twoRestoredSessionNames() []string {
 	sessions := twoRestoredSessions()
 	names := make([]string, 0, len(sessions))
@@ -132,11 +69,6 @@ func twoRestoredSessionNames() []string {
 	return names
 }
 
-// assertVisibleSessionNames asserts the model's visible session names equal want
-// in order. context frames the length-mismatch fatal so each call site keeps its
-// own meaningful failure wording (the per-index mismatch error is uniform). It
-// wraps the len-check (t.Fatalf) + index loop (t.Errorf) the cold-route tests
-// previously repeated verbatim.
 func assertVisibleSessionNames(t *testing.T, m Model, want []string, context string) {
 	t.Helper()
 	got := visibleSessionNames(m)
@@ -150,70 +82,36 @@ func assertVisibleSessionNames(t *testing.T, m Model, want []string, context str
 	}
 }
 
-// driveColdBootToTransition runs the cold/TUI loading lifecycle on m through the
-// terminal BootstrapCompleteMsg transition — the FIRST half of the AC
-// landing-page drive sequence — and returns the interim Model (just past
-// transitionFromLoading, BEFORE the post-restore refetch is drained) together
-// with the batched completeCmd the transition dispatched.
-//
-// It encapsulates the spec's mandatory Testing-Requirements ordering in ONE
-// place: WindowSizeMsg → the stale (pre-restore) SessionsMsg + its PageLoading
-// invariant → ProjectsLoadedMsg (delivered while still on PageLoading, BEFORE
-// the transition, so projectsLoaded=true and evaluateDefaultPage's latch is
-// genuinely exercised) + its PageLoading invariant → LoadingMinElapsedMsg →
-// BootstrapCompleteMsg.
-//
-// Callers that need the pre-refetch interim model (the one-Update-cycle interim
-// window the deferral introduces) assert against the returned interim Model and
-// then drain completeCmd via drainBatchToModel; callers that only need the final
-// landing use driveColdBootWithProjects, which folds the drain in.
 func driveColdBootToTransition(t *testing.T, m Model, staleSnapshot []tmux.Session) (Model, tea.Cmd) {
 	t.Helper()
 
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Stale Init snapshot ingested while on PageLoading.
 	model, _ = model.Update(SessionsMsg{Sessions: staleSnapshot})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after stale SessionsMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// MANDATORY (spec Testing Requirements): deliver ProjectsLoadedMsg while on
-	// PageLoading BEFORE the transition. This sets projectsLoaded=true so
-	// evaluateDefaultPage can latch on the stale interim list pre-fix — omitting
-	// it makes the test pass for the wrong reason.
+	// This must land before the transition: with projectsLoaded false the
+	// landing latch never fires and the test passes vacuously.
 	model, _ = model.Update(ProjectsLoadedMsg{Projects: oneProjectLoaded()})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after ProjectsLoadedMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Close both gates: min-display floor elapsed, then terminal complete.
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 	model, completeCmd := model.Update(BootstrapCompleteMsg{})
 
 	return model.(Model), completeCmd
 }
 
-// driveColdBootWithProjects runs the full cold-route landing drive sequence —
-// driveColdBootToTransition plus the post-restore refetch drain — and returns
-// the drained Model on its final landing page. This is the SECOND-half-folded-in
-// convenience used by the landing tests that only need the final page; tests
-// needing the pre-refetch interim model call driveColdBootToTransition directly.
 func driveColdBootWithProjects(t *testing.T, m Model, staleSnapshot []tmux.Session) Model {
 	t.Helper()
 	interim, completeCmd := driveColdBootToTransition(t, m, staleSnapshot)
 	return drainBatchToModel(t, interim, completeCmd)
 }
 
-// drainBatchToModel resolves a (possibly tea.Batch) cmd into its constituent
-// messages and feeds each back through Update. A tea.Batch returns a
-// tea.BatchMsg (a slice of child cmds), so a plain single-step drain would not
-// execute the re-fetch hiding inside it. This helper unwraps one batch level,
-// runs each child cmd, and applies any resulting message — sufficient for the
-// (warnings, re-fetch) batch the transition arms emit. Any further commands a
-// child's Update returns (e.g. a filterItems cmd from SetItems) are drained
-// through Update too.
 func drainBatchToModel(t *testing.T, m Model, cmd tea.Cmd) Model {
 	t.Helper()
 	if cmd == nil {
@@ -242,23 +140,11 @@ func drainBatchToModel(t *testing.T, m Model, cmd tea.Cmd) Model {
 	return um
 }
 
-// TestColdBoot_PostCompleteRefetch_ReflectsRestoredSessions is the core Part B
-// assertion: the cold-boot picker reflects sessions that appeared DURING restore
-// (the post-restore snapshot), NOT the empty Init snapshot.
 func TestColdBoot_PostCompleteRefetch_ReflectsRestoredSessions(t *testing.T) {
-	// The driver feeds the Init/stale snapshot manually via SessionsMsg (Init's
-	// frame-one fetch is simulated, not driven through the lister), so the
-	// lister's ONLY real invocation is the post-complete re-fetch — it must
-	// return the POST-restore snapshot.
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	restored := twoRestoredSessions()
 	lister := &coldBootStepLister{steps: [][]tmux.Session{restored}}
 
-	// Cold/TUI route: serverStarted=true (loading page) + a non-nil
-	// progressReceiver (the channel-owns-the-terminal-event marker). The receiver
-	// itself is never invoked in this test — we drive the messages directly — but
-	// its presence is what gates the re-fetch (production scopes the re-fetch to
-	// the concurrent route).
 	m := New(lister,
 		WithServerStarted(true),
 		WithProgressReceiver(func() tea.Msg { return nil }),
@@ -266,11 +152,6 @@ func TestColdBoot_PostCompleteRefetch_ReflectsRestoredSessions(t *testing.T) {
 
 	final := driveColdBootToSessions(t, m, stale)
 
-	// This block keeps its own distinct failure messaging (the POST-restore vs
-	// empty-Init framing and the "post-restore session mismatch" index error carry
-	// meaning), so it is intentionally NOT routed through assertVisibleSessionNames;
-	// only the expected-names literal is derived from the shared fixture so it
-	// cannot drift.
 	got := visibleSessionNames(final)
 	want := twoRestoredSessionNames()
 	if len(got) != len(want) {
@@ -282,23 +163,14 @@ func TestColdBoot_PostCompleteRefetch_ReflectsRestoredSessions(t *testing.T) {
 		}
 	}
 
-	// The re-fetch must have fired exactly once (the driver simulates the Init
-	// fetch via a manual SessionsMsg, so the lister's only call is the re-fetch).
 	if lister.calls != 1 {
 		t.Errorf("expected exactly 1 ListSessions call (the post-complete re-fetch), got %d", lister.calls)
 	}
 }
 
-// TestColdBoot_PostCompleteRefetch_CompleteBeforeMinElapsed covers the FAST
-// cold-boot ordering: BootstrapCompleteMsg arrives BEFORE LoadingMinElapsedMsg
-// (a very fast cold boot where restore finishes before the 1.2s pad). The
-// re-fetch must fire when the LATER of the two gates closes — here the
-// LoadingMinElapsedMsg — so the post-restore snapshot still wins.
 func TestColdBoot_PostCompleteRefetch_CompleteBeforeMinElapsed(t *testing.T) {
 	stale := []tmux.Session{}
 	restored := []tmux.Session{{Name: "fast-restored", Windows: 1}}
-	// Only the re-fetch drives the lister (the stale Init snapshot is fed
-	// manually below), so the lister returns the post-restore snapshot.
 	lister := &coldBootStepLister{steps: [][]tmux.Session{restored}}
 
 	m := New(lister,
@@ -310,8 +182,6 @@ func TestColdBoot_PostCompleteRefetch_CompleteBeforeMinElapsed(t *testing.T) {
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model, _ = model.Update(SessionsMsg{Sessions: stale})
 
-	// Complete arrives FIRST (fast boot) — must NOT transition yet (minElapsed
-	// false) and must NOT re-fetch prematurely.
 	model, earlyCmd := model.Update(BootstrapCompleteMsg{})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("expected to stay on PageLoading when complete arrives before minElapsed, got %v", model.(Model).ActivePage())
@@ -320,7 +190,6 @@ func TestColdBoot_PostCompleteRefetch_CompleteBeforeMinElapsed(t *testing.T) {
 		t.Fatalf("expected no re-fetch while still on PageLoading (minElapsed false), got %T", earlyCmd)
 	}
 
-	// minElapsed closes the second gate → transition + re-fetch.
 	model, lateCmd := model.Update(LoadingMinElapsedMsg{})
 	if model.(Model).ActivePage() != PageSessions {
 		t.Fatalf("expected PageSessions after min closes the second gate, got %v", model.(Model).ActivePage())
@@ -336,27 +205,8 @@ func TestColdBoot_PostCompleteRefetch_CompleteBeforeMinElapsed(t *testing.T) {
 	}
 }
 
-// TestColdBoot_NPositive_LandsOnSessions is the AC1 reproduction: on the cold
-// concurrent route, when N>0 sessions were restored, the picker must land on
-// PageSessions with all restored names visible — no x press required.
-//
-// The exact bug ordering runs through the shared driveColdBootWithProjects
-// driver, which delivers ProjectsLoadedMsg while on PageLoading BEFORE the
-// transition (the older driveColdBootToSessions driver omits it). That delivery
-// is mandatory: without it projectsLoaded stays false and the evaluateDefaultPage
-// latch can never fire on the stale interim list, so a pre-fix run would pass
-// vacuously.
-//
-// Pre-fix this test FAILS: transitionFromLoading unconditionally sets
-// sessionsLoaded=true + evaluateDefaultPage() against the stale EMPTY interim
-// list → lands on PageProjects and latches defaultPageEvaluated, so the
-// post-restore refetch's SessionsMsg cannot re-decide. Post-fix it PASSES:
-// the cold route defers the landing to the refetch.
 func TestColdBoot_NPositive_LandsOnSessions(t *testing.T) {
-	// The driver feeds the Init/stale snapshot manually via SessionsMsg, so the
-	// lister's ONLY real invocation is the post-restore refetch — it returns the
-	// restored N>0 snapshot.
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	restored := twoRestoredSessions()
 	lister := &coldBootStepLister{steps: [][]tmux.Session{restored}}
 
@@ -366,10 +216,6 @@ func TestColdBoot_NPositive_LandsOnSessions(t *testing.T) {
 		WithProjectStore(stubProjectStore{}),
 	)
 
-	// The shared driver performs the mandatory cold-route sequence — including
-	// the ProjectsLoadedMsg-before-transition delivery and both pre-transition
-	// PageLoading invariants — and drains the refetch so the landing decision is
-	// made against the repaired post-restore list.
 	final := driveColdBootWithProjects(t, m, stale)
 
 	if final.ActivePage() != PageSessions {
@@ -381,20 +227,10 @@ func TestColdBoot_NPositive_LandsOnSessions(t *testing.T) {
 		fmt.Sprintf("expected all %d restored names visible", len(want)))
 }
 
-// TestWarmRoute_NoPostCompleteRefetch pins the warm/synchronous parity: with a
-// NIL progressReceiver (the synchronous warm/CLI route) the model must NOT
-// dispatch a post-complete re-fetch. On that route PersistentPreRunE ran the
-// orchestrator synchronously before the model was built, so the Init snapshot is
-// already post-restore; a re-fetch would be a wasted call and a behaviour change.
 func TestWarmRoute_NoPostCompleteRefetch(t *testing.T) {
-	// A single snapshot — the synchronous route's Init fetch already saw it.
 	sessions := []tmux.Session{{Name: "warm-already-live", Windows: 1}}
 	lister := &coldBootStepLister{steps: [][]tmux.Session{sessions}}
 
-	// Warm/synchronous route: serverStarted=true forces the loading page (the
-	// 1.2s pad still applies on a synchronous boot), but NO progressReceiver — so
-	// Init synthesizes BootstrapCompleteMsg itself and the model must keep today's
-	// behaviour (no re-fetch).
 	m := New(lister, WithServerStarted(true))
 
 	var model tea.Model = m
@@ -402,10 +238,6 @@ func TestWarmRoute_NoPostCompleteRefetch(t *testing.T) {
 	model, _ = model.Update(SessionsMsg{Sessions: sessions})
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 
-	// Terminal complete on the synchronous route must transition WITHOUT a
-	// re-fetch cmd. No warnings were staged, so surfaceBufferedWarnings yields
-	// nil and refetchSessionsAfterRestore yields nil on the warm route ⇒ the
-	// batched cmd collapses to nil.
 	callsBefore := lister.calls
 	model, completeCmd := model.Update(BootstrapCompleteMsg{})
 	if model.(Model).ActivePage() != PageSessions {
@@ -413,7 +245,6 @@ func TestWarmRoute_NoPostCompleteRefetch(t *testing.T) {
 	}
 	if completeCmd != nil {
 		t.Errorf("warm/synchronous route must NOT dispatch a post-complete re-fetch (or any cmd with no warnings); got non-nil cmd %T", completeCmd)
-		// Drain it to surface any ListSessions side effect in the count below.
 		drainBatchToModel(t, model.(Model), completeCmd)
 	}
 	if lister.calls != callsBefore {
@@ -421,21 +252,8 @@ func TestWarmRoute_NoPostCompleteRefetch(t *testing.T) {
 	}
 }
 
-// TestColdBoot_ZeroSessions_LandsOnProjects is the AC2 over-correction guard: the
-// 1-1 fix defers the landing decision to the post-restore refetch's SessionsMsg,
-// but it must NOT over-correct — a genuine zero-session cold boot (the refetch
-// itself returns an EMPTY snapshot) must still land on PageProjects. The deferral
-// changes WHEN the len(Items())>0 test runs, never WHAT it tests: empty → Projects.
-//
-// This is distinct from the stale-empty Init snapshot. Here BOTH the Init snapshot
-// AND the post-restore refetch are empty — restore reconstructed nothing — so the
-// deferred decision runs against a genuinely empty list and correctly chooses
-// Projects. A meaningful (>=1) project record is delivered so Projects is a real
-// landing surface rather than an empty page.
 func TestColdBoot_ZeroSessions_LandsOnProjects(t *testing.T) {
-	// The refetch is the lister's ONLY real invocation (the stale Init snapshot is
-	// fed manually below) — it returns an EMPTY slice, the genuine zero-session case.
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	lister := &coldBootStepLister{steps: [][]tmux.Session{{}}}
 
 	m := New(lister,
@@ -444,10 +262,6 @@ func TestColdBoot_ZeroSessions_LandsOnProjects(t *testing.T) {
 		WithProjectStore(stubProjectStore{}),
 	)
 
-	// The shared driver delivers the mandatory ProjectsLoadedMsg (a meaningful
-	// >=1-project landing surface) before the transition and drains the empty
-	// post-restore refetch, so the landing decision runs against the repaired
-	// (genuinely empty) list.
 	final := driveColdBootWithProjects(t, m, stale)
 
 	if final.ActivePage() != PageProjects {
@@ -459,46 +273,23 @@ func TestColdBoot_ZeroSessions_LandsOnProjects(t *testing.T) {
 	}
 }
 
-// TestColdBoot_InitialFilter_RoutesToSessions is the AC3 filter-routing guard
-// (the filter co-defect): a cold boot carrying an initialFilter must route that
-// filter to the SESSION list — and consume it there — once the deferred decision
-// resolves the page to Sessions. Both the len(Items())>0 page test and the
-// initialFilter application live inside the single evaluateDefaultPage() call, so
-// deferring that call to the post-restore SessionsMsg routes the filter against
-// the repaired list, never against the stale interim list.
-//
-// evaluateDefaultPage applies initialFilter to the session list only when
-// activePage == PageSessions && !commandPending, then zeroes m.initialFilter
-// unconditionally — so on the cold route the filter lands on Sessions (the
-// deferred decision resolves to Sessions on the N>0 refetch) and the project list
-// is left untouched. The chosen names match the filter so the visible list is
-// non-empty (filtered-count behaviour is out of scope; the page decision is on
-// raw len(Items())).
 func TestColdBoot_InitialFilter_RoutesToSessions(t *testing.T) {
-	// The refetch is the lister's ONLY real invocation; it returns an N>0 snapshot
-	// where >=1 name matches the "alpha" filter so the visible list is non-empty.
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	restored := twoRestoredSessions()
 	lister := &coldBootStepLister{steps: [][]tmux.Session{restored}}
 
-	// WithInitialFilter is a post-construction Model method — chain it onto the
-	// New(...) result before driving the lifecycle.
 	m := New(lister,
 		WithServerStarted(true),
 		WithProgressReceiver(func() tea.Msg { return nil }),
 		WithProjectStore(stubProjectStore{}),
 	).WithInitialFilter("alpha")
 
-	// The shared driver delivers the mandatory ProjectsLoadedMsg before the
-	// transition and drains the N>0 post-restore refetch, so the deferred
-	// decision routes the filter against the repaired list.
 	final := driveColdBootWithProjects(t, m, stale)
 
 	if final.ActivePage() != PageSessions {
 		t.Fatalf("AC3: cold boot with initialFilter and N>0 must land on PageSessions, got %v", final.ActivePage())
 	}
 
-	// The filter routed to the SESSION list and was applied there.
 	if got := final.SessionListFilterValue(); got != "alpha" {
 		t.Errorf("AC3: session list filter value must equal the initial filter, want %q got %q", "alpha", got)
 	}
@@ -506,7 +297,6 @@ func TestColdBoot_InitialFilter_RoutesToSessions(t *testing.T) {
 		t.Errorf("AC3: session list filter state must be FilterApplied, got %v", got)
 	}
 
-	// The filter did NOT route to the PROJECT list.
 	if got := final.ProjectListFilterValue(); got != "" {
 		t.Errorf("AC3: project list filter value must be untouched (empty), got %q", got)
 	}
@@ -514,50 +304,19 @@ func TestColdBoot_InitialFilter_RoutesToSessions(t *testing.T) {
 		t.Errorf("AC3: project list filter state must NOT be FilterApplied, got %v", got)
 	}
 
-	// The initialFilter was consumed in the decision.
 	if got := final.InitialFilter(); got != "" {
 		t.Errorf("AC3: initialFilter must be zeroed after the deferred decision consumes it, got %q", got)
 	}
 }
 
-// cold-boot-restore-lands-on-projects-1-3 — Warm-route parity guard.
-//
-// The 1-1 fix (transitionFromLoading() gates the synchronous landing decision on
-// m.progressReceiver != nil — see internal/tui/model.go transitionFromLoading at
-// ~1843-1850 and refetchSessionsAfterRestore at ~1818-1823) must not perturb the
-// warm / CLI / synchronous route. These are TEST-ONLY parity / regression
-// assertions against the existing post-1-1 code — no production change. They lock
-// the zero-new-risk contract (spec §Constraints "Warm / CLI / direct-path
-// untouched"; the warm-path startup sequence has prior-incident history —
-// slow-open / zombie-session — so it must stay byte-identical to today): the warm
-// route (progressReceiver == nil) still decides the landing page synchronously at
-// transitionFromLoading() against its already-post-restore Init snapshot,
-// dispatches no post-complete refetch, lands on Sessions for N>0 (AC4) and on
-// Projects for zero sessions (AC5). They also lock AC6 — a commandPending launch
-// lands on Projects and never reaches the modified transition.
-//
-// No t.Parallel (cmd-package convention + the rest of the tui test surface).
-
-// TestWarmRoute_RefetchSessionsAfterRestore_Nil is the direct white-box predicate
-// assertion: refetchSessionsAfterRestore() returns nil on the warm route
-// (progressReceiver == nil) and non-nil on the cold route (progressReceiver
-// wired). progressReceiver != nil is the sole authoritative discriminator (spec
-// §Constraints "Canonical cold-route predicate"); pairing the two halves locks the
-// predicate symmetry — the warm route does NO extra enumeration, the cold route
-// always re-enumerates. (Model has a value receiver, so the method is called
-// directly on the value.)
 func TestWarmRoute_RefetchSessionsAfterRestore_Nil(t *testing.T) {
 	lister := &coldBootStepLister{steps: [][]tmux.Session{{}}}
 
-	// Warm route: serverStarted=true forces the loading page, but NO
-	// progressReceiver — proving the receiver, not serverStarted, gates the
-	// deferral/refetch.
 	warm := New(lister, WithServerStarted(true))
 	if cmd := warm.refetchSessionsAfterRestore(); cmd != nil {
 		t.Errorf("warm route (progressReceiver == nil) must return a nil refetch cmd, got non-nil")
 	}
 
-	// Cold route: a wired progressReceiver makes the predicate true → non-nil.
 	cold := New(lister,
 		WithServerStarted(true),
 		WithProgressReceiver(func() tea.Msg { return nil }),
@@ -567,20 +326,9 @@ func TestWarmRoute_RefetchSessionsAfterRestore_Nil(t *testing.T) {
 	}
 }
 
-// TestWarmRoute_ZeroSessions_LandsOnProjects is the AC5 guard: a warm/synchronous
-// boot whose Init snapshot is empty (zero sessions) lands on PageProjects, exactly
-// as today. On the warm route transitionFromLoading() sets sessionsLoaded=true and
-// runs evaluateDefaultPage() synchronously against the already-post-restore (here
-// empty) Init snapshot, so the len(Items())>0 test chooses Projects. The
-// transition must ALSO dispatch no post-complete refetch — the lister call count
-// must not bump across the transition (mirrors TestWarmRoute_NoPostCompleteRefetch
-// at ~309-342).
 func TestWarmRoute_ZeroSessions_LandsOnProjects(t *testing.T) {
-	// Empty Init snapshot — the synchronous route's Init fetch already saw it
-	// (zero sessions restored). No refetch should consume a second step.
 	lister := &coldBootStepLister{steps: [][]tmux.Session{{}}}
 
-	// Warm route: serverStarted=true forces the loading page, NO progressReceiver.
 	m := New(lister,
 		WithServerStarted(true),
 		WithProjectStore(stubProjectStore{}),
@@ -589,22 +337,16 @@ func TestWarmRoute_ZeroSessions_LandsOnProjects(t *testing.T) {
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Empty Init snapshot ingested while on PageLoading.
 	model, _ = model.Update(SessionsMsg{Sessions: nil})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after empty SessionsMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Deliver ProjectsLoadedMsg (>=1 project so Projects is a meaningful landing)
-	// while on PageLoading so evaluateDefaultPage() can resolve at the transition.
 	model, _ = model.Update(ProjectsLoadedMsg{Projects: oneProjectLoaded()})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after ProjectsLoadedMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Close both gates: min-display floor elapsed, then terminal complete. On the
-	// warm route transitionFromLoading() makes the synchronous landing decision
-	// here and must dispatch no refetch.
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 	callsBefore := lister.calls
 	model, completeCmd := model.Update(BootstrapCompleteMsg{})
@@ -614,10 +356,6 @@ func TestWarmRoute_ZeroSessions_LandsOnProjects(t *testing.T) {
 		t.Fatalf("AC5: warm boot with zero sessions must land on PageProjects, got %v", final.ActivePage())
 	}
 
-	// The warm transition handler must dispatch no post-complete refetch. No
-	// warnings were staged and refetchSessionsAfterRestore() returns nil on the
-	// warm route, so the batched cmd collapses to nil; even if non-nil, draining it
-	// must not bump the lister call count.
 	if completeCmd != nil {
 		drainBatchToModel(t, final, completeCmd)
 	}
@@ -626,31 +364,15 @@ func TestWarmRoute_ZeroSessions_LandsOnProjects(t *testing.T) {
 	}
 }
 
-// TestCommandPending_LandsOnProjects_NoInterimFlash is the AC6 guard: a
-// commandPending launch lands on PageProjects regardless of session count and is
-// never observed on the interim PageSessions the deferral introduces.
-//
-// Spec invariant (§Constraints "commandPending does not intersect the deferral"):
-// Init's commandPending branch (model.go ~1900-1902) returns BEFORE wiring
-// loadingPadTick / progressReceiver re-issue (model.go ~1909-1936), so
-// transitionFromLoading() is never invoked for a commandPending launch and no
-// interim Sessions flash occurs — even though WithProgressReceiver is wired here,
-// the commandPending short-circuit takes precedence. WithCommand
-// (model.go ~632-639) sets commandPending = true and activePage = PageProjects.
 func TestCommandPending_LandsOnProjects_NoInterimFlash(t *testing.T) {
-	// A non-empty snapshot would otherwise route a normal launch to Sessions —
-	// commandPending must override that and land on Projects regardless.
 	sessions := []tmux.Session{{Name: "live-session", Windows: 1}}
 	lister := &coldBootStepLister{steps: [][]tmux.Session{sessions}}
 
-	// WithProgressReceiver is wired to prove the commandPending short-circuit
-	// (Init's early return) takes precedence over the cold-route deferral.
 	m := New(lister,
 		WithServerStarted(true),
 		WithProgressReceiver(func() tea.Msg { return nil }),
 	).WithCommand([]string{"echo", "hi"})
 
-	// WithCommand set activePage = PageProjects immediately.
 	if m.ActivePage() != PageProjects {
 		t.Fatalf("setup invariant: WithCommand must set activePage = PageProjects, got %v", m.ActivePage())
 	}
@@ -658,9 +380,6 @@ func TestCommandPending_LandsOnProjects_NoInterimFlash(t *testing.T) {
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Deliver ProjectsLoadedMsg (>=1 project) so the commandPending arm of
-	// evaluateDefaultPage() can resolve. No loading-page dismissal machinery is
-	// involved — the commandPending launch never enters that path.
 	model, _ = model.Update(ProjectsLoadedMsg{Projects: oneProjectLoaded()})
 
 	final := model.(Model)
@@ -669,35 +388,8 @@ func TestCommandPending_LandsOnProjects_NoInterimFlash(t *testing.T) {
 	}
 }
 
-// cold-boot-restore-lands-on-projects-1-4 — Interim-page and late-ProjectsLoadedMsg
-// ordering invariants.
-//
-// The 1-1 fix (transitionFromLoading() in internal/tui/model.go:1843-1850 returns
-// early on the cold route, leaving sessionsLoaded=false so evaluateDefaultPage
-// early-returns) introduces a one-Update-cycle interim window between loading-page
-// dismissal and the post-restore refetch's SessionsMsg. These TEST-ONLY ordering
-// assertions lock three invariants against the post-1-1 code (no production
-// change): (a) the interim page is a valid picker page — PageSessions, never
-// PageLoading/blank/undefined (AC7); (b) a ProjectsLoadedMsg arriving in the
-// interim window does NOT latch Projects against the stale interim list, because
-// evaluateDefaultPage() early-returns on !sessionsLoaded; (c) a failing refetch
-// SessionsMsg quits without stranding the interim page (spec Constraints
-// "Failing refetch degrades to today's quit").
-//
-// No t.Parallel (cmd-package convention + the rest of the tui test surface).
-
-// TestColdBoot_InterimPage_IsValidSessions is the AC7 interim-window guard
-// (Testing Requirements case 5): immediately after the cold-route transition and
-// BEFORE the refetch SessionsMsg, ActivePage() must be PageSessions — a valid
-// picker page, never PageLoading or undefined — even though it briefly renders the
-// not-yet-repaired empty session list. The briefly-empty interim render is the
-// ACCEPTED state and must NOT be special-cased away. THEN, after draining the
-// refetch, the final landing is PageSessions per AC1 with all N restored names.
 func TestColdBoot_InterimPage_IsValidSessions(t *testing.T) {
-	// The driver feeds the Init/stale snapshot manually via SessionsMsg, so the
-	// lister's ONLY real invocation is the post-restore refetch — it returns the
-	// restored N>0 snapshot.
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	restored := twoRestoredSessions()
 	lister := &coldBootStepLister{steps: [][]tmux.Session{restored}}
 
@@ -707,29 +399,16 @@ func TestColdBoot_InterimPage_IsValidSessions(t *testing.T) {
 		WithProjectStore(stubProjectStore{}),
 	)
 
-	// Drive only the FIRST half — through the transition — so the interim model
-	// (the one-Update-cycle window between the transition and the refetch drain)
-	// can be asserted BEFORE completeCmd is drained. The driver performs the
-	// mandatory ProjectsLoadedMsg-before-transition delivery and both
-	// pre-transition PageLoading invariants.
 	interim, completeCmd := driveColdBootToTransition(t, m, stale)
 
-	// AC7: the interim page is a valid picker page — PageSessions, never
-	// PageLoading or undefined — even though the refetch SessionsMsg has not
-	// landed yet.
 	if interim.ActivePage() != PageSessions {
 		t.Fatalf("AC7: interim page (after transition, before refetch SessionsMsg) must be PageSessions (a valid picker page, never PageLoading/undefined), got %v", interim.ActivePage())
 	}
 
-	// The interim render is NOT special-cased: the briefly-empty interim Sessions
-	// list is the ACCEPTED state (no empty-state suppression). Assert it is empty
-	// here so a future special-case that hid it would be caught.
 	if got := visibleSessionNames(interim); len(got) != 0 {
 		t.Errorf("AC7: interim Sessions list must be the accepted briefly-empty state before the refetch lands (not special-cased), got %v", got)
 	}
 
-	// THEN drain the refetch cmd (carries the post-restore SessionsMsg) and assert
-	// the final landing per AC1.
 	final := drainBatchToModel(t, interim, completeCmd)
 
 	if final.ActivePage() != PageSessions {
@@ -741,29 +420,12 @@ func TestColdBoot_InterimPage_IsValidSessions(t *testing.T) {
 		fmt.Sprintf("expected all %d restored names visible", len(want)))
 }
 
-// TestColdBoot_LateProjectsLoadedMsg_StillLandsOnSessions is the ordering-contract
-// guard (Testing Requirements case 6): the landing decision is independent of
-// ProjectsLoadedMsg arrival order. Here ProjectsLoadedMsg is delivered LATE — in
-// the interim window (after the transition, before the refetch SessionsMsg) — so
-// projectsLoaded is FALSE at the transition. A ProjectsLoadedMsg arriving in the
-// interim window must NOT latch Projects against the stale (empty) interim list,
-// because sessionsLoaded is still false and evaluateDefaultPage() early-returns.
-//
-// Decision point: under this adversarial ordering the post-restore SessionsMsg
-// handler (model.go:1993-2014) is the decision point — it lands SECOND, after the
-// late ProjectsLoadedMsg already set projectsLoaded=true, so sessionsLoaded &&
-// projectsLoaded are both true when the SessionsMsg arm calls evaluateDefaultPage()
-// off the interim PageSessions. The latch stays unset until then, so no path
-// strands the picker on the interim page.
-//
-// SessionsMsg is delivered directly (SessionsMsg{Sessions: restored}) rather than
-// via drainBatchToModel because the drain would resolve the refetch before the
-// late ProjectsLoadedMsg could be injected — defeating the strict interleave.
+// SessionsMsg is injected directly rather than through drainBatchToModel: the
+// drain would resolve the refetch before the late ProjectsLoadedMsg lands,
+// defeating the interleave.
 func TestColdBoot_LateProjectsLoadedMsg_StillLandsOnSessions(t *testing.T) {
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	restored := twoRestoredSessions()
-	// The lister is wired but not driven directly in the strict-interleave portion;
-	// the post-restore SessionsMsg is injected manually below.
 	lister := &coldBootStepLister{steps: [][]tmux.Session{restored}}
 
 	m := New(lister,
@@ -775,38 +437,23 @@ func TestColdBoot_LateProjectsLoadedMsg_StillLandsOnSessions(t *testing.T) {
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Stale empty Init snapshot ingested while on PageLoading. NOTE: ProjectsLoadedMsg
-	// is deliberately NOT delivered before the transition, so projectsLoaded is FALSE
-	// at the transition (the adversarial late-arrival ordering).
 	model, _ = model.Update(SessionsMsg{Sessions: stale})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after stale SessionsMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Close both gates: min-display floor elapsed, then terminal complete.
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 	model, _ = model.Update(BootstrapCompleteMsg{})
 
-	// Interim invariant: the page is a valid PageSessions immediately after the
-	// transition, even with projectsLoaded false.
 	if model.(Model).ActivePage() != PageSessions {
 		t.Fatalf("ordering: interim page after transition must be PageSessions (projectsLoaded false), got %v", model.(Model).ActivePage())
 	}
 
-	// Deliver ProjectsLoadedMsg (N>=1) LATE — in the interim window. Its handler
-	// (model.go:2086-2118) calls evaluateDefaultPage() unconditionally (no page
-	// guard), so the ONLY thing preventing a premature latch against the stale
-	// interim list is the !sessionsLoaded early-return inside evaluateDefaultPage().
-	// It must NOT latch Projects: page stays PageSessions.
 	model, _ = model.Update(ProjectsLoadedMsg{Projects: oneProjectLoaded()})
 	if model.(Model).ActivePage() != PageSessions {
 		t.Fatalf("ordering: a late ProjectsLoadedMsg in the interim window must NOT latch Projects against the stale list (evaluateDefaultPage early-returns on !sessionsLoaded), page must stay PageSessions, got %v", model.(Model).ActivePage())
 	}
 
-	// Deliver the refetch's SessionsMsg (N>0) directly. This is the decision point
-	// under the adversarial ordering: it lands second, both gates of
-	// evaluateDefaultPage are now satisfied, and the landing resolves against the
-	// repaired post-restore list.
 	model, _ = model.Update(SessionsMsg{Sessions: restored})
 	final := model.(Model)
 
@@ -819,20 +466,8 @@ func TestColdBoot_LateProjectsLoadedMsg_StillLandsOnSessions(t *testing.T) {
 		fmt.Sprintf("expected all %d restored names visible after the late-ProjectsLoadedMsg interleave", len(want)))
 }
 
-// TestColdBoot_RefetchError_QuitsWithoutStrandingInterim is the failing-refetch
-// quit guard (spec Constraints "Failing refetch degrades to today's quit"): if the
-// post-restore refetch's SessionsMsg carries an error, the SessionsMsg handler
-// (model.go:1993-1995) runs tea.Quit BEFORE the deferred evaluateDefaultPage()
-// decision — exactly as a failing Init fetch would (see model_test.go:364-377).
-// The cold route must NOT strand the picker on the interim PageSessions silently
-// waiting for a further decision: it exits with the same error UX as the warm
-// route.
-//
-// Spec invariant: a SessionsMsg carrying an error continues to quit exactly as
-// today, and a single interim frame rendering on PageSessions before quit is
-// acceptable.
 func TestColdBoot_RefetchError_QuitsWithoutStrandingInterim(t *testing.T) {
-	stale := []tmux.Session{} // Init fires before Restore — empty pre-restore server.
+	stale := []tmux.Session{}
 	lister := &coldBootStepLister{steps: [][]tmux.Session{{}}}
 
 	m := New(lister,
@@ -844,32 +479,24 @@ func TestColdBoot_RefetchError_QuitsWithoutStrandingInterim(t *testing.T) {
 	var model tea.Model = m
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	// Stale empty Init snapshot ingested while on PageLoading.
 	model, _ = model.Update(SessionsMsg{Sessions: stale})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after stale SessionsMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Deliver ProjectsLoadedMsg while on PageLoading so projectsLoaded=true.
 	model, _ = model.Update(ProjectsLoadedMsg{Projects: oneProjectLoaded()})
 	if model.(Model).ActivePage() != PageLoading {
 		t.Fatalf("setup invariant: expected PageLoading after ProjectsLoadedMsg, got %v", model.(Model).ActivePage())
 	}
 
-	// Close both gates → transition onto the interim PageSessions.
 	model, _ = model.Update(LoadingMinElapsedMsg{})
 	model, _ = model.Update(BootstrapCompleteMsg{})
 
-	// Assert the interim page is PageSessions (a valid picker page) before the
-	// failing refetch lands.
 	interim := model.(Model)
 	if interim.ActivePage() != PageSessions {
 		t.Fatalf("setup invariant: interim page after transition must be PageSessions, got %v", interim.ActivePage())
 	}
 
-	// Deliver the post-restore refetch result as an error-carrying SessionsMsg
-	// directly through Update. The error path returns tea.Quit BEFORE the deferred
-	// evaluateDefaultPage() decision runs — mirroring model_test.go:364-377.
 	_, cmd := interim.Update(SessionsMsg{Err: errors.New("tmux refetch failed")})
 	if cmd == nil {
 		t.Fatal("failing refetch SessionsMsg must return a quit command, got nil")

@@ -6,13 +6,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// TestPreviewWindowSizeMsg_RecordsDimensionsAndSetsViewportToInnerSize pins
-// the resize contract: tea.WindowSizeMsg records msg.Width/msg.Height on
-// m.width/m.height and calls m.viewport.SetSize with both dimensions reduced by
-// previewFrameOverhead (= 6), clamped non-negative. The §9 joined panel's frame
-// spans 6 rows (top + header + 2 dividers + footer + bottom) and 6 columns
-// (2 side borders + 2·panelRowInset each side), so the inner viewport surface is
-// (msg.Width − 6) × (msg.Height − 6) per § Resize behaviour.
 func TestPreviewWindowSizeMsg_RecordsDimensionsAndSetsViewportToInnerSize(t *testing.T) {
 	m := newFramePreviewModelAt(t, "main", nil, 80, 24)
 
@@ -32,11 +25,6 @@ func TestPreviewWindowSizeMsg_RecordsDimensionsAndSetsViewportToInnerSize(t *tes
 	}
 }
 
-// TestPreviewWindowSizeMsg_ClampsViewportDimensionsNonNegative pins the
-// degenerate-terminal contract: viewport.SetSize with negative arguments is
-// unspecified, so the WindowSizeMsg handler must clamp both dimensions to
-// zero at the lower bound. msg.Width=1, msg.Height=0 produces viewport
-// dimensions (0, 0) — the clamp boundary per § Resize behaviour.
 func TestPreviewWindowSizeMsg_ClampsViewportDimensionsNonNegative(t *testing.T) {
 	m := newFramePreviewModelAt(t, "main", nil, 80, 24)
 

@@ -10,21 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Tests for task 5-4: the §5 multi-select mode footer. In the mode (filter not
-// focused) the footer swaps the standard Sessions footer for the spec-exact copy
-// fixed by the delivered Paper frame (design/sessions-multi-select-active.png):
-// `↑↓ navigate · m toggle · ␣ preview · ⏎ open · esc cancel` — five entries, NO
-// right-aligned `? help` anchor. It reuses the filter-footer entry machinery for
-// per-glyph colouring and the shared 1px border top rule, so it is
-// height-neutral against the reserved sessionFooterHeight budget.
-//
-// No t.Parallel() — the package's shared canvas/mock helpers make parallelism
-// unsafe across these tests.
-
-// TestMultiSelectFooter_ExactCopy asserts the multi-select footer entry row reads
-// EXACTLY the spec-exact copy (the delivered Paper frame), separators as the shared
-// footerEntrySeparator ` · `. The footer is two rows (rule + entry row), so the entry
-// row is the LAST line.
 func TestMultiSelectFooter_ExactCopy(t *testing.T) {
 	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
@@ -39,16 +24,11 @@ func TestMultiSelectFooter_ExactCopy(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_CopyConstant pins the copy to the spec-exact single-source
-// constant (mirroring TestCommandBand_FixedTextConstant), so the wording cannot
-// drift from a paraphrase.
 func TestMultiSelectFooter_CopyConstant(t *testing.T) {
 	const want = "↑↓ navigate · m toggle · ␣ preview · ⏎ open · esc cancel"
 	if multiSelectFooterText != want {
 		t.Errorf("multiSelectFooterText = %q, want the spec-exact wording %q", multiSelectFooterText, want)
 	}
-	// And the rendered footer's stripped entry row equals that same constant — the
-	// render is tied to the spec-pinned copy.
 	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	lines := strings.Split(footer, "\n")
 	got := strings.TrimRight(footerVisible(lines[len(lines)-1]), " ")
@@ -57,9 +37,6 @@ func TestMultiSelectFooter_CopyConstant(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_NoHelpAnchor asserts the multi-select footer carries NO
-// right-aligned `? help` anchor (unlike the standard/filter footers) — the delivered
-// frame has none, so neither the `? help` text nor the accent.primary `?` glyph appears.
 func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	vis := footerVisible(footer)
@@ -69,17 +46,11 @@ func TestMultiSelectFooter_NoHelpAnchor(t *testing.T) {
 	if strings.Contains(vis, "help") {
 		t.Errorf("multi-select footer must NOT contain the help hint at all:\n%s", vis)
 	}
-	// The ? help glyph is the only accent.primary run in the standard footer; the
-	// multi-select footer drops the anchor, so no accent.primary must appear.
 	if seq := tokenFgSeq(t, testDarkTheme(t).AccentPrimary); strings.Contains(footer, seq) {
 		t.Errorf("multi-select footer must NOT carry the accent.violet ? glyph role sequence %q", seq)
 	}
 }
 
-// TestMultiSelectFooter_HeightNeutral asserts the footer is exactly two rows (the 1px
-// border top rule + the entry row) — the SAME height as the standard Sessions
-// footer, so swapping it in is height-neutral against the reserved sessionFooterHeight
-// budget (the swap must not change the list height).
 func TestMultiSelectFooter_HeightNeutral(t *testing.T) {
 	ms := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), false)
 	std := renderSessionsFooter(sessionsKeymap(), referenceFooterWidth, testDarkTheme(t), false)
@@ -91,10 +62,6 @@ func TestMultiSelectFooter_HeightNeutral(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_NarrowDegradeOneLineEllipsis asserts §2.7: below the width at
-// which the full cluster fits, the footer truncates gracefully (leading entries kept,
-// trailing dropped, ellipsis marker) on ONE line — never wrapping to a second row and
-// never overflowing the width.
 func TestMultiSelectFooter_NarrowDegradeOneLineEllipsis(t *testing.T) {
 	for _, w := range []int{56, 40, 30, 20, 12} {
 		footer := renderMultiSelectFooter(w, testDarkTheme(t), false)
@@ -110,9 +77,6 @@ func TestMultiSelectFooter_NarrowDegradeOneLineEllipsis(t *testing.T) {
 		}
 	}
 
-	// At a width that truncates the full cluster, the ellipsis marks the drop, the
-	// highest-priority leading entry survives, and the lowest-priority trailing entry
-	// drops first.
 	footer := footerVisible(renderMultiSelectFooter(30, testDarkTheme(t), false))
 	if !strings.Contains(footer, "↑↓ navigate") {
 		t.Errorf("highest-priority entry 'navigate' must survive narrow truncation:\n%s", footer)
@@ -125,9 +89,6 @@ func TestMultiSelectFooter_NarrowDegradeOneLineEllipsis(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues asserts the NO_COLOR carve-out
-// (§2.5): a colourless footer carries no canvas background SGR and no foreground hue —
-// it renders on the terminal's native fg/bg, the glyphs structurally intact.
 func TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues(t *testing.T) {
 	footer := renderMultiSelectFooter(referenceFooterWidth, testDarkTheme(t), true)
 
@@ -147,9 +108,6 @@ func TestMultiSelectFooter_NoColorKeepsGlyphsDropsHues(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_TokenColours asserts key glyphs render in accent.key and
-// labels in text.muted (the standard MV footer convention), over a border top
-// rule — every colour via its §2.9 token, in both canvas modes.
 func TestMultiSelectFooter_TokenColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderMultiSelectFooter(referenceFooterWidth, th, false)
@@ -165,9 +123,6 @@ func TestMultiSelectFooter_TokenColours(t *testing.T) {
 	}
 }
 
-// TestMultiSelectFooter_PaintsCanvasNoEdgeBleed asserts the footer cells carry the
-// owned canvas background (leaf .Background(canvas)) so the pad gap is not a
-// terminal-bg island.
 func TestMultiSelectFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderMultiSelectFooter(referenceFooterWidth, th, false)
@@ -177,10 +132,6 @@ func TestMultiSelectFooter_PaintsCanvasNoEdgeBleed(t *testing.T) {
 	}
 }
 
-// TestSessionsFooterResolver_MultiSelectMode asserts renderSessionsFooterForFilterState
-// renders the multi-select footer while in the mode and NOT filter-focused (the
-// unfiltered case): the entry row carries the mode copy and NOT the standard footer's
-// entries or the `? help` anchor.
 func TestSessionsFooterResolver_MultiSelectMode(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 1}})
 	m.termWidth = 120
@@ -193,15 +144,11 @@ func TestSessionsFooterResolver_MultiSelectMode(t *testing.T) {
 	if strings.Contains(footer, "? help") {
 		t.Errorf("multi-select-mode resolver footer must NOT carry a '? help' anchor:\n%s", footer)
 	}
-	// The standard footer's 'switch view' entry must NOT leak into the mode footer.
 	if strings.Contains(footer, "switch view") {
 		t.Errorf("multi-select footer must not carry the standard 'switch view' entry:\n%s", footer)
 	}
 }
 
-// TestSessionsFooterResolver_FilteringOverridesMultiSelect asserts precedence: while
-// the filter input is focused within the mode (FilterState == Filtering), the
-// input-active filter footer renders — the multi-select footer steps aside.
 func TestSessionsFooterResolver_FilteringOverridesMultiSelect(t *testing.T) {
 	m := NewModelWithSessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 1}})
 	m.termWidth = 120

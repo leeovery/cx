@@ -7,10 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// nilNilReader returns (nil, nil) on every Tail call, simulating the unified
-// "no content available" outcome — collapsing ENOENT, zero-byte, and zero-line
-// (only an unterminated partial) into one shape per the spec's
-// § Architecture Summary > Test seams > ScrollbackReader return contract.
 type nilNilReader struct {
 	calls []string
 }
@@ -20,9 +16,6 @@ func (r *nilNilReader) Tail(paneKey string) ([]byte, error) {
 	return nil, nil
 }
 
-// stripTrailingBlanks removes trailing blank lines that bubbles/viewport pads
-// rendered content with up to its configured height. Placeholder assertions
-// key off the trimmed payload.
 func stripTrailingBlanks(s string) string {
 	return strings.TrimRight(s, " \n\t")
 }
@@ -98,15 +91,10 @@ func TestPreviewPlaceholder_ChromeCountsRemainCorrectWhenPlaceholderShown(t *tes
 
 	chrome := stripANSI(chromeLineForTest(m))
 
-	// chromeLine() must produce identical output to the non-placeholder shape
-	// because chrome is a pure function of the cached groups + windowIdx +
-	// paneIdx, not of viewport content.
 	expected := stripANSI(chromeLineForTest(newPreviewModelForHelpers("work", groups, 0, 0)))
 	if chrome != expected {
 		t.Errorf("chromeLine() under placeholder = %q; want %q (identical to non-placeholder shape)", chrome, expected)
 	}
-	// Sanity: the placeholder shape still surfaces correct counters and the
-	// §9.1 session name + peek-mode marker.
 	if !strings.Contains(chrome, "Window 1/2") {
 		t.Errorf("chromeLine() = %q; want substring %q", chrome, "Window 1/2")
 	}
@@ -124,11 +112,6 @@ func TestPreviewPlaceholder_IsCanonicalWordingNoSavedContent(t *testing.T) {
 	}
 }
 
-// enoentReader, zeroByteReader, and zeroLineReader simulate the three failure
-// modes the spec collapses into the single (nil, nil) shape: ENOENT, zero-byte
-// .bin, and a file containing only an unterminated partial line. At the
-// ScrollbackReader seam they are observably identical — all three return
-// (nil, nil) — and the call site must produce identical viewport content.
 type enoentReader struct{}
 
 func (enoentReader) Tail(string) ([]byte, error) { return nil, nil }

@@ -14,17 +14,11 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// testBuiltinPair is the two embedded built-ins as an ADAPTIVE nomination — the
-// shape of §8.3's shipped default, and what every test needing a gate to select
-// between two distinguishable palettes injects.
 func testBuiltinPair(t *testing.T) theme.Nomination {
 	t.Helper()
 	return theme.AdaptivePair(theme.MemberLight.Palette(testLightTheme(t)), testDarkTheme(t))
 }
 
-// memberForSlot is the pair member whose palette a setting slot nominates — the
-// test-side counterpart of theme.Member.Slot, for the stubs and assertions that
-// hold a slot and need the member the nomination is selected by.
 func memberForSlot(slot theme.Slot) theme.Member {
 	if slot == theme.SlotLight {
 		return theme.MemberLight
@@ -32,12 +26,6 @@ func memberForSlot(slot theme.Slot) theme.Member {
 	return theme.MemberDark
 }
 
-// TestDeps_HasNoAppearanceField pins §8.8's removal: the light/dark appearance
-// injection is GONE, not left alongside the nomination. A dead option is a second
-// injection path — one a caller could still reach and one that would silently
-// contradict the theme it was handed — so both halves are asserted: the Deps
-// field by reflection, and WithAppearance by a source guard (an unreferenced
-// exported option would compile forever without one).
 func TestDeps_HasNoAppearanceField(t *testing.T) {
 	depsType := reflect.TypeFor[Deps]()
 	if _, found := depsType.FieldByName("Appearance"); found {
@@ -54,11 +42,8 @@ func TestDeps_HasNoAppearanceField(t *testing.T) {
 	}
 }
 
-// TestNew_SeedsTheDarkBuiltinWhenNoNominationIsGiven pins the seed that SURVIVES
-// this task. A model constructed without Build (and so without a nomination) must
-// still be themed: an empty Theme resolves through lipgloss.Color("")'s no-colour
-// sentinel, which is a silent colourless render — no compile error, no failing
-// assertion anywhere else — so the render half is asserted too.
+// An empty Theme resolves through lipgloss.Color("")'s no-colour sentinel — a
+// silent colourless render — so the render half is asserted too.
 func TestNew_SeedsTheDarkBuiltinWhenNoNominationIsGiven(t *testing.T) {
 	m := New(fakeLister{})
 
@@ -68,11 +53,6 @@ func TestNew_SeedsTheDarkBuiltinWhenNoNominationIsGiven(t *testing.T) {
 	assertActiveTheme(t, m, testDarkTheme(t).Canvas.Value)
 }
 
-// TestNomination_ConstantSkipsDetectionAndWait pins §8.8's real startup win: a
-// constant needs no detection, so its gate is resolved AND unarmable at
-// construction, Init issues no timeout tick, and the first frame paints the
-// constant's canvas. The OSC 11 query is still issued — a constant skips the
-// GATE, never the QUERY (§8.8 / §9.3).
 func TestNomination_ConstantSkipsDetectionAndWait(t *testing.T) {
 	light := testLightTheme(t)
 	m := detectModel(t, theme.ConstantNomination(light))
@@ -80,9 +60,8 @@ func TestNomination_ConstantSkipsDetectionAndWait(t *testing.T) {
 	if !m.modeResolved() {
 		t.Fatalf("a constant nomination left the first-paint gate open; want resolved at construction (no detection, no wait)")
 	}
-	// Unarmable, not merely un-armed: Build already called arm(). Calling it again
-	// must stay a no-op, or a later arm site would re-open a window the constant
-	// has no answer for.
+	// Build already called arm(); a second arm must stay a no-op or a later arm
+	// site would re-open a window the constant has no answer for.
 	m.armAppearanceDetection()
 	if !m.modeResolved() {
 		t.Errorf("arming re-opened a constant's gate; want it unarmable")
@@ -93,9 +72,6 @@ func TestNomination_ConstantSkipsDetectionAndWait(t *testing.T) {
 	assertActiveTheme(t, m, light.Canvas.Value)
 }
 
-// TestNomination_AdaptiveArmsTheGate pins the other half of §8.8: a pair carries
-// no provisional active member, so the gate is armed and NOTHING is painted until
-// it resolves.
 func TestNomination_AdaptiveArmsTheGate(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 
@@ -105,9 +81,6 @@ func TestNomination_AdaptiveArmsTheGate(t *testing.T) {
 	assertBlankFrame(t, m)
 }
 
-// TestNomination_GateSelectsMember pins that the gate SELECTS between values
-// already in hand (§8.4): the dark reply takes the dark member, the light reply
-// the light member, and the no-answer timeout the dark member (§8.8's fallback).
 func TestNomination_GateSelectsMember(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -128,12 +101,6 @@ func TestNomination_GateSelectsMember(t *testing.T) {
 	}
 }
 
-// TestGate_LateReplyCapturesBackgroundButNeverReThemes pins §8.8's resolve-once
-// rule at its sharpest point: the timeout has already resolved the gate when the
-// OSC 11 reply lands. The reply is still CONSUMED — restore.go needs the original
-// background, and §9.3's mid-session conversion needs the answer in hand — but it
-// must not re-theme, because under split a late flip swaps a whole named theme
-// (canvas and every accent) a second after the user began reading the picker.
 func TestGate_LateReplyCapturesBackgroundButNeverReThemes(t *testing.T) {
 	m := detectModel(t, testBuiltinPair(t))
 
@@ -153,10 +120,6 @@ func TestGate_LateReplyCapturesBackgroundButNeverReThemes(t *testing.T) {
 	assertActiveTheme(t, after, testDarkTheme(t).Canvas.Value)
 }
 
-// TestGate_QueryIssuedRegardlessOfSettingShape pins that the OSC 11 query is
-// issued from Init under EVERY shape (§8.8). A constant path that skips it breaks
-// restore.go's original-background capture and §9.3's conversion, which relies on
-// the answer already being in hand rather than on a second query and race.
 func TestGate_QueryIssuedRegardlessOfSettingShape(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -178,16 +141,11 @@ func TestGate_QueryIssuedRegardlessOfSettingShape(t *testing.T) {
 	}
 }
 
-// TestGate_ConstantRetainsReplyWithoutClassifying pins the edge a constant makes
-// reachable: the reply arrives on a launch that asked no light/dark question. The
-// background and the fact a reply came are retained (task 9-6 classifies them),
-// but NO answer is derived from it — a constant's pre-resolved gate carries the
-// standing dark fallback, which must never be read as "the terminal is dark".
 func TestGate_ConstantRetainsReplyWithoutClassifying(t *testing.T) {
 	dark := testDarkTheme(t)
 	m := detectModel(t, theme.ConstantNomination(dark))
 
-	// A LIGHT terminal: the one case where a derived answer would be visible.
+	// A light terminal is the one case where a derived answer would be visible.
 	updated, _ := m.Update(lightBg)
 	after := updated.(Model)
 
@@ -203,11 +161,6 @@ func TestGate_ConstantRetainsReplyWithoutClassifying(t *testing.T) {
 	assertActiveTheme(t, after, dark.Canvas.Value)
 }
 
-// TestNoColor_LoadsBothAndSelectsDark pins §9.10: under NO_COLOR the theme
-// machinery runs unchanged below the render layer. The gate is skipped, BOTH
-// members are still loaded and held (a commit made in that session must have
-// something in hand to persist against), and the standing dark fallback selects
-// the active member.
 func TestNoColor_LoadsBothAndSelectsDark(t *testing.T) {
 	m := Build(Deps{Lister: fakeLister{}, Theme: testBuiltinPair(t), NoColor: true})
 
@@ -222,14 +175,7 @@ func TestNoColor_LoadsBothAndSelectsDark(t *testing.T) {
 	}
 }
 
-// TestConstruction_ReadsNoThemesDirectory pins §8.4's construction contract from
-// the one side internal/tui owns: it is HANDED a loaded nomination, so it reads
-// no themes directory, no prefs theme keys and enumerates nothing.
-//
-// A source guard rather than a behavioural one, because "did not read" has no
-// observable trace: the package makes no filesystem read call and never reaches
-// the loader's directory enumeration at all, which is a property of the sources
-// and is exactly what a future construction-time read would break.
+// A source guard: "did not read" has no observable behavioural trace.
 func TestConstruction_ReadsNoThemesDirectory(t *testing.T) {
 	banned := map[string]string{
 		"os.ReadDir":       "a directory read",
@@ -256,12 +202,8 @@ func TestConstruction_ReadsNoThemesDirectory(t *testing.T) {
 	}
 }
 
-// assertBackgroundQueryIssued drains Init's batched cmds and asserts one of them
-// IS the tea.RequestBackgroundColor query.
-//
-// The cmd emits an UNEXPORTED internal request marker (the program runtime, not
-// the cmd, turns it into the public tea.BackgroundColorMsg), so the match is by
-// type against a reference taken from tea.RequestBackgroundColor itself.
+// The cmd emits an unexported internal request marker, so the match is by type
+// against a reference taken from tea.RequestBackgroundColor itself.
 func assertBackgroundQueryIssued(t *testing.T, m Model) {
 	t.Helper()
 	wantType := reflect.TypeOf(tea.Cmd(tea.RequestBackgroundColor)())
@@ -273,8 +215,6 @@ func assertBackgroundQueryIssued(t *testing.T, m Model) {
 	t.Errorf("Init issued no OSC 11 background query (no %v produced); restore-on-exit and §9.3's conversion both need the reply", wantType)
 }
 
-// exportedFuncsInPackage returns every exported top-level function declared in
-// the package's production sources.
 func exportedFuncsInPackage(t *testing.T) []string {
 	t.Helper()
 	var names []string
@@ -289,8 +229,6 @@ func exportedFuncsInPackage(t *testing.T) []string {
 	return names
 }
 
-// packageCalls maps each production source file to the qualified call
-// expressions it makes (`pkg.Func`, `x.Method`), for the source guards above.
 func packageCalls(t *testing.T) map[string][]string {
 	t.Helper()
 	calls := map[string][]string{}
@@ -315,17 +253,12 @@ func packageCalls(t *testing.T) map[string][]string {
 	return calls
 }
 
-// parsePackageFilesByName parses the package's production sources, keyed by
-// filename.
 func parsePackageFilesByName(t *testing.T) map[string]*ast.File {
 	t.Helper()
 	return parsePackageFiles(t, token.NewFileSet())
 }
 
-// parsePackageFiles parses the package's production sources against fset, keyed
-// by filename, for the guards that report source positions and so need the file
-// set the positions resolve against. go test runs in the package's source
-// directory, so the enumeration resolves wherever the suite was invoked from.
+// go test runs in the package's source directory, so "." is the package dir.
 func parsePackageFiles(t *testing.T, fset *token.FileSet) map[string]*ast.File {
 	t.Helper()
 	paths, err := sourceguard.PackageGoFiles(".", false)

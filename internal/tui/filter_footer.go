@@ -5,59 +5,21 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The two contextual filter footers. While a filter mode is active these
-// REPLACE the condensed Sessions footer (renderSessionsFooter):
-//
-//   - input-active (FilterState == Filtering):
-//     `type to filter · ↵/↓ browse results · esc clear` + right-aligned `? help`
-//   - list-active (FilterState == FilterApplied):
-//     `↵ attach · ↑↓ navigate · esc clear filter` + right-aligned `? help`
-//
-// They reuse the footer machinery (the 1px footer top rule, the dot
-// separator, the canvas-painted flex spacer, the right-aligned `? help` anchor)
-// so the rendered chrome stays byte-consistent with the standard footer — only
-// the entries and the per-entry key colours differ. Each filter footer
-// carries ONE accent.attention action word (`type` for input-active, `esc` for
-// list-active), the nav glyphs in accent.key, and the labels in text.muted.
-//
-// Every cell carries the owned canvas background (leaf .Background(canvas))
-// via the shared header helpers, so the spacer gap is canvas-painted with no
-// terminal-bg island. Under the NO_COLOR carve-out every hue and the canvas
-// drop; the glyphs stay structurally distinct on the terminal's native fg/bg.
-
-// keyGlyph is one coloured run inside a filter-footer entry's key cluster: the
-// glyph text and the token it renders in. A key may be ONE glyph (e.g. `esc`,
-// `↑↓`) or several (e.g. `↵ / ↓`, where the arrows are accent.key and the `/`
-// separator is text.muted) — matching the references where the
-// "browse results" commit key reads as blue arrows around a quiet `/`.
+// keyGlyph is one coloured run inside a filter-footer entry's key cluster; a
+// key may be several glyphs with differing tokens (e.g. `↵ / ↓`).
 type keyGlyph struct {
 	Text string
 	Tok  theme.Token
 }
 
-// filterFooterEntry is one entry in a contextual filter footer: a key cluster (one
-// or more coloured glyphs) and the action label (text.muted). It mirrors the
-// shape renderFooterEntry consumes but lets each entry pin its OWN per-glyph key
-// colour (the accent.attention action word, the accent.key nav glyphs, the quiet
-// text.muted `/` separator), which the descriptor-driven sessionsKeymap path does
-// not need.
-//
-// BrowseResults structurally tags the input-active footer's `browse results` entry
-// (mirroring the sessionsKeymap descriptor's Core-flag membership model). The
-// no-matches footer drops this entry — there are no results to browse — via the
-// flag (dropBrowseResults), NOT by matching its display copy, so rewording the
-// `browse results` label can never silently re-admit it.
+// BrowseResults tags the entry structurally so the no-matches footer drops it
+// by flag, not by display copy — rewording the label cannot re-admit it.
 type filterFooterEntry struct {
 	Key           []keyGlyph
 	Label         string
 	BrowseResults bool
 }
 
-// filteringFooterEntries returns the input-active footer entries:
-// `type to filter` (the `type` action word in accent.attention) · `↵ / ↓ browse
-// results` (the commit glyphs ↵ and ↓ in accent.key, the `/` separator in
-// text.muted) · `esc clear` (the dismiss key in text.muted — a plain key, not
-// the action word). The exact per-glyph colours match the input-active reference.
 func filteringFooterEntries(th theme.Theme) []filterFooterEntry {
 	return []filterFooterEntry{
 		{Key: []keyGlyph{{"type", th.AccentAttention}}, Label: "to filter"},
@@ -70,12 +32,6 @@ func filteringFooterEntries(th theme.Theme) []filterFooterEntry {
 	}
 }
 
-// dropBrowseResults returns the given entries with the structurally-tagged
-// browse-results entry removed (BrowseResults flag), preserving order. Membership is
-// decided by the flag — never the display copy — so rewording the `browse results`
-// label cannot change what this drops. The no-matches footer composes through
-// this so its reduced entry set stays derived from (not a hand-kept copy of) the
-// input-active footer.
 func dropBrowseResults(src []filterFooterEntry) []filterFooterEntry {
 	entries := make([]filterFooterEntry, 0, len(src))
 	for _, e := range src {
@@ -87,10 +43,6 @@ func dropBrowseResults(src []filterFooterEntry) []filterFooterEntry {
 	return entries
 }
 
-// filterAppliedFooterEntries returns the list-active footer entries:
-// `↵ attach` · `↑↓ navigate` (both glyphs accent.key) · `esc clear filter` (the
-// `esc` clear-filter key in accent.attention — the action word that exits the
-// filter). The exact per-glyph colours match the list-active reference.
 func filterAppliedFooterEntries(th theme.Theme) []filterFooterEntry {
 	return []filterFooterEntry{
 		{Key: []keyGlyph{{"↵", th.AccentKey}}, Label: "attach"},
@@ -99,10 +51,8 @@ func filterAppliedFooterEntries(th theme.Theme) []filterFooterEntry {
 	}
 }
 
-// projectsFilterAppliedFooterEntries is the list-active footer for the PROJECTS
-// page: identical to the Sessions list-active footer except the commit key reads
-// `new session` (Enter on Projects creates a session — it does NOT attach), so the
-// shared filterAppliedFooterEntries' "attach" copy is not leaked onto Projects.
+// Enter on Projects creates a session rather than attaching, so the Sessions
+// "attach" copy must not leak here.
 func projectsFilterAppliedFooterEntries(th theme.Theme) []filterFooterEntry {
 	return []filterFooterEntry{
 		{Key: []keyGlyph{{"↵", th.AccentKey}}, Label: "new session"},
@@ -111,33 +61,18 @@ func projectsFilterAppliedFooterEntries(th theme.Theme) []filterFooterEntry {
 	}
 }
 
-// renderFilteringFooter renders the input-active contextual footer for the
-// given content width and resolved canvas mode (and the NO_COLOR carve-out). It is
-// page-agnostic (`type to filter · ↵/↓ browse results · esc clear`), shared by
-// Sessions and Projects.
 func renderFilteringFooter(width int, th theme.Theme, colourless bool) string {
 	return renderFilterFooter(filteringFooterEntries(th), width, th, colourless)
 }
 
-// renderFilterAppliedFooter renders the list-active contextual footer for the
-// given content width and resolved canvas mode (and the NO_COLOR carve-out). This is
-// the SESSIONS variant (`↵ attach`); Projects uses renderProjectsFilterAppliedFooter.
 func renderFilterAppliedFooter(width int, th theme.Theme, colourless bool) string {
 	return renderFilterFooter(filterAppliedFooterEntries(th), width, th, colourless)
 }
 
-// renderProjectsFilterAppliedFooter renders the Projects list-active filter footer
-// (`↵ new session` instead of `↵ attach`).
 func renderProjectsFilterAppliedFooter(width int, th theme.Theme, colourless bool) string {
 	return renderFilterFooter(projectsFilterAppliedFooterEntries(th), width, th, colourless)
 }
 
-// renderFilterFooter is the shared two-row contextual-filter footer: the 1px
-// footer top rule (the SAME rule as the standard footer), then the
-// entry row — the given entries as a dot-separated left cluster, a canvas-painted
-// flex spacer, and the right-aligned `? help`. The row is always exactly width
-// cells wide, mirroring footerKeyRow's right-anchor layout so the two filter
-// footers and the standard footer agree on structure exactly.
 func renderFilterFooter(entries []filterFooterEntry, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	rule := footerTopRule(w, th, colourless)
@@ -145,15 +80,12 @@ func renderFilterFooter(entries []filterFooterEntry, width int, th theme.Theme, 
 	return lipgloss.JoinVertical(lipgloss.Left, rule, row)
 }
 
-// filterFooterRow renders the single contextual-filter footer entry row: the left
-// cluster of entries, a canvas flex spacer, then the right-aligned `? help`
-// (sourced from the shared sessionsKeymap descriptor so its glyph/label/colour
-// never drift from the standard footer). Always exactly w cells wide.
+// The `? help` anchor is sourced from the sessionsKeymap descriptor so its
+// glyph/label/colour cannot drift from the standard footer's.
 func filterFooterRow(entries []filterFooterEntry, w int, th theme.Theme, colourless bool) string {
 	left := renderFilterCluster(entries, th, colourless)
 	leftWidth := lipgloss.Width(left)
 
-	// Reuse the standard footer's right-aligned ? help so the anchor is identical.
 	_, helpEntry := splitFooterEntries(sessionsKeymap())
 	rightSeg := ""
 	rightWidth := 0
@@ -162,16 +94,9 @@ func filterFooterRow(entries []filterFooterEntry, w int, th theme.Theme, colourl
 		rightWidth = lipgloss.Width(rightSeg)
 	}
 
-	// Hand the fit test, the narrow-degrade, and the flex-spacer join to the shared
-	// assembler — the SAME right-anchor geometry as the standard footer (footerKeyRow).
 	return assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, th, colourless)
 }
 
-// renderFilterCluster renders the given filter-footer entries joined by the
-// dot separator (text.muted) into a single left-cluster string. Each entry's key
-// cluster renders via renderKeyGlyphs (per-glyph colours) and its label in
-// text.muted, with a canvas-painted gap between — the SAME per-entry shape as
-// renderFooterEntry.
 func renderFilterCluster(entries []filterFooterEntry, th theme.Theme, colourless bool) string {
 	if len(entries) == 0 {
 		return ""
@@ -189,10 +114,6 @@ func renderFilterCluster(entries []filterFooterEntry, th theme.Theme, colourless
 	return lipgloss.JoinHorizontal(lipgloss.Top, segs...)
 }
 
-// renderKeyGlyphs renders a filter-footer entry's key cluster — one or more
-// per-glyph coloured runs joined horizontally — each over the owned canvas. A
-// single-glyph key renders one run; a composite (e.g. `↵ / ↓`) renders each glyph
-// in its own token so the references' mixed-colour key reads correctly.
 func renderKeyGlyphs(glyphs []keyGlyph, th theme.Theme, colourless bool) string {
 	runs := make([]string, 0, len(glyphs))
 	for _, g := range glyphs {

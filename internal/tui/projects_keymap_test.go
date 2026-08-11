@@ -2,27 +2,10 @@ package tui
 
 import "testing"
 
-// TestProjectsKeymap locks the Projects keymap descriptor (§12.1 / §6.3) as the
-// single declarative source for BOTH the condensed Projects footer (task 3-2)
-// AND the per-page ? help modal (Phase 3, §8.5). The descriptor enumerates every
-// §12.1 Projects binding exactly once, classifies the §6.3 core-footer keys
-// (Core=true) against the help-only remainder (Core=false), and marks ? help as
-// the sole right-aligned entry. Pure data, no rendering (mirrors sessionsKeymap /
-// TestSessionsKeymap). The `⏎` return glyph matches the §6.3 reference frame
-// (testdata/vhs/reference/projects-mv.png).
 func TestProjectsKeymap(t *testing.T) {
 	entries := projectsKeymap()
 
 	t.Run("it enumerates exactly the §12.1 Projects bindings nav-first", func(t *testing.T) {
-		// Nav-first ordering mirrors the Sessions help reorder (FIX 2 internal
-		// consistency): the navigation/paging entries lead. §14.2 adds `t theme` after
-		// `/`, making the Core relative order the footer reads ⏎ · x · e · / · t · ? —
-		// theme is a GLOBAL setting (§9.6), so it belongs in this footer too. Nothing
-		// else moved: the Projects nav entry was ALREADY non-core, so §14.1's arrows
-		// change is a no-op here. As on Sessions the nav entry carries a HelpKey
-		// override so the footer/help-only nav reads the glyph "↑↓" while the help body
-		// keeps the slashed "↑/↓"; page reads its Key "^↑/↓" directly and the ⏎ Key is
-		// already a glyph.
 		want := []keymapEntry{
 			{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
 			{Key: "^↑/↓", Action: "page", HelpAction: "Next / prev page"},
@@ -84,11 +67,6 @@ func TestProjectsKeymap(t *testing.T) {
 	})
 
 	t.Run("it carries every help-only key so the ? help modal lists the complete keymap", func(t *testing.T) {
-		// The descriptor is the single source for the complete Projects help list
-		// (§8.5): it must carry the help-only keys (d delete, n new in cwd, the
-		// navigation/paging keys, q quit, esc) in addition to the footer-core keys —
-		// neither hand-authored. Asserts presence so the Phase-3 help modal generates
-		// every binding from one place.
 		have := map[string]string{}
 		for _, e := range entries {
 			have[e.Key] = e.Action
@@ -114,9 +92,6 @@ func TestProjectsKeymap(t *testing.T) {
 	})
 
 	t.Run("it carries the §14.2 Core relative order the footer reads", func(t *testing.T) {
-		// The footer renders only Core entries in descriptor order, so §14.2's pinned
-		// Projects row (⏎ new session · x sessions · e edit · / filter · t theme +
-		// right-aligned ? help) is exactly this sequence.
 		var coreKeys []string
 		for _, e := range entries {
 			if e.Core {
@@ -138,7 +113,7 @@ func TestProjectsKeymap(t *testing.T) {
 		banned := map[string]bool{
 			"h": true, "j": true, "k": true, "l": true, "g": true, "G": true,
 			"D": true, "E": true, "N": true, "Q": true, "S": true, "X": true,
-			"s":    true, // §12.2: the Projects-side s→Sessions alias is dropped
+			"s":    true,
 			"pgup": true, "pgdown": true, "home": true, "end": true,
 		}
 		for _, e := range entries {

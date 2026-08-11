@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// helpModelSessions builds a Sessions-page Model on a sized canvas for exercising
-// the ? help modal open/close dispatch and the render shell.
 func helpModelSessions(t *testing.T, appearance theme.Member) Model {
 	t.Helper()
 	m := New(fakeLister{}, WithThemeNomination(testBuiltinPair(t)), WithCanvasMode(appearance))
@@ -24,8 +22,6 @@ func helpModelSessions(t *testing.T, appearance theme.Member) Model {
 	return m
 }
 
-// helpModelProjects builds a Projects-page Model on a sized canvas for exercising
-// the ? help modal open/close dispatch and the render shell.
 func helpModelProjects(t *testing.T, appearance theme.Member) Model {
 	t.Helper()
 	projects := []project.Project{
@@ -41,9 +37,6 @@ func helpModelProjects(t *testing.T, appearance theme.Member) Model {
 	return m
 }
 
-// TestHelpModalOpen asserts ? opens the help modal on Sessions and Projects,
-// replacing the prior swallow. The key is still consumed (no page change, no
-// fall-through to the list's own help toggle).
 func TestHelpModalOpen(t *testing.T) {
 	t.Run("it opens the help modal on ? for Sessions", func(t *testing.T) {
 		m := helpModelSessions(t, theme.MemberDark)
@@ -70,10 +63,6 @@ func TestHelpModalOpen(t *testing.T) {
 	})
 
 	t.Run("it no longer lets bubbles/list self-toggle its own help on ?", func(t *testing.T) {
-		// Pre-swallow, ? returned nil and the list never saw it. Now ? opens OUR
-		// modal — still consuming the key so the list's help is never toggled. The
-		// observable proof is that the list's built-in ShowHelp state is unchanged
-		// (still hidden) and OUR modal opened instead.
 		m := helpModelSessions(t, theme.MemberDark)
 		before := m.sessionList.ShowHelp()
 		updated, _ := m.updateSessionList(tea.KeyPressMsg{Code: '?', Text: "?"})
@@ -87,9 +76,6 @@ func TestHelpModalOpen(t *testing.T) {
 	})
 }
 
-// TestHelpModalClose asserts the help modal is key-exclusive (§8.1): ? toggles it
-// closed, Esc dismisses it, and Esc does NOT fall through to the page's
-// clear-filter / quit while the modal is open.
 func TestHelpModalClose(t *testing.T) {
 	t.Run("it closes on ? toggle", func(t *testing.T) {
 		m := helpModelSessions(t, theme.MemberDark)
@@ -115,10 +101,7 @@ func TestHelpModalClose(t *testing.T) {
 	})
 
 	t.Run("it does not fall through to clear-filter on Esc (key-exclusive)", func(t *testing.T) {
-		// Edge case (§8.1): help open + a filter applied. Esc dismisses the help
-		// modal ONLY — the filter stays applied.
 		m := helpModelSessions(t, theme.MemberDark)
-		// Apply a filter: focus the input, type a query, commit to list-active.
 		m2, _ := m.updateSessionList(tea.KeyPressMsg{Code: '/', Text: "/"})
 		m = m2.(Model)
 		m2, _ = m.updateSessionList(tea.KeyPressMsg{Code: 'a', Text: "a"})
@@ -126,7 +109,6 @@ func TestHelpModalClose(t *testing.T) {
 		m2, _ = m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = m2.(Model)
 		filterBefore := m.sessionList.FilterState()
-		// Open help over the filtered list, then Esc.
 		m.modal = modalHelp
 		m2, cmd := m.updateSessionList(tea.KeyPressMsg{Code: tea.KeyEscape})
 		m = m2.(Model)
@@ -151,7 +133,6 @@ func TestHelpModalClose(t *testing.T) {
 	})
 
 	t.Run("it consumes all other keys while open (key-exclusive)", func(t *testing.T) {
-		// A non-dismiss key (q, which would otherwise quit) must be swallowed.
 		m := helpModelSessions(t, theme.MemberDark)
 		m.modal = modalHelp
 		updated, cmd := m.updateSessionList(tea.KeyPressMsg{Code: 'q', Text: "q"})
@@ -188,30 +169,24 @@ func TestHelpModalClose(t *testing.T) {
 	})
 }
 
-// TestHelpModalContent asserts the help modal is GENERATED from the page keymap
-// descriptor (Sessions / Projects) and lists the page's COMPLETE keymap,
-// including footer-core keys (the full reference, not just the footer overflow).
 func TestHelpModalContent(t *testing.T) {
 	t.Run("it generates the Sessions help content from the descriptor including footer-core keys", func(t *testing.T) {
 		m := helpModelSessions(t, theme.MemberDark)
 		m.modal = modalHelp
 		view := m.viewSessionList()
 
-		// Every Sessions descriptor entry's help action must appear — footer-core
-		// AND help-only. The ? help self-entry is excluded (a help modal does not
-		// list its own open key).
 		for _, action := range []string{
-			"Move selection",        // ↑/↓ — footer-core
-			"Open / attach session", // enter — footer-core
-			"Filter sessions",       // / — footer-core
-			"Preview scrollback",    // space — footer-core
-			"Switch view",           // s — footer-core
-			"Switch to Projects",    // x — footer-core
-			"New session in cwd",    // n — help-only
-			"Rename session",        // r — help-only
-			"Kill session",          // k — help-only
-			"Multi-select mode",     // m — help-only
-			"Quit",                  // q — help-only
+			"Move selection",
+			"Open / attach session",
+			"Filter sessions",
+			"Preview scrollback",
+			"Switch view",
+			"Switch to Projects",
+			"New session in cwd",
+			"Rename session",
+			"Kill session",
+			"Multi-select mode",
+			"Quit",
 		} {
 			if !strings.Contains(view, action) {
 				t.Errorf("Sessions help must list %q (complete keymap from descriptor), missing in:\n%s", action, view)
@@ -220,16 +195,12 @@ func TestHelpModalContent(t *testing.T) {
 	})
 
 	t.Run("it includes a footer-core key in the Sessions help (complete keymap)", func(t *testing.T) {
-		// Edge case: the complete keymap must include keys ALSO in the footer.
-		// space/preview is a footer-core key; it must still appear in help.
 		m := helpModelSessions(t, theme.MemberDark)
 		m.modal = modalHelp
 		view := m.viewSessionList()
 		if !strings.Contains(view, "Preview scrollback") {
 			t.Errorf("Sessions help must include the footer-core space/preview key; missing in:\n%s", view)
 		}
-		// The help body shows the ␣ glyph for the preview key (HelpKey), matching the
-		// footer Key (now also ␣ per §3.4 — task 8-2).
 		if !strings.Contains(view, "␣") {
 			t.Errorf("Sessions help must show the ␣ glyph for the footer-core preview key; missing in:\n%s", view)
 		}
@@ -239,16 +210,15 @@ func TestHelpModalContent(t *testing.T) {
 		m := helpModelProjects(t, theme.MemberDark)
 		m.modal = modalHelp
 		view := m.viewProjectList()
-		// Help-only Projects keys (d/n/nav/q) must appear, plus the footer-core set.
 		for _, action := range []string{
-			"New session",        // ⏎ — footer-core
-			"Switch to Sessions", // x — footer-core
-			"Edit project",       // e — footer-core
-			"Filter projects",    // / — footer-core
-			"Delete project",     // d — help-only
-			"New session in cwd", // n — help-only
-			"Move selection",     // ↑/↓ — help-only
-			"Quit",               // q — help-only
+			"New session",
+			"Switch to Sessions",
+			"Edit project",
+			"Filter projects",
+			"Delete project",
+			"New session in cwd",
+			"Move selection",
+			"Quit",
 		} {
 			if !strings.Contains(view, action) {
 				t.Errorf("Projects help must list %q (complete keymap from descriptor), missing in:\n%s", action, view)
@@ -257,8 +227,6 @@ func TestHelpModalContent(t *testing.T) {
 	})
 
 	t.Run("it does not list the ? help self-entry in the modal body", func(t *testing.T) {
-		// The reference omits the ? open key from the body (the panel's own header
-		// carries the dismiss hint instead).
 		m := helpModelSessions(t, theme.MemberDark)
 		m.modal = modalHelp
 		body := helpModalBody(sessionsKeymap(), m.themeState.active, m.colourless)
@@ -268,10 +236,6 @@ func TestHelpModalContent(t *testing.T) {
 	})
 }
 
-// TestHelpModalGlyphs asserts the "all symbols, caret for ctrl" final glyph set
-// in the help body: page → `^↑/↓`, space → `␣`, enter → `⏎`, nav → `↑/↓` (the
-// slashed help-only forms via HelpKey). The footer reads the §3.4 glyph Key forms
-// `␣` / `⏎` / `↑↓` (no slash) and never shows the page `^↑/↓` (help-only).
 func TestHelpModalGlyphs(t *testing.T) {
 	body := helpModalBody(sessionsKeymap(), testDarkTheme(t), false)
 	for _, glyph := range []string{"^↑/↓", "␣", "⏎", "↑/↓"} {
@@ -279,14 +243,10 @@ func TestHelpModalGlyphs(t *testing.T) {
 			t.Errorf("help body must show glyph %q; missing in:\n%s", glyph, body)
 		}
 	}
-	// The help body must NOT regress to the literal words the footer used to use
-	// for the overridden keys.
 	if strings.Contains(body, "ctrl+") {
 		t.Errorf("help body must use the caret form (^↑/↓), not ctrl+; got:\n%s", body)
 	}
 
-	// Footer reads Key: per §3.4 the Core forms are the glyphs ␣ / ⏎ / ↑↓ (no
-	// slash), and the help-only page key (^↑/↓) is never in the footer.
 	entries := sessionsKeymap()
 	keyByGlyph := map[string]bool{}
 	for _, e := range entries {
@@ -299,9 +259,6 @@ func TestHelpModalGlyphs(t *testing.T) {
 	}
 }
 
-// TestHelpModalHeader asserts the header reads `? Keybindings` left with a
-// right-aligned `esc close`, and that there is NO contextual footer (the §8.1
-// help-modal exception — dismiss hint in the header).
 func TestHelpModalHeader(t *testing.T) {
 	t.Run("it renders the header ? Keybindings left and esc close right", func(t *testing.T) {
 		m := helpModelSessions(t, theme.MemberDark)
@@ -316,9 +273,6 @@ func TestHelpModalHeader(t *testing.T) {
 	})
 
 	t.Run("it has no contextual footer dismiss hint", func(t *testing.T) {
-		// The §8.1 exception: the dismiss hint lives in the header, NOT a contextual
-		// footer. The other modals render `esc cancel`/`esc discard` in a footer; the
-		// help modal must not — its only dismiss copy is the header `esc close`.
 		m := helpModelSessions(t, theme.MemberDark)
 		m.modal = modalHelp
 		view := m.viewSessionList()
@@ -330,10 +284,6 @@ func TestHelpModalHeader(t *testing.T) {
 	})
 }
 
-// TestHelpModalColourRoles asserts the two-column colour wiring (§2.9): key-hint
-// glyphs in accent.key, action labels in text.secondary, the header `? Keybindings`
-// in text.primary, and `esc close` in text.muted. Verified by the presence of
-// each token's mode-resolved SGR in the rendered body.
 func TestHelpModalColourRoles(t *testing.T) {
 	forEachBuiltinTheme(t, func(t *testing.T, th theme.Theme) {
 		body := helpModalBody(sessionsKeymap(), th, false)
@@ -359,9 +309,6 @@ func TestHelpModalColourRoles(t *testing.T) {
 	})
 }
 
-// TestHelpModalDestructiveKill asserts the kill (k) key glyph renders in the
-// state.destructive role per the reference (the k glyph is the one destructive
-// glyph in the Sessions help). Glyph + colour, not colour alone.
 func TestHelpModalDestructiveKill(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		body := helpModalBody(sessionsKeymap(), th, false)
@@ -371,13 +318,9 @@ func TestHelpModalDestructiveKill(t *testing.T) {
 	}
 }
 
-// TestHelpModalBlankCanvas asserts the help modal renders on the cleared owned
-// canvas (inherits the 3-1 blank-screen modal layer): the session rows behind it
-// are gone and the owned-canvas backdrop SGR is present (dark + light).
 func TestHelpModalBlankCanvas(t *testing.T) {
 	forEachCanvasMode(t, func(t *testing.T, mode theme.Member) {
 		m := helpModelSessions(t, mode)
-		// Sanity: the live view shows the list rows.
 		if !strings.Contains(m.viewSessionList(), "alpha") {
 			t.Fatalf("pre-modal sanity: live view should contain a session row")
 		}

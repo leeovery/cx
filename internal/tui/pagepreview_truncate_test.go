@@ -8,18 +8,6 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// TestTruncateToCells covers the display-cell-aware truncation primitive used
-// by the preview frame's chrome cascade (tier 1 truncate-window-name with …
-// suffix, tier 2 8-cell minimum) per
-// specification.md § Display-cell-aware truncation and § Width cascade > Tier 1.
-//
-// Each row asserts three universal invariants:
-//   - utf8.ValidString(got) is true (no mid-rune cuts).
-//   - runewidth.StringWidth(got) <= budget.
-//   - strings.HasSuffix(got, "…") matches the row's expected truncation flag.
-//
-// Glyph classes covered: ASCII, CJK (2 cells/rune), emoji ZWJ sequences
-// (2 cells, multi-codepoint), and combining marks (0 cells).
 func TestTruncateToCells(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -60,14 +48,6 @@ func TestTruncateToCells(t *testing.T) {
 	}
 }
 
-// TestTruncateToCells_ZWJSequenceTruncationInvariants exercises the truncation
-// arm with a ZWJ-sequence input long enough to force the slow path. The
-// current algorithm iterates codepoint-by-codepoint and is not
-// grapheme-cluster aware, so the exact byte content of the truncated output
-// is an implementation detail (a trailing ZWJ may dangle). This test asserts
-// only the spec-mandated universal invariants — valid UTF-8, width ≤ budget,
-// ellipsis suffix when truncation occurred — to document that those hold
-// even when the input crosses a ZWJ boundary at the cut point.
 func TestTruncateToCells_ZWJSequenceTruncationInvariants(t *testing.T) {
 	const input = "👨‍👩‍👧hello"
 	const budget = 4

@@ -1,8 +1,5 @@
 package tui
 
-// Tests in this file parse the package's own sources and build models through
-// the shared constructor, so they MUST NOT use t.Parallel.
-
 import (
 	"go/ast"
 	"go/token"
@@ -16,24 +13,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// fakeThemePersister records what the seam was asked to commit, and can be made
-// to fail.
-//
-// `slugs` is every commit whatever its shape, which is what a "nothing was
-// written" assertion wants; `constants` is the CommitTheme calls alone and
-// `slots` the CommitThemeSlot ones, so the picker idiom's two commit keys are
-// distinguishable — `Enter` writes the constant and clears both slots, `d`/`l`
-// write a slot and clear the constant, and a test asserting one must not pass
-// over the other.
-//
-// `slotCommits` is the slot calls with their SLUG AND HALF TOGETHER. The flat
-// slices above cannot express that pairing once a fixture drives both commit
-// shapes — `slugs` then interleaves them — and the picker idiom's `d`/`l` is precisely a
-// statement about which slug went into which half of the pair.
-//
-// `err` is returned by both methods. The failed-commit rule's outstanding-failure state
-// machine renders its line from the value the seam hands back, so a failed write has to
-// be drivable end to end rather than only described.
+// slugs is every commit whatever its shape; constants and slots separate the
+// two commit keys, and slotCommits pairs a slot's slug with its half — which
+// the flat slices cannot express once a fixture drives both shapes.
 type fakeThemePersister struct {
 	slugs       []string
 	constants   []string
@@ -42,7 +24,6 @@ type fakeThemePersister struct {
 	err         error
 }
 
-// slotCommit is one recorded CommitThemeSlot call.
 type slotCommit struct {
 	slug   string
 	member theme.Member
@@ -61,13 +42,6 @@ func (f *fakeThemePersister) CommitThemeSlot(slug string, member theme.Member) e
 	return f.err
 }
 
-// TestBuild_NilThemePersisterIsTolerated pins the seam's nil-tolerance, the shape
-// WithModePersister already has: a nil Deps field applies NO option, so the model
-// holds a nil persister and a capture (or any test model) writes nowhere.
-//
-// The positive control is what stops the nil assertion passing for the wrong
-// reason — an option that never wired anything would satisfy the first subtest
-// forever.
 func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 	t.Run("a nil dep leaves the seam unwired", func(t *testing.T) {
 		m := Build(Deps{Lister: fakeLister{}})
@@ -104,7 +78,6 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 		if m.themeState.persister != persister {
 			t.Fatalf("themePersister = %#v, want the injected recorder", m.themeState.persister)
 		}
-		// Exercised BY DIRECT CALL — no keypress reaches it here.
 		if err := m.themeState.persister.CommitThemeSlot("nord", theme.MemberDark); err != nil {
 			t.Fatalf("CommitThemeSlot: %v", err)
 		}
@@ -117,17 +90,8 @@ func TestBuild_NilThemePersisterIsTolerated(t *testing.T) {
 	})
 }
 
-// TestPrefsStore_DoesNotSatisfyThemePersister pins the deliberate method-name
-// divergence: the store's savers are SaveTheme / SaveThemeSlot, the seam's
-// methods are CommitTheme / CommitThemeSlot, so *prefs.Store cannot be wired
-// straight into the seam and bypass cmd's single emission site for
-// `theme: commit failed`.
-//
-// The assertion is boxed through `any` because a direct `var _ ThemePersister =
-// (*prefs.Store)(nil)` cannot express a NEGATIVE — it would simply fail to
-// compile. The ModePersister control is the positive half: *prefs.Store does
-// satisfy that seam, so this is about the theme seam's names rather than about
-// the store having no methods at all.
+// Boxed through `any` because a direct `var _ ThemePersister =
+// (*prefs.Store)(nil)` cannot express a negative — it would fail to compile.
 func TestPrefsStore_DoesNotSatisfyThemePersister(t *testing.T) {
 	var store any = (*prefs.Store)(nil)
 
@@ -139,16 +103,7 @@ func TestPrefsStore_DoesNotSatisfyThemePersister(t *testing.T) {
 	}
 }
 
-// TestCommitFailed_SingleEmissionSite pins the concurrent-write rule's ownership from the side
-// internal/tui owns: the model HOLDS the seam and logs nothing, so
-// `theme: commit failed` has exactly one emission site (cmd's persister) rather
-// than a doubled one.
-//
-// A source guard rather than a behavioural one, because "emitted nothing" has no
-// observable trace here — the package would have to bind the component first, and
-// a binding plus a message literal are precisely what a second site looks like.
-// Both halves are checked: no `theme` component binding, and no `commit failed`
-// message anywhere in the package's sources.
+// A source guard: "emitted nothing" has no observable trace here.
 func TestCommitFailed_SingleEmissionSite(t *testing.T) {
 	for name, file := range parsePackageFilesByName(t) {
 		ast.Inspect(file, func(n ast.Node) bool {
@@ -171,13 +126,10 @@ func TestCommitFailed_SingleEmissionSite(t *testing.T) {
 	}
 }
 
-// commitFailedEvent is the `theme` log component's message, restated here as the string the
-// guard above searches for. It is deliberately a TEST-side constant: production in this
-// package must not carry it at all, so importing one from here would defeat the
-// guard.
+// Deliberately a test-side constant: production in this package must not carry
+// this string at all, so importing one would defeat the guard above.
 const commitFailedEvent = "commit failed"
 
-// isThemeComponentBinding reports whether call is exactly log.For("theme").
 func isThemeComponentBinding(call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "For" || len(call.Args) != 1 {

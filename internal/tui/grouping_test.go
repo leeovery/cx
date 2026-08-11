@@ -10,8 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// mustMkdir creates dir (and parents) so CanonicalDirKey's EvalSymlinks
-// resolves against a real on-disk path, keeping test keys deterministic.
 func mustMkdir(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -19,8 +17,6 @@ func mustMkdir(t *testing.T, dir string) {
 	}
 }
 
-// asSessionItem unwraps a list.Item into a SessionItem, failing the test if the
-// item is not a SessionItem.
 func asSessionItem(t *testing.T, item list.Item) SessionItem {
 	t.Helper()
 	si, ok := item.(SessionItem)
@@ -30,10 +26,6 @@ func asSessionItem(t *testing.T, item list.Item) SessionItem {
 	return si
 }
 
-// sessionRows returns only the SessionItem rows from a grouped item slice,
-// dropping the injected HeaderItem separators. Grouped lists now interleave a
-// HeaderItem before each group, so tests that assert on session membership /
-// ordering filter the headers out with this helper.
 func sessionRows(items []list.Item) []SessionItem {
 	var out []SessionItem
 	for _, it := range items {
@@ -44,8 +36,6 @@ func sessionRows(items []list.Item) []SessionItem {
 	return out
 }
 
-// headerRows returns only the HeaderItem separators from a grouped item slice,
-// in order — for tests that assert on group headings and their counts.
 func headerRows(items []list.Item) []HeaderItem {
 	var out []HeaderItem
 	for _, it := range items {
@@ -83,8 +73,6 @@ func TestBuildByProject(t *testing.T) {
 			t.Errorf("CatchAll = true, want false")
 		}
 
-		// The group's header is a real list item carrying the project name and a
-		// row count of 1, interleaved before its session row.
 		headers := headerRows(items)
 		if len(headers) != 1 {
 			t.Fatalf("len(headers) = %d, want 1", len(headers))
@@ -100,9 +88,6 @@ func TestBuildByProject(t *testing.T) {
 		idx := project.NewIndex(projects)
 		sessions := []tmux.Session{{Name: "portal-abc", Dir: dir}}
 
-		// The GroupKey buildByProject stamps must be exactly the canonical key
-		// idx.Match computes and returns for the same Dir — proving the key is
-		// reused, not recomputed via a second CanonicalDirKey call.
 		_, matchKey, ok := idx.Match(dir)
 		if !ok {
 			t.Fatalf("idx.Match(%q) ok = false, want true", dir)
@@ -132,7 +117,6 @@ func TestBuildByProject(t *testing.T) {
 			{Path: dirA, Name: "Alpha"},
 			{Path: dirB, Name: "Bravo"},
 		}
-		// Deliberately unsorted input: B before A, and within A z before a.
 		sessions := []tmux.Session{
 			{Name: "bravo-1", Dir: dirB},
 			{Name: "alpha-z", Dir: dirA},
@@ -160,8 +144,6 @@ func TestBuildByProject(t *testing.T) {
 			}
 		}
 
-		// One header per group, in (sorted) group order: Alpha (2 rows) then
-		// Bravo (1 row).
 		headers := headerRows(items)
 		wantHeaders := []struct {
 			heading string
@@ -218,8 +200,6 @@ func TestBuildByProject(t *testing.T) {
 			t.Errorf("len(distinct keys) = %d, want 2", len(keys))
 		}
 
-		// Two distinct dirs sharing the name "Portal" form two separate groups,
-		// hence two headers (both labelled "Portal").
 		headers := headerRows(items)
 		if len(headers) != 2 {
 			t.Errorf("len(headers) = %d, want 2 (one per distinct-dir group)", len(headers))
@@ -254,7 +234,6 @@ func TestBuildByProject(t *testing.T) {
 
 	t.Run("routes a stamped dir with no matching project record to the Unknown bucket", func(t *testing.T) {
 		dir := t.TempDir()
-		// No project record for dir → deleted project / live session.
 		sessions := []tmux.Session{{Name: "orphan", Dir: dir}}
 
 		items := buildByProject(sessions, project.NewIndex(nil))
@@ -322,8 +301,6 @@ func TestBuildByProject(t *testing.T) {
 				t.Errorf("unexpected Unknown heading; should be suppressed when no session is unresolvable")
 			}
 		}
-		// Empty-suppression at the header layer: no Unknown HeaderItem is emitted
-		// when no session is unresolvable.
 		for _, h := range headerRows(items) {
 			if h.Heading == unknownHeading {
 				t.Errorf("unexpected Unknown header; should be suppressed when no session is unresolvable")
@@ -332,7 +309,6 @@ func TestBuildByProject(t *testing.T) {
 	})
 
 	t.Run("orders Unknown catch-all items by session name", func(t *testing.T) {
-		// Unsorted, all unresolvable (empty Dir).
 		sessions := []tmux.Session{
 			{Name: "charlie"},
 			{Name: "alpha"},
@@ -370,12 +346,10 @@ func TestBuildByProject(t *testing.T) {
 	})
 
 	t.Run("pins the Unknown catch-all group last after alphabetical project headings", func(t *testing.T) {
-		// A project named "Zulu" sorts after Unknown alphabetically; the catch-all
-		// must still be pinned last (append-position, not alphabetical).
 		dir := t.TempDir()
 		projects := []project.Project{{Path: dir, Name: "Zulu"}}
 		sessions := []tmux.Session{
-			{Name: "orphan"}, // empty Dir → Unknown
+			{Name: "orphan"},
 			{Name: "zulu-1", Dir: dir},
 		}
 
@@ -394,7 +368,6 @@ func TestBuildByProject(t *testing.T) {
 			t.Errorf("last row = %+v, want Unknown catch-all pinned last", last)
 		}
 
-		// The header order mirrors the row order: Zulu first, Unknown pinned last.
 		headers := headerRows(items)
 		if len(headers) != 2 {
 			t.Fatalf("len(headers) = %d, want 2", len(headers))
@@ -412,8 +385,8 @@ func TestBuildByProject(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{
 			{Name: "resolved", Dir: dir},
-			{Name: "unresolvable-dir"},                  // empty Dir → Unknown
-			{Name: "deleted-project", Dir: t.TempDir()}, // stamped, no record → Unknown
+			{Name: "unresolvable-dir"},
+			{Name: "deleted-project", Dir: t.TempDir()},
 		}
 
 		items := buildByProject(sessions, project.NewIndex(projects))
@@ -433,8 +406,8 @@ func TestBuildByProject(t *testing.T) {
 		dir := t.TempDir()
 		projects := []project.Project{{Path: dir, Name: "Portal"}}
 		sessions := []tmux.Session{
-			{Name: "unresolvable-dir"},                  // empty Dir
-			{Name: "deleted-project", Dir: t.TempDir()}, // stamped dir, no matching record
+			{Name: "unresolvable-dir"},
+			{Name: "deleted-project", Dir: t.TempDir()},
 		}
 
 		items := buildByProject(sessions, project.NewIndex(projects))
@@ -448,7 +421,6 @@ func TestBuildByProject(t *testing.T) {
 				t.Errorf("session %q not routed to Unknown: %+v", si.Session.Name, si)
 			}
 		}
-		// Both unresolvable sessions share a single Unknown header with Count 2.
 		headers := headerRows(items)
 		if len(headers) != 1 {
 			t.Fatalf("len(headers) = %d, want 1", len(headers))
@@ -476,8 +448,6 @@ func TestBuildByTag(t *testing.T) {
 			if si.CatchAll {
 				t.Errorf("item for tag %q is CatchAll, want false", si.GroupKey)
 			}
-			// For a By-Tag instance the canonical tag IS the GroupKey, and the
-			// dimmed heading mirrors it.
 			if si.GroupHeading != si.GroupKey {
 				t.Errorf("GroupHeading = %q, want = GroupKey %q", si.GroupHeading, si.GroupKey)
 			}
@@ -493,8 +463,6 @@ func TestBuildByTag(t *testing.T) {
 			}
 		}
 
-		// Each tag forms its own group, so one header per tag (sorted): personal
-		// then work, each counting its single row.
 		headers := headerRows(items)
 		wantHeaders := []struct {
 			heading string
@@ -521,8 +489,6 @@ func TestBuildByTag(t *testing.T) {
 		mustMkdir(t, dir1)
 		mustMkdir(t, dir2)
 		mustMkdir(t, dir3)
-		// Tags are case-sensitive: each case variant is its own group, displayed
-		// exactly as stored.
 		projects := []project.Project{
 			{Path: dir1, Name: "P1", Tags: []string{"work"}},
 			{Path: dir2, Name: "P2", Tags: []string{"Work"}},
@@ -545,8 +511,6 @@ func TestBuildByTag(t *testing.T) {
 				t.Errorf("GroupKey %q != GroupHeading %q (tag is its own display)", si.GroupKey, si.GroupHeading)
 			}
 		}
-		// Sorted by (GroupKey, name): "WORK" < "Work" < "work" (ASCII order), so
-		// three single-row headers in that order.
 		headers := headerRows(items)
 		if len(headers) != 3 {
 			t.Fatalf("len(headers) = %d, want 3 (case-distinct groups)", len(headers))
@@ -584,7 +548,6 @@ func TestBuildByTag(t *testing.T) {
 
 	t.Run("emits one Untagged item for a session whose dir has no project record", func(t *testing.T) {
 		dir := t.TempDir()
-		// No project record for dir → no tags → Untagged.
 		sessions := []tmux.Session{{Name: "orphan", Dir: dir}}
 
 		items := buildByTag(sessions, project.NewIndex(nil))
@@ -622,7 +585,6 @@ func TestBuildByTag(t *testing.T) {
 
 	t.Run("skips a junk non-canonical stored tag without emitting an item", func(t *testing.T) {
 		dir := t.TempDir()
-		// "  " normalises to ok==false → skipped; "work" remains.
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"   ", "work"}}}
 		sessions := []tmux.Session{{Name: "s1", Dir: dir}}
 
@@ -671,7 +633,6 @@ func TestBuildByTag(t *testing.T) {
 			{Path: dir1, Name: "P1", Tags: []string{"work", "alpha"}},
 			{Path: dir2, Name: "P2", Tags: []string{"alpha"}},
 		}
-		// Unsorted input: ensure ordering is by (tag, name), not input order.
 		sessions := []tmux.Session{
 			{Name: "z-sess", Dir: dir1},
 			{Name: "a-sess", Dir: dir2},
@@ -698,7 +659,6 @@ func TestBuildByTag(t *testing.T) {
 			}
 		}
 
-		// One header per tag group in sorted order: alpha (2 rows) then work (1).
 		headers := headerRows(items)
 		wantHeaders := []struct {
 			heading string
@@ -803,8 +763,6 @@ func TestBuildByTag(t *testing.T) {
 				t.Errorf("unexpected Untagged heading; should be suppressed when every session is tagged")
 			}
 		}
-		// Empty-suppression at the header layer: no Untagged HeaderItem when
-		// every session is tagged.
 		for _, h := range headerRows(items) {
 			if h.Heading == untaggedHeading {
 				t.Errorf("unexpected Untagged header; should be suppressed when every session is tagged")
@@ -813,7 +771,6 @@ func TestBuildByTag(t *testing.T) {
 	})
 
 	t.Run("orders Untagged catch-all items by session name", func(t *testing.T) {
-		// Unsorted, all untagged (empty Dir).
 		sessions := []tmux.Session{
 			{Name: "charlie"},
 			{Name: "alpha"},
@@ -851,12 +808,10 @@ func TestBuildByTag(t *testing.T) {
 	})
 
 	t.Run("pins the Untagged catch-all group last after alphabetical tag headings", func(t *testing.T) {
-		// Tag "zeta" sorts after Untagged alphabetically; the catch-all must still
-		// be pinned last (append-position, not alphabetical).
 		dir := t.TempDir()
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"zeta"}}}
 		sessions := []tmux.Session{
-			{Name: "orphan"}, // empty Dir → Untagged
+			{Name: "orphan"},
 			{Name: "zeta-1", Dir: dir},
 		}
 
@@ -875,7 +830,6 @@ func TestBuildByTag(t *testing.T) {
 			t.Errorf("last row = %+v, want Untagged catch-all pinned last", last)
 		}
 
-		// The header order mirrors the row order: zeta first, Untagged pinned last.
 		headers := headerRows(items)
 		if len(headers) != 2 {
 			t.Fatalf("len(headers) = %d, want 2", len(headers))
@@ -889,7 +843,6 @@ func TestBuildByTag(t *testing.T) {
 	})
 
 	t.Run("routes a deleted-project session to Untagged", func(t *testing.T) {
-		// Stamped dir, no matching project record → no tags → Untagged.
 		sessions := []tmux.Session{{Name: "deleted-project", Dir: t.TempDir()}}
 
 		items := buildByTag(sessions, project.NewIndex(nil))
@@ -909,8 +862,8 @@ func TestBuildByTag(t *testing.T) {
 		projects := []project.Project{{Path: dir, Name: "Portal", Tags: []string{"work", "personal"}}}
 		sessions := []tmux.Session{
 			{Name: "tagged", Dir: dir},
-			{Name: "untagged-dir"},                      // empty Dir → Untagged
-			{Name: "deleted-project", Dir: t.TempDir()}, // stamped, no record → Untagged
+			{Name: "untagged-dir"},
+			{Name: "deleted-project", Dir: t.TempDir()},
 		}
 
 		items := buildByTag(sessions, project.NewIndex(projects))

@@ -1,17 +1,5 @@
 package tui
 
-// restore-host-terminal-windows-6-3 — the §6 N≥2 picker-burst async pipe.
-//
-// This file mirrors cmd/bootstrap_progress.go's channel + goroutine + re-issued
-// receiver pattern for the picker's spawn burst. On an N≥2 Enter the model
-// launches the burst IN A GOROUTINE (dispatchBurst) so Update never blocks: the
-// goroutine pre-flights the selection, opens the N-1 external windows through the
-// resolved adapter, streams one progress event per window over a bounded channel,
-// then sends exactly one terminal event (a pre-flight abort OR the burst outcome)
-// and closes the channel. The receiver tea.Cmd performs a single blocking receive
-// re-issued per non-terminal event — the standard Bubble Tea external-channel
-// pattern, preserving exact event order even under command batching.
-
 import (
 	"context"
 	"slices"
@@ -20,23 +8,13 @@ import (
 	"github.com/leeovery/portal/internal/spawn"
 )
 
-// burstProgressBufferSize bounds the burst progress channel. A burst emits one
-// non-terminal event per external window plus a single terminal event; a
-// generous-but-bounded buffer means a fast burster never blocks on a slow render,
-// while the bound prevents an unbounded backlog. 64 comfortably exceeds any realistic
-// marked-set (the N-1 progress events + 1 terminal), so the terminal event's naked
-// send always finds buffer space or a waiting receiver (see send). Progress sends are
-// ctx-guarded so a cancelled burst (Task 6-8) never wedges the goroutine on them.
+// 64 comfortably exceeds any realistic marked-set, so the terminal event's
+// naked send always finds buffer space or a waiting receiver.
 const burstProgressBufferSize = 64
 
-// burstProgress is the event shape carried on the picker-burst progress channel,
-// mirroring cmd/bootstrap_progress.go's bootstrapProgress. Exactly one terminal
-// event (Done=true) is sent, last, before the channel closes:
-//   - a non-terminal progress event carries DoneCount/Total (external windows
-//     opened so far / the external count)
-//   - the terminal event carries EITHER Gone (a pre-flight abort — NOTHING
-//     spawned; task 6-7 owns the abort UI) OR the burst outcome
-//     (Batch/Results/Identity/Resolution/Err).
+// burstProgress is the picker-burst channel event. Exactly one terminal event
+// (Done=true) is sent, last, before the channel closes; it carries either Gone
+// (pre-flight abort — nothing spawned) or the burst outcome.
 type burstProgress struct {
 	DoneCount int
 	Total     int
@@ -50,18 +28,11 @@ type burstProgress struct {
 	Err        error
 }
 
-// spawnProgressMsg is the non-terminal burst tea.Msg: Done external windows
-// opened of Total. Its Update arm re-issues the receiver so the next channel event
-// is pulled (mirroring BootstrapProgressMsg).
 type spawnProgressMsg struct {
 	Done  int
 	Total int
 }
 
-// spawnCompleteMsg is the terminal burst tea.Msg for a burst that RAN (pre-flight
-// passed): the batch id, per-window results, the resolved identity/resolution, and
-// any pre-window abort error. The self-attach to the trigger + the selection
-// mutation land in tasks 6-4/6-6; this task records the outcome and clears pending.
 type spawnCompleteMsg struct {
 	Batch      string
 	Results    []spawn.WindowResult
@@ -70,37 +41,21 @@ type spawnCompleteMsg struct {
 	Err        error
 }
 
-// spawnAbortMsg is the terminal burst tea.Msg for a pre-flight abort: one or more
-// selected sessions vanished between marking and Enter, so NOTHING was spawned.
-// Task 6-7 owns the abort UI; this task clears pending.
 type spawnAbortMsg struct {
 	Gone []string
 }
 
-// burstChannelClosedMsg is the receiver's reply once the burst channel has been
-// drained and closed — the post-terminal sentinel that stops the receive loop
-// without blocking (mirroring bootstrapChannelClosedMsg).
 type burstChannelClosedMsg struct{}
 
-// burstProgressPipe owns the burst progress channel and the goroutine's cancel
-// func. The receiver tea.Cmd is handed to the Update loop; start launches the
-// burst goroutine, which streams a per-window progress event plus one terminal
-// event, then closes the channel.
 type burstProgressPipe struct {
 	ch     chan burstProgress
 	cancel context.CancelFunc
 }
 
-// newBurstProgressPipe constructs a pipe with a bounded buffered channel.
 func newBurstProgressPipe() *burstProgressPipe {
 	return &burstProgressPipe{ch: make(chan burstProgress, burstProgressBufferSize)}
 }
 
-// start launches the burst goroutine. run is the goroutine body (built by
-// burstRunner.run): it receives an emit func that delegates to send (naked for the
-// terminal event, ctx-guarded for progress). start closes the channel on return — on
-// the pre-flight abort, the burst outcome, OR a cancellation — so the receiver always
-// observes a close and never leaks a blocked receive.
 func (p *burstProgressPipe) start(ctx context.Context, run func(ctx context.Context, emit func(burstProgress))) {
 	go func() {
 		defer close(p.ch)
@@ -108,41 +63,21 @@ func (p *burstProgressPipe) start(ctx context.Context, run func(ctx context.Cont
 	}()
 }
 
-// send delivers one burst event, splitting on the terminal-vs-progress distinction
-// (Task 6-8):
-//
-//   - The TERMINAL event (ev.Done) carries the confirmed/failed results the model
-//     needs to run its selection mutation and clear burst-pending, so it MUST be
-//     delivered — a NAKED, unconditional send. It cannot leak or wedge the goroutine:
-//     it is always the LAST send before the deferred close, and on the cancel path
-//     cancelBurst returns m.burstPipe.receiver(), so a receiver is actively
-//     consuming; every prior progress event was drained as it arrived, so the bounded
-//     buffer (burstProgressBufferSize, comfortably larger than any realistic
-//     marked-set) has space and/or a waiting receiver — the send completes at once.
-//     Dropping the terminal event (the previous ctx-guarded send) raced ctx.Done on
-//     cancel and left the picker permanently input-locked (~50% of cancels).
-//
-//   - A PROGRESS event (advisory DoneCount/Total counters) keeps the ctx-guarded
-//     select — droppable on cancel, since the receiver may have moved on and the
-//     counter is only a UI nicety. On cancellation the goroutine still returns.
+// The terminal event must be a naked send: a ctx-guarded terminal send raced
+// ctx.Done on cancel and left the picker permanently input-locked. It cannot
+// block — it is the last send before the deferred close and a receiver is
+// consuming. Progress events are advisory and stay droppable on cancel.
 func (p *burstProgressPipe) send(ctx context.Context, ev burstProgress) {
 	if ev.Done {
-		p.ch <- ev // terminal outcome: MUST be delivered (buffer + consuming receiver → no block/leak)
+		p.ch <- ev
 		return
 	}
 	select {
 	case p.ch <- ev:
-	case <-ctx.Done(): // progress: droppable on cancel
+	case <-ctx.Done():
 	}
 }
 
-// receiver returns the tea.Cmd the Update loop blocks on. It performs a single
-// blocking channel receive and maps the event onto a tea.Msg:
-//   - a non-terminal progress event → spawnProgressMsg (its arm re-issues this
-//     receiver, pulling the next event in order)
-//   - a terminal event with Gone non-empty → spawnAbortMsg (a pre-flight abort)
-//   - a terminal event otherwise → spawnCompleteMsg (the burst outcome)
-//   - a closed channel → burstChannelClosedMsg (stops the loop; no leak)
 func (p *burstProgressPipe) receiver() tea.Cmd {
 	return func() tea.Msg {
 		ev, ok := <-p.ch
@@ -165,8 +100,6 @@ func (p *burstProgressPipe) receiver() tea.Cmd {
 	}
 }
 
-// burstRunner bundles everything the burst goroutine needs. Its run method is the
-// goroutine body handed to burstProgressPipe.start.
 type burstRunner struct {
 	burster       *spawn.Burster
 	ackChannel    spawn.AckChannelFull
@@ -177,24 +110,12 @@ type burstRunner struct {
 	resolution    spawn.Resolution
 }
 
-// run is the burst goroutine body:
-//  1. Pre-flight EVERY selected session (the external set AND the trigger's
-//     self-attach target). If any vanished between marking and Enter, emit a
-//     terminal abort event and STOP — nothing spawns (task 6-7 owns the abort UI).
-//  2. Otherwise open the N-1 external windows via the burster, streaming a progress
-//     event per window, self-clean the batch's ack markers on ALL paths (open-burst
-//     parity — bounded, harmless leaks self-expire with the tmux server), then emit
-//     the terminal outcome event.
 func (r burstRunner) run(ctx context.Context, emit func(burstProgress)) {
 	all := append(slices.Clone(r.external), r.trigger)
 	if gone := spawn.PreflightMissing(all, r.sessionExists); len(gone) > 0 {
 		emit(burstProgress{Done: true, Gone: gone})
 		return
 	}
-	// The picker multi-select is all-attach (every marked target is an existing
-	// session), so it converges onto the generalized surface-spec burster via
-	// spawn.AttachSurfaces — each spawned window runs `open --session <name>
-	// --ack …`. r.external stays []string for the pre-flight probe above.
 	batch, results, err := r.burster.Run(ctx, spawn.AttachSurfaces(r.external), nil, func(done, total int) {
 		emit(burstProgress{DoneCount: done, Total: total})
 	})
@@ -209,59 +130,35 @@ func (r burstRunner) run(ctx context.Context, emit func(burstProgress)) {
 	})
 }
 
-// WithSessionExists wires the §6 burst pre-flight has-session probe. Nil-tolerant:
-// a nil probe leaves the burst pre-flight unwired (the offline capture harness and
-// unit tests that never drive a burst). Production passes client.HasSession.
+// WithSessionExists wires the burst pre-flight has-session probe.
+// Nil-tolerant; production passes client.HasSession.
 func WithSessionExists(fn func(string) bool) Option {
 	return func(m *Model) { m.sessionExists = fn }
 }
 
-// WithAckChannel wires the §6 burst token-ack channel (Collect + Clean).
-// Nil-tolerant. Production passes spawn.NewServerOptionAckChannel(client, client).
+// WithAckChannel wires the burst token-ack channel. Nil-tolerant; production
+// passes spawn.NewServerOptionAckChannel(client, client).
 func WithAckChannel(ack spawn.AckChannelFull) Option {
 	return func(m *Model) { m.ackChannel = ack }
 }
 
-// WithSpawnExe wires the §6 burst executable resolver (the picker's own binary).
-// Nil-tolerant. Production passes os.Executable.
+// WithSpawnExe wires the burst executable resolver. Nil-tolerant; production
+// passes os.Executable.
 func WithSpawnExe(exe spawn.ExecutableResolver) Option {
 	return func(m *Model) { m.spawnExe = exe }
 }
 
-// WithSpawnGetenv wires the §6 burst PATH reader for attach-argv composition.
-// Nil-tolerant. Production passes os.Getenv.
+// WithSpawnGetenv wires the burst PATH reader for argv composition.
+// Nil-tolerant; production passes os.Getenv.
 func WithSpawnGetenv(fn func(string) string) Option {
 	return func(m *Model) { m.spawnGetenv = fn }
 }
 
-// burstAllConfirmed reports whether a terminal spawnCompleteMsg represents a
-// FULL-success burst (§6-4): the pre-flight passed (msg.Err == nil), every
-// external window produced a result (len == the external set), and every result
-// confirmed its token ack. Only then does the trigger window self-attach; any
-// other outcome is partial/permission (§6-6) or would be an abort (§6-7). An
-// empty external set cannot reach here — N=1 is task 5-7 — so the length check
-// never has to reason about a vacuous all-confirmed.
-//
-// The all-confirmed verdict is DERIVED from spawn.PartitionResults — the single
-// count-semantics chokepoint — rather than a hand-rolled !r.Confirmed() loop: a
-// batch is all-confirmed precisely when the returned failed slice is empty (§9-6).
-// The partition is total (every result lands in confirmed OR failed, keyed off the
-// shared Confirmed() predicate), so len(failed) == 0 iff every result confirmed —
-// exactly the relationship the multi-target open burst (cmd/open_burst_run.go) gates
-// on, so the two orchestrations cannot drift. The msg.Err and length guards remain: a pre-spawn
-// error or an arity mismatch (including the vacuous N=1-here case, where the length
-// guard fires) yields false regardless of the partition.
 func (m Model) burstAllConfirmed(msg spawnCompleteMsg) bool {
 	_, failed := spawn.PartitionResults(msg.Results)
 	return msg.Err == nil && len(msg.Results) == len(m.burstExternal) && len(failed) == 0
 }
 
-// resetBurstState clears the burst lifecycle fields after a terminal outcome: it
-// exits burst-pending, releases the goroutine's pipe + cancel references, zeroes the
-// progress counters, and clears the cancel flag. Used by the §6-4
-// full-success self-attach arm before the tea.Quit handoff, and by every §6-6/6-7/6-8
-// terminal arm — the single reset chokepoint, so burstCancelled never leaks past a
-// terminal event.
 func (m *Model) resetBurstState() {
 	m.burstPending = false
 	m.burstPipe = nil
@@ -271,13 +168,9 @@ func (m *Model) resetBurstState() {
 	m.burstCancelled = false
 }
 
-// WithInitialBurstOpening seeds the §6-5 in-burst Opening band at construction —
-// the capture-harness entry point for the otherwise dispatch-driven burst
-// (production sets these fields only inside dispatchBurst, never this option). It
-// marks the burst pending and seeds the streamed `Opening <done>/<total>…` counters
-// so the highest section-header claimant renders on the first frame; no goroutine,
-// pipe, or cancel is wired (the harness is inert). The zero value ([0,0] → done and
-// total both zero) is a no-op so omitting the option leaves the burst unwired.
+// WithInitialBurstOpening seeds the in-burst Opening band at construction —
+// the capture-harness entry point; no goroutine, pipe, or cancel is wired.
+// The zero value is a no-op.
 func WithInitialBurstOpening(done, total int) Option {
 	return func(m *Model) {
 		if done == 0 && total == 0 {
@@ -289,64 +182,40 @@ func WithInitialBurstOpening(done, total int) Option {
 	}
 }
 
-// BurstPending reports whether an async §6 spawn burst is in flight — dispatched
-// but not yet terminal (spawnCompleteMsg/spawnAbortMsg) — for testing.
+// BurstPending reports whether an async spawn burst is in flight, for testing.
 func (m Model) BurstPending() bool { return m.burstPending }
 
-// BurstExternal returns the net-N external set (the marked set minus the trigger)
-// the burst opens, in list order, for testing.
+// BurstExternal returns the net-N external set in list order, for testing.
 func (m Model) BurstExternal() []string { return m.burstExternal }
 
-// BurstTrigger returns the burst's self-attach target — the list-order-last marked
-// session — for testing.
+// BurstTrigger returns the burst's self-attach target, for testing.
 func (m Model) BurstTrigger() string { return m.burstTrigger }
 
-// BurstTotal returns N — the full marked-set size including the self-attach
-// target — recorded at dispatch, for testing.
+// BurstTotal returns N, the full marked-set size, for testing.
 func (m Model) BurstTotal() int { return m.burstTotal }
 
-// BurstDone returns the in-burst per-window confirm counter — how many external
-// windows have acked so far, folded from the streamed spawnProgressMsg events — for
-// testing. It advances 0…N-1 (never reaching N: the trigger self-attaches silently,
-// so the `Opening n/N…` band never nags an N/N frame).
+// BurstDone returns the per-window confirm counter, for testing. It advances
+// 0…N-1, never reaching N: the trigger self-attaches silently.
 func (m Model) BurstDone() int { return m.burstDone }
 
-// cancelBurst handles a Ctrl-C / Esc pressed while a spawn burst is in flight: the
-// §6-5 input-lock routes cancellation here (the only keys that stay live while
-// pending). It cancels the goroutine's context — so Burster.Run stops before opening
-// the next window and abandons the current ack poll (the ctx.Err() checks from §6-3),
-// leaving every already-opened host window in place (there is no teardown seam) — and
-// then flags burstCancelled so the terminal spawnCompleteMsg arm treats the outcome as
-// a user cancel: it skips the self-exec quit (Portal stays open in multi-select mode,
-// NOT tea.Quit) and suppresses the failed-window flash, applying only the same
-// leave-what-opened selection mutation as a partial failure (§6-6).
-//
-// burstPending is deliberately KEPT true: the goroutine still runs Clean(batch) and
-// sends its terminal event carrying the windows confirmed so far, so the picker stays
-// input-locked until that event lands. The re-issued receiver drains it — and because
-// the terminal send is naked (see send), it is delivered reliably even though the ctx
-// is now cancelled, so burstPending is always cleared and the picker never wedges.
+// cancelBurst deliberately keeps burstPending true: the goroutine still sends
+// its terminal event (delivered reliably via the naked send), so the picker
+// stays input-locked until that event lands and never wedges.
 func (m Model) cancelBurst() (tea.Model, tea.Cmd) {
 	if m.burstCancel != nil {
 		m.burstCancel()
 	}
 	m.burstCancelled = true
-	// Defensive/unreachable in production: dispatchBurst always pairs burstPending
-	// with a live burstPipe, so a cancel only lands while a pipe exists. Only the
-	// input-inert WithInitialBurstOpening capture harness sets pending without a
-	// pipe; guard against a wedge there rather than dereference a nil pipe.
+	// Only the capture harness sets pending without a pipe; guard the nil
+	// dereference there.
 	if m.burstPipe == nil {
 		return m, nil
 	}
 	return m, m.burstPipe.receiver()
 }
 
-// orderedMarkedSessions walks the session list top-to-bottom and returns the
-// marked session names in list order, DE-DUPED by name so a multi-tag By-Tag
-// session (which spans one row per tag) appears exactly once at its first list
-// position. It walks Items() (the full backing set, not the filtered
-// VisibleItems) so every marked session is included regardless of an applied
-// filter — "Enter opens the marked set only".
+// Walks Items(), not VisibleItems, so marks survive an applied filter;
+// de-duped because a multi-tag By-Tag session spans one row per tag.
 func (m Model) orderedMarkedSessions() []string {
 	var ordered []string
 	seen := make(map[string]struct{}, len(m.selectedSessions))
@@ -368,21 +237,12 @@ func (m Model) orderedMarkedSessions() []string {
 	return ordered
 }
 
-// beginBurst starts the §6-3 N≥2 spawn burst from the list-ordered marked set. It
-// gates on the async terminal detection (§6-1): while detection is still in flight
-// it DEFERS — flagging pendingBurstEnter so the terminalDetectedMsg arm resolves
-// the branch — and, if detection was never even dispatched, dispatches it now so
-// the defer can actually resolve (otherwise a warm Projects-landing → x → Sessions
-// → mark → Enter would defer forever). The deferred branch stashes NO snapshot: the
-// marked set is re-derived live from selectedSessions when detection resolves (§7-5),
-// so a mark toggle during the defer window is honoured. Once detection has resolved
-// it branches immediately via decideBurst.
+// While detection is in flight the Enter defers (and dispatches detection if
+// it never ran, so the defer can resolve). No snapshot is stashed — the marked
+// set is re-derived at resolution so toggles during the window are honoured.
 func (m Model) beginBurst(ordered []string) (Model, tea.Cmd) {
 	if !m.detectResolved {
 		m.pendingBurstEnter = true
-		// Dispatch detection now if it was never kicked off, so the deferred burst
-		// resolves rather than hanging. maybeDispatchDetectionCmd is a no-op (nil) when
-		// detection is already dispatched or unwired.
 		var cmd tea.Cmd
 		if !m.detectDispatched {
 			cmd = (&m).maybeDispatchDetectionCmd()
@@ -392,54 +252,21 @@ func (m Model) beginBurst(ordered []string) (Model, tea.Cmd) {
 	return m.decideBurst(ordered)
 }
 
-// decideBurst runs the post-detection branch of the N≥2 Enter (detection
-// resolved). A supported native/config resolution dispatches the async burst; an
-// unsupported resolution is the §6-9 atomic no-op — this terminal cannot open host
-// windows, so it constructs NO pipe, resolves NO adapter, calls NO adapter method,
-// sets no m.selected and does not tea.Quit. It stays in multi-select mode with the
-// selection left INTACT (nothing was gone, only unsupported — so no prune) and
-// re-asserts the unsupported warning as a transient flash naming the identity. It
-// branches on the cached RESOLUTION, not IsNull(): a recognised-but-undriven
-// terminal is non-NULL yet unsupported.
-//
-// §8-3: pre-flight runs BEFORE the unsupported no-op, mirroring the open burst's
-// preflight-then-unsupported sequence (cmd/open_burst_run.go) — so a gone session on
-// an unsupported terminal surfaces the gone message and is pruned
-// (handlePreflightAbort) rather than the unsupported banner re-asserting over a stale
-// selection.
-//
-// Both entry points route here — the direct N≥2 Enter (handleMultiSelectEnter →
-// beginBurst) and the deferred-Enter resolution (the terminalDetectedMsg arm's
-// pendingBurstEnter branch) — so the atomic no-op + flash lands on either path.
+// Branches on the cached resolution, not IsNull(): a recognised-but-undriven
+// terminal is non-NULL yet unsupported. The unsupported arm pre-flights first
+// so a gone session surfaces and is pruned rather than the banner masking it.
 func (m Model) decideBurst(ordered []string) (Model, tea.Cmd) {
 	m.pendingBurstEnter = false
-	// §7-5: ordered is re-derived live from selectedSessions at this decision point
-	// (both entry points now pass the live set), so a mark toggle during the
-	// pre-detection defer window is honoured. If every session was unmarked during
-	// that window the set is empty — no-op here rather than dispatching an empty
-	// burst (dispatchBurst would panic indexing ordered[len-1]). Nothing was spawned,
-	// so the picker stays exactly as the user left it (still in multi-select mode).
+	// Empty set: no-op — dispatchBurst would panic indexing the trigger.
 	if len(ordered) == 0 {
 		return m, nil
 	}
 	if m.DetectUnsupported() {
-		// §8-3: pre-flight the whole marked set BEFORE the unsupported no-op, mirroring
-		// the open burst's ordering (cmd/open_burst_run.go: pre-flight FIRST, then the
-		// N≥2 unsupported gate). A session killed between marking and Enter surfaces the more-actionable
-		// gone message and is pruned from the selection even on an unsupported terminal
-		// — the same handlePreflightAbort arm the supported path reaches asynchronously —
-		// rather than the unsupported banner masking a gone session it never prunes. The
-		// supported path is untouched: it keeps its async goroutine pre-flight (dispatchBurst
-		// → burstRunner.run). Uses m.sessionExists — the SAME has-session probe burstRunner.run
-		// uses (production: client.HasSession) — and is nil-guarded to honour the
-		// WithSessionExists nil-tolerance (an unwired capture-harness model never bursts).
 		if m.sessionExists != nil {
 			if gone := spawn.PreflightMissing(ordered, m.sessionExists); len(gone) > 0 {
 				return m.handlePreflightAbort(spawnAbortMsg{Gone: gone}), nil
 			}
 		}
-		// §6-10: emit the unsupported outcome line (resolution=unsupported, no
-		// per-window records — nothing was attempted).
 		m.emitUnsupportedNoop(m.detectIdentity)
 		m.setFlash(unsupportedFlashText(m.detectIdentity))
 		return m, nil
@@ -447,47 +274,18 @@ func (m Model) decideBurst(ordered []string) (Model, tea.Cmd) {
 	return m.dispatchBurst(ordered)
 }
 
-// unsupportedFlashText is the §6-9 re-asserted-banner flash for the N≥2 Enter
-// atomic no-op, naming the resolved identity. It renders through the shared
-// spawn.UnsupportedNoopMessage — the single source of the copy the open burst's
-// unsupported gate (cmd/open_burst_run.go) also renders — so the picker flash and the
-// open-burst message cannot drift. The bare body carries no `spawn:` prefix
-// (log-line only) and no literal
-// ⚠ (the warning notice band prepends the ⚠ via statusGlyph, per the
-// formatSessionGoneFlash / burstPartialFailureFlash convention); the `— nothing
-// opened` RESPONSE suffix distinguishes it from the 6-2 proactive persistent
-// banner, which omits it.
+// The ⚠ glyph is added by the warning notice band, not the message text.
 func unsupportedFlashText(id spawn.Identity) string {
 	return spawn.UnsupportedNoopMessage(id)
 }
 
-// dispatchBurst launches the async spawn burst for the list-ordered marked set: it
-// splits net-N (trigger = self-attach target = the last row; external = the N-1
-// opened windows), READS the adapter/resolution from the detection-time cache (the
-// SINGLE resolve the terminalDetectedMsg arm performed — §10-1, NOT a fresh
-// re-resolve), builds the burster + progress pipe, records the burst lifecycle
-// state, launches the goroutine, and returns the receiver tea.Cmd the Update loop
-// blocks on.
-//
-// Re-resolving here was a TOCTOU nil-adapter panic: the config-*script* recipe
-// re-stats its script on every resolve (spawn.newScriptRecipeAdapter), so a script
-// deleted between page-entry detection and Enter would resolve (nil, unsupported) on
-// the second call — bypassing the DetectUnsupported gate (still reading the cached
-// supported resolution) and building spawn.NewBurster(nil, …), which nil-panicked
-// the un-recovered burst goroutine. Reading the cache makes the gate and the adapter
-// derive from one resolve. A cached (stale) adapter whose script vanished mid-session
-// fails cleanly through the existing partial-failure path rather than nil-panicking.
-//
-// The nil-adapter guard is belt-and-braces for an inconsistent/undriven resolve (a
-// supported resolution paired with a nil adapter): it routes to the unsupported
-// no-op — mirroring decideBurst's unsupported branch (emit the outcome + re-assert
-// the flash) — so a nil adapter can never reach spawn.NewBurster / OpenWindow.
+// dispatchBurst reads the adapter/resolution from the detection-time cache,
+// never a fresh re-resolve: re-resolving was a TOCTOU nil-adapter panic (the
+// config-script recipe re-stats its script on every resolve, so a script
+// deleted between detection and Enter slipped past the DetectUnsupported gate
+// and nil-panicked the burst goroutine). The nil-adapter guard routes an
+// inconsistent resolve to the unsupported no-op instead.
 func (m Model) dispatchBurst(ordered []string) (Model, tea.Cmd) {
-	// Derive the net-N split through spawn.SplitNetN — the picker's SOLE consumer of
-	// that trailing-trigger split (the multi-target open burst uses the leading-trigger
-	// SplitTriggerFirst instead) — so the "net N, never N+1" invariant stays anchored in
-	// one shared computation. Safe here: decideBurst's empty-ordered guard
-	// guarantees len(ordered) >= 1 before dispatch.
 	external, trigger := spawn.SplitNetN(ordered)
 
 	adapter, resolution := m.detectAdapter, m.detectResolution

@@ -8,51 +8,18 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The empty states. When a list is GENUINELY empty — zero items AND no active
-// filter — the body renders a centred empty state in place of the (empty)
-// bubbles/list body: a dim block glyph (text.faint), a message (text.primary), and
-// a hint (text.muted), and the footer is FULLY REPLACED by the keys relevant with
-// no items, drawn from the page's keymap descriptor.
-//
-// This state is DISTINCT from the over-filtered no-matches state (items exist,
-// an active query filters to zero): the empty-state predicates REQUIRE the
-// Unfiltered state, so a model with an active filter never enters the empty state
-// (the no-matches surface or the live filter input owns that case). The two paths
-// share the SAME centred-empty-state body helper (renderEmptyStateBody) for layout,
-// but stay separate surfaces with separate copy. All colours flow from role
-// tokens; the glyph/message/hint are leaf-painted on the owned canvas — no literal
-// hex.
-
-// emptySessionsGlyph is the dim block glyph centred above the empty-sessions
-// message: three `▌` block glyphs spaced apart (`▌ ▌ ▌`), rendered in text.faint.
 const emptySessionsGlyph = "▌ ▌ ▌"
 
-// emptySessionsMessage is the pinned empty-sessions message (text.primary).
 const emptySessionsMessage = "No sessions yet"
 
-// emptySessionsHint is the pinned empty-sessions hint (text.muted). Note
-// the `·` middot separator and `x for projects` (NOT `/` and NOT `p`).
 const emptySessionsHint = "Press n to start one in the current directory · x for projects"
 
-// emptyProjectsGlyph mirrors the empty-sessions glyph.
 const emptyProjectsGlyph = "▌ ▌ ▌"
 
-// emptyProjectsMessage is the pinned empty-projects message (text.primary).
 const emptyProjectsMessage = "No projects yet"
 
-// emptyProjectsHint is the open-a-directory hint (text.muted) — a sensible
-// mirror of the empty-sessions hint (no design frame pins one for projects).
 const emptyProjectsHint = "Press n to start one in the current directory · x for sessions"
 
-// renderEmptyStateBody is the SHARED centred-empty-state renderer: a
-// dim glyph (text.faint) over a message (text.primary, bold) over a hint
-// (text.muted), centred both ways via lipgloss.Place into a width×height block.
-// Every run carries the owned canvas Background (headerStyle), and the surrounding
-// placed gap is canvas-painted (headerCanvasBg) so no terminal-bg island bleeds
-// through. Under the NO_COLOR carve-out the hues and the canvas drop, leaving
-// the glyph/message/hint legible on the terminal's native fg/bg. Both the empty
-// states and the no-matches state route through here, so the centring +
-// sizing + token treatment can never drift between them.
 func renderEmptyStateBody(glyph, message, hint string, width, height int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	g := headerStyle(th.TextFaint, th, colourless).Render(glyph)
@@ -67,11 +34,8 @@ func renderEmptyStateBody(glyph, message, hint string, width, height int, th the
 	)
 }
 
-// sessionListEmpty reports whether the empty-sessions state is active: the
-// session list has ZERO visible items AND no active filter (FilterState is
-// Unfiltered). The Unfiltered requirement is what keeps this DISTINCT from the
-// no-matches state (which requires an active non-empty query) and from the live
-// filter input — a model with an active filter never satisfies this predicate.
+// The Unfiltered requirement keeps this distinct from the no-matches state — a
+// model with an active filter never enters the empty state.
 func (m Model) sessionListEmpty() bool {
 	if m.sessionList.FilterState() != list.Unfiltered {
 		return false
@@ -79,9 +43,6 @@ func (m Model) sessionListEmpty() bool {
 	return len(m.sessionList.VisibleItems()) == 0
 }
 
-// projectListEmpty reports whether the empty-projects state is active: the
-// project list has ZERO visible items AND no active filter (FilterState is
-// Unfiltered). Mirrors sessionListEmpty.
 func (m Model) projectListEmpty() bool {
 	if m.projectList.FilterState() != list.Unfiltered {
 		return false
@@ -89,39 +50,20 @@ func (m Model) projectListEmpty() bool {
 	return len(m.projectList.VisibleItems()) == 0
 }
 
-// replaceListBodyWithEmptyState swaps the list BODY (every row below the title row)
-// for a centred empty state, preserving the title row (the first line)
-// byte-for-byte. The body block is rendered at the SAME height the bubbles/list body
-// occupies (Height()−1, the list height minus the title row), so the composed view
-// height is unchanged and the one-row-per-delegate pagination invariant is
-// unaffected — the body is empty here anyway, this just paints guidance into the
-// rows the empty list would otherwise leave blank. Mirrors
-// replaceListBodyWithNoMatches.
+// The body renders at the list body's own height, so the composed view height
+// — and the one-row-per-delegate pagination invariant — is unchanged.
 func (m Model) replaceListBodyWithEmptyState(listView string, listHeight int, glyph, message, hint string) string {
-	bodyHeight := max(listHeight-1, 1) // minus the title row
+	bodyHeight := max(listHeight-1, 1)
 	body := renderEmptyStateBody(glyph, message, hint, m.contentWidth(), bodyHeight, m.themeState.active, m.colourless)
 	idx := strings.IndexByte(listView, '\n')
 	if idx < 0 {
-		// Degenerate single-line listView (no body to replace): append the body.
 		return listView + "\n" + body
 	}
 	return listView[:idx+1] + body
 }
 
-// emptyFooterKeys is the ordered set of key glyphs the empty-state footer
-// pins, in render order: the left cluster (n · x · /) then the right-aligned ? help.
-// Both pages' empty-state footers select these SAME keys; the LABELS come from the
-// per-page descriptor (so Sessions `x projects` vs Projects `x sessions` follow the
-// descriptor, not a hard-coded copy).
 var emptyFooterKeys = []string{"n", "x", "/", "?"}
 
-// emptyFooterDescriptor selects the empty-state footer entries from a page's
-// keymap descriptor (the single source of truth). It pulls the emptyFooterKeys
-// entries BY KEY off the descriptor — so the labels are whatever the descriptor
-// carries — and marks them Core (the right-aligned ? help keeps its RightAligned
-// flag) so the shared renderCondensedFooter renders exactly this set, fully replacing
-// the standard footer. Entries are returned in emptyFooterKeys order so the row reads
-// `n … · x … · / …` with ? help pinned right.
 func emptyFooterDescriptor(keymap []keymapEntry) []keymapEntry {
 	byKey := make(map[string]keymapEntry, len(keymap))
 	for _, e := range keymap {
@@ -133,30 +75,18 @@ func emptyFooterDescriptor(keymap []keymapEntry) []keymapEntry {
 		if !ok {
 			continue
 		}
-		// Force Core membership so renderCondensedFooter includes the entry (n is
-		// help-only in the standard footer; the empty-state footer promotes it). The
-		// descriptor's RightAligned flag is preserved so ? help stays the right anchor.
+		// Force Core so the condensed footer includes n, which is help-only in
+		// the standard footer; RightAligned survives so ? stays the anchor.
 		e.Core = true
 		entries = append(entries, e)
 	}
 	return entries
 }
 
-// renderEmptySessionsFooter renders the empty-sessions footer:
-// `n new in cwd · x projects · / filter · ? help` — the four relevant Sessions
-// bindings selected from the Sessions keymap descriptor and rendered through
-// the SAME condensed-footer machinery (key glyphs accent.key, labels text.muted,
-// the ? glyph accent.primary, over the 1px footer rule). It FULLY REPLACES the
-// standard footer for the empty-sessions state.
 func renderEmptySessionsFooter(width int, th theme.Theme, colourless bool) string {
 	return renderCondensedFooter(emptyFooterDescriptor(sessionsKeymap()), width, th, colourless)
 }
 
-// renderEmptyProjectsFooter renders the empty-projects footer:
-// `n new in cwd · x sessions · / filter · ? help` — the projects-relevant bindings
-// selected from the Projects keymap descriptor. Because the labels come from
-// the descriptor, the Projects `x` reads `sessions` (not `projects`), mirroring the
-// pattern through the SAME machinery.
 func renderEmptyProjectsFooter(width int, th theme.Theme, colourless bool) string {
 	return renderCondensedFooter(emptyFooterDescriptor(projectsKeymap()), width, th, colourless)
 }

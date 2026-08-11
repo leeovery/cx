@@ -9,19 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The §6 composed Projects-page gate. These tests assert viewProjectList
-// composes the §3.1 PORTAL header block, the §6 Projects section header
-// (state.positive label + text.muted count + right-aligned `/ to filter` hint),
-// the two-line MV rows, and the §6.3 condensed footer — replacing the legacy
-// plain bubbles/list title + the three-column renderKeymapFooter. Matches
-// testdata/vhs/reference/projects-mv.png.
-//
-// No t.Parallel() — the package's shared canvas/mock helpers make parallelism
-// unsafe across these tests.
-
-// newProjectsPageTestModel builds a Model on the Projects page seeded with the
-// given projects at the given size and canvas mode, sized so pagination/footer
-// budgets are applied (mirroring newCanvasTestModel for the Projects page).
 func newProjectsPageTestModel(t *testing.T, w, h int, th theme.Theme, projects []project.Project) Model {
 	t.Helper()
 	m := New(fakeLister{}, WithThemeNomination(theme.ConstantNomination(th)))
@@ -43,20 +30,14 @@ func sampleProjects() []project.Project {
 	}
 }
 
-// TestViewProjectList_ComposesHeaderSectionAndFooter asserts the composed Projects
-// view renders the PORTAL wordmark header block, the Projects section header
-// (state.positive label + text.muted count + `/ to filter` hint), and the §6.3
-// condensed footer — none of the legacy chrome.
 func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
 	view := m.viewProjectList()
 	visible := ansi.Strip(view)
 
-	// §3.1 PORTAL header block.
 	if !strings.Contains(visible, "P O R T A L") {
 		t.Errorf("composed Projects view missing the PORTAL wordmark:\n%s", visible)
 	}
-	// §6 section header: `Projects` in state.positive, count in text.muted.
 	if !strings.Contains(visible, "Projects") {
 		t.Errorf("composed Projects view missing the Projects section label:\n%s", visible)
 	}
@@ -71,14 +52,11 @@ func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 		t.Errorf("composed Projects view missing the %q hint:\n%s", sectionFilterHint, view)
 	}
 
-	// §6.3 condensed footer copy (replaces the legacy three-column footer).
 	for _, want := range []string{"⏎ new session", "x sessions", "e edit", "/ filter", "? help"} {
 		if !strings.Contains(visible, want) {
 			t.Errorf("composed Projects view missing the condensed footer entry %q:\n%s", want, visible)
 		}
 	}
-	// The legacy three-column footer copy must be gone (e.g. `new in cwd`, `delete`
-	// were the manual footer's wording).
 	for _, banned := range []string{"new in cwd", "delete"} {
 		if strings.Contains(visible, banned) {
 			t.Errorf("composed Projects view leaked legacy three-column footer copy %q:\n%s", banned, visible)
@@ -86,9 +64,6 @@ func TestViewProjectList_ComposesHeaderSectionAndFooter(t *testing.T) {
 	}
 }
 
-// TestViewProjectList_HeaderSectionRowsShareLeftEdge is the cross-element alignment
-// guard: the PORTAL wordmark, the `Projects` section-header label, and the selected
-// row's ▌ bar must all start at the SAME column — the content's left edge.
 func TestViewProjectList_HeaderSectionRowsShareLeftEdge(t *testing.T) {
 	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
 	view := m.viewProjectList()
@@ -113,9 +88,6 @@ func TestViewProjectList_HeaderSectionRowsShareLeftEdge(t *testing.T) {
 	}
 }
 
-// TestViewProjectList_ModalClearsToCanvas asserts the §8.1/13.5 blank-screen modal
-// layer is preserved by the reskin: when a project modal is open the page is cleared
-// to the centred panel (no list/header/footer chrome composed behind it).
 func TestViewProjectList_ModalClearsToCanvas(t *testing.T) {
 	m := newProjectsPageTestModel(t, 90, 24, testDarkTheme(t), sampleProjects())
 	m.modal = modalDeleteProject
@@ -123,14 +95,12 @@ func TestViewProjectList_ModalClearsToCanvas(t *testing.T) {
 	view := m.viewProjectList()
 	visible := ansi.Strip(view)
 
-	// §8.6 reskin: the cleared canvas carries the destructive header + target name.
 	if !strings.Contains(visible, "▲ Delete project?") {
 		t.Errorf("delete modal header not rendered on the cleared canvas:\n%s", visible)
 	}
 	if !strings.Contains(visible, "portal") {
 		t.Errorf("delete modal target name 'portal' not rendered on the cleared canvas:\n%s", visible)
 	}
-	// The list/footer chrome must NOT be composed behind the modal.
 	if strings.Contains(visible, "⏎ new session") || strings.Contains(visible, "P O R T A L") {
 		t.Errorf("modal frame leaked the list/header/footer chrome:\n%s", visible)
 	}

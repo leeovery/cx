@@ -14,30 +14,13 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// The row-rendering rule row-composition gate. These tests pin the theme panel's one-line row
-// delegate: the fixed four-element priority (cursor column → `⚠` → right-aligned
-// `●` badge → truncated label → terse reason, dropped first), the panel layout token
-// split that keeps an invalid row's `⚠` legible on a deliberately dimmed line,
-// and the completeness risk requirement that every frame re-derives from the previewed theme.
-//
-// Colour roles are asserted with exact theme-resolved SGR sequences (like the
-// session-row anatomy tests), so a token swap is caught rather than merely the
-// presence of a glyph.
-//
-// No t.Parallel() — the package-level mock convention and the shared canvas
-// helpers make parallelism unsafe across this package's tests.
-
-// The two ends of the inner content width the panel's column band leaves the
-// delegate — the ladder's two stages less the border and the inner gutter. They are
-// derived rather than restated so a move of the ladder reaches these assertions
-// instead of leaving them composing against a width no panel renders at.
+// The two ends of the delegate's inner content width, derived from the width
+// ladder rather than restated so a move of the ladder reaches these assertions.
 var (
 	themeRowTestPreferredWidth = themePanelInnerWidth(themePanelPreferredWidth)
 	themeRowTestMinWidth       = themePanelInnerWidth(themePanelMinWidth)
 )
 
-// renderThemeRow renders one panel row through the delegate with the cursor on
-// selIndex, returning the styled string the delegate emitted for index.
 func renderThemeRow(d themeRowDelegate, items []list.Item, index, selIndex int) string {
 	m := list.New(items, d, max(d.Width, 1), 10)
 	m.Select(selIndex)
@@ -46,22 +29,19 @@ func renderThemeRow(d themeRowDelegate, items []list.Item, index, selIndex int) 
 	return buf.String()
 }
 
-// renderOneThemeRow renders a single-item list's only row, with the cursor parked
-// OFF it (the list holds a second, never-rendered row), so the row under test
-// carries no selection treatment.
+// The second, never-rendered row exists only to park the cursor off the row
+// under test, so it carries no selection treatment.
 func renderOneThemeRow(d themeRowDelegate, it themeRowItem) string {
 	items := []list.Item{it, themeRowItem{Row: theme.Row{Slug: "cursor-parking"}}}
 	return renderThemeRow(d, items, 0, 1)
 }
 
-// validThemeRow is a selectable row: a slug, a palette, no rejection.
 func validThemeRow(slug string) theme.Row {
 	return theme.Row{Slug: slug, Source: theme.SourceBuiltin}
 }
 
-// invalidThemeRow is a rejected row labelled by its SLUG — every reason except
-// the two rows the row-rendering rule labels by filename, which the filename-labelled test
-// builds itself.
+// Labelled by its slug — the two filename-labelled reasons are built by their
+// own test.
 func invalidThemeRow(slug string, reason theme.Reason) theme.Row {
 	return theme.Row{
 		Slug:      slug,
@@ -71,15 +51,10 @@ func invalidThemeRow(slug string, reason theme.Reason) theme.Row {
 	}
 }
 
-// visibleThemeRow returns the row with every SGR sequence stripped — the text a
-// user actually reads.
 func visibleThemeRow(out string) string { return ansi.Strip(out) }
 
-// themeRowRunAfter returns the visible text of the run opened by the first SGR
-// sequence carrying params — the text between that sequence's terminating "m" and
-// the next escape. It is how the row's separate colour runs are told apart:
-// asserting that a token's sequence merely APPEARS somewhere on the line would not
-// say WHICH text it painted.
+// Returns the text a given SGR sequence painted: asserting the sequence merely
+// appears on the line would not say which text carries it.
 func themeRowRunAfter(t *testing.T, out, params string) string {
 	t.Helper()
 	at := strings.Index(out, params)
@@ -98,14 +73,6 @@ func themeRowRunAfter(t *testing.T, out, params string) string {
 	return run
 }
 
-// TestThemeRow_AlwaysOneDelegateLine is the row-rendering rule pagination invariant: EVERY row
-// is exactly one delegate line, across every combination of valid/invalid,
-// badge/no badge and short/long label, at both ends of the panel's width band.
-//
-// It is the invariant `bubbles/list` pagination depends on, the one the
-// invalid-row arrow skip and the panel's paging both rest on, and the one Portal
-// already has the scar from breaking (the in-SessionItem heading injection drew
-// uncounted extra lines and scrolled the title and cursor off the top).
 func TestThemeRow_AlwaysOneDelegateLine(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := map[string]theme.Row{
@@ -150,11 +117,6 @@ func TestThemeRow_AlwaysOneDelegateLine(t *testing.T) {
 	}
 }
 
-// TestThemeRow_InvalidAlwaysCarriesTheGlyph pins the row-rendering rule's second composition
-// priority: the `⚠` is ALWAYS rendered on an invalid row. It is the invalidity
-// signal, so it survives every competitor — a badge taking the right edge, a label
-// long enough to swallow the row, and the panel's minimum width — and it never
-// appears on a valid row.
 func TestThemeRow_InvalidAlwaysCarriesTheGlyph(t *testing.T) {
 	th := testDarkTheme(t)
 	longSlug := "a-very-long-user-slug-that-cannot-possibly-fit-the-panel"
@@ -187,15 +149,6 @@ func TestThemeRow_InvalidAlwaysCarriesTheGlyph(t *testing.T) {
 	}
 }
 
-// TestThemeRow_ReasonLabelsAreTheSevenTerseStrings pins the terse reason vocabulary
-// as the panel renders it: the reason's own string value, VERBATIM, behind the pinned copy's
-// `⚠ ` prefix. Nothing here re-words a reason, and the full detail stays in doctor.
-//
-// The COUNT is asserted rather than left to the test's name, because `not found`
-// is the one reason the reason vocabulary keeps outside the rejection ladder: LoadFile never
-// produces it, so it reaches a row only through the union
-// — which makes this panel the sole surface that renders it, and this table the
-// only place it is covered at all.
 func TestThemeRow_ReasonLabelsAreTheSevenTerseStrings(t *testing.T) {
 	th := testDarkTheme(t)
 	reasons := []theme.Reason{
@@ -225,13 +178,6 @@ func TestThemeRow_ReasonLabelsAreTheSevenTerseStrings(t *testing.T) {
 	}
 }
 
-// TestThemePanelBadgeText_RendersTheFourBadges pins the row-rendering rule's badge vocabulary
-// VERBATIM, as the panel's own copy: the constant's bare `●`, a slot's `● light` /
-// `● dark`, and the collapsed `● both`.
-//
-// An unbadged row renders NOTHING rather than a placeholder, which is what lets
-// the composition rule ask for the text without first asking whether there is
-// one — and it is what a map lookup for a row with no badge yields for free.
 func TestThemePanelBadgeText_RendersTheFourBadges(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -254,15 +200,8 @@ func TestThemePanelBadgeText_RendersTheFourBadges(t *testing.T) {
 	}
 }
 
-// TestThemePanelBadgeText_BothIsNoWiderThanLight asserts the row-rendering rule's width
-// relation DIRECTLY rather than leaving it to prose: the collapsed badge is no wider than
-// the widest slot badge, so it cannot move the row-composition truncation budget
-// the panel's ~24–30 columns are apportioned by.
-//
-// The collapse is reachable in two keypresses, so a wider `● both` would steal
-// columns from the label on rows users routinely produce. Width is measured with
-// lipgloss rather than len, because these are multi-byte glyphs and the budget is
-// counted in terminal cells.
+// Measured with lipgloss rather than len: these are multi-byte glyphs and the
+// truncation budget is counted in terminal cells.
 func TestThemePanelBadgeText_BothIsNoWiderThanLight(t *testing.T) {
 	both := lipgloss.Width(themePanelBadgeText(theme.BadgeBoth))
 	for _, badge := range []theme.Badge{theme.BadgeLight, theme.BadgeDark} {
@@ -272,11 +211,6 @@ func TestThemePanelBadgeText_BothIsNoWiderThanLight(t *testing.T) {
 	}
 }
 
-// TestThemeRow_ReasonIsDroppedBeforeBadge pins the row-rendering rule's third priority: the
-// `●` badge OUTRANKS the terse reason, because the union rule exists so the marker always has
-// a home. The badge and the reason compete for the same right edge, so a badged row
-// keeps the badge and drops the reason — the `⚠` still says the row is invalid and
-// doctor says why.
 func TestThemeRow_ReasonIsDroppedBeforeBadge(t *testing.T) {
 	th := testDarkTheme(t)
 	row := invalidThemeRow("nord", theme.ReasonBadColour)
@@ -303,20 +237,9 @@ func TestThemeRow_ReasonIsDroppedBeforeBadge(t *testing.T) {
 	}
 }
 
-// TestThemeRow_ShortLabelDropsTheReasonRatherThanOverflow pins the interaction
-// between the truncation floor and the reason's own fit test at the panel's minimum
-// width: the floor is the label's guaranteed cells, so the reason must be charged
-// against it and dropped when the two together exceed the row.
-//
-// A short label is the case that reaches it. The reason is charged against the
-// label's NATURAL width, which for a three-cell slug leaves room the floor then
-// claims back — so a reason that "fits" pushes the composed row one cell past the
-// panel's declared width, widening the whole list body and spilling the slide-over
-// out of its composite position.
-//
-// The longest reason is the one that reaches it, and the `⚠` stays either way: it
-// is the invalidity signal, and the reason is the element the composition drops
-// first.
+// A short label plus the longest reason is the case that overflows: the reason
+// is charged against the label's natural width, which the floor then claims
+// back, pushing the composed row past the panel's declared width.
 func TestThemeRow_ShortLabelDropsTheReasonRatherThanOverflow(t *testing.T) {
 	th := testDarkTheme(t)
 	reason := string(theme.ReasonMissingTokens)
@@ -339,14 +262,6 @@ func TestThemeRow_ShortLabelDropsTheReasonRatherThanOverflow(t *testing.T) {
 	}
 }
 
-// TestThemeRow_LabelTruncationFloor pins the row-rendering rule's fourth priority and its
-// floor: a label longer than the cells left is truncated with `…`, and it never shrinks
-// below three visible characters plus the ellipsis.
-//
-// The floor is where the row-rendering rule's degradation STOPS: the label simply
-// stops giving columns back, so the floor is its guaranteed share of the row rather
-// than a limit on it. What gives at a width that cannot hold both is the reason,
-// which the composition drops first.
 func TestThemeRow_LabelTruncationFloor(t *testing.T) {
 	th := testDarkTheme(t)
 	longSlug := "a-very-long-user-slug-that-cannot-possibly-fit-the-panel"
@@ -360,9 +275,8 @@ func TestThemeRow_LabelTruncationFloor(t *testing.T) {
 		t.Errorf("a truncated label must carry the ellipsis: %q", vis)
 	}
 
-	// Squeezed below the floor: an invalid row whose `⚠` and widest badge together
-	// claim more than the width holds. The label still renders three characters plus
-	// the ellipsis rather than vanishing.
+	// Squeezed below the floor: the `⚠` and widest badge together claim more
+	// than the width holds.
 	squeezed := themeRowDelegate{Theme: th, Width: 8}
 	row := invalidThemeRow("abcdefghij", theme.ReasonBadSyntax)
 	vis = visibleThemeRow(renderOneThemeRow(squeezed, themeRowItem{Row: row, Badge: theme.BadgeLight}))
@@ -371,17 +285,9 @@ func TestThemeRow_LabelTruncationFloor(t *testing.T) {
 	}
 }
 
-// TestThemeRow_InvalidLabelIsSubtleWarningIsAttention pins the panel layout's token split on
-// an invalid row, as two DISTINCT runs on the same line.
-//
-// The label is `text.subtle` and never `text.faint`: the contrast gate floors text.faint BELOW
-// the UI threshold precisely so it can never carry content, while this label is
-// the filename or slug the user must read to know which of their files is broken
-// — which is the union rule's entire justification for listing invalid files at all.
-//
-// The `⚠` and its reason keep their OWN `accent.attention` token rather than
-// inheriting the row's dimmed treatment, so the invalidity signal stays legible on
-// a line that is deliberately dimmed.
+// text.faint is floored below the UI contrast threshold, so it can never carry
+// content: an invalid row's label is text.subtle, and the `⚠` keeps its own
+// accent.attention rather than inheriting the row's dimmed treatment.
 func TestThemeRow_InvalidLabelIsSubtleWarningIsAttention(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		subtle := tokenFgSeq(t, th.TextSubtle)
@@ -407,10 +313,6 @@ func TestThemeRow_InvalidLabelIsSubtleWarningIsAttention(t *testing.T) {
 	}
 }
 
-// TestThemeRow_NeverUsesTextFaint is the negative half of the token split, across
-// every row shape the panel can hold. The contrast floors bands text.faint BELOW the UI floor
-// — visible but decorative-only — so a panel row, every element of which is content
-// a user must read, may never reach for it.
 func TestThemeRow_NeverUsesTextFaint(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		faint := tokenFgSeq(t, th.TextFaint)
@@ -438,13 +340,8 @@ func TestThemeRow_NeverUsesTextFaint(t *testing.T) {
 	}
 }
 
-// TestThemeRow_FilenameLabelledRows pins the row-rendering rule's two filename-labelled rows,
-// both of them through theme.Row.Label() with NO second derivation in the delegate.
-//
-// A `bad name` row has no slug at all — the slug charset rule rejects rather than normalises —
-// and a `reserved name` row's slug is IDENTICAL to the built-in's it collides with, so
-// `nord.theme` beside `nord` tells the user which one is theirs where two rows
-// reading `nord` would not.
+// A `bad name` row has no slug at all, and a `reserved name` row's slug is
+// identical to the built-in's it collides with.
 func TestThemeRow_FilenameLabelledRows(t *testing.T) {
 	th := testDarkTheme(t)
 	for _, tc := range []struct {
@@ -483,10 +380,9 @@ func TestThemeRow_FilenameLabelledRows(t *testing.T) {
 	}
 }
 
-// themeRowItemsFor builds the panel's items from a union and a badge table the
-// way the panel does: every badge looked up through theme.Row.BadgeKey, NEVER
-// through Slug — the lookup that keeps a `reserved name` row from painting a
-// second `●` on the slug it collides with.
+// Badges are looked up through theme.Row.BadgeKey, never Slug: that is what
+// keeps a `reserved name` row from painting a second `●` on the slug it collides
+// with.
 func themeRowItemsFor(union theme.Union, badges map[string]theme.Badge) []list.Item {
 	items := make([]list.Item, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -495,16 +391,9 @@ func themeRowItemsFor(union theme.Union, badges map[string]theme.Badge) []list.I
 	return items
 }
 
-// TestThemeRow_ReservedNameRowCarriesNoBadge pins the union rule's one legitimate
-// two-rows-for-one-slug case as it RENDERS: a `nord.theme` drop-in beside the
-// `nord` built-in, with `nord` the persisted slug.
-//
-// The badge belongs to the built-in, which is what the persisted slug actually
-// resolved to; the rejected file carries none, because its slug is identical to
-// the built-in's by definition and a bare identity lookup would paint `●` on BOTH
-// rows. The two rows are ADJACENT in the same union (the row-rendering rule sorts the built-in
-// first), which is the whole point of the ordering: the thing the user can act on,
-// immediately followed by the row explaining why their file is not it.
+// The badge belongs to the built-in the persisted slug resolved to; the rejected
+// file's slug is identical by definition, so a bare identity lookup would paint
+// `●` on both rows.
 func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 	th := testDarkTheme(t)
 	dir := t.TempDir()
@@ -545,17 +434,9 @@ func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 	}
 }
 
-// TestThemeRow_BuiltinRendersLikeADropIn pins the row-rendering rule's deliberate
-// indistinguishability: a valid row is `text.primary`, and a built-in row renders
-// BYTE-IDENTICALLY to a valid drop-in with the same label and badge state. A valid drop-in is
-// simply selectable, sitting alphabetically among the built-ins with no visual
-// distinction — theme.RowSource exists for ORDERING and nothing else, so nothing
-// about it may reach a row's rendered content.
-//
-// The drop-in also carries a DIFFERENT palette on its own row, which must not
-// reach the paint either: a row's Theme is the panel's preview material, never the
-// colours the row itself is drawn in (those come from the previewed theme on the
-// delegate).
+// theme.RowSource exists for ordering and nothing else, so nothing about it may
+// reach a row's rendered content — and a row's own Theme is preview material,
+// never the colours it is drawn in.
 func TestThemeRow_BuiltinRendersLikeADropIn(t *testing.T) {
 	th := testDarkTheme(t)
 	builtin := theme.Row{Slug: "alpha", Source: theme.SourceBuiltin, Theme: th}
@@ -576,8 +457,6 @@ func TestThemeRow_BuiltinRendersLikeADropIn(t *testing.T) {
 		d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
 		items := []list.Item{themeRowItem{Row: builtin, Badge: badge}, themeRowItem{Row: dropIn, Badge: badge}}
 
-		// Compared in BOTH selection states, each row rendered as the row the cursor is
-		// on and as one it is not — the cursor row differs by treatment, never by source.
 		for _, tc := range []struct {
 			name            string
 			builtinCursorAt int
@@ -596,13 +475,8 @@ func TestThemeRow_BuiltinRendersLikeADropIn(t *testing.T) {
 	}
 }
 
-// TestThemeRow_CursorRowSelectionTreatment pins the panel layout's cursor row: the SHIPPED
-// selection treatment — a `bg.selection` tint across the FULL row width, an
-// `accent.primary` `▌`, and the label in `text.on-selection` — so the panel's list
-// reads as the same kind of list as Sessions rather than as a lookalike.
-//
-// The tint spanning every cell is what makes it read as a band: a row with an
-// unpainted tail opens a terminal-background island inside the selection.
+// The tint must span every cell: a row with an unpainted tail opens a
+// terminal-background island inside the selection.
 func TestThemeRow_CursorRowSelectionTreatment(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
@@ -633,15 +507,9 @@ func TestThemeRow_CursorRowSelectionTreatment(t *testing.T) {
 	}
 }
 
-// TestThemeRow_NoCachedStyles is the completeness risk's per-frame requirement made
-// executable. The panel's list is the WORST case of the cached-style class — its styles are
-// assigned once at open while its theme changes on EVERY arrow keypress — so the
-// delegate must hold no derived style: the same item rendered under two themes
-// must produce two different frames, and returning to the first theme must
-// reproduce the first frame byte for byte.
-//
-// The second half is what a package-scope or construction-time style would fail:
-// a cached run would make the third render echo the second.
+// The panel's styles are assigned once at open while its theme changes on every
+// arrow keypress, so the delegate must hold no derived style. The return leg is
+// what a cached run would fail: it would make the third render echo the second.
 func TestThemeRow_NoCachedStyles(t *testing.T) {
 	dark, light := testDarkTheme(t), testLightTheme(t)
 	items := []list.Item{themeRowItem{Row: invalidThemeRow("nord", theme.ReasonBadColour)}}
@@ -663,13 +531,7 @@ func TestThemeRow_NoCachedStyles(t *testing.T) {
 	}
 }
 
-// TestThemeRow_ColourlessIsGlyphBacked pins the NO_COLOR carve-out on a row
-// the NO_COLOR panel block already blocks the panel from reaching: no canvas background, no
-// hue, and the row's state carried by its GLYPHS — the `⚠` invalidity signal, the `●`
-// badge and the `▌` cursor bar all survive on the terminal's native fg/bg.
-//
-// The carve-out drops COLOUR, not the non-colour attributes: the cursor row's
-// bold label survives it, exactly as the Sessions delegate's selected name does.
+// The carve-out drops colour, not the non-colour attributes.
 func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	d := themeRowDelegate{Theme: testDarkTheme(t), Colourless: true, Width: themeRowTestPreferredWidth}
 	items := []list.Item{themeRowItem{
@@ -686,11 +548,8 @@ func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	}
 }
 
-// assertThemeRowHasNoColour fails when the row paints any foreground hue or any
-// background — the NO_COLOR carve-out's whole content. It walks the row's SGR
-// parameters rather than banning escape sequences outright, so the non-colour
-// attributes the carve-out deliberately keeps (the cursor row's bold label) are
-// not mistaken for colour.
+// Walks the SGR parameters rather than banning escape sequences outright, so the
+// bold the carve-out keeps is not mistaken for colour.
 func assertThemeRowHasNoColour(t *testing.T, out string) {
 	t.Helper()
 	for _, params := range themeRowSGRRuns(out) {
@@ -702,7 +561,6 @@ func assertThemeRowHasNoColour(t *testing.T, out string) {
 	}
 }
 
-// themeRowSGRRuns returns the parameter list of every SGR sequence on the row.
 func themeRowSGRRuns(out string) [][]string {
 	var runs [][]string
 	rest := out
@@ -721,9 +579,6 @@ func themeRowSGRRuns(out string) [][]string {
 	}
 }
 
-// themeRowOpeningParams returns the parameter list of the SGR sequence that opened
-// the run holding text — how a run's NON-colour attributes are told apart, where
-// themeRowRunAfter tells its colour apart.
 func themeRowOpeningParams(t *testing.T, out, text string) []string {
 	t.Helper()
 	at := strings.Index(out, text)
@@ -742,18 +597,11 @@ func themeRowOpeningParams(t *testing.T, out, text string) []string {
 	return splitSGRParams(seq[:end+1])
 }
 
-// themeRowRunIsBold reports whether the run holding text carries the bold SGR
-// parameter.
 func themeRowRunIsBold(t *testing.T, out, text string) bool {
 	t.Helper()
 	return slices.Contains(themeRowOpeningParams(t, out, text), "1")
 }
 
-// TestThemeRow_CursorRowLabelIsBold pins the third element of the shipped
-// selection treatment the panel reproduces: alongside the `▌` and the tint, the
-// cursor row's LABEL is bold, so the panel's list reads as the same kind of list
-// as Sessions rather than as a lighter lookalike. An unselected row's label
-// carries no weight of its own.
 func TestThemeRow_CursorRowLabelIsBold(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
@@ -774,10 +622,6 @@ func TestThemeRow_CursorRowLabelIsBold(t *testing.T) {
 	}
 }
 
-// TestThemeRow_CursorRowBoldsOnlyTheLabel pins the bold to the label alone: the
-// Sessions treatment bolds the name, so the cursor row's trailing elements — the
-// `●` badge, the `⚠` and its reason — keep the weight they carry on every other
-// row.
 func TestThemeRow_CursorRowBoldsOnlyTheLabel(t *testing.T) {
 	th := testDarkTheme(t)
 	d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
@@ -795,11 +639,6 @@ func TestThemeRow_CursorRowBoldsOnlyTheLabel(t *testing.T) {
 	}
 }
 
-// TestThemeRow_CursorRowLabelStyleMatchesSessionName is the parity the treatment
-// is specified against: the panel's selected label is painted by the SAME style
-// the Sessions delegate paints its selected name with — the shared bold base over
-// text.on-selection on the selection tint — so the two cursor rows cannot drift
-// into two different weights.
 func TestThemeRow_CursorRowLabelStyleMatchesSessionName(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		for _, colourless := range []bool{false, true} {
@@ -816,10 +655,6 @@ func TestThemeRow_CursorRowLabelStyleMatchesSessionName(t *testing.T) {
 	}
 }
 
-// TestThemeRow_ColourlessCursorRowKeepsBoldWithoutHue decides the NO_COLOR path
-// for the cursor row's weight: bold is a non-colour attribute, so it survives the
-// carve-out exactly as the Sessions delegate's selected name does, and the two
-// lists stay the same kind of list with no colour at all.
 func TestThemeRow_ColourlessCursorRowKeepsBoldWithoutHue(t *testing.T) {
 	d := themeRowDelegate{Theme: testDarkTheme(t), Colourless: true, Width: themeRowTestPreferredWidth}
 	items := []list.Item{

@@ -7,44 +7,18 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The over-filtered no-matches state. When an ACTIVE non-empty filter query
-// matches zero sessions, the Sessions body renders a centred empty state in place
-// of the (empty) bubbles/list body: a dim null-set glyph (text.faint), the
-// query-interpolated `No sessions match "<query>"` message (text.primary), and the
-// `⌫ to widen the search · esc to clear the filter` hint (text.muted). The footer
-// stays in the input-active form, reduced (no `browse results` entry — there are no
-// results to browse).
-//
-// This state is DISTINCT from the empty-sessions state (no sessions exist at
-// all, no active query): the two paths are NOT merged. sessionListNoMatches REQUIRES
-// an active non-empty query, so a model with zero sessions and no filter (the
-// empty-state condition) never enters this state. All colours flow from role tokens; the
-// glyph/message/hint are leaf-painted on the owned canvas — no literal hex.
-
-// noMatchesGlyph is the dim null-set glyph centred above the message (the
-// reference shows ∅ in text.faint). A single rune so it centres cleanly.
 const noMatchesGlyph = "∅"
 
-// noMatchesHint is the widen/clear hint rendered beneath the message in
-// text.muted. The widen key is the ⌫ backspace GLYPH (per the reference), not the
-// literal word "backspace" — backspace deletes a query char (= widen the search),
-// Esc clears the filter. The hint only documents the engine's existing behaviour;
-// it changes nothing.
 const noMatchesHint = "⌫ to widen the search · esc to clear the filter"
 
-// formatNoMatchesMessage returns the message wording with the query
-// interpolated. Literal straight double-quote bytes wrap the query — never %q —
-// mirroring formatSessionGoneFlash, so the query renders byte-exact regardless of
-// its content (spaces, dashes, unicode, embedded quotes).
+// Literal quote bytes, never %q, so the query renders byte-exact regardless of
+// its content.
 func formatNoMatchesMessage(query string) string {
 	return fmt.Sprintf(`No sessions match "%s"`, query)
 }
 
-// sessionListNoMatches reports whether the over-filtered no-matches state is
-// active: an ACTIVE filter (FilterState is Filtering OR FilterApplied) with a
-// non-empty query AND zero visible items. The active-non-empty-query requirement is
-// what keeps this DISTINCT from the empty-sessions state (no sessions + no
-// active query never satisfies this predicate).
+// The active-non-empty-query requirement keeps this distinct from the
+// empty-sessions state.
 func (m Model) sessionListNoMatches() bool {
 	st := m.sessionList.FilterState()
 	if st != list.Filtering && st != list.FilterApplied {
@@ -56,30 +30,14 @@ func (m Model) sessionListNoMatches() bool {
 	return len(m.sessionList.VisibleItems()) == 0
 }
 
-// renderNoMatchesBody renders the centred empty state into a width×height
-// block: the null-set glyph (text.faint) over the query-interpolated message
-// (text.primary) over the widen/clear hint (text.muted). It routes through the
-// SHARED renderEmptyStateBody centred-empty-state helper (the SAME centring +
-// sizing + token treatment the empty states use), so the no-matches and
-// empty surfaces can never drift in layout while staying DISTINCT in content.
 func renderNoMatchesBody(query string, width, height int, th theme.Theme, colourless bool) string {
 	return renderEmptyStateBody(noMatchesGlyph, formatNoMatchesMessage(query), noMatchesHint, width, height, th, colourless)
 }
 
-// noMatchesFooterEntries returns the footer entries: the input-active footer
-// WITHOUT the `browse results` entry — there are no results to browse, so
-// the no-matches footer reads `type to filter · esc clear`. It REUSES the
-// input-active footer machinery (filteringFooterEntries) and drops the
-// browse-results entry STRUCTURALLY via dropBrowseResults (the BrowseResults flag,
-// not the display copy — so rewording that label cannot silently re-admit it), so
-// the per-glyph colours (the accent.attention `type` action word, the text.muted `esc`
-// key + labels) stay byte-consistent with the input-active footer.
 func noMatchesFooterEntries(th theme.Theme) []filterFooterEntry {
 	return dropBrowseResults(filteringFooterEntries(th))
 }
 
-// renderNoMatchesFooter renders the reduced input-active footer for the given
-// content width and resolved canvas mode (and the NO_COLOR carve-out).
 func renderNoMatchesFooter(width int, th theme.Theme, colourless bool) string {
 	return renderFilterFooter(noMatchesFooterEntries(th), width, th, colourless)
 }

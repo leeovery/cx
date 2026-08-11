@@ -7,79 +7,24 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The per-page `?` help modal — a NEW modal type: a generic
-// two-column renderer over the per-page keymap descriptor (the single source of
-// truth for the footer + help DISPLAY), NOT hand-authored content per
-// page. It lists the page's COMPLETE keymap (every descriptor entry, footer-core
-// AND help-only — the full reference, not just the footer's overflow), so a
-// binding change updates the footer and the help DISPLAY together. (The
-// descriptor does NOT govern key dispatch — that is the live per-page Update
-// switch, kept in sync via keymap_dispatch_guard_test.go; see keymap.go.)
-//
-// It is the one exception to the contextual-footer rule: the dismiss
-// hint lives in the HEADER right-corner (`esc close`), and the body IS the keymap
-// — there is no contextual footer. The panel reuses the shared cleared-canvas
-// placement (renderHelpModalOnClearedCanvas → lipgloss.Place on the cleared owned
-// canvas) so the Sessions/Projects help inherits the shared cleared-canvas
-// shell, but HAND-DRAWS its OWN bordered panel (no lipgloss auto-border) so the
-// header divider uses real `├`/`┤` junctions into the side frame and the vertical
-// spacing is FLUSH (zero blank rows). The whole frame — corners, sides, divider,
-// and every `─` run — is SINGLE-TONE border (the 2-tone footer leg was
-// dropped). The header text + body rows carry their own per-row inset
-// (panelRowInset).
-//
-// NOTE: the Preview `?` help OVERLAYS the preview
-// without blanking it and routes the Preview keymap descriptor
-// through these SAME renderers (renderHelpModalContent; see overlayHelpOnPreview
-// in pagepreview.go), so the three help modals stay descriptor-driven and never
-// drift.
+// The `?` help modal renders from the per-page keymap descriptor. The
+// descriptor governs display only — key dispatch is the live per-page Update
+// switch.
 
 const (
-	// helpTitleGlyph is the violet `?` glyph that opens the header title row,
-	// mirroring the footer's accent.primary `?` hint — colour reinforces
-	// that this is the help surface.
-	helpTitleGlyph = "?"
-	// helpTitle is the header title text (text.primary), the `? Keybindings`.
-	helpTitle = "Keybindings"
-	// helpDismissHint is the right-aligned header dismiss hint (text.muted) — the
-	// The help-modal exception: the dismiss copy lives in the HEADER, not a
-	// contextual footer. The verb has no "to" (the shared modal dismiss grammar).
+	helpTitleGlyph  = "?"
+	helpTitle       = "Keybindings"
 	helpDismissHint = "esc close"
-	// helpColumnGap is the gap between the key-glyph column and the action-label
-	// column in the two-column body. Wide enough that the longest key glyph
-	// ("^↑/↓") clears the labels.
-	helpColumnGap = "   "
-	// helpKeyColumnWidth is the fixed width of the left key-glyph column so the
-	// action labels start on a common left edge regardless of glyph length
-	// (fixed-width slot, the alignment convention). Sized for the widest glyph
-	// ("^↑/↓").
+	helpColumnGap   = "   "
+	// Sized for the widest glyph ("^↑/↓") so labels share a left edge.
 	helpKeyColumnWidth = 10
 )
 
-// renderHelpModalContent composes the help modal as a fully HAND-DRAWN
-// bordered panel (no lipgloss auto-border). The vertical spacing is FLUSH — ZERO
-// blank rows anywhere — and the frame is SINGLE-TONE border (corners,
-// sides, divider, and all `─` runs alike). Top to bottom, the panel is:
-//
-//	top-border · title · divider · ...bodyRows · bottom-border
-//
-// The title sits directly inside the top border, the divider directly under the
-// title, the body rows directly under the divider, the last body row directly
-// above the bottom border — no blank rows between any of them (the terminal-native
-// flush convention, deliberately diverging from the Paper reference's px title
-// padding). The header text + body rows carry a per-row L/R inset (panelRowInset);
-// the divider spans the full inner width W so its `├`/`┤` junctions meet both side
-// borders. Every assembled line is exactly W+2 cells wide (W = contentWidth +
-// 2·panelRowInset), so the frame columns align. Generated entirely from the
-// descriptor — no hand-authored copy.
 func renderHelpModalContent(entries []keymapEntry, th theme.Theme, colourless bool) string {
 	bodyRows := helpModalBodyRows(entries, th, colourless)
 
-	// The content width the divider and every inset row share: the widest of the
-	// header band and the body rows. The header is then laid out to this width so
-	// `esc close` right-aligns to the same edge the longest body row reaches. The
-	// title MUST be pre-laid-out here (not inside renderJoinedPanel) because its own
-	// width depends on contentWidth — the right-aligned `esc close` fills to it.
+	// The title must be laid out here rather than inside renderJoinedPanel: its
+	// width depends on contentWidth, since `esc close` right-aligns to it.
 	contentWidth := lipgloss.Width(helpModalHeader(0, th, colourless))
 	for _, r := range bodyRows {
 		if w := lipgloss.Width(r); w > contentWidth {
@@ -88,20 +33,11 @@ func renderHelpModalContent(entries []keymapEntry, th theme.Theme, colourless bo
 	}
 	title := helpModalHeader(contentWidth, th, colourless)
 
-	// Two compartments — the header band over the contiguous keymap rows — drawn by
-	// the shared single-tone joined panel (the SAME frame the kill modal uses): one
-	// joined ├───┤ divider between them, FLUSH vertical spacing, single-tone
-	// border throughout.
 	return renderJoinedPanel([][]string{{title}, bodyRows}, th.Border, th, colourless)
 }
 
-// helpModalHeader renders the header row: `? Keybindings` on the LEFT (the `?`
-// glyph in accent.primary, "Keybindings" in text.primary) and a right-aligned
-// `esc close` in text.muted, filled to width. This is the help-modal
-// exception — the dismiss hint lives here, not a contextual footer. When width is
-// at or below the header's natural width (e.g. width 0, the natural-width probe),
-// it renders at its natural width with a single canvas spacer between the title and
-// the dismiss hint — never dropping the hint, never wrapping.
+// At or below the natural width (including the width-0 probe) it renders at
+// natural width rather than dropping the hint or wrapping.
 func helpModalHeader(width int, th theme.Theme, colourless bool) string {
 	glyph := headerStyle(th.AccentPrimary, th, colourless).Bold(true).Render(helpTitleGlyph)
 	gap := headerCanvasBg(th, colourless).Render(" ")
@@ -112,9 +48,6 @@ func helpModalHeader(width int, th theme.Theme, colourless bool) string {
 	dismiss := headerStyle(th.TextMuted, th, colourless).Render(helpDismissHint)
 	dismissWidth := lipgloss.Width(dismiss)
 
-	// Natural width: left segment + one spacer cell + the dismiss hint. At or below
-	// it (incl. the width-0 probe) render at the natural width rather than dropping
-	// the hint or overflowing.
 	naturalWidth := leftWidth + 1 + dismissWidth
 	spacerWidth := 1
 	if width > naturalWidth {
@@ -124,25 +57,14 @@ func helpModalHeader(width int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, dismiss)
 }
 
-// helpModalBody renders the two-column keymap body from the descriptor as a single
-// joined block (used by tests that assert the body content/colours). Production
-// composition uses helpModalBodyRows so each row can be inset individually.
 func helpModalBody(entries []keymapEntry, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinVertical(lipgloss.Left, helpModalBodyRows(entries, th, colourless)...)
 }
 
-// helpModalBodyRows renders the two-column keymap body from the descriptor as
-// one string per row: a fixed-width key-glyph column (accent.key, the
-// destructive `kill` key in state.destructive) then the action label
-// (text.secondary). It lists EVERY descriptor entry — footer-core AND
-// help-only, the full reference — EXCEPT the `?` help self-entry (a help modal
-// does not list its own open key; the dismiss hint is in the header). The
-// longer HelpAction label is preferred, falling back to the terse footer Action
-// when absent.
 func helpModalBodyRows(entries []keymapEntry, th theme.Theme, colourless bool) []string {
 	rows := make([]string, 0, len(entries))
 	for _, e := range entries {
-		// Skip the ? help self-entry — the open key is not listed in its own modal.
+		// Skip the `?` self-entry — a help modal does not list its own open key.
 		if e.RightAligned {
 			continue
 		}
@@ -151,10 +73,6 @@ func helpModalBodyRows(entries []keymapEntry, th theme.Theme, colourless bool) [
 	return rows
 }
 
-// helpModalRow renders one keymap entry as a two-column line: the key glyph in
-// a fixed-width left column (accent.key, or state.destructive for the
-// destructive kill/delete key — red is reserved for destructive actions), a
-// fixed gap, then the action label in text.secondary.
 func helpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
 	keyTok := th.AccentKey
 	if isDestructiveHelpKey(e) {
@@ -168,8 +86,6 @@ func helpModalRow(e keymapEntry, th theme.Theme, colourless bool) string {
 	)
 }
 
-// helpActionLabel returns the label the help modal shows for an entry: the longer
-// HelpAction when set, else the terse footer Action.
 func helpActionLabel(e keymapEntry) string {
 	if e.HelpAction != "" {
 		return e.HelpAction
@@ -177,14 +93,6 @@ func helpActionLabel(e keymapEntry) string {
 	return e.Action
 }
 
-// helpKeyGlyph returns the key glyph the help modal renders for an entry: the
-// glyph-rich HelpKey when set, else the terse footer Key. Under the
-// footer-glyph switch the footer Key forms are glyphs themselves; the surviving
-// HelpKey override is nav (footer "↑↓" vs the help body's slashed "↑/↓"), with
-// page reading its Key "^↑/↓" directly and enter/space's HelpKey now coinciding
-// with their glyph Key. The condensed sessions/projects footer never calls this —
-// it reads Key directly; the command-pending footer reuses this resolver to share
-// the `enter`→`⏎` encoding.
 func helpKeyGlyph(e keymapEntry) string {
 	if e.HelpKey != "" {
 		return e.HelpKey
@@ -192,11 +100,8 @@ func helpKeyGlyph(e keymapEntry) string {
 	return e.Key
 }
 
-// isDestructiveHelpKey reports whether the entry is a destructive action whose key
-// glyph renders in state.destructive in the help body (red is destructive-only). It
-// reads the structural keymapEntry.Destructive flag (set on the Sessions `k` kill
-// and Projects `d` delete entries) rather than matching key glyphs, so a future
-// non-destructive `d`/`k` binding cannot accidentally render red.
+// Reads the structural flag rather than matching key glyphs, so a future
+// non-destructive `d`/`k` binding cannot render red.
 func isDestructiveHelpKey(e keymapEntry) bool {
 	return e.Destructive
 }

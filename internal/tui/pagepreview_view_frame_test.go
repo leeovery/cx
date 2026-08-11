@@ -9,20 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Lipgloss v2 changed where the colour profile is applied: Style.Render now
-// always emits the full TrueColor SGR sequences in-string, and palette
-// downsampling / NO_COLOR suppression happen at the OUTPUT-writer layer (the
-// Bubble Tea renderer / colorprofile.Writer when content is flushed to the
-// terminal), not inside Render. So the preview-frame tests below — which
-// assert on the emitted '\x1b[38;...m' foreground bytes — see those bytes by
-// default under `go test`, with no profile override needed. The v1 TestMain
-// here called lipgloss.SetColorProfile(termenv.TrueColor) to force SGRs under
-// the non-TTY test environment; that API was removed in v2 (Render is
-// unconditionally TrueColor), so the override is gone.
-
-// TestPreviewView_FrameContainsAllFourRoundedCorners pins the acceptance
-// criterion that View() output contains the rounded corner glyphs sourced
-// from lipgloss.RoundedBorder(): ╭ ╮ ╰ ╯ — all four must appear.
 func TestPreviewView_FrameContainsAllFourRoundedCorners(t *testing.T) {
 	m := newFramePreviewModel(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"))
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -36,8 +22,6 @@ func TestPreviewView_FrameContainsAllFourRoundedCorners(t *testing.T) {
 	}
 }
 
-// TestPreviewView_TopRowWidthEqualsOuterTerminalWidth pins that the
-// hand-composed top edge spans the full outer terminal width.
 func TestPreviewView_TopRowWidthEqualsOuterTerminalWidth(t *testing.T) {
 	m := newFramePreviewModel(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"))
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -50,10 +34,6 @@ func TestPreviewView_TopRowWidthEqualsOuterTerminalWidth(t *testing.T) {
 	}
 }
 
-// TestPreviewView_HeaderContainsMarkerSessionCounters_FooterContainsHints pins
-// the §9.1 chrome content surfaced inside the View at a width wide enough for the
-// header cascade to land at tier 1 (marker + full session + counters) and the
-// footer to render the full labelled nav hints.
 func TestPreviewView_HeaderContainsMarkerSessionCounters_FooterContainsHints(t *testing.T) {
 	const wideWidth = 120
 	m := newFramePreviewModelAt(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"), wideWidth, 24)
@@ -61,7 +41,6 @@ func TestPreviewView_HeaderContainsMarkerSessionCounters_FooterContainsHints(t *
 
 	out := stripANSI(m.View())
 
-	// Session is fixed to "work" in newFramePreviewModelAt.
 	if !strings.Contains(out, "◉ preview work Window 1/1 · Pane 1/1") {
 		t.Errorf("View() missing tier-1 header content; got:\n%s", out)
 	}
@@ -70,10 +49,6 @@ func TestPreviewView_HeaderContainsMarkerSessionCounters_FooterContainsHints(t *
 	}
 }
 
-// TestPreviewView_HeaderSegmentsCarryRoleForegrounds pins the §9.1 colour
-// application: the header counters segment is styled text.muted and the session
-// text.primary — the chrome content IS themed (only the captured CONTENT is left
-// untouched, §9.2).
 func TestPreviewView_HeaderSegmentsCarryRoleForegrounds(t *testing.T) {
 	const wideWidth = 120
 	m := newFramePreviewModelAt(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"), wideWidth, 24)
@@ -88,8 +63,6 @@ func TestPreviewView_HeaderSegmentsCarryRoleForegrounds(t *testing.T) {
 	}
 }
 
-// TestPreviewView_AllFourCornerGlyphsPrecededByForegroundSGR pins that
-// every corner glyph is part of a BorderForeground-styled segment.
 func TestPreviewView_AllFourCornerGlyphsPrecededByForegroundSGR(t *testing.T) {
 	m := newFramePreviewModel(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"))
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -102,8 +75,6 @@ func TestPreviewView_AllFourCornerGlyphsPrecededByForegroundSGR(t *testing.T) {
 			t.Errorf("glyph %q not found in View() output", glyph)
 			continue
 		}
-		// Search the bytes preceding this glyph (back to the most recent
-		// '\n' or start of string) for a foreground SGR prefix.
 		startOfLine := strings.LastIndexByte(out[:idx], '\n') + 1
 		preceding := out[startOfLine:idx]
 		if !strings.Contains(preceding, "\x1b[38;") {
@@ -112,13 +83,6 @@ func TestPreviewView_AllFourCornerGlyphsPrecededByForegroundSGR(t *testing.T) {
 	}
 }
 
-// TestPreviewView_AppliesSGRResetToEveryNonEmptyViewportRow pins
-// § SGR reset injection — every non-empty viewport content row must
-// carry the '\x1b[0m' reset at row-end (before lipgloss composes the
-// right border). With viewport padding the reset lands at end-of-padded-row;
-// per-line, the assertion is that the row's payload contains '\x1b[0m'
-// AND that the unterminated SGR ('\x1b[41m' in the fixture) cannot bleed
-// past row-end into the right border without an intervening reset.
 func TestPreviewView_AppliesSGRResetToEveryNonEmptyViewportRow(t *testing.T) {
 	m := newFramePreviewModel(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"))
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -126,8 +90,6 @@ func TestPreviewView_AppliesSGRResetToEveryNonEmptyViewportRow(t *testing.T) {
 	out := m.View()
 	lines := strings.Split(out, "\n")
 
-	// Find the rows containing "hello" and "world" and assert each carries
-	// '\x1b[0m' somewhere between the content and the right border.
 	for _, payload := range []string{"hello", "world"} {
 		var row string
 		for _, l := range lines {
@@ -144,19 +106,12 @@ func TestPreviewView_AppliesSGRResetToEveryNonEmptyViewportRow(t *testing.T) {
 		if !strings.Contains(afterPayload, "\x1b[0m") {
 			t.Errorf("row containing %q lacks SGR reset after payload; row=%q", payload, row)
 		}
-		// The unterminated '\x1b[41m' from the fixture must not extend
-		// unchecked into the right border — i.e. a reset must appear
-		// between the '\x1b[41m' opener on this row and the row's end.
 		if strings.Contains(row, "\x1b[41m") && !strings.Contains(afterPayload, "\x1b[0m") {
 			t.Errorf("row containing %q has unterminated '\\x1b[41m' bleeding to row-end; row=%q", payload, row)
 		}
 	}
 }
 
-// TestPreviewView_FirstFrameCorrectnessAtConstruction pins
-// § Initial sizing and preview-open ordering — the very first View() call
-// on the freshly-constructed previewModel, with no prior WindowSizeMsg,
-// must already paint the top row at the constructor-provided outer width.
 func TestPreviewView_FirstFrameCorrectnessAtConstruction(t *testing.T) {
 	m := newFramePreviewModel(t, "nvim-editor", []byte("\x1b[41mhello\nworld\n"))
 
@@ -168,9 +123,6 @@ func TestPreviewView_FirstFrameCorrectnessAtConstruction(t *testing.T) {
 	}
 }
 
-// TestPreviewView_AtDegenerateWidth2Height4RendersWithoutPanic pins the
-// degenerate-width contract — handing width=2, height=4 to lipgloss must
-// not panic. The output shape is left to lipgloss's clipping behaviour.
 func TestPreviewView_AtDegenerateWidth2Height4RendersWithoutPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -190,14 +142,10 @@ func TestPreviewView_AtDegenerateWidth2Height4RendersWithoutPanic(t *testing.T) 
 	}
 	_ = m.View()
 
-	// Also verify resize-to-degenerate doesn't panic.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 2, Height: 4})
 	_ = m.View()
 }
 
-// TestPreviewView_RecomputesChromeEveryTickNoCachedField pins that View()
-// reads structural fields directly on each call — mutating m.windowIdx
-// between two View() calls must shift the chrome ordinal accordingly.
 func TestPreviewView_RecomputesChromeEveryTickNoCachedField(t *testing.T) {
 	enum := &stubEnumerator{
 		groups: []tmux.WindowGroup{
@@ -216,9 +164,6 @@ func TestPreviewView_RecomputesChromeEveryTickNoCachedField(t *testing.T) {
 		t.Fatalf("first View() missing 'Window 1/2'; got:\n%s", first)
 	}
 
-	// Bypass cycle handlers (which trigger a Tail read); mutate the
-	// structural index directly and re-render. If chrome were cached on
-	// the model, the second View() would still show "Window 1/2".
 	m.windowIdx = 1
 
 	second := stripANSI(m.View())

@@ -8,11 +8,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// TestPreviewView_JoinedPanelLayoutHeaderBodyFooter pins the §9.1 full-screen
-// joined panel layout, top to bottom: top border → header (with the `◉ preview`
-// marker + cascaded counters) → body (the captured content) → footer (the nav
-// hints). The header sits on the SECOND line (line 1) directly under the top
-// border (line 0); the footer is the last content line above the bottom border.
 func TestPreviewView_JoinedPanelLayoutHeaderBodyFooter(t *testing.T) {
 	enum := &stubEnumerator{
 		groups: []tmux.WindowGroup{
@@ -32,7 +27,6 @@ func TestPreviewView_JoinedPanelLayoutHeaderBodyFooter(t *testing.T) {
 		t.Fatalf("View() returned %d lines, want >= 4 (border/header/body/footer): %q", len(lines), out)
 	}
 
-	// Line 0 is the top border (corners only, no chrome content).
 	top := stripANSI(lines[0])
 	if !strings.HasPrefix(top, "╭") || !strings.HasSuffix(top, "╮") {
 		t.Errorf("View() first line = %q; want the rounded top border ╭…╮", top)
@@ -41,18 +35,15 @@ func TestPreviewView_JoinedPanelLayoutHeaderBodyFooter(t *testing.T) {
 		t.Errorf("top border must not carry header content; got %q", top)
 	}
 
-	// Line 1 is the header compartment carrying the marker + counters.
 	header := stripANSI(lines[1])
 	if !strings.Contains(header, "◉ preview work Window 1/2 · Pane 1/2") {
 		t.Errorf("View() second line = %q; want the header compartment with marker + counters", header)
 	}
 
-	// The captured body content appears between header and footer.
 	if !strings.Contains(stripANSI(out), "alpha") {
 		t.Errorf("View() = %q; expected viewport content (containing %q)", out, "alpha")
 	}
 
-	// The footer sits on the last content line (above the bottom border).
 	footer := stripANSI(lines[len(lines)-2])
 	if !strings.Contains(footer, "←→ window") {
 		t.Errorf("View() penultimate line = %q; want the footer nav hints", footer)
@@ -63,9 +54,6 @@ func TestPreviewView_JoinedPanelLayoutHeaderBodyFooter(t *testing.T) {
 	}
 }
 
-// TestPreviewView_FillsFullTerminalHeight pins the §9.1 full-screen contract:
-// the composed panel spans the full terminal height (the body fills, the footer
-// sits flush at the bottom).
 func TestPreviewView_FillsFullTerminalHeight(t *testing.T) {
 	const termH = 24
 	enum := &stubEnumerator{
@@ -119,19 +107,16 @@ func TestPreviewView_ChromeRowCountConstantAcrossWindowAndPaneCycles(t *testing.
 
 	before := chromeLineCount(chromeLineForTest(m))
 
-	// Tab → next pane within current window.
 	m, _ = m.Update(nextPaneKey)
 	if got := chromeLineCount(chromeLineForTest(m)); got != before {
 		t.Errorf("header row count changed after Tab: before=%d after=%d", before, got)
 	}
 
-	// → → next window.
 	m, _ = m.Update(nextWindowKey)
 	if got := chromeLineCount(chromeLineForTest(m)); got != before {
 		t.Errorf("header row count changed after →: before=%d after=%d", before, got)
 	}
 
-	// ← → previous window.
 	m, _ = m.Update(prevWindowKey)
 	if got := chromeLineCount(chromeLineForTest(m)); got != before {
 		t.Errorf("header row count changed after ←: before=%d after=%d", before, got)

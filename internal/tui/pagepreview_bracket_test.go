@@ -9,9 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// nextWindowKey and prevWindowKey are the §9.3 window-nav key shapes: `→` next
-// window, `←` prev window (REPLACING the former `]`/`[`). They are the plain
-// (un-modified) arrows — `Tab` drives pane nav instead.
 var (
 	nextWindowKey = tea.KeyPressMsg{Code: tea.KeyRight}
 	prevWindowKey = tea.KeyPressMsg{Code: tea.KeyLeft}
@@ -157,7 +154,6 @@ func TestPreviewWindowNav_WindowCycleResetsPaneIdxToZeroEvenWhenNonZero(t *testi
 		{WindowIndex: 1, WindowName: "second", PaneIndices: []int{0, 1, 2, 3}},
 	}
 	reader := &recordingReader{bytes: []byte("content")}
-	// Start mid-window, mid-pane (paneIdx=2).
 	m := newPreviewModelForTab("work", groups, 0, 2, reader, 80, 24)
 
 	updated, _ := m.Update(nextWindowKey)
@@ -165,7 +161,6 @@ func TestPreviewWindowNav_WindowCycleResetsPaneIdxToZeroEvenWhenNonZero(t *testi
 		t.Errorf("expected paneIdx=0 after → from non-zero paneIdx, got %d", updated.paneIdx)
 	}
 
-	// And in the reverse direction.
 	m2 := newPreviewModelForTab("work", groups, 1, 3, reader, 80, 24)
 	updated2, _ := m2.Update(prevWindowKey)
 	if updated2.paneIdx != 0 {
@@ -193,7 +188,6 @@ func TestPreviewWindowNav_WindowCycleTriggersExactlyOneTailCallWithPaneZeroOfNew
 }
 
 func TestPreviewWindowNav_WindowCycleResetsViewportScrollPositionToTail(t *testing.T) {
-	// Build content larger than the viewport so AtBottom is non-trivial.
 	var b strings.Builder
 	for range 50 {
 		b.WriteString("line\n")
@@ -204,8 +198,6 @@ func TestPreviewWindowNav_WindowCycleResetsViewportScrollPositionToTail(t *testi
 	}
 	reader := &recordingReader{bytes: []byte(b.String())}
 	m := newPreviewModelForTab("work", groups, 0, 0, reader, 80, 10)
-	// Pre-load some content and scroll to top so a successful → must
-	// explicitly call GotoBottom to satisfy AtBottom().
 	m.viewport.SetContent("stale\nstale\nstale\n")
 	m.viewport.GotoTop()
 	if !m.viewport.AtTop() {
@@ -219,12 +211,6 @@ func TestPreviewWindowNav_WindowCycleResetsViewportScrollPositionToTail(t *testi
 	}
 }
 
-// TestPreviewWindowNav_InterceptedBeforeViewportHorizontalScroll pins the §9.3
-// validation caveat: bubbles/viewport binds plain `←`/`→` for horizontal scroll,
-// so the preview MUST intercept them for window nav BEFORE delegating. A
-// single-window session would otherwise let the arrow leak through to the
-// viewport's horizontal scroll; here the multi-window fixture proves window nav
-// won (windowIdx advanced, exactly one Tail).
 func TestPreviewWindowNav_InterceptedBeforeViewportHorizontalScroll(t *testing.T) {
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0}},

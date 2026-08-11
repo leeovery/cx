@@ -11,10 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// nilErrReader returns (nil, err) on every Tail call, simulating an OS-level
-// read failure (EACCES, EIO, etc.) per § Read-Failure Handling > Placeholder
-// > Error string. It records every paneKey passed so the "refocus retries"
-// contract can be asserted on call counts.
 type nilErrReader struct {
 	err   error
 	calls []string
@@ -25,9 +21,6 @@ func (r *nilErrReader) Tail(paneKey string) ([]byte, error) {
 	return nil, r.err
 }
 
-// keyedReader returns a per-paneKey (bytes, err) outcome so tests that
-// straddle one successful and one failing pane (Tab away / Tab back) can
-// drive distinct outcomes from a single reader instance.
 type keyedReader struct {
 	outcomes map[string]struct {
 		bytes []byte
@@ -42,9 +35,6 @@ func (r *keyedReader) Tail(paneKey string) ([]byte, error) {
 	return o.bytes, o.err
 }
 
-// sequenceReader returns a different (bytes, err) outcome on each successive
-// call to Tail for the same paneKey — the "transient error → success" shape:
-// first call fails, second call succeeds.
 type sequenceReader struct {
 	outcomes []struct {
 		bytes []byte
@@ -124,9 +114,6 @@ func TestPreviewError_StringIsCanonicalWordingUnableToReadScrollback(t *testing.
 }
 
 func TestPreviewError_RefocusAfterErrorIssuesFreshTailViaTab(t *testing.T) {
-	// Two panes in one window. Pane 0 errors; pane 1 succeeds. Tab to pane 1
-	// (success), Tab back to pane 0 — paneKey for pane 0 must appear twice
-	// in reader.calls (initial via the constructor + retry on refocus).
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0, 1}},
 	}
@@ -147,7 +134,6 @@ func TestPreviewError_RefocusAfterErrorIssuesFreshTailViaTab(t *testing.T) {
 	if !ok {
 		t.Fatalf("constructor: expected ok=true, got false")
 	}
-	// Tab to pane 1, then Tab back to pane 0.
 	m, _ = m.Update(nextPaneKey)
 	m, _ = m.Update(nextPaneKey)
 
@@ -170,8 +156,6 @@ func TestPreviewError_RefocusAfterErrorIssuesFreshTailViaTab(t *testing.T) {
 }
 
 func TestPreviewError_RefocusAfterErrorIssuesFreshTailViaBracket(t *testing.T) {
-	// Two windows, one pane each. Window 0 / pane 0 errors; window 1 / pane 0
-	// succeeds. ] to window 1, ] back to window 0 (wraps).
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "first", PaneIndices: []int{0}},
 		{WindowIndex: 1, WindowName: "second", PaneIndices: []int{0}},
@@ -193,7 +177,6 @@ func TestPreviewError_RefocusAfterErrorIssuesFreshTailViaBracket(t *testing.T) {
 	if !ok {
 		t.Fatalf("constructor: expected ok=true, got false")
 	}
-	// ] to window 1, ] again wraps to window 0.
 	m, _ = m.Update(nextWindowKey)
 	m, _ = m.Update(nextWindowKey)
 
@@ -216,18 +199,11 @@ func TestPreviewError_RefocusAfterErrorIssuesFreshTailViaBracket(t *testing.T) {
 }
 
 func TestPreviewError_SecondTailCallAfterErrorSeesNewOutcome(t *testing.T) {
-	// Tab away and back to the same pane: the second Tail call sees a fresh
-	// outcome (success), and the viewport renders bytes — not the error
-	// string. This nails down "no per-pane error cache".
 	groups := []tmux.WindowGroup{
 		{WindowIndex: 0, WindowName: "main", PaneIndices: []int{0, 1}},
 	}
 	pane0Key := state.SanitizePaneKey("work", 0, 0)
 
-	// Sequence per call to Tail:
-	//   1. constructor reads pane 0 → error
-	//   2. Tab to pane 1 reads pane 1 → success ("other")
-	//   3. Tab back to pane 0 reads pane 0 → success ("recovered")
 	reader := &sequenceReader{
 		outcomes: []struct {
 			bytes []byte
@@ -244,7 +220,6 @@ func TestPreviewError_SecondTailCallAfterErrorSeesNewOutcome(t *testing.T) {
 	if !ok {
 		t.Fatalf("constructor: expected ok=true, got false")
 	}
-	// Initial open shows the error string.
 	if got := stripTrailingBlanks(m.viewport.View()); got != previewReadError {
 		t.Fatalf("initial open: viewport = %q; want %q", got, previewReadError)
 	}
@@ -263,7 +238,6 @@ func TestPreviewError_SecondTailCallAfterErrorSeesNewOutcome(t *testing.T) {
 		t.Errorf("expected viewport to contain %q after recovery, got %q", "recovered", m.viewport.View())
 	}
 
-	// And pane0 was Tail'd twice.
 	pane0Calls := 0
 	for _, c := range reader.calls {
 		if c == pane0Key {
@@ -276,19 +250,12 @@ func TestPreviewError_SecondTailCallAfterErrorSeesNewOutcome(t *testing.T) {
 }
 
 func TestPreviewError_NoPerPaneErrorStateOnPreviewModel(t *testing.T) {
-	// Code-inspection-style guard: enumerate previewModel's fields and assert
-	// no error-cache-shaped field exists (any name containing "error" or
-	// "errByPaneKey" or shaped like map[string]error / per-pane string cache).
-	// This pins the "no per-pane error cache" decision in the type itself
-	// rather than relying solely on behavioural tests.
 	tp := reflect.TypeFor[previewModel]()
 	for f := range tp.Fields() {
 		name := strings.ToLower(f.Name)
 		if strings.Contains(name, "error") || strings.Contains(name, "errcache") || strings.Contains(name, "errby") {
 			t.Errorf("previewModel has field %q (%s) — per-pane error cache state forbidden by spec", f.Name, f.Type)
 		}
-		// Any map keyed by string with error or string values would shape an
-		// error-by-paneKey cache; flag them.
 		if f.Type.Kind() == reflect.Map && f.Type.Key().Kind() == reflect.String {
 			elem := f.Type.Elem()
 			if elem.Kind() == reflect.String || elem.Implements(reflect.TypeFor[error]()) {
@@ -311,9 +278,6 @@ func TestPreviewError_ChromeCountsUnaffectedByErrorBranch(t *testing.T) {
 		t.Fatalf("expected ok=true, got false")
 	}
 
-	// chromeLine() under the error branch must be byte-identical to the
-	// chromeLine() of an equivalent model whose reader returned bytes — chrome
-	// is a pure function of cached groups + windowIdx + paneIdx.
 	got := stripANSI(chromeLineForTest(m))
 	expected := stripANSI(chromeLineForTest(newPreviewModelForHelpers("work", groups, 0, 0)))
 	if got != expected {

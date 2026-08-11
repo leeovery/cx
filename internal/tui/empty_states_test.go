@@ -10,21 +10,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// This file is the §11.1 empty-states gate (task 4-5). It pins the MV treatment of
-// the genuinely-empty Sessions and Projects lists: a centred dim block glyph
-// `▌ ▌ ▌` (text.faint) over the message (text.primary) over the hint (text.muted)
-// on the owned canvas, with a FULLY-REPLACED footer drawn from the page's keymap
-// descriptor (§12.1).
-//
-// The empty state renders ONLY when the underlying list has ZERO items AND no
-// active filter — it is DISTINCT from the §7.3 over-filtered no-matches state
-// (items exist, query filters to zero). Colour roles are pinned in exact
-// mode-resolved SGR so a token swap is caught, not merely the glyph's presence.
-// No t.Parallel() (the package-level mock convention + shared canvas helpers make
-// parallelism unsafe across this package's tests).
-
-// emptySessionsModel builds a Sessions model with ZERO sessions and no active
-// filter (the §11.1 empty-sessions condition: Unfiltered state, empty list).
 func emptySessionsModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	m := Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(th)})
@@ -40,8 +25,6 @@ func emptySessionsModel(t *testing.T, th theme.Theme) Model {
 	return m
 }
 
-// emptyProjectsModel builds a Projects-page model with ZERO projects and no active
-// filter (the §11.1 empty-projects condition).
 func emptyProjectsModel(t *testing.T, th theme.Theme) Model {
 	t.Helper()
 	m := Build(Deps{Lister: fakeLister{}, Theme: theme.ConstantNomination(th)})
@@ -60,9 +43,6 @@ func emptyProjectsModel(t *testing.T, th theme.Theme) Model {
 	return m
 }
 
-// TestEmptySessions_RendersGlyphMessageHint asserts §11.1: with zero sessions and
-// no active filter the body shows the centred `▌ ▌ ▌` block glyph, the
-// `No sessions yet` message, and the spec-exact hint.
 func TestEmptySessions_RendersGlyphMessageHint(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := emptySessionsModel(t, th)
@@ -77,17 +57,12 @@ func TestEmptySessions_RendersGlyphMessageHint(t *testing.T) {
 				t.Errorf("[%v] empty-sessions body missing %q:\n%s", themeLabel(th), want, vis)
 			}
 		}
-		// The no-matches glyph/message must NOT appear (this is a distinct state).
 		if strings.Contains(vis, noMatchesGlyph) || strings.Contains(vis, "No sessions match") {
 			t.Errorf("[%v] empty-sessions state leaked the no-matches glyph/message:\n%s", themeLabel(th), vis)
 		}
 	}
 }
 
-// TestEmptySessions_ReplacesFooterFromDescriptor asserts §11.1: the footer is FULLY
-// REPLACED with `n new in cwd · x projects · / filter · ? help`, sourced from the
-// Sessions keymap descriptor (§12.1). The standard condensed footer's keys that are
-// NOT in this replaced set (navigate, attach, preview, switch view) must be absent.
 func TestEmptySessions_ReplacesFooterFromDescriptor(t *testing.T) {
 	m := emptySessionsModel(t, testDarkTheme(t))
 	vis := ansi.Strip(m.View().Content)
@@ -97,8 +72,6 @@ func TestEmptySessions_ReplacesFooterFromDescriptor(t *testing.T) {
 			t.Errorf("empty-sessions footer missing replaced entry %q:\n%s", want, vis)
 		}
 	}
-	// The standard footer is fully REPLACED, not just trimmed — its non-empty-state
-	// Core keys must not appear.
 	for _, banned := range []string{"navigate", "attach", "preview", "switch view"} {
 		if strings.Contains(vis, banned) {
 			t.Errorf("empty-sessions footer must FULLY replace the standard footer (found %q):\n%s", banned, vis)
@@ -106,14 +79,10 @@ func TestEmptySessions_ReplacesFooterFromDescriptor(t *testing.T) {
 	}
 }
 
-// TestEmptySessions_FooterCopyFromDescriptor pins the replaced footer's copy against
-// the Sessions keymap descriptor: the labels are READ from the descriptor, not
-// hand-authored, so a label change in the descriptor flows through.
 func TestEmptySessions_FooterCopyFromDescriptor(t *testing.T) {
 	footer := renderEmptySessionsFooter(referenceFooterWidth, testDarkTheme(t), false)
 	keyRow := footerVisible(strings.Split(footer, "\n")[1])
 
-	// The four entries' Action labels come straight off the descriptor.
 	want := map[string]string{"n": "new in cwd", "x": "projects", "/": "filter", "?": "help"}
 	for key, action := range want {
 		entry := key + " " + action
@@ -121,15 +90,11 @@ func TestEmptySessions_FooterCopyFromDescriptor(t *testing.T) {
 			t.Errorf("empty-sessions footer missing descriptor entry %q:\n%s", entry, keyRow)
 		}
 	}
-	// ? help is right-aligned (the trailing anchor).
 	if !strings.HasSuffix(strings.TrimRight(keyRow, " "), "help") {
 		t.Errorf("? help must be the trailing right-aligned entry:\n%s", keyRow)
 	}
 }
 
-// TestEmptySessions_FooterTokenColours asserts §3.4 / §11.1: key glyphs render in
-// accent.key, labels in text.muted, the ? glyph in accent.primary, over a 1px
-// border top rule — every colour via its §2.9 token.
 func TestEmptySessions_FooterTokenColours(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		footer := renderEmptySessionsFooter(referenceFooterWidth, th, false)
@@ -149,9 +114,6 @@ func TestEmptySessions_FooterTokenColours(t *testing.T) {
 	}
 }
 
-// TestEmptyProjects_RendersGlyphMessageHint asserts §11.1: the empty-projects state
-// mirrors the sessions pattern — the centred block glyph, `No projects yet`, and the
-// open-a-directory hint, with the projects-relevant replaced footer.
 func TestEmptyProjects_RendersGlyphMessageHint(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		m := emptyProjectsModel(t, th)
@@ -169,10 +131,6 @@ func TestEmptyProjects_RendersGlyphMessageHint(t *testing.T) {
 	}
 }
 
-// TestEmptyProjects_ReplacesFooterFromProjectsDescriptor asserts §11.1: the
-// empty-projects footer is replaced with the projects-relevant keys (n / x / / / ?)
-// drawn from the Projects keymap descriptor — the Projects `x` is `sessions`, not
-// `projects`, so the descriptor wiring (not a hard-coded copy) is exercised.
 func TestEmptyProjects_ReplacesFooterFromProjectsDescriptor(t *testing.T) {
 	m := emptyProjectsModel(t, testDarkTheme(t))
 	vis := ansi.Strip(m.View().Content)
@@ -182,7 +140,6 @@ func TestEmptyProjects_ReplacesFooterFromProjectsDescriptor(t *testing.T) {
 			t.Errorf("empty-projects footer missing replaced entry %q:\n%s", want, vis)
 		}
 	}
-	// Projects `x` is "sessions" (not "projects") — pins descriptor sourcing.
 	if strings.Contains(vis, "x projects") {
 		t.Errorf("empty-projects footer must read `x sessions` (Projects descriptor), not `x projects`:\n%s", vis)
 	}
@@ -193,11 +150,7 @@ func TestEmptyProjects_ReplacesFooterFromProjectsDescriptor(t *testing.T) {
 	}
 }
 
-// TestEmptyStates_OnlyRenderWithZeroItems asserts §11.1 / §7.3: the empty state
-// renders ONLY when the underlying list has zero items — with sessions present the
-// state never renders.
 func TestEmptyStates_OnlyRenderWithZeroItems(t *testing.T) {
-	// Sessions present -> no empty state.
 	m := filteringTestModel(t, testDarkTheme(t))
 	if m.sessionListEmpty() {
 		t.Errorf("sessionListEmpty()=true with sessions present, want false")
@@ -207,18 +160,13 @@ func TestEmptyStates_OnlyRenderWithZeroItems(t *testing.T) {
 		t.Errorf("empty-sessions message rendered while sessions exist:\n%s", vis)
 	}
 
-	// Zero sessions, no filter -> empty state.
 	empty := emptySessionsModel(t, testDarkTheme(t))
 	if !empty.sessionListEmpty() {
 		t.Errorf("sessionListEmpty()=false with zero sessions and no filter, want true")
 	}
 }
 
-// TestEmptyStates_DistinctFromNoMatches asserts §11.1 / §7.3: the empty state (zero
-// items, no query) is a DISTINCT surface from the no-matches state (items exist,
-// active query filters to zero). The two predicates are mutually exclusive.
 func TestEmptyStates_DistinctFromNoMatches(t *testing.T) {
-	// No-matches: items exist, active query -> no-matches true, empty false.
 	noMatch := enterNoMatches(t, testDarkTheme(t), "zzqx")
 	if !noMatch.sessionListNoMatches() {
 		t.Fatalf("precondition: expected no-matches state")
@@ -231,7 +179,6 @@ func TestEmptyStates_DistinctFromNoMatches(t *testing.T) {
 		t.Errorf("empty-sessions message must NOT render in the no-matches state:\n%s", vis)
 	}
 
-	// Empty: zero items, no query -> empty true, no-matches false.
 	empty := emptySessionsModel(t, testDarkTheme(t))
 	if !empty.sessionListEmpty() {
 		t.Fatalf("precondition: expected empty-sessions state")
@@ -241,20 +188,13 @@ func TestEmptyStates_DistinctFromNoMatches(t *testing.T) {
 	}
 }
 
-// TestEmptyStates_NotRenderedWhileFiltering asserts §11.1: the empty state does NOT
-// render while a filter is active (Filtering/FilterApplied) — even with zero items
-// the no-matches surface (or the live filter input) owns that state, not the empty
-// state.
 func TestEmptyStates_NotRenderedWhileFiltering(t *testing.T) {
-	// Active filter with a non-empty query matching zero -> no-matches, not empty.
 	m := enterNoMatches(t, testDarkTheme(t), "zzqx")
 	if m.sessionListEmpty() {
 		t.Errorf("sessionListEmpty() must be false while a filter is active:\n")
 	}
 }
 
-// TestEmptyStates_ColourRoles asserts §2.9: the glyph reads text.faint, the message
-// text.primary, and the hint text.muted — pinned in exact mode-resolved SGR.
 func TestEmptyStates_ColourRoles(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, th, false)
@@ -271,9 +211,6 @@ func TestEmptyStates_ColourRoles(t *testing.T) {
 	}
 }
 
-// TestEmptyStates_ColourlessLegibleOnNativeBg asserts §2.5: under NO_COLOR the
-// empty-state body and footer render colourless on the native bg — no canvas SGR,
-// no foreground hue — while the glyph/message/hint/footer copy stay intact.
 func TestEmptyStates_ColourlessLegibleOnNativeBg(t *testing.T) {
 	body := renderEmptyStateBody(emptySessionsGlyph, emptySessionsMessage, emptySessionsHint, filteringReskinWidth, 20, testDarkTheme(t), true)
 	for _, want := range []string{emptySessionsGlyph, emptySessionsMessage, emptySessionsHint} {
@@ -302,10 +239,6 @@ func TestEmptyStates_ColourlessLegibleOnNativeBg(t *testing.T) {
 	}
 }
 
-// TestEmptyStates_OneRowPerDelegateInvariant asserts §11.1 / §3.5: the empty-state
-// body replaces the list body sized against the SAME height budget (zero delegate
-// rows), so the composed view never exceeds termHeight — the one-row-per-delegate
-// pagination invariant is unperturbed.
 func TestEmptyStates_OneRowPerDelegateInvariant(t *testing.T) {
 	m := emptySessionsModel(t, testDarkTheme(t))
 	view := m.View().Content
@@ -314,7 +247,6 @@ func TestEmptyStates_OneRowPerDelegateInvariant(t *testing.T) {
 	}
 }
 
-// ansiContains reports whether the ANSI-stripped string contains want.
 func ansiContains(s, want string) bool {
 	return strings.Contains(ansi.Strip(s), want)
 }

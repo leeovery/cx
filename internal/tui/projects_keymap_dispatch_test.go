@@ -7,10 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/project"
 )
 
-// projectsParityCreator / projectsParityStore are minimal dispatch-routing stubs:
-// the parity tests assert which handler a key reaches (modal opened, page set,
-// cmd produced), not the handler's downstream effect, so the stubs only need to be
-// non-nil and return benign values.
 type projectsParityCreator struct{}
 
 func (projectsParityCreator) CreateFromDir(string, []string) (string, error) { return "new", nil }
@@ -21,9 +17,6 @@ func (projectsParityStore) List() ([]project.Project, error)       { return nil,
 func (projectsParityStore) CleanStale() ([]project.Project, error) { return nil, nil }
 func (projectsParityStore) Remove(string, string) error            { return nil }
 
-// stubTagsAliasEditor / stubTagsProjectEditor are no-op editors satisfying the
-// non-nil dependency guards in handleEditProjectKey / the projects dispatch, so
-// e/d/Enter route to their handlers without depending on real storage.
 type stubTagsAliasEditor struct{}
 
 func (stubTagsAliasEditor) Load() (map[string]string, error)        { return map[string]string{}, nil }
@@ -36,9 +29,6 @@ func (stubTagsProjectEditor) Rename(_, _, _ string) error { return nil }
 func (stubTagsProjectEditor) AddTag(_, _ string) error    { return nil }
 func (stubTagsProjectEditor) RemoveTag(_, _ string) error { return nil }
 
-// projectsDispatchModel builds a Projects-page Model seeded with one project row
-// and the editor/creator/store stubs the project handlers guard on, for
-// exercising the updateProjectsPage rune/key dispatch directly.
 func projectsDispatchModel(t *testing.T) Model {
 	t.Helper()
 	projects := []project.Project{
@@ -65,10 +55,6 @@ func pressProject(t *testing.T, m Model, msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return updated.(Model), cmd
 }
 
-// projectsNavModel builds a Projects-page Model seeded with several project rows
-// and a real list size, so the cursor/page index can actually move — the fixture
-// for the §12.2 arrow-only-nav dispatch assertions (a single-row InfiniteScrolling
-// list pins the cursor at 0 and would mask a leaked nav binding).
 func projectsNavModel(t *testing.T) Model {
 	t.Helper()
 	projects := []project.Project{
@@ -89,10 +75,6 @@ func projectsNavModel(t *testing.T) Model {
 	return m
 }
 
-// TestProjectsKeymapRevision locks the §12.2 Projects-side keymap revision in the
-// live updateProjectsPage dispatch: the s→Sessions alias is gone (x is the sole
-// both-directions Sessions↔Projects toggle), and no uppercase binding is
-// introduced.
 func TestProjectsKeymapRevision(t *testing.T) {
 	t.Run("it no longer toggles to Sessions on s", func(t *testing.T) {
 		m := projectsDispatchModel(t)
@@ -107,8 +89,6 @@ func TestProjectsKeymapRevision(t *testing.T) {
 
 	t.Run("it is a harmless no-op on s (no modal, no crash)", func(t *testing.T) {
 		m := projectsDispatchModel(t)
-		// s falls through to m.projectList.Update with no Projects list bind on s,
-		// so it must not open a modal or change page — just a quiet no-op.
 		m, _ = pressProject(t, m, tea.KeyPressMsg{Code: 's', Text: "s"})
 		if m.modal != modalNone {
 			t.Errorf("s must not open a modal; modal = %v", m.modal)
@@ -124,11 +104,6 @@ func TestProjectsKeymapRevision(t *testing.T) {
 		if m.activePage != PageSessions {
 			t.Errorf("x must toggle to Sessions; active page = %d", m.activePage)
 		}
-		// The x arm dispatches refreshSessionsAfterPreviewCmd("") — a non-nil cmd
-		// (a SessionLister is not wired here, so the inner cmd may be nil, but
-		// refreshSessionsAfterPreviewCmd returns a batch/cmd that must survive). The
-		// key invariant for parity is that x produces the SAME page transition + a
-		// refresh dispatch path as before; assert the page transition happened.
 		_ = cmd
 	})
 
@@ -145,13 +120,6 @@ func TestProjectsKeymapRevision(t *testing.T) {
 		}
 	})
 
-	// §12.2: navigation on the Projects page is arrows only — the vim aliases
-	// (h/j/k/l, g/G), the uppercase G, and the PgUp/PgDn/Home/End/b/u/f page-jump
-	// keys must NOT reach the list's own Update. This drives the LIVE bubbles/list
-	// dispatch (sending each key through updateProjectsPage and asserting the
-	// cursor index is unchanged), mirroring the Sessions arrow-only coverage — the
-	// descriptor-layer projects_keymap_test only proves the display copy and gave
-	// false assurance while these keys still moved the cursor.
 	t.Run("it does not navigate via vim/uppercase/page-jump aliases on Projects", func(t *testing.T) {
 		bannedNav := []tea.KeyPressMsg{
 			{Code: 'j', Text: "j"},
@@ -196,10 +164,6 @@ func TestProjectsKeymapRevision(t *testing.T) {
 			t.Errorf("↑ must move the Projects cursor back up one; index %d", m.projectList.Index())
 		}
 
-		// Ctrl+↑/↓ page: the binding must still route to PrevPage/NextPage. Confirm
-		// the bindings are non-empty so a page key is dispatchable (the cursor index
-		// moves only when there is more than one page; the binding presence is the
-		// §12.2 invariant under test).
 		if len(m.projectList.KeyMap.NextPage.Keys()) == 0 {
 			t.Errorf("Ctrl+↓ paging must stay bound on Projects; NextPage keys are empty")
 		}
@@ -215,10 +179,6 @@ func TestProjectsKeymapRevision(t *testing.T) {
 	})
 }
 
-// TestProjectsRetainedActionParity traces every retained Projects action's
-// dispatch target after the §12.2 revision — the only behaviour change is s no
-// longer reaching Sessions; x/e/d/n/Enter/q/Esc/Ctrl+C must route exactly as
-// before.
 func TestProjectsRetainedActionParity(t *testing.T) {
 	t.Run("e routes to edit (opens the edit project modal)", func(t *testing.T) {
 		m := projectsDispatchModel(t)
@@ -299,9 +259,6 @@ func TestProjectsRetainedActionParity(t *testing.T) {
 	})
 
 	t.Run("? opens the per-page help modal (no list self-toggle)", func(t *testing.T) {
-		// §12.2 / §8.5: Phase 3 binds ? to OUR per-page help modal on Projects too,
-		// replacing the prior swallow. The key is still consumed (no cmd, no page
-		// change) so bubbles/list never toggles its own help.
 		m := projectsDispatchModel(t)
 		_, cmd := m.updateProjectsPage(tea.KeyPressMsg{Code: '?', Text: "?"})
 		if cmd != nil {
@@ -317,10 +274,6 @@ func TestProjectsRetainedActionParity(t *testing.T) {
 	})
 }
 
-// TestProjectsCommandPendingGatingUnchanged asserts the §11.4 command-pending
-// gating in updateProjectsPage is untouched by the §12.2 s-alias removal: with
-// commandPending set, x/e/d remain no-ops (they early-return) and the page stays
-// on Projects — the command-pending keymap (owned by Phase 4) is left intact.
 func TestProjectsCommandPendingGatingUnchanged(t *testing.T) {
 	t.Run("x is a no-op in command-pending mode", func(t *testing.T) {
 		m := projectsDispatchModel(t)

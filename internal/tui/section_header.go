@@ -10,204 +10,76 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The Sessions section header: directly under the header block's separator
-// rule, a left cluster — `Sessions` in accent.mode, the live count in state.positive
-// (the SAME font size as the label, distinguished only by its dim colour, NOT a
-// smaller / superscript glyph, so it shares the baseline / cap-height),
-// and the mode suffix (`— by project` / `— by tag`) plus the inside-tmux
-// `(current: %s)` decoration in text.muted — with a right-aligned `/ to filter`
-// hint (text.muted) on the SAME row, the gap between filled with a canvas-painted
-// flex spacer to the content width.
-//
-// Parity is load-bearing: the suffix text and the inside-tmux decoration are
-// SOURCED from sessionListTitleForMode (the single title producer) so the
-// rendered strings stay byte-identical to the pre-reskin title — only the colour
-// split (label vs count vs suffix) and the added right hint differ. The plain
-// title field (m.sessionList.Title) is left untouched for the same reason; this
-// render REPLACES the rendered title line in viewSessionList, it does not rewrite
-// the title value.
-//
-// Every cell carries the owned canvas background (leaf .Background(canvas)),
-// mirroring header.go, so the right-aligned spacer gap is canvas-painted with no
-// terminal-bg island. Under the NO_COLOR carve-out every hue and the
-// canvas drop; the structure (label / count / suffix / hint) renders intact on
-// the terminal's native fg/bg.
+// The section header replaces the rendered title line; it does not rewrite the
+// list's title value. Its suffix text and inside-tmux decoration are sourced
+// from sessionListTitleForMode so the rendered strings stay byte-identical to
+// that single title producer.
 
 const (
-	// sectionLabel is the Sessions page label (accent.mode). It is the
-	// fixed prefix of every sessionListTitleForMode output — the suffix is the
-	// remainder after this prefix, so the two split cleanly with no duplicated
-	// wording.
-	sectionLabel = "Sessions"
-	// projectsSectionLabel is the Projects page label (state.positive).
-	// The Projects header carries no mode suffix — it is the label + a text.muted
-	// count + the shared `/ to filter` hint.
+	// The fixed prefix of every sessionListTitleForMode output — the suffix is
+	// the remainder after it, so the two split with no duplicated wording.
+	sectionLabel         = "Sessions"
 	projectsSectionLabel = "Projects"
-	// sectionFilterHint is the persistent right-aligned hint shown on every
-	// filterable session/project view. The `s switch view` hint
-	// is the footer's responsibility and is deliberately NOT duplicated here.
-	sectionFilterHint = "/ to filter"
-	// multiSelectCancelHint is the multi-select banner's right-aligned hint —
-	// `esc cancel` in text.muted (the SAME dim chrome token the standard
-	// `/ to filter` hint uses), signalling Esc leaves the mode. It is the single
-	// source of the wording.
+	// The `s switch view` hint is the footer's responsibility and deliberately
+	// not duplicated here.
+	sectionFilterHint     = "/ to filter"
 	multiSelectCancelHint = "esc cancel"
 
-	// unsupportedLabel is the named-identity warning label — `unsupported
-	// terminal` in accent.attention (amber) — shown when detection resolves a non-NULL
-	// but undriven host terminal (e.g. com.apple.Terminal). It reads before the dim
-	// identity string.
-	unsupportedLabel = "unsupported terminal"
-	// unsupportedDocsHint is the right-anchored blue link hint — `see docs` in
-	// accent.key — carried unconditionally by the named-only banner (its actionable
-	// terminals.json pointer). It is the single source of the wording.
+	unsupportedLabel    = "unsupported terminal"
 	unsupportedDocsHint = "see docs"
-	// unsupportedDocsURL is the OSC 8 hyperlink target the `see docs` hint wraps —
-	// the dedicated custom-terminal setup guide on GitHub. The link is emitted
-	// unconditionally (OSC 8 is orthogonal to colour, so it rides the
-	// NO_COLOR/colourless carve-out and still degrades to the bare `see docs` word
-	// where the terminal does not render OSC 8). The banner NEVER prints this URL as
-	// visible text — it is link-or-bare-word only. It stays local to this call site
-	// (no shared/exported constant).
+	// The OSC 8 link target. The banner never prints this as visible text —
+	// link-or-bare-word only.
 	unsupportedDocsURL = "https://github.com/leeovery/portal/blob/main/docs/custom-terminals.md"
-	// unsupportedIdentityDash / unsupportedIdentityMiddot are the identity
-	// separators, matching the delivered frame EXACTLY: a spaced em-dash (U+2014)
-	// before the friendly name and a spaced middot (U+00B7) before the bundle id, so
-	// the dim identity reads ` — Apple Terminal · com.apple.Terminal`.
+	// A spaced em-dash before the friendly name, a spaced middot before the
+	// bundle id.
 	unsupportedIdentityDash   = " — "
 	unsupportedIdentityMiddot = " · "
 
-	// preflightAbortDismissHint is the pre-flight abort banner's right-aligned
-	// hint — `esc dismiss` in text.muted (the SAME dim chrome token the standard
-	// `/ to filter` / `esc cancel` hints use), signalling Esc clears the abort banner
-	// while STAYING in multi-select mode. Single source of the wording.
+	// Esc clears the abort banner while staying in multi-select mode.
 	preflightAbortDismissHint = "esc dismiss"
 )
 
-// renderSectionHeader renders the Sessions section header for the
-// active grouping mode, inside-tmux state, live session count, and resolved
-// canvas mode (and the NO_COLOR carve-out). The single rendered row is always
-// exactly width cells wide: the left cluster and the right hint are separated by a
-// canvas-painted flex spacer. Below the width at which the left cluster + a spacer
-// + the hint no longer fit, the right hint drops rather than overflow.
 func renderSectionHeader(mode prefs.SessionListMode, insideTmux bool, currentSession string, count, width int, th theme.Theme, colourless bool) string {
 	left := sectionLeftCluster(mode, insideTmux, currentSession, count, th, colourless)
 	return renderSectionHeaderRow(left, width, th, colourless)
 }
 
-// renderProjectsSectionHeader renders the Projects section header: a
-// left cluster — `Projects` in state.positive plus the live count in text.muted (at
-// the SAME cap-height as the label, distinguished only by its dim colour, NOT a
-// smaller / superscript glyph) — with a right-aligned `/ to filter` hint
-// (text.muted) on the same row, the gap filled with a canvas-painted flex spacer
-// to the content width. Unlike the Sessions header it carries no mode suffix.
-//
-// It shares the layout core (renderSectionHeaderRow) with the Sessions header so
-// the flex-spacer right-alignment, the narrow degrade, and the canvas paint
-// stay identical; only the left cluster (label text + label colour + count colour)
-// differs. Under the NO_COLOR carve-out every hue and the canvas drop; the
-// structure (label / count / hint) renders intact on the terminal's native fg/bg.
 func renderProjectsSectionHeader(count, width int, th theme.Theme, colourless bool) string {
 	left := projectsLeftCluster(count, th, colourless)
 	return renderSectionHeaderRow(left, width, th, colourless)
 }
 
-// renderMultiSelectHeader renders the multi-select banner in the section-header
-// row position: a left cluster — `N selected` in accent.primary — with a
-// right-aligned `esc cancel` hint (text.muted) on the same row, the gap filled
-// with a canvas-painted flex spacer to the content width. It REPLACES the standard
-// `Sessions ··· N` section header while multi-select mode is active — a filter-line
-// analogue carrying NO `▌` left-bar (it is a section-header variant, not a
-// notice band).
-//
-// It routes through the SAME right-anchor core (renderRightAnchoredSectionRow) the
-// standard Sessions/Projects section headers use, so its right-alignment, the
-// canvas-painted flex spacer, and the narrow degrade match those headers
-// EXACTLY — only the left cluster (violet `N selected`) and the right hint (`esc
-// cancel`) differ. Under the NO_COLOR carve-out every hue and the canvas
-// drop; the `N selected` / `esc cancel` text renders intact on the terminal's
-// native fg/bg. The single rendered row is exactly one line.
+// The multi-select banner replaces the standard section header while the mode
+// is active. It carries no `▌` left-bar — it is a section-header variant, not
+// a notice band.
 func renderMultiSelectHeader(count, width int, th theme.Theme, colourless bool) string {
 	left := headerStyle(th.AccentPrimary, th, colourless).Render(strconv.Itoa(count) + " selected")
 	hint := headerStyle(th.TextMuted, th, colourless).Render(multiSelectCancelHint)
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// renderOpeningBand renders the in-burst `Opening n/N…` pending affordance in
-// the section-header row position — the HIGHEST section-header claimant (just below
-// the live filter input) while an N≥2 spawn burst is in flight. It is a left cluster
-// `Opening <done>/<total>…` in accent.primary (the mode accent — no new token; the
-// U+2026 horizontal ellipsis signals the burst is still awaiting per-window token
-// acks), composed through the SAME right-anchor core the standard section headers and
-// the multi-select banner use — with NO right hint, so the empty hint pads the
-// whole right side with the canvas. Its right-alignment, the canvas-painted flex
-// spacer, and the narrow degrade therefore match those headers EXACTLY. NO `▌`
-// left-bar (it is a section-header variant, not a notice band). The single
-// rendered row is exactly one line.
-//
-// Under the NO_COLOR carve-out every hue and the canvas drop; the `Opening
-// n/N…` text survives on the terminal's native fg/bg.
+// The in-burst pending affordance, with no right hint so the empty hint pads
+// the right side with canvas. No `▌` left-bar.
 func renderOpeningBand(done, total, width int, th theme.Theme, colourless bool) string {
 	left := headerStyle(th.AccentPrimary, th, colourless).
 		Render(fmt.Sprintf("Opening %d/%d…", done, total))
 	return renderRightAnchoredSectionRow(left, "", width, th, colourless)
 }
 
-// renderUnsupportedHeader renders the proactive unsupported terminal banner in
-// the section-header row position — a filter-line analogue that REPLACES the
-// standard `Sessions ··· N` section header when detection has resolved the host
-// terminal to a NAMED unsupported resolution. It is a named-only renderer:
-// bundleID != "" always holds when it is reached (the gate, unsupportedBannerActive,
-// carries the !IsNull() discriminator, so a NULL/remote identity never reaches here —
-// it renders the standard header instead).
-//
-// The left cluster is the `⚠` glyph + `unsupported terminal` in accent.attention
-// (amber — the existing warning accent, no new token), then ` — <name> · <bundleID>`
-// in text.muted (the dim identity string, the copy-paste key). The `see docs` hint
-// in accent.key is UNCONDITIONAL (its actionable terminals.json pointer),
-// right-anchored.
-//
-// It routes through the SAME right-anchor core (renderRightAnchoredSectionRow) the
-// standard Sessions/Projects section headers and the multi-select banner use, so
-// its right-alignment, the canvas-painted flex spacer, and the narrow degrade
-// match those headers EXACTLY. NO `▌` left-bar (it is a section-header variant, not
-// a notice band). The single rendered row is exactly one line.
-//
-// Under the NO_COLOR carve-out every hue and the canvas drop; the `⚠`, the
-// label, the identity string, and `see docs` survive on the terminal's native fg/bg
-// (glyph-backed, never colour-only).
+// Named-only: bundleID != "" always holds here, because the gate
+// (unsupportedBannerActive) carries the !IsNull() discriminator, so a
+// NULL/remote identity renders the standard header instead. No `▌` left-bar.
 func renderUnsupportedHeader(name, bundleID string, width int, th theme.Theme, colourless bool) string {
 	left := unsupportedLeftCluster(name, bundleID, th, colourless)
-	// The `see docs` hint carries an OSC 8 hyperlink to the custom-terminal docs page,
-	// emitted UNCONDITIONALLY — OSC 8 is orthogonal to colour, so it rides the
-	// NO_COLOR/colourless carve-out and degrades to the bare `see docs` word where the
-	// terminal does not render OSC 8 (never a printed URL/path — link-or-bare-word only).
+	// OSC 8 is orthogonal to colour, so the link is emitted unconditionally and
+	// degrades to the bare word where the terminal does not render it.
 	hint := headerStyle(th.AccentKey, th, colourless).
 		Hyperlink(unsupportedDocsURL).
 		Render(unsupportedDocsHint)
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// renderPreflightAbortHeader renders the pre-flight abort banner in the
-// section-header row position — a red one-line error naming the gone session(s)
-// after an N≥2 Enter found a marked session vanished (nothing spawned, no
-// window opened, no self-attach). The left cluster is the `⚠` glyph (the shared
-// flashWarningGlyph, so the two warning surfaces stay glyph-consistent) + a
-// space + the message, all in state.destructive (the existing error accent — no
-// new token); the right hint is a dim `esc dismiss` in text.muted. The message
-// is pre-composed by the caller (spawn.QuoteJoin + spawn.GoneVerb), so a single
-// gone session reads `⚠ '<session>' is gone — nothing opened` and several read
-// `⚠ 's2', 's4' are gone — nothing opened`.
-//
-// It routes through the SAME right-anchor core (renderRightAnchoredSectionRow) the
-// standard Sessions/Projects section headers and the multi-select banner use, so
-// its right-alignment, the canvas-painted flex spacer, and the narrow degrade
-// match those headers EXACTLY. NO `▌` left-bar (it is a section-header variant, not
-// a notice band). The single rendered row is exactly one line.
-//
-// Under the NO_COLOR carve-out every hue and the canvas drop; the `⚠`, the
-// message, and `esc dismiss` survive on the terminal's native fg/bg (glyph-backed,
-// never colour-only).
+// The message is pre-composed by the caller. No `▌` left-bar.
 func renderPreflightAbortHeader(message string, width int, th theme.Theme, colourless bool) string {
 	left := headerStyle(th.StateDestructive, th, colourless).
 		Render(flashWarningGlyph + " " + message)
@@ -215,12 +87,8 @@ func renderPreflightAbortHeader(message string, width int, th theme.Theme, colou
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// unsupportedLeftCluster renders the banner's left cluster flush at the
-// content's left edge (mirroring sectionLeftCluster — no leading indent). It is
-// named-only: the amber `⚠ unsupported terminal` label followed by the dim
-// ` — <name> · <bundleID>` identity in text.muted (bundleID != "" always holds when
-// reached). The `⚠` glyph is shared with the warning flash (flashWarningGlyph)
-// so the two warning surfaces stay glyph-consistent.
+// The ⚠ glyph is shared with the warning flash so the two warning surfaces
+// stay glyph-consistent.
 func unsupportedLeftCluster(name, bundleID string, th theme.Theme, colourless bool) string {
 	label := headerStyle(th.AccentAttention, th, colourless).
 		Render(flashWarningGlyph + " " + unsupportedLabel)
@@ -229,37 +97,19 @@ func unsupportedLeftCluster(name, bundleID string, th theme.Theme, colourless bo
 	return lipgloss.JoinHorizontal(lipgloss.Top, label, identity)
 }
 
-// renderSectionHeaderRow lays out a pre-rendered left cluster and the standard
-// right-aligned `/ to filter` hint into the single section-header row via the
-// shared right-anchor core (renderRightAnchoredSectionRow). It is the entry point
-// both the Sessions and Projects section headers route through, so their
-// right-alignment and narrow degrade can never drift from each other or from
-// the multi-select banner (which shares the same core).
 func renderSectionHeaderRow(left string, width int, th theme.Theme, colourless bool) string {
-	// The standard section header's fixed `/ to filter` right hint; the shared core
-	// (renderRightAnchoredSectionRow) owns the flex-spacer geometry and the narrow
-	// degrade, so it is passed the rendered hint.
 	hint := headerStyle(th.TextMuted, th, colourless).Render(sectionFilterHint)
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// renderRightAnchoredSectionRow lays out a pre-rendered left cluster and a
-// pre-rendered right hint into the single section-header row, always exactly width
-// cells wide: the cluster and the hint are separated by a canvas-painted flex
-// spacer. Below the width at which the cluster + a spacer + the hint no longer fit,
-// the right hint drops rather than overflow. It is the shared right-anchor
-// core BOTH the standard Sessions/Projects section headers (`/ to filter` hint, via
-// renderSectionHeaderRow) and the multi-select banner (`esc cancel` hint, via
-// renderMultiSelectHeader) route through, so their right-alignment, flex spacer, and
-// narrow degrade can never drift — only the left cluster and the hint text differ.
+// The shared right-anchor core every section-header variant routes through, so
+// their alignment and narrow degrade cannot drift. Always exactly width cells.
 func renderRightAnchoredSectionRow(left, hint string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	leftWidth := lipgloss.Width(left)
 	hintWidth := lipgloss.Width(hint)
 
-	// Narrow degrade: the left cluster already meets/exceeds the row, OR the
-	// hint no longer fits beside it leaving at least one spacer cell — drop the
-	// hint and pad the left cluster to width with canvas spaces.
+	// Drop the hint rather than overflow.
 	if leftWidth >= w || leftWidth+1+hintWidth > w {
 		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
@@ -269,12 +119,6 @@ func renderRightAnchoredSectionRow(left, hint string, width int, th theme.Theme,
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, hint)
 }
 
-// projectsLeftCluster renders the Projects header's left cluster flush at the
-// content's left edge (col 0 of the inset region — the SAME column as the PORTAL
-// wordmark and the row selector): `Projects` in state.positive, then the count one
-// space right at the SAME cap-height (a plain run — no smaller / superscript
-// glyph), distinguished only by text.muted. NO leading indent (mirrors
-// sectionLeftCluster). No mode suffix — the Projects list has a single view.
 func projectsLeftCluster(count int, th theme.Theme, colourless bool) string {
 	label := headerStyle(th.StatePositive, th, colourless).Render(projectsSectionLabel)
 	gap := headerCanvasBg(th, colourless).Render(" ")
@@ -282,31 +126,17 @@ func projectsLeftCluster(count int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, label, gap, countRun)
 }
 
-// sectionLeftCluster renders the left cluster flush at the content's left edge
-// (col 0 of the inset region — the SAME column as the header.go PORTAL wordmark and
-// the row cursor/selector): `Sessions` in accent.mode, the count in state.positive,
-// then the mode suffix + inside-tmux decoration in text.muted. NO leading indent —
-// header.go's headerBand renders the wordmark flush at col 0 with no indent, so the
-// section header must too (the old col-2 indent was a legacy artifact of the
-// bubbles/list TitleBar PaddingLeft=2 that this header REPLACES). The group-header
-// indent (groupHeaderIndent) is a separate concern — it nests the `client ··· N`
-// group rows, not this section header. The suffix is the remainder of
-// sessionListTitleForMode after the fixed "Sessions" prefix, so the wording stays
-// byte-parity-identical.
+// Flush at the content's left edge — the same column as the header wordmark
+// and the row cursor — with no leading indent. The count is a plain run at the
+// label's cap-height, distinguished only by colour.
 func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSession string, count int, th theme.Theme, colourless bool) string {
 	label := headerStyle(th.AccentMode, th, colourless).Render(sectionLabel)
 
-	// The count sits one space right of the label, at the SAME font size (a plain
-	// run — no smaller / superscript glyph), distinguished only by state.positive
-	// (it shares the baseline / cap-height with the label).
 	gap := headerCanvasBg(th, colourless).Render(" ")
 	countRun := headerStyle(th.StatePositive, th, colourless).Render(strconv.Itoa(count))
 
 	cluster := lipgloss.JoinHorizontal(lipgloss.Top, label, gap, countRun)
 
-	// The mode suffix (and the inside-tmux decoration) are everything
-	// sessionListTitleForMode emits after the fixed "Sessions" prefix — sourced
-	// from the single title producer so the wording stays byte-identical.
 	if suffix := sectionModeSuffix(mode, insideTmux, currentSession); suffix != "" {
 		suffixRun := headerStyle(th.TextMuted, th, colourless).Render(suffix)
 		cluster = lipgloss.JoinHorizontal(lipgloss.Top, cluster, suffixRun)
@@ -314,25 +144,13 @@ func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSess
 	return cluster
 }
 
-// filterPromptPrefix is the accent.attention filter prompt — the `/` glyph plus
-// one trailing space — rendered both in the live input (input-active, via the
-// bubbles/list FilterInput prompt) and in the locked-query header (list-active,
-// via renderFilterQueryHeader). It is the single source of the prompt's wording so
-// the two modes read identically aside from the cursor.
+// Rendered both in the live input and in the locked-query header, so the two
+// modes read identically aside from the cursor.
 const filterPromptPrefix = "/ "
 
-// renderFilterQueryHeader renders the list-active LOCKED filter query in the
-// section-header row position: the accent.attention `/ ` prompt followed by the
-// committed query, also in accent.attention, with NO cursor (the cursor-less locked
-// query signals the list is filtered) and NO background tint (the filter input
-// carries no bg.selection band). The row is padded to the content width with
-// canvas spaces so it occupies the full row like the standard section header. It
-// REPLACES the section header (and the bubbles/list title) for the FilterApplied
-// frame — the input-active frame is owned by the live bubbles/list FilterInput,
-// not this function.
-//
-// Under the NO_COLOR carve-out the hues and the canvas drop; the `/ query` text
-// renders on the terminal's native fg/bg (still structurally distinct).
+// The list-active locked query, with no cursor (signalling the list is
+// filtered) and no tint. It replaces the section header for the FilterApplied
+// frame; the input-active frame belongs to the live bubbles/list FilterInput.
 func renderFilterQueryHeader(query string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	run := headerStyle(th.AccentAttention, th, colourless).Render(filterPromptPrefix + query)
@@ -340,12 +158,9 @@ func renderFilterQueryHeader(query string, width int, th theme.Theme, colourless
 	return headerPadRight(run, runWidth, w, th, colourless)
 }
 
-// sectionModeSuffix returns the section header's suffix text — the mode suffix
-// (`— by project` / `— by tag`) and the inside-tmux `(current: %s)` decoration —
-// derived from sessionListTitleForMode by stripping the fixed "Sessions" prefix.
-// Sourcing it from the title producer (rather than re-deriving) keeps the wording
-// byte-identical to the pre-reskin title (parity). It carries a single leading
-// space so it renders as ` — by tag` / ` (current: foo)` after the count.
+// Derived by stripping the fixed prefix from the title producer rather than
+// re-deriving, so the wording stays byte-identical. It carries a single
+// leading space so it renders after the count.
 func sectionModeSuffix(mode prefs.SessionListMode, insideTmux bool, currentSession string) string {
 	title := sessionListTitleForMode(mode, insideTmux, currentSession)
 	return strings.TrimPrefix(title, sectionLabel)
