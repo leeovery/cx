@@ -52,8 +52,8 @@ const builtinDir = "builtins"
 // the directory is not a theme and never becomes one.
 //
 // Embedding is NOT config discovery: nothing here resolves a path, reads an env
-// var or touches the filesystem at runtime, which is what keeps the built-in
-// lookup reachable from internal/capture under its no-real-config import guard.
+// var or touches the filesystem at runtime, so the built-in lookup stays
+// reachable where real config discovery is forbidden.
 //
 //go:embed builtins/*.theme
 var builtinFS embed.FS
@@ -88,10 +88,9 @@ func BuiltinBytes(slug string) ([]byte, bool) {
 //
 // The set is DERIVED from the embedded filenames rather than restated as a Go
 // list, which is what makes adding a theme literally adding a file: a new .theme
-// file is enumerated here, reserves its own slug against shadowing and is
-// covered by the build-time validation, with no Go to keep in step. A
-// hand-written list would be a second source of truth that silently disagrees
-// with the directory the moment someone forgets it.
+// file is enumerated here and reserves its own slug against shadowing, with no
+// Go to keep in step. A hand-written list would be a second source of truth
+// that silently disagrees with the directory the moment someone forgets it.
 //
 // Sorting is a guarantee OF THIS FUNCTION, not one inherited from the directory
 // read: stripping the extension can reorder two names — `a-.theme` sorts before
@@ -142,9 +141,8 @@ func builtinSlugSet() map[string]struct{} {
 // failure of anything: by-name resolution asks the built-in set first and falls
 // through to the themes directory, so "not one of ours" is the routine answer
 // that sends it there. A rejection means something quite different — the slug IS
-// a built-in and its file did not parse, which build-time validation of the
-// embedded set exists to make impossible, and which is reported here as an
-// ordinary rejection rather than a panic.
+// a built-in and its file did not parse, a state a correct binary never reaches,
+// and one reported here as an ordinary rejection rather than a panic.
 //
 // It reaches the SAME parse path a file does, so the two callers cannot be told
 // apart by behaviour. What it deliberately does not run are the ladder's
@@ -157,9 +155,9 @@ func builtinSlugSet() map[string]struct{} {
 // one Loader it holds.
 //
 // It takes NO DIRECTORY and touches no filesystem, on either outcome. That is
-// what keeps the built-in set reachable from internal/capture under its
-// no-real-config import guard, and what lets a fallback resolve a built-in in a
-// process that has resolved no config path at all.
+// what keeps the built-in set reachable where real config discovery is
+// forbidden, and what lets a fallback resolve a built-in in a process that has
+// resolved no config path at all.
 func (l Loader) LoadBuiltin(slug string) (Result, *Rejection, bool) {
 	data, found := l.builtinBytes(slug)
 	if !found {

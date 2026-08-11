@@ -786,9 +786,8 @@ func buildThemeLoader() theme.Loader {
 // POST-TRANSLATION in-memory value, not the on-disk bytes: loadPrefsStore applies
 // the appearance translation, and resolving from a second read here would render
 // the shipped pair for a migrated user on the very launch their pin was
-// translated. It is the ONE construction-time theme read, so prefs.json is read
-// once per process — and the keys it hands back are the snapshot the panel keeps
-// for its whole life, never re-read on open.
+// translated. The keys it hands back are the construction-time snapshot the
+// panel keeps for its whole life, never re-read on open.
 //
 // ZERO KEYS ARE THE SHIPPED ADAPTIVE PAIR, which is what an unconfigured install
 // renders anyway — so they are also what openTUI degrades to when the prefs path
@@ -945,9 +944,9 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	// Load the prefs store once at TUI construction; the same *prefs.Store
 	// instance serves the initial-mode read here and per-toggle writes via the
 	// tui.ModePersister seam. The load also computes the one-shot appearance
-	// translation in memory — this is the only place it runs, because it is the
-	// only place a TUI is constructed and the only place its result is used. A
-	// prefs path-resolution failure must NOT block opening the TUI: swallow it
+	// translation in memory — it runs where a TUI is constructed, because its
+	// result is what the picker is built from. A prefs path-resolution failure
+	// must NOT block opening the TUI: swallow it
 	// and proceed with a nil persister, zero keys (the shipped pair) + the Flat
 	// default. prefs.json is deliberately outside the closed state-mutation
 	// audit-trail (see internal/prefs), so there is no breadcrumb component to

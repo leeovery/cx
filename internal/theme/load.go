@@ -25,9 +25,8 @@ type Loader struct {
 	// constructors exist: anything resolving a user's theme goes through NewLoader
 	// or NewSilentLoader, which populate it identically, or it has no shadowing
 	// protection. Assembling a Loader rather than constructing one is therefore a
-	// test shape, for driving the ladder with a synthetic set, and a source guard
-	// keeps it out of production code, where NewLoader's own construction is
-	// exempt.
+	// shape for driving the ladder with a synthetic set, never a way to resolve a
+	// user's theme.
 	ReservedSlugs map[string]struct{}
 
 	// BuiltinSource is where LoadBuiltin gets a built-in's bytes. Nil — the
@@ -177,9 +176,11 @@ func (l Loader) LoadFile(path string) (Result, *Rejection) {
 // unambiguous, where this file does not live. The filename reasons still matter
 // to a drop-in author, but as the caller's warning from the basename.
 //
-// Rungs 3 to 6 are the same code LoadFile and LoadBuiltin run, so a file judged
-// here and the same file judged as a directory entry can differ only in the two
-// rungs deliberately skipped.
+// Rungs 4 to 6 are parseThemeBytes, the same code LoadFile and LoadBuiltin run,
+// so a file judged here and the same file judged as a directory entry can differ
+// only in the two rungs deliberately skipped. The read and its `unreadable`
+// verdict are not shared code: LoadFile performs the same read separately, and
+// LoadBuiltin performs none at all.
 //
 // It is a function rather than a Loader method because none of a Loader's
 // injected dependencies bears on it, and taking no receiver makes them
@@ -204,11 +205,11 @@ func LoadPath(path string) (Result, *Rejection) {
 // into exactly one of the ladder's last three rungs — `bad syntax`,
 // `bad colour`, `missing tokens` — in that order.
 //
-// It is the whole content half of the ladder and the only implementation of it,
-// reached with bytes off the disk and with bytes out of the embedded set alike. A
-// second parse path would let a format bug hide behind a Go-side built-in, so no
-// caller may lex or validate on its own. The two rungs above it are decided from
-// a filename, which an embedded built-in has no equivalent of.
+// It is the whole content half of the ladder, reached with bytes off the disk
+// and with bytes out of the embedded set alike. No caller may lex or validate on
+// its own: a second parse path would let a format bug hide behind a Go-side
+// built-in. The two rungs above it are decided from a filename, which an
+// embedded built-in has no equivalent of.
 //
 // A failure here is an ordinary rejection, never a panic: escalating a broken
 // built-in belongs to the place a fallback is needed, not to the place a file is

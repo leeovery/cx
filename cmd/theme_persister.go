@@ -19,9 +19,9 @@ const themeCommitFailedEvent = "commit failed"
 // import internal/log, the write needs prefs path resolution, and the `theme`
 // component records the failure.
 //
-// It is therefore the emission site for `theme: commit failed`, which otherwise
-// has none: prefs cannot log it, and the model logging it would either double the
-// event or make internal/tui another package emitting the component.
+// The failure is therefore recorded here rather than beneath or above: prefs
+// cannot log it, and the model logging it would either double the event or make
+// internal/tui another package emitting the component.
 //
 // It logs and returns. The panel's outstanding-failure state renders
 // `⚠ couldn't save theme` from the returned value and holds the failure

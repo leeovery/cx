@@ -22,14 +22,14 @@ import (
 //
 // Every panel surface resolves to an existing token: the body is `canvas`, the
 // left border and the header rule are `border`, the header label is
-// `accent.mode`, the pinned directory row is `accent.attention`. That is what
-// keeps the colour-literal guard and the swap-and-diff guard satisfied with no
+// `accent.mode`, the pinned directory row is `accent.attention`. No surface here
+// carries a raw colour value, so a theme swap restyles every one of them with no
 // carve-out.
 //
 // The panel does not animate. "Slide-over" names the shape, not a motion idiom.
 // Opening and closing are one frame each: an animated open would re-emit OSC 11
-// repeatedly through a canvas-bearing slide, render intermediate widths no
-// fixture covers, and make `t` immediately followed by `Esc` a race.
+// repeatedly through a canvas-bearing slide, render intermediate widths nothing
+// else in the TUI produces, and make `t` immediately followed by `Esc` a race.
 
 const (
 	// themePanelHeaderLabel is the panel's header copy. There is deliberately no
@@ -189,8 +189,7 @@ type themePanel struct {
 // Filtering is off, so themeRowItem.FilterValue is never consulted.
 //
 // Pagination is deliberately left on: overflow scrolls through the
-// `bubbles/list` machinery, and a paginating fixture exercises the dots so the
-// swap-and-diff guard is not blind at that site.
+// `bubbles/list` machinery.
 //
 // The nav keymap is pinned through the shared pinArrowOnlyNav, as the Sessions
 // and Projects lists pin theirs: navigation is arrows only, and the v2
@@ -542,12 +541,11 @@ func (m *Model) anchorThemePanelCursor(slug string) {
 // resolved to — rather than the rejected file.
 //
 // That filter also carries a second case. The capture seed
-// (themeState.initialCursor) re-anchors by identity from a string a fixture
-// declares, and fixtures are built from an invalid drop-in and an unreadable
-// themes directory — whose rows are exactly the unselectable ones. A cursor
-// parked there would sit somewhere the arrows, which skip unselectable rows,
-// cannot return to; falling through is the same degrade a seed naming no row at
-// all takes.
+// (themeState.initialCursor) re-anchors by identity from a string handed in,
+// which can name an unselectable row — an invalid drop-in, or a slug no readable
+// directory supplied. A cursor parked there would sit somewhere the arrows,
+// which skip unselectable rows, cannot return to; falling through is the same
+// degrade a seed naming no row at all takes.
 //
 // The final clamp is a structural guard rather than a live path — built-ins are
 // always valid, so a union with no selectable row is unreachable — but the
@@ -723,8 +721,8 @@ func (m *Model) applyThemePanelListStyles() {
 // The dots are why it cannot be skipped: `bubbles/list` reads its dot strings out
 // of the styles once at construction, so restyling without re-feeding the
 // paginator leaves the library's hardcoded greys rendering under every theme —
-// identical before and after a swap, which the swap-and-diff guard structurally
-// cannot see, precisely because nothing changed.
+// identical before and after a swap, so nothing about the rendered panel betrays
+// them.
 //
 // The help, title and no-items styles come with the shared sequence although the
 // panel disables the first two and the built-in rows make the third unreachable.

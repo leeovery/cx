@@ -83,8 +83,8 @@ type fieldRef struct {
 
 // fields is the canonical ordered name↔field table: the 19 token roles in their
 // documented order. It is the single source All(), TokenNames() and the parser's
-// key→field assignment derive from, so there is deliberately no second list of
-// token names anywhere in production code and the three cannot drift.
+// key→field assignment derive from, so the three cannot drift. A restated list
+// of token names would be a second source of truth, and is deliberately absent.
 func (t *Theme) fields() []fieldRef {
 	return []fieldRef{
 		{Name: "text.primary", Field: &t.TextPrimary},

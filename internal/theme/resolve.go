@@ -29,14 +29,13 @@ import (
 // on this path: construction does not enumerate, so there is no collision to
 // DETECT here — and construction is where the fallback resolves, which is the
 // exact thing no-shadowing exists to protect. A built-in's own rejection rides
-// back unchanged; build-time validation of the embedded set is what makes it
-// unreachable in a correct binary.
+// back unchanged, though a correct binary's built-ins never produce one.
 //
 // Step 3, only then, is the themes directory — see loadFromThemesDir. The
 // directory arrives as an INJECTED value and is never resolved here:
 // cmd/config.go's themesDirPath owns that chain, which is what keeps the embedded
-// set reachable with no path at all and internal/capture's no-real-config import
-// guard satisfiable.
+// set reachable with no path at all, and this resolver usable where real config
+// discovery is forbidden.
 func (l Loader) ResolveByName(slug, themesDir string) (Result, *Rejection) {
 	return l.resolveNamed(slug, func(s string) (Result, *Rejection) {
 		return l.loadFromThemesDir(s, themesDir)
@@ -57,7 +56,8 @@ func (l Loader) ResolveByName(slug, themesDir string) (Result, *Rejection) {
 type slugLoader func(slug string) (Result, *Rejection)
 
 // resolveNamed is the by-name ladder itself — the charset check, then the
-// embedded set, then the pass's own source — and the ONE statement of that order.
+// embedded set, then the pass's own source — stated here so neither source
+// restates it.
 //
 // Steps 1 and 2 are ResolveByName's own doc comment: the charset check runs
 // before any path is composed, and a nominated slug naming a built-in resolves to

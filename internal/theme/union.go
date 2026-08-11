@@ -178,9 +178,9 @@ type Enumeration struct {
 // one row, each row already carrying its single rejection reason.
 //
 // It is an ordinary value with exported fields and no method that reads the
-// filesystem, so a fixture can fake one wholesale with no loader and no
-// directory — the only way internal/capture, under its no-real-config import
-// guard, can render an invalid-theme row at all.
+// filesystem, so one can be assembled wholesale with no loader and no directory
+// — which is what lets an invalid-theme row be rendered where real config
+// discovery is forbidden.
 type Union struct {
 	// Rows is the union in display order — alphabetical by sort key,
 	// case-insensitively, with the built-in ahead of the one row guaranteed to
@@ -263,9 +263,9 @@ func (a Assembler) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
 //
 // The order below is fixed:
 //
-//  1. One row per built-in. Always valid — build-time validation of the embedded
-//     set makes that true — and carrying no marker of any kind, since a built-in
-//     row is deliberately indistinguishable from a valid drop-in.
+//  1. One row per built-in. Always valid, and carrying no marker of any kind,
+//     since a built-in row is deliberately indistinguishable from a valid
+//     drop-in.
 //  2. One row per enumerated file, carrying the entry's palette or its single
 //     rejection unchanged. A `reserved name` file stands alongside the built-in
 //     it collides with — the one legitimate two-rows-for-one-slug case, because
