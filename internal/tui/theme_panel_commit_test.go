@@ -289,8 +289,8 @@ func TestPanelEnter_FailedWriteLeavesKeysAlone(t *testing.T) {
 		m, persister := newCommitPanelModel(t, rows, persisted)
 		persister.err = errThemeCommitFailed
 
-		if err := (&m).commitSelectedConstant(); !errors.Is(err, errThemeCommitFailed) {
-			t.Errorf("commitSelectedConstant returned %v, want the persister's error — the caller reads the outcome from it", err)
+		if err := (&m).commitSelected((&m).commitConstant); !errors.Is(err, errThemeCommitFailed) {
+			t.Errorf("the selected-row constant commit returned %v, want the persister's error — the caller reads the outcome from it", err)
 		}
 	})
 }

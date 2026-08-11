@@ -41,6 +41,11 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 	}
 }
 
+// The dark-slot committer the `d` key hands the selected-row wrapper.
+func commitSelectedDarkSlot(m *Model) func(slug string) error {
+	return func(slug string) error { return m.commitSlot(slug, theme.MemberDark) }
+}
+
 func requireNoSlotLoad(t *testing.T, m Model) {
 	t.Helper()
 
@@ -402,7 +407,7 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 
 	// The keypress discards the error return (the report is raised inside the
 	// commit), so the helper is called directly to observe it.
-	if err := (&m).commitSelectedSlot(theme.MemberDark); err != nil {
+	if err := (&m).commitSelected(commitSelectedDarkSlot(&m)); err != nil {
 		t.Errorf("a repeated commit returned %v, want nil — a commit is always re-attemptable", err)
 	}
 }
@@ -523,8 +528,8 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		m = arrowToThemeRow(t, m, "nord")
 		persister.err = errThemeCommitFailed
 
-		if err := (&m).commitSelectedSlot(theme.MemberDark); !errors.Is(err, errThemeCommitFailed) {
-			t.Errorf("commitSelectedSlot returned %v, want the persister's error — the caller reads the outcome from it", err)
+		if err := (&m).commitSelected(commitSelectedDarkSlot(&m)); !errors.Is(err, errThemeCommitFailed) {
+			t.Errorf("the selected-row slot commit returned %v, want the persister's error — the caller reads the outcome from it", err)
 		}
 
 		requireSlotCommits(t, persister, slotCommit{slug: "nord", member: theme.MemberDark})

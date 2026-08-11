@@ -325,7 +325,7 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case keyIsCode(msg, tea.KeyEnter):
 		// The report is raised inside the commit; a failed write leaves the keys
 		// untouched.
-		_ = (&m).commitSelectedConstant()
+		_ = (&m).commitSelected((&m).commitConstant)
 		return m, nil
 	case isRuneKey(msg, "d"):
 		return m.handleSlotCommitKey(theme.MemberDark)

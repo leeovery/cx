@@ -21,11 +21,12 @@ type fakeThemeSource struct {
 	// ResolveSlot with a zero SlotResolution.
 	err error
 
-	opens       int
-	keys        []theme.RawKeys
-	reassembles int
-	resolves    []theme.RawKeys
-	slotLoads   []slotLoad
+	opens          int
+	keys           []theme.RawKeys
+	reassembles    int
+	reassembleKeys []theme.RawKeys
+	resolves       []theme.RawKeys
+	slotLoads      []slotLoad
 }
 
 type slotLoad struct {
@@ -39,8 +40,9 @@ func (e *fakeThemeSource) Open(keys theme.RawKeys) (theme.Enumeration, theme.Uni
 	return e.enumeration, e.union
 }
 
-func (e *fakeThemeSource) Reassemble(theme.Enumeration, theme.RawKeys) theme.Union {
+func (e *fakeThemeSource) Reassemble(_ theme.Enumeration, keys theme.RawKeys) theme.Union {
 	e.reassembles++
+	e.reassembleKeys = append(e.reassembleKeys, keys)
 	if e.reassembled != nil {
 		return *e.reassembled
 	}

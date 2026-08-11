@@ -689,8 +689,8 @@ func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 		t.Error("a failed confirmed commit left no outstanding failure; the state runs until a commit SUCCEEDS")
 	}
 
-	if got := themePanelSeamCallers(t, "applyCommitResult"); !slices.Equal(got, []string{"commitConstant", "commitSlot"}) {
-		t.Errorf("the commit-failure result handler is called from %v, want exactly [commitConstant commitSlot] — the failure semantics live in one place", got)
+	if got := themePanelSeamCallers(t, "applyCommitResult"); !slices.Equal(got, []string{"commit"}) {
+		t.Errorf("the commit-failure result handler is called from %v, want exactly [commit] — the failure semantics live in one place", got)
 	}
 
 	landed, _, _ := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})

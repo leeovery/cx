@@ -8,12 +8,12 @@ import (
 
 // The target is the selected row, never m.themeState.keys — committing the
 // persisted slug would write back the theme being replaced.
-func (m *Model) commitSelectedConstant() error {
+func (m *Model) commitSelected(commit func(slug string) error) error {
 	slug, ok := committableThemeSlug(m.themePanel.list)
 	if !ok {
 		return nil
 	}
-	return m.commitConstant(slug)
+	return commit(slug)
 }
 
 func committableThemeSlug(l list.Model) (string, bool) {
@@ -24,21 +24,29 @@ func committableThemeSlug(l list.Model) (string, bool) {
 	return row.Slug, true
 }
 
-// A nil persister is inert, not failed. The mirror applies prefs' rule to the
-// keys in hand rather than re-reading — the persister's read-modify-write holds
-// other instances' writes. On error nothing moves, so the `●` cannot move.
-func (m *Model) commitConstant(slug string) error {
+// A nil persister is inert, not failed — the write is never reached, so no
+// closure dereferences it. The mirror applies prefs' rule to the keys in hand
+// rather than re-reading — the persister's read-modify-write holds other
+// instances' writes. On error nothing moves, so the `●` cannot move.
+func (m *Model) commit(write func() error, mirror func(theme.RawKeys) theme.RawKeys) error {
 	if m.themeState.persister == nil {
 		return nil
 	}
-	err := m.themeState.persister.CommitTheme(slug)
+	err := write()
 	m.applyCommitResult(err)
 	if err != nil {
 		return err
 	}
-	m.themeState.keys = m.themeState.keys.WithConstant(slug)
+	m.themeState.keys = mirror(m.themeState.keys)
 	m.recomputeThemePanel()
 	return nil
+}
+
+func (m *Model) commitConstant(slug string) error {
+	return m.commit(
+		func() error { return m.themeState.persister.CommitTheme(slug) },
+		func(keys theme.RawKeys) theme.RawKeys { return keys.WithConstant(slug) },
+	)
 }
 
 // The message lasts until the next keypress, the state until a later commit
@@ -64,7 +72,7 @@ func (m *Model) reportCommitFailure() {
 // themeSetting so it cannot disagree with what the panel resolves.
 func (m Model) handleSlotCommitKey(member theme.Member) (tea.Model, tea.Cmd) {
 	if !m.themeSetting().IsConstant {
-		_ = (&m).commitSelectedSlot(member)
+		_ = (&m).commitSelected(func(slug string) error { return (&m).commitSlot(slug, member) })
 		return m, nil
 	}
 	if slug, ok := committableThemeSlug(m.themePanel.list); ok {
@@ -73,28 +81,13 @@ func (m Model) handleSlotCommitKey(member theme.Member) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) commitSelectedSlot(member theme.Member) error {
-	slug, ok := committableThemeSlug(m.themePanel.list)
-	if !ok {
-		return nil
-	}
-	return m.commitSlot(slug, member)
-}
-
-// Carries commitConstant's rules. The untouched other slot is what makes
-// `● both` reachable via `d` then `l` on one row.
+// The untouched other slot is what makes `● both` reachable via `d` then `l` on
+// one row.
 func (m *Model) commitSlot(slug string, member theme.Member) error {
-	if m.themeState.persister == nil {
-		return nil
-	}
-	err := m.themeState.persister.CommitThemeSlot(slug, member)
-	m.applyCommitResult(err)
-	if err != nil {
-		return err
-	}
-	m.themeState.keys = m.themeState.keys.WithMember(member, slug)
-	m.recomputeThemePanel()
-	return nil
+	return m.commit(
+		func() error { return m.themeState.persister.CommitThemeSlot(slug, member) },
+		func(keys theme.RawKeys) theme.RawKeys { return keys.WithMember(member, slug) },
+	)
 }
 
 // Landed writes only: badges and nomination derive from the raw keys, so
