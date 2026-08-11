@@ -1,6 +1,7 @@
 package theme_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -583,4 +584,87 @@ func requireLoadRejection(t *testing.T, got theme.Result, rejection *theme.Rejec
 	if rejection.Reason != theme.ReasonBadSyntax && rejection.Line != 0 {
 		t.Errorf("rejection line = %d, want 0 — only bad syntax carries a line", rejection.Line)
 	}
+}
+
+func TestLoadEntryPoints_CarryTheExactSourceBytes(t *testing.T) {
+	body := themetest.Body()
+
+	for _, tc := range loadEntryPoints() {
+		t.Run(tc.name, func(t *testing.T) {
+			got, rejection := tc.load(t, body)
+
+			if rejection != nil {
+				t.Fatalf("the loader rejected a valid theme: %v", rejection)
+			}
+			if !bytes.Equal(got.Source, body) {
+				t.Errorf("Source = %q, want the exact input bytes %q", got.Source, body)
+			}
+			if got.Slug != tc.wantSlug {
+				t.Errorf("Slug = %q, want %q", got.Slug, tc.wantSlug)
+			}
+		})
+	}
+}
+
+func TestLoadEntryPoints_RejectionReturnsTheZeroResult(t *testing.T) {
+	broken := themetest.Render(themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+
+	for _, tc := range loadEntryPoints() {
+		t.Run(tc.name, func(t *testing.T) {
+			got, rejection := tc.load(t, broken)
+
+			if rejection == nil {
+				t.Fatalf("the loader accepted %+v, want the rejection %q", got, theme.ReasonMissingTokens)
+			}
+			if rejection.Reason != theme.ReasonMissingTokens {
+				t.Errorf("rejection reason = %q, want %q", rejection.Reason, theme.ReasonMissingTokens)
+			}
+			if !reflect.DeepEqual(got, theme.Result{}) {
+				t.Errorf("the loader returned %+v alongside a rejection, want the zero Result", got)
+			}
+		})
+	}
+}
+
+type loadEntryPoint struct {
+	name     string
+	wantSlug string
+	load     func(t *testing.T, data []byte) (theme.Result, *theme.Rejection)
+}
+
+func loadEntryPoints() []loadEntryPoint {
+	return []loadEntryPoint{
+		{
+			name:     "LoadFile",
+			wantSlug: "nord-lee",
+			load: func(t *testing.T, data []byte) (theme.Result, *theme.Rejection) {
+				return theme.Loader{}.LoadFile(writeThemeBytes(t, data))
+			},
+		},
+		{
+			name: "LoadPath",
+			load: func(t *testing.T, data []byte) (theme.Result, *theme.Rejection) {
+				return theme.LoadPath(writeThemeBytes(t, data))
+			},
+		},
+		{
+			name:     "LoadBuiltin",
+			wantSlug: "nord-lee",
+			load: func(t *testing.T, data []byte) (theme.Result, *theme.Rejection) {
+				loader := theme.Loader{BuiltinSource: func(string) ([]byte, bool) { return data, true }}
+				result, rejection, _ := loader.LoadBuiltin("nord-lee")
+				return result, rejection
+			},
+		},
+	}
+}
+
+func writeThemeBytes(t *testing.T, data []byte) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "nord-lee.theme")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	return path
 }

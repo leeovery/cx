@@ -50,18 +50,9 @@ func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 // silent: the `theme` log component records use, never diagnosis.
 func themeAdvisoryUnion(deps *DoctorDeps) []themeAdvisory {
 	loader := theme.NewSilentLoader()
-	enumeration := enumerateThemesDir(loader, deps.ThemesDir)
+	enumeration := loader.OpenEnumeration(deps.ThemesDir)
 
 	return assembleThemeAdvisories(scanThemesDirectory(enumeration), persistedThemeAdvisories(deps, loader, enumeration))
-}
-
-func enumerateThemesDir(loader theme.Loader, dir string) theme.Enumeration {
-	if dir == "" {
-		return theme.Enumeration{}
-	}
-
-	entries, dirRejection := loader.Enumerate(dir)
-	return theme.Enumeration{Entries: entries, DirUnusable: dirRejection != nil, DirPath: dir}
 }
 
 // Region order is pinned (directory, files, persisted) and nothing here sorts or

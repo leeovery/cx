@@ -48,7 +48,7 @@ func persistedAdvisoriesFor(t *testing.T, content, themesDir string) []themeAdvi
 func persistedAdvisoriesUnder(t *testing.T, deps *DoctorDeps, loader theme.Loader) []themeAdvisory {
 	t.Helper()
 
-	return persistedThemeAdvisories(deps, loader, enumerateThemesDir(loader, deps.ThemesDir))
+	return persistedThemeAdvisories(deps, loader, loader.OpenEnumeration(deps.ThemesDir))
 }
 
 func requireNoAdvisories(t *testing.T, advisories []themeAdvisory) {
@@ -342,7 +342,7 @@ func TestPersistedThemeAdvisory_UnresolvedThemesDirStillReports(t *testing.T) {
 		t.Errorf("advisory line = %q; want %q", got.line, want)
 	}
 
-	requireNoAdvisories(t, scanThemesDirectory(enumerateThemesDir(loader, deps.ThemesDir)))
+	requireNoAdvisories(t, scanThemesDirectory(loader.OpenEnumeration(deps.ThemesDir)))
 
 	t.Run("a built-in still resolves with no directory", func(t *testing.T) {
 		requireBuiltinSlug(t, "nord")
@@ -660,10 +660,10 @@ func doctorThemeCallCounts(t *testing.T) map[string]int {
 func TestThemeAdvisories_DirectoryIsReadOnce(t *testing.T) {
 	calls := doctorThemeCallCounts(t)
 
-	if calls["Enumerate"] != 1 {
-		t.Errorf("doctor_theme.go calls Enumerate %d times; the directory is read once per diagnosis and the retained enumeration drives both producers", calls["Enumerate"])
+	if calls["OpenEnumeration"] != 1 {
+		t.Errorf("doctor_theme.go calls OpenEnumeration %d times; the directory is read once per diagnosis and the retained enumeration drives both producers", calls["OpenEnumeration"])
 	}
-	for _, reader := range []string{"ResolveByName", "LoadFile", "ReadDir", "ReadFile", "Open"} {
+	for _, reader := range []string{"Enumerate", "ResolveByName", "LoadFile", "ReadDir", "ReadFile", "Open"} {
 		if calls[reader] != 0 {
 			t.Errorf("doctor_theme.go calls %s %d times; nothing may open a theme file after the enumeration", reader, calls[reader])
 		}

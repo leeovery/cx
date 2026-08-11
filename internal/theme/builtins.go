@@ -74,12 +74,8 @@ func (l Loader) LoadBuiltin(slug string) (Result, *Rejection, bool) {
 		return Result{}, nil, false
 	}
 
-	built, rejection := parseThemeBytes(data)
-	if rejection != nil {
-		return Result{}, rejection, true
-	}
-
-	return Result{Slug: slug, Theme: built, Source: data}, nil, true
+	result, rejection := resultFromBytes(slug, data)
+	return result, rejection, true
 }
 
 func (l Loader) builtinBytes(slug string) ([]byte, bool) {

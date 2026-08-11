@@ -48,9 +48,21 @@ type Result struct {
 	Slug  string
 	Theme Theme
 
-	// Source is the exact bytes that were parsed — never a re-serialisation of
-	// the Theme, which would drop every `#` comment. Nil on rejection.
+	// Source is the exact bytes that were parsed. Nil on rejection.
 	Source []byte
+}
+
+// resultFromBytes is the content tail every entry point ends on, so the ladder's
+// verdict and the Result's shape are stated once. Source is the bytes handed in
+// verbatim — never a re-serialisation of the Theme, which would drop every `#`
+// comment. An empty slug is a caller with no name for what it parsed.
+func resultFromBytes(slug string, data []byte) (Result, *Rejection) {
+	built, rejection := parseThemeBytes(data)
+	if rejection != nil {
+		return Result{}, rejection
+	}
+
+	return Result{Slug: slug, Theme: built, Source: data}, nil
 }
 
 // LoadFile loads the theme file at path, returning its slug and palette or
@@ -73,12 +85,7 @@ func (l Loader) LoadFile(path string) (Result, *Rejection) {
 		return Result{}, unreadable(err)
 	}
 
-	built, rejection := parseThemeBytes(data)
-	if rejection != nil {
-		return Result{}, rejection
-	}
-
-	return Result{Slug: slug, Theme: built, Source: data}, nil
+	return resultFromBytes(slug, data)
 }
 
 // LoadPath loads the theme file at path as an explicit input: the content rungs
@@ -90,12 +97,7 @@ func LoadPath(path string) (Result, *Rejection) {
 		return Result{}, unreadable(err)
 	}
 
-	built, rejection := parseThemeBytes(data)
-	if rejection != nil {
-		return Result{}, rejection
-	}
-
-	return Result{Theme: built, Source: data}, nil
+	return resultFromBytes("", data)
 }
 
 // The content half of the ladder, for disk and embedded bytes alike: no caller

@@ -115,8 +115,7 @@ type Assembler struct {
 // directory is an error — the built-ins are always there to list — and it emits
 // one `theme: enumerated` per call either way.
 func (a Assembler) Open(themesDir string, keys RawKeys) (Enumeration, Union) {
-	entries, rejection := a.Loader.Enumerate(themesDir)
-	enumeration := Enumeration{Entries: entries, DirUnusable: rejection != nil, DirPath: themesDir}
+	enumeration := a.Loader.OpenEnumeration(themesDir)
 
 	union := a.Reassemble(enumeration, keys)
 	a.Loader.events.Enumerated(union.Count, union.Rejected)

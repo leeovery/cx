@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"syscall"
 	"testing"
@@ -403,4 +404,91 @@ func TestEnumerate_UsableDirectoryWithNoCandidatesIsEmptyNotNil(t *testing.T) {
 	if len(entries) != 0 {
 		t.Errorf("Enumerate(%q) returned %+v, want no entries", dir, entries)
 	}
+}
+
+func TestOpenEnumeration_ClassifiesEveryDirectoryState(t *testing.T) {
+	tests := []struct {
+		name         string
+		stage        func(t *testing.T) string
+		wantUnusable bool
+		wantEntries  int
+	}{
+		{
+			name:        "an absent directory",
+			stage:       func(t *testing.T) string { return filepath.Join(t.TempDir(), "themes") },
+			wantEntries: 0,
+		},
+		{
+			name:        "an empty path",
+			stage:       func(*testing.T) string { return "" },
+			wantEntries: 0,
+		},
+		{
+			name:         "a regular file where a directory belongs",
+			stage:        writeThemesDirAsFile,
+			wantUnusable: true,
+			wantEntries:  0,
+		},
+		{
+			name:        "a populated directory",
+			stage:       stagePopulatedThemesDir,
+			wantEntries: 2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := tc.stage(t)
+			loader := theme.NewSilentLoader()
+
+			got := loader.OpenEnumeration(dir)
+
+			if got.DirUnusable != tc.wantUnusable {
+				t.Errorf("DirUnusable = %v, want %v", got.DirUnusable, tc.wantUnusable)
+			}
+			if got.DirPath != dir {
+				t.Errorf("DirPath = %q, want %q", got.DirPath, dir)
+			}
+			if len(got.Entries) != tc.wantEntries {
+				t.Errorf("Entries = %d, want %d: %+v", len(got.Entries), tc.wantEntries, got.Entries)
+			}
+			if want := handAssembledEnumeration(loader, dir); !reflect.DeepEqual(got, want) {
+				t.Errorf("OpenEnumeration(%q) = %+v, want the directory read's own verdict %+v", dir, got, want)
+			}
+			if panelEnumeration, _ := (theme.Assembler{Loader: loader}).Open(dir, theme.RawKeys{}); !reflect.DeepEqual(got, panelEnumeration) {
+				t.Errorf("OpenEnumeration(%q) = %+v, want the panel's %+v", dir, got, panelEnumeration)
+			}
+		})
+	}
+}
+
+// The directory-read rule spelled out independently of the constructor under
+// test: an empty path reads nothing, an unusable directory is a rejected read,
+// and the path read is the path reported.
+func handAssembledEnumeration(loader theme.Loader, dir string) theme.Enumeration {
+	if dir == "" {
+		return theme.Enumeration{}
+	}
+
+	entries, rejection := loader.Enumerate(dir)
+	return theme.Enumeration{Entries: entries, DirUnusable: rejection != nil, DirPath: dir}
+}
+
+func writeThemesDirAsFile(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "themes")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+	return path
+}
+
+func stagePopulatedThemesDir(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
+	themetest.Write(t, dir, "zed-lee.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
+	return dir
 }

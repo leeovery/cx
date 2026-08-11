@@ -54,7 +54,7 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 
 			const fileLine = "⚠ theme nord-lee: bad colour — canvas = blue"
 			loader := theme.NewSilentLoader()
-			requireAdvisoryLines(t, scanThemesDirectory(enumerateThemesDir(loader, dir)), fileLine)
+			requireAdvisoryLines(t, scanThemesDirectory(loader.OpenEnumeration(dir)), fileLine)
 
 			got := requireOneAdvisory(t, unionAdvisoriesFor(t, tc.prefs, dir))
 			if got.line != tc.want {
@@ -108,7 +108,7 @@ func TestThemeAdvisoryUnion_OneParseBehindBothProducers(t *testing.T) {
 		t.Helper()
 
 		loader := theme.NewSilentLoader()
-		enumeration := enumerateThemesDir(loader, dir)
+		enumeration := loader.OpenEnumeration(dir)
 		disturb(t, dir)
 
 		deps := persistedThemeDeps(t, `{"theme":"nord-lee"}`, dir)

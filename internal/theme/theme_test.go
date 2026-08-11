@@ -176,6 +176,7 @@ var wantExports = []string{
 	"Loader.Enumerate",
 	"Loader.LoadBuiltin",
 	"Loader.LoadFile",
+	"Loader.OpenEnumeration",
 	"Loader.ResolveByName",
 	"Loader.ResolveByNameFrom",
 	"Loader.ResolveNomination",

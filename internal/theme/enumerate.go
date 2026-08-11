@@ -51,6 +51,19 @@ func (l Loader) Enumerate(dir string) ([]Entry, *Rejection) {
 	return entries, nil
 }
 
+// OpenEnumeration performs one directory read and states what it means, so no
+// consumer decides for itself what an absent or unusable directory is — two
+// answers to that question is two consumers disagreeing about one directory. An
+// unresolved path reads nothing: it is not a directory anything could name.
+func (l Loader) OpenEnumeration(dir string) Enumeration {
+	if dir == "" {
+		return Enumeration{}
+	}
+
+	entries, rejection := l.Enumerate(dir)
+	return Enumeration{Entries: entries, DirUnusable: rejection != nil, DirPath: dir}
+}
+
 // Deliberately looser than what is accepted: a mis-cased extension becomes a
 // visible `bad name` rejection instead of being silently invisible on a
 // case-insensitive filesystem, and it never contributes a slug, so the looser
