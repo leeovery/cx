@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 func TestReadBytes_SharedReadPolicy(t *testing.T) {
@@ -43,7 +45,7 @@ func TestReadBytes_SharedReadPolicy(t *testing.T) {
 
 	t.Run("an unreadable file returns the OS error verbatim", func(t *testing.T) {
 		path := seedPrefsFile(t, `{"theme":"nord"}`)
-		makeUnreadable(t, path)
+		_ = themetest.DenyRead(t, path)
 
 		data, present, err := NewStore(path).readBytes()
 		if !errors.Is(err, os.ErrPermission) {
@@ -78,7 +80,7 @@ func TestDecodePaths_ShareTheReadAndSplitOnTheDecode(t *testing.T) {
 
 	t.Run("an unreadable file fails both the same way", func(t *testing.T) {
 		path := seedPrefsFile(t, `{"theme":"nord"}`)
-		makeUnreadable(t, path)
+		_ = themetest.DenyRead(t, path)
 		store := NewStore(path)
 
 		tolerant, tolerantOK, tolerantErr := store.readFile()
@@ -115,18 +117,4 @@ func TestDecodePaths_ShareTheReadAndSplitOnTheDecode(t *testing.T) {
 			t.Error("the strict decode reported a corrupt file as decoded")
 		}
 	})
-}
-
-// Skips when the running user can read a 0000-mode file anyway (root).
-func makeUnreadable(t *testing.T, path string) {
-	t.Helper()
-
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("failed to chmod prefs file unreadable: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-
-	if _, err := os.ReadFile(path); err == nil {
-		t.Skip("this user can read a 0000-mode file; the unreadable-file branch is unreachable here")
-	}
 }

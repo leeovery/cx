@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/prefs"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tui"
 )
 
@@ -83,7 +84,9 @@ func TestThemeSource_SharesTheConstructionReadsDedupScope(t *testing.T) {
 
 	openAfterConstruction := func(t *testing.T, panelLoader func(theme.Loader) theme.Loader) int {
 		t.Helper()
-		poisonThemesDir(t)
+		// An existing but unreadable themes directory earns a `theme: directory
+		// unusable` WARN, where an absent one is silent.
+		_ = themetest.DenyDir(t, useThemesDir(t))
 		sink := installMigrateCapture(t)
 		construction := newThemeLoader()
 
@@ -185,7 +188,7 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 // The poisoned (mode 0000) directory makes any read loud: an unusable directory
 // earns a `theme: directory unusable` WARN, where an absent one is silent.
 func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
-	poisonThemesDir(t)
+	_ = themetest.DenyDir(t, useThemesDir(t))
 	// A drop-in slug: a built-in would never touch the poison.
 	setPrefsFile(t, `{"theme":"a-drop-in"}`)
 

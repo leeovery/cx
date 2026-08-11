@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 func prefsJSONWith(t *testing.T, keys map[string]string) string {
@@ -301,12 +302,8 @@ func TestPersistedThemeAdvisory_NotFoundVersusUnreadable(t *testing.T) {
 		{
 			name: "a mode-0000 directory is unreadable",
 			make: func(t *testing.T) string {
-				skipUnlessModeBitsDeny(t)
 				dir := themesDirWith(t, map[string][]byte{"nord-lee.theme": validThemeSource(t)})
-				if err := os.Chmod(dir, 0o000); err != nil {
-					t.Fatalf("chmod 0000 %s: %v", dir, err)
-				}
-				t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+				_ = themetest.DenyDir(t, dir)
 				return dir
 			},
 			want: "⚠ theme nord-lee does not resolve: unreadable",
@@ -466,18 +463,12 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 	}
 
 	t.Run("an unreadable file", func(t *testing.T) {
-		skipUnlessModeBitsDeny(t)
-
 		deps := persistedThemeDeps(t, `{"theme":"nord-lee"}`, t.TempDir())
 		path, err := prefsFilePath()
 		if err != nil {
 			t.Fatalf("prefsFilePath: %v", err)
 		}
-		if err := os.Chmod(path, 0o000); err != nil {
-			t.Fatalf("chmod 0000 %s: %v", path, err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-		_ = requireDeniedRead(t, path)
+		_ = themetest.DenyRead(t, path)
 
 		requireNoAdvisories(t, persistedAdvisoriesUnder(t, deps, theme.NewSilentLoader()))
 	})
@@ -680,16 +671,12 @@ func TestThemeAdvisories_DirectoryIsReadOnce(t *testing.T) {
 }
 
 func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
-	skipUnlessModeBitsDeny(t)
 	requireDropInSlug(t, "nord-lee")
 
-	deniedDir := func(t *testing.T) string {
+	unusableDir := func(t *testing.T) string {
 		t.Helper()
 		dir := themesDirWith(t, map[string][]byte{"nord-lee.theme": validThemeSource(t)})
-		if err := os.Chmod(dir, 0o000); err != nil {
-			t.Fatalf("chmod 0000 %s: %v", dir, err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		_ = themetest.DenyDir(t, dir)
 		return dir
 	}
 
@@ -698,7 +685,7 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 		log.SetTestHandler(t, sink)
 
 		loud := theme.NewLoader(theme.NewEventLogger(log.For("theme")))
-		if _, rejection := loud.ResolveByName("nord-lee", deniedDir(t)); rejection == nil {
+		if _, rejection := loud.ResolveByName("nord-lee", unusableDir(t)); rejection == nil {
 			t.Fatal("the fixture resolved cleanly — the zero-record assertion below would be about the wrong run")
 		}
 
@@ -708,7 +695,7 @@ func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 	})
 
 	t.Run("a full doctor run writes nothing", func(t *testing.T) {
-		dir := deniedDir(t)
+		dir := unusableDir(t)
 		t.Setenv("PORTAL_THEMES_DIR", dir)
 		setPrefsFile(t, `{"theme":"nord-lee"}`)
 

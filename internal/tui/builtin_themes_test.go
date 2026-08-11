@@ -24,7 +24,7 @@ func TestDefaultDarkTheme_SeedsTheShippedPaletteSilently(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "Bad_Name.theme", "#101010")
+	themetest.Write(t, dir, "Bad_Name.theme", themetest.MonochromeLines("#101010"))
 	if _, rejection := theme.NewLoader(theme.NewEventLogger(log.For("theme"))).Enumerate(dir); rejection != nil {
 		t.Fatalf("the control directory was rejected: %v", rejection)
 	}

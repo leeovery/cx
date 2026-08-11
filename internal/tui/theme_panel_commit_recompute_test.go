@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 func newRecomputePanelModel(t *testing.T, dir string, keys theme.RawKeys) (Model, *countingThemeSource, *fakeThemePersister) {
@@ -46,7 +47,7 @@ func requireRowLabels(t *testing.T, m Model, want ...string) {
 
 func TestPanelRecompute_RowDisappearsOnConstantCommit(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Light: "ghost", Dark: "sunset"})
 
 	requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
@@ -76,7 +77,7 @@ func commitSlotForTest(t *testing.T, m Model, slug string, member theme.Member) 
 
 func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 	m, _, _ := newRecomputePanelModel(t, dir, keys)
 
@@ -97,7 +98,7 @@ func TestPanelRecompute_RowAppearsForNewlyLiveSlot(t *testing.T) {
 
 func TestPanelRecompute_ReSortsThroughTheComparator(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	keys := theme.RawKeys{Theme: "sunset", Light: "prism", Dark: "sunset"}
 	m, _, _ := newRecomputePanelModel(t, dir, keys)
 
@@ -129,7 +130,7 @@ func requireBadgeText(t *testing.T, m Model, wantBare, wantLight, wantDark int) 
 
 func TestPanelRecompute_VirginInstallBadgeCollapse(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{})
 
 	requireCursorOn(t, m, theme.DefaultDarkSlug)
@@ -153,7 +154,7 @@ func TestPanelRecompute_VirginInstallBadgeCollapse(t *testing.T) {
 func TestPanelRecompute_ReadsNothing(t *testing.T) {
 	t.Run("no directory read", func(t *testing.T) {
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 		m, enumerator, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Light: "ghost", Dark: "sunset"})
 		requireRowLabels(t, m, "ghost", "nord", "sunset", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 
@@ -180,7 +181,7 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		}
 		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 		keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 		m, _, _ := newRecomputePanelModel(t, dir, keys)
 
@@ -209,8 +210,8 @@ func frameColours(frame string) []string {
 
 func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Light: "ghost", Dark: "aurora"})
 	requireCursorOn(t, m, "aurora")
 
@@ -235,7 +236,7 @@ func TestPanelRecompute_DoesNotApplyTheme(t *testing.T) {
 
 func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 	m, _, _ := newRecomputePanelModel(t, dir, keys)
 
@@ -260,7 +261,7 @@ func TestPanelRecompute_CursorAnchoredByIdentity(t *testing.T) {
 
 func TestPanelRecompute_NoChangeCommitIsStable(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
 
 	requireCursorOn(t, m, "sunset")

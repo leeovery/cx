@@ -97,18 +97,6 @@ func countThemeEvents(sink *logtest.Sink, msg string) int {
 	return len(themeEventRecords(sink, msg))
 }
 
-// One colour across the whole palette, deliberately: a single token identifies
-// which file was parsed, and an unparseable value makes every token bad.
-func writeThemeFileForTest(t *testing.T, dir, base, value string) {
-	t.Helper()
-
-	lines := themetest.Lines()
-	for _, name := range theme.TokenNames() {
-		lines = themetest.WithValue(lines, name, value)
-	}
-	themetest.Write(t, dir, base, lines)
-}
-
 func themePanelRowFor(t *testing.T, m Model, label string) themeRowItem {
 	t.Helper()
 	for _, item := range m.themePanel.list.Items() {
@@ -224,7 +212,7 @@ func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 // both a call and a log record.
 func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	loader, sink := themeOpenTestLoader(t)
 	enumerator := countingEnumeratorOver(loader, dir)
 
@@ -252,7 +240,7 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 // three records.
 func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	loader, sink := themeOpenTestLoader(t)
 	enumerator := countingEnumeratorOver(loader, dir)
 	m := themeOpenTestModel(t, enumerator, theme.RawKeys{})
@@ -276,7 +264,7 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 
 func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	loader, _ := themeOpenTestLoader(t)
 	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
 
@@ -286,7 +274,7 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	}
 	m = closeThemePanelForTest(t, m)
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m = pressThemeKey(t, m)
 
 	fixed := themePanelRowFor(t, m, "sunset")
@@ -299,7 +287,7 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	dir := t.TempDir()
 	// Seeded before the first open so the retained enumeration has an entry to
 	// carry, and named other than `sunset` so the later write is a mutation.
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	loader, _ := themeOpenTestLoader(t)
 	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
 
@@ -325,7 +313,7 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 		t.Errorf("close retained %d list items, want 0", got)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m = pressThemeKey(t, m)
 	themePanelRowFor(t, m, "sunset")
 }

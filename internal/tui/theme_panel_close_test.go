@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/leeovery/portal/internal/tmux"
 )
 
@@ -104,13 +105,13 @@ func TestPanelClose_DiscardsThePreview(t *testing.T) {
 
 func TestPanelClose_ResolvesEditedValues(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m = pressThemeKey(t, m)
 	if got := m.themeState.active.Canvas.Value; got != "#202020" {
 		t.Fatalf("precondition: the open rendered canvas %s, want the edited #202020", got)
@@ -129,13 +130,13 @@ func TestPanelClose_ResolvesEditedValues(t *testing.T) {
 
 func TestPanelClose_ResolvesToFallback(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	m = pressThemeKey(t, m)
 	fallback := testDarkTheme(t)
 	if m.themeState.active != fallback {
@@ -155,7 +156,7 @@ func TestPanelClose_ResolvesToFallback(t *testing.T) {
 
 func TestPanelClose_ReadsNothing(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, enumerator, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 
 	m = pressThemeKey(t, m)
@@ -185,7 +186,7 @@ func TestPanelClose_ReadsNothing(t *testing.T) {
 
 func TestPanelClose_EnumerationDiscarded(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, enumerator, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 
 	m = pressThemeKey(t, m)
@@ -231,7 +232,7 @@ func TestPanelClose_EnumerationDiscarded(t *testing.T) {
 		t.Errorf("close retained the list's keymap (CursorUp binds %v), so the list — and the delegate it carries — was not replaced by the zero value", got)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m = pressThemeKey(t, m)
 
 	themePanelRowFor(t, m, "sunset")
@@ -245,7 +246,7 @@ func TestPanelClose_WritesNothing(t *testing.T) {
 		mode := &countingModePersister{}
 		committer := &fakeThemePersister{}
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 		m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
 		WithModePersister(mode)(&m)
 		WithThemePersister(committer)(&m)
@@ -281,7 +282,7 @@ func TestPanelClose_WritesNothing(t *testing.T) {
 
 func TestPanelClose_EventCadence(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	m, enumerator, sink := newClosePanelModel(t, dir, theme.RawKeys{Theme: "sunset"})
 
 	const cycles = 10

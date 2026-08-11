@@ -81,6 +81,32 @@ func WithDuplicateKeyAt(lines []string, key string, at int) []string {
 	return slices.Insert(spliced, at-1, spliced[first])
 }
 
+// MonochromeLines renders a complete theme file carrying one value across the
+// whole palette: a single token then identifies which file was parsed, and an
+// unparseable value makes every token bad.
+func MonochromeLines(value string) []string {
+	names := theme.TokenNames()
+	lines := make([]string, 0, len(names))
+	for _, name := range names {
+		lines = append(lines, name+" = "+value)
+	}
+	return lines
+}
+
+// LinesWithCanvas renders a complete theme file whose canvas carries the given
+// value, every other token keeping its Lines() value. A value the loader cannot
+// parse is how the bad-colour rejection is staged.
+func LinesWithCanvas(canvas string) []string {
+	return WithValue(Lines(), "canvas", canvas)
+}
+
+// WriteWithCanvas stages LinesWithCanvas on disk and returns its path.
+func WriteWithCanvas(t *testing.T, dir, base, canvas string) string {
+	t.Helper()
+
+	return Write(t, dir, base, LinesWithCanvas(canvas))
+}
+
 func Write(t *testing.T, dir, base string, lines []string) string {
 	t.Helper()
 

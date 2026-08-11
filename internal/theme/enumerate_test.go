@@ -46,7 +46,8 @@ func TestEnumerate_RegularFileWhereDirectoryBelongs(t *testing.T) {
 }
 
 func TestEnumerate_UnreadableDirectory(t *testing.T) {
-	dir := unreadableDir(t)
+	dir := themesDirWithOneTheme(t)
+	_ = themetest.DenyDir(t, dir)
 
 	if _, readErr := os.ReadDir(dir); readErr == nil {
 		t.Fatalf("os.ReadDir(%q) succeeded, the fixture is not unreadable", dir)
@@ -257,7 +258,7 @@ func TestEnumerate_ValidAndInvalidFilesBothProduceEntries(t *testing.T) {
 	dir := t.TempDir()
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
-	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	themetest.Write(t, dir, "Zed.THEME", themetest.Lines())
 	themetest.Write(t, dir, "apple.theme", themetest.Lines())
 
@@ -374,29 +375,16 @@ func linkAt(t *testing.T, target, path string) {
 	}
 }
 
-// Mode bits do not deny root, so this fixture is impossible there and the test
-// skips. The mode is restored on cleanup so the temp dir tears down.
-func unreadableDir(t *testing.T) string {
+// A themes directory holding one valid drop-in, nested inside the temp root so
+// a caller may restrict the directory itself without touching that root.
+func themesDirWithOneTheme(t *testing.T) string {
 	t.Helper()
-
-	if os.Geteuid() == 0 {
-		t.Skip("running as root: mode bits do not deny, so an unreadable directory cannot be staged")
-	}
 
 	dir := filepath.Join(t.TempDir(), "themes")
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", dir, err)
 	}
 	themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
-
-	if err := os.Chmod(dir, 0o000); err != nil {
-		t.Fatalf("chmod %s: %v", dir, err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(dir, 0o755); err != nil {
-			t.Errorf("restore mode on %s: %v", dir, err)
-		}
-	})
 
 	return dir
 }

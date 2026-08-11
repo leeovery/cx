@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 var (
@@ -148,7 +149,7 @@ func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 // that re-derived the pair, or dropped the unresolvable slug, shows up here.
 func TestPanelSlotCommit_OtherSlotSurvives(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, persister := newSlotPairPanelModel(t, dir, "ghost", "aurora")
 	requireRowLabels(t, m, "aurora", "ghost", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
 	requireBadge(t, m, "ghost", theme.BadgeLight)
@@ -168,7 +169,7 @@ func TestPanelSlotCommit_EmptyOtherSlotStaysEmpty(t *testing.T) {
 	dir := t.TempDir()
 	// Sorted last so `↓` reaches it, and neither shipped default so the committed
 	// slug is distinguishable from both.
-	writeThemeFileForTest(t, dir, "zephyr.theme", "#101010")
+	themetest.Write(t, dir, "zephyr.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{})
 	requireRowLabels(t, m, "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug, "zephyr")
 	requireCursorOn(t, m, theme.DefaultDarkSlug)
@@ -186,8 +187,8 @@ func TestPanelSlotCommit_EmptyOtherSlotStaysEmpty(t *testing.T) {
 
 func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m, persister := newSlotPairPanelModel(t, dir, "sunset", "aurora")
 	requireBadge(t, m, "sunset", theme.BadgeLight)
 	requireBadge(t, m, "aurora", theme.BadgeDark)
@@ -232,7 +233,7 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 
 	t.Run("the constant is cleared in memory", func(t *testing.T) {
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+		themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 		// All three keys resolve as a constant: the shape in which there is a
 		// constant to clear and the untouched slot is invisible until it is.
 		keys := theme.RawKeys{Theme: "aurora", Light: "ghost", Dark: "aurora"}
@@ -303,8 +304,8 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 	newModel := func(t *testing.T) (Model, *fakeThemePersister) {
 		t.Helper()
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-		writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+		themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 		return newSlotPairPanelModel(t, dir, theme.DefaultLightSlug, "aurora")
 	}
 
@@ -375,7 +376,7 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 // what is already set" shortcut would be tempting.
 func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, persister := newSlotPairPanelModel(t, dir, theme.DefaultLightSlug, "aurora")
 	requireBadge(t, m, "aurora", theme.BadgeDark)
 
@@ -520,7 +521,7 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 
 	t.Run("the helper returns the error and leaves the constant set", func(t *testing.T) {
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+		themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 		keys := theme.RawKeys{Theme: "aurora", Light: "ghost", Dark: "aurora"}
 		m, _, persister := newRecomputePanelModel(t, dir, keys)
 		requireBadge(t, m, "aurora", theme.BadgeConstant)
@@ -592,7 +593,7 @@ func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 
 func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, persister := newSlotPairPanelModel(t, dir, theme.DefaultLightSlug, "aurora")
 
 	m, _ = pressSlotKey(t, m, slotDarkPress)

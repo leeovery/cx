@@ -170,7 +170,7 @@ func TestEventLogger_DiscardSilencesEverything(t *testing.T) {
 	emitFullRejectSet(events)
 
 	dir := t.TempDir()
-	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "Nord.THEME", themetest.Lines())
 	loader := theme.NewSilentLoader()
@@ -208,7 +208,7 @@ func TestEventLogger_NilLoggerIsSafe(t *testing.T) {
 
 func TestEventLogger_DedupsRejectedOnSlugAndReason(t *testing.T) {
 	dir := t.TempDir()
-	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 
@@ -274,7 +274,8 @@ func TestEventLogger_DedupsOnPathWhenNoSlug(t *testing.T) {
 }
 
 func TestEventLogger_DirectoryUnusableDedupsOnPathAndReason(t *testing.T) {
-	dir := unreadableDir(t)
+	dir := themesDirWithOneTheme(t)
+	_ = themetest.DenyDir(t, dir)
 
 	logger, sink := logtest.NewCaptureLogger(t)
 	loader := theme.NewLoader(theme.NewEventLogger(logger))

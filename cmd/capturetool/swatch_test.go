@@ -28,7 +28,7 @@ func TestResolveProgramContrastValidation(t *testing.T) {
 	})
 
 	t.Run("an explicit path pins the swatch too", func(t *testing.T) {
-		path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", "#1a2b3c"))
+		path := themetest.WriteWithCanvas(t, t.TempDir(), "mytheme.theme", "#1a2b3c")
 
 		m, err := resolveProgram(capture.ContrastValidationFixture, path, io.Discard)
 		if err != nil {

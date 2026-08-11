@@ -129,6 +129,77 @@ func TestMutatorsLeaveTheirInputAlone(t *testing.T) {
 	}
 }
 
+func TestLinesWithCanvas_SubstitutesTheCanvasAndNothingElse(t *testing.T) {
+	const canvas = "#1A2B3C"
+
+	lines := themetest.LinesWithCanvas(canvas)
+
+	if names, want := tokenNamesFrom(t, lines), theme.TokenNames(); !slices.Equal(names, want) {
+		t.Errorf("LinesWithCanvas declares:\n got %v\nwant one line per token, in order: %v", names, want)
+	}
+	for _, line := range lines {
+		name, got := splitLine(t, line)
+		want := canvas
+		if name != "canvas" {
+			_, want = splitLine(t, themetest.Lines()[slices.Index(theme.TokenNames(), name)])
+		}
+		if got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestWriteWithCanvas_StagesAThemeCarryingTheRequestedCanvas(t *testing.T) {
+	const canvas = "#1A2B3C"
+	dir := t.TempDir()
+
+	path := themetest.WriteWithCanvas(t, dir, "nord-lee.theme", canvas)
+
+	if want := filepath.Join(dir, "nord-lee.theme"); path != want {
+		t.Errorf("WriteWithCanvas returned %q, want %q", path, want)
+	}
+	got, rejection := theme.Loader{}.LoadFile(path)
+	if rejection != nil {
+		t.Fatalf("LoadFile(%q) rejected the fixture: %v", path, rejection)
+	}
+	if got.Theme.Canvas.Value != canvas {
+		t.Errorf("canvas = %q, want the requested %q", got.Theme.Canvas.Value, canvas)
+	}
+	want := wantTokensFrom(themetest.WithValue(themetest.Lines(), "canvas", canvas))
+	if tokens := got.Theme.All(); !slices.Equal(tokens, want) {
+		t.Errorf("theme = %+v, want Lines() with canvas alone substituted: %+v", tokens, want)
+	}
+}
+
+func TestMonochromeLines_GivesEveryTokenTheOneValue(t *testing.T) {
+	const value = "#101010"
+
+	lines := themetest.MonochromeLines(value)
+
+	if names, want := tokenNamesFrom(t, lines), theme.TokenNames(); !slices.Equal(names, want) {
+		t.Errorf("MonochromeLines declares:\n got %v\nwant one line per token, in order: %v", names, want)
+	}
+	for _, line := range lines {
+		if name, got := splitLine(t, line); got != value {
+			t.Errorf("%s = %q, want the one value %q", name, got, value)
+		}
+	}
+}
+
+func TestMonochromeLines_ProducesAFileTheLoaderAccepts(t *testing.T) {
+	const value = "#101010"
+	path := themetest.Write(t, t.TempDir(), "nord-lee.theme", themetest.MonochromeLines(value))
+
+	got, rejection := theme.Loader{}.LoadFile(path)
+
+	if rejection != nil {
+		t.Fatalf("LoadFile(%q) rejected the fixture: %v", path, rejection)
+	}
+	if got.Theme.Canvas.Value != value {
+		t.Errorf("canvas = %q, want %q", got.Theme.Canvas.Value, value)
+	}
+}
+
 func TestWrite_WritesTheNamedFileAtTheOneFixtureMode(t *testing.T) {
 	dir := t.TempDir()
 

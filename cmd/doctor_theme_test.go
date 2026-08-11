@@ -66,15 +66,6 @@ func requireOneAdvisory(t *testing.T, advisories []themeAdvisory) themeAdvisory 
 	return advisories[0]
 }
 
-// Skips as root, where a mode-0000 fixture denies nothing.
-func skipUnlessModeBitsDeny(t *testing.T) {
-	t.Helper()
-
-	if os.Geteuid() == 0 {
-		t.Skip("root bypasses 0o000 permissions; the fixture would be readable")
-	}
-}
-
 func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -118,16 +109,10 @@ func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 
 func TestThemeAdvisories_UnreadableFileKeepsOSError(t *testing.T) {
 	t.Run("a mode-0000 file", func(t *testing.T) {
-		skipUnlessModeBitsDeny(t)
-
 		dir := themesDirWith(t, map[string][]byte{"mine.theme": validThemeSource(t)})
 		path := filepath.Join(dir, "mine.theme")
-		if err := os.Chmod(path, 0o000); err != nil {
-			t.Fatalf("chmod 0000 %s: %v", path, err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
 
-		assertUnreadableAdvisory(t, dir, "mine", requireDeniedRead(t, path))
+		assertUnreadableAdvisory(t, dir, "mine", themetest.DenyRead(t, path))
 	})
 
 	t.Run("a dangling symlink", func(t *testing.T) {
@@ -192,12 +177,8 @@ func TestThemeAdvisories_UnusableDirectoryLine(t *testing.T) {
 		{
 			name: "a mode-0000 directory",
 			make: func(t *testing.T) string {
-				skipUnlessModeBitsDeny(t)
 				dir := themesDirWith(t, map[string][]byte{"mine.theme": sourceMissingTokens(t, "canvas")})
-				if err := os.Chmod(dir, 0o000); err != nil {
-					t.Fatalf("chmod 0000 %s: %v", dir, err)
-				}
-				t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+				_ = themetest.DenyDir(t, dir)
 				return dir
 			},
 		},
@@ -260,8 +241,6 @@ func TestThemeAdvisories_UnresolvedDirDegrades(t *testing.T) {
 }
 
 func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
-	skipUnlessModeBitsDeny(t)
-
 	sources := map[string][]byte{
 		"missing.theme": sourceMissingTokens(t, "text.primary", "bg.subtle"),
 		"colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
@@ -269,12 +248,7 @@ func TestThemeAdvisories_DetailIsVerbatim(t *testing.T) {
 		"denied.theme":  validThemeSource(t),
 	}
 	dir := themesDirWith(t, sources)
-	denied := filepath.Join(dir, "denied.theme")
-	if err := os.Chmod(denied, 0o000); err != nil {
-		t.Fatalf("chmod 0000 %s: %v", denied, err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(denied, 0o644) })
-	_ = requireDeniedRead(t, denied)
+	_ = themetest.DenyRead(t, filepath.Join(dir, "denied.theme"))
 
 	loader := theme.NewSilentLoader()
 	byLine := map[string]string{}
@@ -363,8 +337,6 @@ func TestThemeAdvisories_FileLinesCarryTheirSlug(t *testing.T) {
 
 func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 	t.Run("a full reject set writes nothing", func(t *testing.T) {
-		skipUnlessModeBitsDeny(t)
-
 		dir := themesDirWith(t, map[string][]byte{
 			"a-missing.theme": sourceMissingTokens(t, "text.primary"),
 			"b-colour.theme":  sourceBadColours(t, themeOverride{"canvas", "blue"}),
@@ -372,12 +344,7 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 			"d-denied.theme":  validThemeSource(t),
 			"e-valid.theme":   validThemeSource(t),
 		})
-		denied := filepath.Join(dir, "d-denied.theme")
-		if err := os.Chmod(denied, 0o000); err != nil {
-			t.Fatalf("chmod 0000 %s: %v", denied, err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(denied, 0o644) })
-		_ = requireDeniedRead(t, denied)
+		_ = themetest.DenyRead(t, filepath.Join(dir, "d-denied.theme"))
 
 		records := assertNoThemeRecords(t, func() {
 			if got := themeAdvisoriesFor(t, dir); len(got) != 4 {
@@ -637,17 +604,10 @@ func TestThemeAdvisories_ReservedSetIsTheEmbeddedSet(t *testing.T) {
 }
 
 func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
-	skipUnlessModeBitsDeny(t)
-
 	lines := duplicateKeyLines(t, badColourLines(t, themeKeyLines(t), themeOverride{"canvas", "blue"}), "text.primary", len(themeKeyLines(t))+1)
 
 	dir := themesDirWith(t, map[string][]byte{"Bad_Name.theme": themetest.Render(lines)})
-	path := filepath.Join(dir, "Bad_Name.theme")
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("chmod 0000 %s: %v", path, err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	_ = requireDeniedRead(t, path)
+	_ = themetest.DenyRead(t, filepath.Join(dir, "Bad_Name.theme"))
 
 	got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
 	want := "⚠ theme file Bad_Name.theme: slug must be lowercase letters, digits and hyphens"
@@ -729,15 +689,8 @@ func TestThemeAdvisories_ReservedNameDecidedBeforeRead(t *testing.T) {
 	})
 
 	t.Run("contents that cannot be read at all", func(t *testing.T) {
-		skipUnlessModeBitsDeny(t)
-
 		dir := themesDirWith(t, map[string][]byte{"nord.theme": validThemeSource(t)})
-		path := filepath.Join(dir, "nord.theme")
-		if err := os.Chmod(path, 0o000); err != nil {
-			t.Fatalf("chmod 0000 %s: %v", path, err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-		_ = requireDeniedRead(t, path)
+		_ = themetest.DenyRead(t, filepath.Join(dir, "nord.theme"))
 
 		got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
 		if got.line != want {

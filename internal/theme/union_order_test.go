@@ -155,7 +155,7 @@ func TestRowOrder_TotalAndDeterministic(t *testing.T) {
 	themetest.Write(t, dir, "nord.theme", themetest.Lines())
 	themetest.Write(t, dir, "Bad_Name.theme", themetest.Lines())
 	themetest.Write(t, dir, "zz-late.theme", themetest.Lines())
-	themetest.Write(t, dir, "aa-early.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "aa-early.theme", "blue")
 	keys := theme.RawKeys{Light: "ghost", Dark: "../evil"}
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 

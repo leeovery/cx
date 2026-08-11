@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 	"github.com/leeovery/portal/internal/logtest"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 func newFailedCommitModel(t *testing.T) (Model, *fakeThemePersister) {
@@ -27,8 +28,8 @@ func newCommitFailureFixture(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m, persister := newSlotPairPanelModel(t, dir, theme.DefaultLightSlug, "aurora")
 	requireBadge(t, m, "aurora", theme.BadgeDark)
 	requireBadge(t, m, theme.DefaultLightSlug, theme.BadgeLight)
@@ -282,7 +283,7 @@ func TestCommitFailure_StateOutlivesTheMessage(t *testing.T) {
 
 	t.Run("a confirm raised and cancelled", func(t *testing.T) {
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+		themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 		m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 		m = arrowToThemeRow(t, m, "nord")
 		persister.err = errThemeCommitFailed
@@ -383,7 +384,7 @@ func TestCommitFailure_RetryIsJustPressingAgain(t *testing.T) {
 
 func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	requireBadge(t, m, "aurora", theme.BadgeConstant)
 	labels := themePanelRowLabels(m)
@@ -423,7 +424,7 @@ func TestCommitFailure_ConfirmDrivenFailure(t *testing.T) {
 
 func TestCommitFailure_NeverLiveWithTheConfirm(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	m = arrowToThemeRow(t, m, "nord")
 	persister.err = errThemeCommitFailed
@@ -462,7 +463,7 @@ func TestCommitFailure_PanelEmitsNoThemeRecord(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 
 	m, persister := newLoadPanelModel(t, dir, theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "aurora"}, theme.NewLoader(theme.NewEventLogger(log.For("theme"))))
 	m = pressThemeKey(t, m)

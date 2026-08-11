@@ -199,7 +199,7 @@ func TestResolveTheme_PathContentReasonsAreHardErrors(t *testing.T) {
 			name:       "a bad hex",
 			wantReason: theme.ReasonBadColour,
 			setup: func(t *testing.T, dir string) string {
-				return themetest.Write(t, dir, "broken.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+				return themetest.WriteWithCanvas(t, dir, "broken.theme", "blue")
 			},
 		},
 		{
@@ -245,7 +245,7 @@ func TestResolveTheme_NoFallbackOnFailure(t *testing.T) {
 		arg  string
 	}{
 		{name: "an unknown slug", arg: "not-a-theme"},
-		{name: "a broken file", arg: themetest.Write(t, dir, "broken.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))},
+		{name: "a broken file", arg: themetest.WriteWithCanvas(t, dir, "broken.theme", "blue")},
 		{name: "an absent file", arg: filepath.Join(dir, "absent.theme")},
 	}
 
@@ -431,7 +431,7 @@ func TestResolveModel_NoColorWinsOverTheme(t *testing.T) {
 }
 
 func TestResolveProgram_ThemeDrivesBothBranches(t *testing.T) {
-	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", "#1a2b3c"))
+	path := themetest.WriteWithCanvas(t, t.TempDir(), "mytheme.theme", "#1a2b3c")
 
 	pinned, err := resolveTheme(theme.NewSilentLoader(), path, io.Discard)
 	if err != nil {
@@ -462,7 +462,7 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 
 	dir := t.TempDir()
 	reserved := themetest.Write(t, dir, "nord.theme", themetest.Lines())
-	broken := themetest.Write(t, dir, "broken.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	broken := themetest.WriteWithCanvas(t, dir, "broken.theme", "blue")
 
 	if _, err := resolveProgram(capture.ContrastValidationFixture, defaultThemeSlug, io.Discard); err != nil {
 		t.Fatalf("resolveProgram(contrast-validation, %s): %v", defaultThemeSlug, err)
@@ -490,7 +490,7 @@ func TestCaptureTool_ThemeResolutionIsSilent(t *testing.T) {
 func pathThemeForTest(t *testing.T, canvas string) theme.Theme {
 	t.Helper()
 
-	path := themetest.Write(t, t.TempDir(), "mytheme.theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
+	path := themetest.WriteWithCanvas(t, t.TempDir(), "mytheme.theme", canvas)
 	pinned, err := resolveTheme(theme.NewSilentLoader(), path, io.Discard)
 	if err != nil {
 		t.Fatalf("resolveTheme(%q): %v", path, err)

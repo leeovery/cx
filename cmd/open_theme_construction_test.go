@@ -497,7 +497,7 @@ func seedUnlistableThemesDir(t *testing.T, canvases map[string]string) {
 func writeThemeFile(t *testing.T, dir, slug, canvas string) {
 	t.Helper()
 
-	themetest.Write(t, dir, slug+".theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
+	themetest.WriteWithCanvas(t, dir, slug+".theme", canvas)
 }
 
 func unresolvableThemesDir(t *testing.T) {

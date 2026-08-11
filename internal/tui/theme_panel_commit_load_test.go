@@ -24,7 +24,7 @@ const conversionConstantValue = "#101010"
 func newConversionThemesDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, conversionConstant+".theme", conversionConstantValue)
+	themetest.Write(t, dir, conversionConstant+".theme", themetest.MonochromeLines(conversionConstantValue))
 	return dir
 }
 
@@ -205,7 +205,7 @@ func TestCommitSlotLoad_LoadsTheOppositeSlot(t *testing.T) {
 
 func TestCommitSlotLoad_UntouchedSlotIsTheShippedDefault(t *testing.T) {
 	dir := newConversionThemesDir(t)
-	writeThemeFileForTest(t, dir, theme.DefaultLightSlug+".theme", "#202020")
+	themetest.Write(t, dir, theme.DefaultLightSlug+".theme", themetest.MonochromeLines("#202020"))
 	m, _, sink := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
 	m = openConversionPanel(t, m)
 
@@ -220,11 +220,11 @@ func TestCommitSlotLoad_StaleSlotFromEnumeration(t *testing.T) {
 	t.Run("a stale slug resolves from the panel's parse", func(t *testing.T) {
 		const opened, edited = "#202020", "#303030"
 		dir := newConversionThemesDir(t)
-		writeThemeFileForTest(t, dir, "ghostly.theme", opened)
+		themetest.Write(t, dir, "ghostly.theme", themetest.MonochromeLines(opened))
 		keys := theme.RawKeys{Theme: conversionConstant, Light: "ghostly"}
 		m, _, sink := newConversionPanelModel(t, dir, keys)
 		m = openConversionPanel(t, m)
-		writeThemeFileForTest(t, dir, "ghostly.theme", edited)
+		themetest.Write(t, dir, "ghostly.theme", themetest.MonochromeLines(edited))
 
 		m, _ = convertToSlot(t, m, "nord", slotDarkPress)
 
@@ -290,7 +290,7 @@ func TestCommitSlotLoad_NoDirectoryRead(t *testing.T) {
 	t.Run("a stale slot still resolves from the retained parse", func(t *testing.T) {
 		const value = "#202020"
 		dir := newConversionThemesDir(t)
-		writeThemeFileForTest(t, dir, "ghostly.theme", value)
+		themetest.Write(t, dir, "ghostly.theme", themetest.MonochromeLines(value))
 		keys := theme.RawKeys{Theme: conversionConstant, Light: "ghostly"}
 		m, _, sink := newConversionPanelModel(t, dir, keys)
 		m = openConversionPanel(t, m)
@@ -548,7 +548,7 @@ func TestCommitSlotLoad_ActiveThemeUnchanged(t *testing.T) {
 
 func TestCommitSlotLoad_SharesTheResolverBody(t *testing.T) {
 	dir := newConversionThemesDir(t)
-	writeThemeFileForTest(t, dir, "ghostly.theme", "#202020")
+	themetest.Write(t, dir, "ghostly.theme", themetest.MonochromeLines("#202020"))
 	loader, _ := themeOpenTestLoader(t)
 	enumerator := countingEnumeratorOver(loader, dir)
 	enumeration, _ := enumerator.Open(theme.RawKeys{})

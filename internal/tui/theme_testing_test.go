@@ -84,7 +84,7 @@ func requireCommitDoesNoOtherIO(
 	configDir := t.TempDir()
 	t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 
 	stores := newCountingStores()
 	persister := &fakeThemePersister{}
@@ -165,7 +165,7 @@ func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(
 		dir := t.TempDir()
 		// Deliberately invalid, so the path runs over the rejection fallback — the
 		// case where a write would overwrite the name the user set.
-		writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 
 		act(t, dir, keys)
 
@@ -182,7 +182,7 @@ func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(
 		configDir := t.TempDir()
 		t.Setenv("PORTAL_PREFS_FILE", filepath.Join(configDir, "prefs.json"))
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 
 		act(t, dir, keys)
 

@@ -118,7 +118,7 @@ func countLabel(labels []string, want string) int {
 
 func TestPanelOpenCursor_FallbackRow(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 
 	m = pressThemeKey(t, m)
@@ -149,7 +149,7 @@ func TestPanelOpenCursor_BadgeStaysOnPersisted(t *testing.T) {
 
 func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	before := m.themeState.active
 
@@ -165,13 +165,13 @@ func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 
 func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m = pressThemeKey(t, m)
 
 	if got := m.themeState.active.Canvas.Value; got != "#202020" {
@@ -182,13 +182,13 @@ func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 
 func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	if got := m.themeState.active.Canvas.Value; got != "#101010" {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the drop-in's #101010", got)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	m = pressThemeKey(t, m)
 
 	if want := testDarkTheme(t); m.themeState.active != want {
@@ -204,13 +204,13 @@ func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 
 func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
 	m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 	if want := testDarkTheme(t); m.themeState.active != want {
 		t.Fatalf("precondition: the launch rendered canvas %s, want the fallback's %s", m.themeState.active.Canvas.Value, want.Canvas.Value)
 	}
 
-	writeThemeFileForTest(t, dir, "sunset.theme", "#303030")
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#303030"))
 	m = pressThemeKey(t, m)
 
 	if got := m.themeState.active.Canvas.Value; got != "#303030" {
@@ -350,10 +350,12 @@ func TestPanelOpen_CursorInvariant(t *testing.T) {
 			mode: theme.MemberDark,
 		},
 		{
-			name:  "a fallback",
-			write: func(t *testing.T, dir string) { writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour") },
-			keys:  theme.RawKeys{Theme: "sunset"},
-			mode:  theme.MemberDark,
+			name: "a fallback",
+			write: func(t *testing.T, dir string) {
+				themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("not-a-colour"))
+			},
+			keys: theme.RawKeys{Theme: "sunset"},
+			mode: theme.MemberDark,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

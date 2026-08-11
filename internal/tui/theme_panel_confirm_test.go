@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 // Uppercase always carries ModShift on both terminal paths; the `*Upper` pair is
@@ -344,7 +345,7 @@ func TestSlotConfirm_CancelsOnThreeInputs(t *testing.T) {
 
 func TestSlotConfirm_EscCancelsNotCloses(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	requireCursorOn(t, m, "aurora")
 
@@ -621,7 +622,7 @@ func TestSlotConfirm_CancelIsInert(t *testing.T) {
 // and every `●` a statement about the fixture.
 func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	requireBadge(t, m, "aurora", theme.BadgeConstant)
 	requireBadgeText(t, m, 1, 0, 0)
@@ -651,7 +652,7 @@ func TestSlotConfirm_AtomicConstantClearPlusSlot(t *testing.T) {
 
 func TestSlotConfirm_FailedCommitKeepsTheConstant(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	m, _, persister := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	keys := m.themeState.keys
 	badges := maps.Clone(m.themePanel.badges)
@@ -819,7 +820,7 @@ func TestSlotConfirm_NotRaisedByEnter(t *testing.T) {
 
 func TestSlotConfirm_HandEditedFileNamesTheConstant(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
 	keys := theme.RawKeys{Theme: "aurora", Light: "ghost", Dark: "aurora"}
 	m, _, persister := newRecomputePanelModel(t, dir, keys)
 	requireRowLabels(t, m, "aurora", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)

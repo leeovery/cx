@@ -5,13 +5,13 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/leeovery/portal/internal/resolver"
 	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +46,9 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 	})
 
 	t.Run("an exec-path open emits no theme record", func(t *testing.T) {
-		poisonThemesDir(t)
+		// An existing but unreadable themes directory earns a `theme: directory
+		// unusable` WARN, where an absent one is silent.
+		_ = themetest.DenyDir(t, useThemesDir(t))
 		// A drop-in slug: a built-in would resolve out of the embedded set and
 		// never touch the poison.
 		setPrefsFile(t, `{"theme":"a-drop-in"}`)
@@ -65,18 +67,6 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 
 		assertThemeEvents(t, sink)
 	})
-}
-
-// An existing but unreadable directory earns a `theme: directory unusable`
-// WARN, where an absent one is silent.
-func poisonThemesDir(t *testing.T) {
-	t.Helper()
-
-	dir := useThemesDir(t)
-	if err := os.Chmod(dir, 0o000); err != nil {
-		t.Fatalf("make themes dir unreadable: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 }
 
 // Every tmux-touching seam is injected, so the body runs its production

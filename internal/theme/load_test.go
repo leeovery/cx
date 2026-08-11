@@ -46,14 +46,14 @@ func TestLoadFile_LadderShortCircuits(t *testing.T) {
 			name: "reserved name beats bad colour",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
 				loader := theme.Loader{ReservedSlugs: map[string]struct{}{"nord": {}}}
-				return loader, themetest.Write(t, dir, "nord.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+				return loader, themetest.WriteWithCanvas(t, dir, "nord.theme", "blue")
 			},
 			wantReason: theme.ReasonReservedName,
 		},
 		{
 			name: "bad syntax beats bad colour",
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				lines := themetest.WithValue(themetest.Lines(), "canvas", "blue")
+				lines := themetest.LinesWithCanvas("blue")
 				lines = themetest.WithValue(lines, "text.primary", `"#C0CAF5"`)
 				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", lines)
 			},
@@ -142,7 +142,9 @@ func TestLoadFile_ReservedNameDecidedFromSlugAlone(t *testing.T) {
 		{
 			name: "an unreadable file",
 			make: func(t *testing.T, dir string) string {
-				return writeUnreadableTheme(t, dir, "nord.theme")
+				path := themetest.Write(t, dir, "nord.theme", themetest.Lines())
+				_ = themetest.DenyRead(t, path)
+				return path
 			},
 		},
 	}
@@ -210,7 +212,14 @@ func TestLoadFile_UnreadableKeepsOSErrorVerbatim(t *testing.T) {
 		name string
 		make func(t *testing.T, dir, base string) string
 	}{
-		{name: "unreadable file", make: writeUnreadableTheme},
+		{
+			name: "unreadable file",
+			make: func(t *testing.T, dir, base string) string {
+				path := themetest.Write(t, dir, base, themetest.Lines())
+				_ = themetest.DenyRead(t, path)
+				return path
+			},
+		},
 		{name: "dangling symlink", make: writeDanglingThemeLink},
 	}
 
@@ -420,8 +429,7 @@ func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 			name:       "a bad colour",
 			wantReason: theme.ReasonBadColour,
 			setup: func(t *testing.T, dir string) (string, string) {
-				lines := themetest.WithValue(themetest.Lines(), "canvas", "blue")
-				return themetest.Write(t, dir, "nord-lee.theme", lines), "canvas = blue"
+				return themetest.WriteWithCanvas(t, dir, "nord-lee.theme", "blue"), "canvas = blue"
 			},
 		},
 		{
@@ -436,12 +444,8 @@ func TestLoadPath_RunsTheContentRungs(t *testing.T) {
 			name:       "an unreadable file",
 			wantReason: theme.ReasonUnreadable,
 			setup: func(t *testing.T, dir string) (string, string) {
-				path := writeUnreadableTheme(t, dir, "nord-lee.theme")
-				_, readErr := os.ReadFile(path)
-				if readErr == nil {
-					t.Fatalf("os.ReadFile(%q) succeeded, the fixture is not unreadable", path)
-				}
-				return path, readErr.Error()
+				path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
+				return path, themetest.DenyRead(t, path).Error()
 			},
 		},
 	}
@@ -497,7 +501,9 @@ func rejectionCorpus() []loadCase {
 			name:       "an unreadable file",
 			wantReason: theme.ReasonUnreadable,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, writeUnreadableTheme(t, dir, "nord-lee.theme")
+				path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
+				_ = themetest.DenyRead(t, path)
+				return theme.Loader{}, path
 			},
 		},
 		{
@@ -519,7 +525,7 @@ func rejectionCorpus() []loadCase {
 			name:       "a bad colour",
 			wantReason: theme.ReasonBadColour,
 			setup: func(t *testing.T, dir string) (theme.Loader, string) {
-				return theme.Loader{}, themetest.Write(t, dir, "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+				return theme.Loader{}, themetest.WriteWithCanvas(t, dir, "nord-lee.theme", "blue")
 			},
 		},
 		{
@@ -547,28 +553,6 @@ func wantThemeTokens() []theme.Token {
 		tokens = append(tokens, theme.Token{Name: name, Value: strings.ToUpper(value)})
 	}
 	return tokens
-}
-
-// Mode bits do not deny root, so this fixture is impossible there and the test
-// skips. The mode is restored on cleanup so the temp dir tears down.
-func writeUnreadableTheme(t *testing.T, dir, base string) string {
-	t.Helper()
-
-	if os.Geteuid() == 0 {
-		t.Skip("running as root: mode bits do not deny, so an unreadable file cannot be staged")
-	}
-
-	path := themetest.Write(t, dir, base, themetest.Lines())
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("chmod %s: %v", path, err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chmod(path, 0o600); err != nil {
-			t.Errorf("restore mode on %s: %v", path, err)
-		}
-	})
-
-	return path
 }
 
 func writeDanglingThemeLink(t *testing.T, dir, base string) string {

@@ -161,7 +161,7 @@ func TestUnion_BrokenBuiltinNeverBecomesASelectableBlankRow(t *testing.T) {
 
 func TestUnion_EnumeratedFiresPerOpenUndeduped(t *testing.T) {
 	dir := t.TempDir()
-	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)
@@ -202,7 +202,7 @@ func TestUnion_DiscardSilencesEnumerated(t *testing.T) {
 	sink := &logtest.Sink{}
 	log.SetTestHandler(t, sink)
 	dir := t.TempDir()
-	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	for open := range 5 {
@@ -277,7 +277,7 @@ func TestUnion_PersistedBuiltinIsOneRow(t *testing.T) {
 
 func TestUnion_PersistedInvalidFileIsOneRow(t *testing.T) {
 	dir := t.TempDir()
-	themetest.Write(t, dir, "nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "nord-lee.theme", "blue")
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{Theme: "nord-lee"})
@@ -321,7 +321,8 @@ func TestUnion_UnresolvablePersistedSlugIsNotFound(t *testing.T) {
 }
 
 func TestUnion_UnresolvablePersistedSlugIsUnreadableWhenDirUnusable(t *testing.T) {
-	dir := unreadableDir(t)
+	dir := themesDirWithOneTheme(t)
+	_ = themetest.DenyDir(t, dir)
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	enumeration, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
@@ -399,7 +400,8 @@ func TestUnion_BothSlotsSameMissingSlugIsOneRow(t *testing.T) {
 }
 
 func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
-	dir := unreadableDir(t)
+	dir := themesDirWithOneTheme(t)
+	_ = themetest.DenyDir(t, dir)
 	assembler := theme.Assembler{Loader: theme.NewSilentLoader()}
 
 	_, union := assembler.Open(dir, theme.RawKeys{Theme: "ghost"})
@@ -417,7 +419,7 @@ func TestUnion_DirUnusableIsAFlagNotAMember(t *testing.T) {
 
 func TestUnion_CountAndRejectedAttrs(t *testing.T) {
 	dir := t.TempDir()
-	themetest.Write(t, dir, "bad-colour.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+	themetest.WriteWithCanvas(t, dir, "bad-colour.theme", "blue")
 	themetest.Write(t, dir, "missing.theme", themetest.WithoutKey(themetest.Lines(), "bg.subtle"))
 	themetest.Write(t, dir, "valid.theme", themetest.Lines())
 	logger, sink := logtest.NewCaptureLogger(t)

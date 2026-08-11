@@ -233,7 +233,7 @@ func TestThemeExport_IsNotAReserialisation(t *testing.T) {
 
 func TestThemeExport_BuiltinNeverReadsThemesDirectory(t *testing.T) {
 	t.Run("a built-in resolves through an unreadable themes directory", func(t *testing.T) {
-		unreadableThemesDir(t, "nord-lee")
+		_ = themetest.DenyDir(t, seedThemesDir(t, "nord-lee", validThemeSource(t)))
 		want := validThemeSource(t)
 
 		run := execThemeExport(t, theme.DefaultDarkSlug)
@@ -247,7 +247,7 @@ func TestThemeExport_BuiltinNeverReadsThemesDirectory(t *testing.T) {
 	})
 
 	t.Run("the directory really is unreadable", func(t *testing.T) {
-		unreadableThemesDir(t, "nord-lee")
+		_ = themetest.DenyDir(t, seedThemesDir(t, "nord-lee", validThemeSource(t)))
 
 		run := execThemeExport(t, "nord-lee")
 
@@ -341,7 +341,9 @@ func TestThemeExport_EmitsNoThemeEvents(t *testing.T) {
 		{
 			name: "an unreadable drop-in",
 			slug: "mine",
-			seed: func(t *testing.T) { unreadableThemeFile(t, "mine") },
+			seed: func(t *testing.T) {
+				_ = themetest.DenyRead(t, filepath.Join(seedThemesDir(t, "mine", validThemeSource(t)), "mine.theme"))
+			},
 		},
 	}
 
@@ -408,10 +410,7 @@ func TestThemeExport_ReadsNoPrefs(t *testing.T) {
 		if err := os.WriteFile(prefsPath, before, 0o600); err != nil {
 			t.Fatalf("seed prefs.json: %v", err)
 		}
-		if err := os.Chmod(prefsPath, 0o000); err != nil {
-			t.Fatalf("chmod 0000 prefs.json: %v", err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(prefsPath, 0o600) })
+		_ = themetest.DenyRead(t, prefsPath)
 		t.Setenv("PORTAL_PREFS_FILE", prefsPath)
 
 		run := execThemeExport(t, theme.DefaultDarkSlug)
@@ -565,30 +564,6 @@ func sourceDuplicateKeyAt(t *testing.T, line int, key string) []byte {
 	return themetest.Render(duplicateKeyLines(t, themeKeyLines(t), key, line))
 }
 
-func unreadableThemeFile(t *testing.T, slug string) string {
-	t.Helper()
-
-	path := filepath.Join(seedThemesDir(t, slug, validThemeSource(t)), slug+".theme")
-	if err := os.Chmod(path, 0o000); err != nil {
-		t.Fatalf("chmod 0000 %s: %v", path, err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	return path
-}
-
-// The mode is restored on cleanup because t.TempDir's RemoveAll cannot descend
-// into a mode-0000 directory, and cleanups run last-registered-first.
-func unreadableThemesDir(t *testing.T, slug string) string {
-	t.Helper()
-
-	dir := seedThemesDir(t, slug, validThemeSource(t))
-	if err := os.Chmod(dir, 0o000); err != nil {
-		t.Fatalf("chmod 0000 %s: %v", dir, err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
-	return dir
-}
-
 // Fails if the read succeeds.
 func osReadError(t *testing.T, path string) error {
 	t.Helper()
@@ -598,18 +573,6 @@ func osReadError(t *testing.T, path string) error {
 	}
 	t.Fatalf("reading %s succeeded — the unreadable fixture is readable, so the assertion over it would be vacuous", path)
 	return nil
-}
-
-// osReadError with the root escape closed: mode 0000 denies nothing to root, and
-// absent-versus-denied is the very distinction these tests pin.
-func requireDeniedRead(t *testing.T, path string) error {
-	t.Helper()
-
-	err := osReadError(t, path)
-	if os.IsNotExist(err) {
-		t.Fatalf("reading %s reports %v — the fixture must be unreadable, not absent", path, err)
-	}
-	return err
 }
 
 // Empty stdout rides along because export is a pipe-into-a-file tool: a byte on
@@ -675,7 +638,9 @@ func themeExportFailures() []themeExportFailure {
 		{
 			name: "an unreadable drop-in",
 			slug: "mine",
-			seed: func(t *testing.T) { unreadableThemeFile(t, "mine") },
+			seed: func(t *testing.T) {
+				_ = themetest.DenyRead(t, filepath.Join(seedThemesDir(t, "mine", validThemeSource(t)), "mine.theme"))
+			},
 		},
 	}
 }
@@ -800,14 +765,15 @@ func TestThemeExport_BadNameFrame(t *testing.T) {
 // hard-coding a platform's wording.
 func TestThemeExport_UnreadableFrame(t *testing.T) {
 	t.Run("an unreadable file", func(t *testing.T) {
-		osErr := requireDeniedRead(t, unreadableThemeFile(t, "mine"))
+		osErr := themetest.DenyRead(t, filepath.Join(seedThemesDir(t, "mine", validThemeSource(t)), "mine.theme"))
 
 		requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
 	})
 
 	t.Run("an unreadable directory", func(t *testing.T) {
-		dir := unreadableThemesDir(t, "mine")
-		osErr := requireDeniedRead(t, filepath.Join(dir, "mine.theme"))
+		dir := seedThemesDir(t, "mine", validThemeSource(t))
+		_ = themetest.DenyDir(t, dir)
+		osErr := osReadError(t, filepath.Join(dir, "mine.theme"))
 
 		requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
 	})
@@ -838,8 +804,9 @@ func TestThemeExport_AbsentIsNotUnreadable(t *testing.T) {
 	})
 
 	t.Run("an unreadable directory is could not be read", func(t *testing.T) {
-		dir := unreadableThemesDir(t, "mine")
-		osErr := requireDeniedRead(t, filepath.Join(dir, "nope.theme"))
+		dir := seedThemesDir(t, "mine", validThemeSource(t))
+		_ = themetest.DenyDir(t, dir)
+		osErr := osReadError(t, filepath.Join(dir, "nope.theme"))
 
 		requireExportRefusal(t, execThemeExport(t, "nope"), "theme nope could not be read: "+osErr.Error())
 	})
@@ -948,7 +915,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 		})
 
 		t.Run("an unreadable drop-in", func(t *testing.T) {
-			osErr := requireDeniedRead(t, unreadableThemeFile(t, "mine"))
+			osErr := themetest.DenyRead(t, filepath.Join(seedThemesDir(t, "mine", validThemeSource(t)), "mine.theme"))
 
 			requireExportRefusal(t, execThemeExport(t, "mine"), "theme mine could not be read: "+osErr.Error())
 		})
@@ -997,7 +964,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 	})
 
 	t.Run("it still emits no theme records", func(t *testing.T) {
-		unreadableThemesDir(t, "mine")
+		_ = themetest.DenyDir(t, seedThemesDir(t, "mine", validThemeSource(t)))
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
 

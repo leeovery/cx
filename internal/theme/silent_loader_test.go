@@ -88,7 +88,7 @@ func stageMixedVerdictDir(t *testing.T) string {
 	dir := t.TempDir()
 	themetest.Write(t, dir, validThemeBase, themetest.Lines())
 	themetest.Write(t, dir, badNameThemeBase, themetest.Lines())
-	themetest.Write(t, dir, badColourThemeBase, themetest.WithValue(themetest.Lines(), "canvas", brokenCanvasValue))
+	themetest.WriteWithCanvas(t, dir, badColourThemeBase, brokenCanvasValue)
 	themetest.Write(t, dir, tokyoNightSlug+".theme", themetest.Lines())
 	return dir
 }

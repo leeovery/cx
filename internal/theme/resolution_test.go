@@ -455,7 +455,7 @@ func fallbackCauses() []fallbackCause {
 		{
 			name:       "a bad colour",
 			slug:       "nord-lee",
-			stage:      dirWith("nord-lee.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue")),
+			stage:      dirWith("nord-lee.theme", themetest.LinesWithCanvas("blue")),
 			wantReason: theme.ReasonBadColour,
 		},
 		{
@@ -470,15 +470,19 @@ func fallbackCauses() []fallbackCause {
 			stage: func(t *testing.T) string {
 				t.Helper()
 				dir := t.TempDir()
-				writeUnreadableTheme(t, dir, "nord-lee.theme")
+				_ = themetest.DenyRead(t, themetest.Write(t, dir, "nord-lee.theme", themetest.Lines()))
 				return dir
 			},
 			wantReason: theme.ReasonUnreadable,
 		},
 		{
-			name:       "an unreadable directory",
-			slug:       "nord-lee",
-			stage:      unreadableDir,
+			name: "an unreadable directory",
+			slug: "nord-lee",
+			stage: func(t *testing.T) string {
+				dir := themesDirWithOneTheme(t)
+				_ = themetest.DenyDir(t, dir)
+				return dir
+			},
 			wantReason: theme.ReasonUnreadable,
 		},
 	}
@@ -559,7 +563,7 @@ func TestResolveNomination_BothSlotsCanFallBack(t *testing.T) {
 
 	t.Run("both slots broken for different reasons", func(t *testing.T) {
 		dir := t.TempDir()
-		themetest.Write(t, dir, "broken-light.theme", themetest.WithValue(themetest.Lines(), "canvas", "blue"))
+		themetest.WriteWithCanvas(t, dir, "broken-light.theme", "blue")
 		setting := theme.Setting{Light: "broken-light", Dark: "gone-dark"}
 
 		got, err := nominationLoader().ResolveNomination(setting, dir)
@@ -845,7 +849,7 @@ func TestResolveNominationFrom_ResolvesAgainstTheEnumerationsEntries(t *testing.
 			name: "an invalid entry falls back carrying its own reason",
 			enumeration: func(t *testing.T) theme.Enumeration {
 				dir := t.TempDir()
-				themetest.Write(t, dir, "sunset.theme", themetest.WithValue(themetest.Lines(), "canvas", "not-a-colour"))
+				themetest.WriteWithCanvas(t, dir, "sunset.theme", "not-a-colour")
 				return enumerationOf(t, loader, dir)
 			},
 			want: theme.ReasonBadColour,
@@ -951,7 +955,7 @@ func TestResolveByNameFrom_MatchesResolveByName(t *testing.T) {
 	loader := nominationLoader()
 	dir := t.TempDir()
 	themetest.Write(t, dir, "sunset.theme", themetest.Lines())
-	themetest.Write(t, dir, "dusk.theme", themetest.WithValue(themetest.Lines(), "canvas", "not-a-colour"))
+	themetest.WriteWithCanvas(t, dir, "dusk.theme", "not-a-colour")
 	enumeration := enumerationOf(t, loader, dir)
 
 	builtin := theme.DefaultDarkSlug

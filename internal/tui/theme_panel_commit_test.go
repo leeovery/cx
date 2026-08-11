@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/portal/internal/project"
 	"github.com/leeovery/portal/internal/sourceguard"
 	"github.com/leeovery/portal/internal/theme"
+	"github.com/leeovery/portal/internal/themetest"
 )
 
 var commitEnter = tea.KeyPressMsg{Code: tea.KeyEnter}
@@ -238,8 +239,8 @@ func applyThemeCallSitesIn(t *testing.T, file string) []string {
 // fixed resolution whatever it is handed, which is what must not be faked here.
 func TestPanelEnter_EscResolvesTheCommittedTheme(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	m, _, _ := newClosePanelModel(t, dir, theme.RawKeys{Theme: "aurora"})
 	persister := &fakeThemePersister{}
 	WithThemePersister(persister)(&m)

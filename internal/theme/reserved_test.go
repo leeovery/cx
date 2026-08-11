@@ -36,7 +36,9 @@ func TestLoadFile_ReservedDecidedBeforeRead(t *testing.T) {
 		{
 			name: "an unreadable file",
 			make: func(t *testing.T, dir string) string {
-				return writeUnreadableTheme(t, dir, tokyoNightSlug+".theme")
+				path := themetest.Write(t, dir, tokyoNightSlug+".theme", themetest.Lines())
+				_ = themetest.DenyRead(t, path)
+				return path
 			},
 		},
 	}
@@ -106,7 +108,7 @@ func TestNoShadowing_BrokenDropInCannotReplaceBuiltin(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	shadowPath := themetest.Write(t, dir, tokyoNightSlug+".theme", themetest.WithValue(themetest.Lines(), "canvas", brokenCanvasValue))
+	shadowPath := themetest.WriteWithCanvas(t, dir, tokyoNightSlug+".theme", brokenCanvasValue)
 	shadowBytes, err := os.ReadFile(shadowPath)
 	if err != nil {
 		t.Fatalf("read %s: %v", shadowPath, err)

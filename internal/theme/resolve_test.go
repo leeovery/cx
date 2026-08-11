@@ -104,7 +104,8 @@ func requireBuiltins(t *testing.T) []string {
 func TestResolveByName_BuiltinNeverReadsDirectory(t *testing.T) {
 	t.Run("with an unreadable themes directory", func(t *testing.T) {
 		loader, sink := resolveLoader(t)
-		dir := unreadableDir(t)
+		dir := themesDirWithOneTheme(t)
+		_ = themetest.DenyDir(t, dir)
 
 		for _, slug := range requireBuiltins(t) {
 			result, rejection := loader.ResolveByName(slug, dir)
@@ -193,8 +194,8 @@ func TestResolveByName_AbsentFileIsNotFound(t *testing.T) {
 	t.Run("an unreadable file", func(t *testing.T) {
 		loader, sink := resolveLoader(t)
 		dir := t.TempDir()
-		path := writeUnreadableTheme(t, dir, "nord-lee.theme")
-		osErr := requireDeniedThemeRead(t, path)
+		path := themetest.Write(t, dir, "nord-lee.theme", themetest.Lines())
+		osErr := themetest.DenyRead(t, path)
 
 		result, rejection := loader.ResolveByName("nord-lee", dir)
 
@@ -277,10 +278,14 @@ func TestResolveByName_UnusableDirectoryIsUnreadable(t *testing.T) {
 		wantDetail func(t *testing.T, dir string) string
 	}{
 		{
-			name:  "an unreadable directory",
-			stage: unreadableDir,
+			name: "an unreadable directory",
+			stage: func(t *testing.T) string {
+				dir := themesDirWithOneTheme(t)
+				_ = themetest.DenyDir(t, dir)
+				return dir
+			},
 			wantDetail: func(t *testing.T, dir string) string {
-				return requireDeniedThemeRead(t, filepath.Join(dir, "nord-lee.theme")).Error()
+				return osReadError(t, filepath.Join(dir, "nord-lee.theme")).Error()
 			},
 		},
 		{
@@ -340,7 +345,8 @@ func requireDirectoryUnusableRecord(t *testing.T, sink *logtest.Sink, dir string
 func TestResolveByName_DirectoryUnusableIsDeduped(t *testing.T) {
 	t.Run("five successive resolutions emit one record", func(t *testing.T) {
 		loader, sink := resolveLoader(t)
-		dir := unreadableDir(t)
+		dir := themesDirWithOneTheme(t)
+		_ = themetest.DenyDir(t, dir)
 
 		for range 5 {
 			if _, rejection := loader.ResolveByName("nord-lee", dir); rejection == nil {
@@ -353,7 +359,8 @@ func TestResolveByName_DirectoryUnusableIsDeduped(t *testing.T) {
 
 	t.Run("enumeration and the by-name read do not double up", func(t *testing.T) {
 		loader, sink := resolveLoader(t)
-		dir := unreadableDir(t)
+		dir := themesDirWithOneTheme(t)
+		_ = themetest.DenyDir(t, dir)
 
 		if _, rejection := loader.Enumerate(dir); rejection == nil {
 			t.Fatal("Enumerate accepted an unreadable directory — the dedup assertion would be vacuous")
@@ -368,7 +375,8 @@ func TestResolveByName_DirectoryUnusableIsDeduped(t *testing.T) {
 	t.Run("a second event logger emits its own record", func(t *testing.T) {
 		sink := &logtest.Sink{}
 		log.SetTestHandler(t, sink)
-		dir := unreadableDir(t)
+		dir := themesDirWithOneTheme(t)
+		_ = themetest.DenyDir(t, dir)
 
 		for range 2 {
 			loader := theme.NewLoader(theme.NewEventLogger(log.For(themeComponent)))
@@ -390,7 +398,7 @@ func TestResolveByName_ContentReasonsPassThrough(t *testing.T) {
 		wantReason theme.Reason
 	}{
 		{name: "a duplicate key", lines: append(themetest.Lines(), "text.primary = #010203"), wantReason: theme.ReasonBadSyntax},
-		{name: "a bad hex", lines: themetest.WithValue(themetest.Lines(), "canvas", "blue"), wantReason: theme.ReasonBadColour},
+		{name: "a bad hex", lines: themetest.LinesWithCanvas("blue"), wantReason: theme.ReasonBadColour},
 		{name: "a missing token", lines: themetest.WithoutKey(themetest.Lines(), "bg.subtle"), wantReason: theme.ReasonMissingTokens},
 	}
 
@@ -602,15 +610,14 @@ func importedPackageNames(file *ast.File) map[string]bool {
 	return names
 }
 
-func requireDeniedThemeRead(t *testing.T, path string) error {
+// Fails if the read succeeds, so no expectation is derived from a fixture that
+// is not in the state the case describes.
+func osReadError(t *testing.T, path string) error {
 	t.Helper()
 
 	_, err := os.ReadFile(path)
 	if err == nil {
-		t.Fatalf("reading %s succeeded — the unreadable fixture is readable, so the assertion over it would be vacuous", path)
-	}
-	if os.IsNotExist(err) {
-		t.Fatalf("reading %s reports %v — the fixture must be unreadable, not absent", path, err)
+		t.Fatalf("reading %s succeeded — the assertion over the failed read would be vacuous", path)
 	}
 	return err
 }

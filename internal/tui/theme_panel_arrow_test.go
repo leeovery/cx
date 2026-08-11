@@ -374,8 +374,8 @@ func TestPanelArrow_SkipComposesWithPaging(t *testing.T) {
 
 func TestPanelArrow_NoFileReadPerKeystroke(t *testing.T) {
 	dir := t.TempDir()
-	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-	writeThemeFileForTest(t, dir, "sunset.theme", "#202020")
+	themetest.Write(t, dir, "aurora.theme", themetest.MonochromeLines("#101010"))
+	themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#202020"))
 	loader, _ := themeOpenTestLoader(t)
 	enumerator := countingEnumeratorOver(loader, dir)
 
@@ -505,7 +505,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 	t.Run("arrowing persists no preference", func(t *testing.T) {
 		persister := &countingModePersister{}
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 		WithModePersister(persister)(&m)
 
@@ -531,7 +531,7 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 
 	t.Run("the themes directory is untouched", func(t *testing.T) {
 		dir := t.TempDir()
-		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
+		themetest.Write(t, dir, "sunset.theme", themetest.MonochromeLines("#101010"))
 		m := themeCursorModel(t, dir, theme.RawKeys{Theme: "sunset"}, theme.MemberDark)
 
 		m = pressThemeKey(t, m)
