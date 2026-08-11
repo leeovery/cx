@@ -1,6 +1,6 @@
-// Package prefs persists UI preferences to prefs.json: the last-used session
-// list grouping mode and the theme setting. Deliberately a leaf — stdlib plus
-// internal/fileutil only — so internal/tui can import it without a cycle.
+// Package prefs persists UI preferences to prefs.json. Deliberately a leaf —
+// stdlib plus internal/fileutil only — so internal/tui can import it without a
+// cycle.
 package prefs
 
 import (
@@ -14,15 +14,11 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// SessionListMode is the grouping mode for the TUI session list.
 type SessionListMode int
 
 const (
-	// ModeFlat is the ungrouped session list and the tolerant-decode default.
 	ModeFlat SessionListMode = iota
-	// ModeByProject groups sessions by their resolved project directory.
 	ModeByProject
-	// ModeByTag groups sessions by their project tags.
 	ModeByTag
 )
 
@@ -33,8 +29,8 @@ const (
 	modeByTagString     = "by-tag"
 )
 
-// String returns the canonical on-disk string for the mode; out-of-range
-// values map to the flat default.
+// String returns the canonical on-disk string; an out-of-range mode maps to the
+// flat default.
 func (m SessionListMode) String() string {
 	switch m {
 	case ModeByProject:
@@ -82,16 +78,14 @@ type prefsFile struct {
 	ThemeMigrated migrationMarker `json:"theme_migrated,omitempty"`
 }
 
-// ThemeKeys carries the three raw theme slugs from prefs.json, verbatim —
-// validation, defaulting and the theme-wins tiebreak belong to the resolver.
+// ThemeKeys carries the raw theme slugs from prefs.json verbatim — validation,
+// defaulting and the theme-wins tiebreak belong to the resolver.
 type ThemeKeys struct {
 	Theme string
 	Light string
 	Dark  string
 }
 
-// MigrationState is the appearance-translation gate's input: the on-disk
-// appearance value, verbatim and unparsed, and whether the translation ran.
 type MigrationState struct {
 	Appearance string
 	Migrated   bool
@@ -102,18 +96,14 @@ type MigrationState struct {
 type ThemeSlot int
 
 const (
-	// SlotLight is the theme_light half of the adaptive pair.
 	SlotLight ThemeSlot = iota + 1
-	// SlotDark is the theme_dark half of the adaptive pair.
 	SlotDark
 )
 
-// Store manages persistence of UI preferences to a JSON file.
 type Store struct {
 	path string
 }
 
-// NewStore creates a Store that reads and writes to the given file path.
 func NewStore(path string) *Store {
 	return &Store{path: path}
 }
@@ -196,8 +186,8 @@ func (s *Store) Load() (SessionListMode, error) {
 	return parseMode(f.SessionListMode), nil
 }
 
-// LoadThemeKeys reads the three raw theme slugs verbatim, under the same
-// tolerant policy as Load.
+// LoadThemeKeys reads the raw theme slugs verbatim, under the same tolerant
+// policy as Load.
 func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
 	f, _, err := s.readFile()
 	if err != nil {
@@ -206,8 +196,8 @@ func (s *Store) LoadThemeKeys() (ThemeKeys, error) {
 	return ThemeKeys{Theme: f.Theme, Light: f.ThemeLight, Dark: f.ThemeDark}, nil
 }
 
-// LoadMigrationState reads the raw appearance value and the migration marker,
-// under the same tolerant policy as Load.
+// LoadMigrationState reads the raw appearance value and the marker under the
+// same tolerant policy as Load.
 func (s *Store) LoadMigrationState() (MigrationState, error) {
 	f, _, err := s.readFile()
 	if err != nil {
@@ -225,8 +215,8 @@ func (s *Store) Save(mode SessionListMode) error {
 	})
 }
 
-// SaveTheme persists slug verbatim as the constant theme, clearing both
-// adaptive slots in the same atomic write.
+// SaveTheme persists slug verbatim as the constant theme, clearing the adaptive
+// slots in the same atomic write.
 func (s *Store) SaveTheme(slug string) error {
 	return s.mutate(func(f *prefsFile, _ bool) bool {
 		f.Theme = slug
@@ -236,9 +226,9 @@ func (s *Store) SaveTheme(slug string) error {
 	})
 }
 
-// SaveThemeSlot persists slug into one adaptive slot, clearing the constant in
-// the same write and leaving the other slot untouched; an invalid slot writes
-// nothing and returns an error naming it.
+// SaveThemeSlot writes slug into one adaptive slot and clears the constant in
+// the same write, leaving the other slot untouched; an invalid slot writes
+// nothing.
 func (s *Store) SaveThemeSlot(slug string, slot ThemeSlot) error {
 	if slot != SlotLight && slot != SlotDark {
 		return fmt.Errorf("prefs: invalid theme slot %d", slot)
@@ -256,9 +246,9 @@ func (s *Store) SaveThemeSlot(slug string, slot ThemeSlot) error {
 	})
 }
 
-// SaveMigrationMarker records that the appearance translation has run, writing
-// nothing else. It never creates an absent prefs.json — a fresh install has
-// nothing to translate — and declining returns nil rather than an error.
+// SaveMigrationMarker records that the appearance translation has run. It never
+// creates an absent prefs.json — a fresh install has nothing to translate — and
+// declining returns nil rather than an error.
 func (s *Store) SaveMigrationMarker() error {
 	return s.mutate(func(f *prefsFile, existed bool) bool {
 		if !existed {
@@ -269,14 +259,10 @@ func (s *Store) SaveMigrationMarker() error {
 	})
 }
 
-// SaveTranslation records the one-shot appearance translation — the translated
-// theme key and the migration marker — in a single atomic write, reporting
-// whether a theme key was actually persisted.
-//
-// One write, not two: a failure between separate writes would persist the key
-// with the marker unset. The decision is made against the write-time re-read,
-// so a concurrently committed theme or marker wins; the file is never created,
-// and an aborted write leaves the marker unset so the next launch retries.
+// SaveTranslation records the translated theme key and the migration marker in
+// one write, not two: a failure between separate writes would persist the key
+// with the marker unset, and the marker must stay unset so the next launch
+// retries.
 func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 	err = s.mutate(func(f *prefsFile, existed bool) bool {
 		if !existed {
@@ -293,8 +279,7 @@ func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 		}
 
 		f.Theme = slug
-		// Already empty by construction; kept to state the mutual-exclusion
-		// rule.
+		// Already empty by construction; kept to state the mutual exclusion.
 		f.ThemeLight = ""
 		f.ThemeDark = ""
 		persisted = true
@@ -308,7 +293,7 @@ func (s *Store) SaveTranslation(slug string) (persisted bool, err error) {
 	return persisted, nil
 }
 
-// Indirection so commits can be counted; production never reassigns it.
+// Indirection so a test can count writes; production never reassigns it.
 var atomicWrite = fileutil.AtomicWrite
 
 func (s *Store) write(f prefsFile) error {

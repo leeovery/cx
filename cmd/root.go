@@ -1,4 +1,3 @@
-// Package cmd defines the CLI commands for Portal.
 package cmd
 
 import (
@@ -16,11 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// skipTmuxCheck names the commands bootstrap must not run for — it would heal
-// doctor's subject, build what uninstall then tears down, recurse for `state`
-// subcommands fired from tmux hooks, and start a server on every __complete TAB.
-// A match anywhere in the parent chain exempts the invocation, on cobra's
-// canonical Name(), so the silent `hooks` alias rides on "hook".
+// Bootstrap must not run for these: it would heal doctor's subject, build what
+// uninstall then tears down, recurse for `state` subcommands fired from tmux
+// hooks, and start a server on every __complete TAB. A match anywhere in the
+// parent chain exempts the invocation, keyed on cobra's canonical Name() so the
+// silent `hooks` alias rides on "hook".
 var skipTmuxCheck = map[string]bool{
 	"__complete": true,
 	"alias":      true,
@@ -36,8 +35,8 @@ var skipTmuxCheck = map[string]bool{
 
 var bootstrapDeps *BootstrapDeps
 
-// BootstrapDeps injects bootstrap collaborators for testing; production leaves
-// bootstrapDeps nil.
+// BootstrapDeps overrides bootstrap collaborators; production leaves the
+// package-level bootstrapDeps nil.
 type BootstrapDeps struct {
 	// A nil Orchestrator short-circuits runBootstrap to a no-op result.
 	Orchestrator bootstrap.Runner
@@ -67,7 +66,6 @@ func buildBootstrapDeps() (bootstrap.Runner, *tmux.Client, func(*tmux.Client) er
 	return orch, client, nil
 }
 
-// The middle return is the orchestrator's accumulated soft warnings.
 func runBootstrap(ctx context.Context, runner bootstrap.Runner) (bool, []bootstrap.Warning, error) {
 	if bootstrapDeps != nil && !bootstrapDeps.ForceMemoise {
 		if runner == nil {
@@ -120,8 +118,8 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
-		// openTUI runs the deferred orchestrator in a goroutine behind the
-		// loading page.
+		// openTUI runs the deferred orchestrator in a goroutine behind the loading
+		// page.
 		if shouldRunConcurrentBootstrap(cmd, args, client, latchSatisfied) {
 			ctx := cmd.Context()
 			if client != nil {
@@ -154,8 +152,6 @@ var rootCmd = &cobra.Command{
 		}
 		cmd.SetContext(ctx)
 
-		// A no-op in production (the orchestrator owns registration); kept as a
-		// test seam for asserting on the post-Run plumbing.
 		if registerHooks != nil && client != nil {
 			if err := registerHooks(client); err != nil {
 				return err
@@ -191,9 +187,9 @@ func shouldRunConcurrentBootstrap(cmd *cobra.Command, args []string, client *tmu
 
 var fatalErrorStderr io.Writer = os.Stderr
 
-// Execute runs the root command, writing a *bootstrap.FatalError's UserMessage
-// to stderr before returning it. It never calls os.Exit — the caller maps the
-// returned error to the process exit code.
+// Execute writes a *bootstrap.FatalError's UserMessage to stderr before
+// returning it, and never calls os.Exit — the caller maps the returned error to
+// the process exit code.
 func Execute() error {
 	err := rootCmd.Execute()
 	if err == nil {

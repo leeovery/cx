@@ -58,8 +58,7 @@ func requireNoAdvisories(t *testing.T, advisories []themeAdvisory) {
 	}
 }
 
-// A built-in resolves from the embedded set with no directory involved, so an
-// unresolvable-slug fixture over one would prove nothing.
+// A built-in resolves from the embedded set with no directory involved.
 func requireDropInSlug(t *testing.T, slug string) {
 	t.Helper()
 
@@ -199,8 +198,6 @@ func TestPersistedThemeAdvisory_VirginInstallIsSilent(t *testing.T) {
 		loader := theme.NewSilentLoader()
 		loader.BuiltinSource = func(string) ([]byte, bool) { return nil, false }
 
-		// Vacuity guard: under this loader the shipped default really would
-		// fail to resolve.
 		if _, rejection := loader.ResolveByName(theme.DefaultLightSlug, dir); rejection == nil {
 			t.Fatalf("the staged loader still resolves the shipped light default %q — the assertion below would be vacuous", theme.DefaultLightSlug)
 		}
@@ -274,7 +271,6 @@ func TestPersistedThemeAdvisory_CharsetFailureIsBadName(t *testing.T) {
 			t.Fatalf("plant %s: %v", planted, err)
 		}
 
-		// Vacuity guard: the plant really is a theme this resolver would load.
 		requireNoAdvisories(t, persistedAdvisoriesFor(t, `{"theme":"evil"}`, root))
 
 		got := requireOneAdvisory(t, persistedAdvisoriesFor(t, `{"theme":"../evil"}`, dir))
@@ -481,7 +477,6 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 			t.Fatalf("chmod 0000 %s: %v", path, err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-		// Vacuity guard: a readable fixture would carry a theme key.
 		_ = requireDeniedRead(t, path)
 
 		requireNoAdvisories(t, persistedAdvisoriesUnder(t, deps, theme.NewSilentLoader()))
@@ -504,15 +499,11 @@ func TestPersistedThemeAdvisory_TolerantOnDegeneratePrefs(t *testing.T) {
 	})
 }
 
-// The Execute half sets no PrefsStore on the deps, so the line can only have
-// arrived through resolveDoctorDeps' own loadPrefsStoreNoMigrate call.
 func TestPersistedThemeAdvisory_UsesNonMigratingRead(t *testing.T) {
 	t.Run("a pending appearance translation is left pending", func(t *testing.T) {
 		const seeded = `{"appearance":"dark"}`
 		path := setPrefsFile(t, seeded)
 
-		// Vacuity guard: this fixture is the one the migrating read would
-		// translate.
 		load, err := loadPrefsStore()
 		if err != nil {
 			t.Fatalf("loadPrefsStore: %v", err)
@@ -625,8 +616,6 @@ func TestPersistedThemeAdvisory_NoFallbackAndNoFatal(t *testing.T) {
 		// No built-in resolves at all, so every fallback fails.
 		loader.BuiltinSource = func(string) ([]byte, bool) { return nil, false }
 
-		// Vacuity guard: the staged loader really does raise the fatal on the
-		// resolver this producer refuses to use.
 		setting, _ := theme.ResolveSetting(theme.RawKeys{Light: "solar", Dark: "gruv"})
 		if _, err := loader.ResolveNomination(setting, dir); err == nil {
 			t.Fatal("the staged loader raises no fatal through ResolveNomination — the assertion below would be vacuous")
@@ -690,8 +679,6 @@ func TestThemeAdvisories_DirectoryIsReadOnce(t *testing.T) {
 	}
 }
 
-// The fixture is the `unreadable`-directory condition — the one state that
-// would emit.
 func TestPersistedThemeAdvisory_EmitsNoThemeRecords(t *testing.T) {
 	skipUnlessModeBitsDeny(t)
 	requireDropInSlug(t, "nord-lee")

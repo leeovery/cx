@@ -183,15 +183,12 @@ func TestThemePanelOpen_WiredThroughBuildTUIModel(t *testing.T) {
 }
 
 // The poisoned (mode 0000) directory makes any read loud: an unusable directory
-// earns a `theme: directory unusable` WARN where an absent one is silent, so
-// "emitted nothing" is not vacuous.
+// earns a `theme: directory unusable` WARN, where an absent one is silent.
 func TestThemePanelOpen_ExecPathUntouched(t *testing.T) {
 	poisonThemesDir(t)
 	// A drop-in slug: a built-in would never touch the poison.
 	setPrefsFile(t, `{"theme":"a-drop-in"}`)
 
-	// Vacuity guard, driven through the panel's own seam rather than the
-	// construction-time read.
 	loud := installMigrateCapture(t)
 	newThemeSource(newThemeLoader()).Open(theme.RawKeys{Theme: "a-drop-in"})
 	if len(themeEvents(t, loud)) == 0 {

@@ -1,5 +1,3 @@
-// Test-only: production code must not import this package.
-
 package spawntest
 
 import (
@@ -36,8 +34,7 @@ func (f *FakeAckChannel) Write(batch, token string) error {
 	return nil
 }
 
-// Ack seeds "this token arrived" for a batch, discarding Write's always-nil
-// error.
+// Ack seeds "this token arrived", discarding Write's always-nil error.
 func (f *FakeAckChannel) Ack(batch, token string) { _ = f.Write(batch, token) }
 
 // Collect returns a copy of the batch's token set, non-nil even when empty, or

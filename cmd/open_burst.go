@@ -15,14 +15,11 @@ func runOpenBurst(cmd *cobra.Command, surfaces []spawn.Surface, command []string
 	return runOpenBurstWithDeps(cmd, surfaces, command, buildOpenBurstDeps(cmd))
 }
 
-// The multi-target gate needs the raw argv, not cobra's parsed buckets: cobra
-// collapses both the left-to-right target order and repeated same-flag values.
 var openRawArgs = func() []string { return os.Args }
 
-// openOwnArgs returns the tokens after the `open` subcommand. It assumes no
-// value-taking flag precedes that token, which holds because Portal declares no
-// such global flag. With no `open` token at all — under `go test` — it returns
-// nil and the multi-target gate stays inert.
+// openOwnArgs assumes no value-taking flag precedes the `open` token, which
+// holds because Portal declares no such global flag. With no `open` token at all
+// it returns nil, leaving the multi-target gate inert.
 func openOwnArgs() []string {
 	raw := openRawArgs()
 	for i := 1; i < len(raw); i++ {

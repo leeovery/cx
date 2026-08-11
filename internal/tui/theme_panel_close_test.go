@@ -220,7 +220,7 @@ func TestPanelClose_EnumerationDiscarded(t *testing.T) {
 		t.Errorf("close retained width %d, want 0", got)
 	}
 	// `bubbles/list` exports no delegate accessor, so the keymap stands in for
-	// checking the delegate was replaced: a live list binds `up`, the zero value nothing.
+	// the delegate: a live list binds `up`, the zero value nothing.
 	if got := len(m.themePanel.list.Items()); got != 0 {
 		t.Errorf("close retained %d list items, want 0", got)
 	}
@@ -498,8 +498,6 @@ func TestPanelClose_ForcedCloseUsesTheSameFunction(t *testing.T) {
 	})
 }
 
-// Matches the empty `themePanel{}` literal specifically, so a populated install
-// or a field-level write is not counted as a discard.
 func panelDiscardSites(t *testing.T) []string {
 	t.Helper()
 	var sites []string

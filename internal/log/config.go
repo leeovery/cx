@@ -13,9 +13,8 @@ const (
 	suffixG int64 = 1024 * 1024 * 1024
 )
 
-// resolveRotateSize parses a base-10 integer with an optional case-insensitive
-// K/M/G binary suffix. Zero is rejected along with the malformed cases: a 0-byte
-// cap would rotate on every write.
+// resolveRotateSize rejects zero along with the malformed cases: a 0-byte cap
+// would rotate on every write.
 func resolveRotateSize(raw string) (int64, string) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -57,9 +56,8 @@ const defaultRetentionDays = 30
 
 const maxRetentionDays = 365
 
-// resolveRetentionDays accepts an integer in [0, 365], with 0 valid — it means
-// "keep only today". The raw value is returned verbatim for the invalid-value
-// warning.
+// resolveRetentionDays treats 0 as valid — it means "keep only today". raw is
+// echoed back verbatim for the invalid-value warning.
 func resolveRetentionDays(raw string) (int, string, string) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

@@ -15,13 +15,10 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// A shared constant rather than a literal in the fake, so an assertion on the
-// retained enumeration is pinned to what the seam actually handed back.
 const fixtureThemesDir = "/fixture/themes"
 
-// A zero resolution names no slot, which the open's degrade policy reads as "leave
-// all three exactly as they were" — cases declaring none are asserting the open
-// cadence, not its resolution.
+// A zero resolution names no slot, which the open's degrade policy reads as
+// "leave all three as they were": such cases assert the cadence, not the result.
 func newOpenEnumerator(union theme.Union) *fakeThemeSource {
 	return &fakeThemeSource{
 		enumeration: theme.Enumeration{DirPath: fixtureThemesDir},
@@ -30,8 +27,7 @@ func newOpenEnumerator(union theme.Union) *fakeThemeSource {
 }
 
 // The production adapter embedded rather than restated, so counting is the only
-// behaviour added: a re-implementation could drift from the seam production wires
-// while both still compiled.
+// behaviour added: a re-implementation could drift and still compile.
 type countingThemeSource struct {
 	theme.DirThemeSource
 	opens int
@@ -54,8 +50,6 @@ func themeOpenTestUnion() theme.Union {
 	return themeRowsUnion(rows)
 }
 
-// Built through the shared Build chokepoint, so the assertions cover the
-// production wiring rather than a struct literal.
 func themeOpenTestModel(t *testing.T, enumerator ThemeSource, keys theme.RawKeys) Model {
 	t.Helper()
 	return Build(Deps{
@@ -103,9 +97,8 @@ func countThemeEvents(sink *logtest.Sink, msg string) int {
 	return len(themeEventRecords(sink, msg))
 }
 
-// One colour across the whole palette is deliberate: comparing a single token
-// identifies which file was parsed, and an unparseable value makes every token
-// bad, so a rejection does not turn on which token the loader reaches first.
+// One colour across the whole palette, deliberately: a single token identifies
+// which file was parsed, and an unparseable value makes every token bad.
 func writeThemeFileForTest(t *testing.T, dir, base, value string) {
 	t.Helper()
 
@@ -182,8 +175,6 @@ func TestThemePanelOpen_BoundOnBothPages(t *testing.T) {
 	}
 }
 
-// While `/` is focused `t` is a literal filter character, so the binding must sit
-// below each page's SettingFilter guard rather than above it.
 func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	t.Run("sessions", func(t *testing.T) {
 		enumerator := newOpenEnumerator(themeOpenTestUnion())
@@ -229,9 +220,8 @@ func TestThemePanelOpen_FilterCarveOut(t *testing.T) {
 	})
 }
 
-// Auto-discovery must not turn one config read into an N-file scan-parse-validate
-// sweep on a latency-engineered cold path. The directory is populated, so a
-// construction-time sweep would be visible as a call and as a log record.
+// The directory is populated, so a construction-time sweep would be visible as
+// both a call and a log record.
 func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -258,8 +248,8 @@ func TestThemePanelOpen_NoEnumerationAtConstruction(t *testing.T) {
 	themePanelRowFor(t, m, "sunset")
 }
 
-// Caching buys nothing measurable while breaking the drop-in loop. `theme:
-// enumerated` is a per-event INFO with no dedup, so three opens are three records.
+// `theme: enumerated` is a per-event INFO with no dedup, so three opens are
+// three records.
 func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -284,8 +274,6 @@ func TestThemePanelOpen_ReEnumeratesPerOpen(t *testing.T) {
 	}
 }
 
-// The loop re-reading exists to serve — copy a built-in, edit it, see it, without
-// relaunching Portal — driven in the direction that matters most.
 func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
@@ -307,13 +295,10 @@ func TestThemePanelOpen_SeesAMidSessionEdit(t *testing.T) {
 	}
 }
 
-// The retention half asserts the entries and not merely the path: an enumeration
-// dropped on the floor at open would silently re-derive a union of built-ins alone
-// — every drop-in row vanishing the moment the user commits, with nothing erroring.
 func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	dir := t.TempDir()
 	// Seeded before the first open so the retained enumeration has an entry to
-	// carry, and named other than `sunset` so the mid-test write is a mutation.
+	// carry, and named other than `sunset` so the later write is a mutation.
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
 	loader, _ := themeOpenTestLoader(t)
 	m := themeOpenTestModel(t, countingEnumeratorOver(loader, dir), theme.RawKeys{})
@@ -345,11 +330,8 @@ func TestThemePanelOpen_EnumerationDiscardedOnClose(t *testing.T) {
 	themePanelRowFor(t, m, "sunset")
 }
 
-// A deliberate asymmetry with the fresh directory read: the themes directory is
-// what the drop-in loop edits by hand, whereas prefs.json is what Portal itself
-// writes, so re-reading it would import another instance's commit. The staged
-// prefs file puts a different answer on disk at the path the config layer
-// resolves to, so a re-read wired on by any route changes what this records.
+// The staged prefs file puts a different answer on disk at the path the config
+// layer resolves to, so a re-read wired on by any route changes what this records.
 func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	prefsFile := filepath.Join(t.TempDir(), "prefs.json")
 	if err := os.WriteFile(prefsFile, []byte(`{"theme":"nord"}`), 0o644); err != nil {
@@ -377,8 +359,6 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 			t.Errorf("open %d handed the seam %+v, want the construction-time snapshot %+v", i+1, got, construction)
 		}
 	}
-	// The same snapshot, uncollapsed: the tiebreak and the shipped-default
-	// substitution are the seam's.
 	if len(enumerator.resolves) == 0 {
 		t.Fatal("the seam was asked to resolve nothing across two opens")
 	}
@@ -392,8 +372,6 @@ func TestThemePanelOpen_UsesConstructionTimePrefsSnapshot(t *testing.T) {
 	}
 }
 
-// A badge needs the persisted slug, not the nomination's: under a fallback the two
-// differ by design, and the fixture is exactly that case.
 func TestThemePanelOpen_BadgesFromTheSeamsResolution(t *testing.T) {
 	enumerator := newOpenEnumerator(themeOpenTestUnion())
 	enumerator.resolution = theme.Resolution{
@@ -429,11 +407,9 @@ func TestThemePanelOpen_NilSeamIsASilentNoOp(t *testing.T) {
 	}
 }
 
-// `bubbles/list` reads its dot strings out of its styles once, so a panel list
-// left at the library defaults renders the same hardcoded greys under every theme
-// — identical before and after a swap, which a swap-and-diff guard cannot see.
-// The light case is the one that bites: the construction seed is the dark
-// built-in, so dots taken from the seed would pass the dark case alone.
+// `bubbles/list` reads its dot strings out of its styles once, so library
+// defaults render identically before and after a swap — invisible to a
+// swap-and-diff guard. The seed is the dark built-in, hence the light case.
 func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	rows := themePanelTestRows(20)
 	union := themeRowsUnion(rows)
@@ -467,8 +443,6 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 		m := themeOpenTestModel(t, newOpenEnumerator(union), theme.RawKeys{})
 		m.colourless = true
 
-		// The entry gate blocks `t` under NO_COLOR, so the colourless panel is armed
-		// directly: this asserts the colourless render, not that it can be opened.
 		m = armPanelUnderNoColorForTest(t, m)
 
 		row := themePanelDotRow(t, renderThemePanel(m.themePanel, 16, testDarkTheme(t), true))
@@ -483,10 +457,8 @@ func TestThemePanelOpen_ThemesThePaginationDots(t *testing.T) {
 	})
 }
 
-// `bubbles/list`'s own paginator dot colours as truecolor SGR parameters — what a
-// panel list left at the library defaults renders under every theme. Stated as the
-// thing that must be absent: identical before and after a swap is exactly what a
-// swap-and-diff guard cannot report.
+// `bubbles/list`'s own paginator dot colours as truecolor SGR parameters — what
+// a panel list left at the library defaults renders under every theme.
 var bubblesDefaultDotGreys = []string{"38;2;151;151;151", "38;2;60;60;60"}
 
 func themePanelDotRow(t *testing.T, block string) string {
@@ -504,8 +476,6 @@ func themePanelDotRow(t *testing.T, block string) string {
 	return ""
 }
 
-// Each swallowed key carries a control press with the panel closed, so a key that
-// silently stopped working outside the panel could not pass this as a swallow.
 func TestThemePanelOpen_SwallowsPageKeys(t *testing.T) {
 	newModel := func(t *testing.T) Model {
 		t.Helper()

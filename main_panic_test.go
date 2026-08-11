@@ -10,9 +10,8 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// captureHandler is an in-memory slog.Handler recording every Handle call.
-// WithAttrs returns the receiver, so a bound component attr is observed at
-// Handle time rather than re-bound.
+// WithAttrs returns the receiver, so a bound component attr is observed at Handle
+// time rather than re-bound.
 type captureHandler struct {
 	mu      sync.Mutex
 	records []slog.Record

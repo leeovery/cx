@@ -6,17 +6,15 @@ import (
 	"time"
 )
 
-// fataller lets a unit test drive the timeout branch with an in-memory fake
-// instead of aborting the test process.
+// fataller lets a unit test drive the timeout branch without aborting itself.
 type fataller interface {
 	Helper()
 	Name() string
 	Fatalf(format string, args ...any)
 }
 
-// WaitForFileExists polls path every tick until it exists or budget elapses,
-// failing the test on timeout. tick is mandatory: the call sites it replaced
-// disagreed on cadence, so the caller must be explicit.
+// WaitForFileExists fails the test on timeout. tick is mandatory so every
+// caller states its own polling cadence.
 func WaitForFileExists(t *testing.T, path string, budget, tick time.Duration) {
 	t.Helper()
 	waitForFileExists(t, path, budget, tick)

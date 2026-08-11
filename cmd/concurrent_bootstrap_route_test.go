@@ -8,8 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// coldCommander reads the @portal-bootstrapped latch as unsatisfied, the
-// full-bootstrap signal.
 func coldCommander() *recordingCommander {
 	return &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -55,8 +53,6 @@ func TestPersistentPreRunE_LatchedTUI_TakesAbridgedPath(t *testing.T) {
 	resetBootstrapOnce(t)
 	resetBootstrapWarnings(t)
 
-	// A satisfied latch plus a live saver, so the abridged saver-liveness probe
-	// is a no-op.
 	client := tmux.NewClient(satisfiedLatchAliveSaverCommander())
 	runner := &recordingRunner{started: false}
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}

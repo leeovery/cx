@@ -38,7 +38,7 @@ func TestBuildOpenBurstDeps_PartialInjectionKeepsInjectedFillsRest(t *testing.T)
 		t.Cleanup(func() { openBurstDeps = nil })
 
 		// Records rather than executing the real openPath side effect, so an
-		// overwritten LocalMint is caught by the assertion instead.
+		// overwritten LocalMint surfaces as a recorded call instead of a real open.
 		origOpenPath := openPathFunc
 		openPathRouted := false
 		openPathFunc = func(*cobra.Command, string, []string) error {

@@ -6,9 +6,7 @@ import (
 	"github.com/leeovery/portal/internal/resolver"
 )
 
-// Target is one element of the ordered open target-set union: a value plus the
-// domain it resolves under. DomainBare marks a positional that runs the full
-// precedence chain.
+// DomainBare marks a positional that runs the full precedence chain.
 type Target struct {
 	Value  string
 	Domain resolver.Domain
@@ -18,11 +16,9 @@ type Target struct {
 // value-taking flag needs an entry here (long form and any short form), or
 // orderedOpenTargets treats it as arity-0 and misroutes its value as a bare
 // positional. An excluded flag maps to the empty domain — its value is consumed
-// off the argv but never emitted as a target.
-//
-// Bundled value shorthands (`-sf`) are deliberately out of contract: absent from
-// this map, such a token is skipped rather than attributed a value. That
-// divergence from cobra's bundling is intended.
+// off the argv but never emitted as a target. Bundled value shorthands (`-sf`)
+// are deliberately absent, so such a token is skipped rather than attributed a
+// value; that divergence from cobra's bundling is intended.
 var openTargetPins = map[string]resolver.Domain{
 	"-s": resolver.DomainSession, "--session": resolver.DomainSession,
 	"-p": resolver.DomainPath, "--path": resolver.DomainPath,
@@ -33,13 +29,10 @@ var openTargetPins = map[string]resolver.Domain{
 	"--ack": "",
 }
 
-// orderedOpenTargets recovers the left-to-right union of positionals and pin
-// occurrences from a raw open argv slice. cobra's StringP collapses repeated
-// same-flag values and splits positionals from flags, losing the interleaved
-// order and repeats this scan preserves.
-//
-// It is a pure classifier, not a validator: cobra already accepted the argv, so
-// no token is rejected, only attributed. Repeats are honoured, never deduped.
+// orderedOpenTargets recovers the interleaved order and repeats that cobra's
+// StringP parsing loses. It is a pure classifier, not a validator: cobra already
+// accepted the argv, so no token is rejected, only attributed. Repeats are
+// honoured, never deduped.
 func orderedOpenTargets(args []string) []Target {
 	var targets []Target
 	for i := 0; i < len(args); i++ {
@@ -56,8 +49,8 @@ func orderedOpenTargets(args []string) []Target {
 			continue
 		}
 
-		// The equals form (-s=api) splits on the first '='; the space form leaves
-		// value empty until the next token.
+		// The -s=api form splits here; the space form leaves value empty for the
+		// next token to fill.
 		name, value, hasInlineValue := strings.Cut(tok, "=")
 
 		domain, known := openTargetPins[name]

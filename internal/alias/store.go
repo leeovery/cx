@@ -1,4 +1,3 @@
-// Package alias provides persistence for path aliases in a flat key=value file.
 package alias
 
 import (
@@ -18,13 +17,11 @@ import (
 // `aliases: <verb>` grep idiom and `grep op=set` filtering both work.
 var logger = log.For("aliases")
 
-// Alias represents a single name-to-path mapping.
 type Alias struct {
 	Name string
 	Path string
 }
 
-// Store manages persistence of alias data to a flat key=value file.
 type Store struct {
 	path    string
 	aliases map[string]string
@@ -75,11 +72,9 @@ func (s *Store) Load() (map[string]string, error) {
 	return s.aliases, nil
 }
 
-// Save writes all aliases to the file in sorted key=value format, creating the
-// parent directory if needed. The write is in place, not atomic.
-//
-// Failures are wrapped in fileutil's write-phase sentinels — a missing directory
-// as ErrWriteTempCreate, since the closed error_class space has no mkdir phase —
+// Save writes all aliases in sorted key=value format, creating the parent
+// directory if needed. The write is in place, not atomic. Failures are wrapped in
+// fileutil's write-phase sentinels — a missing directory as ErrWriteTempCreate —
 // so the audited methods can classify them without their own token table.
 func (s *Store) Save() error {
 	dir := filepath.Dir(s.path)
@@ -101,18 +96,18 @@ func (s *Store) Save() error {
 	return nil
 }
 
-// Get returns the path for the given alias name and whether it was found.
 func (s *Store) Get(name string) (string, bool) {
 	path, ok := s.aliases[name]
 	return path, ok
 }
 
-// Set adds or overwrites an in-memory alias. Each name maps to one path.
+// Set adds or overwrites an in-memory alias; it does not persist.
 func (s *Store) Set(name, path string) {
 	s.aliases[name] = path
 }
 
-// Delete removes the in-memory alias, reporting whether it existed.
+// Delete removes the in-memory alias without persisting, reporting whether it
+// existed.
 func (s *Store) Delete(name string) bool {
 	_, ok := s.aliases[name]
 	if ok {
@@ -122,9 +117,8 @@ func (s *Store) Delete(name string) bool {
 }
 
 // SetAndSave adds or updates an alias, persists it and emits the audit
-// breadcrumb. Re-setting an alias to the path it already has is a no-op: the
-// file is left untouched. via records the mutation origin: cli, internal or
-// migrate.
+// breadcrumb. Re-setting an alias to the path it already has is a no-op: the file
+// is left untouched. via records the mutation origin: cli, internal or migrate.
 func (s *Store) SetAndSave(name, path, via string) error {
 	existing, present := s.aliases[name]
 	if present && existing == path {
@@ -168,8 +162,8 @@ func (s *Store) DeleteAndSave(name, via string) (existed bool, err error) {
 	return true, nil
 }
 
-// Keys returns all alias names sorted, exposing the key namespace for glob
-// enumeration without the name-to-path shape List returns.
+// Keys returns all alias names sorted — the key namespace for glob enumeration,
+// without List's name-to-path shape.
 func (s *Store) Keys() []string {
 	keys := make([]string, 0, len(s.aliases))
 	for name := range s.aliases {

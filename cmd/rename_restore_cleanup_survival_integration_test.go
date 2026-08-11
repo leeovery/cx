@@ -46,9 +46,6 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 		t.Fatalf("id-key = %q; want %q (id-key must not embed the name)", liveKey, renameRestorePortalID+":0.0")
 	}
 
-	// Non-vacuous guard: a missing re-stamp resolves the live key to the name
-	// instead, which would otherwise let the survival assertion pass for the
-	// wrong reason.
 	assertLiveHookKeyPresent(t, client, liveKey)
 	assertLiveHookKeyAbsent(t, client, renameRestoreName+":0.0")
 
@@ -61,8 +58,6 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 }`
 	store, path := newTempHooksStore(t, seed)
 
-	// Non-vacuous seed guard: neither outcome may pass because its entry was
-	// never written.
 	preRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
@@ -94,9 +89,8 @@ func TestRenameRestoreCleanupSurvival_KeepsRestoredIdKeyedHook(t *testing.T) {
 	}
 }
 
-// assertLiveHookKeyAbsent pins that cleanup does not see the post-rename name
-// key: the re-stamp makes the id-key win, so the name key must be absent from
-// the live-key set.
+// The re-stamp makes the id-key win, so the post-rename name key must be absent
+// from the live-key set.
 func assertLiveHookKeyAbsent(t *testing.T, lister AllPaneLister, notWant string) {
 	t.Helper()
 	live, err := lister.ListAllPaneHookKeys()

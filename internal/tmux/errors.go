@@ -9,13 +9,11 @@ import (
 )
 
 // ErrNoSuchSession is wrapped into the error of a per-session tmux operation
-// whose stderr reports that the addressed session does not exist; discriminate
-// with errors.Is. Layers above internal/tmux must not substring-match tmux
-// stderr themselves — tmux's phrasing is not a stable contract, so the
-// classification stays behind this sentinel.
-//
-// Identity-equal to tmuxerr.ErrNoSuchSession, which lives in a leaf package so
-// internal/state can classify against it without an import cycle.
+// whose stderr reports the addressed session does not exist; discriminate with
+// errors.Is. Layers above internal/tmux must not substring-match tmux stderr
+// themselves — tmux's phrasing is not a stable contract. It is identity-equal to
+// tmuxerr.ErrNoSuchSession, which lives in a leaf package so internal/state can
+// classify against it without an import cycle.
 var ErrNoSuchSession = tmuxerr.ErrNoSuchSession
 
 // ErrEmptyPaneList reports that a pane enumeration succeeded against a session
@@ -23,8 +21,8 @@ var ErrNoSuchSession = tmuxerr.ErrNoSuchSession
 // mid-respawn), observably distinct from ErrNoSuchSession.
 var ErrEmptyPaneList = errors.New("empty pane list")
 
-// ErrPanePIDParse reports that a pane enumeration returned a first line that
-// is not a base-10 pane pid.
+// ErrPanePIDParse reports a pane enumeration whose first line is not a base-10
+// pane pid.
 var ErrPanePIDParse = errors.New("pane pid parse")
 
 // Case-sensitive on purpose: tmux emits the lowercase form, and a loose match

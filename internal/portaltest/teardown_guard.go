@@ -10,8 +10,7 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// Generous against observed writer lifetimes: a healthy teardown exits after one
-// or two polls.
+// Generous: a healthy teardown exits after one or two polls.
 const teardownGuardBudget = 3 * time.Second
 
 const teardownGuardPollTick = 50 * time.Millisecond
@@ -19,7 +18,6 @@ const teardownGuardPollTick = 50 * time.Millisecond
 // RegisterStateDirTeardownGuard registers a bounded cleanup wait for stateDir's
 // writers to finish, so a daemon's shutdown flush or a straggler hook subprocess
 // cannot land a file mid-RemoveAll and fail the test with "directory not empty".
-//
 // Call order is load-bearing: register after the state dir exists and before
 // tmuxtest.New, so LIFO cleanup runs this after kill-server and before the
 // RemoveAll it protects.
@@ -49,8 +47,8 @@ func RegisterStateDirTeardownGuard(t *testing.T, stateDir string) {
 	})
 }
 
-// dirShapeSnapshot folds errors into the returned string, so two identical error
-// states also count as quiescent.
+// Errors are folded into the string, so two identical error states also count as
+// quiescent.
 func dirShapeSnapshot(dir string) string {
 	var b strings.Builder
 	var walk func(string)

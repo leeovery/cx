@@ -11,10 +11,8 @@ const (
 	sourceFallback = "fallback"
 )
 
-// resolveLevel matches on the trimmed, lowercased form of raw against
-// debug/info/warn/error; the legacy "warning" alias is deliberately not
-// accepted. raw is echoed back verbatim so the invalid-value warning can render
-// the exact user input.
+// resolveLevel deliberately does not accept the legacy "warning" alias. raw is
+// echoed back verbatim so the invalid-value warning can render the user's input.
 func resolveLevel(raw string) (lvl slog.Level, source string, observed string) {
 	normalized := strings.ToLower(strings.TrimSpace(raw))
 	if normalized == "" {

@@ -13,20 +13,18 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// LivePaneLister enumerates live tmux panes. The error-propagating variant is
-// mandatory: a silently-empty result would read as "no live panes" and
-// mass-unset every marker.
+// LivePaneLister must propagate errors: a silently-empty result would read as
+// "no live panes" and mass-unset every marker.
 type LivePaneLister interface {
 	ListAllPanesWithFormat(format string) (string, error)
 }
 
-// MarkerUnsetter clears a single tmux server option by name.
 type MarkerUnsetter interface {
 	UnsetServerOption(name string) error
 }
 
-// MarkerCleanupCore unsets every `@portal-skeleton-*` marker whose paneKey is
-// absent from the live-pane set. Logger is nil-tolerant.
+// MarkerCleanupCore unsets stale `@portal-skeleton-*` markers. Logger is
+// nil-tolerant.
 type MarkerCleanupCore struct {
 	Markers  state.ServerOptionLister
 	Panes    LivePaneLister
@@ -36,10 +34,9 @@ type MarkerCleanupCore struct {
 
 var _ MarkerCleaner = (*MarkerCleanupCore)(nil)
 
-// CleanStaleMarkers unsets every marker whose paneKey is absent from the
-// live-pane set. Per-marker unset failures are joined and returned after the
+// CleanStaleMarkers joins per-marker unset failures and returns them after the
 // loop rather than aborting it, so one transient tmux error cannot strand the
-// remaining stale markers; every non-nil return is soft, never a *FatalError.
+// remaining stale markers. Every non-nil return is soft, never a *FatalError.
 func (c *MarkerCleanupCore) CleanStaleMarkers() error {
 	// Local, not c.Logger: the receiver must not be rewritten across calls.
 	logger := log.OrDiscard(c.Logger)
@@ -64,9 +61,8 @@ func (c *MarkerCleanupCore) CleanStaleMarkers() error {
 
 	live := parseLivePaneSet(raw, logger)
 
-	// Must run before any unset: an empty live-pane result must never be read
-	// as "nothing is alive" and mass-unset every marker. The deferral rides the
-	// log, so the return value carries only genuine dependency failures.
+	// An empty live-pane result must never be read as "nothing is alive" and
+	// mass-unset every marker; the skip rides the log, not the return value.
 	if len(live) == 0 {
 		if len(markers) == 0 {
 			summarise()

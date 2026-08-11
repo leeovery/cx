@@ -57,9 +57,8 @@ func TestPhase5RebootRoundTripBaseIndexDrift(t *testing.T) {
 func runRebootRoundTrip(t *testing.T, cfg roundTripCfg) {
 	t.Helper()
 
-	// The portal binary must be on PATH: restored panes respawn into
-	// `portal state hydrate`, and without it the pane dies before the
-	// assertions run.
+	// Restored panes respawn into `portal state hydrate`, so the binary must be
+	// on PATH or the pane dies before the assertions run.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 

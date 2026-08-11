@@ -6,9 +6,8 @@ import (
 	"time"
 )
 
-// LogLine holds the fields parsed from one rendered portal.log text line. Message
-// is the human message only: contextual attrs and the pid/version/process_role
-// baselines are excluded.
+// LogLine holds one parsed portal.log line. Message is the human message only —
+// contextual attrs and the pid/version/process_role baselines are excluded.
 type LogLine struct {
 	Time      time.Time
 	Level     string
@@ -17,14 +16,11 @@ type LogLine struct {
 }
 
 // Anchored so only a token that genuinely opens a key=value attr pair matches,
-// never a key=value-shaped fragment inside a quoted multi-word value. It marks
-// the boundary between the message and the trailing attrs.
+// never a key=value-shaped fragment inside a quoted multi-word value.
 var attrKeyToken = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*=`)
 
-// ParseLogLine is the inverse of textHandler's line format. ok is false for any
-// line that does not match it: fewer than two whitespace-delimited tokens, a
-// first token that is not an RFC3339Nano timestamp, or no component-delimiting
-// colon.
+// ParseLogLine is the inverse of textHandler's line format; ok is false for any
+// line that does not match it.
 func ParseLogLine(line string) (parsed LogLine, ok bool) {
 	tokens := strings.Fields(line)
 	if len(tokens) < 2 {

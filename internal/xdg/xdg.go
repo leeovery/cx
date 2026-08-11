@@ -1,6 +1,5 @@
-// Package xdg resolves XDG Base Directory paths for Portal. It is a dependency-
-// free leaf, so any package may import it and $XDG_CONFIG_HOME resolution has a
-// single home.
+// Package xdg resolves XDG Base Directory paths for Portal. A dependency-free
+// leaf, so any package may import it rather than re-implementing the resolution.
 package xdg
 
 import (

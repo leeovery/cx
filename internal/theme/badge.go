@@ -1,10 +1,8 @@
 package theme
 
-// Badge is the theme panel's `●` marker: what is persisted, as distinct from
-// the cursor's browse position. A badge legitimately sits on an unselectable
-// row (a persisted-but-broken theme) — never infer selectability from one.
-// Badges render in `accent.primary`, never `state.positive`, which would read
-// as session liveness.
+// Badge is the theme panel's `●` marker: what is persisted, as distinct from the
+// cursor's browse position. A badge legitimately sits on an unselectable row (a
+// persisted-but-broken theme), so never infer selectability from one.
 type Badge int
 
 const (
@@ -19,7 +17,7 @@ const (
 
 // Badges is the panel's badge table: which slug carries a `●`, in which shape.
 // Keyed on SlotResolution.Requested, never Resolved — Resolved would move the
-// badge onto a fallback theme the user never chose. Nil or empty slice yields
+// badge onto a fallback theme the user never chose. A nil or empty slice yields
 // an empty map.
 func Badges(slots []SlotResolution) map[string]Badge {
 	if isConstantSetting(slots) {
@@ -39,9 +37,8 @@ func Badges(slots []SlotResolution) map[string]Badge {
 
 // BadgeKey is the value a Row is looked up in Badges' map by: the row's
 // Identity, except a reserved-name rejection returns "" — its slug equals the
-// built-in's, and an identity lookup would paint `●` on both rows. Look
-// badges up through this method, never via Slug directly, or that
-// double-badge reopens.
+// built-in's, and an identity lookup would paint `●` on both rows. Look badges
+// up through this method, never via Slug directly, or that double-badge reopens.
 func (r Row) BadgeKey() string {
 	if r.Rejection != nil && r.Rejection.Reason == ReasonReservedName {
 		return ""
@@ -63,7 +60,7 @@ func collapsed(existing, arriving Badge) Badge {
 }
 
 // SlotConstant deliberately yields BadgeNone: the constant form is reachable
-// only through the one-slot shape, so a mixed slice never renders both forms.
+// through the one-slot shape alone.
 func slotBadge(s Slot) Badge {
 	switch s {
 	case SlotLight:

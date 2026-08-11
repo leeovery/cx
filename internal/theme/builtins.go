@@ -6,11 +6,9 @@ import (
 	"strings"
 )
 
-// DefaultDarkSlug and DefaultLightSlug are both the shipped adaptive pair and
-// the per-slot mode-matched fallbacks (an unloadable constant `theme` falls to
-// DefaultDarkSlug). The roles sharing values is load-bearing — changing them
-// silently breaks the shipped pair's degradation — and both must resolve
-// within the embedded set, or every fallback becomes unresolvable.
+// These are both the shipped adaptive pair and the per-slot mode-matched
+// fallbacks (an unloadable constant `theme` falls to DefaultDarkSlug). Both must
+// name a theme in the embedded set, or every fallback becomes unresolvable.
 const (
 	DefaultDarkSlug  = "tokyo-night"
 	DefaultLightSlug = "tokyo-night-day"
@@ -18,18 +16,17 @@ const (
 
 const builtinDir = "builtins"
 
-// builtinFS holds the built-in themes as .theme files, parsed by the same
-// loader as a drop-in, so adding a theme is adding a file. Embedding is not
-// config discovery — no path, env var or filesystem at runtime — so the
-// built-in lookup stays reachable where config discovery is forbidden.
+// The built-ins are .theme files parsed by the same loader as a drop-in, so
+// adding a theme is adding a file. Embedding reads no path, env var or
+// filesystem, so the lookup stays reachable where config discovery is forbidden.
 //
 //go:embed builtins/*.theme
 var builtinFS embed.FS
 
 // BuiltinBytes returns the embedded source of the built-in named slug, and
-// whether there is one. The bytes are the file's verbatim, in a fresh slice a
-// caller may mutate; a miss is an ordinary not-found, never an error (embed
-// matches exactly and rejects `..`, so a hostile slug can only miss).
+// whether there is one. The bytes are verbatim, in a fresh slice a caller may
+// mutate; a miss is an ordinary not-found, never an error (embed matches exactly
+// and rejects `..`, so a hostile slug can only miss).
 func BuiltinBytes(slug string) ([]byte, bool) {
 	data, err := builtinFS.ReadFile(builtinDir + "/" + slug + FileExtension)
 	if err != nil {
@@ -39,8 +36,8 @@ func BuiltinBytes(slug string) ([]byte, bool) {
 }
 
 // BuiltinSlugs returns the slug of every built-in, sorted. Derived from the
-// embedded filenames, never a restated Go list; the sort runs after
-// extension-stripping because stripping can reorder two names.
+// embedded filenames rather than a restated Go list; the sort runs after
+// extension-stripping, because stripping can reorder two names.
 func BuiltinSlugs() []string {
 	entries, err := builtinFS.ReadDir(builtinDir)
 	if err != nil {
@@ -66,12 +63,11 @@ func builtinSlugSet() map[string]struct{} {
 	return set
 }
 
-// LoadBuiltin loads the built-in named slug: the same shape LoadFile returns,
-// whether the slug names a built-in at all, and — if its file is broken — why.
-// The third return is found, not an error: an unknown slug routinely sends
-// by-name resolution on to the themes directory. It deliberately skips the
-// ladder's two filename rungs (checking a built-in against the reserved set
-// would be asking whether it shadows itself) and touches no filesystem.
+// LoadBuiltin loads the built-in named slug. The third return is found, not an
+// error: an unknown slug routinely sends by-name resolution on to the themes
+// directory. It skips the ladder's filename rungs — checking a built-in against
+// the reserved set would be asking whether it shadows itself — and touches no
+// filesystem.
 func (l Loader) LoadBuiltin(slug string) (Result, *Rejection, bool) {
 	data, found := l.builtinBytes(slug)
 	if !found {
@@ -86,8 +82,6 @@ func (l Loader) LoadBuiltin(slug string) (Result, *Rejection, bool) {
 	return Result{Slug: slug, Theme: built, Source: data}, nil, true
 }
 
-// The seam exists so the broken-binary state — a fallback's built-in missing
-// or invalid — can be staged at all.
 func (l Loader) builtinBytes(slug string) ([]byte, bool) {
 	if l.BuiltinSource == nil {
 		return BuiltinBytes(slug)

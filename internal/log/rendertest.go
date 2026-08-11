@@ -7,19 +7,15 @@ import (
 )
 
 // Fixed rather than derived from the live process, so a rendered fixture is
-// identical across runs and machines. Single-token values need no quoting.
+// identical across runs and machines.
 const (
 	testRenderPID         = 0
 	testRenderVersion     = "test"
 	testRenderProcessRole = "test"
 )
 
-// RenderLineForTest renders one record to its canonical portal.log line through
-// the production render path, without driving Init. It mutates no process-global
-// state and writes to no sink.
-//
-// Production code must never call it; the *testing.T-first parameter makes that
-// structural.
+// RenderLineForTest renders one record through the production render path
+// without driving Init, mutating no process-global state and writing to no sink.
 func RenderLineForTest(t *testing.T, ts time.Time, level slog.Level, component, message string, attrs ...slog.Attr) string {
 	t.Helper()
 

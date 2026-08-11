@@ -12,8 +12,8 @@ import (
 
 var openBurstDeps *OpenBurstDeps
 
-// OpenBurstDeps allows injecting dependencies for the multi-target open burst.
-// Every unset field falls back to its production implementation.
+// OpenBurstDeps overrides production dependencies; an unset field falls back to
+// the production implementation.
 type OpenBurstDeps struct {
 	Detector   TerminalDetector
 	Resolve    spawn.AdapterResolver
@@ -27,9 +27,8 @@ type OpenBurstDeps struct {
 	LocalMint func(cmd *cobra.Command, dir string, command []string) error
 }
 
-// buildOpenBurstDeps keeps injected fields and defaults the rest. The shared
-// seam bundle is memoised lazily so a fully-injected caller never resolves a tmux
-// client (there is none in context) nor loads terminals.json.
+// The shared seam bundle is memoised lazily so a fully-injected caller never
+// resolves a tmux client (there is none in context) nor loads terminals.json.
 func buildOpenBurstDeps(cmd *cobra.Command) *OpenBurstDeps {
 	deps := &OpenBurstDeps{}
 	if openBurstDeps != nil {
@@ -84,13 +83,10 @@ func buildOpenBurstDeps(cmd *cobra.Command) *OpenBurstDeps {
 	return deps
 }
 
-// runOpenBurstWithDeps opens the N≥2 resolved surfaces of a multi-target open:
-// the trigger (the first surface in command-line order) absorbs the invoking
-// terminal and self-connects last, while the N−1 non-trigger surfaces are spawned
-// first into host-terminal windows. Requires len(surfaces) >= 2.
-//
-// The order is load-bearing outside tmux: the trigger's connector exec-replaces
-// the Portal process, so connecting first would destroy the burster and open only
+// runOpenBurstWithDeps requires len(surfaces) >= 2. The trigger (first in
+// command-line order) absorbs the invoking terminal and self-connects LAST,
+// after the N−1 external windows: outside tmux its connector exec-replaces the
+// Portal process, so connecting first would destroy the burster and open only
 // one surface. Duplicates in the surface set are honoured, never deduped.
 func runOpenBurstWithDeps(cmd *cobra.Command, surfaces []spawn.Surface, command []string, deps *OpenBurstDeps) error {
 	// A command rides mint windows only, so a set of pure attaches has nowhere to
@@ -122,9 +118,8 @@ func runOpenBurstWithDeps(cmd *cobra.Command, surfaces []spawn.Surface, command 
 	_ = deps.Ack.Clean(batch)
 
 	// The trigger's self-connect below is independent of these outcomes: its target
-	// is unrelated to the externals', so reporting must not gate the connect. This
-	// diverges from the picker's burst, which skips its self-attach on any
-	// not-all-confirmed batch.
+	// is unrelated to the externals', so reporting must not gate it. This diverges
+	// from the picker's burst, which skips its self-attach on any failed batch.
 	confirmed, failed := spawn.PartitionResults(results)
 	total := len(surfaces)
 	if perm, ok := spawn.FirstPermission(results); ok {
@@ -142,11 +137,10 @@ func runOpenBurstWithDeps(cmd *cobra.Command, surfaces []spawn.Surface, command 
 		spawn.LogBatchSummary(deps.Logger, id, resolution, results, total, true, batch)
 	}
 
-	// The summary above optimistically counted the trigger's self-attach because it
-	// must be emitted before this connect (a successful outside-tmux attach
-	// exec-replaces the process and never returns). Only the connect-failure path
-	// reaches the corrective WARN, so portal.log is not left claiming an `opened
-	// N/N` that counts a trigger which never landed.
+	// The summary above optimistically counted the trigger's self-attach: it must
+	// be emitted before this connect, since a successful outside-tmux attach
+	// exec-replaces the process and never returns. The corrective WARN on the
+	// failure path stops portal.log claiming an `opened N/N` that never landed.
 	if err := connectTrigger(cmd, trigger, command, deps); err != nil {
 		spawn.LogTriggerConnectFailed(deps.Logger, trigger.Value, err.Error())
 		return err
@@ -163,9 +157,8 @@ func hasMintSurface(surfaces []spawn.Surface) bool {
 	return false
 }
 
-// connectTrigger self-connects the trigger surface in the invoking terminal.
-// This is where the inside/outside-tmux split is selected; the N−1 external
-// windows always run the spawned out-of-tmux argv.
+// connectTrigger is where the inside/outside-tmux split is selected; the N−1
+// external windows always run the spawned out-of-tmux argv.
 func connectTrigger(cmd *cobra.Command, trigger spawn.Surface, command []string, deps *OpenBurstDeps) error {
 	if trigger.Kind == spawn.SurfaceMint {
 		return deps.LocalMint(cmd, trigger.Value, command)

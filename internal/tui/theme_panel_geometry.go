@@ -22,9 +22,8 @@ const (
 
 	themePanelMinBodyRows = 1
 
-	// Counted even though the slot is unreserved when empty: neither contender
-	// can be suppressed, and a floor without it is one row short the moment a
-	// message appears.
+	// Counted even though the slot is unreserved when empty: the floor would be
+	// one row short the moment a message appears.
 	themePanelFloorMessageRows = 1
 )
 
@@ -46,9 +45,8 @@ func themePanelCompactHeaderShape() themePanelHeaderShape {
 }
 
 // Measured off the page's renderers, never literals, so the panel tracks page
-// chrome changes. The unfilled rows are an alignment luxury — never charged to
-// the render floor. Zero-width colourless measurement: row counts are functions
-// of content only.
+// chrome changes. Zero-width colourless measurement is safe: row counts are
+// functions of content only.
 func themePanelPageAlignedHeaderShape() themePanelHeaderShape {
 	label := lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true))
 	return themePanelHeaderShape{
@@ -59,8 +57,7 @@ func themePanelPageAlignedHeaderShape() themePanelHeaderShape {
 }
 
 // Decides the header shape; renderers must not re-decide it. Charging the blank
-// alignment rows to the floor would refuse terminals that can render everything
-// the panel needs.
+// alignment rows to the floor would refuse terminals that can render the panel.
 func themePanelHeaderShapeFor(height int, dirUnusable bool) themePanelHeaderShape {
 	pageAligned := themePanelPageAlignedHeaderShape()
 	if height >= themePanelFloorFor(pageAligned.rows, themePanelKeymap(), dirUnusable) {
@@ -90,10 +87,9 @@ func themePanelWidthFor(contentW int) (w int, ok bool) {
 	return themePanelMinWidth, contentW >= themePanelMinWidth
 }
 
-// Compact header cost, never page-aligned — its blank padding rows would
-// refuse a renderable panel. Pass the standing keymap scope, never the live
-// one: the confirm's shorter footer would admit terminals that cannot render
-// the panel once it resolves.
+// Compact header cost, never page-aligned — its blank padding rows would refuse a
+// renderable panel. Pass the standing keymap scope, never the live one: the
+// confirm's shorter footer would admit terminals that cannot render the panel.
 func themePanelMinHeight(entries []keymapEntry, dirUnusable bool) int {
 	return themePanelFloorFor(themePanelCompactHeaderRows, entries, dirUnusable)
 }
@@ -102,8 +98,8 @@ func themePanelFloorFor(headerRows int, entries []keymapEntry, dirUnusable bool)
 	return themePanelChromeRows(headerRows, dirUnusable, themePanelFloorMessageRows, entries) + themePanelMinBodyRows
 }
 
-// Single source of the chrome set the floor and the body budget share, so a
-// new component cannot reach one arithmetic and miss the other.
+// The floor and the body budget share this chrome set, so a new component cannot
+// reach one arithmetic and miss the other.
 func themePanelChromeRows(headerRows int, dirUnusable bool, messageRows int, footer []keymapEntry) int {
 	return headerRows +
 		themePanelDirRowHeight(dirUnusable) +
@@ -130,11 +126,9 @@ func themePanelInnerWidth(width int) int {
 }
 
 // The remainder is not trusted: `bubbles/list` renders a hard minimum of three
-// rows however few it is given, so renderThemePanel clamps the body — an
-// unclamped overshoot is cut off the footer. The footer entries are the live
-// scope; reserving the standing footer's rows while the confirm's shorter one
-// renders would leave rows unaccounted for. The height floor stays on the
-// standing scope (themePanelMinHeight).
+// rows however few it is given, so renderThemePanel clamps the body. The footer
+// entries are the live scope — reserving the standing footer's rows while the
+// confirm's shorter one renders would leave rows unaccounted for.
 func themePanelListSize(p themePanel, height int) (width, rows int) {
 	inner := themePanelInnerWidth(p.width)
 	reserved := themePanelChromeRows(

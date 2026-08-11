@@ -82,7 +82,7 @@ func TestHydrateReplayedLog_BytesEqualsCopyCountForPopulatedFile(t *testing.T) {
 		t.Errorf("bytes must equal io.Copy count (%d): %q", len(payload), info)
 	}
 
-	// Pinned as a structured int attr: the rendered bytes=N is indistinguishable
+	// Read as a structured int attr: the rendered bytes=N is indistinguishable
 	// from a stringified count.
 	rec := scrollbackReplayedRecord(t, sink)
 	if got := rec.IntAttr(t, "bytes"); got != int64(len(payload)) {

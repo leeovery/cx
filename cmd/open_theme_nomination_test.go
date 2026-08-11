@@ -51,8 +51,6 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 		// never touch the poison.
 		setPrefsFile(t, `{"theme":"a-drop-in"}`)
 
-		// Vacuity guard: the records must exist to be seen, or the zero-record
-		// assertion below could pass for want of anything observable.
 		loud := installMigrateCapture(t)
 		themeNominationForTest(t)
 		if len(themeEvents(t, loud)) == 0 {
@@ -69,9 +67,8 @@ func TestOpenExecPath_DoesNoThemeWork(t *testing.T) {
 	})
 }
 
-// An existing but unreadable directory is the one state that earns a
-// `theme: directory unusable` WARN; an absent one is silent, which would make
-// "emitted nothing" vacuous.
+// An existing but unreadable directory earns a `theme: directory unusable`
+// WARN, where an absent one is silent.
 func poisonThemesDir(t *testing.T) {
 	t.Helper()
 
@@ -139,7 +136,7 @@ func assertConstant(t *testing.T, n theme.Nomination, want theme.Theme) {
 	}
 }
 
-// A whole Theme through %+v is 19 {name value} pairs of noise.
+// A whole Theme through %+v is a {name value} pair per token of noise.
 func canvasOf(th theme.Theme) string {
 	if th.Canvas.Value == "" {
 		return "zero-theme"

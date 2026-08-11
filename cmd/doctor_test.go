@@ -159,9 +159,9 @@ func TestDoctorAllStateChecksPassExitsZero(t *testing.T) {
 	if !strings.Contains(out, "1 session, 1 pane") {
 		t.Errorf("report missing sessions detail:\n%s", out)
 	}
-	// Six checks are counted, not seven: the stale-hooks seams keep their
-	// production defaults, whose live-pane enumeration fails against TestMain's
-	// poisoned tmux socket and reports not-evaluable.
+	// The stale-hooks seams keep their production defaults, whose live-pane
+	// enumeration fails against TestMain's poisoned tmux socket and reports
+	// not-evaluable — so that check falls outside the count below.
 	if !strings.HasSuffix(out, "\n  6 checks passed\n") {
 		t.Errorf("report does not close with the all-passed summary:\n%s", out)
 	}
@@ -440,7 +440,8 @@ func TestIsSilentExitErrorRecognisesDoctorUnhealthy(t *testing.T) {
 	}
 }
 
-// Duplicated rather than imported so the test pins the contract independently.
+// Duplicated rather than imported, so a drift in the production string is a
+// failure rather than a silent agreement.
 const doctorRuntimeNotRunningDetail = "Portal runtime not running — run portal open to start"
 
 func TestDoctorServerDownReportsRuntimeNotRunning(t *testing.T) {
@@ -697,7 +698,7 @@ func TestDoctorHostTerminalLine(t *testing.T) {
 	})
 
 	t.Run("null identity reports unsupported remote session regardless of resolve", func(t *testing.T) {
-		// Resolve returns Native to prove the NULL short-circuit ignores it.
+		// Resolve returns Native, which the NULL short-circuit must ignore.
 		deps := hostDeps(spawn.Identity{}, spawn.ResolutionNative)
 		results, err := runDoctorDiagnosis(deps)
 		if err != nil {
@@ -1186,8 +1187,7 @@ func TestDoctorStaleProjectsParityWithPredicate(t *testing.T) {
 	})
 }
 
-// runDoctorFixCmd executes "portal doctor --fix". Unlike runDoctor the caller
-// wires exactly the seams the scenario needs.
+// Unlike runDoctor, the caller wires exactly the seams the scenario needs.
 func runDoctorFixCmd(t *testing.T, deps *DoctorDeps) (*bytes.Buffer, *bytes.Buffer, error) {
 	t.Helper()
 	// terminals.json is read eagerly when the deps resolve; isolate it.
@@ -1349,8 +1349,8 @@ func TestDoctorFixLogSweepNeverDrivesExit(t *testing.T) {
 	dir := t.TempDir()
 	seedHealthyStateDir(t, dir)
 
-	// A rotated log dated well before today: deleting it proves the sweep ran
-	// against deps.StateDir.
+	// A rotated log dated well before today: only a sweep running against
+	// deps.StateDir would delete it.
 	staleLog := filepath.Join(dir, "portal.log.2000-01-01")
 	if err := os.WriteFile(staleLog, []byte("old\n"), 0o600); err != nil {
 		t.Fatalf("seed stale rotated log: %v", err)

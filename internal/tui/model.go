@@ -1,4 +1,3 @@
-// Package tui provides the Bubble Tea TUI for Portal.
 package tui
 
 import (
@@ -35,19 +34,15 @@ const (
 	pagePreview
 )
 
-// paginationDotGlyph is the bubbles/list built-in dot glyph; the restyle
-// recolours it without changing the glyph or the engine's page count.
+// The bubbles/list built-in dot glyph; the restyle recolours it, nothing else.
 const paginationDotGlyph = "•"
 
 type SessionLister interface {
 	ListSessions() ([]tmux.Session, error)
 }
 
-// PreviewAttacher is the seam through which the preview page's Enter handler
-// dispatches the pre-select pipeline. Run returns a tea.Cmd that executes the
-// pre-select calls (has-session probe, select-window, select-pane) and emits
-// a previewAttachSelectedMsg or previewAttachBailMsg; the connector handoff
-// happens post-TUI.
+// Run's tea.Cmd emits a previewAttachSelectedMsg or previewAttachBailMsg; the
+// connector handoff happens post-TUI, not here.
 type PreviewAttacher interface {
 	Run(session string, window, pane int) tea.Cmd
 }
@@ -70,36 +65,29 @@ type SessionRenamer interface {
 	RenameSession(oldName, newName string) error
 }
 
-// ModePersister persists the session-list grouping mode.
 type ModePersister interface {
 	Save(prefs.SessionListMode) error
 }
 
-// ThemePersister commits the theme panel's choice. The production
-// implementation is cmd-owned, not *prefs.Store — cmd resolves the prefs path
-// and logs the failure; the model holds the seam and logs nothing. The method
-// names deliberately differ from the store's savers so *prefs.Store cannot
-// accidentally satisfy the seam. Errors are returned as well as logged: the
-// panel renders its outstanding-failure state from the value. theme.Member
-// names the adaptive-pair half so the seam cannot mint a third slot.
+// The production implementation is cmd-owned, not *prefs.Store — cmd logs the
+// failure; the model logs nothing. The method names deliberately differ from the
+// store's savers so *prefs.Store cannot accidentally satisfy this seam. Errors
+// are returned as well as logged: the panel renders its failure state from them.
 type ThemePersister interface {
 	CommitTheme(slug string) error
 	CommitThemeSlot(slug string, member theme.Member) error
 }
 
-// ProjectEditor defines the interface for renaming projects and mutating
-// their tag set. AddTag/RemoveTag take the raw tag value and delegate
-// canonicalisation and dedup to the store; the modal never re-normalises.
+// AddTag/RemoveTag take the raw tag value and delegate canonicalisation and
+// dedup to the store; the modal never re-normalises.
 type ProjectEditor interface {
 	Rename(path, newName, via string) error
 	AddTag(path, rawTag string) error
 	RemoveTag(path, rawTag string) error
 }
 
-// AliasEditor defines the interface for managing aliases in edit mode.
-// Mutations go through the audited combined methods (SetAndSave /
-// DeleteAndSave), not raw Set/Delete/Save, so every TUI alias edit is
-// audited; Load stays for the collision pre-check.
+// Mutations go through the audited combined methods, not raw Set/Delete/Save, so
+// every TUI alias edit is audited; Load stays for the collision pre-check.
 type AliasEditor interface {
 	Load() (map[string]string, error)
 	SetAndSave(name, path, via string) error
@@ -126,40 +114,31 @@ type SessionsMsg struct {
 	Err      error
 }
 
-// LoadingMinDuration is the minimum amount of time the loading page is
-// displayed before being dismissed. Bootstrap may take longer (the page
-// stays until bootstrap completes); if bootstrap is faster, the page
-// is padded to this duration so it does not flash as a UI glitch.
+// The loading page is padded to this duration when bootstrap is faster, so it
+// does not flash as a UI glitch; a slower bootstrap holds the page longer.
 const LoadingMinDuration = 1200 * time.Millisecond
 
-// LoadingMinElapsedMsg signals that LoadingMinDuration has elapsed since
-// the loading page was first shown.
 type LoadingMinElapsedMsg struct{}
 
-// BootstrapCompleteMsg signals that the bootstrap orchestrator has finished.
-// The TUI dismisses the loading page once both LoadingMinElapsedMsg and this
-// have been received. Warnings carries soft bootstrap warnings, buffered
-// through the loading window and surfaced after dismissal; may be nil/empty.
+// The loading page dismisses once both this and LoadingMinElapsedMsg arrive.
+// Warnings are buffered through the loading window and surfaced after dismissal;
+// may be nil/empty.
 type BootstrapCompleteMsg struct {
 	Warnings []BootstrapWarning
 }
 
-// BootstrapProgressMsg is one live per-step progress event streamed over the
-// progress channel. Index is the 1-based canonical bootstrap step number; the
-// message deliberately carries no friendly label, which would be a second,
-// drift-prone encoding of loading_progress.go's mapping. RestoreN/RestoreM
-// are the restore per-session counter, both zero meaning no counter.
+// Index is the 1-based canonical bootstrap step number. No friendly label rides
+// here — that would be a second, drift-prone encoding of loading_progress.go's
+// mapping. RestoreN/RestoreM are the restore counter, both zero meaning none.
 type BootstrapProgressMsg struct {
 	Index    int
 	RestoreN int
 	RestoreM int
 }
 
-// BootstrapFatalMsg is the terminal fatal event streamed over the progress
-// channel: it drives the in-TUI error state instead of dismissing the loading
-// page. FailedStep is the 1-based index of the aborting step, Message the
-// single user-facing line, and Err the underlying cause — carried as an error
-// so internal/tui stays decoupled from cmd/bootstrap.
+// Drives the in-TUI error state instead of dismissing the loading page.
+// FailedStep is 1-based; Err is carried as an error so internal/tui stays
+// decoupled from cmd/bootstrap.
 type BootstrapFatalMsg struct {
 	FailedStep int
 	Message    string
@@ -179,21 +158,17 @@ type ProjectsLoadedMsg struct {
 	Err      error
 }
 
-// Model is the Bubble Tea model for the session list TUI.
 type Model struct {
 	sessionList list.Model
 	sessions    []tmux.Session
 	projects    []project.Project
-	// projectIndex is a derived cache of projects — a pre-canonicalised
-	// dir→project lookup so a grouped render is map lookups, not per-render
-	// canonicalisation. It must be rebuilt whenever projects changes: always
-	// mutate both via setProjects.
+	// projectIndex is a derived cache: it must be rebuilt whenever projects
+	// changes, so always mutate both via setProjects.
 	projectIndex    project.Index
 	sessionListMode prefs.SessionListMode
 	modePersister   ModePersister
-	// colourless is the single NO_COLOR carve-out flag; every
-	// canvas-dependent surface reads it rather than re-deriving NO_COLOR.
-	// Portal then paints no canvas at all and skips detection.
+	// colourless is the NO_COLOR carve-out; canvas-dependent surfaces read it
+	// rather than re-deriving NO_COLOR. No canvas is painted and detection skips.
 	colourless     bool
 	selected       string
 	sessionLister  SessionLister
@@ -207,10 +182,8 @@ type Model struct {
 	activePage     page
 	projectList    list.Model
 	initialFilter  string
-	// initialCursor is the capture-only cursor anchor: the session row the
-	// cursor lands on once the list loads. Applied and cleared in
-	// evaluateDefaultPage after items ingest; empty is a no-op and production
-	// never sets it.
+	// initialCursor is the capture-only cursor anchor, applied and cleared in
+	// evaluateDefaultPage after items ingest. Empty is a no-op.
 	initialCursor      string
 	insideTmux         bool
 	currentSession     string
@@ -228,125 +201,92 @@ type Model struct {
 	minElapsed        bool
 	bootstrapComplete bool
 
-	// Fatal cold-boot error state: once fatalActive is set the model stays on
-	// the loading page and stops gating on BootstrapCompleteMsg, which will
-	// never arrive.
+	// Once fatalActive is set the model stays on the loading page and stops gating
+	// on BootstrapCompleteMsg, which will never arrive.
 	fatalActive  bool
 	fatalStep    int
 	fatalMessage string
 	fatalErr     error
 
-	// progressReceiver is the cold-boot route's channel-receive tea.Cmd: one
-	// blocking receive re-issued per event, which preserves exact event order
+	// One blocking receive re-issued per event, which preserves exact event order
 	// even under command batching. When set, the channel owns the terminal
 	// BootstrapCompleteMsg; when nil, Init synthesizes it.
 	progressReceiver tea.Cmd
 
-	// loadingProgress is the loading-screen accumulator; its zero value
-	// renders the all-pending screen.
+	// Zero value renders the all-pending loading screen.
 	loadingProgress LoadingProgress
 
-	// Bootstrap warnings: pending is staged before Init and folded into the
-	// BootstrapCompleteMsg payload; bufferedWarnings holds the slice until
-	// the loading page dismisses, cleared on emit.
+	// pending is staged before Init and folded into BootstrapCompleteMsg;
+	// bufferedWarnings holds it until the loading page dismisses.
 	pendingBootstrapWarnings []BootstrapWarning
 	bufferedWarnings         []BootstrapWarning
 
 	termWidth, termHeight int
 
-	// originalBg is what the terminal looked like before Portal painted, as
-	// reported by the OSC 11 query — distinct from Portal's chosen canvas,
-	// and captured only so exit can set it back for terminals that ignore the
-	// OSC 111 reset. Async and non-gating; empty if no response arrived.
+	// originalBg is what the terminal looked like before Portal painted, per the
+	// OSC 11 query — distinct from Portal's canvas, captured only so exit can set
+	// it back. Async and non-gating; empty if no response arrived.
 	originalBg string
 
-	// Preview page seams and live model. previewAttacher is propagated onto
-	// the preview at construction so its Enter binding dispatches without
-	// re-resolving the connector.
 	enumerator      TmuxEnumerator
 	reader          ScrollbackReader
 	previewAttacher PreviewAttacher
 	preview         previewModel
 
-	// Render-layer directory-resolution seam for the lazy grouping fallback.
-	// The derived directory is never stamped back to tmux — a pane's cwd can
-	// drift from the origin directory, and freezing that drift would
-	// permanently mis-group the session. Either seam nil skips the pass.
+	// The derived directory is never stamped back to tmux — a pane's cwd can drift
+	// from the origin dir, and freezing that drift would permanently mis-group the
+	// session. Either seam nil skips the pass.
 	dirReader session.PaneCurrentPathReader
 	dirRunner resolver.CommandRunner
 
-	// Sessions-page inline-flash state. flashText empty means no flash.
-	// flashGen is a monotonic counter bumped on every setFlash; tick handlers
-	// capture the generation at schedule time so a stale tick from a replaced
-	// flash cannot early-clear the currently-displayed message.
+	// flashText empty means no flash. flashGen is bumped on every setFlash so a
+	// stale tick from a replaced flash cannot early-clear the current message.
 	flashText string
 	flashGen  uint64
-	// flashKind selects the warning or success styling of the active flash.
-	// flashWarning is the zero value; every setFlash resets to it, and
-	// setSuccessFlash flips to the success variant.
 	flashKind flashKind
-	// flashOrigin is the precedence tier of the active flash: a theme-origin
-	// flash claims the notice slot even while the filter line is live. Reset
-	// by setFlash / setSuccessFlash and stamped only by setThemeFlash, so the
-	// tier can never be inherited by an unrelated message.
+	// flashOrigin is the precedence tier: reset by setFlash / setSuccessFlash and
+	// stamped only by setThemeFlash, so an unrelated message cannot inherit it.
 	flashOrigin flashOrigin
-	// byTagSignpost is the "No tags yet" signpost flag: By Tag active with
-	// zero tags anywhere, in which case the list degrades to flat under a
-	// dimmed signpost row. Unlike the transient flashText it is a derived
-	// flag recomputed on every rebuild.
+	// byTagSignpost is the "No tags yet" flag: By Tag active with zero tags
+	// anywhere. Derived — recomputed on every rebuild, never set directly.
 	byTagSignpost bool
 
-	// Multi-select mode state. selectedSessions is keyed on Session.Name —
-	// the same identity the attach path uses — so a multi-tag session
-	// spanning several By-Tag rows is marked exactly once. The map is lazily
-	// initialised; exitMultiSelect nils it back out.
+	// selectedSessions is keyed on Session.Name, so a multi-tag session spanning
+	// several By-Tag rows is marked exactly once. Lazily initialised;
+	// exitMultiSelect nils it back out.
 	multiSelectMode  bool
 	selectedSessions map[string]struct{}
 
-	// Pre-flight abort state: when an N≥2 Enter pre-flight finds a marked
-	// session gone the burst aborts atomically. abortBannerText holds the red
-	// section-header banner (a section-header claimant, not a ▌-barred band);
-	// goneFlagged is the transient gone-row set the delegate badges. Both
-	// clear on dismiss or refresh; survivors stay marked.
+	// abortBannerText is a section-header claimant, not a ▌-barred band;
+	// goneFlagged is the transient gone-row set the delegate badges. Both clear on
+	// dismiss or refresh; survivors stay marked.
 	abortBannerText string
 	goneFlagged     map[string]struct{}
 
-	// Async host-terminal detection, dispatched once on reaching PageSessions
-	// and cached for any later burst. Caching the Resolution — not just
-	// IsNull() — is load-bearing: a recognised-but-undriven terminal is
-	// non-NULL yet resolves unsupported.
+	// Detection is dispatched once on reaching PageSessions and cached. Caching the
+	// Resolution — not just IsNull() — is load-bearing: a recognised-but-undriven
+	// terminal is non-NULL yet resolves unsupported.
 	detector         TerminalDetector
 	resolve          spawn.AdapterResolver
 	detectIdentity   spawn.Identity
 	detectResolution spawn.Resolution
-	// detectAdapter is the adapter half of the same single resolve that
-	// produced detectResolution, cached in lockstep so the gate decision and
-	// the dispatch adapter cannot disagree. dispatchBurst must read it rather
-	// than re-resolve: a second resolve is not deterministic for the
-	// config-script recipe (the script is re-statted every call), so a script
-	// removed between detection and Enter would nil-panic the un-recovered
-	// burst goroutine.
+	// detectAdapter is the adapter half of the same resolve that produced
+	// detectResolution, cached in lockstep so the gate and the dispatch adapter
+	// cannot disagree. dispatchBurst must read it rather than re-resolve.
 	detectAdapter    spawn.Adapter
 	detectResolved   bool
 	detectDispatched bool
 
-	// N≥2 picker-burst seams: sessionExists is the pre-flight has-session
-	// probe, ackChannel the token-ack channel, spawnExe resolves the picker's
-	// own binary, spawnGetenv reads PATH. The resolve seam is reused from the
-	// detection block above, never re-injected.
+	// The resolve seam is reused from the detection block above, never re-injected.
 	sessionExists func(string) bool
 	ackChannel    spawn.AckChannelFull
 	spawnExe      spawn.ExecutableResolver
 	spawnGetenv   func(string) string
-	// spawnLogger is the spawn-component logger the burst completion
-	// chokepoint emits through; wrapped in log.OrDiscard at emit time so nil
-	// never panics.
+	// Wrapped in log.OrDiscard at emit time, so nil never panics.
 	spawnLogger *slog.Logger
 
-	// Burst lifecycle state. burstTrigger and burstExternal are the net-N
-	// split (trigger = self-attach target) and burstTotal includes the
-	// trigger. The resolved terminal outcome travels on spawnCompleteMsg,
-	// never on the model.
+	// burstTrigger/burstExternal are the net-N split (trigger = self-attach target)
+	// and burstTotal includes the trigger. The outcome travels on spawnCompleteMsg.
 	burstPending  bool
 	burstPipe     *burstProgressPipe
 	burstCancel   context.CancelFunc
@@ -355,26 +295,20 @@ type Model struct {
 	burstTotal    int
 	burstDone     int
 	// burstCancelled records a user Ctrl-C/Esc cancel; the terminal
-	// spawnCompleteMsg arm reads it to suppress both the self-exec quit and
-	// the failed-window flash (cancellation is user-initiated, so silent).
-	// resetBurstState clears it on every terminal path.
+	// spawnCompleteMsg arm reads it to suppress the self-exec quit and the failure
+	// flash. resetBurstState clears it on every terminal path.
 	burstCancelled bool
 
-	// pendingBurstEnter flags a deferred N≥2 Enter pressed while detection is
-	// still in flight. No Enter-time snapshot is stashed — the
-	// terminalDetectedMsg arm re-derives the marked set live, so a mark
-	// toggle during the defer window is honoured and the burst never fires
-	// before the host terminal is known.
+	// pendingBurstEnter flags an Enter pressed while detection is in flight. No
+	// snapshot is stashed — the marked set is re-derived at resolution.
 	pendingBurstEnter bool
 
-	// Data loading tracking
 	sessionsLoaded       bool
 	projectsLoaded       bool
 	defaultPageEvaluated bool
 
-	// Edit project modal state — the two-mode (navigate/edit),
-	// immediate-persist state machine: no batch buffer and no dirty state,
-	// every element persists on exit-edit (or immediately on chip delete).
+	// The two-mode (navigate/edit) immediate-persist state machine: no batch
+	// buffer and no dirty state, every element persists on exit-edit.
 	editProject project.Project
 	editMode    editMode
 	editFocus   editField
@@ -386,9 +320,8 @@ type Model struct {
 	// index len. Only the focused field's index is meaningful.
 	editAliasCursor int
 	editTagCursor   int
-	// editChanged records that at least one field persisted this session, so
-	// closing on Esc refreshes the cached project records + grouping index.
-	// Not a dirty flag — everything is already on disk.
+	// editChanged records that at least one field persisted, so Esc refreshes the
+	// cached records + grouping index. Not a dirty flag — it is already on disk.
 	editChanged bool
 
 	// Live-edit buffer (only meaningful while editMode == editModeEdit).
@@ -396,21 +329,15 @@ type Model struct {
 	editCursor    int
 	editIsNewChip bool // the live chip is brand-new (vanishes on Esc-discard)
 
-	// themePanel is the slide-over theme picker — a non-blanking overlay,
-	// unlike the modals above: the page beneath stays visible and re-themes
-	// live, which is the live-preview premise. While closed, the composed
+	// A non-blanking overlay, unlike the modals above. While closed, the composed
 	// frame is byte-identical to a model with no panel at all.
 	themePanel themePanel
 
-	// themeState is the model-level theme machinery the panel is a surface
-	// onto: the loaded nomination, seams, light/dark resolution, the palette
-	// every renderer paints from, and the exit-time canvas anchor. It
-	// outlives the panel, which is why the two are separate structs.
+	// Outlives themePanel, which is why the two are separate structs.
 	themeState themeState
 }
 
-// Selected returns the name of the session chosen by the user, or empty if
-// the user quit without selecting.
+// Selected is empty if the user quit without selecting.
 func (m Model) Selected() string {
 	return m.selected
 }
@@ -502,16 +429,12 @@ func (m Model) BootstrapComplete() bool {
 	return m.bootstrapComplete
 }
 
-// FatalError returns the fatal cold-boot error carried after a
-// BootstrapFatalMsg, or nil when no fatal occurred. Carried as an error so
-// internal/tui stays decoupled from cmd/bootstrap; callers recover the
-// concrete type via errors.As.
+// FatalError is nil when no fatal occurred; callers recover the concrete type
+// via errors.As.
 func (m Model) FatalError() error {
 	return m.fatalErr
 }
 
-// BufferedWarnings returns the warnings held between BootstrapCompleteMsg
-// and loading-page dismissal; the slice is cleared once they are emitted.
 func (m Model) BufferedWarnings() []BootstrapWarning {
 	return m.bufferedWarnings
 }
@@ -520,9 +443,8 @@ func (m Model) PendingBootstrapWarnings() []BootstrapWarning {
 	return m.pendingBootstrapWarnings
 }
 
-// SetPendingBootstrapWarnings stores warnings to be folded into the
-// BootstrapCompleteMsg emitted from Init's first event-loop tick, so they
-// ride the same gate that dismisses the loading page.
+// Warnings are folded into the BootstrapCompleteMsg from Init's first tick, so
+// they ride the same gate that dismisses the loading page.
 func (m *Model) SetPendingBootstrapWarnings(warnings []BootstrapWarning) {
 	m.pendingBootstrapWarnings = warnings
 }
@@ -547,24 +469,18 @@ func (m Model) CWD() string {
 	return m.cwd
 }
 
-// OriginalBackground returns the terminal's original background colour as
-// captured via the OSC 11 query (a hex string like "#1e1e2e"), or empty if
-// no response ever arrived. Launch sites set it back on exit so the owned
-// canvas does not stick on terminals that ignore the OSC 111 reset.
+// OriginalBackground is a hex string like "#1e1e2e", or empty if no OSC 11
+// response ever arrived.
 func (m Model) OriginalBackground() string {
 	return m.originalBg
 }
 
-// WithInitialFilter returns a copy of the Model with the initial filter set.
 // The filter is applied to the session list after items load.
 func (m Model) WithInitialFilter(filter string) Model {
 	m.initialFilter = filter
 	return m
 }
 
-// WithCommand returns a copy of the Model with the given command set. When
-// command is non-empty, the TUI starts in command-pending mode: the projects
-// page shows directly with the command-pending banner and footer.
 func (m Model) WithCommand(command []string) Model {
 	m.command = command
 	if len(command) > 0 {
@@ -574,16 +490,12 @@ func (m Model) WithCommand(command []string) Model {
 	return m
 }
 
-// WithInsideTmux returns a copy of the Model configured as running inside tmux
-// with the given current session name. The current session is excluded from the
-// session list and the list title shows the current session name.
+// The current session is excluded from the session list and named in the title.
 func (m Model) WithInsideTmux(currentSession string) Model {
 	m.insideTmux = true
 	m.currentSession = currentSession
-	// Population routes through rebuildSessionList so inside-tmux exclusion
-	// composes with mode/grouping/dir-resolution. The returned cmd is
-	// discarded: at construction m.sessions is empty, so SetItems yields no
-	// real cmd.
+	// Routed through rebuildSessionList so exclusion composes with grouping. The
+	// cmd is discarded: m.sessions is empty here, so SetItems yields no real cmd.
 	(&m).rebuildSessionList()
 	return m
 }
@@ -602,54 +514,40 @@ func WithRenamer(r SessionRenamer) Option {
 	}
 }
 
-// WithInitialMode sets the session-list grouping mode the model opens in.
-// Flat is a valid explicit value, so callers always pass the option. The mode
-// is re-applied on every session ingestion, so it does not depend on sessions
-// being loaded at construction time.
+// Flat is a valid explicit value, so callers always pass the option. The mode is
+// re-applied on every session ingestion.
 func WithInitialMode(mode prefs.SessionListMode) Option {
 	return func(m *Model) {
 		m.sessionListMode = mode
 	}
 }
 
-// WithModePersister sets the session-list mode persister dependency; the
-// handler tolerates a nil persister.
 func WithModePersister(p ModePersister) Option {
 	return func(m *Model) {
 		m.modePersister = p
 	}
 }
 
-// WithThemePersister sets the theme-commit persister dependency; a nil seam
-// makes a commit write nowhere.
 func WithThemePersister(p ThemePersister) Option {
 	return func(m *Model) {
 		m.themeState.persister = p
 	}
 }
 
-// WithThemeKeys injects prefs.json's theme keys as read — the
-// construction-time snapshot the panel lists and marks from. The zero value
-// is meaningful (no keys is the shipped adaptive pair), so the option is
-// always applied.
+// The zero value is meaningful (no keys is the shipped adaptive pair), so the
+// option is always applied.
 func WithThemeKeys(keys theme.RawKeys) Option {
 	return func(m *Model) {
 		m.themeState.keys = keys
 	}
 }
 
-// WithThemeSource injects the panel's theme enumeration/resolution seam; an
-// unwired seam makes `t` a silent no-op.
 func WithThemeSource(e ThemeSource) Option {
 	return func(m *Model) {
 		m.themeState.source = e
 	}
 }
 
-// WithThemeNomination injects the loaded theme setting the model renders
-// from: one Theme under a constant, both under an adaptive pair. The shape
-// decides the first paint: a constant paints from frame one with no
-// detection; a pair holds the first paint until the gate selects a member.
 // Omitting the option leaves the zero nomination — the model keeps New's dark
 // built-in seed and paints immediately.
 func WithThemeNomination(n theme.Nomination) Option {
@@ -658,11 +556,8 @@ func WithThemeNomination(n theme.Nomination) Option {
 	}
 }
 
-// WithCanvasMode is the test/capture-only direct override of the gate's
-// light/dark answer: it resolves the gate onto the given member so the model
-// paints from frame one with no OSC 11 detection. Production never uses it.
-// It pins the answer, not the palette: paired with a constant nomination it
-// changes nothing (a constant ignores the answer by design).
+// Pins the gate's answer, not the palette: paired with a constant nomination it
+// changes nothing, since a constant ignores the answer by design.
 func WithCanvasMode(appearance theme.Member) Option {
 	return func(m *Model) {
 		// pinned=true so New's gate-init guard preserves this override
@@ -672,9 +567,6 @@ func WithCanvasMode(appearance theme.Member) Option {
 	}
 }
 
-// WithColourless sets the NO_COLOR carve-out flag (detected by the cmd layer
-// so internal/tui stays env-free). When set, the model paints no canvas at
-// all and skips light/dark detection — there is no canvas to select.
 func WithColourless(colourless bool) Option {
 	return func(m *Model) {
 		m.colourless = colourless
@@ -693,8 +585,6 @@ func WithSessionCreator(c SessionCreator) Option {
 	}
 }
 
-// WithCWD sets the current working directory on the model.
-// Used by the n key to create a new session in the current directory.
 func WithCWD(path string) Option {
 	return func(m *Model) {
 		m.cwd = path
@@ -713,8 +603,6 @@ func WithAliasEditor(a AliasEditor) Option {
 	}
 }
 
-// WithServerStarted configures the model to start on the loading page
-// when the tmux server was just started by bootstrap.
 func WithServerStarted(started bool) Option {
 	return func(m *Model) {
 		m.serverStarted = started
@@ -724,44 +612,30 @@ func WithServerStarted(started bool) Option {
 	}
 }
 
-// WithProgressReceiver wires the concurrent cold-boot route's
-// channel-receive tea.Cmd. When set, Init streams live per-step bootstrap
-// progress from the channel and the channel owns the terminal
-// BootstrapCompleteMsg; a nil receiver keeps the synchronous path unchanged.
 func WithProgressReceiver(receiver tea.Cmd) Option {
 	return func(m *Model) {
 		m.progressReceiver = receiver
 	}
 }
 
-// WithEnumerator wires the TmuxEnumerator seam used by the scrollback
-// preview page.
 func WithEnumerator(e TmuxEnumerator) Option {
 	return func(m *Model) {
 		m.enumerator = e
 	}
 }
 
-// WithScrollbackReader wires the ScrollbackReader seam used by the
-// scrollback preview page.
 func WithScrollbackReader(r ScrollbackReader) Option {
 	return func(m *Model) {
 		m.reader = r
 	}
 }
 
-// WithPreviewAttachPipeline wires the PreviewAttacher seam used by the
-// preview page's Enter binding.
 func WithPreviewAttachPipeline(p PreviewAttacher) Option {
 	return func(m *Model) {
 		m.previewAttacher = p
 	}
 }
 
-// WithDirResolver wires the render-layer directory-resolution seam used by
-// rebuildSessionList's lazy fallback: sessions with an absent @portal-dir are
-// resolved live from their active pane → git-root before grouping and cached
-// in-memory, never stamped back to tmux. Unwired seams skip the pass.
 func WithDirResolver(reader session.PaneCurrentPathReader, runner resolver.CommandRunner) Option {
 	return func(m *Model) {
 		m.dirReader = reader
@@ -769,11 +643,8 @@ func WithDirResolver(reader session.PaneCurrentPathReader, runner resolver.Comma
 	}
 }
 
-// WithInitialFlash seeds the inline warning flash at construction — the
-// capture-harness entry point for the otherwise-transient flash. It sets the
-// state fields directly (no flashGen bump, no layout resync — dimensions are
-// still zero at construction; the first WindowSizeMsg reserves the band's
-// row). Empty is a no-op; only the warning variant is seedable.
+// Sets the state fields directly — no flashGen bump, no layout resync, since
+// dimensions are still zero at construction.
 func WithInitialFlash(text string) Option {
 	return func(m *Model) {
 		if text == "" {
@@ -784,11 +655,8 @@ func WithInitialFlash(text string) Option {
 	}
 }
 
-// WithInitialMultiSelect seeds multi-select mode at construction with the
-// named sessions pre-marked — the capture-harness entry point for the
-// otherwise user-driven mode. The delegate refresh arms the ● column from
-// the first frame. Nil/empty is a no-op; the names need not resolve to a
-// loaded session yet, since the delegate matches on name as rows ingest.
+// The names need not resolve to a loaded session yet — the delegate matches on
+// name as rows ingest.
 func WithInitialMultiSelect(names []string) Option {
 	return func(m *Model) {
 		if len(names) == 0 {
@@ -803,84 +671,57 @@ func WithInitialMultiSelect(names []string) Option {
 	}
 }
 
-// WithInitialCursor seeds the capture-only cursor anchor. It only stores the
-// name — positioning happens after items ingest so it survives the SetItems
-// that would otherwise reset the cursor to index 0. Empty is a no-op;
-// production never sets it.
+// Only stores the name — positioning happens after items ingest, so it survives
+// the SetItems that would otherwise reset the cursor to index 0.
 func WithInitialCursor(name string) Option {
 	return func(m *Model) {
 		m.initialCursor = name
 	}
 }
 
-// WithInitialThemeCursor seeds the capture-only panel cursor anchor: the row
-// the theme panel's cursor lands on once the panel opens. Placement only — it
-// applies no theme, so the rendered palette stays the one the nomination
-// carries. Empty is a no-op; production never sets it.
 func WithInitialThemeCursor(slug string) Option {
 	return func(m *Model) {
 		m.themeState.initialCursor = slug
 	}
 }
 
-// WithInitialThemeConfirm seeds the slot-from-constant confirm for the
-// offline capture harness, raised against the persisted constant once the
-// panel opens. It seeds state, never text — the copy is composed by the
-// message slot from its own pinned format. False is a no-op; production
-// never sets it.
 func WithInitialThemeConfirm(on bool) Option {
 	return func(m *Model) {
 		m.themeState.initialConfirm = on
 	}
 }
 
-// WithInitialThemeCommitFailed seeds the failed-commit report for the
-// offline capture harness: once the panel opens, the message slot carries
-// the pinned line and the outstanding-failure state, exactly as a write that
-// did not land leaves them. Seeds state, never text. False is a no-op;
-// production never sets it.
 func WithInitialThemeCommitFailed(on bool) Option {
 	return func(m *Model) {
 		m.themeState.initialCommitFailed = on
 	}
 }
 
-// canvasHelpStyles backgrounds the bubbles/list HelpStyle wrapper with the
-// active theme's canvas. The footer content paints its own canvas; this only
-// ensures the wrapper around the footer area carries it too.
+// The footer content paints its own canvas; this only ensures the bubbles/list
+// wrapper around the footer area carries it too.
 func canvasHelpStyles(l *list.Model, th theme.Theme) {
 	canvas := th.Canvas.Color()
 	l.Styles.HelpStyle = l.Styles.HelpStyle.Background(canvas)
 }
 
-// colourlessHelpStyles strips the bubbles/list HelpStyle wrapper background
-// for the NO_COLOR carve-out, so the footer area renders on the terminal's
-// native bg.
 func colourlessHelpStyles(l *list.Model) {
 	l.Styles.HelpStyle = l.Styles.HelpStyle.UnsetBackground()
 }
 
-// canvasNoItemsStyle re-points bubbles/list's zero-items body style onto the
-// theme's tokens. Re-pointed rather than unset because it reaches a rendered
-// frame: the command-pending + zero-projects frame falls through to the
-// library's own line, which would otherwise paint in its hardcoded grey.
+// Re-pointed rather than unset because it reaches a rendered frame: the
+// command-pending + zero-projects frame would otherwise paint the library's grey.
 func canvasNoItemsStyle(l *list.Model, th theme.Theme) {
 	l.Styles.NoItems = lipgloss.NewStyle().
 		Foreground(th.TextMuted.Color()).
 		Background(th.Canvas.Color())
 }
 
-// colourlessNoItemsStyle strips the zero-items body style for the NO_COLOR
-// carve-out, so the line renders on the terminal's native fg/bg.
 func colourlessNoItemsStyle(l *list.Model) {
 	l.Styles.NoItems = lipgloss.NewStyle()
 }
 
-// canvasPaginationDots re-points the paginator's dot styles onto the theme's
-// tokens over the canvas (active accent.primary, inactive text.faint); the
-// engine's glyph and page count are untouched. list.New reads the dot styles
-// into Paginator.ActiveDot/InactiveDot once at construction, so the restyled
-// dots must be re-fed into the live paginator here.
+// list.New reads the dot styles into Paginator.ActiveDot/InactiveDot once at
+// construction, so the restyled dots must be re-fed into the live paginator.
 func canvasPaginationDots(l *list.Model, th theme.Theme) {
 	canvas := th.Canvas.Color()
 	l.Styles.ActivePaginationDot = lipgloss.NewStyle().
@@ -896,9 +737,6 @@ func canvasPaginationDots(l *list.Model, th theme.Theme) {
 	centrePaginationRow(l, lipgloss.NewStyle().Background(canvas))
 }
 
-// colourlessPaginationDots strips the paginator dot styles for the NO_COLOR
-// carve-out, keeping the bullet glyph and centred placement without a canvas
-// fill.
 func colourlessPaginationDots(l *list.Model) {
 	l.Styles.ActivePaginationDot = lipgloss.NewStyle().SetString(paginationDotGlyph)
 	l.Styles.InactivePaginationDot = lipgloss.NewStyle().SetString(paginationDotGlyph)
@@ -907,17 +745,12 @@ func colourlessPaginationDots(l *list.Model) {
 	centrePaginationRow(l, lipgloss.NewStyle())
 }
 
-// centrePaginationRow re-points the paginator wrapper so the dot row renders
-// centred across the list width (not the terminal width), replacing the
-// engine default's left alignment. Re-run after each SetSize so the width
-// stays current.
+// Centred across the list width, not the terminal width. Must be re-run after
+// each SetSize so the pinned width stays current.
 func centrePaginationRow(l *list.Model, base lipgloss.Style) {
 	l.Styles.PaginationStyle = base.Width(l.Width()).Align(lipgloss.Center)
 }
 
-// sessionListTitleForMode computes the session list title for the active
-// grouping mode, with the inside-tmux "(current: %s)" decoration composed as
-// a suffix onto the mode base.
 func sessionListTitleForMode(mode prefs.SessionListMode, insideTmux bool, currentSession string) string {
 	var base string
 	switch mode {
@@ -934,9 +767,7 @@ func sessionListTitleForMode(mode prefs.SessionListMode, insideTmux bool, curren
 	return base
 }
 
-// newSessionList creates and configures a new bubbles/list.Model for
-// sessions. The built-in help renderer is disabled because Portal renders
-// the descriptor-driven footer itself.
+// The built-in help renderer is disabled — Portal renders its own footer.
 func newSessionList(items []list.Item) list.Model {
 	l := list.New(items, SessionDelegate{}, 0, 0)
 	l.Title = "Sessions"
@@ -952,9 +783,8 @@ func newSessionList(items []list.Item) list.Model {
 	return l
 }
 
-// pinArrowOnlyNav rebinds the bubbles/list nav KeyMap to arrows only. The v2
-// defaults re-introduce vim aliases and page-jump keys this codebase drops,
-// and bind k to CursorUp, which would shadow the Sessions k=kill verb.
+// The v2 defaults re-introduce vim aliases and page-jump keys this codebase
+// drops, and bind k to CursorUp, which would shadow the Sessions k=kill verb.
 // Rebinding here means a banned key never reaches the list's own Update.
 func pinArrowOnlyNav(km *list.KeyMap) {
 	km.CursorUp.SetKeys("up")
@@ -965,8 +795,6 @@ func pinArrowOnlyNav(km *list.KeyMap) {
 	km.GoToEnd.SetKeys()
 }
 
-// newProjectList creates and configures a bubbles/list.Model for projects;
-// see newSessionList for the SetShowHelp(false) rationale.
 func newProjectList() list.Model {
 	l := list.New(nil, ProjectDelegate{}, 0, 0)
 	l.Title = "Projects"
@@ -982,32 +810,24 @@ func newProjectList() list.Model {
 	return l
 }
 
-// New creates a Model that fetches sessions from the given SessionLister.
-// Optional dependencies are configured via functional options.
 func New(lister SessionLister, opts ...Option) Model {
 	m := Model{
 		sessionLister: lister,
 		sessionList:   newSessionList(nil),
 		projectList:   newProjectList(),
 		activePage:    PageSessions,
-		// Seed the active palette from the dark built-in before the options
-		// apply, so a model constructed without Build is still themed — an
-		// empty Theme renders silently colourless with no failing assertion.
-		// An injected nomination overwrites it in syncResolvedMode below.
+		// Seeded before the options apply so a model constructed without Build is
+		// still themed — an empty Theme renders silently colourless. An injected
+		// nomination overwrites it in syncResolvedMode below.
 		themeState: themeState{active: defaultDarkTheme()},
 	}
 	for _, opt := range opts {
 		opt(&m)
 	}
-	// Recompute the title now that mode / inside-tmux are known
-	// (newSessionList set the Flat default), so the first frame paints the
-	// correct mode heading.
+	// Recompute now that mode / inside-tmux are known (newSessionList set the Flat
+	// default), so the first frame paints the correct mode heading.
 	m.sessionList.Title = sessionListTitleForMode(m.sessionListMode, m.insideTmux, m.currentSession)
-	// Initialise the gate from the nomination's shape. A constant (or absent)
-	// nomination resolves immediately; an adaptive pair is constructed
-	// resolved to the dark fallback so a directly constructed model still
-	// paints — production opens the detect-or-timeout window explicitly via
-	// Build. The NO_COLOR carve-out wins over every shape: no canvas to
+	// The NO_COLOR carve-out wins over every nomination shape: no canvas to
 	// select, so the gate is colourless and detection is skipped.
 	if m.colourless {
 		m.themeState.gate = newColourlessGate()
@@ -1020,10 +840,6 @@ func New(lister SessionLister, opts ...Option) Model {
 	return m
 }
 
-// armAppearanceDetection opens the detect-or-timeout first-paint window on an
-// adaptive gate; a no-op on a constant or absent nomination, under NO_COLOR,
-// and under a WithCanvasMode override. Directly constructed models never call
-// it, so they paint immediately.
 func (m *Model) armAppearanceDetection() {
 	m.themeState.gate.arm()
 	m.syncResolvedMode()
@@ -1037,11 +853,8 @@ func (m Model) hasNomination() bool {
 	return m.themeState.nomination != (theme.Nomination{})
 }
 
-// syncResolvedMode adopts the gate's answer, selects the active palette, and
-// re-applies the leaf canvas styles; called after every gate transition. With
-// no nomination injected the active palette is left at New's dark seed —
-// selecting from an empty nomination would hand back the zero Theme, which
-// renders silently colourless.
+// With no nomination injected the active palette is left at New's dark seed —
+// selecting from an empty nomination would hand back the zero Theme.
 func (m *Model) syncResolvedMode() {
 	m.themeState.adoptGateAnswer()
 	if m.hasNomination() {
@@ -1051,9 +864,8 @@ func (m *Model) syncResolvedMode() {
 	m.applyCanvasMode()
 }
 
-// captureStartupCanvasHex retains the canvas of the theme the gate selected,
-// for the exit-time canvas-echo guard. While the detection window is open
-// nothing has painted, so the hex is empty.
+// Retains the canvas of the theme the gate selected, for the exit-time
+// canvas-echo guard. While the window is open nothing has painted, so it is empty.
 func (m *Model) captureStartupCanvasHex() {
 	if !m.themeState.gate.resolved() {
 		m.themeState.startupCanvasHex = ""
@@ -1078,21 +890,18 @@ func (m *Model) refreshSessionDelegate() {
 	m.sessionList.SetDelegate(m.sessionDelegate())
 }
 
-// ApplyTheme swaps the palette every renderer paints from, mid-session. It is
-// the restyle and nothing else: it must not rebuild the session list (too
-// heavy for the arrow-preview path), read a file, or write startupCanvasHex,
-// which is frozen at gate resolution — moving it would stick the wrong colour
-// in the user's terminal on exit.
+// The restyle and nothing else: it must not rebuild the session list (too heavy
+// for the arrow-preview path), read a file, or write startupCanvasHex, which is
+// frozen at gate resolution — moving it would stick the wrong colour in the
+// user's terminal on exit.
 func (m *Model) ApplyTheme(th theme.Theme) {
 	m.themeState.active = th
 	m.applyCanvasMode()
 }
 
-// applyCanvasMode re-points every colour-bearing value that is assigned once
-// rather than re-derived per frame; anything caching a colour needs a line
-// here or it silently keeps the previous theme's. Deliberately excluded:
-// startupCanvasHex (see ApplyTheme) and the bubbles/list styles whose render
-// paths are disabled.
+// Re-points every colour-bearing value assigned once rather than re-derived per
+// frame; anything caching a colour needs a line here or it silently keeps the
+// previous theme's. Deliberately excluded: startupCanvasHex (see ApplyTheme).
 func (m *Model) applyCanvasMode() {
 	m.styleFilterInput()
 	// The preview caches a whole palette at open; re-point it or its chrome
@@ -1103,10 +912,8 @@ func (m *Model) applyCanvasMode() {
 	m.applyThemePanelCanvasMode()
 }
 
-// applyListCanvasMode is the single per-list restyle sequence — a step
-// missing from a per-list copy would silently keep the previous theme's
-// colours, so keep it in one home. The title-bar geometry is deliberately not
-// here: only the two page lists carry it (applyPageListCanvasMode).
+// The title-bar geometry is deliberately not here — only the two page lists carry
+// it (applyPageListCanvasMode).
 func applyListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.Theme, colourless bool) {
 	l.SetDelegate(delegate)
 	if colourless {
@@ -1120,45 +927,37 @@ func applyListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.The
 	canvasHelpStyles(l, th)
 	canvasNoItemsStyle(l, th)
 	canvasPaginationDots(l, th)
-	// Background the title bar so its left-pad cells are canvas rather than
-	// the terminal background.
+	// Background the title bar so its left-pad cells are canvas, not terminal bg.
 	l.Styles.TitleBar = l.Styles.TitleBar.Background(th.Canvas.Color())
 	l.Styles.Title = stripListTitleColours(l.Styles.Title)
 }
 
-// applyPageListCanvasMode adds the title-bar geometry the two page lists
-// carry and the slide-over's list does not, layered over the background the
-// shared sequence just set so the gap row inherits the canvas.
+// Layered over the background the shared sequence just set, so the gap row
+// inherits the canvas.
 func applyPageListCanvasMode(l *list.Model, delegate list.ItemDelegate, th theme.Theme, colourless bool) {
 	applyListCanvasMode(l, delegate, th, colourless)
 	l.Styles.TitleBar = listTitleBarStyle(l.Styles.TitleBar)
 }
 
-// stripListTitleColours drops the bubbles/list default Title box colours.
 // Unset rather than re-pointed: the section-header surgery replaces the whole
-// title line, so nothing paints the box — unsetting keeps the library's
-// default violet out of a themed model.
+// title line, so nothing paints the box.
 func stripListTitleColours(title lipgloss.Style) lipgloss.Style {
 	return title.UnsetBackground().UnsetForeground()
 }
 
-// listTitleBarBottomGap is one row of the page's vertical rhythm, not just
-// padding; consumers measure it through listTitleBarStyle rather than
-// restating the count.
+// One row of the page's vertical rhythm, not just padding; consumers measure it
+// through listTitleBarStyle rather than restating the count.
 const listTitleBarBottomGap = 1
 
-// listTitleBarStyle applies the shared page-list TitleBar geometry.
-// PaddingLeft(0) keeps the filter input at the same column as everything
-// else; PaddingBottom makes the title bar two lines, which bubbles/list
-// auto-budgets from the item area. Dependency: applySectionHeader's surgery
-// replaces only line 0 and preserves the gap row.
+// PaddingLeft(0) keeps the filter input at the same column as everything else;
+// PaddingBottom makes the title bar two lines, which bubbles/list auto-budgets
+// from the item area. applySectionHeader's surgery replaces only line 0.
 func listTitleBarStyle(base lipgloss.Style) lipgloss.Style {
 	return base.PaddingLeft(0).PaddingBottom(listTitleBarBottomGap)
 }
 
-// sectionHeaderBlockRows is measured through the real renderer, never
-// restated, so the slide-over lands its label on the page's header row by
-// construction rather than by a count that can drift.
+// Measured through the real renderer, never restated, so the slide-over lands its
+// label on the page's header row by construction.
 func sectionHeaderBlockRows() int {
 	return lipgloss.Height(listTitleBarStyle(lipgloss.NewStyle()).
 		Render(renderSectionHeaderRow("", 0, theme.Theme{}, true)))
@@ -1174,10 +973,8 @@ func (m *Model) styleFilterInput() {
 	m.styleListFilterInput(&m.projectList)
 }
 
-// styleListFilterInput applies the shared filter-input treatment. No
-// .Background(canvas) here deliberately — the input renders over the canvas
-// the title bar already paints. Cursor blink is disabled so captured frames
-// are deterministic.
+// No .Background(canvas) here deliberately — the input renders over the canvas
+// the title bar already paints. Blink is off so captured frames are deterministic.
 func (m *Model) styleListFilterInput(l *list.Model) {
 	l.FilterInput.Prompt = filterPromptPrefix
 	styles := l.FilterInput.Styles()
@@ -1199,7 +996,6 @@ func (m *Model) styleListFilterInput(l *list.Model) {
 	l.FilterInput.SetStyles(styles)
 }
 
-// NewModelWithSessions creates a Model pre-populated with sessions.
 func NewModelWithSessions(sessions []tmux.Session) Model {
 	items := ToListItems(sessions)
 	l := newSessionList(items)
@@ -1209,9 +1005,8 @@ func NewModelWithSessions(sessions []tmux.Session) Model {
 		sessionList: l,
 		projectList: pl,
 		activePage:  PageSessions,
-		// Seed the active palette as New does: a zero Theme renders silently
-		// colourless. The zero-value gate is already resolved, so this model
-		// paints immediately.
+		// Seeded as New does: a zero Theme renders silently colourless. The
+		// zero-value gate is already resolved, so this model paints immediately.
 		themeState: themeState{active: defaultDarkTheme()},
 	}
 	m.applySessionListSize(m.contentWidth(), m.contentHeight())
@@ -1219,10 +1014,9 @@ func NewModelWithSessions(sessions []tmux.Session) Model {
 	return m
 }
 
-// applyListSize pairs SetSize with the paginator re-centre (the centred
-// PaginationStyle pins an explicit Width, so it must track every resize).
-// Callers invoke a per-page wrapper, which owns the reserved-height
-// computation, not this core directly.
+// Pairs SetSize with the paginator re-centre — the centred PaginationStyle pins
+// an explicit Width, so it must track every resize. Callers use a per-page
+// wrapper, which owns the reserved-height computation.
 func (m *Model) applyListSize(l *list.Model, width, height, reserved int) {
 	l.SetSize(width, height-reserved)
 	if m.colourless {
@@ -1232,26 +1026,22 @@ func (m *Model) applyListSize(l *list.Model, width, height, reserved int) {
 	centrePaginationRow(l, lipgloss.NewStyle().Background(m.themeState.active.Canvas.Color()))
 }
 
-// applySessionListSize owns the Sessions height budget: header, footer, and
-// any active notice band are reserved here — counted rows, not uncounted
-// bands — so the composed view never overflows termH. Each reserve resolves
-// against the same width as this size-apply, so budget and render agree at
-// every call site.
+// Owns the Sessions height budget: header, footer and any active notice band are
+// reserved here as counted rows, so the composed view never overflows termH.
+// Each reserve resolves against the same width as this size-apply.
 func (m *Model) applySessionListSize(width, height int) {
 	reserved := m.sessionBandHeight() + m.headerHeight(width) + m.sessionFooterHeight(width)
 	m.applyListSize(&m.sessionList, width, height, reserved)
 }
 
-// sessionFooterHeight measures the footer against the same entries, width
-// and mode the render uses, so budget and render agree exactly — including
-// in a blocked state.
+// Measured against the same entries, width and mode the render uses, so budget
+// and render agree exactly — including in a blocked state.
 func (m Model) sessionFooterHeight(width int) int {
 	return lipgloss.Height(renderSessionsFooter(m.sessionsHelpKeymap(), width, m.themeState.active, m.colourless))
 }
 
-// sessionBandHeight is measured off renderSessionBandSlot — the same block
-// viewSessionList composes — so the reserved rows are by construction exactly
-// what is inserted.
+// Measured off renderSessionBandSlot — the same block viewSessionList composes —
+// so the reserved rows are by construction what is inserted.
 func (m *Model) sessionBandHeight() int {
 	slot := m.renderSessionBandSlot()
 	if slot == "" {
@@ -1260,24 +1050,21 @@ func (m *Model) sessionBandHeight() int {
 	return lipgloss.Height(slot)
 }
 
-// applyProjectListSize owns the Projects height budget: header, footer and
-// band are reserved here, each against the same width as this size-apply, so
-// the budget and the render agree at every call site.
+// Owns the Projects height budget: header, footer and band are reserved here,
+// each against the same width as this size-apply.
 func (m *Model) applyProjectListSize(width, height int) {
 	reserved := m.headerHeight(width) + m.projectFooterHeight(width) + m.projectBandHeight()
 	m.applyListSize(&m.projectList, width, height, reserved)
 }
 
-// projectFooterHeight measures the footer against the same entries, width and
-// mode the render uses, so budget and render agree exactly — blocked state
-// included.
+// Measured against the same entries, width and mode the render uses, so budget
+// and render agree exactly — blocked state included.
 func (m Model) projectFooterHeight(width int) int {
 	return lipgloss.Height(renderProjectsFooter(m.projectsHelpKeymap(), width, m.themeState.active, m.colourless))
 }
 
-// projectBandHeight is measured off renderProjectBandSlot — the same block
-// viewProjectList composes — so the reserved rows are by construction exactly
-// what is inserted.
+// Measured off renderProjectBandSlot — the same block viewProjectList composes —
+// so the reserved rows are by construction what is inserted.
 func (m Model) projectBandHeight() int {
 	slot := m.renderProjectBandSlot()
 	if slot == "" {
@@ -1286,7 +1073,6 @@ func (m Model) projectBandHeight() int {
 	return lipgloss.Height(slot)
 }
 
-// filteredSessions returns sessions with the current session excluded when inside tmux.
 func (m Model) filteredSessions() []tmux.Session {
 	if !m.insideTmux || m.currentSession == "" {
 		return m.sessions
@@ -1307,9 +1093,8 @@ func (m *Model) applySessions(sessions []tmux.Session) tea.Cmd {
 	return m.rebuildSessionList()
 }
 
-// pruneSelectionToLiveSessions drops marked sessions no longer present in
-// m.sessions — a set-difference on the aliased map, so the delegate drops
-// their ● on the next frame without a re-point.
+// A set-difference on the aliased map, so the delegate drops their ● on the next
+// frame without a re-point.
 func (m *Model) pruneSelectionToLiveSessions() {
 	if len(m.selectedSessions) == 0 {
 		return
@@ -1325,8 +1110,7 @@ func (m *Model) pruneSelectionToLiveSessions() {
 	}
 }
 
-// An out-of-range value collapses to Flat so the cycle can never get stuck
-// on an unrecognised mode.
+// An out-of-range value collapses to Flat so the cycle cannot get stuck.
 func nextSessionListMode(mode prefs.SessionListMode) prefs.SessionListMode {
 	switch mode {
 	case prefs.ModeFlat:
@@ -1351,18 +1135,15 @@ func anyTagsExist(projects []project.Project) bool {
 	return false
 }
 
-// setProjects updates the cached records and their derived index together.
-// Always mutate projects through it, or the index goes stale.
+// Always mutate projects through this, or the derived index goes stale.
 func (m *Model) setProjects(projects []project.Project) {
 	m.projects = projects
 	m.projectIndex = project.NewIndex(projects)
 }
 
-// resolveSessionDirs derives a directory for each session whose @portal-dir
-// is absent and caches it back into m.sessions. Best-effort: an unresolvable
-// session keeps an empty Dir and is re-attempted next rebuild. The result is
-// never stamped back to tmux (see dirReader). Call it only from the grouped
-// arms — Flat must pay zero pane reads.
+// Best-effort: an unresolvable session keeps an empty Dir and is re-attempted
+// next rebuild; the result is never stamped back to tmux. Call it only from the
+// grouped arms — Flat must pay zero pane reads.
 func (m *Model) resolveSessionDirs(sessions []tmux.Session) []tmux.Session {
 	if m.dirReader == nil || m.dirRunner == nil {
 		return sessions
@@ -1381,8 +1162,8 @@ func (m *Model) resolveSessionDirs(sessions []tmux.Session) []tmux.Session {
 	return resolved
 }
 
-// cacheSessionDir is in-memory only: a SessionsMsg refresh replaces
-// m.sessions, so the guess is re-derived rather than frozen.
+// In-memory only: a SessionsMsg refresh replaces m.sessions, so the guess is
+// re-derived rather than frozen.
 func (m *Model) cacheSessionDir(name, dir string) {
 	for i := range m.sessions {
 		if m.sessions[i].Name == name {
@@ -1395,8 +1176,7 @@ func (m *Model) cacheSessionDir(name, dir string) {
 func (m *Model) rebuildSessionList() tea.Cmd {
 	filtered := m.filteredSessions()
 
-	// By Tag with no tags anywhere degrades to the flat list plus a signpost,
-	// rather than silently flattening.
+	// By Tag with no tags degrades to flat plus a signpost, not a silent flatten.
 	m.byTagSignpost = m.sessionListMode == prefs.ModeByTag && !anyTagsExist(m.projects)
 
 	var items []list.Item
@@ -1425,17 +1205,15 @@ func (m *Model) rebuildSessionList() tea.Cmd {
 	return cmd
 }
 
-// ensureSessionRowSelected nudges the selection off a non-selectable
-// HeaderItem. A single step suffices: no two headers are ever adjacent.
+// A single step suffices: no two headers are ever adjacent.
 func (m *Model) ensureSessionRowSelected() {
 	if _, isHeader := m.sessionList.SelectedItem().(HeaderItem); isHeader {
 		m.sessionList.CursorDown()
 	}
 }
 
-// skipHeaderRow keeps the cursor off group headers after a navigation key,
-// stepping once more in the direction the user was moving. At the top row an
-// upward intent flips downward so the selection never falls off the list.
+// Steps once more in the direction the user was moving. At the top row an upward
+// intent flips downward so the selection never falls off the list.
 func (m *Model) skipHeaderRow(msg tea.KeyPressMsg) {
 	if _, isHeader := m.sessionList.SelectedItem().(HeaderItem); !isHeader {
 		return
@@ -1448,9 +1226,6 @@ func (m *Model) skipHeaderRow(msg tea.KeyPressMsg) {
 	m.sessionList.CursorDown()
 }
 
-// evaluateDefaultPage picks the landing page once the data it depends on has
-// loaded, and applies the deferred initial filter and cursor. It runs at most
-// once per model.
 func (m *Model) evaluateDefaultPage() {
 	if m.defaultPageEvaluated {
 		return
@@ -1475,8 +1250,6 @@ func (m *Model) evaluateDefaultPage() {
 	m.applyInitialCursor()
 }
 
-// applyInitialFilter commits the deferred initial filter onto the settled
-// page's list, then clears it so it applies at most once.
 func (m *Model) applyInitialFilter() {
 	if m.initialFilter == "" {
 		return
@@ -1491,9 +1264,8 @@ func (m *Model) applyInitialFilter() {
 	m.initialFilter = ""
 }
 
-// applyInitialCursor re-anchors the session-list cursor onto the seeded row
-// name, then clears it. Runs after applyInitialFilter so the re-anchor
-// operates on the post-filter visible set.
+// Runs after applyInitialFilter so the re-anchor operates on the post-filter
+// visible set.
 func (m *Model) applyInitialCursor() {
 	if m.initialCursor == "" {
 		return
@@ -1504,9 +1276,8 @@ func (m *Model) applyInitialCursor() {
 	m.initialCursor = ""
 }
 
-// refreshSessionsAfterPreviewCmd re-fetches the sessions list on preview
-// dismissal so an externally killed session disappears. Returns nil when no
-// SessionLister is wired — callers must tolerate a nil cmd.
+// Re-fetched on preview dismissal so an externally killed session disappears.
+// Returns nil when no SessionLister is wired — callers must tolerate that.
 func (m Model) refreshSessionsAfterPreviewCmd(preserveName string) tea.Cmd {
 	if m.sessionLister == nil {
 		return nil
@@ -1522,18 +1293,15 @@ func (m Model) refreshSessionsAfterPreviewCmd(preserveName string) tea.Cmd {
 	}
 }
 
-// exitPreviewToSessions tears the preview down and returns the refresh
-// command anchored on preserveName (nil when no SessionLister is wired).
-// Capture preserveName before calling: m.preview is zeroed in place, so
-// reading m.preview.session afterwards yields an empty string.
+// Capture preserveName before calling: m.preview is zeroed in place, so reading
+// m.preview.session afterwards yields an empty string.
 func (m *Model) exitPreviewToSessions(preserveName string) tea.Cmd {
 	m.activePage = PageSessions
 	m.preview = previewModel{}
 	return m.refreshSessionsAfterPreviewCmd(preserveName)
 }
 
-// reanchorSessionCursor moves the cursor onto the visible item matching name,
-// clamping to the last index when the name is gone. Operates on filtered
+// Clamps to the last index when the name is gone, and operates on filtered
 // (visible) order so it lands correctly under a committed filter.
 func (m *Model) reanchorSessionCursor(name string) {
 	if name == "" {
@@ -1556,10 +1324,9 @@ func (m *Model) reanchorSessionCursor(name string) {
 	m.sessionList.Select(len(visible) - 1)
 }
 
-// setFlash records an inline-flash message, bumping flashGen. Callers that
-// schedule a delayed clear must capture the post-bump generation and compare
-// it on fire, so a stale tick from a superseded flash cannot early-clear the
-// current one. setFlash("") still bumps the generation.
+// Callers scheduling a delayed clear must capture the post-bump generation and
+// compare it on fire, so a stale tick cannot early-clear the current flash.
+// setFlash("") still bumps the generation.
 func (m *Model) setFlash(text string) {
 	m.flashGen++
 	m.flashText = text
@@ -1570,34 +1337,29 @@ func (m *Model) setFlash(text string) {
 	m.resyncPageLayouts()
 }
 
-// setThemeFlash is setFlash plus the origin stamp giving the flash
-// precedence over the filter line. Raise every theme signal through it: the
-// tier is granted by the setter, not the wording, so a copy edit cannot move
-// a signal out of the tier.
+// Raise every theme signal through it: the tier is granted by the setter, not the
+// wording, so a copy edit cannot move a signal out of the tier.
 func (m *Model) setThemeFlash(text string) {
 	m.setFlash(text)
 	m.flashOrigin = flashOriginTheme
 }
 
-// setSuccessFlash is setFlash plus the success kind (✓ glyph, never
-// colour-only).
+// The success kind is glyph-backed (✓), never colour-only.
 func (m *Model) setSuccessFlash(text string) {
 	m.setFlash(text)
 	m.flashKind = flashSuccess
 }
 
-// clearFlash zeros flashText, deliberately leaving flashGen untouched so
-// in-flight ticks keep comparing against the same monotonic sequence.
+// Deliberately leaves flashGen untouched so in-flight ticks keep comparing
+// against the same monotonic sequence.
 func (m *Model) clearFlash() {
 	m.flashText = ""
 	m.resyncPageLayouts()
 }
 
-// resyncPageLayouts re-applies both page lists' sizes for the current notice
-// band state; a no-op before the first WindowSizeMsg. Both, not just the
-// active page: a page can be entered by a message rather than a keypress, and
-// sizing only the set-time page leaves the entered one budgeted for no band,
-// cutting its footer off the bottom.
+// Both pages, not just the active one: a page can be entered by a message rather
+// than a keypress, and sizing only the set-time page leaves the entered one
+// budgeted for no band, cutting its footer off the bottom.
 func (m *Model) resyncPageLayouts() {
 	if m.termWidth <= 0 || m.termHeight <= 0 {
 		return
@@ -1606,7 +1368,6 @@ func (m *Model) resyncPageLayouts() {
 	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
 }
 
-// loadProjects returns a command that cleans stale projects and loads the list.
 func (m Model) loadProjects() tea.Cmd {
 	if m.projectStore == nil {
 		return nil
@@ -1618,8 +1379,7 @@ func (m Model) loadProjects() tea.Cmd {
 	}
 }
 
-// fetchSessionsCmd enumerates live tmux sessions into a SessionsMsg. A pure
-// read — it never mutates tmux or state.
+// A pure read — it never mutates tmux or state.
 func (m Model) fetchSessionsCmd() tea.Cmd {
 	return func() tea.Msg {
 		sessions, err := m.sessionLister.ListSessions()
@@ -1627,10 +1387,9 @@ func (m Model) fetchSessionsCmd() tea.Cmd {
 	}
 }
 
-// refetchSessionsAfterRestore fixes the cold-boot route's stale snapshot:
-// there the orchestrator runs in a goroutine, so Init's frame-one enumeration
-// happened before Restore created the saved sessions. The warm route returns
-// nil — its snapshot is already post-restore, so a re-fetch would be wasted.
+// The cold-boot route's snapshot is stale: the orchestrator runs in a goroutine,
+// so Init's frame-one enumeration happened before Restore created the sessions.
+// The warm route returns nil — its snapshot is already post-restore.
 func (m Model) refetchSessionsAfterRestore() tea.Cmd {
 	if m.progressReceiver == nil {
 		return nil
@@ -1638,8 +1397,7 @@ func (m Model) refetchSessionsAfterRestore() tea.Cmd {
 	return m.fetchSessionsCmd()
 }
 
-// transitionFromLoading moves from the loading page to the sessions page. On
-// the cold concurrent route it deliberately leaves sessionsLoaded false:
+// On the cold concurrent route it deliberately leaves sessionsLoaded false:
 // deciding the landing page here would latch defaultPageEvaluated against the
 // stale pre-restore list, and the post-restore refetch could never re-decide.
 func (m *Model) transitionFromLoading() {
@@ -1651,8 +1409,6 @@ func (m *Model) transitionFromLoading() {
 	m.evaluateDefaultPage()
 }
 
-// deleteAndRefreshProjects removes a project and reloads the list; errors
-// from Remove are propagated via ProjectsLoadedMsg.
 func (m Model) deleteAndRefreshProjects(path string) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.projectStore.Remove(path, "cli"); err != nil {
@@ -1664,20 +1420,14 @@ func (m Model) deleteAndRefreshProjects(path string) tea.Cmd {
 	}
 }
 
-// Init fetches tmux sessions (or projects in command-pending mode) and, on
-// the loading page, schedules the LoadingMinElapsedMsg tick. Dismissing the
-// loading page requires that tick and BootstrapCompleteMsg.
 func (m Model) Init() tea.Cmd {
-	// The OSC 11 query is async and non-gating: a missing response just
-	// leaves originalBg empty. It is issued regardless of the nomination's
-	// shape — a constant skips the gate, never the query — because the
-	// exit-time background restore and the mid-session constant → adaptive
-	// conversion both need the reply already in hand.
+	// Issued regardless of the nomination's shape — a constant skips the gate,
+	// never the query — because the exit-time background restore and the
+	// mid-session constant → adaptive conversion both need the reply in hand.
 	requestBg := tea.Cmd(tea.RequestBackgroundColor)
 
-	// Races the OSC 11 query so a non-responding terminal still resolves to
-	// the dark fallback; whichever fires first resolves the answer and the
-	// loser is ignored. Nil for an already-resolved gate, harmless in Batch.
+	// Races the OSC 11 query so a non-responding terminal still resolves. Nil for
+	// an already-resolved gate, which is harmless in Batch.
 	detectTimeout := m.themeState.gate.timeoutCmd()
 
 	if m.commandPending {
@@ -1692,9 +1442,8 @@ func (m Model) Init() tea.Cmd {
 		})
 		cmds := []tea.Cmd{requestBg, detectTimeout, fetchSessions, loadingPadTick}
 		if m.progressReceiver != nil {
-			// The channel owns the terminal BootstrapCompleteMsg; synthesizing
-			// one here would dismiss the loading page before the orchestrator
-			// finished.
+			// The channel owns the terminal BootstrapCompleteMsg; synthesizing one
+			// here would dismiss the loading page before the orchestrator finished.
 			cmds = append(cmds, m.progressReceiver)
 		} else {
 			// Warm route: the orchestrator already ran before this Init, so
@@ -1722,11 +1471,10 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		// the composed view fits inside the global gutter.
 		m.applySessionListSize(m.contentWidth(), m.contentHeight())
 		m.applyProjectListSize(m.contentWidth(), m.contentHeight())
-		// Sequenced after the two page lists: a forced panel close raises a
-		// notice band, which re-syncs the layouts they just set. Its command
-		// must neither be swallowed nor returned here (the message still has
-		// to reach the arms below), so it is deferred onto whichever return
-		// fires.
+		// Sequenced after the two page lists: a forced panel close raises a notice
+		// band, which re-syncs the layouts they just set. Its command must neither
+		// be swallowed nor returned here — the message still has to reach the arms
+		// below — so it is deferred onto whichever return fires.
 		if closed := (&m).resizeThemePanel(); closed != nil {
 			defer func() { cmd = tea.Batch(closed, cmd) }()
 		}
@@ -1737,9 +1485,8 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case tea.BackgroundColorMsg:
 		// Order matters: the reply is retained unconditionally, and only then
 		// offered to the gate — a late reply must still reach restore-on-exit
-		// and the mid-session conversion without re-theming. The nil guard is
-		// required: BackgroundColorMsg.String() panics on a nil Color.
-		// COLORFGBG is deliberately not consulted — OSC 11 is authoritative.
+		// without re-theming. The nil guard is required: BackgroundColorMsg.String()
+		// panics on a nil Color. COLORFGBG is deliberately not consulted.
 		m.themeState.reply = terminalReplyFrom(msg)
 		if msg.Color != nil {
 			m.originalBg = msg.String()
@@ -1749,8 +1496,6 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 		return m, nil
 	case appearanceTimeoutMsg:
-		// A no-op once resolved, so a timeout that lost the race to the OSC 11
-		// reply never re-resolves — no second resolution, no flip.
 		if m.themeState.gate.resolveDark() {
 			m.syncResolvedMode()
 		}
@@ -1761,9 +1506,8 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 		cmd := m.applySessions(msg.Sessions)
 
-		// While loading, ingest the list but leave sessionsLoaded alone:
-		// dismissal is gated on BootstrapCompleteMsg + the min-elapsed tick,
-		// and transitionFromLoading owns the flip.
+		// While loading, ingest but leave sessionsLoaded alone —
+		// transitionFromLoading owns the flip.
 		if m.activePage == PageLoading {
 			return m, cmd
 		}
@@ -1784,14 +1528,12 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 		return m, nil
 	case BootstrapProgressMsg:
-		// Non-terminal: re-issuing the single blocking receive preserves exact
-		// event order even though Bubble Tea batches commands. It never drives
-		// the loading transition, which keeps the TUI inert during loading.
+		// Re-issuing the single blocking receive preserves exact event order even
+		// though Bubble Tea batches commands.
 		m.loadingProgress = m.loadingProgress.Apply(msg)
 		return m, m.progressReceiver
 	case BootstrapCompleteMsg:
-		// Defensive: a stray complete must never dismiss the error frame into
-		// a picker.
+		// Defensive: a stray complete must never dismiss the error frame.
 		if m.fatalActive {
 			return m, nil
 		}
@@ -1823,10 +1565,9 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 			if m.termWidth > 0 || m.termHeight > 0 {
 				m.applyProjectListSize(m.contentWidth(), m.contentHeight())
 			}
-			// Startup-ordering correction: sessions and projects load
-			// concurrently, so a SessionsMsg that arrived first grouped every
-			// session against empty projects and dumped them in the catch-all.
-			// Re-group now the records are cached.
+			// Sessions and projects load concurrently, so a SessionsMsg that arrived
+			// first grouped every session against empty projects and dumped them in
+			// the catch-all. Re-group now the records are cached.
 			grouped := m.sessionListMode == prefs.ModeByProject || m.sessionListMode == prefs.ModeByTag
 			if grouped && len(m.sessions) > 0 {
 				setItemsCmd = tea.Batch(setItemsCmd, (&m).rebuildSessionList())
@@ -1841,9 +1582,8 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	case sessionCreateErrMsg:
 		return m, nil
 	case previewDismissedMsg:
-		// The sessionList is deliberately not mutated: cursor position and
-		// filter state must round-trip byte-identically. Capture preserveName
-		// before exitPreviewToSessions — it zeroes m.preview.
+		// The sessionList is deliberately not mutated: cursor position and filter
+		// state must round-trip byte-identically.
 		captured := m.preview.session
 		return m, m.exitPreviewToSessions(captured)
 	case previewAttachBailMsg:
@@ -1853,10 +1593,6 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		m.setFlash(formatSessionGoneFlash(msg.Session))
 		return m, tea.Batch(refreshCmd, flashTickCmd(m.flashGen))
 	case previewAttachSelectedMsg:
-		// Record and quit so the connector runs after the program shuts down.
-		// Connecting from inside the event loop would leave an orphan portal
-		// process event-looping with no UI after switch-client moved the
-		// client away.
 		m.selected = msg.Session
 		return m, tea.Quit
 	case previewSessionsRefreshedMsg:
@@ -1869,23 +1605,14 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		m.reanchorSessionCursor(msg.PreserveName)
 		return m, cmd
 	case flashTickMsg:
-		// Generation guard: a tick belonging to a superseded flash is dropped
-		// rather than early-clearing the current one.
 		if msg.Gen == m.flashGen {
 			m.clearFlash()
 		}
 		return m, nil
 	case terminalDetectedMsg:
-		// Adapter and resolution come from one resolve and are cached
-		// together, so the burst's gate decision and its dispatch adapter can
-		// never disagree.
 		m.detectIdentity = msg.identity
 		m.detectAdapter, m.detectResolution = m.resolve(msg.identity)
 		m.detectResolved = true
-		// Resolve a deferred Enter now the terminal is known. The marked set
-		// is re-derived live rather than replayed from an Enter-time snapshot:
-		// the defer window does not engage the input lock, so a toggle between
-		// the Enter and this reply must be honoured.
 		if m.pendingBurstEnter {
 			return m.decideBurst(m.orderedMarkedSessions())
 		}
@@ -1900,10 +1627,9 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 		return m, m.burstPipe.receiver()
 	case spawnCompleteMsg:
-		// Full success self-attaches the trigger through the ordinary
-		// selected+Quit path, giving net N windows rather than N+1. Anything
-		// else is leave-what-opened. A user cancel routes there too even when
-		// the outcome is all-confirmed — Ctrl-C/Esc must never attach.
+		// Full success self-attaches the trigger through the ordinary selected+Quit
+		// path, giving net N windows rather than N+1. A user cancel routes to
+		// leave-what-opened even when all-confirmed — Ctrl-C/Esc must never attach.
 		if m.burstAllConfirmed(msg) && !m.burstCancelled {
 			// Emit before the Quit handoff.
 			m.emitBurstSummary(msg.Batch, msg.Identity, msg.Resolution, msg.Results, true)
@@ -1913,18 +1639,15 @@ func (m Model) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 		return m.handleBurstPartialFailure(msg)
 	case spawnAbortMsg:
-		// The burst aborted before spawning, so nothing opened and there is
-		// no self-attach.
 		return m.handlePreflightAbort(msg), nil
 	case burstChannelClosedMsg:
 		// Post-terminal sentinel; the terminal event already cleared pending.
 		return m, nil
 	}
 
-	// The open slide-over owns the keyboard, so its arm sits ahead of the
-	// page dispatch. Only key input is intercepted — resizes, refreshes and
-	// the appearance gate's messages must keep reaching the model beneath,
-	// which stays live and visible.
+	// The open slide-over owns the keyboard, so its arm sits ahead of the page
+	// dispatch. Only key input is intercepted — resizes and refreshes must keep
+	// reaching the model beneath, which stays live and visible.
 	if m.themePanel.open {
 		if keyMsg, isKey := msg.(tea.KeyPressMsg); isKey {
 			return m.updateThemePanel(keyMsg)
@@ -1982,10 +1705,9 @@ func (m Model) updateProjectsPage(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		// One key, one intent: an actionable key clears the flash as a side
-		// effect and deliberately falls through to its normal handler. Keep
-		// this in the same position as updateSessionList's clear or the rule
-		// forks per page.
+		// One key, one intent: an actionable key clears the flash as a side effect
+		// and deliberately falls through to its normal handler. Keep this in the
+		// same position as updateSessionList's clear or the rule forks per page.
 		if m.flashText != "" && isActionableKey(msg) {
 			m.clearFlash()
 		}
@@ -1995,8 +1717,8 @@ func (m Model) updateProjectsPage(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.projectList.SettingFilter() {
 			break
 		}
-		// Opening our modal also consumes the key, so bubbles/list never
-		// toggles its own help.
+		// Opening our modal also consumes the key, so bubbles/list never toggles
+		// its own help.
 		if isRuneKey(msg, "?") {
 			m.modal = modalHelp
 			return m, nil
@@ -2014,9 +1736,8 @@ func (m Model) updateProjectsPage(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.activePage = PageSessions
-			// Re-group refresh so tag edits made in the projects modal are
-			// visible on return. Empty preserveName: no anchored cursor on a
-			// page switch.
+			// Re-group refresh so tag edits in the projects modal show on return.
+			// Empty preserveName: no anchored cursor on a page switch.
 			return m, m.refreshSessionsAfterPreviewCmd("")
 		case isRuneKey(msg, "n"):
 			return m.handleNewInCWD()
@@ -2083,8 +1804,6 @@ func (m Model) updateDeleteProjectModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pendingDeleteName = ""
 		return m, m.deleteAndRefreshProjects(path)
 	case keyIsCode(keyMsg, tea.KeyEscape):
-		// Cancel is Esc only; clear both pending fields so no stale state
-		// leaks past dismissal.
 		m.modal = modalNone
 		m.pendingDeletePath = ""
 		m.pendingDeleteName = ""
@@ -2273,8 +1992,7 @@ func (m *Model) focusField(field editField) {
 	}
 }
 
-// moveElement shifts the focused chip index by delta, bounded to [0, len] —
-// index len being the + add slot. A no-op on Name, which has no elements.
+// Bounded to [0, len] — index len is the + add slot. A no-op on Name.
 func (m *Model) moveElement(delta int) {
 	switch m.editFocus {
 	case editFieldAliases:
@@ -2284,7 +2002,6 @@ func (m *Model) moveElement(delta int) {
 	}
 }
 
-// focusedChips reports ok only when a chip field (not Name) is focused.
 func (m Model) focusedChips() (chips []string, idx int, ok bool) {
 	switch m.editFocus {
 	case editFieldAliases:
@@ -2306,8 +2023,7 @@ func (m Model) focusedOnAddSlot() bool {
 	return ok && idx == len(chips)
 }
 
-// deleteFocusedChip removes the focused chip and persists the delete
-// immediately; a no-op on the + add slot or Name.
+// Persists the delete immediately; a no-op on the + add slot or Name.
 func (m Model) deleteFocusedChip() (tea.Model, tea.Cmd) {
 	if !m.focusedOnChip() {
 		return m, nil
@@ -2336,8 +2052,6 @@ func (m Model) deleteFocusedChip() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// enterEditFromNavigate seeds the buffer from the focused element's value; on
-// the + add slot it spawns a brand-new empty chip.
 func (m Model) enterEditFromNavigate() (tea.Model, tea.Cmd) {
 	m.editMode = editModeEdit
 	switch m.editFocus {
@@ -2358,8 +2072,8 @@ func (m Model) enterEditFromNavigate() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// closeEditModal never discards — all work is already persisted; it only
-// refreshes the cached records when something changed this session.
+// Never discards — all work is already persisted; it only refreshes the cached
+// records when something changed this session.
 func (m Model) closeEditModal() (tea.Model, tea.Cmd) {
 	m.modal = modalNone
 	if m.editChanged {
@@ -2391,8 +2105,8 @@ func (m *Model) backspaceEditBuffer() {
 	m.editCursor = pos - 1
 }
 
-// discardEdit backs out the in-progress edit: a brand-new chip vanishes, an
-// existing chip or Name keeps its prior value. Nothing persists.
+// A brand-new chip vanishes, an existing chip or Name keeps its prior value.
+// Nothing persists.
 func (m Model) discardEdit() (tea.Model, tea.Cmd) {
 	m.editMode = editModeNavigate
 	m.resetEditBuffer()
@@ -2407,10 +2121,8 @@ func (m Model) discardEdit() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// commitEdit persists the live element and returns to navigate mode: empty
-// commits delete (an empty Name reverts), duplicates dedupe silently, and a
-// cross-project alias collision reverts silently. It always exits edit mode —
-// there is no blocking error modal.
+// Always exits edit mode — there is no blocking error modal, so every
+// falling-out rule below degrades silently.
 func (m Model) commitEdit() (tea.Model, tea.Cmd) {
 	value := strings.TrimSpace(m.editBuffer)
 	field := m.editFocus
@@ -2429,8 +2141,7 @@ func (m Model) commitEdit() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// commitName persists a Name change; an empty Name reverts to the prior value
-// with no Rename call and no error.
+// An empty Name reverts to the prior value — no Rename call, no error.
 func (m *Model) commitName(value string) {
 	if value == "" {
 		return
@@ -2447,9 +2158,8 @@ func (m *Model) commitName(value string) {
 	m.editChanged = true
 }
 
-// commitAlias persists an alias chip edit: empty deletes the chip, a
-// duplicate dedupes silently, and an alias mapping to a different project is
-// a silent revert.
+// Empty deletes the chip, a duplicate dedupes silently, and an alias mapping to a
+// different project is a silent revert.
 func (m *Model) commitAlias(value string) {
 	idx := m.editAliasCursor
 	existing := idx < len(m.editAliases)
@@ -2462,8 +2172,7 @@ func (m *Model) commitAlias(value string) {
 	for i, a := range m.editAliases {
 		if a == value && i != idx {
 			if existing {
-				// Renamed onto a duplicate: drop the edited chip, leave the
-				// original.
+				// Renamed onto a duplicate: drop the edited chip, leave the original.
 				m.deleteAliasAt(idx)
 			}
 			return
@@ -2500,8 +2209,7 @@ func (m *Model) commitAlias(value string) {
 	m.editChanged = true
 }
 
-// commitTag persists a tag chip edit: empty deletes, and a duplicate dedupes
-// silently (case-sensitive).
+// Empty deletes; a duplicate dedupes silently (tags are case-sensitive).
 func (m *Model) commitTag(value string) {
 	idx := m.editTagCursor
 	existing := idx < len(m.editTags)
@@ -2556,8 +2264,8 @@ func (m *Model) commitTag(value string) {
 	m.editChanged = true
 }
 
-// deleteAliasAt persists the delete when idx addresses an existing chip; an
-// out-of-range index (a just-spawned new chip) simply vanishes.
+// Persists the delete when idx addresses an existing chip; an out-of-range index
+// (a just-spawned new chip) simply vanishes.
 func (m *Model) deleteAliasAt(idx int) {
 	if idx < len(m.editAliases) {
 		removed := m.editAliases[idx]
@@ -2582,8 +2290,8 @@ func (m *Model) deleteTagAt(idx int) {
 	m.editTagCursor = len(m.editTags)
 }
 
-// dropNewChip re-clamps the element index after a brand-new chip fails to
-// commit and so never enters the slice.
+// Re-clamps the index after a brand-new chip fails to commit and so never
+// enters the slice.
 func (m *Model) dropNewChip() {
 	switch m.editFocus {
 	case editFieldAliases:
@@ -2619,19 +2327,17 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		// Burst input-lock: while a burst is in flight the picker is inert to
-		// row actions so nothing races the completion handler's selection
-		// mutation. Only cancellation stays live. Must precede the
-		// flash-clear, the SettingFilter guard, and the rune switch.
+		// Burst input-lock: the picker is inert to row actions so nothing races the
+		// completion handler's selection mutation. Must precede the flash-clear, the
+		// SettingFilter guard, and the rune switch.
 		if m.burstPending {
 			if keyIsCtrlC(msg) || keyIsCode(msg, tea.KeyEscape) {
 				return m.cancelBurst()
 			}
 			return m, nil
 		}
-		// Abort-banner dismissal, staying in multi-select mode. Esc dismisses
-		// the banner without falling through to the mode-exit branch, so a
-		// second Esc exits the mode; every other actionable key clears the
+		// Esc dismisses the banner without falling through to the mode-exit branch,
+		// so a second Esc exits the mode; every other actionable key clears the
 		// banner and continues to its handler.
 		if m.abortBannerText != "" && isActionableKey(msg) {
 			dismissEsc := keyIsCode(msg, tea.KeyEscape)
@@ -2640,8 +2346,8 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		// One key, one intent: clear the flash as a side effect and fall
-		// through to the keystroke's normal handler.
+		// One key, one intent: clear the flash as a side effect and fall through to
+		// the keystroke's normal handler.
 		if m.flashText != "" && isActionableKey(msg) {
 			m.clearFlash()
 		}
@@ -2653,14 +2359,13 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.sessionList.SettingFilter() {
 			break
 		}
-		// Opening our modal also consumes the key, so bubbles/list never
-		// toggles its own help.
+		// Opening our modal also consumes the key, so bubbles/list never toggles
+		// its own help.
 		if isRuneKey(msg, "?") {
 			m.modal = modalHelp
 			return m, nil
 		}
-		// Bound before the rest of the keymap so it never collides with the
-		// rune handlers.
+		// Bound before the rune handlers so it never collides with them.
 		if keyIsCode(msg, tea.KeySpace) {
 			if len(m.sessionList.Items()) == 0 {
 				return m, nil
@@ -2692,10 +2397,9 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case isRuneKey(msg, "q"):
 			return m, tea.Quit
-		// Multi-select suppresses the row actions k/r/n/x — none compose with
-		// a marked set, and n would quit the picker, silently discarding it.
-		// The arms stay present rather than deleted so default-mode dispatch
-		// is unchanged.
+		// Multi-select suppresses the row actions k/r/n/x — none compose with a
+		// marked set, and n would quit the picker, silently discarding it. The arms
+		// stay present so default-mode dispatch is unchanged.
 		case isRuneKey(msg, "k"):
 			if m.multiSelectMode {
 				return m, nil
@@ -2741,15 +2445,12 @@ func (m Model) updateSessionList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handleSwitchViewKey advances the grouping mode one step, re-renders, and
-// persists the new mode. The cycle is unconditional — it fires regardless of
-// session or tag count. Persistence is best-effort: remembering the last mode
-// is a convenience, so a write failure must not abort the toggle.
+// The cycle is unconditional — it fires regardless of session or tag count.
+// Persistence is best-effort: a write failure must not abort the toggle.
 func (m Model) handleSwitchViewKey() (tea.Model, tea.Cmd) {
 	m.sessionListMode = nextSessionListMode(m.sessionListMode)
 	cmd := (&m).rebuildSessionList()
-	// The previous page offset and cursor are meaningless under the new
-	// grouping.
+	// The previous page offset and cursor are meaningless under the new grouping.
 	m.sessionList.ResetSelected()
 	(&m).ensureSessionRowSelected()
 	if m.modePersister != nil {
@@ -2758,9 +2459,8 @@ func (m Model) handleSwitchViewKey() (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// Blocked-entry flash copy for the proactive multi-select block. No ⚠ glyph
-// (the band prepends it) and no "nothing opened" suffix — a pre-emptive block
-// attempts nothing. It names neither the identity nor "see docs": on a named
+// No ⚠ glyph (the band prepends it) and no "nothing opened" suffix — a pre-emptive
+// block attempts nothing. It names neither the identity nor "see docs": on a named
 // terminal it co-renders with the banner, which supplies both.
 const (
 	multiSelectBlockedRemoteFlash = "multi-select isn't available over a remote connection"
@@ -2774,15 +2474,13 @@ func multiSelectBlockedFlashText(id spawn.Identity) string {
 	return multiSelectBlockedNamedFlash
 }
 
-// handleMultiSelectToggle drives the `m` key: the first press enters the mode
-// marking the highlighted session, and each later press toggles the
-// highlighted row. Entry or a toggle on a header row (or an empty list) marks
-// nothing rather than being special-cased.
+// Entry or a toggle on a header row (or an empty list) marks nothing rather than
+// being special-cased.
 func (m Model) handleMultiSelectToggle() (tea.Model, tea.Cmd) {
 	if !m.multiSelectMode {
-		// Proactive block: on a resolved-unsupported terminal `m` must not
-		// open a walkable dead-end mode whose Enter can never fire a burst.
-		// Detection unwired reports false here, so `m` still enters the mode.
+		// Proactive block: on a resolved-unsupported terminal `m` must not open a
+		// walkable dead-end mode whose Enter can never fire a burst. Detection
+		// unwired reports false here, so `m` still enters the mode.
 		if m.DetectUnsupported() {
 			(&m).setFlash(multiSelectBlockedFlashText(m.detectIdentity))
 			return m, flashTickCmd(m.flashGen)
@@ -2812,7 +2510,6 @@ func (m Model) handleMultiSelectToggle() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// exitMultiSelect leaves the mode and clears the whole marked set.
 func (m Model) exitMultiSelect() Model {
 	m.multiSelectMode = false
 	m.selectedSessions = nil
@@ -2820,9 +2517,8 @@ func (m Model) exitMultiSelect() Model {
 	return m
 }
 
-// handleMultiSelectEnter commits the marked set; the cursor is irrelevant.
-// N=0 exits without opening anything (not a quit), N=1 degenerates to a plain
-// single attach, and N≥2 is the spawn-burst boundary.
+// Commits the marked set; the cursor is irrelevant. N=0 exits the mode without
+// opening anything — it is not a quit.
 func (m Model) handleMultiSelectEnter() (tea.Model, tea.Cmd) {
 	switch len(m.selectedSessions) {
 	case 0:
@@ -2875,9 +2571,8 @@ func (m Model) updateModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// updateHelpModal is key-exclusive: ? and Esc dismiss, every other key is
-// consumed. Esc must not fall through to the page's clear-filter/quit — help
-// opened over an applied filter dismisses the help only.
+// Key-exclusive: Esc must not fall through to the page's clear-filter/quit —
+// help opened over an applied filter dismisses the help only.
 func (m Model) updateHelpModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
@@ -2998,14 +2693,11 @@ func (m Model) handleSessionListEnter() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-// View renders the current frame. Alt-screen is set declaratively here so
-// every page composer stays a plain string builder.
+// Alt-screen is set declaratively here so page composers stay string builders.
 func (m Model) View() tea.View {
-	// First-paint gate: under an adaptive pair, hold the real paint until
-	// the gate resolves, since painting first would risk a visible flip of
-	// the whole theme. The wait is tens of ms, invisible against the
-	// multi-hundred-ms bootstrap. It holds every owned-canvas surface,
-	// including the cold-path loading page.
+	// First-paint gate: under an adaptive pair, hold the real paint until the gate
+	// resolves — painting first risks a visible flip of the whole theme. It holds
+	// every owned-canvas surface, including the cold-path loading page.
 	if !m.modeResolved() {
 		v := tea.NewView(m.blankFrame())
 		v.AltScreen = true
@@ -3013,22 +2705,20 @@ func (m Model) View() tea.View {
 	}
 	v := tea.NewView(m.fillCanvas(m.viewString()))
 	v.AltScreen = true
-	// Under NO_COLOR the terminal keeps its native bg: leaving
-	// BackgroundColor nil completes the canvas suppression.
+	// Under NO_COLOR the terminal keeps its native bg: leaving BackgroundColor
+	// nil completes the canvas suppression.
 	if m.colourless {
 		return v
 	}
-	// Belt-and-braces gutter fill only — it paints the terminal's padding
-	// outside the rendered grid on terminals that honour OSC 11. In-grid
-	// correctness does not depend on it; fillCanvas paints every interior
-	// cell with an explicit SGR.
+	// Belt-and-braces gutter fill only — it paints the terminal's padding outside
+	// the rendered grid on terminals that honour OSC 11. In-grid correctness does
+	// not depend on it; fillCanvas paints every interior cell explicitly.
 	v.BackgroundColor = m.themeState.active.Canvas.Color()
 	return v
 }
 
-// blankFrame is the neutral pre-resolution frame held by the first-paint
-// gate. It deliberately paints no canvas background — the mode is undecided,
-// so committing to either canvas here is the flip the gate exists to avoid.
+// Deliberately paints no canvas background — the mode is undecided, so committing
+// to either canvas here is the flip the gate exists to avoid.
 func (m Model) blankFrame() string {
 	w, h := m.termDims()
 	blank := strings.Repeat(" ", w)
@@ -3054,8 +2744,6 @@ const (
 	fallbackTermHeight = 24
 )
 
-// termDims returns the cached terminal dimensions with the zero/unset
-// fallback applied.
 func (m Model) termDims() (w, h int) {
 	w, h = m.termWidth, m.termHeight
 	if w <= 0 {
@@ -3067,9 +2755,8 @@ func (m Model) termDims() (w, h int) {
 	return w, h
 }
 
-// insetRegion reduces a dimension by 2× the inset, clamping the inset to 0
-// when the dimension cannot hold it, so a tiny terminal degrades rather than
-// producing a negative region.
+// Clamps the inset to 0 when the dimension cannot hold it, so a tiny terminal
+// degrades rather than producing a negative region.
 func insetRegion(dim, inset int) int {
 	if dim <= 2*inset {
 		return dim
@@ -3077,15 +2764,13 @@ func insetRegion(dim, inset int) int {
 	return dim - 2*inset
 }
 
-// contentWidth is the inset content-region width every page composes into.
 func (m Model) contentWidth() int {
 	w, _ := m.termDims()
 	return insetRegion(w, Hinset)
 }
 
-// insetWindowSizeMsg rewrites a resize to the inset content-region size so a
-// sub-model that frames its own view sits inside the global gutter. Any other
-// message passes through unchanged.
+// Rewrites a resize to the inset content-region size so a sub-model that frames
+// its own view sits inside the gutter. Any other message passes through.
 func insetWindowSizeMsg(msg tea.Msg, contentW, contentH int) tea.Msg {
 	wsm, ok := msg.(tea.WindowSizeMsg)
 	if !ok {
@@ -3096,34 +2781,29 @@ func insetWindowSizeMsg(msg tea.Msg, contentW, contentH int) tea.Msg {
 	return wsm
 }
 
-// contentHeight is the inset content-region height every page composes into.
-// The vertical inset is subtracted in addition to what the list budget
-// already reserves.
+// The vertical inset is subtracted in addition to what the list budget reserves.
 func (m Model) contentHeight() int {
 	_, h := m.termDims()
 	return insetRegion(h, Vinset)
 }
 
-// fillCanvas is the outer full-terminal canvas fill — the last layer over the
-// composed page, bar the theme slide-over, which is composited on the way out
-// so the fill never paints over a panel cell.
-//
-// Each line is padded individually rather than via lipgloss.Place, which pads
-// only beyond the single widest line and so would suppress padding on every
-// shorter one. Content taller than the region is clamped.
+// The last layer over the composed page, bar the theme slide-over, which is
+// composited on the way out so the fill never paints over a panel cell. Each
+// line is padded individually rather than via lipgloss.Place, which pads only
+// beyond the single widest line. Content taller than the region is clamped.
 func (m Model) fillCanvas(view string) string {
 	w, h := m.termDims()
 	contentW := m.contentWidth()
 	contentH := m.contentHeight()
-	// NO_COLOR: keep the layout, but every padding/gutter cell is a plain
-	// space with no background SGR.
+	// NO_COLOR: keep the layout, but every padding/gutter cell is a plain space
+	// with no background SGR.
 	if m.colourless {
 		content := m.overlayThemePanelOnContent(fillColourless(view, contentW, contentH), contentW, contentH)
 		return insetColourless(content, w, h, contentW, contentH)
 	}
 	canvas := lipgloss.NewStyle().Background(m.themeState.active.Canvas.Color())
 	canvasBg := canvasBgParams(m.themeState.active.Canvas.Color())
-	parser := ansi.NewParser() // one instance reused across every line this frame
+	parser := ansi.NewParser()
 
 	lines := strings.Split(view, "\n")
 	out := make([]string, 0, contentH)
@@ -3131,8 +2811,8 @@ func (m Model) fillCanvas(view string) string {
 		if len(out) == contentH {
 			break
 		}
-		// Backfill mid-line gaps before padding, so every interior cell
-		// carries the canvas bg without depending on OSC 11.
+		// Backfill mid-line gaps before padding, so every interior cell carries
+		// the canvas bg without depending on OSC 11.
 		line = backfillCanvasBackground(line, canvasBg, parser)
 		out = append(out, padLineToCanvasWidth(line, contentW, canvas))
 	}
@@ -3144,11 +2824,10 @@ func (m Model) fillCanvas(view string) string {
 	return insetCanvasCanvas(strings.Split(content, "\n"), w, h, contentW, canvas)
 }
 
-// overlayThemePanelOnContent composites the slide-over over the filled
-// content region. The position is load-bearing: after the fill, because the
-// panel is opaque and paints its own cells, so the fill's backfill and pad
-// must not process them; before the gutter inset, because the panel's right
-// edge is the content region's, not the terminal's. A no-op while closed.
+// The position is load-bearing: after the fill, because the panel is opaque and
+// paints its own cells, so the fill's backfill and pad must not process them;
+// before the gutter inset, because the panel's right edge is the content region's,
+// not the terminal's.
 func (m Model) overlayThemePanelOnContent(content string, contentW, contentH int) string {
 	if !m.themePanel.open {
 		return content
@@ -3157,8 +2836,7 @@ func (m Model) overlayThemePanelOnContent(content string, contentW, contentH int
 	return overlayThemePanel(content, panel, contentW)
 }
 
-// gutterPadding splits the gutter evenly across both sides — shared by both
-// inset placers so the coloured and colourless frames match in layout.
+// Shared by both inset placers so coloured and colourless frames match in layout.
 func gutterPadding(w, h, contentW, contentH int) (leftPad, rightPad, topPad, botPad int) {
 	hGutter := w - contentW
 	leftPad = hGutter / 2
@@ -3169,8 +2847,6 @@ func gutterPadding(w, h, contentW, contentH int) (leftPad, rightPad, topPad, bot
 	return leftPad, rightPad, topPad, botPad
 }
 
-// insetCanvasCanvas places the content rows inside the full terminal canvas
-// for the coloured path, every gutter cell painted the owned canvas.
 func insetCanvasCanvas(contentRows []string, w, h, contentW int, canvas lipgloss.Style) string {
 	leftPad, rightPad, topPad, botPad := gutterPadding(w, h, contentW, len(contentRows))
 
@@ -3197,9 +2873,7 @@ func insetCanvasCanvas(contentRows []string, w, h, contentW int, canvas lipgloss
 	return strings.Join(out, "\n")
 }
 
-// fillColourless is the NO_COLOR variant of fillCanvas's per-line fill: same
-// line geometry, but every padding cell is a plain space with no background
-// SGR and there is no mid-line backfill.
+// Must keep fillCanvas's line geometry; only the SGR-free padding differs.
 func fillColourless(view string, w, h int) string {
 	blank := strings.Repeat(" ", w)
 	lines := strings.Split(view, "\n")
@@ -3221,8 +2895,7 @@ func fillColourless(view string, w, h int) string {
 	return strings.Join(out, "\n")
 }
 
-// insetColourless is the NO_COLOR counterpart of insetCanvasCanvas: the same
-// geometry with plain-space gutters and no background SGR.
+// Must keep insetCanvasCanvas's geometry; only the SGR-free gutters differ.
 func insetColourless(content string, w, h, contentW, contentH int) string {
 	leftPad, rightPad, topPad, botPad := gutterPadding(w, h, contentW, contentH)
 
@@ -3243,13 +2916,10 @@ func insetColourless(content string, w, h, contentW, contentH int) string {
 	return strings.Join(out, "\n")
 }
 
-// backfillCanvasBackground folds the canvas background into every SGR that
-// resets the background to default, so bare spacer cells emitted by
-// sub-renderers cannot bleed the terminal's own theme through on terminals
-// that ignore OSC 11. SGRs setting an explicit background are left untouched.
-//
-// The parser is passed in so the per-line loop reuses one instance; sharing is
-// safe because this never reads parser.Params.
+// Folds the canvas background into every SGR that resets the background to
+// default, so bare spacer cells cannot bleed the terminal's own theme through.
+// SGRs setting an explicit background are left untouched. The parser is passed in
+// so the per-line loop reuses one instance; sharing is safe — Params is unread.
 func backfillCanvasBackground(line, canvasBg string, parser *ansi.Parser) string {
 	if canvasBg == "" {
 		return line
@@ -3263,9 +2933,9 @@ func backfillCanvasBackground(line, canvasBg string, parser *ansi.Parser) string
 	state := byte(0)
 	bgActive := false
 
-	// Content arrives grapheme-by-grapheme, so buffer a contiguous run and
-	// wrap it once rather than per cell — that keeps the rendered text
-	// searchable and the SGR overhead minimal.
+	// Content arrives grapheme-by-grapheme, so buffer a contiguous run and wrap it
+	// once rather than per cell — that keeps the rendered text searchable and the
+	// SGR overhead minimal.
 	var run []byte
 	flushRun := func() {
 		if len(run) == 0 {
@@ -3306,7 +2976,6 @@ func backfillCanvasBackground(line, canvasBg string, parser *ansi.Parser) string
 		case width > 0:
 			run = append(run, seq...)
 		default:
-			// Non-SGR control / escape — pass through verbatim.
 			flushRun()
 			b.Write(seq)
 		}
@@ -3317,8 +2986,6 @@ func backfillCanvasBackground(line, canvasBg string, parser *ansi.Parser) string
 	return b.String()
 }
 
-// rewriteSGRWithCanvasBg appends the canvas background parameters to an SGR
-// sequence, carrying its foreground and attribute codes through unchanged.
 func rewriteSGRWithCanvasBg(originalParams, canvasParams []string) string {
 	merged := make([]string, 0, len(originalParams)+len(canvasParams))
 	for _, p := range originalParams {
@@ -3334,7 +3001,6 @@ func rewriteSGRWithCanvasBg(originalParams, canvasParams []string) string {
 	return "\x1b[" + strings.Join(merged, ";") + "m"
 }
 
-// sgrParamsList splits the ";"-separated parameters from a CSI ...m sequence.
 // A bare "\x1b[m" yields a single empty element, which callers treat as a full
 // reset.
 func sgrParamsList(seq string) []string {
@@ -3345,11 +3011,9 @@ func sgrParamsList(seq string) []string {
 	return strings.Split(inner, ";")
 }
 
-// sgrBackgroundActive folds an SGR sequence's parameters into the running "is
-// an explicit background active?" flag: 0/empty and 49 clear it, 48;… and the
-// named bg codes set it, everything else leaves it. Extended-colour runs are
-// consumed whole so a colour channel value that happens to equal a bg code can
-// never be misread as a background change.
+// Folds an SGR sequence's parameters into the running "is an explicit background
+// active?" flag. Extended-colour runs are consumed whole so a colour channel
+// value that happens to equal a bg code can never be misread as a bg change.
 func sgrBackgroundActive(active bool, params []string) bool {
 	for i := 0; i < len(params); i++ {
 		switch p := params[i]; {
@@ -3367,9 +3031,9 @@ func sgrBackgroundActive(active bool, params []string) bool {
 	return active
 }
 
-// consumeExtendedColorRun returns the index of the last channel parameter of
-// an extended-colour SGR run starting at i (38/48 followed by 2;r;g;b or 5;n).
-// An over-run index needs no clamp — the caller's loop re-checks the bound.
+// Returns the index of the last channel parameter of an extended-colour SGR run
+// starting at i (38/48 followed by 2;r;g;b or 5;n). An over-run index needs no
+// clamp — the caller's loop re-checks the bound.
 func consumeExtendedColorRun(params []string, i int) int {
 	if i+1 >= len(params) {
 		return i
@@ -3392,9 +3056,8 @@ func isNamedBackground(p string) bool {
 	return false
 }
 
-// canvasBgParams returns the raw background-parameter form the given colour
-// renders as, derived through lipgloss so the backfill folds the same bytes
-// the leaf styles paint. An empty result disables the backfill.
+// Derived through lipgloss so the backfill folds the same bytes the leaf styles
+// paint. An empty result disables the backfill.
 func canvasBgParams(c color.Color) string {
 	probe := lipgloss.NewStyle().Background(c).Render(" ")
 	idx := strings.IndexByte(probe, 'm')
@@ -3404,10 +3067,8 @@ func canvasBgParams(c color.Color) string {
 	return probe[len("\x1b["):idx]
 }
 
-// padLineToCanvasWidth right-pads a line to width with canvas-background
-// whitespace, stripping bubbles/list's trailing block-padding first. An
-// over-width line is never truncated here — horizontal overflow is handled by
-// name truncation.
+// Strips bubbles/list's trailing block-padding first. An over-width line is never
+// truncated here — horizontal overflow is handled by name truncation.
 func padLineToCanvasWidth(line string, width int, canvas lipgloss.Style) string {
 	line = strings.TrimRight(line, " ")
 	gap := width - lipgloss.Width(line)
@@ -3417,8 +3078,6 @@ func padLineToCanvasWidth(line string, width int, canvas lipgloss.Style) string 
 	return line + canvas.Render(strings.Repeat(" ", gap))
 }
 
-// viewString renders the current page to a plain string; the tea.View
-// wrapping lives in View.
 func (m Model) viewString() string {
 	switch m.activePage {
 	case PageLoading:
@@ -3432,8 +3091,6 @@ func (m Model) viewString() string {
 	}
 }
 
-// viewLoading renders the loading interstitial from the live progress
-// accumulator, composed into the inset content region.
 func (m Model) viewLoading() string {
 	view := m.loadingProgress.View()
 	if m.fatalActive {
@@ -3449,9 +3106,8 @@ func (m Model) viewLoading() string {
 	)
 }
 
-// viewProjectList renders the Projects page. With a modal open the page
-// chrome is not composed at all: only the centred panel is returned, and the
-// outer fill paints the cleared backdrop.
+// With a modal open the page chrome is not composed at all: only the centred
+// panel is returned, and the outer fill paints the cleared backdrop.
 func (m Model) viewProjectList() string {
 	switch m.modal {
 	case modalDeleteProject:
@@ -3465,8 +3121,8 @@ func (m Model) viewProjectList() string {
 	}
 	listView := m.projectList.View()
 	listView = m.applyProjectsSectionHeader(listView)
-	// Suppressed while a command is pending: the user is being asked to pick
-	// a project to run, so the empty-state guidance would be wrong.
+	// Suppressed while a command is pending: the user is being asked to pick a
+	// project to run, so the empty-state guidance would be wrong.
 	if m.projectListEmpty() && !m.commandPending {
 		listView = m.replaceListBodyWithEmptyState(listView, m.projectList.Height(), emptyProjectsGlyph, emptyProjectsMessage, emptyProjectsHint)
 	}
@@ -3478,10 +3134,8 @@ func (m Model) viewProjectList() string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, listView, footer)
 }
 
-// renderProjectBandSlot is the single source of truth for what the Projects
-// notice slot inserts — the arbitrated band plus one blank breathing row, or
-// empty when no band owns the slot. Both the composition and the height
-// reserve consume it, so the reserved rows and the rendered ones cannot drift.
+// Both the composition and the height reserve consume this, so the reserved rows
+// and the rendered ones cannot drift.
 func (m Model) renderProjectBandSlot() string {
 	band := m.renderActiveProjectNoticeBand()
 	if band == "" {
@@ -3491,10 +3145,9 @@ func (m Model) renderProjectBandSlot() string {
 	return lipgloss.JoinVertical(lipgloss.Left, band, blank)
 }
 
-// applyProjectsSectionHeader swaps the section header into the list's first
-// line. Replacing the title row's content rather than inserting a row keeps
-// the pagination invariant exact. While the filter input is active that line
-// is the input itself, so it is left untouched.
+// Replacing the title row's content rather than inserting a row keeps the
+// pagination invariant exact. While the filter input is active that line is the
+// input itself, so it is left untouched.
 func (m Model) applyProjectsSectionHeader(listView string) string {
 	if m.projectList.FilterState() == list.Filtering {
 		return listView
@@ -3515,22 +3168,18 @@ func (m Model) applyProjectsSectionHeader(listView string) string {
 	))
 }
 
-// visibleProjectRowCount counts visible rows, so an applied filter is
-// reflected in the section header.
+// Visible rows, so an applied filter is reflected in the section header.
 func (m Model) visibleProjectRowCount() int {
 	return len(m.projectList.VisibleItems())
 }
 
-// renderProjectsFooterForFilterState resolves the footer variant for the
-// current filter mode. Every variant is the same height, so the swap is
-// height-neutral against the reserved budget.
+// Every variant is the same height, so the swap is height-neutral against the
+// reserved budget.
 func (m Model) renderProjectsFooterForFilterState() string {
 	switch m.projectList.FilterState() {
 	case list.Filtering:
 		return renderFilteringFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	case list.FilterApplied:
-		// Enter on Projects is "new session", not "attach" — do not leak the
-		// Sessions filter-applied copy here.
 		return renderProjectsFilterAppliedFooter(m.contentWidth(), m.themeState.active, m.colourless)
 	default:
 		if m.commandPending {
@@ -3544,9 +3193,8 @@ func (m Model) renderProjectsFooterForFilterState() string {
 	}
 }
 
-// viewSessionList composes the Sessions page. With a modal open the page
-// chrome is not composed at all: only the centred panel is returned, so no
-// list rows or bands leak into the cleared view.
+// With a modal open the page chrome is not composed at all: only the centred
+// panel is returned, so no list rows or bands leak into the cleared view.
 func (m Model) viewSessionList() string {
 	switch m.modal {
 	case modalKillConfirm:
@@ -3569,25 +3217,19 @@ func (m Model) viewSessionList() string {
 	if m.sessionListEmpty() {
 		listView = m.replaceListBodyWithEmptyState(listView, m.sessionList.Height(), emptySessionsGlyph, emptySessionsMessage, emptySessionsHint)
 	}
-	// Every footer variant is the same height, so the filter-mode swap is
-	// height-neutral against the budget sessionFooterHeight reserved.
 	footer := m.renderSessionsFooterForFilterState()
 	header := m.renderHeader()
-	// The band composes between the header and the list — not inside it —
-	// which is what lands it above the section header, flush under the title
-	// separator.
+	// The band composes between the header and the list — not inside it — which
+	// lands it above the section header, flush under the title separator.
 	if slot := m.renderSessionBandSlot(); slot != "" {
 		return lipgloss.JoinVertical(lipgloss.Left, header, slot, listView, footer)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, header, listView, footer)
 }
 
-// renderSessionsFooterForFilterState resolves the footer variant for the
-// current state. Every variant is the same height, so each swap is
-// height-neutral against the reserved budget. The order is the precedence:
-// no-matches, then empty, then the focused filter input, then multi-select
-// (which yields to the focused input as an inner sub-state), then the plain
-// filter-applied and standard footers.
+// Every variant is the same height, so each swap is height-neutral against the
+// reserved budget. The if-order is the precedence — multi-select deliberately
+// yields to the focused filter input as an inner sub-state.
 func (m Model) renderSessionsFooterForFilterState() string {
 	if m.sessionListNoMatches() {
 		return renderNoMatchesFooter(m.contentWidth(), m.themeState.active, m.colourless)
@@ -3609,26 +3251,22 @@ func (m Model) renderSessionsFooterForFilterState() string {
 	}
 }
 
-// renderHeader is the single header entry point, so the composed view and the
-// height budget resolve it against the same width and mode.
+// The composed view and the height budget must resolve the header here, against
+// the same width and mode.
 func (m Model) renderHeader() string {
 	return renderHeaderBlock(m.contentWidth(), m.themeState.active, m.colourless)
 }
 
-// unsupportedBannerActive reports whether the unsupported-terminal banner owns
-// the section-header row. The banner is named-only: the !IsNull() leg keeps a
-// NULL/remote client from claiming the row, since its banner would carry
-// nothing actionable. Both the header swap and the signpost suppression read
-// this one predicate so they cannot drift.
+// Named-only: the !IsNull() leg keeps a NULL/remote client from claiming the row,
+// since its banner would carry nothing actionable. Both the header swap and the
+// signpost suppression read this predicate, so they cannot drift.
 func (m Model) unsupportedBannerActive() bool {
 	return m.DetectUnsupported() && !m.multiSelectMode && !m.detectIdentity.IsNull()
 }
 
-// sessionsHelpKeymap returns the descriptor slice both Sessions display
-// surfaces read, filtering the copy only so the footer cannot advertise a key
-// that can only flash. A narrow or short terminal is deliberately not
-// filtered: that is a space shortage the panel degrades for, not a capability
-// absence.
+// Filters the copy only, so the footer cannot advertise a key that can only flash.
+// A narrow or short terminal is deliberately not filtered: that is a space
+// shortage the panel degrades for, not a capability absence.
 func (m Model) sessionsHelpKeymap() []keymapEntry {
 	entries := sessionsKeymap()
 	if m.multiKeyBlocked() {
@@ -3640,8 +3278,7 @@ func (m Model) sessionsHelpKeymap() []keymapEntry {
 	return entries
 }
 
-// projectsHelpKeymap is the Projects counterpart. It filters `t` alone — `m`
-// is a Sessions binding this page never lists.
+// Filters `t` alone — `m` is a Sessions binding this page never lists.
 func (m Model) projectsHelpKeymap() []keymapEntry {
 	entries := projectsKeymap()
 	if m.themeKeyBlocked() {
@@ -3650,22 +3287,19 @@ func (m Model) projectsHelpKeymap() []keymapEntry {
 	return entries
 }
 
-// multiKeyBlocked reports whether `m` would be a dead end: unsupported and not
-// already in the mode. Detection resolving unsupported while the mode is open
-// still leaves `m` a live row-toggle, hence the second leg.
+// Detection resolving unsupported while the mode is open still leaves `m` a live
+// row-toggle, hence the second leg.
 func (m Model) multiKeyBlocked() bool {
 	return m.DetectUnsupported() && !m.multiSelectMode
 }
 
-// themeKeyBlocked reports whether `t` is proactively blocked — under NO_COLOR
-// the panel previews nothing and a commit would persist a choice with no
-// visible feedback. Both pages' filters read this one predicate.
+// Under NO_COLOR the panel previews nothing and a commit would persist a choice
+// with no visible feedback.
 func (m Model) themeKeyBlocked() bool {
 	return m.colourless
 }
 
-// dropKeymapKey returns entries with the given Key glyph removed, preserving
-// order. Called only on a blocked path, so the unblocked one allocates nothing.
+// Preserves order; only the blocked path pays the allocation.
 func dropKeymapKey(entries []keymapEntry, key string) []keymapEntry {
 	filtered := make([]keymapEntry, 0, len(entries))
 	for _, e := range entries {
@@ -3677,10 +3311,7 @@ func dropKeymapKey(entries []keymapEntry, key string) []keymapEntry {
 	return filtered
 }
 
-// replaceHeaderLine swaps header in for the first line of listView, keeping
-// the tail from the first newline onward. Replacing the title row's content
-// rather than inserting a row keeps the pagination invariant exact. A
-// no-newline listView has no tail, so header is returned bare.
+// A no-newline listView has no tail, so header is returned bare.
 func replaceHeaderLine(listView, header string) string {
 	idx := strings.IndexByte(listView, '\n')
 	if idx < 0 {
@@ -3689,11 +3320,9 @@ func replaceHeaderLine(listView, header string) string {
 	return header + listView[idx:]
 }
 
-// applySectionHeader swaps the section header into the list's first line;
-// replacing its content rather than inserting a row keeps the pagination
-// invariant exact. While the filter input is active that line is the input
-// itself, so it is left untouched. The branches below are in precedence
-// order.
+// Replacing the title row's content rather than inserting a row keeps the
+// pagination invariant exact. While the filter input is active that line is the
+// input itself, so it is left untouched. The branches below are in precedence order.
 func (m Model) applySectionHeader(listView string) string {
 	if m.sessionList.FilterState() == list.Filtering {
 		return listView
@@ -3707,9 +3336,8 @@ func (m Model) applySectionHeader(listView string) string {
 			m.colourless,
 		))
 	}
-	// The abort banner owns this row, unlike its spawn-failure siblings in the
-	// same flash tier, which route through the notice band and deliberately
-	// co-render with the multi-select banner rather than replacing it.
+	// The abort banner owns this row, unlike its spawn-failure siblings, which
+	// route through the notice band and co-render with the multi-select banner.
 	if m.abortBannerText != "" {
 		return replaceHeaderLine(listView, renderPreflightAbortHeader(
 			m.abortBannerText,
@@ -3728,8 +3356,6 @@ func (m Model) applySectionHeader(listView string) string {
 			m.colourless,
 		))
 	}
-	// Named-only: the gate's !IsNull() leg means only the named shape reaches
-	// the renderer, so its `see docs` hint is unconditional.
 	if m.unsupportedBannerActive() {
 		return replaceHeaderLine(listView, renderUnsupportedHeader(
 			m.detectIdentity.Name,
@@ -3758,9 +3384,8 @@ func (m Model) applySectionHeader(listView string) string {
 	))
 }
 
-// visibleSessionRowCount counts visible SessionItem rows, excluding group
-// headers — the rows actually drawn, so it tracks the inside-tmux exclusion,
-// an applied filter, and By-Tag's per-tag row repeats alike.
+// Excludes group headers, so the count tracks the inside-tmux exclusion, an
+// applied filter, and By-Tag's per-tag row repeats alike.
 func (m Model) visibleSessionRowCount() int {
 	count := 0
 	for _, it := range m.sessionList.VisibleItems() {
@@ -3771,15 +3396,14 @@ func (m Model) visibleSessionRowCount() int {
 	return count
 }
 
-// headerHeight measures the header against the same width and mode the render
-// uses, so the reserved budget and the render agree exactly.
+// Measured against the same width and mode the render uses, so the reserved
+// budget and the render agree exactly.
 func (m Model) headerHeight(width int) int {
 	return lipgloss.Height(renderHeaderBlock(width, m.themeState.active, m.colourless))
 }
 
-// replaceListBodyWithNoMatches swaps the list body for the no-matches state,
-// preserving the title row byte-for-byte and rendering at the body's existing
-// height so the composed view height is unchanged.
+// Preserves the title row byte-for-byte and renders at the body's existing
+// height, so the composed view height is unchanged.
 func (m Model) replaceListBodyWithNoMatches(listView string) string {
 	bodyHeight := max(
 		m.sessionList.Height()-1, 1)

@@ -11,11 +11,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Deps is the seam set from which Build assembles a Model. Production and the
-// offline capture harness construct the same struct, so a fake that drifts
-// from the real seam set is a compile error rather than a silent render
-// divergence. Optional seams are nil-tolerant — a nil field leaves that
-// capability unwired; Lister is required.
+// Deps is the seam set Build assembles a Model from. Optional seams are
+// nil-tolerant — a nil field leaves that capability unwired; Lister is required.
 type Deps struct {
 	Lister SessionLister
 
@@ -33,14 +30,11 @@ type Deps struct {
 	DirRunner       resolver.CommandRunner
 	ModePersister   ModePersister
 	ThemePersister  ThemePersister
-	// ThemeSource is the theme panel's enumeration/resolution seam; nil
-	// makes `t` a silent no-op.
-	ThemeSource ThemeSource
-	Detector    TerminalDetector
-	Resolve     spawn.AdapterResolver
+	ThemeSource     ThemeSource
+	Detector        TerminalDetector
+	Resolve         spawn.AdapterResolver
 
-	// Picker-burst seams. The burst reuses Resolve above rather than taking
-	// a second resolver.
+	// The picker burst reuses Resolve above rather than taking a second resolver.
 	SessionExists func(string) bool
 	AckChannel    spawn.AckChannelFull
 	SpawnExe      spawn.ExecutableResolver
@@ -49,14 +43,10 @@ type Deps struct {
 
 	CWD         string
 	InitialMode prefs.SessionListMode
-	// Theme is the loaded theme nomination. Its shape decides the first
-	// paint: a constant paints from frame one, an adaptive pair resolves
-	// through the OSC 11 detect-or-timeout gate with a dark fallback.
-	Theme theme.Nomination
-	// ThemeKeys are prefs.json's theme keys as read — post-translation, no
-	// defaults substituted; the zero value is the shipped adaptive pair. A
-	// snapshot: the panel never re-reads prefs.json, which would import
-	// another instance's commit.
+	Theme       theme.Nomination
+	// ThemeKeys are prefs.json's keys as read — post-translation, with no
+	// defaults substituted (the zero value is the shipped adaptive pair). A
+	// snapshot: re-reading prefs.json would import another instance's commit.
 	ThemeKeys theme.RawKeys
 
 	InitialFilter  string
@@ -64,32 +54,25 @@ type Deps struct {
 	ServerStarted  bool
 	InsideTmux     bool
 	CurrentSession string
-	// ProgressReceiver is the concurrent cold-boot channel-receive tea.Cmd —
-	// set only on the cold + TUI path, nil on every synchronous path.
+	// ProgressReceiver non-nil selects the concurrent cold-boot path.
 	ProgressReceiver tea.Cmd
-	// NoColor is the NO_COLOR carve-out, read by the cmd layer so
-	// internal/tui stays env-free.
+	// NoColor is read by the cmd layer so internal/tui stays env-free.
 	NoColor bool
 
-	// Capture holds the capture harness's first-frame seeds; production
-	// never sets it.
 	Capture CaptureSeeds
 }
 
-// CaptureSeeds is the offline capture harness's first-frame state: a fixture
-// is a one-shot render, so states otherwise reached by a keypress or an async
-// lifecycle are declared here. Every field is a no-op at its zero value.
-// Seeds declare state, never text — message copy comes from the model's own
-// constants, so a fixture cannot put a paraphrase on a captured frame.
+// CaptureSeeds declares first-frame state a one-shot fixture render cannot
+// reach by keypress or async lifecycle. Every field is a no-op at its zero
+// value. Seeds declare state, never text, so a fixture cannot put a
+// paraphrase on a captured frame.
 type CaptureSeeds struct {
 	// Flash is the warning variant only; the success variant is not seedable.
-	Flash string
-	// MultiSelect names the pre-marked sessions.
+	Flash       string
 	MultiSelect []string
-	// Cursor names the session row the cursor lands on.
-	Cursor string
-	// ThemeCursor is placement only — it applies no theme, so the rendered
-	// palette stays the one the nomination carries.
+	Cursor      string
+	// ThemeCursor is placement only — it applies no theme, so the palette
+	// stays the one the nomination carries.
 	ThemeCursor       string
 	ThemeConfirm      bool
 	ThemeCommitFailed bool
@@ -99,8 +82,6 @@ type CaptureSeeds struct {
 	BurstOpening [2]int
 }
 
-// Build constructs a Model from the shared Deps seam set — the single
-// model-construction chokepoint for both production and the capture harness.
 func Build(deps Deps) Model {
 	opts := []Option{
 		WithKiller(deps.Killer),
@@ -181,9 +162,6 @@ func Build(deps Deps) Model {
 	if deps.InsideTmux && deps.CurrentSession != "" {
 		m = m.WithInsideTmux(deps.CurrentSession)
 	}
-	// Opens the detect-or-timeout first-paint window for the live picker; a
-	// no-op on a constant or absent nomination, so test models and capture
-	// frames paint immediately.
 	m.armAppearanceDetection()
 	return m
 }

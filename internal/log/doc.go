@@ -6,7 +6,7 @@
 //
 //	var logger = log.For("<component>")
 //
-// The root logger is built in this package's own init, so For never returns nil
-// even when called before Init. A logger cached that way picks up a later handler
-// swap automatically: the swap lives in a shared indirection, not on the logger.
+// For never returns nil, even before Init, and a logger cached that way picks up
+// a later handler swap: the swap lives in a shared indirection, not on the
+// logger.
 package log

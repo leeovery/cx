@@ -11,8 +11,8 @@ import (
 )
 
 // An entry is Portal-authored iff its command contains any of fingerprints;
-// session-closed carries two so a body left by an older binary converges onto
-// the current one.
+// session-closed carries an extra one so a body left by an older binary
+// converges onto the current one.
 type managedEvent struct {
 	event        string
 	fingerprints []string
@@ -67,8 +67,8 @@ func teardownFingerprints() []string {
 	return append(union, migrateRenameSubstring)
 }
 
-// HydrationTriggerEvents lists every tmux event on which Portal registers a
-// signal-hydrate hook. Treat the slice as read-only.
+// HydrationTriggerEvents lists the events Portal registers a signal-hydrate hook
+// on. Treat the slice as read-only.
 var HydrationTriggerEvents = []string{
 	"client-attached",
 	"client-session-changed",
@@ -112,10 +112,10 @@ type evictFailure struct {
 	err   error
 }
 
-// portalEntries must already be filtered to Portal-authored entries; callers
-// own the fingerprint choice. Indices are unset in descending order so a
-// removal can never shift an index still to be processed. A failure neither
-// stops the loop nor counts towards the returned evicted total.
+// portalEntries must already be filtered to Portal-authored entries; callers own
+// the fingerprint choice. Indices are unset in descending order so a removal can
+// never shift an index still to be processed. A failure neither stops the loop
+// nor counts towards the returned evicted total.
 func evictPortalEntries(c *Client, event string, portalEntries []HookEntry) (int, []evictFailure) {
 	indices := make([]int, len(portalEntries))
 	for i, entry := range portalEntries {
@@ -135,10 +135,10 @@ func evictPortalEntries(c *Client, event string, portalEntries []HookEntry) (int
 	return evicted, failures
 }
 
-// convergeEvent leaves the event's global hook array holding exactly one
-// Portal entry carrying desiredBody, returning the number of entries it had to
-// unset. Entries matching no fingerprint belong to the user or another plugin
-// and are never touched.
+// convergeEvent leaves the event's global hook array holding exactly one Portal
+// entry carrying desiredBody, returning how many entries it had to unset. Entries
+// matching no fingerprint belong to the user or another plugin and are never
+// touched.
 func convergeEvent(c *Client, logger *slog.Logger, event string, fingerprints []string, desiredBody string) (int, error) {
 	logger = log.OrDiscard(logger)
 
@@ -178,12 +178,10 @@ func convergeEvent(c *Client, logger *slog.Logger, event string, fingerprints []
 
 // RegisterPortalHooks converges Portal's whole hook table to exactly one entry
 // per managed event, tolerating a nil logger. It never short-circuits: a
-// per-event failure is folded into an errors.Join aggregate naming the event,
-// and every other event is still converged.
-//
-// The per-event loop must not be collapsed into a single whole-scope read (see
-// ShowGlobalHooksForEvent): on the blind events every bootstrap would append
-// another duplicate.
+// per-event failure is folded into an errors.Join aggregate naming the event, and
+// every other event is still converged. The per-event loop must not be collapsed
+// into a single whole-scope read (see ShowGlobalHooksForEvent): on the blind
+// events every bootstrap would append another duplicate.
 func RegisterPortalHooks(c *Client, logger *slog.Logger) error {
 	logger = log.OrDiscard(logger)
 

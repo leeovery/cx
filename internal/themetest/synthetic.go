@@ -7,9 +7,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Per-token ramps: token i takes green base+i and blue base+i, so values
-// within one palette are unique and every component stays three decimal
-// digits.
+// Per-token ramps: token i takes green base+i and blue base+i, so values within
+// one palette are unique and every component stays three decimal digits.
 const (
 	syntheticGreenBase = 0x80
 	syntheticBlueBase  = 0xC8
@@ -18,18 +17,13 @@ const (
 // The lowest red channel that still renders as three decimal digits.
 const syntheticRedFloor = 0x64
 
-// SyntheticPalette builds a whole palette from a fixed red channel: every
-// token carries a value, unique within the palette, and two palettes built
-// from different reds share none. Shipped palettes are deliberately unusable
-// as swap probes — a token both themes value identically renders the same
-// either side, so the probe passes whether or not the site updated.
-//
-// Every channel is three decimal digits, so a rendered SGR core is fixed-width
-// and one token's core can never be a substring of another's, which would let
-// the "stale value is absent" half of a probe pass vacuously. The completeness
-// assertion catches a token added to the vocabulary but not to this literal,
-// which would otherwise compile with a zero-valued field a probe cannot
-// diff.
+// SyntheticPalette builds a whole palette from a fixed red channel: every token
+// carries a value, unique within the palette, and two palettes built from
+// different reds share none. Shipped palettes are unusable as swap probes — a
+// token both themes value identically renders the same either side, so the probe
+// passes whether or not the site updated. Three decimal digits per channel keeps
+// a rendered SGR core fixed-width, so one token's core can never be a substring
+// of another's and let the "stale value is absent" half pass vacuously.
 func SyntheticPalette(t *testing.T, red uint8) theme.Theme {
 	t.Helper()
 

@@ -17,8 +17,8 @@ import (
 
 const conversionConstant = "aurora"
 
-// Deliberately not any built-in's canvas, so a startup canvas hex captured from
-// it is distinguishable from every palette a conversion could wrongly re-capture.
+// Deliberately not any built-in's canvas, so a captured startup canvas hex is
+// distinguishable from every palette a conversion could wrongly re-capture.
 const conversionConstantValue = "#101010"
 
 func newConversionThemesDir(t *testing.T) string {
@@ -286,8 +286,6 @@ func TestCommitSlotLoad_UnresolvableTakesTheModeMatchedFallback(t *testing.T) {
 	}
 }
 
-// A commit-time read would produce a third parse of the same slug — neither
-// construction's nor the panel's — that can disagree with the row on screen.
 func TestCommitSlotLoad_NoDirectoryRead(t *testing.T) {
 	t.Run("a stale slot still resolves from the retained parse", func(t *testing.T) {
 		const value = "#202020"
@@ -669,8 +667,6 @@ func TestCommitSlotLoad_ConversionUsesTheRetainedAnswer(t *testing.T) {
 	})
 }
 
-// The gate's appearance is the standing no-answer fallback of a constant that
-// never asked, so a conversion reading it would answer dark for every light terminal.
 func TestCommitSlotLoad_ConversionIssuesNoQuery(t *testing.T) {
 	dir := newConversionThemesDir(t)
 	m, _, _ := newConversionPanelModel(t, dir, theme.RawKeys{Theme: conversionConstant})
@@ -725,9 +721,6 @@ func TestCommitSlotLoad_ConversionWithNoReplyIsDark(t *testing.T) {
 	}
 }
 
-// The anchor is captured once, at gate resolution, and the exit-time canvas-echo
-// guard compares against it — a mistake here re-sticks a colour in the user's
-// terminal after Portal exits.
 func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -764,9 +757,6 @@ func TestCommitSlotLoad_ConversionDoesNotMoveStartupCanvasHex(t *testing.T) {
 		})
 	}
 
-	// The anchor is captured inside syncResolvedMode, so a conversion routing its
-	// answer through it would re-anchor the guard to a canvas the startup window
-	// never painted.
 	t.Run("the classification does not route through syncResolvedMode", func(t *testing.T) {
 		callers := themePanelSeamCallers(t, "syncResolvedMode")
 		if !slices.Contains(callers, "New") {
@@ -840,10 +830,6 @@ func TestCommitSlotLoad_AnswerIsIndependentOfTheLoad(t *testing.T) {
 	}
 }
 
-// The panel degrades rather than escalating: a settings surface must not be the
-// route by which a broken binary quits Portal mid-session. A zero resolution
-// joined into the nomination would put an empty palette in a live slot, which
-// lipgloss renders silently colourless.
 func TestCommitSlotLoad_BrokenBuiltinDegrades(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	persisted, target := rows[0].Slug, rows[2].Slug

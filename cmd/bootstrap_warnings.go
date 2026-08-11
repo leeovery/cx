@@ -9,16 +9,13 @@ import (
 	"github.com/leeovery/portal/internal/warning"
 )
 
-// BootstrapWarningsSink accumulates the orchestrator's soft bootstrap warnings
-// until a consumer drains them. Every operation is safe for concurrent use:
-// warnings are added on the main goroutine but Bubble Tea may drain from
-// another.
+// Every operation is safe for concurrent use: warnings are added on the main
+// goroutine but Bubble Tea may drain from another.
 type BootstrapWarningsSink struct {
 	mu       sync.Mutex
 	warnings []bootstrap.Warning
 }
 
-// Add appends a single warning to the sink.
 func (s *BootstrapWarningsSink) Add(w bootstrap.Warning) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -35,9 +32,8 @@ func (s *BootstrapWarningsSink) Drain() []bootstrap.Warning {
 	return out
 }
 
-// EmitTo drains the sink and writes every warning's lines to w in
-// orchestrator-observation order. It delegates to warning.WriteLines so the CLI
-// and TUI paths produce byte-identical output.
+// EmitTo drains the sink. It delegates to warning.WriteLines so the CLI and TUI
+// paths produce byte-identical output.
 func (s *BootstrapWarningsSink) EmitTo(w io.Writer) {
 	warning.WriteLines(w, s.Drain())
 }

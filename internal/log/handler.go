@@ -13,17 +13,15 @@ import (
 
 var stderrFallback io.Writer = os.Stderr
 
-// componentKey is rendered by textHandler as a literal prefix before the colon,
-// never as a key=value pair.
+// componentKey renders as a literal prefix before the colon, never as key=value.
 const componentKey = "component"
 
 const processComponent = "process"
 
 const bootstrapComponent = "bootstrap"
 
-// A process-component record carrying one of these messages writes regardless of
-// the configured level: they are forensic tripwires that must be present even at
-// PORTAL_LOG_LEVEL=error. They remain semantically INFO.
+// A process-component record with one of these messages writes regardless of the
+// configured level: forensic tripwires that must survive PORTAL_LOG_LEVEL=error.
 var lifecycleBypassMsgs = map[string]bool{
 	"start":              true,
 	"exit":               true,
@@ -32,9 +30,8 @@ var lifecycleBypassMsgs = map[string]bool{
 	"log-level resolved": true,
 }
 
-// textHandler injects the pid/version/process_role baselines per-record rather
-// than via root.With, so a logger cached before this handler was constructed
-// still carries them.
+// textHandler injects the pid/version/process_role baselines per record rather
+// than via root.With, so a logger cached before it was constructed carries them.
 type textHandler struct {
 	w     io.Writer
 	level slog.Leveler
@@ -62,18 +59,16 @@ func newTextHandler(w io.Writer, level slog.Leveler, pid int, version, processRo
 	}
 }
 
-// Enabled is a coarse INFO-floor pre-gate, not the authoritative level filter.
-// slog skips Handle entirely when Enabled returns false, so it must admit INFO
-// even when the handler is configured at WARN/ERROR — otherwise a lifecycle
-// marker would be dropped before Handle could apply its bypass.
+// Enabled is a coarse INFO-floor pre-gate, not the authoritative filter: slog
+// skips Handle entirely when it returns false, so it must admit INFO even at
+// WARN/ERROR or a lifecycle marker would be dropped before the bypass runs.
 func (h *textHandler) Enabled(_ context.Context, level slog.Level) bool {
 	floor := min(h.level.Level(), slog.LevelInfo)
 	return level >= floor
 }
 
-// Handle is the authoritative level filter, and always returns nil: logging owns
-// no control flow, so an open or write failure is swallowed after one attempt on
-// the stderr fallback rather than propagated to the caller.
+// Handle is the authoritative level filter and always returns nil: logging owns
+// no control flow, so a write failure is swallowed after the stderr fallback.
 func (h *textHandler) Handle(_ context.Context, r slog.Record) error {
 	component := h.component(r)
 	bypass := component == processComponent && lifecycleBypassMsgs[r.Message]

@@ -32,9 +32,8 @@ func (r terminalReply) answer() theme.Member {
 
 // themeState outlives any one panel open, unlike themePanel.
 type themeState struct {
-	// Zero value is the "nothing was injected" sentinel that leaves New's
-	// dark-built-in seed in place. Describes what is persisted, not what is
-	// rendered — the palette in force is active.
+	// Zero value is the "nothing was injected" sentinel. Describes what is
+	// persisted, not what is rendered — the palette in force is active.
 	nomination theme.Nomination
 
 	// A construction-time snapshot, never refreshed: re-reading prefs would let
@@ -49,34 +48,30 @@ type themeState struct {
 
 	gate appearanceGate
 
-	// Zero value is the standing no-answer fallback. Established through
-	// adoptGateAnswer / adoptRetainedReply, so which fact is in force is decided
-	// there rather than at each reader.
+	// Zero value is the standing no-answer fallback, established through
+	// adoptGateAnswer / adoptRetainedReply rather than decided at each reader.
 	canvasMode theme.Member
 
 	// New seeds this with the dark built-in before the options apply — an empty
 	// Theme renders silently colourless rather than failing.
 	active theme.Theme
 
-	// Frozen at the moment the gate resolves and never moved with active: the
-	// canvas-echo guard must compare against the canvas in force during the
-	// startup window, not whatever theme is active at exit. Empty until then,
-	// which sameHexColour reports false for, making the set-back a no-op.
+	// Frozen when the gate resolves and never moved with active: the canvas-echo
+	// guard must compare against the canvas in force during the startup window,
+	// not whatever theme is active at exit. Empty until then — a no-op set-back.
 	startupCanvasHex string
 
 	reply terminalReply
 
 	// Runs from a failed write until a later commit succeeds — longer than the
-	// message slot's line, which dies on the next keypress. That is what stops
-	// the next `Esc` from silently reverting the theme the user chose. It lives
-	// here because it must outlive the panel struct the close discards.
+	// message line, which dies on the next keypress. It lives here because it must
+	// outlive the panel struct the close discards.
 	commitFailed bool
 
 	// Capture-only seeds: no-ops at their zero values, never set in production.
 
 	// Placement only — applying the seeded row's palette would make
-	// `capturetool --theme <slug|path>` inert on the frames a drop-in author
-	// most wants to check.
+	// `capturetool --theme` inert on the frames a drop-in author most wants to check.
 	initialCursor string
 
 	initialConfirm bool
@@ -86,8 +81,7 @@ type themeState struct {
 }
 
 // The gate's resolution and the terminal's reply are not interchangeable: on a
-// never-armed gate the resolution is the standing dark fallback, not a fact
-// about the terminal.
+// never-armed gate the resolution is a standing fallback, not a terminal fact.
 func (s themeState) inForceMode() theme.Member {
 	return s.canvasMode
 }

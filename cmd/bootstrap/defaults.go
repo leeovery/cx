@@ -6,15 +6,13 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// ServerSeam unions the two server capabilities NewWithDefaults needs:
-// EnsureServer for step 1, and marker enumeration for the eager-signal default.
-// Declared here so cmd/bootstrap need not import internal/tmux.
+// ServerSeam is declared here so this package need not import internal/tmux
+// for the concrete client.
 type ServerSeam interface {
 	ServerBootstrapper
 	state.ServerOptionLister
 }
 
-// Option overrides one step seam in a NewWithDefaults call.
 type Option func(*defaultsConfig)
 
 type defaultsConfig struct {
@@ -32,23 +30,20 @@ type defaultsConfig struct {
 	eagerSignalerSet bool
 }
 
-// WithHooks supplies a real HookRegistrar for step 2.
 func WithHooks(h HookRegistrar) Option {
 	return func(c *defaultsConfig) { c.hooks = h }
 }
 
-// WithOrphanSweeper supplies a real OrphanSweeper for step 4.
 func WithOrphanSweeper(s OrphanSweeper) Option {
 	return func(c *defaultsConfig) { c.orphanSweeper = s }
 }
 
-// WithSaver supplies a real SaverBootstrapper for step 5.
 func WithSaver(s SaverBootstrapper) Option {
 	return func(c *defaultsConfig) { c.saver = s }
 }
 
-// WithRestore supplies a real Restorer for step 6. Setting it also flips the
-// EagerSignaler default from NoOp to a real *EagerSignalCore.
+// WithRestore also flips the EagerSignaler default from NoOp to a real
+// *EagerSignalCore.
 func WithRestore(r Restorer) Option {
 	return func(c *defaultsConfig) {
 		c.restore = r
@@ -56,8 +51,8 @@ func WithRestore(r Restorer) Option {
 	}
 }
 
-// WithEagerSignaler supplies a real EagerHydrateSignaler for step 7. Passing
-// NoOpEagerHydrateSignaler{} suppresses the real default WithRestore triggers.
+// WithEagerSignaler accepts NoOpEagerHydrateSignaler{} to suppress the real
+// default that WithRestore triggers.
 func WithEagerSignaler(s EagerHydrateSignaler) Option {
 	return func(c *defaultsConfig) {
 		c.eagerSignaler = s
@@ -65,20 +60,17 @@ func WithEagerSignaler(s EagerHydrateSignaler) Option {
 	}
 }
 
-// WithStaleMarkers supplies a real MarkerCleaner for step 9.
 func WithStaleMarkers(m MarkerCleaner) Option {
 	return func(c *defaultsConfig) { c.staleMarkers = m }
 }
 
-// WithSweeper supplies a real FIFOSweeper for step 10.
 func WithSweeper(s FIFOSweeper) Option {
 	return func(c *defaultsConfig) { c.sweeper = s }
 }
 
-// NewWithDefaults constructs an *Orchestrator with NoOp defaults for every
-// degradable step seam, so no seam is ever nil. server and restoring are
-// mandatory — their steps are fatal-on-failure and have no NoOp form. logger
-// may be nil; stateDir matters only when the eager signaler defaults to real.
+// NewWithDefaults fills every degradable step seam with a NoOp, so no seam is
+// ever nil. server and restoring are mandatory — their steps are fatal and have
+// no NoOp form. stateDir is read only when the eager signaler defaults to real.
 func NewWithDefaults(
 	server ServerSeam,
 	stateDir string,

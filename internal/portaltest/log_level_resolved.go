@@ -8,9 +8,9 @@ import (
 )
 
 // AssertLogLevelResolved fails the test unless the log at logPath carries a
-// `process: log-level resolved` line for pid whose level is expected and whose
-// source is "env" — i.e. unless PORTAL_LOG_LEVEL actually reached the spawned
-// process. Only text-mode logs are parsed.
+// `process: log-level resolved` line for pid with the expected level and source
+// "env" — i.e. unless PORTAL_LOG_LEVEL reached the spawned process. Only
+// text-mode logs are parsed.
 func AssertLogLevelResolved(t *testing.T, logPath string, pid int, expected string) {
 	t.Helper()
 
@@ -36,8 +36,7 @@ func AssertLogLevelResolved(t *testing.T, logPath string, pid int, expected stri
 	}
 }
 
-// Several processes may share one day file, so the pid match is load-bearing:
-// every candidate line is checked and only the one matching pid is selected.
+// Several processes may share one day file, so the pid match is load-bearing.
 func findLogLevelResolved(content string, pid int) (resolved, source string, found bool) {
 	wantPID := strconv.Itoa(pid)
 	for line := range strings.SplitSeq(content, "\n") {

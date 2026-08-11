@@ -18,10 +18,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// BuildPortalBinaryDir compiles `portal` into a fresh t.TempDir and returns the
-// directory holding it. Callers follow with PrependPATH: a restored pane
-// respawns into `portal state hydrate`, and without the binary on PATH the pane
-// dies before any assertion runs. The binary lives only as long as the test.
+// BuildPortalBinaryDir compiles `portal` into a fresh t.TempDir. Callers follow
+// with PrependPATH: a restored pane respawns into `portal state hydrate`, and
+// without the binary on PATH the pane dies before any assertion runs.
 func BuildPortalBinaryDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -31,10 +30,10 @@ func BuildPortalBinaryDir(t *testing.T) string {
 	return dir
 }
 
-// BuildPortalBinaryStable compiles `portal` into an os.MkdirTemp directory,
-// deliberately registering no cleanup: under a sync.Once-cached build, t.TempDir
-// would be removed when the triggering test exits and every later test would
-// point at a deleted path. Removal is the caller's business.
+// BuildPortalBinaryStable deliberately registers no cleanup: under a
+// sync.Once-cached build, t.TempDir would be removed when the triggering test
+// exits and every later test would point at a deleted path. Removal is the
+// caller's business.
 func BuildPortalBinaryStable() (string, error) {
 	dir, err := os.MkdirTemp("", "ptl-bin-")
 	if err != nil {
@@ -47,19 +46,18 @@ func BuildPortalBinaryStable() (string, error) {
 	return dir, nil
 }
 
-// PrependPATH prefixes dir to PATH via t.Setenv, so subprocesses — notably tmux
-// server forks — inherit the change and it is restored on test exit.
+// PrependPATH goes through t.Setenv, so subprocesses — notably tmux server
+// forks — inherit the change and it is restored on test exit.
 func PrependPATH(t *testing.T, dir string) {
 	t.Helper()
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 // DriveSignalHydrate mimics `portal state signal-hydrate <session>` by writing
-// the FIFO byte directly, for cases DriveSignalHydrateBinary cannot cover.
-//
-// Its 10-second retry budget is far longer than production's 500ms on purpose:
-// these tests arm a fresh server under parallel test load, where the in-pane
-// fork+exec can take seconds to reach its open(O_RDONLY).
+// the FIFO byte directly, for cases DriveSignalHydrateBinary cannot cover. Its
+// retry budget is far longer than production's on purpose: these tests arm a
+// fresh server under parallel load, where the in-pane fork+exec can take seconds
+// to reach its open(O_RDONLY).
 func DriveSignalHydrate(t *testing.T, client *tmux.Client, stateDir string, sessions []string) {
 	t.Helper()
 	const (
@@ -96,14 +94,14 @@ func DriveSignalHydrate(t *testing.T, client *tmux.Client, stateDir string, sess
 //
 // env is mandatory and must come from portaltest.IsolateStateForTest: it is the
 // structural guarantee that the spawned binary cannot inherit the developer's
-// real XDG_CONFIG_HOME. The per-spawn overrides below shadow it, last-write-wins.
+// real XDG_CONFIG_HOME. The per-spawn overrides shadow it, last-write-wins.
 func DriveSignalHydrateBinary(t *testing.T, portalBinaryDir, socketPath, stateDir, hooksFile string, sessions []string, env []string) {
 	t.Helper()
 	binary := filepath.Join(portalBinaryDir, "portal")
 	for _, session := range sessions {
-		// The `--` separator is load-bearing for leading-dash session names:
-		// without it pflag reads `-dotfiles-test` as a short-flag cluster and
-		// exits before the command body runs.
+		// The `--` separator is load-bearing: without it pflag reads a
+		// leading-dash session name as a short-flag cluster and exits before the
+		// command body runs.
 		cmd := exec.Command(binary, "state", "signal-hydrate", "--", session)
 		cmd.Env = append(append([]string{}, env...),
 			// TMUX is the only way a tmux CLI invocation without -S/-L can target
@@ -120,8 +118,8 @@ func DriveSignalHydrateBinary(t *testing.T, portalBinaryDir, socketPath, stateDi
 	}
 }
 
-// pathFromEnv reads PATH out of env rather than os.Getenv, keeping the
-// composition consistent with the isolated baseline.
+// PATH comes from env, not os.Getenv, so composition stays on the isolated
+// baseline.
 func pathFromEnv(env []string) string {
 	const prefix = "PATH="
 	for _, e := range env {
@@ -159,9 +157,9 @@ func openAndSignalFIFO(path string, delay, budget time.Duration) error {
 	}
 }
 
-// WaitForSkeletonMarkersCleared polls until every `@portal-skeleton-*` server
-// option is unset, meaning every helper reached its hook-or-shell exec step. A
-// marker still set at expiry means that helper crashed before unsetting it.
+// WaitForSkeletonMarkersCleared returns once every helper has reached its
+// hook-or-shell exec step. A marker still set at expiry means that helper
+// crashed before unsetting it.
 func WaitForSkeletonMarkersCleared(t *testing.T, client *tmux.Client, timeout, tick time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -179,8 +177,8 @@ func WaitForSkeletonMarkersCleared(t *testing.T, client *tmux.Client, timeout, t
 	t.Fatalf("skeleton markers still set after %s: %v", timeout, SortedKeySet(markers))
 }
 
-// SortedKeySet flattens a presence-set to an ascending sorted slice. An empty
-// input yields an empty, non-nil slice so callers can format it uniformly.
+// SortedKeySet yields an empty, non-nil slice for an empty input, so callers
+// can format the result uniformly.
 func SortedKeySet(set map[string]struct{}) []string {
 	out := make([]string, 0, len(set))
 	for k := range set {

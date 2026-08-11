@@ -26,7 +26,6 @@ const (
 	arrowTermH = 28
 )
 
-// arrowPagingTermH is the shortest terminal whose panel list paginates.
 const (
 	arrowPagingTermH   = 15
 	arrowPagingPerPage = 2
@@ -168,8 +167,8 @@ func TestPanelArrow_NavigationBindings(t *testing.T) {
 	}
 }
 
-// The v2 DefaultKeyMap binds `←`/`→`/`d` to pages, and `d` is the dark-slot
-// commit key — one that reached the list would page instead of committing.
+// `bubbles/list` v2's DefaultKeyMap binds `←`/`→`/`d` to pages, and `d` is the
+// dark-slot commit key — one reaching the list would page instead of committing.
 func TestPanelArrow_ArrowOnlyNavigation(t *testing.T) {
 	rows := arrowValidRows(t, 6)
 	m := newArrowPanelModelAt(t, rows, arrowSlug(2), arrowPagingTermH)
@@ -524,7 +523,6 @@ func TestPanelArrow_WritesNothing(t *testing.T) {
 			t.Errorf("sixteen arrows persisted %d preference(s); every write is an explicit commit keypress", persister.calls)
 		}
 
-		// `s` is swallowed while the panel is open, so it is closed first.
 		m = pressPanelKey(t, closeThemePanelForTest(t, m), tea.KeyPressMsg{Code: 's', Text: "s"})
 		if persister.calls != 1 {
 			t.Fatalf("positive control: `s` on the closed picker persisted %d time(s), want 1 — the counting persister proves nothing about the arrows", persister.calls)
@@ -619,8 +617,6 @@ func TestPanelArrow_ColourlessStaysColourless(t *testing.T) {
 		m := Build(deps)
 		m.termWidth, m.termHeight = arrowTermW, arrowTermH
 		m.applySessions([]tmux.Session{{Name: "alpha", Windows: 1}, {Name: "bravo", Windows: 2}})
-		// The entry gate blocks `t` under NO_COLOR, so the colourless twin arms the
-		// panel directly.
 		if colourless {
 			m = armPanelUnderNoColorForTest(t, m)
 		} else {

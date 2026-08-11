@@ -17,9 +17,8 @@ func defaultPgrepCommand() *exec.Cmd {
 }
 
 // PgrepPortalDaemons enumerates the pids of live `portal state daemon`
-// processes. A pgrep exit status of 1 with empty stdout is pgrep's "no
-// matches" signal and returns (nil, nil); any other failure returns a wrapped
-// error. Unparseable pid lines are skipped.
+// processes. A pgrep exit status of 1 with empty stdout is its "no matches"
+// signal and returns (nil, nil); any other failure returns a wrapped error.
 //
 // `-fx` rather than `-fxc`: BSD pgrep has no `-c`.
 func PgrepPortalDaemons() ([]int, error) {

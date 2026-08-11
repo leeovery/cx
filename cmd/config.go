@@ -110,12 +110,10 @@ type prefsLoad struct {
 }
 
 // The translation is applied in memory before it is persisted, so this launch
-// renders the correct theme even if the write is deferred or fails, and a failed
-// write leaves the marker unset for the next launch to retry. Every degenerate
-// read is tolerated and discarded; only path resolution can fail the load.
-//
-// Ownership sits here rather than in prefs, which is a leaf that must not import
-// internal/log.
+// renders the correct theme even if the write fails — which leaves the marker
+// unset for the next launch to retry. Every degenerate read is tolerated; only
+// path resolution can fail the load. It lives here rather than in prefs, a leaf
+// that must not import internal/log.
 func loadPrefsStore() (prefsLoad, error) {
 	store, err := loadPrefsStoreNoMigrate()
 	if err != nil {
@@ -161,8 +159,8 @@ var persistTranslation = func(store *prefs.Store, slug string) {
 
 // Emits only when a theme key was actually persisted — a marker-only write would
 // otherwise announce a migration that translated nothing. Failure is silent: the
-// absence of the event is the signal, keeping commit-failed single-sited on the
-// panel's theme persister.
+// absence of the event is the signal, and commit-failed belongs to the panel's
+// theme persister.
 func runTranslationPersist(store *prefs.Store, slug string) {
 	persisted, err := store.SaveTranslation(slug)
 	if err != nil || !persisted {
@@ -172,9 +170,9 @@ func runTranslationPersist(store *prefs.Store, slug string) {
 	themeLogger.Info("appearance migrated", "slug", slug)
 }
 
-// The match is exact, reproducing the deleted appearance decode: anything that
-// decode treated as `auto` (`Dark`, `" dark"`, a trailing newline) must
-// translate to nothing, so do not trim or lowercase here.
+// The match is exact: anything the old appearance decode treated as `auto`
+// (`Dark`, `" dark"`, a trailing newline) must translate to nothing, so do not
+// trim or lowercase here.
 func translateAppearance(raw string) string {
 	switch raw {
 	case "dark":

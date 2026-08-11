@@ -8,8 +8,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// cmd is the only package importing both internal/session and internal/tmux
-// cycle-free, so the constant and the format string can only be compared here.
+// cmd imports both internal/session and internal/tmux cycle-free, which is what
+// lets the constant and the format string be compared at all.
 func TestPortalIDOptionBindsHookKeyFormat(t *testing.T) {
 	if session.PortalIDOption != "@portal-id" {
 		t.Fatalf("session.PortalIDOption = %q; want %q (a change silently orphans every stamped session's resume hook)", session.PortalIDOption, "@portal-id")

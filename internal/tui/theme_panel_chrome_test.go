@@ -175,8 +175,6 @@ func TestPanelChrome_RulesShareOneLane(t *testing.T) {
 	}
 }
 
-// Empty by decision, not omission: `esc close` was considered for the region
-// above the rule and rejected.
 func TestPanelChrome_HeaderRegionIsEmpty(t *testing.T) {
 	m := newChromePanelModel(t)
 	rows := chromeFrame(t, m)
@@ -206,7 +204,6 @@ func TestPanelChrome_BorderStartsBelowTheRule(t *testing.T) {
 		case i < at:
 			want = " "
 		case i == at:
-			// The rule runs through the border's column rather than being notched by a `│`.
 			want = headerRuleGlyph
 		}
 		if got != want {
@@ -276,8 +273,7 @@ func TestPanelChrome_LadderEnds(t *testing.T) {
 }
 
 // Derived independently of the production arithmetic. The page-aligning blank
-// rows are deliberately absent: a floor that charged for them would refuse a
-// panel with every row it needs.
+// rows are deliberately absent — charging for them would refuse a usable panel.
 func chromeMeasuredFloor(t *testing.T, m Model) int {
 	t.Helper()
 	if got := chromeMeasuredAffordance(t, m); got <= wantPanelHeaderRows+themePanelFooterHeight(themePanelKeymap())+2 {

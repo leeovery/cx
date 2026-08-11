@@ -31,9 +31,9 @@ func completeSessionNames(toComplete string) ([]string, cobra.ShellCompDirective
 	return matches, cobra.ShellCompDirectiveNoFileComp
 }
 
-// completionAliasKeys reads only the aliases config file, so it needs no tmux
-// client on the bootstrap-exempt __complete path. Any error yields nil, which
-// degrades to zero suggestions rather than a failure.
+// Reads only the aliases config file, so it needs no tmux client on the
+// bootstrap-exempt __complete path. Any error yields nil, degrading to zero
+// suggestions rather than a failure.
 var completionAliasKeys = func() []string {
 	store, err := loadAliasStore()
 	if err != nil {
@@ -42,8 +42,6 @@ var completionAliasKeys = func() []string {
 	return store.Keys()
 }
 
-// completeAliasKeys filters by prefix itself and suppresses file completion,
-// as completeSessionNames does.
 func completeAliasKeys(toComplete string) ([]string, cobra.ShellCompDirective) {
 	var matches []string
 	for _, key := range completionAliasKeys() {

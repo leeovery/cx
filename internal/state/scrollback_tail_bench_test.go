@@ -12,8 +12,8 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// Warmed-cache ceiling for one TailScrollback(N=1000) against the 4 MB fixture.
-// Exceeding it means the synchronous-read decision in Update needs revisiting.
+// Warmed-cache ceiling for one TailScrollback against the fixture. Exceeding it
+// means the synchronous-read decision in Update needs revisiting.
 const perfBudget = 5 * time.Millisecond
 
 const (

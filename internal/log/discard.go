@@ -7,9 +7,8 @@ import (
 
 var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-// OrDiscard returns l, or the shared silent logger when l is nil. Entry points
-// that accept an optional logger call it once at entry: a nil *slog.Logger panics
-// on use.
+// OrDiscard substitutes the shared silent logger for a nil l, which would
+// otherwise panic on use.
 func OrDiscard(l *slog.Logger) *slog.Logger {
 	if l == nil {
 		return discardLogger
@@ -17,8 +16,6 @@ func OrDiscard(l *slog.Logger) *slog.Logger {
 	return l
 }
 
-// Discard returns the shared silent logger, for construction sites with no
-// candidate logger to fall back from.
 func Discard() *slog.Logger {
 	return discardLogger
 }

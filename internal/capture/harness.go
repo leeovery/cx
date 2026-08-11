@@ -6,10 +6,6 @@ import (
 	"github.com/leeovery/portal/internal/tui"
 )
 
-// This file performs no config discovery — no XDG lookup, no prefs read, no
-// themes-directory read. A palette arrives only as an injected value, which
-// keeps the package's no-real-config guarantee intact.
-
 func keyRune(r rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
@@ -20,8 +16,7 @@ func keyPageDown() tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModCtrl}
 }
 
-// ModelAt builds the fixture's production tui.Model painted from th and drives
-// it to its captured state through Update, with no tea program running.
+// ModelAt drives the model to its captured state with no tea program running.
 // BootstrapCompleteMsg and LoadingMinElapsedMsg are deliberately never sent:
 // loading fixtures stay parked precisely because neither arrives.
 func (f *Fixture) ModelAt(th theme.Theme, w, h int) tui.Model {
@@ -47,10 +42,10 @@ func (f *Fixture) ModelAt(th theme.Theme, w, h int) tui.Model {
 }
 
 // RenderSwapRender renders the fixture under theme a, swaps it live to theme b
-// through the production Model.ApplyTheme, and renders again, returning both
-// frames. Exactly one model, deliberately: cached styles are assigned at
-// construction, so two models would each render correctly while live swap was
-// broken — the A-render populates those caches.
+// through the production Model.ApplyTheme, and renders again. One model,
+// deliberately: cached styles are assigned at construction, so two models would
+// each render correctly while live swap was broken — the A-render populates
+// those caches.
 func (f *Fixture) RenderSwapRender(a, b theme.Theme, w, h int) (before, after string) {
 	m := f.ModelAt(a, w, h)
 	before = m.View().Content
@@ -58,9 +53,9 @@ func (f *Fixture) RenderSwapRender(a, b theme.Theme, w, h int) (before, after st
 	return before, m.View().Content
 }
 
-// Colourless reports whether the fixture renders under the NO_COLOR carve-out.
-// Read off the fixture's own Deps so the exclusion stays structural rather
-// than a hand-maintained name list.
+// Colourless reports whether the fixture renders under the NO_COLOR carve-out,
+// read off its own Deps so the exclusion stays structural rather than a
+// hand-maintained name list.
 func (f *Fixture) Colourless() bool {
 	return f.Deps(theme.Theme{}).NoColor
 }

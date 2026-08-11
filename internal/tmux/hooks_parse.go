@@ -9,9 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/tmuxout"
 )
 
-// HookEntry is a single entry parsed from `tmux show-hooks -g` output: the
-// array index tmux assigned it, and the command body with any matched outer
-// quoting stripped.
+// HookEntry is one entry of `tmux show-hooks -g` output: the array index tmux
+// assigned it, and the command body with any matched outer quoting stripped.
 type HookEntry struct {
 	Index   int
 	Command string
@@ -23,9 +22,9 @@ type HookEntry struct {
 //	<event>[<index>] <command>
 var hookLineRegexp = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9-]*)\[(\d+)\](?:\s*=>\s*|\s+)(.*)$`)
 
-// ParseShowHooks parses raw `tmux show-hooks -g` output into a per-event map
-// of HookEntry slices, each sorted by ascending Index. Empty input yields a
-// non-nil empty map, and unrecognised lines are skipped rather than reported.
+// ParseShowHooks parses raw `tmux show-hooks -g` output into a per-event map of
+// HookEntry slices, each sorted by ascending Index. Empty input yields a non-nil
+// empty map, and unrecognised lines are skipped rather than reported.
 func ParseShowHooks(raw string) map[string][]HookEntry {
 	out := make(map[string][]HookEntry)
 

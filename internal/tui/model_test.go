@@ -6485,7 +6485,6 @@ func TestLoadingPage(t *testing.T) {
 	t.Run("loading view uses fallback dimensions when no WindowSizeMsg received", func(t *testing.T) {
 		lister := &mockSessionLister{sessions: []tmux.Session{}}
 		m := tui.New(lister, tui.WithServerStarted(true))
-		// Deliberately no WindowSizeMsg — this exercises the 80x24 fallback.
 		view := ansi.Strip(m.View().Content)
 		if !strings.Contains(view, "Restoring sessions") {
 			t.Errorf("expected the loading step-list with fallback dimensions, got:\n%s", view)
@@ -6529,8 +6528,7 @@ func TestLoadingPage(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected tea.BatchMsg, got %T", msg)
 		}
-		// Only the batch shape is asserted: invoking the 1.2s loadingPadTick would
-		// block the test.
+		// Shape only: invoking the 1.2s loadingPadTick would block the test.
 		if len(batchMsg) < 3 {
 			t.Errorf("expected at least 3 batch commands, got %d", len(batchMsg))
 		}

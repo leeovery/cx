@@ -6,16 +6,15 @@ import (
 	"strings"
 )
 
-// ClientInfo is one tmux client attached to a session: its process id and its
-// last-activity timestamp (tmux's #{client_activity}, epoch seconds).
 type ClientInfo struct {
-	PID      int
+	PID int
+	// Activity is tmux's #{client_activity}, in epoch seconds.
 	Activity int64
 }
 
 // ListClients enumerates the tmux clients attached to the named session. A
-// failing tmux invocation yields an empty slice and a nil error (it is the
-// no-server / no-clients signal); only a malformed line returns an error.
+// failing invocation yields an empty slice and a nil error — it is the no-server
+// / no-clients signal — and only a malformed line returns an error.
 func (c *Client) ListClients(session string) ([]ClientInfo, error) {
 	output, err := c.cmd.Run("list-clients", "-t", exactTarget(session), "-F", "#{client_pid} #{client_activity}")
 	if err != nil {

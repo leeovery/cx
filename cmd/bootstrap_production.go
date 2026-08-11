@@ -1,9 +1,7 @@
 package cmd
 
-// Production adapters wiring the bootstrap.Orchestrator step interfaces to
-// their concrete implementations. They live in cmd/ rather than cmd/bootstrap so
-// the bootstrap package stays free of internal/restore and internal/state
-// dependencies.
+// These adapters live in cmd/ rather than cmd/bootstrap so the bootstrap package
+// stays free of internal/restore and internal/state dependencies.
 
 import (
 	"github.com/leeovery/portal/cmd/bootstrap"
@@ -13,9 +11,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// saverAdapter satisfies bootstrap.SaverBootstrapper, carrying the binary's
-// ldflags-injected version so the version-marker upgrade protocol fires on
-// release-build mismatches.
+// Carries the binary's ldflags-injected version so the version-marker upgrade
+// protocol fires on release-build mismatches.
 type saverAdapter struct {
 	client   *tmux.Client
 	stateDir string
@@ -25,13 +22,10 @@ func (a *saverAdapter) EnsureSaver() error {
 	return tmux.EnsurePortalSaverVersion(a.client, a.stateDir, version)
 }
 
-// commanderFactory is the seam integration tests use to inject a wrapping
-// tmux.Commander into the production orchestrator chain. The default is
-// byte-identical to what tmux.DefaultClient builds.
-//
-// Do not cache the Client built from this factory across builds: the factory is
-// invoked once per buildProductionOrchestrator call, so a test that flips it
-// between phases expects the new Commander in the next build.
+// The default is byte-identical to what tmux.DefaultClient builds. Do not cache
+// the Client built from this factory across builds: it is invoked once per
+// buildProductionOrchestrator call, and a caller that flips it between phases
+// expects the new Commander in the next build.
 var commanderFactory = func() tmux.Commander { return &tmux.RealCommander{} }
 
 func buildProductionOrchestrator() (*bootstrap.Orchestrator, *tmux.Client) {
@@ -60,7 +54,7 @@ func buildProductionOrchestrator() (*bootstrap.Orchestrator, *tmux.Client) {
 		Saver:         &saverAdapter{client: client, stateDir: stateDir},
 		Restore:       &bootstrapadapter.RestoreAdapter{Inner: restoreInner},
 		// The stateDir resolved above is reused across Restore, FIFOSweeper and
-		// EagerSignalCore so all three observe the same directory.
+		// EagerSignalCore so they observe the same directory.
 		EagerSignaler: &bootstrap.EagerSignalCore{
 			Markers:  client,
 			StateDir: stateDir,

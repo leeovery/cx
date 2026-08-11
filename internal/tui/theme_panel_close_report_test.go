@@ -13,8 +13,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// wantThemeNotSavedFlash is written out verbatim rather than read from the
-// production constant — a test that asserts a constant against itself pins nothing.
+// Verbatim, not the production constant: a test asserting a constant against
+// itself pins nothing.
 const wantThemeNotSavedFlash = "theme not saved — see portal.log"
 
 func newCloseReportModel(t *testing.T) (Model, *fakeThemePersister) {
@@ -113,8 +113,6 @@ var closeReportFloorCrossings = []struct {
 	{name: "below the height floor", region: geometryBelowHeightFloor, wantGeometry: wantShortClosedFlash},
 }
 
-// The resize is handled in a pre-step of Update, so the report's auto-clear tick
-// reaches the runtime only by being folded onto the arm that returns.
 func TestCloseReport_ForcedCloseCommitFlashWins(t *testing.T) {
 	for _, tc := range closeReportFloorCrossings {
 		t.Run(tc.name, func(t *testing.T) {
@@ -253,9 +251,8 @@ func TestCloseReport_CtrlCIsAnUndeliveredReport(t *testing.T) {
 	}
 }
 
-// The whole file descriptor is swapped rather than a writer seam injected: the
-// assertion is that nothing reaches the stream, and a seam would only prove that
-// nothing reached the seam.
+// The whole file descriptor is swapped rather than a writer seam injected: a
+// seam would only prove that nothing reached the seam.
 func captureStderrForTest(t *testing.T, fn func()) string {
 	t.Helper()
 

@@ -46,9 +46,8 @@ func countLogLines(body, level, msg string) int {
 	return n
 }
 
-// scrollbackMissingINFO scopes assertions to the INFO line rather than the whole
-// body: the per-cause WARNs also carry path=<file>, so a body-wide check could
-// not prove the INFO itself carries the attr.
+// Scoped to the INFO line rather than the whole body: the per-cause WARNs also
+// carry path=<file>, so a body-wide check could match one of those instead.
 func scrollbackMissingINFO(t *testing.T, body string) string {
 	t.Helper()
 	return execLogLine(t, body, "INFO", "scrollback missing")
@@ -251,9 +250,8 @@ func TestHydrateFileMissingLog_PreservesPerCauseWARNsAndNoSettleSleep(t *testing
 	}
 }
 
-// TestHydrateFifoMissingLog_EmitsFifoMissingPathOnNonTimeoutOpenError covers a
-// distinct exit path from the timeout one: a missing FIFO makes os.OpenFile
-// return ENOENT immediately, and that branch hard-returns rather than exec'ing.
+// A missing FIFO makes os.OpenFile return ENOENT immediately, and that branch
+// hard-returns rather than exec'ing — a distinct exit path from the timeout one.
 func TestHydrateFifoMissingLog_EmitsFifoMissingPathOnNonTimeoutOpenError(t *testing.T) {
 	dir := t.TempDir()
 	// Deliberately not created, so the open fails immediately.

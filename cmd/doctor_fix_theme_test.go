@@ -146,7 +146,6 @@ func TestDoctorFix_AdvisoryOnlyExitsZero(t *testing.T) {
 	if strings.Contains(out, "Pruned ") {
 		t.Errorf("--fix printed a prune breadcrumb over a theme-only finding; doctor can prune a stale hook entry, it cannot repair someone's colours:\n%s", out)
 	}
-	// Vacuity guard: the run really did have findings to report.
 	requireBothReportsEndWith(t, out, ""+
 		"  ⚠ theme a-missing: missing tokens — missing text.primary\n"+
 		"  ⚠ theme b-colour: bad colour — canvas = blue\n"+
@@ -157,8 +156,8 @@ func TestDoctorFix_AdvisoryOnlyExitsZero(t *testing.T) {
 // The `appearance` key makes this a file the migrating loader would genuinely
 // rewrite. Do not drop syncPersistTranslation as redundant: TestMain no-ops
 // persistTranslation package-wide and the migrating loader writes entirely
-// inside that seam, so without the substitution even a doctor rewired to
-// loadPrefsStore would leave this fixture byte-identical.
+// inside that seam, so without it even a doctor rewired to the migrating read
+// would leave this fixture byte-identical.
 func fixThemeFixture(t *testing.T) (root, prefsPath string) {
 	t.Helper()
 
@@ -186,7 +185,6 @@ func fixThemeFixture(t *testing.T) (root, prefsPath string) {
 func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 	root, prefsPath := fixThemeFixture(t)
 	before := treeFingerprint(t, root)
-	// Vacuity guard on the snapshot's coverage.
 	if len(before) < 3 {
 		t.Fatalf("snapshot of the config root holds %d entries: %v", len(before), slices.Sorted(maps.Keys(before)))
 	}
@@ -199,7 +197,6 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
 	}
-	// Vacuity guard: the run really did find theme problems.
 	if n := strings.Count(outBuf.String(), "⚠"); n != 8 {
 		t.Fatalf("report carries %d advisory lines over the two renders, want 8 (4 per pass) — the untouched assertions would be about a scan that found nothing:\n%s", n, outBuf.String())
 	}
@@ -242,8 +239,6 @@ func TestDoctorFix_ThemeStateUntouched(t *testing.T) {
 	})
 }
 
-// The source-guard half exists because no output assertion can distinguish a
-// second call from a reused variable.
 func TestDoctorFix_ScanReRunForSecondPass(t *testing.T) {
 	t.Run("a second call reflects the directory's current state", func(t *testing.T) {
 		dir := themesDirWith(t, map[string][]byte{
@@ -322,7 +317,6 @@ func TestDoctorFix_EmitsNoThemeRecords(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Execute err = %v; broken drop-ins must never drive the exit code", err)
 		}
-		// Vacuity guard: the run diagnosed a full reject set twice.
 		if n := strings.Count(outBuf.String(), "⚠"); n != 12 {
 			t.Fatalf("report carries %d advisory lines over the two renders, want 12 (6 per pass) — the zero-record assertion would be about the wrong run:\n%s", n, outBuf.String())
 		}
@@ -354,7 +348,6 @@ func TestDoctorFix_RemainsBootstrapExempt(t *testing.T) {
 		if runner.calls != 0 {
 			t.Errorf("the bootstrap orchestrator ran %d times on `doctor --fix`; doctor starts no server, ensures no saver and runs no restore", runner.calls)
 		}
-		// Vacuity guard: the theme surface really did run on both passes.
 		requireBothReportsEndWith(t, outBuf.String(), ""+
 			"  ⚠ theme a-missing: missing tokens — missing text.primary\n"+
 			"  ⚠ theme gone does not resolve: not found\n"+
@@ -362,7 +355,6 @@ func TestDoctorFix_RemainsBootstrapExempt(t *testing.T) {
 	})
 
 	t.Run("the orchestrator seam runs for a non-exempt command", func(t *testing.T) {
-		// Without this the zero above could equally mean the seam is dead.
 		resetBootstrapOnce(t)
 		runner := &recordingRunner{started: true}
 		bootstrapDeps = &BootstrapDeps{Orchestrator: runner}

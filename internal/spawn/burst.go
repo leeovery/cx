@@ -7,15 +7,12 @@ import (
 	"github.com/leeovery/portal/internal/session"
 )
 
-// Generous headroom over the sub-second spawn→confirm chain. Per-window is
-// deliberate: each timer starts at its own window's spawn, so the cumulative
-// delay of earlier sequential windows never eats a later window's budget.
+// Per-window is deliberate: each timer starts at its own window's spawn, so the
+// cumulative delay of earlier windows never eats a later window's budget.
 const spawnAckTimeout = 8 * time.Second
 
 const defaultAckPoll = 75 * time.Millisecond
 
-// AckOutcome is the per-window confirmation vocabulary the burster tags each
-// spawned window with.
 type AckOutcome string
 
 const (
@@ -27,9 +24,8 @@ const (
 	AckFailed AckOutcome = "failed"
 )
 
-// WindowResult is the outcome of attempting one external window. Session holds
-// the target's value: a session name for an attach surface, the literal dir for
-// a mint surface.
+// WindowResult's Session holds the target's value: a session name for an attach
+// surface, the literal dir for a mint surface.
 type WindowResult struct {
 	Session string
 	Token   string
@@ -37,10 +33,8 @@ type WindowResult struct {
 	Ack     AckOutcome
 }
 
-// Burster is the N−1 external half of the spawn burst: it opens each external
-// window sequentially through Adapter and confirms each by watching Ack for
-// that window's token within Timeout. The Nth self-attach is the caller's
-// concern.
+// Burster is the N−1 external half of the spawn burst, opening each window
+// sequentially. The Nth self-attach is the caller's concern.
 type Burster struct {
 	Adapter Adapter
 	Ack     AckCollector
@@ -53,9 +47,8 @@ type Burster struct {
 	Sleep   func(time.Duration)
 }
 
-// NewBurster wires a Burster to its adapter, ack channel and composition seams,
-// applying production defaults for the id generator, timeout, poll cadence and
-// clock.
+// NewBurster applies production defaults for the id generator, timeout, poll
+// cadence and clock.
 func NewBurster(adapter Adapter, ack AckCollector, exe ExecutableResolver, getenv func(string) string) *Burster {
 	return &Burster{
 		Adapter: adapter,
@@ -70,14 +63,14 @@ func NewBurster(adapter Adapter, ack AckCollector, exe ExecutableResolver, geten
 	}
 }
 
-// Run opens one external host-terminal window per surface, in list order, and
-// returns the batch id plus one WindowResult per window. It only spawns each
-// window's `open` argv — a mint surface is minted inside its own window at exec
-// time. command (nil-tolerant) rides every mint surface byte-identically and
-// attach surfaces ignore it; progress (nil-tolerant) fires after each window's
-// ack classification. The executable and every id resolve up front, so a failure
-// there aborts before any window opens. Cancelling ctx stops the burst and
-// returns what it has collected, with a nil error.
+// Run opens one external window per surface, in list order, returning the batch
+// id and one WindowResult per window. It only spawns each window's `open` argv —
+// a mint surface is minted inside its own window at exec time. command
+// (nil-tolerant) rides every mint surface byte-identically and attach surfaces
+// ignore it; progress (nil-tolerant) fires after each ack classification. The
+// executable and every id resolve up front, so a failure there aborts before any
+// window opens. Cancelling ctx stops the burst and returns what it has collected
+// with a nil error.
 func (b *Burster) Run(ctx context.Context, external []Surface, command []string, progress func(done, total int)) (batch string, results []WindowResult, err error) {
 	exePath, err := b.Exe()
 	if err != nil {
@@ -117,8 +110,8 @@ func (b *Burster) Run(ctx context.Context, external []Surface, command []string,
 			progress(i+1, len(external))
 		}
 
-		// The sole early-stop: the macOS Automation grant is per-(source, target),
-		// so every later window would hit the same permission wall.
+		// Early stop: the macOS Automation grant is per-(source, target), so
+		// every later window would hit the same permission wall.
 		if result.Outcome == OutcomePermissionRequired {
 			break
 		}

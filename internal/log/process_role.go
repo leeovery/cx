@@ -2,11 +2,9 @@ package log
 
 import "strings"
 
-// The closed value space for the per-record process_role baseline attr.
-//
-// roleClean is unreachable — no invocation maps to it — and its switch arm in
-// ResolveProcessRole is dead. Both stay: pruning a value out of the closed space
-// is a log-taxonomy change, not a cleanup.
+// The closed value space for the process_role baseline attr. roleClean is
+// unreachable and its ResolveProcessRole arm is dead; both stay, because pruning
+// a value from the closed space is a log-taxonomy change, not a cleanup.
 const (
 	roleDaemon    = "daemon"
 	roleHydrate   = "hydrate"
@@ -16,12 +14,9 @@ const (
 	roleBootstrap = "bootstrap"
 )
 
-// ResolveProcessRole maps a process invocation's argument vector (os.Args[1:]) to
-// one of the closed process_role values, defaulting to bootstrap. Flag tokens are
-// ignored and the longest subcommand prefix wins.
-//
-// It is a lightweight argv inspection rather than a parse because Init runs from
-// main before Cobra sees argv. It reads nothing global.
+// ResolveProcessRole maps os.Args[1:] to one of the closed process_role values,
+// defaulting to bootstrap. It inspects argv rather than parsing it because Init
+// runs from main before Cobra sees argv.
 func ResolveProcessRole(args []string) string {
 	path := subcommandPath(args)
 
@@ -53,8 +48,6 @@ func ResolveProcessRole(args []string) string {
 	return roleBootstrap
 }
 
-// subcommandPath drops every token beginning with "-", including the lone "-",
-// preserving the order of the rest.
 func subcommandPath(args []string) []string {
 	path := make([]string, 0, len(args))
 	for _, tok := range args {

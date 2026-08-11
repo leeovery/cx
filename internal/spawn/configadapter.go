@@ -30,9 +30,8 @@ func substituteCommand(template []string, commandStr string) []string {
 	return final
 }
 
-// There is deliberately no permission-required branch: a config recipe is a
-// generic argv carrying no AppleEvent codes, so permission-required stays
-// native-adapter-only and even permission-shaped output folds to spawn-failed.
+// No permission-required branch: a config recipe is a generic argv carrying no
+// AppleEvent codes, so even permission-shaped output folds to spawn-failed.
 func mapRecipeResult(out string, exitCode int, err error) Result {
 	if err == nil && exitCode == 0 {
 		return Success(strings.TrimSpace(out))
@@ -57,10 +56,9 @@ func (a *argvRecipeAdapter) OpenWindow(command []string) Result {
 
 var _ Adapter = (*argvRecipeAdapter)(nil)
 
-// A script recipe can only be validated here, at resolve time: Portal execs the
-// file directly (its own shebang and exec bit), so a missing or non-executable
-// script is rejected and the resolver falls through to native. The check is a
-// mode-bit test, not an access probe, so it is root-safe.
+// Validated at resolve time: Portal execs the file directly (its own shebang and
+// exec bit), so a missing or non-executable script falls through to native. The
+// check is a mode-bit test, not an access probe, so it is root-safe.
 func newScriptRecipeAdapter(key, rawPath string, runner recipeRunner) (Adapter, bool) {
 	p := resolver.ExpandTilde(rawPath)
 	info, err := os.Stat(p)

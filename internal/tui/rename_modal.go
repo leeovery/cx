@@ -29,8 +29,7 @@ func renderRenameModalContent(input textinput.Model, oldName string, th theme.Th
 	return renderJoinedPanel([][]string{header, body, footer}, th.Border, th, colourless)
 }
 
-// The rename input is always editing — there is no navigate state — so the
-// badge is always shown.
+// Always editing — there is no navigate state — so the badge always shows.
 func renameModalHeaderRow(th theme.Theme, colourless bool) string {
 	title := headerStyle(th.TextPrimary, th, colourless).Bold(true).Render(renameTitle)
 	return renderHeaderWithBadge(title, renamePanelContentWidth(), true, th, colourless)
@@ -53,17 +52,13 @@ func renameModalLabelRow(th theme.Theme, colourless bool) string {
 	return headerStyle(th.AccentPrimary, th, colourless).Render(renameFieldLabel)
 }
 
-// Each rendered line is one body row, since renderJoinedPanel expects
-// single-line rows.
 func renameModalInputBoxRows(input textinput.Model, th theme.Theme, colourless bool) []string {
 	value := renameInputView(input, th, colourless)
 	return renderInputBox(value, inputBoxEditing, true, renameInputInnerWidth, th, colourless)
 }
 
-// The inline prompt is cleared so the value renders alone inside the box — the
-// NEW NAME label already carries the field name. Blink is disabled so a
-// captured frame is deterministic. Input semantics are untouched; only Styles
-// and Prompt change.
+// Mutates only Prompt and Styles on the value copy. Blink is off so a captured
+// frame is deterministic.
 func renameInputView(input textinput.Model, th theme.Theme, colourless bool) string {
 	input.Prompt = ""
 	styles := input.Styles()
@@ -81,8 +76,7 @@ func renameInputView(input textinput.Model, th theme.Theme, colourless bool) str
 	return input.View()
 }
 
-// The name truncates within the budget left by the fixed-width prefix so an
-// over-long name never overflows the panel.
+// Truncated within the budget left by the prefix so a long name never overflows.
 func renameModalWasRow(oldName string, th theme.Theme, colourless bool) string {
 	nameBudget := max(renameInputInnerWidth-lipgloss.Width(renameWasPrefix), 1)
 	name := ansi.Truncate(oldName, nameBudget, "…")

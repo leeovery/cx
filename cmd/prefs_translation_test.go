@@ -193,8 +193,6 @@ func TestLoadPrefsStore_TolerantOnDegenerateFiles(t *testing.T) {
 	}
 }
 
-// The mode-0000 fixture cannot prove "no read": it carries no theme keys, so a
-// read would answer with zero keys too. The structural sub-test covers that.
 func TestLoadPrefsStoreNoMigrate_ComputesAndWritesNothing(t *testing.T) {
 	t.Run("it returns a bound store against an unreadable file", func(t *testing.T) {
 		before := []byte(`{"appearance":"dark"}`)
@@ -306,9 +304,9 @@ func TestLoadPrefsStore_SingleProductionCaller(t *testing.T) {
 	}
 }
 
-// The deleted appearance decode matched its three tokens exactly, so every
-// value it read as `auto` (`Dark`, ` dark`, a trailing newline) must translate
-// to nothing: trimming or lowercasing would change a value's meaning.
+// The old appearance decode matched its tokens exactly, so every value it read
+// as `auto` (`Dark`, ` dark`, a trailing newline) must translate to nothing:
+// trimming or lowercasing would change a value's meaning.
 func TestTranslateAppearance_ExactMatchOnly(t *testing.T) {
 	for _, raw := range []string{"Dark", " dark", "DARK", "dark\n", "Light", "light ", "LIGHT", "auto", "sepia", ""} {
 		t.Run("translates "+raw+" to nothing", func(t *testing.T) {

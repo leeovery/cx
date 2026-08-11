@@ -2,10 +2,8 @@ package tui
 
 import "fmt"
 
-// Maps the ten real bootstrap steps to the five friendly loading labels. Pure
-// accumulator, deliberately free of the channel transport and render code; it
-// must not import cmd/bootstrap (wrong import direction), so it keys off
-// BootstrapProgressMsg.Index alone.
+// Must not import cmd/bootstrap (wrong import direction), so step identity is
+// keyed off BootstrapProgressMsg.Index alone.
 
 const (
 	LabelStartedTmuxServer     = "Started tmux server"
@@ -15,22 +13,16 @@ const (
 	LabelRunningResumeCommands = "Running resume commands"
 )
 
-// The bar advances 1/totalBootstrapSteps per distinct completed step — ten
-// increments, not five. Keep in lockstep with stepLabelTable.
+// One increment per distinct completed step, not per label. Keep in lockstep
+// with stepLabelTable.
 const totalBootstrapSteps = 10
 
-// LabelState is the tick state of a friendly label: done, active, or pending.
 type LabelState int
 
 const (
-	// LabelPending is the zero value: the label's steps have not started.
 	LabelPending LabelState = iota
-	// LabelActive: the current step falls in this label's group.
 	LabelActive
-	// LabelDone: every constituent step of this label has completed.
 	LabelDone
-	// LabelFailed: a fatal step in this label's group aborted the boot. Only
-	// FailedView sets it; the normal View projection never does.
 	LabelFailed
 )
 
@@ -43,8 +35,7 @@ var labelOrder = []string{
 }
 
 // Step 6 (Restore) dual-maps at runtime, not here: its per-session skeleton
-// events (RestoreM > 0) belong to "Restoring sessions", its completion tick to
-// the label below.
+// events (RestoreM > 0) belong to "Restoring sessions", its completion tick here.
 var stepLabelTable = map[int]string{
 	1:  LabelStartedTmuxServer,
 	2:  LabelRegisteredHooks,
@@ -60,9 +51,7 @@ var stepLabelTable = map[int]string{
 
 const restoreStep = 6
 
-// LabelForStep returns the friendly label a step event maps to; a skeleton
-// per-session event maps to "Restoring sessions". An out-of-range index
-// returns "".
+// LabelForStep returns "" for an out-of-range index.
 func LabelForStep(e BootstrapProgressMsg) string {
 	if e.Index == restoreStep && e.RestoreM > 0 {
 		return LabelRestoringSessions
@@ -70,16 +59,15 @@ func LabelForStep(e BootstrapProgressMsg) string {
 	return stepLabelTable[e.Index]
 }
 
-// LoadingLabel is one row of the tick-list. Counter is only ever populated for
-// LabelRestoringSessions.
+// Counter is populated only for LabelRestoringSessions.
 type LoadingLabel struct {
 	Text    string
 	State   LabelState
 	Counter string
 }
 
-// LoadingProgressView is the render input. Message is empty on the normal
-// view; when FailedView populates it, exactly one label carries LabelFailed.
+// Message is empty on the normal view; when FailedView populates it, one label
+// carries LabelFailed.
 type LoadingProgressView struct {
 	BarFraction float64
 	Labels      []LoadingLabel
@@ -94,14 +82,9 @@ type LoadingProgress struct {
 	restoreM       int
 }
 
-// Apply folds one message in and returns the updated value, leaving the
-// receiver untouched. Unmapped indices are ignored.
-//
-// Completion tracks distinct step indices, so a duplicate or out-of-order
-// event never double-advances the bar. The producer emits every skeleton event
-// (RestoreM > 0) before step 6's single trailing completion tick, so a
-// skeleton event reliably means step 6 is unfinished: it advances the counter
-// only, and the trailing tick is what marks the step done.
+// Apply is idempotent per step index, so a duplicate or out-of-order event
+// never double-advances the bar. It assumes the producer emits every skeleton
+// event (RestoreM > 0) before step 6's trailing completion tick.
 func (p LoadingProgress) Apply(e BootstrapProgressMsg) LoadingProgress {
 	if _, mapped := stepLabelTable[e.Index]; !mapped {
 		return p
@@ -129,7 +112,6 @@ func (p LoadingProgress) clone() LoadingProgress {
 	}
 }
 
-// View projects the render inputs from the accumulated state.
 func (p LoadingProgress) View() LoadingProgressView {
 	v := LoadingProgressView{
 		BarFraction: float64(len(p.completedSteps)) / float64(totalBootstrapSteps),
@@ -145,9 +127,7 @@ func (p LoadingProgress) View() LoadingProgressView {
 	return v
 }
 
-// FailedView projects the fatal error frame: steps completed before the fatal
-// stay done, the failed step's label flips to LabelFailed, and the bar freezes
-// at the fraction reached. An out-of-range failedStep leaves no label failed.
+// FailedView leaves no label failed when failedStep is out of range.
 func (p LoadingProgress) FailedView(failedStep int, message string) LoadingProgressView {
 	failedLabel := LabelForStepIndex(failedStep)
 	v := LoadingProgressView{
@@ -169,17 +149,14 @@ func (p LoadingProgress) FailedView(failedStep int, message string) LoadingProgr
 	return v
 }
 
-// LabelForStepIndex maps a 1-based step index to its label. The fatal steps
-// are never the dual-mapped restore step, so the static mapping is exact. An
-// out-of-range index returns "".
+// A fatal step is never the dual-mapped restore step, so the static table is
+// exact here. An out-of-range index returns "".
 func LabelForStepIndex(index int) string {
 	return stepLabelTable[index]
 }
 
-// Events signal step completion, so a label is done once every constituent
-// step completed and the active label is the first not-yet-done one. This
-// keeps a multi-step label active until its last step, and ticks a zero-item
-// label done rather than stalled.
+// A label is done once every constituent step completed; the active label is the
+// first not-yet-done one, so a multi-step label stays active until its last step.
 func (p LoadingProgress) labelState(text string) LabelState {
 	if p.labelDone(text) {
 		return LabelDone

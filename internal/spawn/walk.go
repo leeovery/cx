@@ -17,16 +17,13 @@ type ProcessWalker interface {
 	ProcessInfo(pid int) (ppid int, command string, err error)
 }
 
-// BundleReader reads a macOS `.app` bundle directory's CFBundleIdentifier and a
-// friendly display name.
 type BundleReader interface {
 	Read(appPath string) (bundleID, name string, err error)
 }
 
-// ErrDetectTransient marks a transient terminal-detection failure — a `ps` or
-// `defaults read` error mid-walk. It is distinct from the clean "no host-local
-// terminal" outcome, which is a NULL Identity with a nil error. The underlying
-// cause stays reachable through the chain.
+// ErrDetectTransient marks a `ps` or `defaults read` failure mid-walk, distinct
+// from the clean "no host-local terminal" outcome — a NULL Identity with a nil
+// error. The underlying cause stays reachable through the chain.
 var ErrDetectTransient = errors.New("terminal detection transient failure")
 
 // Bounds the ancestry walk so a cyclic or pathologically long process tree
@@ -35,9 +32,8 @@ const maxWalkHops = 32
 
 const appBundleSuffix = ".app"
 
-// Exhausting the ancestry — reaching the root, a repeated pid, or the hop bound
-// — is a clean NULL with a nil error. Only a failed `ps` or `defaults` read is an
-// error.
+// Exhausting the ancestry — the root, a repeated pid, or the hop bound — is a
+// clean NULL with a nil error. Only a failed `ps` or `defaults` read errors.
 func walkToBundle(startPID int, walker ProcessWalker, reader BundleReader) (Identity, error) {
 	seen := make(map[int]bool)
 	pid := startPID

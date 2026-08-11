@@ -6,7 +6,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// modalState tracks which modal overlay is currently active.
 type modalState int
 
 const (
@@ -18,8 +17,7 @@ const (
 	modalHelp
 )
 
-// Centres an already-built panel on the cleared canvas. This layer only
-// centres — the outer fillCanvas wrap in View() paints the backdrop.
+// Centring only — the outer fillCanvas wrap in View() paints the backdrop.
 func placeModalOnClearedCanvas(panel string, width, height int) string {
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, panel)
 }
@@ -44,8 +42,6 @@ func renderRenameModalOnClearedCanvas(input textinput.Model, oldName string, wid
 	return placeModalOnClearedCanvas(panel, width, height)
 }
 
-// The panel is already fully framed, so it is placed directly — a lipgloss
-// auto-border wrap would add a redundant second border.
 func renderEditModalOnClearedCanvas(m Model, width, height int, th theme.Theme, colourless bool) string {
 	panel := m.renderEditProjectContent()
 	return placeModalOnClearedCanvas(panel, width, height)

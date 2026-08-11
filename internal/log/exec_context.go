@@ -7,15 +7,11 @@ import (
 	"strings"
 )
 
-// CombinedOutputWithContext runs cmd and returns its stdout. On failure it
-// returns the captured stdout together with an error embedding the binary path,
-// the argv, the underlying exit error (wrapped with %w, so errors.As against
-// *exec.ExitError or *exec.Error still works) and the child's trimmed stderr.
-//
-// Despite the name it does not merge the two streams: stderr is captured
-// privately and only ever appears inside the error. Returning stdout verbatim on
-// the error path is load-bearing — callers discriminate on stdout emptiness after
-// a non-zero exit.
+// CombinedOutputWithContext runs cmd and returns its stdout. Despite the name it
+// does not merge the streams: stderr is captured privately and surfaces only
+// inside the error, which wraps the exit error with %w so errors.As still
+// reaches *exec.ExitError / *exec.Error. Stdout is returned verbatim on the
+// error path too — callers discriminate on its emptiness after a non-zero exit.
 func CombinedOutputWithContext(cmd *exec.Cmd) ([]byte, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

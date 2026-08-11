@@ -1,20 +1,15 @@
 package session
 
-// SessionChecker reports whether a tmux session exists by name.
 type SessionChecker interface {
 	HasSession(name string) bool
 }
 
-// QuickStartResult carries the created session's name and resolved directory,
-// plus the argv for the syscall.Exec handoff to tmux.
 type QuickStartResult struct {
 	SessionName string
 	Dir         string
 	ExecArgs    []string
 }
 
-// QuickStart orchestrates the quick-start session creation pipeline: git root
-// resolution, project registration and session naming.
 type QuickStart struct {
 	git     GitResolver
 	store   ProjectStore
@@ -39,10 +34,9 @@ func NewQuickStart(git GitResolver, store ProjectStore, checker SessionChecker, 
 // separators. When command is non-empty it is appended to the new-session step.
 //
 // Order is load-bearing: the session is created detached so @portal-dir and
-// @portal-id can be stamped before attach-session blocks the chain. Anchoring
-// @portal-dir at creation keeps grouping stable once the pane cd's elsewhere.
-// The name is guaranteed unique upstream, so plain new-session always creates —
-// -A would attach to an existing session immediately and skip the stamps.
+// @portal-id can be stamped before attach-session blocks the chain. The name is
+// unique upstream, so plain new-session always creates — -A would attach to an
+// existing session immediately and skip the stamps.
 func (qs *QuickStart) Run(path string, command []string) (*QuickStartResult, error) {
 	prepared, err := PrepareSession(path, command, qs.git, qs.store, qs.checker, qs.gen, qs.shell)
 	if err != nil {

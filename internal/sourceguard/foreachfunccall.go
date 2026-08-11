@@ -4,12 +4,10 @@ import "go/ast"
 
 // ForEachFuncCall visits every call expression inside a function declaration of
 // file, passing the enclosing declaration's name alongside each call. Calls
-// nested in arguments, closures and inner function literals are visited too, all
-// reported under the top-level declaration holding them. Returning false ends
-// the whole walk, not just the current declaration.
-//
-// A declaration with no body yields nothing rather than panicking, so a caller
-// needs no nil check of its own.
+// nested in arguments, closures and inner literals are reported under the
+// top-level declaration holding them. Returning false ends the whole walk, not
+// just the current declaration; a bodyless declaration yields nothing rather than
+// panicking.
 func ForEachFuncCall(file *ast.File, visit func(funcName string, call *ast.CallExpr) bool) {
 	for _, decl := range file.Decls {
 		fn, isFunc := decl.(*ast.FuncDecl)

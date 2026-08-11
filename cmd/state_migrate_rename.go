@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// stateMigrateRenameCmd migrates hooks.json keys after a tmux session rename.
 // Invoked from a session-renamed hook with the old and new session names.
 var stateMigrateRenameCmd = &cobra.Command{
 	Use:    "migrate-rename <old-name> <new-name>",
@@ -26,10 +25,9 @@ var stateMigrateRenameCmd = &cobra.Command{
 	},
 }
 
-// runMigrateRename's prefix carries a trailing colon so similarly-prefixed
-// session names do not match ("work" must not match "work-2:0.0"). Matching keys
-// are collected before rewriting because mutating a map during iteration is
-// unspecified.
+// The prefix carries a trailing colon so similarly-prefixed session names do not
+// match ("work" must not match "work-2:0.0"). Matching keys are collected before
+// rewriting because mutating a map during iteration is unspecified.
 func runMigrateRename(store *hooks.Store, oldName, newName string, logger *slog.Logger) error {
 	if newName == "" {
 		return fmt.Errorf("new name must be non-empty")

@@ -52,8 +52,6 @@ func TestThemeAdvisoryUnion_PersistedLineWins(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := themesDirWith(t, map[string][]byte{"nord-lee.theme": sourceBadColours(t, themeOverride{"canvas", "blue"})})
 
-			// Vacuity guard: the scan really does produce a file line for this
-			// slug, so its absence below is the dedup dropping it.
 			const fileLine = "⚠ theme nord-lee: bad colour — canvas = blue"
 			loader := theme.NewSilentLoader()
 			requireAdvisoryLines(t, scanThemesDirectory(enumerateThemesDir(loader, dir)), fileLine)
@@ -154,8 +152,8 @@ func TestThemeAdvisoryUnion_BadNameFileNeverCollides(t *testing.T) {
 
 	t.Run("a persisted line with no slug covers nothing", func(t *testing.T) {
 		// Neither side of the guard is reachable from the producers, so only a
-		// hand-built pair pins it: without it the empty string would be an
-		// ordinary key matching every bad-name row and the directory line.
+		// hand-built pair reaches it: without the guard the empty string would be
+		// an ordinary key matching every bad-name row and the directory line.
 		directory := themeAdvisory{line: "⚠ themes directory unreadable: /themes"}
 		badName := themeAdvisory{line: "⚠ theme file Nord.theme: slug must be lowercase letters, digits and hyphens"}
 		slugless := themeAdvisory{line: "⚠ theme  does not resolve: not found", fromPrefs: true}
@@ -407,8 +405,6 @@ func TestThemeAdvisoryUnion_CountMatchesRenderedLines(t *testing.T) {
 				t.Fatalf("report rendered %d advisory lines from %d advisories:\n%s", len(rendered), len(advisories), strings.Join(lines, "\n"))
 			}
 
-			// mixedCatalog is 1-of-2, so the checks half is fixed and the suffix is
-			// the only thing under test.
 			want := "  1 of 2 checks passed"
 			switch len(rendered) {
 			case 0:
@@ -425,8 +421,8 @@ func TestThemeAdvisoryUnion_CountMatchesRenderedLines(t *testing.T) {
 	}
 
 	t.Run("two lines sharing a slug are counted twice", func(t *testing.T) {
-		// The one same-slug pair the union can produce: counted as distinct slugs
-		// rather than lines this would read 1 while printing two.
+		// A same-slug pair: counted as distinct slugs rather than lines, this
+		// reads 1 while printing two.
 		deps := persistedThemeDeps(t, `{}`, themesDirWith(t, map[string][]byte{
 			"A-Nord.theme": validThemeSource(t),
 			"B_Nord.theme": validThemeSource(t),

@@ -6,9 +6,6 @@ import (
 	"github.com/leeovery/portal/internal/spawn"
 )
 
-// WithSpawnLogger wires the spawn-component logger for burst instrumentation.
-// Nil-tolerant: a nil logger silently discards; production passes
-// log.For("spawn").
 func WithSpawnLogger(logger *slog.Logger) Option {
 	return func(m *Model) { m.spawnLogger = logger }
 }

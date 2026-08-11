@@ -5,16 +5,12 @@ import (
 	"strings"
 )
 
-// ErrZoxideNotInstalled indicates zoxide is not available on PATH.
 var ErrZoxideNotInstalled = errors.New("zoxide is not installed")
 
-// ErrNoMatch indicates zoxide found no matching directory.
 var ErrNoMatch = errors.New("no match found")
 
-// LookPathFunc is a function that checks whether a binary is on PATH.
 type LookPathFunc func(file string) (string, error)
 
-// ZoxideResolver queries zoxide for frecency-based directory matching.
 type ZoxideResolver struct {
 	runner   CommandRunner
 	lookPath LookPathFunc

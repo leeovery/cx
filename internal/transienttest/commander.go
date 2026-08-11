@@ -8,26 +8,18 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// FailureMode selects the policy Commander applies to an intercepted call. A
-// single Commander can be rotated between modes during a test.
 type FailureMode int
 
 const (
-	// PassThrough delegates every call to the inner Commander verbatim.
 	PassThrough FailureMode = iota
-	// FailExitNonZero models tmux exiting non-zero.
 	FailExitNonZero
-	// FailEmptyStdout models tmux exiting 0 with empty stdout.
 	FailEmptyStdout
 )
 
-// Commander wraps an inner tmux.Commander and intercepts only `list-panes -a`
-// invocations, delegating everything else verbatim so the rest of a test keeps
-// production fidelity. The zero value passes everything through, so a test must
-// opt in to a failure policy.
-//
-// OneShot makes only the first intercepted call apply the policy, letting an
-// earlier consumer succeed before a later one observes the transient; the
+// Commander intercepts only `list-panes -a` invocations, delegating everything
+// else to Inner verbatim so the rest of a test keeps production fidelity. The
+// zero value passes everything through, so a test must opt in to a failure
+// policy. OneShot applies the policy to the first intercepted call only; the
 // default is sticky failure. Only that counter is atomic — Mode and Inner are
 // meant to be flipped between phases, not during concurrent tmux activity.
 type Commander struct {
@@ -60,8 +52,7 @@ func (c *Commander) applyPolicy() (string, error) {
 	}
 }
 
-// intercept returns (output, error, true) when the policy applied, or
-// ("", nil, false) when the caller should delegate to Inner.
+// The bool reports whether the policy applied; false means delegate to Inner.
 func (c *Commander) intercept(args []string) (string, error, bool) {
 	if c.Mode == PassThrough {
 		return "", nil, false
@@ -77,7 +68,6 @@ func (c *Commander) intercept(args []string) (string, error, bool) {
 	return out, err, true
 }
 
-// Run implements tmux.Commander.
 func (c *Commander) Run(args ...string) (string, error) {
 	if out, err, handled := c.intercept(args); handled {
 		return out, err
@@ -85,7 +75,6 @@ func (c *Commander) Run(args ...string) (string, error) {
 	return c.Inner.Run(args...)
 }
 
-// RunRaw implements tmux.Commander.
 func (c *Commander) RunRaw(args ...string) (string, error) {
 	if out, err, handled := c.intercept(args); handled {
 		return out, err

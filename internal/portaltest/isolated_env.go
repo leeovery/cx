@@ -10,13 +10,10 @@ import (
 )
 
 // IsolateStateForTest returns an env slice and a stateDir scoped to a per-test
-// t.TempDir(); assign env to exec.Cmd.Env so a spawned portal resolves every
-// state path under it, then append your own TMUX=<test socket> (see
-// PoisonedTmuxSocket). stateDir exists on return.
-//
-// It also mutates the calling test process's own environment via t.Setenv —
-// restored at test exit — and registers a cleanup that fails the test if the
-// developer's real state dir changed during the run.
+// t.TempDir(); assign env to exec.Cmd.Env, then append your own TMUX=<test
+// socket> (see PoisonedTmuxSocket). stateDir exists on return. It also mutates
+// the calling process's own env via t.Setenv and registers a cleanup that fails
+// the test if the developer's real state dir changed during the run.
 func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	t.Helper()
 
@@ -57,8 +54,8 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 
 	// Subprocesses run their own enumerations, where the in-process registration
 	// above does not exist; the registry file carries the same ownership across
-	// the process boundary. Set it before the env slice is derived from
-	// os.Environ below, so the slice carries it.
+	// the process boundary. Set it before the env slice is derived from os.Environ
+	// below, so the slice carries it.
 	registryPath := filepath.Join(tempDir, "sandbox-registry")
 	if err := os.WriteFile(registryPath, []byte(stateDir+"\n"), 0o600); err != nil {
 		t.Fatalf("portaltest: write sandbox registry: %v", err)
@@ -69,9 +66,8 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	env = append(env, "XDG_CONFIG_HOME="+configDir)
 
 	// Poison TMUX so a subprocess cannot silently attach to the developer's real
-	// server; one that needs a server appends its own TMUX=<test socket> after
-	// this slice (exec.Cmd env dedupe is last-wins), and one that forgets fails
-	// loudly at connect time.
+	// server; one that needs a server appends its own TMUX after this slice
+	// (exec.Cmd env dedupe is last-wins), and one that forgets fails loudly.
 	env = filterEnvKeys(env, "TMUX", "TMUX_PANE")
 	env = append(env, "TMUX="+PoisonedTmuxSocket+",0,0")
 
@@ -82,8 +78,7 @@ func IsolateStateForTest(t *testing.T) (env []string, stateDir string) {
 	return env, stateDir
 }
 
-// backstopT narrows *testing.T so a fake recorder can drive
-// installBackstopCleanup without a real one.
+// Narrows *testing.T so a fake recorder can drive installBackstopCleanup.
 type backstopT interface {
 	Cleanup(fn func())
 	Errorf(format string, args ...any)
@@ -96,8 +91,8 @@ func installBackstopCleanup(t backstopT, devStateDir string, pre map[string]Fing
 }
 
 // PoisonedTmuxSocket is the deliberately-invalid tmux socket path baked into
-// IsolateStateForTest's env as TMUX=<this>,0,0. A subprocess that needs a real
-// test server must override TMUX by appending its own after that slice.
+// IsolateStateForTest's env. A subprocess that needs a real test server must
+// override TMUX by appending its own after that slice.
 const PoisonedTmuxSocket = "/nonexistent/portal-test-must-set-tmux-socket"
 
 func filterXDGConfigHome(env []string) []string {

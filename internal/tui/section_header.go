@@ -10,28 +10,19 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The section header replaces the rendered title line; it does not rewrite the
-// list's title value. Its suffix text and inside-tmux decoration are sourced
-// from sessionListTitleForMode so the rendered strings stay byte-identical to
-// that single title producer.
-
 const (
-	// The fixed prefix of every sessionListTitleForMode output — the suffix is
-	// the remainder after it, so the two split with no duplicated wording.
+	// Must stay the exact prefix of sessionListTitleForMode's output — the
+	// suffix is the remainder after it.
 	sectionLabel         = "Sessions"
 	projectsSectionLabel = "Projects"
-	// The `s switch view` hint is the footer's responsibility and deliberately
-	// not duplicated here.
+	// The `s switch view` hint is the footer's, deliberately not duplicated here.
 	sectionFilterHint     = "/ to filter"
 	multiSelectCancelHint = "esc cancel"
 
 	unsupportedLabel    = "unsupported terminal"
 	unsupportedDocsHint = "see docs"
-	// The OSC 8 link target. The banner never prints this as visible text —
-	// link-or-bare-word only.
-	unsupportedDocsURL = "https://github.com/leeovery/portal/blob/main/docs/custom-terminals.md"
-	// A spaced em-dash before the friendly name, a spaced middot before the
-	// bundle id.
+	// OSC 8 link target — never printed as visible text.
+	unsupportedDocsURL        = "https://github.com/leeovery/portal/blob/main/docs/custom-terminals.md"
 	unsupportedIdentityDash   = " — "
 	unsupportedIdentityMiddot = " · "
 
@@ -49,26 +40,22 @@ func renderProjectsSectionHeader(count, width int, th theme.Theme, colourless bo
 	return renderSectionHeaderRow(left, width, th, colourless)
 }
 
-// The multi-select banner replaces the standard section header while the mode
-// is active. It carries no `▌` left-bar — it is a section-header variant, not
-// a notice band.
+// A section-header variant, not a notice band — no `▌` left-bar.
 func renderMultiSelectHeader(count, width int, th theme.Theme, colourless bool) string {
 	left := headerStyle(th.AccentPrimary, th, colourless).Render(strconv.Itoa(count) + " selected")
 	hint := headerStyle(th.TextMuted, th, colourless).Render(multiSelectCancelHint)
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// The in-burst pending affordance, with no right hint so the empty hint pads
-// the right side with canvas. No `▌` left-bar.
+// No right hint — the empty hint pads the right side with canvas.
 func renderOpeningBand(done, total, width int, th theme.Theme, colourless bool) string {
 	left := headerStyle(th.AccentPrimary, th, colourless).
 		Render(fmt.Sprintf("Opening %d/%d…", done, total))
 	return renderRightAnchoredSectionRow(left, "", width, th, colourless)
 }
 
-// Named-only: bundleID != "" always holds here, because the gate
-// (unsupportedBannerActive) carries the !IsNull() discriminator, so a
-// NULL/remote identity renders the standard header instead. No `▌` left-bar.
+// Named-only: bundleID != "" always holds, because unsupportedBannerActive
+// carries the !IsNull() discriminator.
 func renderUnsupportedHeader(name, bundleID string, width int, th theme.Theme, colourless bool) string {
 	left := unsupportedLeftCluster(name, bundleID, th, colourless)
 	// OSC 8 is orthogonal to colour, so the link is emitted unconditionally and
@@ -79,7 +66,6 @@ func renderUnsupportedHeader(name, bundleID string, width int, th theme.Theme, c
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// The message is pre-composed by the caller. No `▌` left-bar.
 func renderPreflightAbortHeader(message string, width int, th theme.Theme, colourless bool) string {
 	left := headerStyle(th.StateDestructive, th, colourless).
 		Render(flashWarningGlyph + " " + message)
@@ -87,8 +73,6 @@ func renderPreflightAbortHeader(message string, width int, th theme.Theme, colou
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// The ⚠ glyph is shared with the warning flash so the two warning surfaces
-// stay glyph-consistent.
 func unsupportedLeftCluster(name, bundleID string, th theme.Theme, colourless bool) string {
 	label := headerStyle(th.AccentAttention, th, colourless).
 		Render(flashWarningGlyph + " " + unsupportedLabel)
@@ -102,14 +86,13 @@ func renderSectionHeaderRow(left string, width int, th theme.Theme, colourless b
 	return renderRightAnchoredSectionRow(left, hint, width, th, colourless)
 }
 
-// The shared right-anchor core every section-header variant routes through, so
-// their alignment and narrow degrade cannot drift. Always exactly width cells.
+// Always exactly width cells, so section-header variants cannot drift in
+// alignment or narrow degrade.
 func renderRightAnchoredSectionRow(left, hint string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	leftWidth := lipgloss.Width(left)
 	hintWidth := lipgloss.Width(hint)
 
-	// Drop the hint rather than overflow.
 	if leftWidth >= w || leftWidth+1+hintWidth > w {
 		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
@@ -126,9 +109,8 @@ func projectsLeftCluster(count int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, label, gap, countRun)
 }
 
-// Flush at the content's left edge — the same column as the header wordmark
-// and the row cursor — with no leading indent. The count is a plain run at the
-// label's cap-height, distinguished only by colour.
+// Flush at the content's left edge — the same column as the header wordmark and
+// the row cursor. Do not add a leading indent.
 func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSession string, count int, th theme.Theme, colourless bool) string {
 	label := headerStyle(th.AccentMode, th, colourless).Render(sectionLabel)
 
@@ -144,13 +126,11 @@ func sectionLeftCluster(mode prefs.SessionListMode, insideTmux bool, currentSess
 	return cluster
 }
 
-// Rendered both in the live input and in the locked-query header, so the two
-// modes read identically aside from the cursor.
+// Shared with the live filter input so the two modes read identically.
 const filterPromptPrefix = "/ "
 
-// The list-active locked query, with no cursor (signalling the list is
-// filtered) and no tint. It replaces the section header for the FilterApplied
-// frame; the input-active frame belongs to the live bubbles/list FilterInput.
+// The FilterApplied frame: no cursor, signalling the list rather than the input
+// is focused. The input-active frame belongs to bubbles/list's own FilterInput.
 func renderFilterQueryHeader(query string, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	run := headerStyle(th.AccentAttention, th, colourless).Render(filterPromptPrefix + query)
@@ -158,9 +138,8 @@ func renderFilterQueryHeader(query string, width int, th theme.Theme, colourless
 	return headerPadRight(run, runWidth, w, th, colourless)
 }
 
-// Derived by stripping the fixed prefix from the title producer rather than
-// re-deriving, so the wording stays byte-identical. It carries a single
-// leading space so it renders after the count.
+// Stripped from the title producer rather than re-derived, so the wording stays
+// byte-identical. The result carries a leading space, so it renders after the count.
 func sectionModeSuffix(mode prefs.SessionListMode, insideTmux bool, currentSession string) string {
 	title := sessionListTitleForMode(mode, insideTmux, currentSession)
 	return strings.TrimPrefix(title, sectionLabel)

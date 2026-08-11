@@ -21,9 +21,9 @@ const daemonTickBudget = 4 * time.Second
 
 const daemonTickPollInterval = 50 * time.Millisecond
 
-// TestCommitNowDaemonMergeStability asserts on the SET of session names rather
-// than byte-equivalence: the daemon legitimately repopulates per-pane scrollback
-// hashes and content references that commit-now carries over verbatim from prev.
+// The SET of session names rather than byte-equivalence: the daemon legitimately
+// repopulates per-pane scrollback hashes and content references that commit-now
+// carries over verbatim from prev.
 func TestCommitNowDaemonMergeStability(t *testing.T) {
 	tmuxtest.SkipIfNoTmux(t)
 

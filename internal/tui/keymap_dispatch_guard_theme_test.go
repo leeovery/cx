@@ -12,18 +12,14 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// A probe must assert the bound effect, never mere consumption: the panel is
-// key-exclusive while open, so "the keypress was swallowed" is true of every
-// key — including one whose dispatch arm has just been deleted.
+// A probe must assert the bound effect, never mere consumption: while the panel
+// is open "swallowed" is true of every key, deleted dispatch arm or not.
 
 func themePanelGuardRows(t *testing.T) []theme.Row {
 	t.Helper()
 	return append(arrowValidRows(t, 4), arrowInvalidRow(arrowSlug(4)))
 }
 
-// The seed's setting is an adaptive pair so `d`/`l` commit rather than raise a
-// confirm, and the terminal height paginates so the paging probe can observe
-// the page move.
 func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -48,8 +44,7 @@ func themePanelGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	return m, persister
 }
 
-// A value so the probes can also be driven against a deliberately broken
-// stand-in.
+// A value so the probes can also be driven against a deliberately broken stand-in.
 type themePanelDispatch func(Model, tea.KeyPressMsg) (tea.Model, tea.Cmd)
 
 var livePanelDispatch themePanelDispatch = Model.updateThemePanel
@@ -72,8 +67,6 @@ func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 			before := m.themePanel.list.Index()
 			return dispatchPanelKey(t, dispatch, m, arrowDown).themePanel.list.Index() != before
 		}},
-		// Both halves: the paging bindings are live on the panel's list and the
-		// keypress moves the page — either alone can pass vacuously.
 		"^↑/↓": {press: arrowPageDown, honour: func(t *testing.T) bool {
 			m, _ := themePanelGuardModel(t)
 			if len(m.themePanel.list.KeyMap.NextPage.Keys()) == 0 || len(m.themePanel.list.KeyMap.PrevPage.Keys()) == 0 {
@@ -91,12 +84,9 @@ func themePanelProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 		"d": {press: slotDarkPress, honour: func(t *testing.T) bool {
 			return themePanelSlotHonoured(t, dispatch, slotDarkPress, theme.MemberDark)
 		}},
-		// Asserted separately from `d`: a transposed slot argument is invisible
-		// from either key alone.
 		"l": {press: slotLightPress, honour: func(t *testing.T) bool {
 			return themePanelSlotHonoured(t, dispatch, slotLightPress, theme.MemberLight)
 		}},
-		// The close, not the confirm's cancel: the seed holds no confirm.
 		"esc": {press: keyEsc, honour: func(t *testing.T) bool {
 			m, _ := themePanelGuardModel(t)
 			after := dispatchPanelKey(t, dispatch, m, keyEsc)
@@ -127,7 +117,6 @@ func themeConfirmProbes(dispatch themePanelDispatch) map[string]dispatchProbe {
 		"y": {press: confirmYes, honour: func(t *testing.T) bool {
 			return themeConfirmYesHonoured(t, dispatch, confirmYes)
 		}},
-		// A swallow satisfies the write half, so this asserts the resolution.
 		"n": {press: confirmNo, honour: func(t *testing.T) bool {
 			return themeConfirmNoHonoured(t, dispatch, confirmNo)
 		}},
@@ -153,7 +142,6 @@ func themeConfirmNoHonoured(t *testing.T, dispatch themePanelDispatch, press tea
 
 var themeConfirmPending = slotCommit{slug: slotConfirmTarget(), member: theme.MemberLight}
 
-// A constant setting is the shape under which `d`/`l` ask rather than write.
 func themeConfirmGuardModel(t *testing.T) (Model, *fakeThemePersister) {
 	t.Helper()
 
@@ -287,8 +275,6 @@ func TestThemePanelDispatch_EscMeansInnermostFirst(t *testing.T) {
 	})
 }
 
-// Both uppercase shapes: the ModShift press terminals actually send, and the
-// bare Mod == 0 press the matcher's case-fold is defensive against.
 func TestThemeConfirmDispatch_UppercaseReachesTheSameArm(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -308,8 +294,6 @@ func TestThemeConfirmDispatch_UppercaseReachesTheSameArm(t *testing.T) {
 	}
 }
 
-// The RightAligned flag exempts an entry from needing a probe, so neither
-// vertical-footer scope may carry one.
 func TestThemePanelKeymap_NoRightAlignedEntry(t *testing.T) {
 	for _, scope := range themeKeymapScopes() {
 		for _, e := range scope.entries {
@@ -319,8 +303,6 @@ func TestThemePanelKeymap_NoRightAlignedEntry(t *testing.T) {
 		}
 	}
 
-	// Control: the flag is live on the horizontal page footers, so the
-	// assertion above is not about a flag nothing uses.
 	for _, page := range []struct {
 		name    string
 		entries []keymapEntry
@@ -344,8 +326,6 @@ func countRightAligned(entries []keymapEntry) int {
 	return n
 }
 
-// `Ctrl-C` is dispatched in both scopes yet deliberately unadvertised — the
-// global quit, not a scope binding.
 func TestThemePanelKeymap_NoHelpEntry(t *testing.T) {
 	t.Run("neither scope advertises or probes ?", func(t *testing.T) {
 		for _, scope := range themeKeymapScopes() {

@@ -101,8 +101,6 @@ func warmSatisfiedServer(t *testing.T, client *tmux.Client, stateDir string) {
 func TestAbridged_SatisfiedSkipsRestoreRevivesKilledSaver(t *testing.T) {
 	_, client, stateDir, _ := setupAbridgedEnv(t)
 
-	// The restored ghosts are the control: a full bootstrap creates them, so
-	// their later absence is what proves the abridged path skipped restore.
 	ghosts := []string{"ab-ghost-alpha", "ab-ghost-bravo"}
 	restoretest.SeedSessionsJSON(t, stateDir, ghosts...)
 
@@ -157,8 +155,6 @@ func TestAbridged_SatisfiedSkipsRestoreRevivesKilledSaver(t *testing.T) {
 func TestAbridged_VersionMismatchTriggersFullRebootstrapReStamp(t *testing.T) {
 	_, client, stateDir, _ := setupAbridgedEnv(t)
 
-	// Injected via the package-var swap so the mismatch branch runs without
-	// rebuilding the binary.
 	prev := version
 	version = "test-1.2.3"
 	t.Cleanup(func() { version = prev })

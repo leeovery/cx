@@ -70,9 +70,9 @@ var daemonTickLoopFunc = defaultDaemonTickLoop
 
 var acquireDaemonLock = state.AcquireDaemonLock
 
-// osExit is the seam over os.Exit. Never call os.Exit directly in this package:
-// every call site here must first emit its terminal marker and log.Close(N), or
-// the run leaves an unpaired "process: start" behind.
+// osExit is the seam over os.Exit; never call os.Exit directly in this package.
+// Every call site must first log.Close(N), or the run leaves an unpaired
+// "process: start" behind.
 var osExit = os.Exit
 
 var saverMembershipProbe = defaultSaverMembershipProbe
@@ -88,10 +88,9 @@ func defaultSaverMembershipProbe(c *tmux.Client, selfPID int) bool {
 	return pid == selfPID
 }
 
-// daemonLockFile retains the advisory-lock fd for the process lifetime: a
-// finalizer closing it would silently release the kernel-side flock. Never wrap
-// it in a value that closes the fd or attach runtime.SetFinalizer — the kernel
-// releases the lock on exit.
+// daemonLockFile retains the advisory-lock fd for the process lifetime. Never
+// close it or attach a runtime.SetFinalizer: either silently releases the
+// kernel-side flock, which the kernel would otherwise hold until exit.
 var daemonLockFile *os.File
 
 // selfSupervisionHysteresisTicks is the run of failing saver-membership probes
@@ -150,14 +149,12 @@ func defaultDaemonTickLoop(ctx context.Context, deps *daemonDeps) error {
 				consecutiveAbsenceTicks++
 				if consecutiveAbsenceTicks >= selfSupervisionHysteresisTicks {
 					deps.Logger.Info("self-eject", "ticks", consecutiveAbsenceTicks, "threshold", selfSupervisionHysteresisTicks)
-					// log.Close(0) emits the paired "process: exit code=0"
-					// marker and does not itself exit; without it the direct
-					// osExit leaves an unpaired "process: start". Do not
-					// reorder or drop it.
+					// Emits the paired "process: exit code=0" marker without
+					// itself exiting. Do not reorder or drop it.
 					log.Close(0)
 					osExit(0)
-					// Unreachable once osExit terminates the process; the
-					// return keeps a no-op osExit from falling into tick.
+					// Unreachable in production; keeps a no-op osExit from
+					// falling into tick.
 					return nil
 				}
 				deps.Logger.Debug("saver-membership probe failed", "ticks", consecutiveAbsenceTicks, "threshold", selfSupervisionHysteresisTicks)
@@ -320,8 +317,7 @@ func captureAndCommit(ctx context.Context, deps *daemonDeps) error {
 }
 
 // tmux does not sentinel-wrap a vanished pane, so the "can't find " stderr
-// phrasing is the load-bearing classifier; the ErrNoSuchSession check is
-// defensive.
+// phrasing is the load-bearing classifier; ErrNoSuchSession is defensive.
 func isPaneVanishedError(err error) bool {
 	if err == nil {
 		return false
@@ -366,8 +362,8 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// The daemon runs as the pane process of the _portal-saver session and is
-// spawned by bootstrap, never by a user.
+// The daemon runs as the pane process of the _portal-saver session, spawned by
+// bootstrap.
 var stateDaemonCmd = &cobra.Command{
 	Use:    "daemon",
 	Short:  "Run the Portal save daemon (internal)",
@@ -387,8 +383,8 @@ var stateDaemonCmd = &cobra.Command{
 
 		hm := state.SeedHashMap(dir, logger)
 
-		// Load the prior structural index so skeleton-marked panes merge from
-		// pre-boot state during the first capture.
+		// Skeleton-marked panes merge from this pre-boot state during the first
+		// capture.
 		var prevIdx *state.Index
 		if idx, skip, err := state.ReadIndex(dir); !skip {
 			prevIdx = &idx

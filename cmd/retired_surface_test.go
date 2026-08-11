@@ -11,8 +11,8 @@ import (
 
 var retiredVerbs = []string{"attach", "spawn"}
 
-// allCommandsInTree returns c and every descendant, hidden ones included, so a
-// back-compat shim hidden anywhere in the tree is still caught.
+// Hidden descendants are included, so a back-compat shim hidden anywhere in the
+// tree is still enumerated.
 func allCommandsInTree(c *cobra.Command) []*cobra.Command {
 	out := []*cobra.Command{c}
 	for _, child := range c.Commands() {
@@ -68,9 +68,8 @@ func TestRetiredSurface_AbsentFromHelp(t *testing.T) {
 	}
 }
 
-// TestRetiredSurface_AbsentFromCompletion keys on the subcommand-offering form
-// the generator emits rather than a loose substring, so an unrelated mention of
-// the word cannot false-positive.
+// Keyed on the subcommand-offering form the generator emits rather than a loose
+// substring, so an unrelated mention of the word cannot false-positive.
 func TestRetiredSurface_AbsentFromCompletion(t *testing.T) {
 	buf := new(bytes.Buffer)
 	if err := rootCmd.GenBashCompletion(buf); err != nil {
@@ -98,8 +97,7 @@ func TestRetiredSurface_AbsorbedBehavioursReachableViaOpen(t *testing.T) {
 		t.Error("open --ack must be hidden (internal receipt flag, absent from --help/completion)")
 	}
 
-	// Asserts the behaviour (two positionals admitted), not the validator
-	// identity, so a wrapper validator stays acceptable.
+	// Behaviour, not validator identity, so a wrapper validator stays acceptable.
 	if openCmd.Args != nil {
 		if err := openCmd.Args(openCmd, []string{"a", "b"}); err != nil {
 			t.Errorf("open must admit >=2 positional targets (multi-target burst); Args rejected 2 positionals: %v", err)
@@ -107,8 +105,8 @@ func TestRetiredSurface_AbsorbedBehavioursReachableViaOpen(t *testing.T) {
 	}
 }
 
-// TestOpenHelpMetadata_DescribesRedesignedVerb pins intent via keywords rather
-// than a golden string, so accurate copy edits do not churn it.
+// Keywords rather than a golden string, so accurate copy edits do not churn
+// this.
 func TestOpenHelpMetadata_DescribesRedesignedVerb(t *testing.T) {
 	if strings.Contains(openCmd.Use, "destination") {
 		t.Errorf("openCmd.Use still implies a single [destination]: %q", openCmd.Use)

@@ -1,4 +1,3 @@
-// Package hooks provides persistence for hook registrations keyed by pane hook keys.
 package hooks
 
 import (
@@ -19,17 +18,15 @@ import (
 // `hooks: <verb>` grep idiom and `grep op=set` filtering both work.
 var logger = log.For("hooks")
 
-// Hook represents a single hook entry for list output.
 type Hook struct {
 	Key     string
 	Event   string
 	Command string
 }
 
-// hooksFile is the on-disk JSON structure: map[hook_key]map[event]command.
+// hooksFile is the on-disk shape: map[hook_key]map[event]command.
 type hooksFile = map[string]map[string]string
 
-// Store manages persistence of hook data to a JSON file.
 type Store struct {
 	path string
 }
@@ -68,9 +65,9 @@ func (s *Store) Save(h hooksFile) error {
 	return fileutil.AtomicWrite(s.path, data)
 }
 
-// SaveAudited persists h and emits the audit breadcrumb for it. It is the
-// persistence path for bulk rewrites with no single affected key, so the
-// breadcrumb carries entries=N rather than a hook_key.
+// SaveAudited persists h and emits the audit breadcrumb for it. Bulk rewrites
+// have no single affected key, so the breadcrumb carries entries=N rather than a
+// hook_key.
 func (s *Store) SaveAudited(h hooksFile, op string, entries int, via string) error {
 	if err := s.Save(h); err != nil {
 		logger.Warn(op, "op", op, "entries", entries, "via", via,
@@ -82,9 +79,9 @@ func (s *Store) SaveAudited(h hooksFile, op string, entries int, via string) err
 	return nil
 }
 
-// Set adds or overwrites the hook for the given key and event. Writing the same
-// command again is a no-op: the file is left untouched. via records the mutation
-// origin for the audit breadcrumb: cli, internal or migrate.
+// Set adds or overwrites the hook for key and event. Writing the same command
+// again is a no-op: the file is left untouched. via records the mutation origin
+// for the audit breadcrumb: cli, internal or migrate.
 func (s *Store) Set(key, event, command, via string) error {
 	h, err := s.Load()
 	if err != nil {
@@ -127,10 +124,9 @@ func classifySet(h hooksFile, key, event, command string) string {
 	return "modify"
 }
 
-// Remove deletes the hook for the given key and event, dropping the outer key
-// when its last event goes. It rewrites the file even when the key or event is
-// absent, so the breadcrumb is emitted either way. via records the mutation
-// origin for the audit breadcrumb.
+// Remove deletes the hook for key and event, dropping the outer key when its last
+// event goes. It rewrites the file even when the key or event is absent, so the
+// breadcrumb is emitted either way.
 func (s *Store) Remove(key, event, via string) error {
 	h, err := s.Load()
 	if err != nil {
@@ -154,7 +150,7 @@ func (s *Store) Remove(key, event, via string) error {
 	return nil
 }
 
-// List returns a flat slice of Hook structs sorted by key then event type.
+// List returns the hooks sorted by key then event.
 func (s *Store) List() ([]Hook, error) {
 	h, err := s.Load()
 	if err != nil {
@@ -182,12 +178,9 @@ func (s *Store) List() ([]Hook, error) {
 	return list, nil
 }
 
-// StaleKeys returns the persisted hook keys absent from live. It is pure —
-// neither loading, saving nor mutating — and shares its predicate with
-// CleanStale so a report and a prune cannot drift.
-//
-// It carries no mass-deletion guard: an empty live set makes every persisted key
-// stale, and deferring on that is the caller's repair-safety policy.
+// StaleKeys returns the persisted hook keys absent from live. It carries no
+// mass-deletion guard: an empty live set makes every persisted key stale, and
+// deferring on that is the caller's repair-safety policy.
 func StaleKeys(persisted map[string]map[string]string, live []string) []string {
 	liveSet := make(map[string]struct{}, len(live))
 	for _, k := range live {
@@ -237,8 +230,7 @@ func (s *Store) CleanStale(liveKeys []string) ([]string, error) {
 	return removed, nil
 }
 
-// Get returns the event map for a specific key, or an empty map if the key
-// has no hooks.
+// Get returns the event map for key, or an empty map when the key has no hooks.
 func (s *Store) Get(key string) (map[string]string, error) {
 	h, err := s.Load()
 	if err != nil {

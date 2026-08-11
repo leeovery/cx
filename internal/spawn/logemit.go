@@ -7,9 +7,8 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// LogWindowResults emits one record per external window, nil-logger tolerant. A
-// failed window emits at WARN unless its outcome is permission-required, which
-// LogPermission already reports — the exclusion prevents a double-report.
+// LogWindowResults skips WARN for a permission-required window: LogPermission
+// already reports it, and both would be a double-report.
 func LogWindowResults(logger *slog.Logger, results []WindowResult) {
 	logger = log.OrDiscard(logger)
 	for _, r := range results {
@@ -23,9 +22,8 @@ func LogWindowResults(logger *slog.Logger, results []WindowResult) {
 	}
 }
 
-// LogBatchSummary emits the per-window records followed by one INFO cycle
-// summary. total is passed in rather than derived from len(results): a pre-spawn
-// abort or a cancelled burst leaves fewer results than external windows.
+// LogBatchSummary takes total rather than deriving it from len(results): a
+// pre-spawn abort or a cancelled burst leaves fewer results than windows.
 func LogBatchSummary(logger *slog.Logger, id Identity, resolution Resolution, results []WindowResult, total int, triggerAttached bool, batch string) {
 	logger = log.OrDiscard(logger)
 	LogWindowResults(logger, results)
@@ -46,16 +44,15 @@ func LogBatchSummary(logger *slog.Logger, id Identity, resolution Resolution, re
 	)
 }
 
-// LogTriggerConnectFailed records a trigger self-connect that failed after the
-// batch summary was emitted. The summary has to precede the self-connect — a
-// successful outside-tmux attach exec-replaces the process and never returns —
-// so it counts the trigger optimistically and this WARN corrects the record.
+// LogTriggerConnectFailed corrects the batch summary, which has to precede the
+// self-connect — a successful outside-tmux attach exec-replaces the process and
+// never returns — and so counts the trigger optimistically.
 func LogTriggerConnectFailed(logger *slog.Logger, session, detail string) {
 	log.OrDiscard(logger).Warn("trigger did not attach", "session", session, "detail", detail)
 }
 
-// LogPermission emits the permission-required outcome line. The burst stopped at
-// the first wall, so it carries no cycle-summary attrs.
+// LogPermission carries no cycle-summary attrs: the burst stopped at the first
+// wall.
 func LogPermission(logger *slog.Logger, id Identity, resolution Resolution, detail string) {
 	log.OrDiscard(logger).Info("permission required — nothing self-attached",
 		"resolution", string(resolution),
@@ -65,8 +62,7 @@ func LogPermission(logger *slog.Logger, id Identity, resolution Resolution, deta
 	)
 }
 
-// LogUnsupported emits the outcome line for an atomic no-op on an unsupported or
-// NULL terminal. Nothing was attempted, so there are no per-window records.
+// LogUnsupported has no per-window records: nothing was attempted.
 func LogUnsupported(logger *slog.Logger, id Identity) {
 	log.OrDiscard(logger).Info("unsupported terminal — nothing opened",
 		"resolution", string(ResolutionUnsupported),
@@ -75,8 +71,7 @@ func LogUnsupported(logger *slog.Logger, id Identity) {
 	)
 }
 
-// LogGone emits the single outcome line for a pre-flight abort, naming the gone
-// sessions. Detection never ran, so it carries no resolution or count attrs.
+// LogGone carries no resolution or count attrs: detection never ran.
 func LogGone(logger *slog.Logger, gone []string) {
 	log.OrDiscard(logger).Info(GoneMessage(gone))
 }

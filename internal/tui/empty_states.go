@@ -34,8 +34,7 @@ func renderEmptyStateBody(glyph, message, hint string, width, height int, th the
 	)
 }
 
-// The Unfiltered requirement keeps this distinct from the no-matches state — a
-// model with an active filter never enters the empty state.
+// The Unfiltered guard keeps this distinct from the filtered no-matches state.
 func (m Model) sessionListEmpty() bool {
 	if m.sessionList.FilterState() != list.Unfiltered {
 		return false

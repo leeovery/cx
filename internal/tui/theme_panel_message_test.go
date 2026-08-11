@@ -9,8 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Restated verbatim rather than re-derived: a test that formatted the production
-// format string would pass whatever the copy became. Double space included.
+// Verbatim, not re-derived from the production format string. The double space
+// is part of the copy.
 const (
 	messageTestConfirmSlug = "nord"
 	messageTestConfirmCopy = "clear constant nord?  y / n"
@@ -43,8 +43,6 @@ func messageTestVisible(message themePanelMessage, inner int, wrap bool, th them
 	return rows
 }
 
-// The copy is a layout constraint as much as a copy choice (the panel is 24–30
-// columns), so it is byte-compared rather than matched loosely.
 func TestPanelMessage_ConfirmPinnedCopy(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -61,7 +59,6 @@ func TestPanelMessage_ConfirmPinnedCopy(t *testing.T) {
 	}
 }
 
-// The `⚠` is part of the string rather than a colour-only signal.
 func TestPanelMessage_CommitFailedPinnedCopy(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -78,8 +75,6 @@ func TestPanelMessage_CommitFailedPinnedCopy(t *testing.T) {
 	}
 }
 
-// The exclusion is asserted directly rather than resolved with a precedence rule:
-// each raise installs a whole value, so the other contender is gone by construction.
 func TestPanelMessage_SingleSlotExclusion(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -149,8 +144,8 @@ func TestPanelMessage_UnreservedWhenEmpty(t *testing.T) {
 		}
 	}
 
-	// The failed-commit contender leaves the standing footer in place, so the row
-	// the slot costs is the only difference between the two layouts.
+	// The failed-commit contender leaves the standing footer in place, so the slot's
+	// row is what separates the two layouts.
 	_, empty := themePanelListSize(messageTestPanel(th, themePanelPreferredWidth, themePanelMessage{}), height)
 	_, live := themePanelListSize(messageTestPanel(th, themePanelPreferredWidth, messageTestFailed()), height)
 	if live != empty-1 {
@@ -158,7 +153,6 @@ func TestPanelMessage_UnreservedWhenEmpty(t *testing.T) {
 	}
 }
 
-// The cost is measured off the rendered block rather than assumed to be one row.
 func TestPanelMessage_WrappedMessageCostsTwoRows(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelMinWidth)
@@ -177,8 +171,8 @@ func TestPanelMessage_WrappedMessageCostsTwoRows(t *testing.T) {
 		t.Errorf("the wrapped slot reads %q, want the whole confirm %q", got, want)
 	}
 
-	// The two panels carry the same message and therefore the same footer scope, so
-	// the footer term cancels and the only difference is what the slot measured.
+	// Same message, so the same footer scope: the footer term cancels and what
+	// separates the two is the slot's own measurement.
 	height := themePanelMinHeight(themePanelKeymap(), false) + 6
 	if got := themePanelMessageHeight(confirm, themePanelInnerWidth(themePanelPreferredWidth), true); got != 1 {
 		t.Fatalf("fixture: the confirm measures %d rows at the preferred width, want 1", got)
@@ -190,14 +184,10 @@ func TestPanelMessage_WrappedMessageCostsTwoRows(t *testing.T) {
 	}
 }
 
-// Derived rather than written as a literal, so it stays true if either scope's
-// Core membership changes.
 func footerScopeSaving() int {
 	return themePanelFooterHeight(themePanelKeymap()) - themePanelFooterHeight(themePanelConfirmKeymap())
 }
 
-// The floor counts exactly one message row, so a two-row message there would leave
-// zero list rows or overflow the frame.
 func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelMinWidth)
@@ -242,8 +232,6 @@ func TestPanelMessage_TruncatesAtFloorHeight(t *testing.T) {
 	}
 }
 
-// The pinned frame is charged first and the flexing slug takes what is left, so a
-// long slug can never push `?  y / n` out of the copy.
 func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelMinWidth)
@@ -279,16 +267,13 @@ func TestPanelMessage_ConfirmSlugTruncation(t *testing.T) {
 	}
 }
 
-// Under a fallback the persisted slug is the one being cleared and the resolved
-// one is a built-in the user never chose, so naming the resolution would ask the
-// user to confirm clearing a theme that was never set.
 func TestPanelMessage_ConfirmReadsRawKeys(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)
 	dir := t.TempDir()
 
-	// `ghost` resolves to nothing, so the shipped dark default is on screen while
-	// `ghost` stays the persisted constant.
+	// `ghost` resolves to nothing on purpose: the shipped dark default is on
+	// screen while `ghost` stays the persisted constant.
 	m, _, _ := newRecomputePanelModel(t, dir, theme.RawKeys{Theme: "ghost"})
 	requireCursorOn(t, m, theme.DefaultDarkSlug)
 
@@ -315,8 +300,6 @@ func TestPanelMessage_ConfirmTokens(t *testing.T) {
 	}
 }
 
-// No `bg.attention` band: the warning band is a full-width main-screen flash
-// treatment and would read as heavy inside a 24–30 column panel.
 func TestPanelMessage_CommitFailedTokens(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		inner := themePanelInnerWidth(themePanelPreferredWidth)
@@ -329,8 +312,7 @@ func TestPanelMessage_CommitFailedTokens(t *testing.T) {
 	}
 }
 
-// bg.attention is named explicitly because it is the one the failed-commit line
-// would plausibly reach for.
+// bg.attention specifically: the token the failed-commit line would reach for.
 func requireNoBand(t *testing.T, th theme.Theme, row string) {
 	t.Helper()
 	if strings.Contains(row, tokenBgSeq(t, th.BgAttention)) {
@@ -343,9 +325,6 @@ func requireNoBand(t *testing.T, th theme.Theme, row string) {
 	}
 }
 
-// Substituted, not forked: the rendered rows are compared against the same
-// renderer handed the confirm scope, so a second footer implementation shows up as
-// a difference rather than passing on a coincidence.
 func TestPanelFooter_ConfirmScopeSubstitution(t *testing.T) {
 	th := testDarkTheme(t)
 	const height = 18
@@ -420,8 +399,6 @@ func equalRows(got, want []string) bool {
 	return true
 }
 
-// The confirm's footer is strictly shorter, so a panel that clears the floor with
-// the standing footer has room to spare the moment the confirm raises.
 func TestPanelMessage_FloorUsesStandingScope(t *testing.T) {
 	th := testDarkTheme(t)
 
@@ -459,8 +436,8 @@ func TestPanelMessage_FloorUsesStandingScope(t *testing.T) {
 	}
 }
 
-// The panel is blocked under NO_COLOR outright, so this is the defence rather than
-// the daily path.
+// The panel is blocked under NO_COLOR outright, so this is defence, not the
+// daily path.
 func TestPanelMessage_Colourless(t *testing.T) {
 	th := testDarkTheme(t)
 	inner := themePanelInnerWidth(themePanelPreferredWidth)

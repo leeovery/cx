@@ -886,9 +886,9 @@ func TestRunOpenBurst_MarkersCleanedBeforeSelfConnect(t *testing.T) {
 }
 
 func TestRunOpenBurst_PerWindowAckTimeout_TimedFromOwnSpawn(t *testing.T) {
-	// e1 never acks and consumes a full timeout budget before e2 spawns, so e2
-	// confirming proves the timer starts at each window's own spawn. The delay
-	// must be >= Poll and < Timeout to force the loop across a timeout check.
+	// e1 never acks and consumes a full timeout budget before e2 spawns, so the
+	// timer must start at each window's own spawn. The delay must be >= Poll and
+	// < Timeout to force the loop across a timeout check.
 	clock := &manualClock{}
 	dack := newBurstDelayingAck(clock.now, 200*time.Millisecond)
 	adapter := &ackWritingAdapter{ack: dack, confirm: []bool{false, true}}

@@ -7,10 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The slot-from-constant confirm: over a constant, `d`/`l` would clear it and
-// fall the other slot back to the shipped default — a loss the user cannot see
-// coming. Nothing is written until `y`, so a cancel is inert by construction.
-
 // The slug is captured at the raise, not re-read at the answer, so the question
 // on screen and the write name the same row.
 type themeSlotConfirm struct {
@@ -54,9 +50,8 @@ func (m Model) updateSlotConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // The confirm comes down first, whichever way the write goes. The persister
-// nil-check cannot be inferred from the nil error — commitSlot returns nil on
-// the writer-less path too, where the keys still hold the constant and
-// loadNewlyLiveSlot would resolve a slot nothing set.
+// nil-check cannot be inferred from the nil error — commitSlot returns nil on the
+// writer-less path too, where the keys still hold the constant.
 func (m *Model) confirmSlotAssignment() {
 	pending := m.resolveSlotConfirm()
 	if err := m.commitSlot(pending.slug, pending.member); err != nil {
@@ -69,12 +64,9 @@ func (m *Model) confirmSlotAssignment() {
 }
 
 // The classification is assigned first and unconditionally — gating it on the
-// load would let a failed palette decide which half is in force. The load
-// announces the slot the conversion made live (construction never loaded it)
-// and surfaces the broken-builtin fatal; its palette is deliberately discarded
-// — applyCommittedSetting owns the nomination, and a second writer would derive
-// it differently. Never ApplyTheme: the screen keeps previewing the cursor's
-// row.
+// load would let a failed palette decide which half is in force. The palette is
+// deliberately discarded: applyCommittedSetting owns the nomination. Never
+// ApplyTheme — the screen keeps previewing the cursor's row.
 func (m *Model) loadNewlyLiveSlot(assigned theme.Member) {
 	m.themeState.adoptRetainedReply()
 
@@ -91,9 +83,8 @@ const (
 )
 
 // Deliberately not Mod==0: uppercase always arrives with ModShift (legacy and
-// Kitty encodings alike), and caps/num lock ride the event the same way, so a
-// clear-field mask would leave `Y` dead. Ctrl/Alt combos carry no Text in this
-// stack, so the EqualFold excludes them; the mask backstops if that changes.
+// Kitty alike) and caps/num lock ride along, so a clear-field mask leaves `Y`
+// dead. Ctrl/Alt carry no Text in this stack; the mask backstops if that changes.
 func themeConfirmAnswer(msg tea.KeyPressMsg, letter string) bool {
 	return msg.Mod&^(tea.ModShift|tea.ModCapsLock|tea.ModNumLock) == 0 && strings.EqualFold(msg.Text, letter)
 }

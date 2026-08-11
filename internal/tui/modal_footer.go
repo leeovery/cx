@@ -5,15 +5,11 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// footerHintGroup is one `<key/glyph> <label>` pair; an empty key renders the
-// label alone.
 type footerHintGroup struct {
 	key   string
 	label string
 }
 
-// renderKeyHint is the one place the footer key-hint shape is authored; every
-// modal/footer hint routes through it (callers default keyTok to accent.key).
 // An empty key takes the label-only path — the form the edit footer's
 // consequence note collapses onto.
 func renderKeyHint(key, label string, keyTok theme.Token, th theme.Theme, colourless bool) string {
@@ -30,14 +26,9 @@ func renderBlueKeyHint(key, label string, th theme.Theme, colourless bool) strin
 	return renderKeyHint(key, label, th.AccentKey, th, colourless)
 }
 
-// keyColumnRow lays a key/label pair out in a fixed-width key column so
-// stacked rows share a label left edge. Every structural cell is
-// canvas-painted.
-//
-// A glyph at or past columnWidth takes no pad segment: a canvas style renders
-// the empty string as a styled empty run, so padding unconditionally would
-// leave a stray escape pair on every full-width row. It takes ready styles
-// rather than tokens because a key column can diverge in more than hue.
+// A glyph at or past columnWidth takes no pad segment: a canvas style renders the
+// empty string as a styled empty run, so padding unconditionally would leave a
+// stray escape pair on every full-width row.
 func keyColumnRow(glyph, label string, keyStyle, labelStyle lipgloss.Style, columnWidth int, gap string, th theme.Theme, colourless bool) string {
 	key := keyStyle.Render(glyph)
 	keyWidth := lipgloss.Width(key)

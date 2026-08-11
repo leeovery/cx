@@ -76,9 +76,9 @@ func takeDigits(s string) (digits, rest string) {
 	return s[:i], s[i:]
 }
 
-// CheckTmuxVersion runs `tmux -V` via cmd and returns nil when the installed
-// tmux meets Portal's minimum of 3.0, or an error describing the shortfall,
-// the Commander failure, or the unparseable output.
+// CheckTmuxVersion returns nil when the installed tmux meets Portal's minimum,
+// and otherwise an error describing the shortfall, the Commander failure or the
+// unparseable output.
 func CheckTmuxVersion(cmd Commander) error {
 	output, err := cmd.Run("-V")
 	if err != nil {

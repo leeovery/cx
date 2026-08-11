@@ -12,8 +12,6 @@ var themeCmd = &cobra.Command{
 	Short: "Manage themes",
 }
 
-// Portal never creates or seeds the themes directory, so the published
-// export-and-redirect workflow starts with `mkdir -p`.
 var themeExportCmd = &cobra.Command{
 	Use:   "export <slug>",
 	Short: "Write a theme's file to stdout",
@@ -34,9 +32,9 @@ var themeExportCmd = &cobra.Command{
 }
 
 // `reserved name` deliberately has no arm: a slug colliding with a built-in
-// resolves to the embedded set first, so it cannot arise here, and the generic
-// frame is right if that ever ceased to hold. A plain error on purpose — a
-// *UsageError would exit 2, a silent-exit sentinel would print nothing.
+// resolves to the embedded set first, so it cannot arise here. A plain error on
+// purpose — a *UsageError would exit 2, a silent-exit sentinel would print
+// nothing.
 func exportRefusal(slug string, rejection *theme.Rejection) error {
 	switch rejection.Reason {
 	case theme.ReasonNotFound:
@@ -50,9 +48,8 @@ func exportRefusal(slug string, rejection *theme.Rejection) error {
 
 // resolveThemeSource returns the file's bytes, not a re-serialisation of the
 // parsed Theme — comments must survive; the theme is still parsed first, which
-// is what refuses an invalid drop-in. The silent loader is deliberate: the
-// `theme` component records where a theme is used, never where one is
-// diagnosed.
+// is what refuses an invalid drop-in. The loader stays silent: the `theme` log
+// component records where a theme is used, never where one is diagnosed.
 func resolveThemeSource(slug string) ([]byte, *theme.Rejection) {
 	loader := theme.NewSilentLoader()
 
@@ -67,8 +64,8 @@ func resolveThemeSource(slug string) ([]byte, *theme.Rejection) {
 
 // themesDirPath answers "" on failure, which the resolver turns into `not
 // found` — right for TUI construction, wrong for export, which would name a
-// theme never actually looked for. The fold is exact: `not found` alongside a
-// resolution error can only be this state.
+// theme never actually looked for. `not found` alongside a resolution error can
+// only be this state, so the fold is exact.
 func unlocatableAsUnreadable(rejection *theme.Rejection, dirErr error) *theme.Rejection {
 	if dirErr == nil || rejection.Reason != theme.ReasonNotFound {
 		return rejection

@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// UninstallDeps injects test dependencies for the uninstall command. Client is
-// required; Unregister and Logger fall back to their production values when nil.
+// Client is required; Unregister and Logger fall back to their production
+// values when nil.
 type UninstallDeps struct {
 	Client     *tmux.Client
 	Unregister func(*tmux.Client) error

@@ -14,8 +14,6 @@ import (
 	"github.com/leeovery/portal/internal/themetest"
 )
 
-// The two ends of the delegate's inner content width, derived from the width
-// ladder rather than restated so a move of the ladder reaches these assertions.
 var (
 	themeRowTestPreferredWidth = themePanelInnerWidth(themePanelPreferredWidth)
 	themeRowTestMinWidth       = themePanelInnerWidth(themePanelMinWidth)
@@ -29,8 +27,8 @@ func renderThemeRow(d themeRowDelegate, items []list.Item, index, selIndex int) 
 	return buf.String()
 }
 
-// The second, never-rendered row exists only to park the cursor off the row
-// under test, so it carries no selection treatment.
+// The second, never-rendered row parks the cursor off the row under test, so
+// that row carries no selection treatment.
 func renderOneThemeRow(d themeRowDelegate, it themeRowItem) string {
 	items := []list.Item{it, themeRowItem{Row: theme.Row{Slug: "cursor-parking"}}}
 	return renderThemeRow(d, items, 0, 1)
@@ -40,8 +38,6 @@ func validThemeRow(slug string) theme.Row {
 	return theme.Row{Slug: slug, Source: theme.SourceBuiltin}
 }
 
-// Labelled by its slug — the two filename-labelled reasons are built by their
-// own test.
 func invalidThemeRow(slug string, reason theme.Reason) theme.Row {
 	return theme.Row{
 		Slug:      slug,
@@ -53,8 +49,8 @@ func invalidThemeRow(slug string, reason theme.Reason) theme.Row {
 
 func visibleThemeRow(out string) string { return ansi.Strip(out) }
 
-// Returns the text a given SGR sequence painted: asserting the sequence merely
-// appears on the line would not say which text carries it.
+// Returns the text a given SGR sequence painted: that the sequence appears at
+// all says nothing about which text carries it.
 func themeRowRunAfter(t *testing.T, out, params string) string {
 	t.Helper()
 	at := strings.Index(out, params)
@@ -237,9 +233,6 @@ func TestThemeRow_ReasonIsDroppedBeforeBadge(t *testing.T) {
 	}
 }
 
-// A short label plus the longest reason is the case that overflows: the reason
-// is charged against the label's natural width, which the floor then claims
-// back, pushing the composed row past the panel's declared width.
 func TestThemeRow_ShortLabelDropsTheReasonRatherThanOverflow(t *testing.T) {
 	th := testDarkTheme(t)
 	reason := string(theme.ReasonMissingTokens)
@@ -275,8 +268,8 @@ func TestThemeRow_LabelTruncationFloor(t *testing.T) {
 		t.Errorf("a truncated label must carry the ellipsis: %q", vis)
 	}
 
-	// Squeezed below the floor: the `⚠` and widest badge together claim more
-	// than the width holds.
+	// Squeezed below the floor: the `⚠` and widest badge together claim more than
+	// the width holds.
 	squeezed := themeRowDelegate{Theme: th, Width: 8}
 	row := invalidThemeRow("abcdefghij", theme.ReasonBadSyntax)
 	vis = visibleThemeRow(renderOneThemeRow(squeezed, themeRowItem{Row: row, Badge: theme.BadgeLight}))
@@ -286,8 +279,7 @@ func TestThemeRow_LabelTruncationFloor(t *testing.T) {
 }
 
 // text.faint is floored below the UI contrast threshold, so it can never carry
-// content: an invalid row's label is text.subtle, and the `⚠` keeps its own
-// accent.attention rather than inheriting the row's dimmed treatment.
+// content.
 func TestThemeRow_InvalidLabelIsSubtleWarningIsAttention(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		subtle := tokenFgSeq(t, th.TextSubtle)
@@ -381,8 +373,7 @@ func TestThemeRow_FilenameLabelledRows(t *testing.T) {
 }
 
 // Badges are looked up through theme.Row.BadgeKey, never Slug: that is what
-// keeps a `reserved name` row from painting a second `●` on the slug it collides
-// with.
+// keeps a `reserved name` row off the `●` of the slug it collides with.
 func themeRowItemsFor(union theme.Union, badges map[string]theme.Badge) []list.Item {
 	items := make([]list.Item, 0, len(union.Rows))
 	for _, row := range union.Rows {
@@ -391,9 +382,6 @@ func themeRowItemsFor(union theme.Union, badges map[string]theme.Badge) []list.I
 	return items
 }
 
-// The badge belongs to the built-in the persisted slug resolved to; the rejected
-// file's slug is identical by definition, so a bare identity lookup would paint
-// `●` on both rows.
 func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 	th := testDarkTheme(t)
 	dir := t.TempDir()
@@ -434,9 +422,6 @@ func TestThemeRow_ReservedNameRowCarriesNoBadge(t *testing.T) {
 	}
 }
 
-// theme.RowSource exists for ordering and nothing else, so nothing about it may
-// reach a row's rendered content — and a row's own Theme is preview material,
-// never the colours it is drawn in.
 func TestThemeRow_BuiltinRendersLikeADropIn(t *testing.T) {
 	th := testDarkTheme(t)
 	builtin := theme.Row{Slug: "alpha", Source: theme.SourceBuiltin, Theme: th}
@@ -475,8 +460,6 @@ func TestThemeRow_BuiltinRendersLikeADropIn(t *testing.T) {
 	}
 }
 
-// The tint must span every cell: a row with an unpainted tail opens a
-// terminal-background island inside the selection.
 func TestThemeRow_CursorRowSelectionTreatment(t *testing.T) {
 	for _, th := range []theme.Theme{testDarkTheme(t), testLightTheme(t)} {
 		d := themeRowDelegate{Theme: th, Width: themeRowTestPreferredWidth}
@@ -507,9 +490,8 @@ func TestThemeRow_CursorRowSelectionTreatment(t *testing.T) {
 	}
 }
 
-// The panel's styles are assigned once at open while its theme changes on every
-// arrow keypress, so the delegate must hold no derived style. The return leg is
-// what a cached run would fail: it would make the third render echo the second.
+// The return leg is what a cached run would fail: it would make the third
+// render echo the second.
 func TestThemeRow_NoCachedStyles(t *testing.T) {
 	dark, light := testDarkTheme(t), testLightTheme(t)
 	items := []list.Item{themeRowItem{Row: invalidThemeRow("nord", theme.ReasonBadColour)}}
@@ -531,7 +513,6 @@ func TestThemeRow_NoCachedStyles(t *testing.T) {
 	}
 }
 
-// The carve-out drops colour, not the non-colour attributes.
 func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	d := themeRowDelegate{Theme: testDarkTheme(t), Colourless: true, Width: themeRowTestPreferredWidth}
 	items := []list.Item{themeRowItem{
@@ -548,8 +529,8 @@ func TestThemeRow_ColourlessIsGlyphBacked(t *testing.T) {
 	}
 }
 
-// Walks the SGR parameters rather than banning escape sequences outright, so the
-// bold the carve-out keeps is not mistaken for colour.
+// Walks the SGR parameters rather than banning escape sequences outright, so
+// the bold the carve-out keeps is not mistaken for colour.
 func assertThemeRowHasNoColour(t *testing.T, out string) {
 	t.Helper()
 	for _, params := range themeRowSGRRuns(out) {

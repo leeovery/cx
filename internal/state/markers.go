@@ -6,44 +6,37 @@ import (
 	"github.com/leeovery/portal/internal/tmuxout"
 )
 
-// SkeletonMarkerPrefix names the tmux server option marking a pane as
-// skeleton-restored and awaiting hydration. While set, the save loop skips the
-// pane so its pre-boot scrollback file stays authoritative.
+// SkeletonMarkerPrefix marks a pane as skeleton-restored and awaiting hydration.
+// While set, the save loop skips the pane so its pre-boot scrollback file stays
+// authoritative.
 const SkeletonMarkerPrefix = "@portal-skeleton-"
 
-// RestoringMarkerName is the tmux server option bootstrap sets while it builds
-// the restore skeleton. While set, the daemon skips captures entirely so
-// half-built session structure is never recorded.
+// RestoringMarkerName is set while bootstrap builds the restore skeleton: the
+// daemon skips captures entirely, so half-built structure is never recorded.
 const RestoringMarkerName = "@portal-restoring"
 
-// BootstrappedMarkerName is the tmux server option holding the version-stamped
-// bootstrap latch. Its value is load-bearing rather than its presence:
-// satisfaction is equality against the running binary version, so an upgraded
-// binary re-bootstraps on its first command.
+// BootstrappedMarkerName holds the version-stamped bootstrap latch. Its value is
+// load-bearing rather than its presence: satisfaction is equality against the
+// running binary version, so an upgraded binary re-bootstraps on first command.
 const BootstrappedMarkerName = "@portal-bootstrapped"
 
-// ServerOptionLister is the seam used by ListSkeletonMarkers, satisfied by
-// *tmux.Client. It is declared here so internal/state need not import
-// internal/tmux, which imports internal/state and would close a cycle.
+// ServerOptionLister is declared here so internal/state need not import
+// internal/tmux, which imports it back and would cycle.
 type ServerOptionLister interface {
 	ShowAllServerOptions() (string, error)
 }
 
-// RestoringChecker is the seam used by IsRestoringSet, satisfied by
-// *tmux.Client.
 type RestoringChecker interface {
 	TryGetServerOption(name string) (string, bool, error)
 }
 
-// ServerOptionWriter is the marker-writing seam, satisfied by *tmux.Client.
 type ServerOptionWriter interface {
 	SetServerOption(name, value string) error
 	UnsetServerOption(name string) error
 }
 
-// ListSkeletonMarkers returns the set of paneKeys whose skeleton markers are
-// set as tmux server options. A read failure returns (nil, err), never a
-// partial set; a marker with no value or an empty value counts as absent.
+// ListSkeletonMarkers returns (nil, err) on a read failure, never a partial set.
+// A marker with no value, or an empty value, counts as absent.
 func ListSkeletonMarkers(c ServerOptionLister) (map[string]struct{}, error) {
 	out, err := c.ShowAllServerOptions()
 	if err != nil {
@@ -76,26 +69,20 @@ func ListSkeletonMarkers(c ServerOptionLister) (map[string]struct{}, error) {
 	return set, nil
 }
 
-// SetSkeletonMarker marks paneKey as skeleton-restored and awaiting hydration.
 func SetSkeletonMarker(w ServerOptionWriter, paneKey string) error {
 	return w.SetServerOption(SkeletonMarkerPrefix+paneKey, "1")
 }
 
-// UnsetSkeletonMarker clears paneKey's marker, so the save loop resumes
-// capturing that pane's scrollback.
 func UnsetSkeletonMarker(w ServerOptionWriter, paneKey string) error {
 	return w.UnsetServerOption(SkeletonMarkerPrefix + paneKey)
 }
 
-// UnsetSkeletonMarkerForFIFO clears the skeleton marker for the pane whose
-// hydration FIFO is fifoPath, recovering the paneKey from the basename.
 func UnsetSkeletonMarkerForFIFO(w ServerOptionWriter, fifoPath string) error {
 	return UnsetSkeletonMarker(w, PaneKeyFromFIFOPath(fifoPath))
 }
 
-// IsRestoringSet reports whether the @portal-restoring marker is set to a
-// non-empty value; absent and empty both report false. A tmux error propagates
-// so a real failure cannot masquerade as "not restoring".
+// IsRestoringSet treats absent and empty alike as false, but propagates a tmux
+// error so a real failure cannot masquerade as "not restoring".
 func IsRestoringSet(c RestoringChecker) (bool, error) {
 	val, found, err := c.TryGetServerOption(RestoringMarkerName)
 	if err != nil {
@@ -107,14 +94,13 @@ func IsRestoringSet(c RestoringChecker) (bool, error) {
 	return val != "", nil
 }
 
-// BootstrappedLatchSatisfied reports whether the @portal-bootstrapped latch is
-// present and its value exactly equals runningVersion. Absence, mismatch and
-// read failure all report false, so a cold, upgraded or unreachable server
-// takes the full-bootstrap path.
+// BootstrappedLatchSatisfied requires the latch's value to equal runningVersion
+// exactly. Absence, mismatch and read failure all report false, so a cold,
+// upgraded or unreachable server takes the full-bootstrap path.
 //
 // Swallowing the read error into a bare bool is deliberate — do not "fix" this
-// into a (bool, error) signature. runningVersion is a parameter rather than a
-// read of cmd.version so internal/state stays a leaf.
+// into a (bool, error). runningVersion is a parameter rather than a read of
+// cmd.version so internal/state stays a leaf.
 func BootstrappedLatchSatisfied(c RestoringChecker, runningVersion string) bool {
 	val, found, err := c.TryGetServerOption(BootstrappedMarkerName)
 	if err != nil {

@@ -1,4 +1,3 @@
-// Package resolver provides directory resolution utilities for Portal.
 package resolver
 
 import (
@@ -10,16 +9,14 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// CommandRunner defines the interface for executing shell commands.
 type CommandRunner interface {
 	Run(name string, args ...string) (string, error)
 }
 
-// RealCommandRunner executes commands via os/exec.
 type RealCommandRunner struct{}
 
-// Run executes a command and returns its output. On failure the error embeds the
-// binary path, argv, exit status and the child's trimmed stderr.
+// Run executes a command; on failure the error embeds the binary path, argv, exit
+// status and the child's trimmed stderr.
 func (r *RealCommandRunner) Run(name string, args ...string) (string, error) {
 	out, err := log.CombinedOutputWithContext(exec.Command(name, args...))
 	if err != nil {
@@ -29,8 +26,7 @@ func (r *RealCommandRunner) Run(name string, args ...string) (string, error) {
 }
 
 // ResolveGitRoot returns dir's git repository root, or dir unchanged when it is
-// not in a repository or git is unavailable. A directory that does not exist is
-// an error.
+// not in a repository or git is unavailable. A missing directory is an error.
 func ResolveGitRoot(dir string, runner CommandRunner) (string, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return "", fmt.Errorf("directory does not exist: %w", err)

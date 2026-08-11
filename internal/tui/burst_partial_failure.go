@@ -8,9 +8,9 @@ import (
 // The ⚠ glyph is added by the warning notice band, not the message text.
 const burstPreSpawnErrorFlash = "could not start opening windows"
 
-// Leave-what-opened: opened windows are never torn down (Portal does not own
-// the host windows and the adapter has no close seam), and the trigger
-// self-attach is skipped so the picker stays open in multi-select mode.
+// Leave-what-opened: opened windows are never torn down (Portal does not own the
+// host windows and the adapter has no close seam), and the trigger self-attach is
+// skipped so the picker stays open.
 func (m Model) handleBurstPartialFailure(msg spawnCompleteMsg) (Model, tea.Cmd) {
 	if perm, ok := spawn.FirstPermission(msg.Results); ok {
 		m.emitPermission(msg.Identity, msg.Resolution, perm.Result.Detail)
@@ -28,7 +28,6 @@ func (m Model) handleBurstPartialFailure(msg spawnCompleteMsg) (Model, tea.Cmd) 
 	confirmed, _ := spawn.PartitionResults(msg.Results)
 
 	(&m).applyBurstSelectionMutation(confirmed)
-	// A user cancel converges here — same mutation, but silent.
 	if !m.burstCancelled {
 		if text := burstPartialFailureFlash(msg.Results); text != "" {
 			m.setFlash(text)

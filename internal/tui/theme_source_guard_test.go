@@ -15,8 +15,6 @@ import (
 // Split so this declaration is not itself an importer of the retired path.
 const oldThemeSubpackage = "github.com/leeovery/portal/internal/tui" + "/theme"
 
-// A leftover importer would keep the old paired-token vocabulary compiling
-// alongside the single-palette one.
 func TestOldThemeSubpackageIsGone(t *testing.T) {
 	root := repoRoot(t)
 
@@ -34,9 +32,8 @@ func TestOldThemeSubpackageIsGone(t *testing.T) {
 	})
 }
 
-// A theme captured at package init can never see a swap, so the element it
-// paints silently keeps the previous theme's colours. Production files only: a
-// test-file copy cannot reach the render path.
+// A theme captured at package init can never see a swap. Production files only:
+// a test-file copy cannot reach the render path.
 func TestNoPackageLevelThemeVar(t *testing.T) {
 	names := centralisedColourSites(t)
 	fset := token.NewFileSet()
@@ -64,7 +61,6 @@ func TestNoPackageLevelThemeVar(t *testing.T) {
 	}
 }
 
-// One shared FileSet, so reported positions are comparable across files.
 func parseProductionFiles(t *testing.T, fset *token.FileSet, names []string) map[string]*ast.File {
 	t.Helper()
 	files := make(map[string]*ast.File, len(names))
@@ -85,9 +81,9 @@ type themeSources struct {
 	funcs map[string]bool
 }
 
-// Two ordered passes: types first, because a function may return a type
-// declared in another file. Blind spot: a var initialised by a method call,
-// which needs a package-scope receiver these same arms already reject.
+// Types first, because a function may return a type declared in another file.
+// Blind spot: a var initialised by a method call, which needs a package-scope
+// receiver these same arms already reject.
 func collectThemeSources(files map[string]*ast.File) themeSources {
 	sources := themeSources{types: map[string]bool{}, funcs: map[string]bool{}}
 	for _, file := range files {

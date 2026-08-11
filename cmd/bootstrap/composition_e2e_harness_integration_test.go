@@ -54,8 +54,8 @@ func setupCompositeHarness(t *testing.T) *compositeHarness {
 	envSlice, stateDir := portaltest.IsolateStateForTest(t)
 	t.Setenv("PORTAL_STATE_DIR", stateDir)
 
-	// Registered here — after IsolateStateForTest, before tmuxtest.New — so LIFO
-	// runs this wait between kill-server and the state-dir RemoveAll, and the
+	// Registered after IsolateStateForTest and before tmuxtest.New: LIFO then
+	// runs this wait between kill-server and the state-dir RemoveAll, so the
 	// saver's SIGHUP flush cannot race the removal.
 	var saverTeardownPID int
 	t.Cleanup(func() {

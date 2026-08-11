@@ -11,9 +11,9 @@ import (
 	"testing"
 )
 
-// ProjectRoot returns the absolute path of the nearest ancestor of the working
-// directory containing go.mod, so a `go build` can be anchored regardless of
-// which package's test binary is running.
+// ProjectRoot returns the nearest ancestor of the working directory containing
+// go.mod, so a `go build` can be anchored regardless of which package's test
+// binary is running.
 func ProjectRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -31,17 +31,16 @@ func ProjectRoot() (string, error) {
 	}
 }
 
-// BuildPortalBinary compiles the portal CLI into dir/portal, returning a wrapped
-// error carrying the failing build's output. It returns rather than fatals so a
-// caller can choose between hard-fail and skip when `go` is unavailable.
+// BuildPortalBinary compiles the portal CLI into dir/portal, returning an error
+// carrying the failing build's output rather than fatalling, so a caller can
+// choose between hard-fail and skip when `go` is unavailable.
 func BuildPortalBinary(dir string) error {
 	return buildPortalBinaryInto(dir)
 }
 
 // StagePortalBinary builds the portal CLI into a fresh t.TempDir and prepends
-// that directory to $PATH for the test, so a system-installed portal cannot
-// shadow it, returning the directory. A build or lookup failure skips the test
-// rather than failing it.
+// that directory to $PATH, so a system-installed portal cannot shadow it. A build
+// or lookup failure skips the test rather than failing it.
 func StagePortalBinary(t *testing.T) string {
 	t.Helper()
 	binDir := t.TempDir()

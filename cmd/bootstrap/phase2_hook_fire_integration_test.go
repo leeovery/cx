@@ -23,9 +23,8 @@ func TestPhase2_HookFiresOnNonAttachedSession_AC2(t *testing.T) {
 	}
 	tmuxtest.SkipIfNoTmux(t)
 
-	// The portal binary must be on PATH: restored panes respawn into
-	// `portal state hydrate`, and without it the helper never reaches the
-	// on-resume hook this test waits for.
+	// Restored panes respawn into `portal state hydrate`, so the binary must be
+	// on PATH or the helper never reaches the on-resume hook waited on below.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 	restoretest.PrependPATH(t, binDir)
 

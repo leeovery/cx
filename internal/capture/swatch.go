@@ -10,12 +10,9 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// ContrastValidationFixture is the registered fixture name for the
-// contrast-validation swatch.
 const ContrastValidationFixture = "contrast-validation"
 
-// NewContrastValidationModel builds the contrast-validation swatch tea.Model
-// for the given theme. It takes a whole palette rather than a mode: each
+// NewContrastValidationModel takes a whole palette rather than a mode: each
 // theme's tints are judged against its own canvas.
 func NewContrastValidationModel(th theme.Theme) tea.Model {
 	return newSwatchModel(th)
@@ -181,7 +178,6 @@ func attentionBand(th theme.Theme) string {
 // Leaves enough filled bar and empty track for both to be judged.
 const subtleBarWidth = 18
 
-// The loading-bar shape: an accent.primary head over the bg.subtle track.
 func subtleBand(th theme.Theme) string {
 	bar := lipgloss.NewStyle().
 		Background(th.AccentPrimary.Color()).

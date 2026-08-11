@@ -14,18 +14,14 @@ import (
 
 const (
 	// Every trailing element budgets its own width plus this gap.
-	themeRowGap = 1
-	// Shared with the session and project rows.
+	themeRowGap      = 1
 	themeRowEllipsis = "…"
-	// ansi.Truncate counts the tail inside its width, so 4 = three visible
-	// characters plus the ellipsis. It is the label's guaranteed share: anything
-	// charged after the label must charge at least this much, or the row renders
-	// wider than its width.
+	// ansi.Truncate counts the tail inside its width, so this is three visible
+	// characters plus the ellipsis. Anything charged after the label must charge
+	// at least this much, or the row renders wider than its width.
 	themeRowLabelFloor = 4
 )
 
-// The badge is looked up via Row.BadgeKey, never Slug — a reserved-name row
-// would otherwise badge the slug it collides with.
 type themeRowItem struct {
 	Row   theme.Row
 	Badge theme.Badge
@@ -102,6 +98,8 @@ func (d themeRowDelegate) compose(it themeRowItem) (labelBudget int, trailing []
 		trailing = append(trailing, themeRowSegment{text: signal, token: d.Theme.AccentAttention})
 	}
 	if badge != "" {
+		// accent.primary, never state.positive: green would read as session
+		// liveness rather than as which slot the theme occupies.
 		trailing = append(trailing, themeRowSegment{text: badge, token: d.Theme.AccentPrimary})
 	}
 
@@ -144,8 +142,7 @@ func (d themeRowDelegate) cursorColumn(bg lipgloss.Style, selected bool) string 
 }
 
 // An invalid label is text.subtle, never text.faint — the user must still read
-// which file is broken. The cursor row wins the combination: the tint has its
-// own paired foreground.
+// which file is broken. The cursor row wins: the tint has its own paired fg.
 func (d themeRowDelegate) labelToken(it themeRowItem, selected bool) theme.Token {
 	switch {
 	case selected:

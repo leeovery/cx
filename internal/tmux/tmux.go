@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-// ErrOptionNotFound is returned when a tmux server option does not exist.
 var ErrOptionNotFound = errors.New("option not found")
 
 // Matched case-sensitively against tmux stderr to tell a genuinely absent
@@ -20,7 +19,6 @@ var optionAbsentStderrPatterns = []string{
 	"ambiguous option:",
 }
 
-// Session represents a running tmux session.
 type Session struct {
 	Name     string
 	Windows  int
@@ -31,25 +29,20 @@ type Session struct {
 }
 
 // Commander executes tmux commands. Run trims surrounding whitespace from the
-// output; RunRaw returns it verbatim, for callers to whom trailing whitespace
-// and ANSI escapes are content. Implementations must return non-nil errors as
+// output; RunRaw returns it verbatim, for callers to whom trailing whitespace and
+// ANSI escapes are content. Implementations must return non-nil errors as
 // *CommandError so callers can recover the child's stderr via errors.As.
 type Commander interface {
 	Run(args ...string) (string, error)
 	RunRaw(args ...string) (string, error)
 }
 
-// RealCommander executes tmux commands via os/exec.
 type RealCommander struct{}
 
-// Run executes a tmux command and returns its output trimmed of surrounding
-// whitespace, wrapping a non-nil error in *CommandError.
 func (r *RealCommander) Run(args ...string) (string, error) {
 	return runCommand("tmux", true, args...)
 }
 
-// RunRaw executes a tmux command and returns its output verbatim, wrapping a
-// non-nil error in *CommandError.
 func (r *RealCommander) RunRaw(args ...string) (string, error) {
 	return runCommand("tmux", false, args...)
 }
@@ -67,40 +60,37 @@ func runCommand(binary string, trim bool, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// Client provides tmux operations using a Commander.
 type Client struct {
 	cmd Commander
 }
 
-// NewClient creates a new Client with the given Commander.
 func NewClient(cmd Commander) *Client {
 	return &Client{cmd: cmd}
 }
 
-// DefaultClient returns a Client backed by RealCommander.
+// DefaultClient shells out to the real tmux binary, so it honours the ambient
+// TMUX socket — a test reaching it lands on the developer's own server.
 func DefaultClient() *Client {
 	return NewClient(&RealCommander{})
 }
 
-// ServerRunning reports whether a tmux server is currently running, including
-// one hosting zero sessions.
+// ServerRunning reports whether a tmux server is running, including one hosting
+// zero sessions.
 func (c *Client) ServerRunning() bool {
 	_, err := c.cmd.Run("info")
 	return err == nil
 }
 
-// HasSession reports whether a tmux session with the given name exists,
-// returning false when it does not or when no tmux server is running.
+// HasSession is false both for an absent session and for no running server.
 func (c *Client) HasSession(name string) bool {
 	_, err := c.cmd.Run("has-session", "-t", exactTarget(name))
 	return err == nil
 }
 
 // HasSessionProbe is the discriminating variant of HasSession: a non-zero tmux
-// exit returns (false, err) — the session is genuinely absent — while an
-// OS-layer fault (missing binary, exec lookup failure) returns (true, err), so
-// a caller proceeds as if present and logs rather than reporting the session
-// missing. Success is (true, nil).
+// exit returns (false, err) — the session is genuinely absent — while an OS-layer
+// fault returns (true, err), so a caller proceeds as if present and logs rather
+// than reporting the session missing.
 func (c *Client) HasSessionProbe(name string) (bool, error) {
 	_, err := c.cmd.Run("has-session", "-t", exactTarget(name))
 	if err == nil {
@@ -113,8 +103,8 @@ func (c *Client) HasSessionProbe(name string) (bool, error) {
 	return true, err
 }
 
-// NewSession creates a detached tmux session with the given name and start
-// directory, appending shellCommand as the pane's command when non-empty.
+// NewSession creates a detached session; shellCommand becomes the pane's
+// command when non-empty.
 func (c *Client) NewSession(name, dir, shellCommand string) error {
 	args := []string{"new-session", "-d", "-s", name, "-c", dir}
 	if shellCommand != "" {
@@ -128,8 +118,8 @@ func (c *Client) NewSession(name, dir, shellCommand string) error {
 }
 
 // ListSessions returns the running tmux sessions, excluding Portal's own
-// underscore-prefixed internal sessions. No running server yields an empty
-// slice and a nil error.
+// underscore-prefixed internal ones. No running server yields an empty slice and
+// a nil error.
 func (c *Client) ListSessions() ([]Session, error) {
 	// @portal-dir must stay the LAST field: a directory path may contain a
 	// literal '|', so it needs the unbounded trailing SplitN slot.
@@ -175,8 +165,8 @@ func (c *Client) ListSessions() ([]Session, error) {
 		})
 	}
 
-	// Portal-wide invariant: an underscore-prefixed session must never leak
-	// into user-visible output. Filtering at this chokepoint is what holds it.
+	// Portal-wide invariant: an underscore-prefixed session must never leak into
+	// user-visible output.
 	filtered := make([]Session, 0, len(sessions))
 	for _, s := range sessions {
 		if strings.HasPrefix(s.Name, "_") {
@@ -187,8 +177,6 @@ func (c *Client) ListSessions() ([]Session, error) {
 	return filtered, nil
 }
 
-// ListSessionNames returns just the names of running tmux sessions, in the
-// order tmux reports them.
 func (c *Client) ListSessionNames() ([]string, error) {
 	sessions, err := c.ListSessions()
 	if err != nil {
@@ -202,7 +190,7 @@ func (c *Client) ListSessionNames() ([]string, error) {
 }
 
 // StartServer starts the tmux server by creating a detached session named
-// PortalBootstrapName. The session is not incidental: tmux's default
+// PortalBootstrapName. That session is not incidental: tmux's default
 // "exit-empty on" would tear the server down before restore reconstructs the
 // saved sessions, so the server must own one from the moment it comes up.
 func (c *Client) StartServer() error {
@@ -225,8 +213,6 @@ func (c *Client) EnsureServer() (bool, error) {
 	return true, nil
 }
 
-// CurrentSessionName returns the name of the tmux session the current client
-// is attached to.
 func (c *Client) CurrentSessionName() (string, error) {
 	output, err := c.cmd.Run("display-message", "-p", "#{session_name}")
 	if err != nil {
@@ -235,8 +221,6 @@ func (c *Client) CurrentSessionName() (string, error) {
 	return output, nil
 }
 
-// ResolveStructuralKey resolves a pane ID (e.g. "%3") to its structural key
-// (e.g. "my-project:0.1").
 func (c *Client) ResolveStructuralKey(paneID string) (string, error) {
 	output, err := c.cmd.Run("display-message", "-p", "-t", paneID, StructuralKeyFormat)
 	if err != nil {
@@ -246,11 +230,9 @@ func (c *Client) ResolveStructuralKey(paneID string) (string, error) {
 }
 
 // ResolveHookKey resolves the pane's hook key live from tmux, which picks the
-// @portal-id or session-name branch itself (see HookKeyFormat).
-//
-// A read failure must never fall back to synthesising a name-based key: that
-// would key a stamped session's hook off the mutable name and orphan it on the
-// next rename.
+// @portal-id or session-name branch itself. A read failure must never fall back
+// to synthesising a name-based key: that would key a stamped session's hook off
+// the mutable name and orphan it on the next rename.
 func (c *Client) ResolveHookKey(paneID string) (string, error) {
 	output, err := c.cmd.Run("display-message", "-p", "-t", paneID, HookKeyFormat)
 	if err != nil {
@@ -259,10 +241,9 @@ func (c *Client) ResolveHookKey(paneID string) (string, error) {
 	return output, nil
 }
 
-// ActivePaneCurrentPath returns the named session's active pane current_path
-// in a single tmux read. A session killed mid-read surfaces as
-// errors.Is(err, ErrNoSuchSession), which callers can treat as unresolvable
-// rather than fatal.
+// ActivePaneCurrentPath returns the named session's active pane current_path in
+// a single tmux read. A session killed mid-read surfaces as errors.Is(err,
+// ErrNoSuchSession), which callers can treat as unresolvable rather than fatal.
 func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
 	output, err := c.cmd.Run("display-message", "-p", "-t", session, "-F", "#{pane_current_path}")
 	if err != nil {
@@ -271,7 +252,6 @@ func (c *Client) ActivePaneCurrentPath(session string) (string, error) {
 	return output, nil
 }
 
-// KillSession kills the tmux session with the given name.
 func (c *Client) KillSession(name string) error {
 	_, err := c.cmd.Run("kill-session", "-t", exactTarget(name))
 	if err != nil {
@@ -280,8 +260,6 @@ func (c *Client) KillSession(name string) error {
 	return nil
 }
 
-// RenameSession renames a tmux session from oldName to newName.
-//
 // The exact-match prefix goes on the target only: newName is a literal
 // positional argument, and prefixing it would name the session "=...".
 func (c *Client) RenameSession(oldName, newName string) error {
@@ -292,7 +270,6 @@ func (c *Client) RenameSession(oldName, newName string) error {
 	return nil
 }
 
-// SwitchClient switches the current tmux client to the named session.
 func (c *Client) SwitchClient(name string) error {
 	_, err := c.cmd.Run("switch-client", "-t", exactTarget(name))
 	if err != nil {
@@ -301,7 +278,6 @@ func (c *Client) SwitchClient(name string) error {
 	return nil
 }
 
-// SetServerOption sets a tmux server-level option.
 func (c *Client) SetServerOption(name, value string) error {
 	_, err := c.cmd.Run("set-option", "-s", name, value)
 	if err != nil {
@@ -321,9 +297,8 @@ func (c *Client) SetSessionOption(session, name, value string) error {
 	return nil
 }
 
-// NewDetachedSessionNoCwd creates a detached tmux session that inherits tmux's
-// default working directory, appending shellCommand as the pane's command when
-// non-empty.
+// NewDetachedSessionNoCwd omits -c, so the pane inherits tmux's default working
+// directory; shellCommand applies when non-empty.
 func (c *Client) NewDetachedSessionNoCwd(name, shellCommand string) error {
 	args := []string{"new-session", "-d", "-s", name}
 	if shellCommand != "" {
@@ -337,9 +312,9 @@ func (c *Client) NewDetachedSessionNoCwd(name, shellCommand string) error {
 }
 
 // GetServerOption returns the trimmed value of a tmux server-level option. A
-// stderr phrasing that means the option does not exist returns
-// ErrOptionNotFound; every other failure propagates the wrapped error, so
-// absence stays distinguishable from a real tmux fault.
+// stderr phrasing meaning the option does not exist returns ErrOptionNotFound;
+// every other failure propagates wrapped, so absence stays distinguishable from
+// a real tmux fault.
 func (c *Client) GetServerOption(name string) (string, error) {
 	output, err := c.cmd.Run("show-option", "-sv", name)
 	if err == nil {
@@ -357,8 +332,8 @@ func (c *Client) GetServerOption(name string) (string, error) {
 }
 
 // TryGetServerOption is the GetServerOption variant for callers to whom an
-// absent option is normal control flow: absence returns ("", false, nil), and
-// only a real tmux failure returns a non-nil error.
+// absent option is normal control flow: absence returns ("", false, nil), and a
+// non-nil error means a real tmux failure.
 func (c *Client) TryGetServerOption(name string) (string, bool, error) {
 	val, err := c.GetServerOption(name)
 	if errors.Is(err, ErrOptionNotFound) {
@@ -371,8 +346,7 @@ func (c *Client) TryGetServerOption(name string) (string, bool, error) {
 }
 
 // ShowAllServerOptions returns every server option in one read, raw: one per
-// line as `@name "value"` (or unquoted, for a scalar), for the caller to parse.
-//
+// row as `@name "value"` (or unquoted, for a scalar), for the caller to parse.
 // `-s` is load-bearing — `-sv` emits values without their names, which defeats
 // any name-based parsing of this output.
 func (c *Client) ShowAllServerOptions() (string, error) {
@@ -400,35 +374,27 @@ func parsePaneOutput(output string) []string {
 	return panes
 }
 
-// PaneCoord is a live tmux pane address: a (window_index, pane_index) pair
-// within a session.
 type PaneCoord struct {
 	Window int
 	Pane   int
 }
 
-// PaneTarget formats a plain "session:window.pane" pane target (e.g.
-// "my-project:0.1"). Anything actually issuing a tmux `-t` flag must use
-// PaneTargetExact instead; this form is for display and name-based keys.
+// PaneTarget formats a plain "session:window.pane" target, for display and
+// name-based keys. Anything issuing a tmux `-t` flag must use PaneTargetExact.
 func PaneTarget(session string, window, pane int) string {
 	return fmt.Sprintf("%s:%d.%d", session, window, pane)
 }
 
-// PaneTargetExact formats a pane target whose session segment carries tmux's
-// "=" exact-match prefix (e.g. "=my-project:0.1"). It is the pane-level
-// sibling of exactTarget and is what every `-t` flag needs — without the
-// prefix tmux falls back to a prefix match and can land on the wrong session.
+// PaneTargetExact is the pane-level sibling of exactTarget: the "=" exact-match
+// prefix every `-t` flag needs.
 func PaneTargetExact(session string, window, pane int) string {
 	return fmt.Sprintf("=%s:%d.%d", session, window, pane)
 }
 
 // HookKey formats a hook key from saved state — the in-Go mirror of
-// HookKeyFormat's tmux-side conditional. Both inputs are used verbatim, with
-// no trimming or validation, so a key built here is byte-identical to a live
-// read of the same pane.
-//
-// The format is stable across releases: changing it silently invalidates every
-// entry in hooks.json.
+// HookKeyFormat's tmux-side conditional. Both inputs are used verbatim, so a key
+// built here is byte-identical to a live read of the same pane, and the format
+// must stay stable: changing it silently invalidates every hooks.json entry.
 func HookKey(portalID, name string, window, pane int) string {
 	if portalID != "" {
 		return fmt.Sprintf("%s:%d.%d", portalID, window, pane)
@@ -484,8 +450,6 @@ func (c *Client) ListPanesInSession(session string) ([]PaneCoord, error) {
 	return coords, nil
 }
 
-// WindowGroup is one window's enumeration shape: its raw tmux window_index,
-// its name, and the raw pane_index of every pane it holds.
 type WindowGroup struct {
 	WindowIndex int
 	WindowName  string
@@ -497,11 +461,10 @@ type WindowGroup struct {
 const listWindowsAndPanesFieldSep = "\x1f"
 
 // ListWindowsAndPanesInSession returns one WindowGroup per window of the named
-// session, sorted ascending, each group's PaneIndices likewise.
-//
-// Indices are verbatim tmux values, so they honour base-index settings and keep
-// the gaps left by killed windows. Callers wanting ordinal counters ("Window M
-// of N") must derive them from slice position.
+// session, sorted ascending, each group's PaneIndices likewise. Indices are
+// verbatim tmux values, so they honour base-index settings and keep the gaps left
+// by killed windows; a caller wanting ordinal counters must derive them from
+// slice position.
 func (c *Client) ListWindowsAndPanesInSession(session string) ([]WindowGroup, error) {
 	format := "#{window_index}" + listWindowsAndPanesFieldSep +
 		"#{window_name}" + listWindowsAndPanesFieldSep +
@@ -554,8 +517,8 @@ func (c *Client) ListWindowsAndPanesInSession(session string) ([]WindowGroup, er
 	return groups, nil
 }
 
-// ListPanes returns the structural key of every pane in the named session
-// (e.g. "my-project:0.0"). Unlike pane IDs, these survive a server restart.
+// ListPanes returns the structural key of every pane in the named session.
+// Unlike pane IDs, these survive a server restart.
 func (c *Client) ListPanes(sessionName string) ([]string, error) {
 	output, err := c.cmd.Run("list-panes", "-t", sessionName, "-F", StructuralKeyFormat)
 	if err != nil {
@@ -565,8 +528,8 @@ func (c *Client) ListPanes(sessionName string) ([]string, error) {
 }
 
 // ListAllPanesWithFormat enumerates every pane on the server under a caller-
-// supplied tmux format, returning the raw untrimmed output. Any tmux failure
-// is returned wrapped, never flattened into an empty result.
+// supplied tmux format, returning the raw untrimmed output. Any tmux failure is
+// returned wrapped, never flattened into an empty result.
 func (c *Client) ListAllPanesWithFormat(format string) (string, error) {
 	out, err := c.cmd.Run("list-panes", "-a", "-F", format)
 	if err != nil {
@@ -586,27 +549,25 @@ func (c *Client) ShowEnvironment(session string) (string, error) {
 	return out, nil
 }
 
-// StructuralKeyFormat yields a pane's name-based structural key (e.g.
-// "my-project:0.1"), the join key between live-pane enumeration and
-// @portal-skeleton-* marker names. Every call whose output is read as a
-// structural key must request exactly this format, or the cleanup paths
-// disagree about what a paneKey is. It is not the hook key — see HookKeyFormat.
+// StructuralKeyFormat yields a pane's name-based structural key, the join key
+// between live-pane enumeration and @portal-skeleton-* marker names. Every call
+// whose output is read as a structural key must request exactly this format, or
+// the cleanup paths disagree about what a paneKey is. It is not the hook key —
+// see HookKeyFormat.
 const StructuralKeyFormat = "#{session_name}:#{window_index}.#{pane_index}"
 
 // HookKeyFormat yields a pane's hook key, the tmux-resolved sibling of HookKey:
-// a stamped session resolves to "<id>:w.p" (rename-immune) and an un-stamped
-// one falls back to "<name>:w.p", the key already on disk.
-//
-// It must stay stable across releases and identical at every site producing or
-// consuming a hook key — drift re-orphans stamped sessions' hooks en masse —
-// and its "@portal-id" literal must match session.PortalIDOption.
+// a stamped session resolves to "<id>:w.p" (rename-immune) and an un-stamped one
+// falls back to "<name>:w.p", the key already on disk. It must stay stable and
+// identical at every site producing or consuming a hook key — drift re-orphans
+// stamped sessions' hooks en masse — and its "@portal-id" literal must match
+// session.PortalIDOption.
 const HookKeyFormat = "#{?@portal-id,#{@portal-id},#{session_name}}:#{window_index}.#{pane_index}"
 
-// ListAllPanes returns the structural key of every live pane on the server —
-// for structural enumeration, not hook-key lookup (see ListAllPaneHookKeys).
-//
-// A tmux failure returns (nil, err), never an empty slice: a caller that read
-// a failure as "no live panes" would delete every entry keyed off the live set.
+// ListAllPanes returns the structural key of every live pane on the server — for
+// structural enumeration, not hook-key lookup (see ListAllPaneHookKeys). A tmux
+// failure returns (nil, err), never an empty slice: a caller reading a failure as
+// "no live panes" would delete every entry keyed off the live set.
 func (c *Client) ListAllPanes() ([]string, error) {
 	raw, err := c.ListAllPanesWithFormat(StructuralKeyFormat)
 	if err != nil {
@@ -615,12 +576,11 @@ func (c *Client) ListAllPanes() ([]string, error) {
 	return parsePaneOutput(raw), nil
 }
 
-// ListAllPaneHookKeys returns the hook key of every live pane on the server,
-// each resolved per-session by HookKeyFormat, so a mixed stamped/un-stamped
-// population resolves correctly within one read.
-//
-// A tmux failure returns (nil, err), never an empty slice: a caller that read
-// a failure as "no live panes" would orphan every hooks.json entry at once.
+// ListAllPaneHookKeys returns the hook key of every live pane on the server, each
+// resolved per-session by HookKeyFormat, so a mixed stamped/un-stamped population
+// resolves correctly within one read. A tmux failure returns (nil, err), never an
+// empty slice: a caller reading a failure as "no live panes" would orphan every
+// hooks.json entry at once.
 func (c *Client) ListAllPaneHookKeys() ([]string, error) {
 	raw, err := c.ListAllPanesWithFormat(HookKeyFormat)
 	if err != nil {
@@ -630,7 +590,7 @@ func (c *Client) ListAllPaneHookKeys() ([]string, error) {
 }
 
 // SendKeys delivers a command, followed by Enter, to the pane addressed by the
-// structural key target (e.g. "my-session:0.1").
+// structural-key target.
 func (c *Client) SendKeys(target string, command string) error {
 	_, err := c.cmd.Run("send-keys", "-t", target, command, "Enter")
 	if err != nil {
@@ -663,11 +623,9 @@ func (c *Client) UnsetServerOption(name string) error {
 
 // ShowGlobalHooksForEvent reads one event's global hooks, raw and in the same
 // shape as the whole-scope read, so ParseShowHooks consumes it unchanged. An
-// event with no entries yields the empty string and a nil error.
-//
-// Per-event reads are mandatory, not a refinement: tmux 3.6b's no-arg
-// show-hooks -g does not enumerate the pane-* or geometry window-* events at
-// all, so a caller looping over events must query each one by name.
+// event with no entries yields the empty string and a nil error. Per-event reads
+// are mandatory: tmux 3.6b's no-arg show-hooks -g does not enumerate the pane-* or
+// geometry window-* events at all.
 func (c *Client) ShowGlobalHooksForEvent(event string) (string, error) {
 	output, err := c.cmd.Run("show-hooks", "-g", event)
 	if err != nil {
@@ -697,9 +655,8 @@ func (c *Client) CapturePane(target string) (string, error) {
 	return out, nil
 }
 
-// NewSessionWithCommand creates a detached tmux session in which both cwd and
-// shellCommand are optional, each applied only when non-empty — for restoring
-// saved panes that may carry no recorded cwd.
+// NewSessionWithCommand applies cwd and shellCommand only when non-empty — for
+// restoring saved panes that may carry no recorded cwd.
 func (c *Client) NewSessionWithCommand(name, cwd, shellCommand string) error {
 	args := []string{"new-session", "-d", "-s", name}
 	if cwd != "" {
@@ -715,8 +672,7 @@ func (c *Client) NewSessionWithCommand(name, cwd, shellCommand string) error {
 	return nil
 }
 
-// NewWindow creates a tmux window in the session identified by target. name,
-// cwd and shellCommand are optional, each applied only when non-empty.
+// NewWindow applies name, cwd and shellCommand only when non-empty.
 func (c *Client) NewWindow(target, name, cwd, shellCommand string) error {
 	args := []string{"new-window", "-t", target}
 	if name != "" {
@@ -735,8 +691,7 @@ func (c *Client) NewWindow(target, name, cwd, shellCommand string) error {
 	return nil
 }
 
-// SplitWindow splits the tmux window identified by target into a new pane.
-// cwd and shellCommand are optional, each applied only when non-empty.
+// SplitWindow applies cwd and shellCommand only when non-empty.
 func (c *Client) SplitWindow(target, cwd, shellCommand string) error {
 	args := []string{"split-window", "-t", target}
 	if cwd != "" {
@@ -752,7 +707,6 @@ func (c *Client) SplitWindow(target, cwd, shellCommand string) error {
 	return nil
 }
 
-// SetSessionEnvironment sets one environment variable on the named session.
 func (c *Client) SetSessionEnvironment(session, key, value string) error {
 	_, err := c.cmd.Run("set-environment", "-t", session, key, value)
 	if err != nil {
@@ -774,8 +728,6 @@ func (c *Client) SelectLayout(session string, window int, layout string) error {
 	return nil
 }
 
-// SelectWindow sets the active window within the named session, returning the
-// wrapped error when the window or session is absent.
 func (c *Client) SelectWindow(session string, window int) error {
 	bareTarget := fmt.Sprintf("%s:%d", session, window)
 	target := "=" + bareTarget
@@ -814,8 +766,6 @@ func (c *Client) ResizePaneZoom(session string, window, pane int) error {
 	return nil
 }
 
-// UnsetGlobalHookAt removes the hook at the given index of the event's global
-// hook array.
 func (c *Client) UnsetGlobalHookAt(event string, index int) error {
 	_, err := c.cmd.Run("set-hook", "-gu", fmt.Sprintf("%s[%d]", event, index))
 	if err != nil {

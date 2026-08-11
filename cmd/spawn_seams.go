@@ -12,8 +12,6 @@ import (
 
 var spawnLogger = log.For("spawn")
 
-// TerminalDetector is the host-terminal identity seam, so a command body can be
-// Executed with a fabricated detector and no real tmux, ps, or defaults reads.
 type TerminalDetector interface {
 	Detect() spawn.Identity
 }

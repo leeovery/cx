@@ -10,9 +10,9 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// PaneCurrentPathReader reads the active pane's current_path for a named
-// session. It is deliberately this narrow: with no all-panes method to call, the
-// "active pane only" contract is structural rather than a convention.
+// PaneCurrentPathReader reads the active pane's current_path for a named session.
+// Deliberately this narrow: with no all-panes method to call, "active pane only"
+// is structural rather than a convention.
 type PaneCurrentPathReader interface {
 	ActivePaneCurrentPath(session string) (string, error)
 }
@@ -20,15 +20,13 @@ type PaneCurrentPathReader interface {
 var _ PaneCurrentPathReader = (*tmux.Client)(nil)
 
 // ResolveSessionDir derives a session's directory from its active pane's
-// current_path, resolved to a git root and reduced to the canonical key the
-// project store uses. It is the fallback for a session carrying no @portal-dir
-// stamp.
+// current_path, resolved to a git root and reduced to the project store's
+// canonical key. It is the fallback for a session carrying no @portal-dir stamp.
 //
-// Any readable current_path yields a directory: a pane outside a repository
-// resolves to its own cwd. ok==false with a nil error means the session is
-// unresolvable this pass — killed mid-resolve, or no readable current_path at
-// all — which must never abort the grouped render. A non-nil error is an
-// unexpected pane-read failure, never routine session churn.
+// ok==false with a nil error means the session is unresolvable this pass —
+// killed mid-resolve, or no readable current_path — which must never abort the
+// grouped render. A non-nil error is an unexpected pane-read failure, never
+// routine session churn.
 func ResolveSessionDir(session string, reader PaneCurrentPathReader, runner resolver.CommandRunner) (string, bool, error) {
 	paneCwd, err := reader.ActivePaneCurrentPath(session)
 	if err != nil {

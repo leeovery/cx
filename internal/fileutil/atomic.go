@@ -1,4 +1,3 @@
-// Package fileutil provides filesystem utilities for atomic file operations.
 package fileutil
 
 import (
@@ -8,26 +7,22 @@ import (
 	"path/filepath"
 )
 
-// Write-phase sentinels let a caller errors.Is which step of AtomicWrite failed,
-// without fileutil having to know anything about audit logging. Each sentinel's
-// string is its error_class token, so the classifier below cannot drift from it.
+// Write-phase sentinels let a caller errors.Is which step of AtomicWrite failed.
+// Each sentinel's string is its error_class token.
 var (
 	// ErrWriteTempCreate covers creating the parent directory as well as the
 	// temp file: the closed error_class space has no separate mkdir phase.
 	ErrWriteTempCreate = errors.New("write-failed-temp-create")
-	// ErrWriteWrite is the temp-file write phase.
-	ErrWriteWrite = errors.New("write-failed-write")
-	// ErrWriteFsync is the flush phase. AtomicWrite has no explicit Sync, so
-	// Close is where deferred write errors surface and maps here.
-	ErrWriteFsync = errors.New("write-failed-fsync")
-	// ErrWriteRename is the atomic-rename commit phase.
+	ErrWriteWrite      = errors.New("write-failed-write")
+	// AtomicWrite has no explicit Sync, so Close is where deferred write errors
+	// surface and maps here.
+	ErrWriteFsync  = errors.New("write-failed-fsync")
 	ErrWriteRename = errors.New("write-failed-rename")
 )
 
 // ClassifyWriteError maps a wrapped AtomicWrite error to its error_class token.
-// An error matching no sentinel falls back to "write-failed-write" — a
-// deliberate floor, so an unrecognised failure is still attributed to a write
-// rather than dropped.
+// An error matching no sentinel falls back to "write-failed-write" — a deliberate
+// floor, so an unrecognised failure is attributed to a write rather than dropped.
 func ClassifyWriteError(err error) string {
 	switch {
 	case errors.Is(err, ErrWriteTempCreate):
@@ -43,9 +38,9 @@ func ClassifyWriteError(err error) string {
 	}
 }
 
-// AtomicWrite0600 writes data to path and chmods the result to 0600. AtomicWrite
-// already creates its temp file 0600; the extra chmod defends against a
-// permissive umask leaking broader bits through.
+// AtomicWrite0600 writes data to path and chmods the result to 0600. The temp
+// file is already created 0600; the extra chmod defends against a permissive
+// umask leaking broader bits through.
 func AtomicWrite0600(path string, data []byte) error {
 	if err := AtomicWrite(path, data); err != nil {
 		return err
@@ -54,9 +49,8 @@ func AtomicWrite0600(path string, data []byte) error {
 	return nil
 }
 
-// AtomicWrite writes data to path using a temp-file-and-rename strategy.
-// It creates the parent directory if it does not exist. On any error the
-// temp file is cleaned up.
+// AtomicWrite writes data to path via temp-file-and-rename, creating the parent
+// directory if absent and removing the temp file on any error.
 func AtomicWrite(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -49,8 +49,7 @@ func TestBootstrapProgressPipe_ForwardsRestoreNMOntoProgressMsg(t *testing.T) {
 }
 
 // Emits more events than the channel buffer holds while nothing drains, and
-// signals when its goroutine returns, so the test can tell an unblocked send
-// from a wedged one.
+// signals when its goroutine returns.
 type blockingRunner struct {
 	events int
 	done   chan struct{}

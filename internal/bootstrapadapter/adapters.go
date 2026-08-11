@@ -1,7 +1,6 @@
-// Package bootstrapadapter holds the thin production adapters wiring
-// tmux-client primitives to the bootstrap.Orchestrator step interfaces. It sits
-// outside cmd/ so tests can import production-equivalent wiring without pulling
-// in the rest of cmd/.
+// Package bootstrapadapter wires tmux-client primitives to the
+// bootstrap.Orchestrator step interfaces. It sits outside cmd/ so tests can
+// import production-equivalent wiring without pulling in the rest of cmd/.
 package bootstrapadapter
 
 import (
@@ -23,16 +22,14 @@ func (m *RestoringMarker) Set() error {
 	return m.Client.SetServerOption(state.RestoringMarkerName, "1")
 }
 
-// Clear removes @portal-restoring at server scope. Unsetting an absent option
-// is a tmux no-op, so it is idempotent.
+// Clear is idempotent: unsetting an absent option is a tmux no-op.
 func (m *RestoringMarker) Clear() error {
 	return m.Client.UnsetServerOption(state.RestoringMarkerName)
 }
 
-// HookRegistrar registers Portal's global tmux hooks idempotently. Logger sinks
-// the bootstrap-component diagnostics and the saver barriers; VersionLogger is a
-// separate field because the daemon.version breadcrumb belongs to the daemon
-// component. Both tolerate nil.
+// HookRegistrar registers Portal's global tmux hooks idempotently. VersionLogger
+// is a separate field because the daemon.version breadcrumb belongs to the daemon
+// component, not bootstrap's. Both loggers tolerate nil.
 type HookRegistrar struct {
 	Client        *tmux.Client
 	Logger        *slog.Logger
@@ -49,9 +46,8 @@ func (r *HookRegistrar) RegisterPortalHooks() error {
 }
 
 // RestoreAdapter wraps a *restore.Orchestrator so its Restore method satisfies
-// bootstrap.Restorer. It is a pure pass-through: the bootstrap orchestrator owns
-// the @portal-restoring marker lifecycle, so the inner Restore must not bundle
-// marker management. Inner must be non-nil.
+// bootstrap.Restorer. The bootstrap orchestrator owns the @portal-restoring
+// marker lifecycle, so the inner Restore must not bundle marker management.
 type RestoreAdapter struct {
 	Inner *restore.Orchestrator
 }
@@ -63,8 +59,8 @@ func (a *RestoreAdapter) Restore() (bool, error) { return a.Inner.Restore() }
 // calls it leaves Progress nil and the restore loop unaltered.
 func (a *RestoreAdapter) SetProgress(fn func(n, m int)) { a.Inner.Progress = fn }
 
-// NewRestoreAdapter builds a *RestoreAdapter over a fresh inner
-// *restore.Orchestrator. logger must be a real *slog.Logger, not nil.
+// NewRestoreAdapter builds a *RestoreAdapter over a fresh inner orchestrator.
+// logger must be non-nil.
 func NewRestoreAdapter(client *tmux.Client, stateDir string, logger *slog.Logger) *RestoreAdapter {
 	return &RestoreAdapter{
 		Inner: &restore.Orchestrator{
@@ -84,8 +80,6 @@ type FIFOSweeper struct {
 	Logger   *slog.Logger
 }
 
-// Sweep removes any hydrate-*.fifo file in StateDir whose paneKey has no live
-// @portal-skeleton-* marker on the tmux server.
 func (s *FIFOSweeper) Sweep() error {
 	markers, err := state.ListSkeletonMarkers(s.Client)
 	if err != nil {

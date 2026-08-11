@@ -10,10 +10,9 @@ import (
 	"github.com/leeovery/portal/internal/portaltest"
 )
 
-// TestMain redirects HOME and XDG_CONFIG_HOME for the whole binary so the
-// backstop under test targets a hermetic temp dir: on a machine with a live
-// `portal state daemon`, it would otherwise race that daemon's tick writes and
-// flag them as a test failure.
+// HOME and XDG_CONFIG_HOME are redirected for the whole binary so the backstop
+// under test targets a hermetic temp dir: on a machine with a live `portal state
+// daemon` it would otherwise race that daemon's tick writes and flag them.
 func TestMain(m *testing.M) {
 	sandbox, err := os.MkdirTemp("", "portaltest-self-sandbox-*")
 	if err != nil {

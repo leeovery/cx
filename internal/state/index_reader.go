@@ -8,14 +8,12 @@ import (
 )
 
 // ErrCorruptIndex marks sessions.json as present but unusable — malformed,
-// unreadable, or an unsupported schema version. An absent file is not wrapped
-// with it.
+// unreadable, or an unsupported schema version. An absent file is not wrapped.
 var ErrCorruptIndex = errors.New("sessions.json corrupt")
 
-// ReadIndex loads sessions.json from dir. The bool reports whether the caller
-// should skip restoration: an absent file gives (Index{}, true, nil), and a
-// present-but-unusable one gives (Index{}, true, err) wrapped with
-// ErrCorruptIndex. ReadIndex logs nothing; the caller surfaces the error.
+// ReadIndex's bool reports whether the caller should skip restoration: an absent
+// file gives (Index{}, true, nil), a present-but-unusable one (Index{}, true,
+// err) wrapped with ErrCorruptIndex. It logs nothing; the caller surfaces it.
 func ReadIndex(dir string) (Index, bool, error) {
 	data, err := os.ReadFile(SessionsJSON(dir))
 	if err != nil {

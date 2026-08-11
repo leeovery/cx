@@ -2,10 +2,8 @@ package project
 
 // Index maps a directory's canonical key to the Project stored there,
 // canonicalising each stored path once instead of paying an EvalSymlinks syscall
-// per project per lookup.
-//
-// It is a derived cache: rebuild it whenever the project set changes or lookups
-// go stale. The zero value is not usable; construct via NewIndex.
+// per project per lookup. It is a derived cache: rebuild it whenever the project
+// set changes. The zero value is not usable; construct via NewIndex.
 type Index struct {
 	byKey map[string]Project
 }
@@ -21,13 +19,9 @@ func NewIndex(projects []Project) Index {
 	return Index{byKey: byKey}
 }
 
-// Match finds the Project whose directory matches dirPath. The returned key is
-// CanonicalDirKey(dirPath) whether or not a project matched, so a caller needing
-// the canonical key reuses this computation rather than paying a second
-// EvalSymlinks.
-//
-// An empty dirPath canonicalises to the working directory, which no real project
-// key collides with, so it reports not-found.
+// Match finds the Project whose directory matches dirPath, returning
+// CanonicalDirKey(dirPath) whether or not one matched — so a caller needing the
+// canonical key reuses it rather than paying a second EvalSymlinks.
 func (idx Index) Match(dirPath string) (Project, string, bool) {
 	key := CanonicalDirKey(dirPath)
 	p, ok := idx.byKey[key]

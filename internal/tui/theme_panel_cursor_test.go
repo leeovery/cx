@@ -54,8 +54,6 @@ func TestPanelOpenCursor_Constant(t *testing.T) {
 	requireBadge(t, m, "nord", theme.BadgeConstant)
 }
 
-// `●` is what is SET and the cursor is what is PREVIEWED, so the other slot's row
-// still carries its badge; only the cursor is singular.
 func TestPanelOpenCursor_InForceSlot(t *testing.T) {
 	keys := theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}
 
@@ -118,8 +116,6 @@ func countLabel(labels []string, want string) int {
 	return n
 }
 
-// Parking the cursor on the persisted-but-broken row would put it somewhere
-// navigation cannot return to: arrows skip unselectable rows.
 func TestPanelOpenCursor_FallbackRow(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
@@ -139,8 +135,6 @@ func TestPanelOpenCursor_FallbackRow(t *testing.T) {
 	requireBadge(t, m, theme.DefaultDarkSlug, theme.BadgeNone)
 }
 
-// A badge keyed on what LOADED would sit on the fallback and silently claim it was
-// the user's choice.
 func TestPanelOpenCursor_BadgeStaysOnPersisted(t *testing.T) {
 	keys := theme.RawKeys{Light: "gone-light", Dark: "nord"}
 	m := themeCursorModel(t, t.TempDir(), keys, theme.MemberLight)
@@ -169,8 +163,6 @@ func TestPanelOpen_DoesNotChangeTheRenderedTheme(t *testing.T) {
 	}
 }
 
-// Opening can change the active theme's values: the fresh enumeration supersedes
-// the construction-time parse.
 func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -188,8 +180,6 @@ func TestPanelOpen_AppliesMidSessionEdit(t *testing.T) {
 	requireCursorOn(t, m, "sunset")
 }
 
-// The flip happens on open, never deferred to `Esc`: deferring would leave the
-// panel listing a theme as invalid while the screen still renders it.
 func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
@@ -212,9 +202,6 @@ func TestPanelOpen_InvalidatedActiveThemeFlipsOnOpen(t *testing.T) {
 	requireBadge(t, m, "sunset", theme.BadgeConstant)
 }
 
-// The only case that moves the cursor onto a row that was unselectable at
-// construction: an implementation trusting the construction-time classification
-// satisfies every other case here while stranding the user on the fallback.
 func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
@@ -237,8 +224,8 @@ func TestPanelOpen_RepairedThemeAppliesOnOpen(t *testing.T) {
 	requireBadge(t, m, theme.DefaultDarkSlug, theme.BadgeNone)
 }
 
-// The two fixtures resolve the identical setting and differ only in a row standing
-// above the target, so an index-anchored cursor cannot land on the target in both.
+// The two fixtures resolve the identical setting and differ only in a row above
+// the target, so an index-anchored cursor cannot land on the target in both.
 func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 	target := theme.Row{Slug: "nord", Source: theme.SourceBuiltin, Theme: themetest.Builtin(t, "nord")}
 	above := theme.Row{Slug: "aurora", Source: theme.SourceFile, Filename: "aurora.theme", Theme: testDarkTheme(t)}
@@ -269,8 +256,8 @@ func TestPanelOpenCursor_AnchoredByIdentity(t *testing.T) {
 	}
 }
 
-// A structural guard, not a live path: built-ins are always valid, so nothing but
-// the stub can produce a union with no row for the resolved slug.
+// A structural guard, not a live path: built-ins are always valid, so only the
+// stub can produce a union with no row for the resolved slug.
 func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 	ghost := constantResolution("ghost", testDarkTheme(t))
 
@@ -304,9 +291,8 @@ func TestPanelOpenCursor_DegradesOnMissingIdentity(t *testing.T) {
 	})
 }
 
-// A settings surface must not become the route by which a broken binary quits
-// Portal mid-session. The fake returns a fully populated resolution alongside the
-// error, so an open that ignored the error would badge, repaint and move the cursor.
+// The fake returns a fully populated resolution alongside the error, so an open
+// that ignored the error would badge, repaint and move the cursor.
 func TestPanelOpen_ResolveErrorDegrades(t *testing.T) {
 	nord := themetest.Builtin(t, "nord")
 	rows := []theme.Row{{Slug: "nord", Source: theme.SourceBuiltin, Theme: nord}}
@@ -390,8 +376,6 @@ func TestPanelOpen_CursorInvariant(t *testing.T) {
 	}
 }
 
-// Re-querying would reopen the race single resolution closes, a second after the
-// user is already reading the picker.
 func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	m := themeCursorModel(t, t.TempDir(), theme.RawKeys{Light: theme.DefaultLightSlug, Dark: "nord"}, theme.MemberLight)
 
@@ -399,8 +383,6 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	m = updated.(Model)
 
 	queryType := reflect.TypeOf(tea.Cmd(tea.RequestBackgroundColor)())
-	// Init issues the query unconditionally (restore-on-exit needs the reply), so
-	// the scan is looking for something it can demonstrably see.
 	assertBackgroundQueryIssued(t, m)
 	for _, msg := range initCmds(t, cmd) {
 		if reflect.TypeOf(msg) == queryType {
@@ -418,8 +400,6 @@ func TestPanelOpen_NoNewOSC11Query(t *testing.T) {
 	}
 }
 
-// Falling back must never overwrite the persisted theme name, which is exactly
-// what a write here would break.
 func TestPanelOpen_WritesNothing(t *testing.T) {
 	requireNoPrefsOrThemesWrite(t, panelReadOnlyPath{
 		verb:          "opening",
@@ -429,9 +409,6 @@ func TestPanelOpen_WritesNothing(t *testing.T) {
 	})
 }
 
-// A surviving injected per-slot Deps field would be a second, staler badge source,
-// and the one a fixture author would reach for — hence the source guard, since an
-// unreferenced exported function would compile forever without one.
 func TestDeps_HasNoThemeSlots(t *testing.T) {
 	depsType := reflect.TypeFor[Deps]()
 	if _, found := depsType.FieldByName("ThemeSlots"); found {
@@ -448,9 +425,8 @@ func TestDeps_HasNoThemeSlots(t *testing.T) {
 	}
 }
 
-// Capture fixtures are built from invalid drop-ins, whose rows are the unselectable
-// ones, so the seed falls through to the first selectable row. Asserted here rather
-// than in the capture harness: a still with a mis-seeded cursor looks correct.
+// Asserted here rather than in the capture harness: a still with a mis-seeded
+// cursor looks correct.
 func TestPanelOpenCursor_CaptureSeedSkipsAnUnselectableRow(t *testing.T) {
 	valid := arrowValidRow(t, "aurora", 0)
 	broken := arrowInvalidRow("half-written")

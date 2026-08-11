@@ -10,22 +10,18 @@ import (
 	"github.com/leeovery/portal/internal/warning"
 )
 
-// BootstrapWarning is an alias for warning.Warning, the canonical shape shared
-// with cmd/bootstrap.
 type BootstrapWarning = warning.Warning
 
 var flushWarningsToStderr = func(warnings []BootstrapWarning) {
 	WriteBootstrapWarnings(os.Stderr, warnings)
 }
 
-// WriteBootstrapWarnings emits every warning's lines to w in order. Write
-// errors are ignored — diagnostics must not themselves fail the program.
+// WriteBootstrapWarnings ignores write errors — diagnostics must not
+// themselves fail the program.
 func WriteBootstrapWarnings(w io.Writer, warnings []BootstrapWarning) {
 	warning.WriteLines(w, warnings)
 }
 
-// SetFlushWarningsToStderrForTest replaces the flushWarningsToStderr seam with
-// fn and returns a restore function. Test-only.
 func SetFlushWarningsToStderrForTest(fn func([]BootstrapWarning)) func() {
 	prev := flushWarningsToStderr
 	flushWarningsToStderr = fn

@@ -1,8 +1,7 @@
 package tui
 
-// keymapEntry is one binding in a per-page keymap descriptor. Descriptors
-// drive display only (footer = Core entries, help modal = all entries), not
-// dispatch — a binding change must also be made in the per-page Update switch.
+// Descriptors drive display only, not dispatch — a binding change must also be
+// made in the per-page Update switch.
 type keymapEntry struct {
 	Key string
 	// HelpKey is the help-modal key form; empty falls back to Key.
@@ -17,8 +16,7 @@ type keymapEntry struct {
 	Destructive  bool
 }
 
-// Declared once so the arrow glyphs and their help labels cannot diverge
-// between the descriptors that open with them.
+// Shared so the arrow glyphs and help labels cannot diverge between descriptors.
 func navKeymapEntries() []keymapEntry {
 	return []keymapEntry{
 		{Key: "↑↓", HelpKey: "↑/↓", Action: "navigate", HelpAction: "Move selection"},
@@ -26,9 +24,8 @@ func navKeymapEntries() []keymapEntry {
 	}
 }
 
-// Stays a pure static function: the `t`/`m` blocked-key filters are applied
-// at the call site (Model.sessionsHelpKeymap), never here, so the descriptor
-// remains a complete statement of the page's bindings.
+// Stays a pure static function: the `t`/`m` blocked-key filters are applied at
+// the call site, so the descriptor stays a complete statement of the bindings.
 func sessionsKeymap() []keymapEntry {
 	return append(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", HelpKey: "⏎", Action: "attach", HelpAction: "Open / attach session", Core: true},
@@ -46,8 +43,7 @@ func sessionsKeymap() []keymapEntry {
 	}...)
 }
 
-// Stays a pure static function: the `t` blocked-key filter is applied at the
-// call site (Model.projectsHelpKeymap), never here.
+// Stays a pure static function: the `t` blocked-key filter is applied at the call site.
 func projectsKeymap() []keymapEntry {
 	return append(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", Action: "new session", HelpAction: "New session from project", Core: true},
@@ -63,8 +59,8 @@ func projectsKeymap() []keymapEntry {
 	}...)
 }
 
-// The scope is complete — all six keys the panel dispatches, arrows and
-// paging included. Do not trim it to the four Core keys the footer shows.
+// Complete scope — every key the panel dispatches, arrows and paging included.
+// Do not trim it to the Core keys the footer shows.
 func themePanelKeymap() []keymapEntry {
 	return append(navKeymapEntries(), []keymapEntry{
 		{Key: "⏎", Action: "set theme", HelpAction: "Set as the theme", Core: true},
@@ -74,9 +70,8 @@ func themePanelKeymap() []keymapEntry {
 	}...)
 }
 
-// A nested scope, not a longer panel scope: while the confirm is live it is
-// key-exclusive within the panel, so its footer replaces the standing four
-// keys. The uppercase Y/N dispatch is deliberately not restated here.
+// Key-exclusive within the panel while the confirm is live, so its footer
+// replaces the standing keys. Uppercase Y/N dispatches but is not restated.
 func themePanelConfirmKeymap() []keymapEntry {
 	return []keymapEntry{
 		{Key: "y", Action: "confirm", HelpAction: "Clear the constant and set the slot", Core: true},

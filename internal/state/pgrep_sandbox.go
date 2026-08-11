@@ -25,8 +25,8 @@ var (
 	sandboxSources   []func() (int, bool)
 )
 
-// EnableDaemonSandbox turns on default-deny pgrep filtering for the current
-// test process. Idempotent.
+// EnableDaemonSandbox turns on default-deny filtering for this process, and is
+// idempotent.
 func EnableDaemonSandbox() {
 	sandboxMu.Lock()
 	defer sandboxMu.Unlock()
@@ -61,17 +61,16 @@ func RegisterSandboxDaemon(pid int) {
 	sandboxOwnedPID[pid] = true
 }
 
-// RegisterSandboxDaemonSource registers a callback yielding a currently-live
-// test-owned pid, or false when there is none. The closure lives in the test
-// package so this package need not read tmux itself.
+// RegisterSandboxDaemonSource takes a callback yielding a currently-live
+// test-owned pid, or false. It lives in the test package so this one need not
+// read tmux itself.
 func RegisterSandboxDaemonSource(fn func() (int, bool)) {
 	sandboxMu.Lock()
 	defer sandboxMu.Unlock()
 	sandboxSources = append(sandboxSources, fn)
 }
 
-// ResetDaemonSandbox disables filtering and clears the registry so sandbox
-// state cannot bleed across tests.
+// ResetDaemonSandbox clears the registry so sandbox state cannot bleed tests.
 func ResetDaemonSandbox() {
 	sandboxMu.Lock()
 	defer sandboxMu.Unlock()
@@ -116,8 +115,8 @@ func sandboxFilterPgrep(pids []int) []int {
 	return out
 }
 
-// A set env var naming an unreadable file yields active with zero owned dirs,
-// so a subprocess sweep kills nothing. Re-read on every enumeration so dirs
+// A set env var naming an unreadable file yields active with zero owned dirs, so
+// a subprocess sweep kills nothing. Re-read on every enumeration, so dirs
 // appended after a subprocess was spawned are honoured.
 func registrySandboxDirs() (dirs []string, active bool) {
 	path := os.Getenv(SandboxRegistryEnv)

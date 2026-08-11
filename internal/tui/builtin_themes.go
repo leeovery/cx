@@ -2,9 +2,8 @@ package tui
 
 import "github.com/leeovery/portal/internal/theme"
 
-// The seed exists because a zero Theme fails silently — lipgloss.Color("") is
-// the no-colour sentinel — and takes the silent loader: seeding is not a "use",
-// so no `theme` records are written.
+// A zero Theme fails silently (lipgloss.Color("") is the no-colour sentinel), so
+// the model needs a seed. Seeding is not a "use", hence the silent loader.
 func defaultDarkTheme() theme.Theme {
 	return loadBuiltinTheme(theme.NewSilentLoader(), theme.DefaultDarkSlug)
 }

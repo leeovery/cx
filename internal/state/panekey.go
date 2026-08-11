@@ -1,5 +1,6 @@
-// Package state provides on-disk paths and identifiers for Portal's
-// session-resurrection state directory.
+// Package state owns Portal's session-resurrection state: the sessions.json
+// schema and its capture/commit path, the scrollback and FIFO plumbing, and the
+// daemon's on-disk runtime files.
 package state
 
 import (
@@ -9,11 +10,10 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-// SanitizePaneKey returns the canonical, filesystem-safe paneKey for a session
-// name and its live tmux indices, shaped <stem>__<window>.<pane>. A name that
-// survives sanitisation unchanged is its own stem; one that had bytes replaced
-// gains a hash suffix, so two distinct names cannot collapse onto one stem. The
-// result is stable across processes and platforms.
+// SanitizePaneKey returns the canonical, filesystem-safe paneKey, shaped
+// <stem>__<window>.<pane>. A name that survives sanitisation unchanged is its
+// own stem; one that had bytes replaced gains a hash suffix, so two distinct
+// names cannot collapse onto one stem. The result is stable across platforms.
 func SanitizePaneKey(session string, window, pane int) string {
 	sanitized := sanitizeSessionName(session)
 

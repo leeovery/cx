@@ -243,8 +243,8 @@ func TestOpenCommand_SingleGlobExpandingToMany_Bursts(t *testing.T) {
 }
 
 func TestOpenCommand_MultiTarget_AllHitRepeatedPin_Bursts(t *testing.T) {
-	// A repeated same-flag pin is two targets, proving the raw-args scan preserves
-	// the repeats cobra collapses.
+	// A repeated same-flag pin is two targets: the raw-args scan preserves the
+	// repeats cobra collapses.
 	bc := installOpenMultiTargetSeams(t,
 		&OpenDeps{
 			SessionLister: &testSessionLister{names: []string{"a", "b"}},

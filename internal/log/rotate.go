@@ -15,13 +15,9 @@ const sealedMode os.FileMode = 0o400
 
 var chmodFunc = os.Chmod
 
-// sealPastDayFiles is best-effort: a chmod failure warns and the sweep continues.
-//
-// Today's file and today's overflow segments are deliberately left writable — a
-// peer process may hold an open O_APPEND fd on one, and chmod does not evict an
-// already-open writer. So is the swing temp, which must stay reclaimable. The
-// next day's sweep seals all of today's segments at once, so a multi-day gap
-// catches up in a single pass.
+// Today's file and its overflow segments are deliberately left writable: a peer
+// process may hold an open O_APPEND fd on one, and chmod does not evict an
+// already-open writer. So is the swing temp, which must stay reclaimable.
 func sealPastDayFiles(stateDir, today string) {
 	matches, err := filepath.Glob(filepath.Join(stateDir, portalLogName+".*"))
 	if err != nil {
@@ -49,8 +45,7 @@ func sealPastDayFiles(stateDir, today string) {
 }
 
 // pastDayLogDate accepts only the strict portal.log.<YYYY-MM-DD>[.<N>] shape, so
-// the swing temp, the swept sentinel and any other sibling are never candidates
-// for sealing or deletion.
+// the swing temp and the swept sentinel are never sealed or deleted.
 func pastDayLogDate(base string) (date string, ok bool) {
 	const prefix = portalLogName + "."
 	rest, found := strings.CutPrefix(base, prefix)

@@ -45,8 +45,6 @@ func (m *mockDirValidator) Exists(path string) bool {
 	return m.existing[path]
 }
 
-// mockSessionLister returns names as the user-visible
-// (leading-underscore-filtered) session set.
 type mockSessionLister struct {
 	names []string
 	err   error

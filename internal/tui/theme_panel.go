@@ -9,9 +9,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The slide-over theme panel. It is composited over the page rather than
-// replacing it because modals blank the page to the canvas — a modal picker
-// would preview nothing. No animation: open and close are one frame each.
+// Composited over the page rather than replacing it: modals blank the page to
+// the canvas, so a modal picker would preview nothing.
 
 const (
 	themePanelHeaderLabel = "Themes"
@@ -41,8 +40,7 @@ const (
 	themeNotSavedFlash = "theme not saved — see portal.log"
 )
 
-// dimNone is unreachable (callers reach this only on a refusal) and degrades
-// to the width copy.
+// dimNone is unreachable here (callers reach this only on a refusal).
 func themePanelForcedCloseFlash(dim themePanelDim) string {
 	if dim == dimHeight {
 		return themePanelShortClosedFlash
@@ -57,9 +55,6 @@ func themePanelEntryFlash(dim themePanelDim) string {
 	return themePanelNarrowEntryFlash
 }
 
-// themePanel's list has its `bubbles/list`-owned styles assigned once while its
-// theme changes on every arrow keypress; the restyle path re-points them and
-// the delegate rather than rebuilding.
 type themePanel struct {
 	// Set only once the list exists: the restyle path keys off it and would
 	// otherwise run against a zero list.Model mid-arm.
@@ -67,8 +62,7 @@ type themePanel struct {
 
 	list list.Model
 
-	// Retained for the panel's lifetime so previews and the post-commit
-	// recompute need no fresh I/O.
+	// Retained for the panel's lifetime so previews need no fresh I/O.
 	enumeration theme.Enumeration
 
 	union theme.Union
@@ -124,9 +118,8 @@ func (m Model) blockThemePanel(flash string) (tea.Model, tea.Cmd) {
 	return m, flashTickCmd(m.flashGen)
 }
 
-// The directory is read on the keypress and re-read per open, so a drop-in
-// edit shows without relaunching. The floor is re-checked with the real
-// DirUnusable — the pinned warning row raises the height floor by one.
+// Re-read per open, so a drop-in edit shows without relaunching. The floor is
+// re-checked with the real DirUnusable — the warning row raises it by one.
 func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 	if m.themeState.source == nil {
 		return m, nil
@@ -141,10 +134,8 @@ func (m Model) openThemePanel() (tea.Model, tea.Cmd) {
 }
 
 // Order matters: the delegate's budget comes from width, the list from the
-// resolution's palette and badges, the restyle path (run by the resolution's
-// ApplyTheme) keys off open, and applying styles re-sizes the list — so the
-// cursor anchors last. The capture seed re-anchors by identity and applies no
-// theme.
+// resolution's palette and badges, the restyle path keys off open, and applying
+// styles re-sizes the list — so the cursor anchors last.
 func (m *Model) armThemePanel(enumeration theme.Enumeration, union theme.Union) {
 	width, _ := themePanelWidthFor(m.contentWidth())
 	m.themePanel = themePanel{
@@ -174,10 +165,9 @@ func (m *Model) seedThemePanelMessage() {
 	}
 }
 
-// Resolves against the retained parse, never the filesystem — a fresh read
-// could disagree with the rows on screen. The broken-builtin error degrades
-// (nothing applied or written) rather than quitting Portal from a settings
-// surface; a resolution naming no slot degrades the same way.
+// Resolves against the retained parse, never the filesystem — a fresh read could
+// disagree with the rows on screen. A broken builtin or a resolution naming no
+// slot degrades (nothing applied or written) rather than quitting Portal.
 func (m *Model) applyInForceTheme(e theme.Enumeration) (theme.Resolution, theme.SlotResolution, bool) {
 	resolution, err := m.themeState.source.Resolve(e, m.themeState.keys)
 	if err != nil {
@@ -206,8 +196,7 @@ func (m *Model) applyThemePanelResolution(e theme.Enumeration) string {
 	return inForce.Resolved
 }
 
-// Routes through ResolveSetting so the keypress gate cannot disagree with the
-// seam's tiebreak.
+// Routes through ResolveSetting so the gate cannot disagree with the seam's tiebreak.
 func (m Model) themeSetting() theme.Setting {
 	setting, _ := theme.ResolveSetting(m.themeState.keys)
 	return setting
@@ -246,18 +235,16 @@ func themePanelRowIndex(rows []theme.Row, slug string) int {
 	return max(slices.IndexFunc(rows, theme.Row.Selectable), 0)
 }
 
-// Deliberately not a restore of a snapshot taken at open: a theme file broken
-// mid-session must not come back, and a commit leaves the panel open, so `Esc`
-// after one must resolve the newly persisted state. The resolution reads the
-// retained enumeration, so the discard is last.
+// Deliberately not a restore of a snapshot taken at open: a file broken
+// mid-session must not come back, and Esc after a commit must resolve the newly
+// persisted state. The resolution reads the retained enumeration, so discard last.
 func (m *Model) closeThemePanel() tea.Cmd {
 	m.applyInForceTheme(m.themePanel.enumeration)
 	m.themePanel = themePanel{}
 	return m.reportOutstandingCommitFailure()
 }
 
-// Raising discharges the state — otherwise every later close would re-fire the
-// report.
+// Raising discharges the flag, else every later close re-fires the report.
 func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 	if !m.themeState.commitFailed {
 		return nil
@@ -268,9 +255,8 @@ func (m *Model) reportOutstandingCommitFailure() tea.Cmd {
 }
 
 // Degrading must re-run applyThemePanelListStyles: a stale PerPage makes page
-// keys move a different distance than the screen scrolls, and the delegate
-// holds its width as a field, so rows would keep the pre-resize budget. When a
-// commit failure is also due, its report wins over the geometry flash.
+// keys move a different distance than the screen scrolls, and the delegate holds
+// its width as a field. A due commit-failure report wins over the geometry flash.
 func (m *Model) resizeThemePanel() tea.Cmd {
 	if !m.themePanel.open {
 		return nil
@@ -300,9 +286,8 @@ func (p themePanel) rowItems() []list.Item {
 	return items
 }
 
-// Sized to the real remainder, not themePanelMinBodyRows: `bubbles/list`
-// derives PerPage from the height it is given, and a floor-sized list pins a
-// one-row page.
+// Sized to the real remainder, not themePanelMinBodyRows: `bubbles/list` derives
+// PerPage from the height it is given, so a floor-sized list pins a one-row page.
 func (m *Model) applyThemePanelListStyles() {
 	width, rows := themePanelListSize(m.themePanel, m.contentHeight())
 	m.themePanel.list.SetSize(width, rows)
@@ -311,8 +296,7 @@ func (m *Model) applyThemePanelListStyles() {
 
 // Cannot be skipped: `bubbles/list` reads its pagination-dot strings out of the
 // styles once, so restyling without re-feeding the paginator leaves hardcoded
-// greys under every theme. The open guard keeps armThemePanel's mid-arm
-// ApplyTheme off the zero list.Model.
+// greys. The open guard keeps armThemePanel's mid-arm ApplyTheme off a zero list.
 func (m *Model) applyThemePanelCanvasMode() {
 	if !m.themePanel.open {
 		return
@@ -320,10 +304,9 @@ func (m *Model) applyThemePanelCanvasMode() {
 	applyListCanvasMode(&m.themePanel.list, m.themeRowDelegate(), m.themeState.active, m.colourless)
 }
 
-// Key-exclusive while the panel is open; only `Ctrl-C` passes. `Esc` is
-// consumed here — on the page beneath it is the progressive-back key. `Enter`
-// deliberately does not close: a dual-purpose exit would let a user who just
-// set both slots wipe the pair on the way out.
+// Key-exclusive while open; only `Ctrl-C` passes. `Esc` is consumed here — on the
+// page beneath it is the progressive-back key. `Enter` deliberately does not
+// close: a dual-purpose exit would let a user who set both slots wipe the pair.
 func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	(&m).clearThemePanelCommitFailed()
 
@@ -351,8 +334,7 @@ func (m Model) updateThemePanel(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// Matches the live KeyMap so routing and the list's dispatch share one binding
-// set.
+// Matches the live KeyMap so routing and the list's dispatch share one binding set.
 func themePanelNavKey(km list.KeyMap, msg tea.KeyPressMsg) bool {
 	return key.Matches(msg, km.CursorUp, km.CursorDown, km.PrevPage, km.NextPage)
 }
@@ -368,9 +350,8 @@ func (m *Model) moveThemePanelCursor(msg tea.KeyPressMsg) tea.Cmd {
 	return cmd
 }
 
-// Unlike skipHeaderRow it loops (broken drop-ins can be adjacent) and reverses
-// at either boundary rather than falling off. The 2×rows bound keeps an
-// all-invalid union from spinning on a keypress.
+// Loops (broken drop-ins can be adjacent) and reverses at either boundary rather
+// than falling off. The 2×rows bound keeps an all-invalid union from spinning.
 func (m *Model) skipUnselectableThemeRow(msg tea.KeyPressMsg) {
 	l := &m.themePanel.list
 	rows := len(l.Items())
@@ -412,8 +393,8 @@ func selectedThemeRow(l list.Model) (theme.Row, bool) {
 	return item.Row, true
 }
 
-// Single assembly point, re-invoked by the restyle path, so two sites cannot
-// disagree about width or colourlessness.
+// Re-invoked by the restyle path, so two sites cannot disagree about width or
+// colourlessness.
 func (m Model) themeRowDelegate() themeRowDelegate {
 	return themeRowDelegate{
 		Theme:      m.themeState.active,

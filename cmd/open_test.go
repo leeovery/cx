@@ -2996,8 +2996,8 @@ func recordStringAttr(cr capturedRecord, key string) (string, bool) {
 	return "", false
 }
 
-// Snapshots the captured records at Exec time, which is what proves the exec
-// marker was emitted before the handoff.
+// Snapshots the captured records at Exec time, so the exec marker's emission
+// can be placed before the handoff.
 type orderingExecer struct {
 	handler        *capturingHandler
 	argv0          string
@@ -3231,9 +3231,8 @@ var lifecycleBypassMessages = map[string]bool{
 	"log-level resolved": true,
 }
 
-// Models the production WARN gate plus the lifecycle bypass, so the test can
-// prove the call site emits a shape the bypass admits without exporting the
-// production handler.
+// Models the production WARN gate plus the lifecycle bypass, without exporting
+// the production handler.
 type warnBypassHandler struct {
 	mu       *sync.Mutex
 	captured *[]capturedRecord

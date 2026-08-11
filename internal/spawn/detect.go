@@ -21,7 +21,6 @@ const (
 	routeOutsideTmux = "outside-tmux env/self walk"
 )
 
-// Detector resolves the host terminal Portal is running under.
 type Detector struct {
 	insideTmux     func() bool
 	getenv         func(string) string
@@ -33,8 +32,6 @@ type Detector struct {
 	logger         *slog.Logger
 }
 
-// NewDetector builds the production Detector, wiring the real tmux, ps and
-// defaults seams.
 func NewDetector(client *tmux.Client) *Detector {
 	return &Detector{
 		insideTmux:     tmux.InsideTmux,
@@ -48,9 +45,9 @@ func NewDetector(client *tmux.Client) *Detector {
 	}
 }
 
-// Detect resolves the host-terminal Identity, emitting exactly one
-// spawn-component record. A transient failure folds to the NULL identity — the
-// same unsupported no-op path as a clean NULL — with a WARN rather than an INFO.
+// Detect emits exactly one spawn-component record. A transient failure folds to
+// the NULL identity — the same unsupported no-op path as a clean NULL — but
+// WARNs rather than INFOs.
 func (d *Detector) Detect() Identity {
 	id, route, err := d.resolve()
 

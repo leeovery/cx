@@ -73,8 +73,7 @@ func (s *rotatingSink) lockedWrite(p []byte) (int, error) {
 
 // fireDayRoll drains the pending roll under mu but runs the callback outside it:
 // the sweeps log through this same sink, so firing them under the mutex
-// self-deadlocks. The re-entrant record finds nothing pending, ending the
-// recursion.
+// self-deadlocks. The re-entrant record finds nothing pending, ending the loop.
 func (s *rotatingSink) fireDayRoll() {
 	s.mu.Lock()
 	today := s.pendingDayRoll
@@ -88,8 +87,8 @@ func (s *rotatingSink) fireDayRoll() {
 }
 
 // rotateIfOverCap must be called with s.mu held, after ensureCurrent. A size that
-// cannot be stat'd is treated as "do not rotate" so a transient error cannot
-// corrupt the write path.
+// cannot be stat'd means "do not rotate", so a transient error cannot corrupt
+// the write path.
 func (s *rotatingSink) rotateIfOverCap(p []byte) error {
 	info, err := s.file.Stat()
 	if err != nil {
@@ -183,9 +182,8 @@ func (s *rotatingSink) ensureCurrent() error {
 		return s.reopen(today, true)
 	}
 
-	// A fresh process's first write counts as a first-of-day roll. Firing on every
-	// startup is safe: the retention sweep is single-winner and the past-day seal is
-	// idempotent.
+	// A fresh process's first write counts as a first-of-day roll: the retention
+	// sweep is single-winner and the past-day seal is idempotent.
 	return s.reopen(today, true)
 }
 
@@ -269,8 +267,7 @@ func openDayFile(stateDir, today string) (*os.File, uint64, uint64, error) {
 
 // probe eagerly opens today's file so an unwritable stateDir fails at Init rather
 // than on the first record. Any first-of-day roll it queues stays pending: probe
-// runs before the configured handler is installed, so the sweep breadcrumbs would
-// land on stderr.
+// runs before the handler is installed, so the breadcrumbs would hit stderr.
 func (s *rotatingSink) probe() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

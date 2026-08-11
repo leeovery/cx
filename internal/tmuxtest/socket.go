@@ -1,6 +1,5 @@
-// Package tmuxtest provides an isolated tmux-server harness shared by tests
-// across the codebase. It lives outside `_test.go` so any package's tests can
-// import it; production code must not.
+// Package tmuxtest provides an isolated tmux-server harness. It lives outside
+// _test.go so any package's tests can import it; production code must not.
 package tmuxtest
 
 import (
@@ -18,17 +17,15 @@ func socketArgs(socketPath string, args ...string) []string {
 	return append([]string{"-S", socketPath, "-f", "/dev/null"}, args...)
 }
 
-// Socket scopes an isolated tmux server to a single test, never touching the
-// user's server. The socket is an absolute -S path rooted in /tmp: -L under
-// t.TempDir() would compose a path past the platform's ~104-byte UNIX-socket cap
-// on darwin.
+// Socket scopes an isolated tmux server to a single test. The socket is an
+// absolute -S path rooted in /tmp: -L under t.TempDir() would compose a path past
+// darwin's ~104-byte UNIX-socket cap.
 type Socket struct {
 	socketPath string
 }
 
 // New constructs a Socket and registers a cleanup that kills the server and
-// removes its temp dir, so a stray tmux server is never left behind. prefix
-// names the temp dir; an empty string defaults to "ptl-".
+// removes its temp dir. prefix names the temp dir; empty defaults to "ptl-".
 func New(t *testing.T, prefix string) *Socket {
 	t.Helper()
 	if prefix == "" {
@@ -47,18 +44,17 @@ func New(t *testing.T, prefix string) *Socket {
 	return s
 }
 
-// SocketPath returns the absolute path of the socket file. Prefer Run, TryRun or
+// SocketPath returns the socket file's absolute path; prefer Run, TryRun or
 // Client over reaching into it.
 func (s *Socket) SocketPath() string { return s.socketPath }
 
-// cmd targets the isolated socket, with -f /dev/null so tests run against
-// vanilla tmux defaults rather than the user's ~/.tmux.conf.
+// -f /dev/null runs against vanilla tmux defaults, not the user's ~/.tmux.conf.
 func (s *Socket) cmd(args ...string) *exec.Cmd {
 	return exec.Command("tmux", socketArgs(s.socketPath, args...)...)
 }
 
 // Run executes a tmux command on the isolated socket, fatalling the test on
-// failure, and returns combined stdout+stderr verbatim.
+// failure, and returns combined stdout+stderr.
 func (s *Socket) Run(t *testing.T, args ...string) string {
 	t.Helper()
 	out, err := s.cmd(args...).CombinedOutput()
@@ -68,8 +64,6 @@ func (s *Socket) Run(t *testing.T, args ...string) string {
 	return string(out)
 }
 
-// TryRun executes a tmux command on the isolated socket, returning the combined
-// output and any error for the caller to handle.
 func (s *Socket) TryRun(args ...string) (string, error) {
 	out, err := s.cmd(args...).CombinedOutput()
 	return string(out), err
@@ -92,7 +86,6 @@ func (sc *socketCommander) runRaw(args []string) ([]byte, error) {
 	return exec.Command("tmux", socketArgs(sc.socketPath, args...)...).Output()
 }
 
-// Run executes tmux on the isolated socket and trims surrounding whitespace.
 func (sc *socketCommander) Run(args ...string) (string, error) {
 	out, err := sc.runRaw(args)
 	if err != nil {
@@ -101,7 +94,6 @@ func (sc *socketCommander) Run(args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// RunRaw executes tmux on the isolated socket and returns its output verbatim.
 func (sc *socketCommander) RunRaw(args ...string) (string, error) {
 	out, err := sc.runRaw(args)
 	if err != nil {
@@ -110,14 +102,13 @@ func (sc *socketCommander) RunRaw(args ...string) (string, error) {
 	return string(out), nil
 }
 
-// Client returns a *tmux.Client wired to the isolated socket commander.
 func (s *Socket) Client() *tmux.Client {
 	return tmux.NewClient(&socketCommander{socketPath: s.socketPath})
 }
 
 // WaitForSession polls until the named session is queryable or timeout elapses.
-// new-session looks synchronous but a brief settle window has been observed
-// before the session answers.
+// new-session looks synchronous, but a brief settle window before the session
+// answers has been observed.
 func (s *Socket) WaitForSession(t *testing.T, name string, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

@@ -9,8 +9,7 @@ import (
 
 // swapHandler forwards to a replaceable inner handler. WithAttrs/WithGroup must
 // not pre-bind onto the inner handler of the moment — that would freeze a cached
-// logger to a stale delegate — so they record the operation and replay it against
-// the live handler on every Enabled/Handle.
+// logger to a stale delegate — so they record the op and replay it on each call.
 type swapHandler struct {
 	// Pointer, not value: derived handlers must share this one cell, and
 	// atomic.Pointer must not be copied.
@@ -70,7 +69,6 @@ var swap = newSwapHandler()
 
 var root = slog.New(swap)
 
-// newSwapHandler installs a pre-Init default so root is usable before Init runs.
 func newSwapHandler() *swapHandler {
 	s := &swapHandler{inner: &atomic.Pointer[slog.Handler]{}}
 	s.store(defaultHandler())
@@ -85,14 +83,14 @@ func setHandler(h slog.Handler) {
 	swap.store(h)
 }
 
-// currentHandler reads the pinned inner handler without applying any mod chain.
+// Reads the inner handler raw. Not swap.load(): that applies the mod chain, and
+// SetTestHandler stores this value back on restore, which would re-apply it.
 func currentHandler() slog.Handler {
 	return *swap.inner.Load()
 }
 
-// For returns a component-bound child logger. It is safe to call before Init and
-// never returns nil. An empty component is accepted: the component taxonomy is
-// convention, not a runtime guard.
+// For accepts an empty component: the component taxonomy is convention, not a
+// runtime guard.
 func For(component string) *slog.Logger {
 	return root.With("component", component)
 }

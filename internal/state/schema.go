@@ -7,8 +7,7 @@ import (
 	"time"
 )
 
-// SchemaVersion is the current sessions.json schema version, bumped on any
-// schema-breaking change.
+// SchemaVersion is bumped on any schema-breaking change.
 const SchemaVersion = 1
 
 // Index is the root document persisted to sessions.json.
@@ -18,9 +17,7 @@ type Index struct {
 	Sessions []Session `json:"sessions"`
 }
 
-// Session captures a single tmux session.
-//
-// PortalID persists the session's immutable @portal-id so a renamed session's
+// Session's PortalID persists the immutable @portal-id so a renamed session's
 // hook key survives a reboot — tmux user-options do not outlive the server. It
 // decodes to "" for a legacy un-stamped session, which restore keys by name.
 type Session struct {
@@ -30,7 +27,6 @@ type Session struct {
 	Windows     []Window          `json:"windows"`
 }
 
-// Window captures a single tmux window.
 type Window struct {
 	Index  int    `json:"index"`
 	Name   string `json:"name"`
@@ -40,8 +36,7 @@ type Window struct {
 	Panes  []Pane `json:"panes"`
 }
 
-// Pane captures a single tmux pane. ScrollbackFile is relative to the state
-// directory.
+// Pane's ScrollbackFile is relative to the state directory.
 type Pane struct {
 	Index          int    `json:"index"`
 	CWD            string `json:"cwd"`
@@ -50,9 +45,8 @@ type Pane struct {
 	ScrollbackFile string `json:"scrollback_file"`
 }
 
-// Canonicalize normalises the index for stable on-disk encoding, replacing nil
-// slices and maps so they encode as [] and {} rather than null. It mutates the
-// receiver.
+// Canonicalize replaces nil slices and maps so they encode as [] and {} rather
+// than null. It mutates the receiver.
 func (idx *Index) Canonicalize() {
 	idx.Version = SchemaVersion
 
@@ -83,9 +77,8 @@ func EncodeIndex(idx Index) ([]byte, error) {
 	return json.MarshalIndent(local, "", "  ")
 }
 
-// DecodeIndex parses a sessions.json payload. Malformed JSON, a missing version
-// field and a version other than SchemaVersion are all errors; unknown fields
-// are ignored for forward compatibility.
+// DecodeIndex errors on malformed JSON, a missing version field, and a version
+// other than SchemaVersion; unknown fields are ignored for forward compat.
 func DecodeIndex(data []byte) (Index, error) {
 	var idx Index
 	if err := json.Unmarshal(data, &idx); err != nil {

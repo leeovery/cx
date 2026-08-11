@@ -1,9 +1,7 @@
 // Package themetest supports Portal's theme tests: it authors `.theme` fixture
 // files, loads the embedded built-ins by slug, and builds the synthetic probe
-// palettes a swap guard diffs between. It is the single definition of the
-// fixture format, so a change to what the loader reads is one edit here.
-// Lines() is a complete valid file and the WithX helpers derive the broken
-// variants, each returning a fresh slice.
+// palettes a swap guard diffs between. It defines the fixture format, so a
+// change to what the loader reads is one edit here.
 //
 // Test-only: production code must not import this package.
 package themetest
@@ -19,14 +17,14 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// One mode for every fixture, so no test can depend on a permission difference
-// that says nothing about what it is testing.
+// One mode for every fixture, so no test depends on a permission difference that
+// says nothing about what it is testing.
 const fixtureMode = 0o600
 
-// Lines renders a complete, valid theme file: one `key = value` line per
-// token, in canonical order, each carrying a distinct value. The values are
-// lower case, so a theme parsed from these lines proves the loader's
-// canonicalisation rather than merely echoing the file.
+// Lines renders a complete, valid theme file: one `key = value` line per token,
+// in canonical order, each carrying a distinct value. The values are lower case,
+// so a theme parsed from these lines proves the loader's canonicalisation rather
+// than merely echoing the file.
 func Lines() []string {
 	names := theme.TokenNames()
 	lines := make([]string, 0, len(names))
@@ -48,7 +46,7 @@ func Render(lines []string) []byte {
 }
 
 // WithValue returns the lines with the named key's value replaced, in the same
-// file order. The input is left untouched.
+// file order, leaving the input untouched.
 func WithValue(lines []string, key, value string) []string {
 	replaced := slices.Clone(lines)
 	for i, line := range replaced {
@@ -60,7 +58,7 @@ func WithValue(lines []string, key, value string) []string {
 }
 
 // WithoutKey returns the lines with the named key's line removed — a file that
-// never declared it. The input is left untouched.
+// never declared it — leaving the input untouched.
 func WithoutKey(lines []string, key string) []string {
 	return slices.DeleteFunc(slices.Clone(lines), func(line string) bool {
 		return strings.HasPrefix(line, key+" = ")
@@ -68,10 +66,10 @@ func WithoutKey(lines []string, key string) []string {
 }
 
 // WithDuplicateKeyAt returns the lines with a copy of the named key's line
-// spliced in as the at-th line (1-based) of the result. Lines declaring the
-// key nowhere are returned unchanged and the input is left untouched; the
-// position is a parameter because the rejection detail names it. Splicing
-// outside the result panics.
+// spliced in as the at-th line (1-based) of the result, leaving the input
+// untouched. Lines declaring the key nowhere come back unchanged; the position
+// is a parameter because the rejection detail names it, and splicing outside the
+// result panics.
 func WithDuplicateKeyAt(lines []string, key string, at int) []string {
 	spliced := slices.Clone(lines)
 	first := slices.IndexFunc(spliced, func(line string) bool {
@@ -83,7 +81,6 @@ func WithDuplicateKeyAt(lines []string, key string, at int) []string {
 	return slices.Insert(spliced, at-1, spliced[first])
 }
 
-// Write writes lines as a file named base inside dir and returns its path.
 func Write(t *testing.T, dir, base string, lines []string) string {
 	t.Helper()
 

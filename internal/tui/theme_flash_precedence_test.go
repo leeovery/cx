@@ -217,8 +217,6 @@ func TestThemeFlash_AllSixUseSetThemeFlash(t *testing.T) {
 	})
 }
 
-// Derived structurally rather than by naming today's copy, so a later signal is
-// covered whether it is pinned as a constant or chosen by a selector.
 func themeCopyVocabulary(files map[string]*ast.File) map[string]bool {
 	vocabulary := map[string]bool{}
 	for name, file := range files {
@@ -297,8 +295,6 @@ func themeCopyReference(expr ast.Expr, vocabulary map[string]bool) string {
 	return offender
 }
 
-// Bundled so one assertion body runs against Sessions and Projects rather than
-// two near-copies that could drift.
 type themeFlashSurface struct {
 	name         string
 	page         page
@@ -352,8 +348,8 @@ var themeFlashFilterStates = []struct {
 	{name: "a filter applied", lock: true, want: list.FilterApplied},
 }
 
-// Colourless so the production `t` raises the NO_COLOR panel block — the one
-// theme signal reachable by keypress while a filter is applied.
+// Colourless so the production `t` raises the NO_COLOR block — a theme signal
+// reachable by keypress while a filter is applied.
 func themeFlashModel(t *testing.T, p page) Model {
 	t.Helper()
 	m, _ := newEntryModel(t, newEntryEnumerator(t, false), entryModelOpts{
@@ -485,8 +481,8 @@ func TestThemeFlash_OutranksAppliedFilterOnSessions(t *testing.T) {
 	}
 }
 
-// Raised directly rather than by keypress: `t` is a literal filter character
-// while the input is focused.
+// Raised directly, not by keypress: `t` is a literal filter character while the
+// input is focused.
 func TestThemeFlash_OutranksLiveFilterOnSessions(t *testing.T) {
 	s := sessionsFlashSurface()
 	m, baseline := filteredThemeFlashModel(t, s, false, list.Filtering)
@@ -508,7 +504,6 @@ func TestThemeFlash_OutranksAppliedFilterOnProjects(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m, baseline := filteredThemeFlashModel(t, s, tc.lock, tc.want)
 
-			// A focused input swallows `t` as a filter character.
 			if tc.lock {
 				m = raiseBlockedThemeFlash(t, m)
 			} else {

@@ -12,9 +12,8 @@ import (
 // naked send always finds buffer space or a waiting receiver.
 const burstProgressBufferSize = 64
 
-// burstProgress is the picker-burst channel event. Exactly one terminal event
-// (Done=true) is sent, last, before the channel closes; it carries either Gone
-// (pre-flight abort — nothing spawned) or the burst outcome.
+// Exactly one terminal event (Done=true) is sent, last, before the channel
+// closes, carrying either Gone (pre-flight abort — nothing spawned) or the outcome.
 type burstProgress struct {
 	DoneCount int
 	Total     int
@@ -63,10 +62,9 @@ func (p *burstProgressPipe) start(ctx context.Context, run func(ctx context.Cont
 	}()
 }
 
-// The terminal event must be a naked send: a ctx-guarded terminal send raced
-// ctx.Done on cancel and left the picker permanently input-locked. It cannot
-// block — it is the last send before the deferred close and a receiver is
-// consuming. Progress events are advisory and stay droppable on cancel.
+// The terminal event must be a naked send: guarding it with ctx races ctx.Done
+// on cancel and leaves the picker permanently input-locked. It cannot block —
+// last send before the deferred close, with a receiver consuming.
 func (p *burstProgressPipe) send(ctx context.Context, ev burstProgress) {
 	if ev.Done {
 		p.ch <- ev
@@ -130,26 +128,18 @@ func (r burstRunner) run(ctx context.Context, emit func(burstProgress)) {
 	})
 }
 
-// WithSessionExists wires the burst pre-flight has-session probe.
-// Nil-tolerant; production passes client.HasSession.
 func WithSessionExists(fn func(string) bool) Option {
 	return func(m *Model) { m.sessionExists = fn }
 }
 
-// WithAckChannel wires the burst token-ack channel. Nil-tolerant; production
-// passes spawn.NewServerOptionAckChannel(client, client).
 func WithAckChannel(ack spawn.AckChannelFull) Option {
 	return func(m *Model) { m.ackChannel = ack }
 }
 
-// WithSpawnExe wires the burst executable resolver. Nil-tolerant; production
-// passes os.Executable.
 func WithSpawnExe(exe spawn.ExecutableResolver) Option {
 	return func(m *Model) { m.spawnExe = exe }
 }
 
-// WithSpawnGetenv wires the burst PATH reader for argv composition.
-// Nil-tolerant; production passes os.Getenv.
 func WithSpawnGetenv(fn func(string) string) Option {
 	return func(m *Model) { m.spawnGetenv = fn }
 }
@@ -168,9 +158,7 @@ func (m *Model) resetBurstState() {
 	m.burstCancelled = false
 }
 
-// WithInitialBurstOpening seeds the in-burst Opening band at construction —
-// the capture-harness entry point; no goroutine, pipe, or cancel is wired.
-// The zero value is a no-op.
+// Seeds the Opening band without wiring a goroutine, pipe, or cancel.
 func WithInitialBurstOpening(done, total int) Option {
 	return func(m *Model) {
 		if done == 0 && total == 0 {
@@ -182,32 +170,25 @@ func WithInitialBurstOpening(done, total int) Option {
 	}
 }
 
-// BurstPending reports whether an async spawn burst is in flight, for testing.
 func (m Model) BurstPending() bool { return m.burstPending }
 
-// BurstExternal returns the net-N external set in list order, for testing.
 func (m Model) BurstExternal() []string { return m.burstExternal }
 
-// BurstTrigger returns the burst's self-attach target, for testing.
 func (m Model) BurstTrigger() string { return m.burstTrigger }
 
-// BurstTotal returns N, the full marked-set size, for testing.
 func (m Model) BurstTotal() int { return m.burstTotal }
 
-// BurstDone returns the per-window confirm counter, for testing. It advances
-// 0…N-1, never reaching N: the trigger self-attaches silently.
+// BurstDone advances 0…N-1, never reaching N: the trigger self-attaches silently.
 func (m Model) BurstDone() int { return m.burstDone }
 
-// cancelBurst deliberately keeps burstPending true: the goroutine still sends
-// its terminal event (delivered reliably via the naked send), so the picker
-// stays input-locked until that event lands and never wedges.
+// Deliberately keeps burstPending true: the goroutine still sends its terminal
+// event, so the picker stays input-locked until that lands and never wedges.
 func (m Model) cancelBurst() (tea.Model, tea.Cmd) {
 	if m.burstCancel != nil {
 		m.burstCancel()
 	}
 	m.burstCancelled = true
-	// Only the capture harness sets pending without a pipe; guard the nil
-	// dereference there.
+	// A seeded capture frame has pending set without a pipe.
 	if m.burstPipe == nil {
 		return m, nil
 	}
@@ -237,9 +218,8 @@ func (m Model) orderedMarkedSessions() []string {
 	return ordered
 }
 
-// While detection is in flight the Enter defers (and dispatches detection if
-// it never ran, so the defer can resolve). No snapshot is stashed — the marked
-// set is re-derived at resolution so toggles during the window are honoured.
+// No snapshot is stashed — the marked set is re-derived at resolution, so
+// toggles during the detection window are honoured.
 func (m Model) beginBurst(ordered []string) (Model, tea.Cmd) {
 	if !m.detectResolved {
 		m.pendingBurstEnter = true
@@ -274,17 +254,13 @@ func (m Model) decideBurst(ordered []string) (Model, tea.Cmd) {
 	return m.dispatchBurst(ordered)
 }
 
-// The ⚠ glyph is added by the warning notice band, not the message text.
 func unsupportedFlashText(id spawn.Identity) string {
 	return spawn.UnsupportedNoopMessage(id)
 }
 
-// dispatchBurst reads the adapter/resolution from the detection-time cache,
-// never a fresh re-resolve: re-resolving was a TOCTOU nil-adapter panic (the
-// config-script recipe re-stats its script on every resolve, so a script
-// deleted between detection and Enter slipped past the DetectUnsupported gate
-// and nil-panicked the burst goroutine). The nil-adapter guard routes an
-// inconsistent resolve to the unsupported no-op instead.
+// Reads adapter/resolution from the detection-time cache, never a fresh
+// re-resolve: a config-script recipe re-stats its script on every resolve, so a
+// script deleted after detection would slip the gate and nil-panic the burst.
 func (m Model) dispatchBurst(ordered []string) (Model, tea.Cmd) {
 	external, trigger := spawn.SplitNetN(ordered)
 

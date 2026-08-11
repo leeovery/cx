@@ -1,7 +1,5 @@
 package cmd
 
-// Shared test scaffolding for the hooks stale-cleanup path.
-
 import (
 	"context"
 	"errors"
@@ -23,9 +21,8 @@ type recordedLog struct {
 	message   string
 }
 
-// recordingLogger captures every emission in memory. WithAttrs replays the
-// bound attrs onto each record, so the captured component is populated even
-// though production binds it at the logger rather than the call site.
+// WithAttrs replays the bound attrs onto each record, so the captured component
+// is populated even though production binds it at the logger, not the call site.
 type recordingLogger struct {
 	entries []recordedLog
 	// shared points at the entries-owning recorder so derived handlers record

@@ -1,7 +1,5 @@
 package spawn
 
-// SurfaceKind distinguishes the two outcomes a resolved open target reduces to:
-// attaching to an existing session, or minting a fresh one at a directory.
 type SurfaceKind int
 
 const (
@@ -23,10 +21,9 @@ func (k SurfaceKind) String() string {
 	}
 }
 
-// Surface is one resolved open target: an attach to a named session, or a mint at
-// a literal directory. A mint's Value must already be the resolved absolute dir,
-// never an alias key or zoxide query — those could re-resolve differently inside
-// the spawned window.
+// Surface is one resolved open target. A mint's Value must already be the
+// resolved absolute dir, never an alias key or zoxide query — those could
+// re-resolve differently inside the spawned window.
 type Surface struct {
 	Kind  SurfaceKind
 	Value string

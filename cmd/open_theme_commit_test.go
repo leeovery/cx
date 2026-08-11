@@ -18,8 +18,8 @@ import (
 // user does, by the canvas the previewed row paints.
 
 const (
-	// Drop-ins rather than built-ins: only a file proves the panel read the
-	// themes directory the production enumerator resolved.
+	// Drop-ins rather than built-ins: a built-in resolves out of the embedded set
+	// without the themes directory being read at all.
 	roundTripStandingSlug = "aurora"
 	roundTripChosenSlug   = "sunset"
 
@@ -47,7 +47,7 @@ var (
 	themePanelCursorDownKey = tea.KeyPressMsg{Code: tea.KeyDown}
 	themePanelConfirmKey    = tea.KeyPressMsg{Code: 'y', Text: "y"}
 
-	// Restated because internal/tui keeps the four strings unexported.
+	// Restated because internal/tui keeps these strings unexported.
 	roundTripBadgeCopy = map[theme.Badge]string{
 		theme.BadgeConstant: "●",
 		theme.BadgeLight:    "● light",
@@ -231,9 +231,8 @@ func roundTripUnionSlugs() []string {
 	return append(theme.BuiltinSlugs(), roundTripStandingSlug, roundTripChosenSlug)
 }
 
-// The cursor is arrowed away from the row the panel opened on: that is the only
-// shape in which "the cursor's slug" and "the persisted slug" are
-// distinguishable strings.
+// The cursor is arrowed away from the row the panel opened on, so "the cursor's
+// slug" and "the persisted slug" are distinguishable strings.
 func TestThemePanelCommit_EnterRoundTripsAConstantToPrefs(t *testing.T) {
 	seedRoundTripThemes(t)
 	path := setPrefsFile(t, `{"session_list_mode":"by-tag","theme_dark":"`+roundTripStandingSlug+`"}`)

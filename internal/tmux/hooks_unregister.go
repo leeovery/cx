@@ -17,11 +17,9 @@ var portalEvents = managedEventNames()
 
 // UnregisterPortalHooks removes every Portal-owned hook entry from the global
 // tmux hook table, leaving user and other-plugin entries on the same events
-// untouched. It never short-circuits: every removal is attempted and failures
-// are aggregated via errors.Join.
-//
-// The per-event loop must not be collapsed into a single whole-scope read (see
-// ShowGlobalHooksForEvent): the blind events' entries would survive teardown.
+// untouched. It never short-circuits: every removal is attempted and failures are
+// aggregated. The per-event loop must not be collapsed into a single whole-scope
+// read (see ShowGlobalHooksForEvent): the blind events' entries would survive.
 func UnregisterPortalHooks(c *Client) error {
 	return unregisterPortalHooks(c, bootstrapLogger)
 }

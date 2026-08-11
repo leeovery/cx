@@ -8,9 +8,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The rows are naturally ragged (the trailing L widens row 5);
-// renderBlockWordmark right-pads them at render time. Do not add trailing
-// spaces here — gofmt and editors strip them.
+// Rows are naturally ragged; renderBlockWordmark right-pads at render time. Do
+// not pad here — gofmt and editors strip trailing spaces.
 var loadingWordmark = [5]string{
 	"█████ █████ █████ █████ █████ █",
 	"█   █ █   █ █   █   █   █   █ █",
@@ -46,7 +45,6 @@ const (
 
 var loadingBlockBannerWidth = computeBlockBannerWidth()
 
-// The common width every ragged row is right-padded to.
 func blockBannerMaxRowWidth() int {
 	widest := 0
 	for _, row := range loadingWordmark {
@@ -87,11 +85,9 @@ func renderLoadingScreen(view LoadingProgressView, w, h int, th theme.Theme, col
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, block)
 }
 
-// Degrade, never overflow. Width steps the wordmark block → single-row →
-// compact and clamps the bar; height drops the inter-section gaps first, then
-// collapses the banner, then drops it — bar + list (+ error footer) is the
-// irreducible floor. The bar width derives from the rendered wordmark so it
-// spans the logo in every degraded form.
+// Degrade, never overflow: bar + list (+ error footer) is the irreducible floor.
+// The bar width derives from the rendered wordmark, so it spans the logo in
+// every degraded form.
 func composeLoadingBlock(view LoadingProgressView, w, h int, th theme.Theme, colourless bool) string {
 	list := renderTickList(view.Labels, w, th, colourless)
 	listHeight := lipgloss.Height(list)
@@ -147,7 +143,7 @@ func loadingFg(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 }
 
 // belowHeight is the rendered height of everything below the bar, so the block
-// banner only claims its five rows when the rest still fits.
+// banner claims its rows only when the rest still fits.
 func renderLoadingWordmark(w, h, belowHeight int, th theme.Theme, colourless bool) string {
 	blockFitsHeight := len(loadingWordmark)+1+belowHeight <= h
 	if w >= loadingBlockBannerWidth && blockFitsHeight {
@@ -160,9 +156,8 @@ func renderLoadingWordmark(w, h, belowHeight int, th theme.Theme, colourless boo
 	return renderSingleRowWordmark(headerCompactWordmark, th, colourless)
 }
 
-// The caret is built as its own column and joined once against the padded
-// stack: appending it per-row jogged on the wider bottom row and broke it into
-// a detached comma. The padding also renders the trailing L's stem correctly.
+// The caret is its own column joined once against the padded stack: appending it
+// per-row jogs on the wider bottom row and breaks into a detached comma.
 func renderBlockWordmark(th theme.Theme, colourless bool) string {
 	lettersStyle := loadingFg(th.TextPrimary, th, colourless).Bold(true)
 	caretStyle := loadingFg(th.AccentPrimary, th, colourless)
@@ -196,8 +191,6 @@ func renderSingleRowWordmark(wordmark string, th theme.Theme, colourless bool) s
 	return lipgloss.JoinHorizontal(lipgloss.Top, letters, gap, caret)
 }
 
-// Under NO_COLOR the bar drops both backgrounds and renders filled glyphs over
-// track glyphs — still determinate.
 func renderLoadingBar(fraction float64, w, barWidth int, th theme.Theme, colourless bool) string {
 	barW := min(barWidth, w)
 	if barW <= 0 {
@@ -236,9 +229,7 @@ func renderTickList(labels []LoadingLabel, w int, th theme.Theme, colourless boo
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// Rows are shed in increasing priority — spacer, then hint, then message — so
-// the footer never overflows the budget. Below one row the failed step's ✗
-// carries the failure alone.
+// Below one row the footer vanishes and the failed step's ✗ carries it alone.
 func renderErrorFooter(message string, w, budget int, th theme.Theme, colourless bool) []string {
 	if budget < 1 {
 		return nil

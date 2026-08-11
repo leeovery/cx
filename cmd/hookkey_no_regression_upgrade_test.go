@@ -1,8 +1,8 @@
 package cmd
 
-// Real tmux rather than a stub lister: the property under test is that tmux's
-// own #{?@portal-id,...,#{session_name}} conditional resolves an un-stamped
-// session to its name. A stub would hand back the name and prove nothing.
+// Real tmux rather than a stub lister: it is tmux's own
+// #{?@portal-id,...,#{session_name}} conditional that resolves an un-stamped
+// session to its name, and a stub would simply hand the name back.
 
 import (
 	"slices"
@@ -41,8 +41,6 @@ func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T)
 }`
 	store, path := newTempHooksStore(t, seed)
 
-	// Non-vacuity guard: without it a "survives" assertion could pass on an entry
-	// that was never written, and "swept" on one never present.
 	preRun, err := store.Load()
 	if err != nil {
 		t.Fatalf("pre-cleanup store.Load: %v", err)
@@ -74,9 +72,6 @@ func TestHookKeyNoRegressionUpgrade_UnstampedNameKeyedHookSurvives(t *testing.T)
 	}
 }
 
-// assertLiveHookKeyPresent pins the name fallback at the source, so a
-// surviving-entry assertion cannot pass merely because the live set came back
-// empty or erroring.
 func assertLiveHookKeyPresent(t *testing.T, lister AllPaneLister, want string) {
 	t.Helper()
 	live, err := lister.ListAllPaneHookKeys()

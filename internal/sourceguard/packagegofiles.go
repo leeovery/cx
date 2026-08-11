@@ -9,11 +9,9 @@ import (
 
 // PackageGoFiles returns the .go files held directly by dir, in filename order,
 // never descending into a subdirectory. Test sources are included only when
-// includeTests is set.
-//
-// An unreadable directory and a directory yielding no matching file are both
-// errors: a guard that enumerates nothing must fail rather than pass having
-// stopped looking.
+// includeTests is set. An unreadable directory and one yielding no matching file
+// are both errors: a guard that enumerates nothing must fail rather than pass
+// having stopped looking.
 func PackageGoFiles(dir string, includeTests bool) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

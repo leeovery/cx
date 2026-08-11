@@ -1,4 +1,3 @@
-// Package session provides session management utilities for Portal.
 package session
 
 import (
@@ -12,15 +11,13 @@ const (
 	suffixLen  = 6
 )
 
-// NanoIDAlphabet is the shared option-name-safe charset for generated ids:
-// letters and digits only. The absence of "-" is load-bearing — it keeps the
-// "<batch>-<token>" spawn-marker split unambiguous.
+// NanoIDAlphabet is the option-name-safe charset for generated ids. The absence
+// of "-" is load-bearing — it keeps the "<batch>-<token>" spawn-marker split
+// unambiguous.
 const NanoIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-// IDGenerator produces a random string suitable for use as a session name suffix.
 type IDGenerator func() (string, error)
 
-// ExistsFunc reports whether a tmux session with the given name already exists.
 type ExistsFunc func(name string) bool
 
 // SanitiseProjectName replaces the characters tmux rejects in a session name —
@@ -50,8 +47,6 @@ func GenerateSessionName(projectName string, gen IDGenerator, exists ExistsFunc)
 	return "", fmt.Errorf("failed to generate unique session name after %d attempts", maxRetries)
 }
 
-// NewNanoIDGenerator returns an IDGenerator producing 6-character alphanumeric
-// strings from crypto/rand.
 func NewNanoIDGenerator() IDGenerator {
 	return func() (string, error) {
 		bytes := make([]byte, suffixLen)

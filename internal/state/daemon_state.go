@@ -14,24 +14,21 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// ErrPIDFileAbsent reports that daemon.pid does not exist, as distinct from an
-// I/O or parse failure reading it.
+// ErrPIDFileAbsent is distinct from an I/O or parse failure reading daemon.pid.
 var ErrPIDFileAbsent = errors.New("daemon.pid absent")
 
-// ErrVersionFileAbsent reports that daemon.version does not exist, as distinct
-// from an I/O failure reading it.
+// ErrVersionFileAbsent is distinct from an I/O failure reading daemon.version.
 var ErrVersionFileAbsent = errors.New("daemon.version absent")
 
-// WritePIDFile atomically writes pid to daemon.pid inside dir. Plain
-// AtomicWrite is deliberate — the pid is non-sensitive, so the umask defence
-// applied to sessions.json and scrollback is not wanted here.
+// WritePIDFile uses plain AtomicWrite deliberately — the pid is non-sensitive,
+// so the umask defence applied to sessions.json and scrollback is unwanted here.
 func WritePIDFile(dir string, pid int) error {
 	content := strconv.Itoa(pid) + "\n"
 	return fileutil.AtomicWrite(DaemonPID(dir), []byte(content))
 }
 
-// ReadPIDFile reads daemon.pid from dir and returns the parsed pid. A missing
-// file gives ErrPIDFileAbsent; every other failure is wrapped, with a zero pid.
+// ReadPIDFile gives ErrPIDFileAbsent for a missing file; every other failure is
+// wrapped, with a zero pid.
 func ReadPIDFile(dir string) (int, error) {
 	data, err := readDaemonFile(DaemonPID(dir), ErrPIDFileAbsent)
 	if err != nil {
@@ -44,9 +41,8 @@ func ReadPIDFile(dir string) (int, error) {
 	return pid, nil
 }
 
-// IsProcessAlive reports whether pid names an existing process, probing with
-// kill(pid, 0). A process we lack permission to signal still counts as alive;
-// pid <= 0 and every other error count as dead.
+// IsProcessAlive probes with kill(pid, 0): a process we lack permission to
+// signal still counts as alive, while pid <= 0 and every other error are dead.
 func IsProcessAlive(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -65,8 +61,7 @@ func IsProcessAlive(pid int) bool {
 	return false
 }
 
-// DaemonAlive reports whether dir holds a daemon.pid naming a live process; a
-// missing or unparseable file counts as not alive.
+// DaemonAlive counts a missing or unparseable daemon.pid as not alive.
 func DaemonAlive(dir string) bool {
 	pid, err := ReadPIDFile(dir)
 	if err != nil {
@@ -75,8 +70,7 @@ func DaemonAlive(dir string) bool {
 	return IsProcessAlive(pid)
 }
 
-// WriteVersionFile atomically writes version to daemon.version inside dir.
-// Plain AtomicWrite is deliberate, as in WritePIDFile.
+// WriteVersionFile uses plain AtomicWrite deliberately, as in WritePIDFile.
 func WriteVersionFile(dir, version string, logger *slog.Logger) error {
 	logger = loggerOrDiscard(logger)
 	path := DaemonVersion(dir)
@@ -86,9 +80,8 @@ func WriteVersionFile(dir, version string, logger *slog.Logger) error {
 	return fileutil.AtomicWrite(path, []byte(version+"\n"))
 }
 
-// ReadVersionFile returns the trimmed contents of daemon.version in dir. A
-// missing file gives ErrVersionFileAbsent, while an empty file gives ("", nil)
-// — a recorded blank version is distinguishable from none.
+// ReadVersionFile gives ErrVersionFileAbsent for a missing file, but ("", nil)
+// for an empty one — a recorded blank version is distinguishable from none.
 func ReadVersionFile(dir string) (string, error) {
 	data, err := readDaemonFile(DaemonVersion(dir), ErrVersionFileAbsent)
 	if err != nil {

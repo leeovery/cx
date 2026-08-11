@@ -60,9 +60,8 @@ func TestPanelRecompute_RowDisappearsOnConstantCommit(t *testing.T) {
 	requireCursorOn(t, m, "sunset")
 }
 
-// Takes (slug, slot) rather than finished keys, so the recompute is driven from a
-// state a single slot commit can actually produce. It calls the commit directly
-// because the key is gated behind the confirm while a constant is set.
+// Calls the commit directly because the key is gated behind the confirm while a
+// constant is set.
 func commitSlotForTest(t *testing.T, m Model, slug string, member theme.Member) Model {
 	t.Helper()
 
@@ -149,9 +148,8 @@ func TestPanelRecompute_VirginInstallBadgeCollapse(t *testing.T) {
 	requireBadgeText(t, m, 1, 0, 0)
 }
 
-// prefs.json on disk is seeded to name a slug this instance has never held, so a
-// re-read — of the file or of the merged bytes the persister's read-modify-write
-// just had in hand — would show up as a row.
+// prefs.json on disk is seeded to name a slug this instance has never held, so
+// a re-read — of the file or of the persister's merged bytes — shows up as a row.
 func TestPanelRecompute_ReadsNothing(t *testing.T) {
 	t.Run("no directory read", func(t *testing.T) {
 		dir := t.TempDir()
@@ -183,7 +181,6 @@ func TestPanelRecompute_ReadsNothing(t *testing.T) {
 		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
-		// The in-memory light slot names `ghost`; the file names `phantom`.
 		keys := theme.RawKeys{Theme: "sunset", Light: "ghost", Dark: "sunset"}
 		m, _, _ := newRecomputePanelModel(t, dir, keys)
 
@@ -288,12 +285,8 @@ func TestPanelRecompute_NoChangeCommitIsStable(t *testing.T) {
 	}
 }
 
-// The only error Resolve can return: a binary whose embedded set cannot supply a
-// fallback. A real loader cannot produce it, hence the fake.
 var errThemeResolveFatal = errors.New("theme: the embedded set cannot supply a fallback")
 
-// Count and Rejected are derived from the rows rather than passed in: a
-// hand-carried tally can disagree with its own rows.
 func themeRowsUnion(rows []theme.Row) theme.Union {
 	return themeRowsUnionDirUnusable(rows, false)
 }
@@ -343,9 +336,8 @@ func TestThemeRowsUnion_DerivesTalliesFromRows(t *testing.T) {
 	}
 }
 
-// The two different unions isolate the recompute's own effect: what the panel
-// lists after a commit came from the reassembly, what it lists without one came
-// from the open. A real loader cannot reach the states the suite drives.
+// The two unions differ deliberately: what the panel lists after a commit came
+// from the reassembly, what it lists without one came from the open.
 func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlug string) (Model, *fakeThemeSource, *fakeThemePersister) {
 	t.Helper()
 
@@ -363,9 +355,8 @@ func newSplitPanelModel(t *testing.T, opened, reassembled []theme.Row, cursorSlu
 	return openCommitPanel(t, deps, PageSessions, cursorSlug), enumerator, persister
 }
 
-// A structural guard, not a live path: the alternative to degrading is indexing
-// out of range inside a list the user is looking at. The clamp lands on the first
-// SELECTABLE row, which is why the reassembly leads with an unselectable one.
+// The clamp lands on the first SELECTABLE row, which is why the reassembly
+// leads with an unselectable one.
 func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
 	opened := arrowValidRows(t, 4)
 	reassembled := []theme.Row{
@@ -385,10 +376,8 @@ func TestPanelRecompute_CursorClampsOnMissingIdentity(t *testing.T) {
 	}
 }
 
-// Degrading means keeping the existing table: theme.Badges returns an empty map
-// for an empty slice, so deriving from a zero Resolution would wipe every `●` off
-// the panel at the moment the user committed one. The reassembly's order is
-// deliberately not alphabetical, so a caller-side sort would show up.
+// The reassembly's order is deliberately not alphabetical, so a caller-side
+// sort would show up.
 func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 	opened := arrowValidRows(t, 4)
 	reassembled := []theme.Row{
@@ -401,8 +390,8 @@ func TestPanelRecompute_ResolveErrorKeepsBadges(t *testing.T) {
 	if badges[arrowSlug(0)] != theme.BadgeConstant {
 		t.Fatalf("fixture: the open left badges %v, want a constant `●` on %q", badges, arrowSlug(0))
 	}
-	// The seam answers as the loader does — the fatal alongside a ZERO Resolution —
-	// which is what keeps the assertion below from being vacuous.
+	// A ZERO Resolution alongside the fatal, as the loader answers: a populated
+	// one would make the assertion below vacuous.
 	enumerator.resolution = theme.Resolution{}
 	enumerator.err = errThemeResolveFatal
 
@@ -444,10 +433,9 @@ func TestPanelRecompute_SkippedOnFailedCommit(t *testing.T) {
 	}
 }
 
-// `bubbles/list` reads its pagination dot strings out of the styles once at
-// construction, so a list rebuilt here would print the library's hardcoded greys
-// under every theme. The Title field is the instance probe: production never reads
-// or writes it, so a value in it survives an item swap but not a fresh list.Model.
+// `bubbles/list` snapshots its dot strings at construction, so a rebuilt list
+// prints the library greys. Title is the instance probe: production never
+// touches it, so a value there survives an item swap but not a fresh list.Model.
 func TestPanelRecompute_ItemsReplacedNotRebuilt(t *testing.T) {
 	const (
 		sentinel   = "recompute-instance-probe"

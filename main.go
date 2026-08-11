@@ -13,7 +13,7 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// Test seams, swapped by package-level assignment.
+// Test seams; production never reassigns them.
 var (
 	executeFunc           = cmd.Execute
 	errOut      io.Writer = os.Stderr
@@ -37,15 +37,13 @@ func main() {
 	os.Exit(code)
 }
 
-// run executes the CLI inside a panic-recovering closure, returning the exit
-// code and whether a panic was recovered. It deliberately never exits, leaving
-// main to own process termination.
+// run executes the CLI inside a panic-recovering closure. It deliberately never
+// exits, leaving main to own process termination.
 func run() (code int, panicked bool) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// The sole terminal marker on this path; main skips Close so it is
-				// not followed by an exit marker too.
+				// The sole terminal marker on this path; main skips Close.
 				log.For("process").Error("panic", "reason", r)
 				code = 2
 				panicked = true

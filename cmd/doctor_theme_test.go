@@ -116,8 +116,6 @@ func TestThemeAdvisories_InvalidFileFrame(t *testing.T) {
 	}
 }
 
-// The expectation is the error the OS reports for the same read, and it must
-// appear exactly once — a double-prefixed line would still contain it.
 func TestThemeAdvisories_UnreadableFileKeepsOSError(t *testing.T) {
 	t.Run("a mode-0000 file", func(t *testing.T) {
 		skipUnlessModeBitsDeny(t)
@@ -379,7 +377,6 @@ func TestThemeAdvisories_EmitsNoThemeRecords(t *testing.T) {
 			t.Fatalf("chmod 0000 %s: %v", denied, err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(denied, 0o644) })
-		// Vacuity guard: a readable fixture would leave the reject set short.
 		_ = requireDeniedRead(t, denied)
 
 		records := assertNoThemeRecords(t, func() {
@@ -493,7 +490,7 @@ func TestThemeAdvisories_ReachTheDoctorReport(t *testing.T) {
 }
 
 // A `nord.theme` beside no built-in `nord` is an ordinary valid drop-in
-// producing no line, so a colliding fixture over one would prove nothing.
+// producing no line at all.
 func requireBuiltinSlug(t *testing.T, slug string) {
 	t.Helper()
 
@@ -502,7 +499,6 @@ func requireBuiltinSlug(t *testing.T, slug string) {
 	}
 }
 
-// For fixtures derived from the embedded set, which must name no theme.
 func reservedNameLine(filename, slug string) string {
 	return "⚠ theme file " + filename + ": " + slug + " is a built-in — rename it (e.g. " + slug + "-mine.theme)"
 }
@@ -651,7 +647,6 @@ func TestThemeAdvisories_BadNameNeverReportsContent(t *testing.T) {
 		t.Fatalf("chmod 0000 %s: %v", path, err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	// Vacuity guard: a readable fixture would leave `unreadable` unreachable.
 	_ = requireDeniedRead(t, path)
 
 	got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))
@@ -742,7 +737,6 @@ func TestThemeAdvisories_ReservedNameDecidedBeforeRead(t *testing.T) {
 			t.Fatalf("chmod 0000 %s: %v", path, err)
 		}
 		t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-		// Vacuity guard: a readable fixture would prove nothing here.
 		_ = requireDeniedRead(t, path)
 
 		got := requireOneAdvisory(t, themeAdvisoriesFor(t, dir))

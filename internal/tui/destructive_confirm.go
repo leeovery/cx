@@ -34,8 +34,7 @@ func renderDestructiveConfirm(spec destructiveConfirmSpec, th theme.Theme, colou
 	return renderJoinedPanel([][]string{header, body, footer}, th.Border, th, colourless)
 }
 
-// Glyph + bold carry the destructive signal under NO_COLOR, where the hue
-// drops.
+// Glyph + bold carry the destructive signal under NO_COLOR, where the hue drops.
 func destructiveHeaderRow(title string, th theme.Theme, colourless bool) string {
 	style := headerStyle(th.StateDestructive, th, colourless).Bold(true)
 	glyph := style.Render(destructiveTitleGlyph)

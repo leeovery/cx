@@ -88,8 +88,6 @@ func TestDoctorFix_TmuxTransient_DoesNotWipeHooks(t *testing.T) {
 			t.Fatalf("seed live session: %v", err)
 		}
 
-		// One entry whose paneKey is live (must survive), one that is not (must be
-		// pruned).
 		seedEntries := map[string]string{
 			"live:0.0": "echo live",
 			"gone:0.0": "echo gone",

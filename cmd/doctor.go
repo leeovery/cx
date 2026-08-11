@@ -18,9 +18,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ErrDoctorUnhealthy signals that a `portal doctor` run found a failing check.
-// It drives a non-zero exit and is deliberately silent on stderr — the rendered
-// report is already on stdout.
+// ErrDoctorUnhealthy drives a non-zero exit and is deliberately silent on
+// stderr — the rendered report is already on stdout.
 var ErrDoctorUnhealthy = errors.New("doctor unhealthy")
 
 const doctorRuntimeNotRunning = "Portal runtime not running — run portal open to start"
@@ -47,17 +46,15 @@ type checkResult struct {
 	detail string
 }
 
-// advisory is a user-content diagnostic line, outside the pass/fail catalog and
-// so outside the exit code. line is the whole rendered string, glyph included —
-// the renderer only indents it.
+// advisory sits outside the pass/fail catalog, and so outside the exit code.
+// line is the whole rendered string, glyph included — the renderer only indents.
 type advisory struct {
 	line string
 }
 
-// DoctorDeps is the DI seam for the doctor command. Every field is optional:
-// an unset one falls through to the production default resolved by
-// resolveDoctorDeps, and a store left nil makes its check not-evaluable rather
-// than aborting diagnosis.
+// DoctorDeps fields are all optional: an unset one falls through to the
+// production default in resolveDoctorDeps, and a store left nil makes its check
+// not-evaluable rather than aborting diagnosis.
 type DoctorDeps struct {
 	StateDir      string
 	ThemesDir     string
@@ -195,9 +192,8 @@ func runDoctorFix(cmd *cobra.Command, deps *DoctorDeps) error {
 	return nil
 }
 
-// pruneDoctorStaleHooks defers to runHookStaleCleanup, whose mass-deletion
-// hazard guard is the sole down-server protection — do not add a second guard
-// here.
+// runHookStaleCleanup's own mass-deletion hazard guard is the down-server
+// protection here — do not add a second guard.
 func pruneDoctorStaleHooks(w io.Writer, deps *DoctorDeps) {
 	if deps.HookStore == nil {
 		return
@@ -238,8 +234,8 @@ func sweepDoctorLogs(deps *DoctorDeps) {
 	}
 }
 
-// runDoctorDiagnosis runs the ordered check catalog. The state directory is
-// resolved read-only — never EnsureDir; doctor creates nothing.
+// runDoctorDiagnosis resolves the state directory read-only — never EnsureDir;
+// doctor creates nothing.
 func runDoctorDiagnosis(deps *DoctorDeps) ([]checkResult, error) {
 	dir := deps.StateDir
 	var dirErr error
@@ -454,8 +450,8 @@ func renderDoctorReport(w io.Writer, results []checkResult, advisories []advisor
 	for _, r := range results {
 		_, _ = fmt.Fprintf(w, "  %s %s: %s\n", checkMarker(r.status), r.name, r.detail)
 	}
-	// The variable-length advisory block trails the whole catalog and never
-	// interleaves, so a reader can expect a given check at a given place.
+	// The variable-length advisory block trails the catalog and never interleaves,
+	// so a reader can expect a given check at a given place.
 	for _, a := range advisories {
 		_, _ = fmt.Fprintf(w, "  %s\n", a.line)
 	}

@@ -27,8 +27,6 @@ const (
 	hydrateSettleSleep    = 100 * time.Millisecond
 )
 
-// ErrHydrateTimeout is returned by openFIFOWithTimeout when the blocking open
-// did not complete within the supplied timeout.
 var ErrHydrateTimeout = errors.New("fifo open timeout")
 
 type hydrateConfig struct {
@@ -93,9 +91,9 @@ func runHydrate(cfg hydrateConfig) error {
 			}
 			return err
 		}
-		// A missing FIFO is the notable case: os.OpenFile returns ENOENT
-		// immediately instead of blocking, so it surfaces here rather than as a
-		// timeout. There is no exec to fall through to, so the error is returned.
+		// A missing FIFO surfaces here rather than as a timeout: os.OpenFile
+		// returns ENOENT immediately instead of blocking. There is no exec to
+		// fall through to, so the error is returned.
 		cfg.Logger.Info("fifo missing", "path", cfg.FIFO)
 		return fmt.Errorf("open fifo %s: %w", cfg.FIFO, err)
 	}
@@ -170,8 +168,7 @@ func resolveShell() string {
 
 // The hook command occupies its own argv slot so sh's parser handles any
 // embedded quotes - Portal never interpolates it. A lookup failure degrades to a
-// bare shell with one WARN so the pane stays usable when hooks.json is
-// unreadable.
+// bare shell so the pane stays usable when hooks.json is unreadable.
 func execShellOrHookAndExit(cfg hydrateConfig) {
 	cfg.Logger = hydrateLoggerOrDefault(cfg.Logger)
 	if cfg.HookStore == nil {
@@ -201,8 +198,7 @@ func execShellOrHookAndExit(cfg hydrateConfig) {
 }
 
 // Clearing the skeleton marker is the recovery: the FIFO is already unlinked, so
-// leaving the marker set would offer no retry, only a re-fired ENOENT on the
-// next attach.
+// leaving it set would offer no retry, only a re-fired ENOENT on the next attach.
 func handleHydrateTimeout(cfg hydrateConfig) error {
 	cfg.Logger = hydrateLoggerOrDefault(cfg.Logger)
 	_, _ = io.WriteString(cfg.Stdout, hydrateResetPreamble)
@@ -248,13 +244,11 @@ func unsetSkeletonMarkerOrLog(cfg hydrateConfig) {
 	}
 }
 
-// defaultExecShell hands the process off via syscall.Exec, which returns only
-// on failure. That failure path must still terminate non-zero so the pane
-// closes, and it must do so through the WARN + log.Close(1) + osExit(1)
-// sequence, or the just-emitted exec marker stands as a phantom handoff.
+// syscall.Exec returns only on failure. That path must still terminate non-zero
+// so the pane closes, and must do so via log.Close(1) + osExit(1), or the
+// just-emitted exec marker stands as a phantom handoff.
 func defaultExecShell(prog string, args []string) {
 	err := syscall.Exec(prog, args, os.Environ())
-	// Reached only when the exec failed.
 	hydrateLogger.Warn("exec handoff failed", "target", prog, "args", strings.Join(args, " "), "error", err)
 	log.Close(1)
 	osExit(1)

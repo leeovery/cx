@@ -14,12 +14,11 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// Commit atomically persists idx to sessions.json and garbage-collects
-// unreferenced scrollback files, but only when something changed: either the
-// caller's anyScrollbackChanged flag, or a structural difference from the
-// prior on-disk index with SavedAt ignored on both sides so timestamp churn
-// alone never triggers a write. A GC failure is logged, not returned —
-// sessions.json is the source of truth.
+// Commit atomically persists idx and garbage-collects unreferenced scrollback
+// files, but only when something changed: the caller's anyScrollbackChanged
+// flag, or a structural difference from the prior on-disk index with SavedAt
+// ignored on both sides, so timestamp churn alone never triggers a write. A GC
+// failure is logged, not returned — sessions.json is the source of truth.
 func Commit(dir string, idx Index, anyScrollbackChanged bool, logger *slog.Logger) error {
 	logger = loggerOrDiscard(logger)
 	idx.Canonicalize()
@@ -62,8 +61,7 @@ func structuralChange(dir string, idx Index) bool {
 	return !reflect.DeepEqual(a, b)
 }
 
-// ComputeReferencedSet collects every pane's ScrollbackFile path into a set,
-// verbatim as stored in idx.
+// ComputeReferencedSet collects ScrollbackFile paths verbatim, as stored in idx.
 func ComputeReferencedSet(idx Index) map[string]struct{} {
 	set := make(map[string]struct{})
 	for _, s := range idx.Sessions {

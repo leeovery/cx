@@ -13,9 +13,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The production DirThemeSource with only Open replaced — it answers from a
-// declared enumeration instead of a directory read, so the unoverridden
-// derivations are production's own.
+// The production DirThemeSource with only Open replaced, so the unoverridden
+// derivations stay production's own.
 type behaviourEnumerator struct {
 	theme.DirThemeSource
 	enumeration theme.Enumeration
@@ -261,8 +260,6 @@ func TestThemePanelBehaviour_Union(t *testing.T) {
 		if collided.Row.Selectable() {
 			t.Error("the `nord.theme` row is selectable; a reserved name is a rejection")
 		}
-		// A bare Slug lookup (instead of Row.BadgeKey) would paint `●` on both rows
-		// of the collision.
 		requireRenderedBadge(t, m, "nord", theme.BadgeConstant)
 		requireRenderedBadge(t, m, "nord.theme", theme.BadgeNone)
 		requireRenderedBadgeCount(t, m, 1)
@@ -469,7 +466,6 @@ func TestThemePanelBehaviour_CommitRecompute(t *testing.T) {
 	}
 }
 
-// The uppercase forms carry ModShift because that is what a terminal actually sends.
 var behaviourConfirmAnswers = []tea.KeyPressMsg{
 	confirmYes, confirmYesShift, confirmNo, confirmNoShift, confirmEsc,
 }
@@ -654,8 +650,8 @@ const behaviourSuiteFile = "theme_panel_behaviour_test.go"
 
 var behaviourBannedImports = []string{"os", "io/fs", "path", "path/filepath"}
 
-// These reach the filesystem or env without a bannable import: t.TempDir and
-// t.Setenv are testing's own, and NewStore arrives through the imported prefs package.
+// These reach the filesystem or env with no bannable import: t.TempDir and
+// t.Setenv are testing's own, NewStore arrives through the prefs package.
 var behaviourBannedCalls = []string{
 	"TempDir", "Setenv", "MkdirTemp", "WriteFile", "ReadFile", "ReadDir", "NewStore",
 }

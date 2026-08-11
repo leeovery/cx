@@ -1,13 +1,11 @@
-// Package restore implements skeleton-eager tmux session restoration from
-// Portal's persisted sessions.json: it recreates each saved session's topology
-// detached, each pane armed via `respawn-pane -k` with the blocking
-// `portal state hydrate` helper.
+// Package restore recreates each saved session's topology detached from
+// Portal's persisted sessions.json, arming every pane via `respawn-pane -k` with
+// the blocking `portal state hydrate` helper.
 //
-// The create-then-arm split is required. FIFO paths and skeleton-marker keys are
+// The create-then-arm split is required: FIFO paths and skeleton-marker keys are
 // derived from the live (window, pane) indices tmux assigned during creation
 // rather than predicted, which is what makes restore robust to base-index /
-// pane-base-index drift between save and restore. Geometry and markers share
-// that same single list-panes re-query.
+// pane-base-index drift between save and restore.
 package restore
 
 import (
@@ -24,25 +22,23 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// SessionRestorer recreates a single saved tmux session in detached form.
 type SessionRestorer struct {
 	Client   *tmux.Client
 	StateDir string
 	Logger   *slog.Logger
 }
 
-// savedPaneArmInfo's hookKey is derived purely from saved state, riding the saved
-// (window, pane) indices so it matches what hook registration stored across
-// base-index drift and renames. The firing path must never read the live
+// savedPaneArmInfo's hookKey is derived purely from saved state, riding the
+// saved (window, pane) indices so it matches what hook registration stored
+// across base-index drift and renames. The firing path must never read the live
 // @portal-id.
 type savedPaneArmInfo struct {
 	scrollAbs string
 	hookKey   string
 }
 
-// Restore creates the session's windows and panes in saved order, then arms each
-// live pane with its hydrate helper. It returns the live pane coords, for the
-// caller to thread into ApplyWindowGeometry and ApplySkeletonMarkers.
+// Restore returns the live pane coords, for the caller to thread into
+// ApplyWindowGeometry and ApplySkeletonMarkers.
 func (r *SessionRestorer) Restore(sess state.Session) ([]tmux.PaneCoord, error) {
 	if len(sess.Windows) == 0 || len(sess.Windows[0].Panes) == 0 {
 		return nil, fmt.Errorf("session %q: no windows/panes", sess.Name)
@@ -77,9 +73,8 @@ func (r *SessionRestorer) createSkeleton(sess state.Session) error {
 	}
 
 	// sessions.json is a snapshot the daemon regenerates from live tmux, so the
-	// saved id must be re-seeded or it is lost after this one read: the next
-	// capture would write "", and stale-cleanup would then key the session by
-	// name and delete the just-fired hook.
+	// saved id must be re-seeded or the next capture writes "" and stale-cleanup
+	// re-keys the session by name, deleting the just-fired hook.
 	if sess.PortalID != "" {
 		_ = r.Client.SetSessionOption(sess.Name, session.PortalIDOption, sess.PortalID)
 	}
@@ -120,7 +115,7 @@ func (r *SessionRestorer) createSkeleton(sess state.Session) error {
 //
 // Panes pair by structural position: list-panes and collectArmInfos both walk in
 // (window, pane) order. Unlike geometry and markers, a FIFO or respawn failure
-// aborts — without them the pane's scrollback can never be hydrated.
+// aborts — without them the scrollback can never be hydrated.
 func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmInfo) ([]tmux.PaneCoord, error) {
 	livePanes, err := r.Client.ListPanesInSession(sess.Name)
 	if err != nil {
@@ -153,12 +148,9 @@ func (r *SessionRestorer) armPanes(sess state.Session, armInfos []savedPaneArmIn
 	return livePanes, nil
 }
 
-// ApplyWindowGeometry replays the saved layout, active-pane selection and zoom
-// state for each window, degrading locally on failure.
-//
-// Order matters: zoom is a toggle whose effect depends on the freshly-applied
-// layout, so resize-pane -Z must follow select-layout. Its summary counts each
-// degraded operation once, however many warnings that operation produced.
+// ApplyWindowGeometry degrades locally on failure. Order matters: zoom is a
+// toggle whose effect depends on the freshly-applied layout, so resize-pane -Z
+// must follow select-layout.
 func (r *SessionRestorer) ApplyWindowGeometry(sess state.Session, livePanes []tmux.PaneCoord) {
 	start := time.Now()
 	panes := len(livePanes)
@@ -219,9 +211,8 @@ func activePanePosition(panes []state.Pane) int {
 	return 0
 }
 
-// applyLayoutWithFallback reports false whenever the saved layout failed, even if
-// the tiled fallback then succeeded: the saved geometry was not applied, and the
-// pair of failures is still one degraded operation.
+// applyLayoutWithFallback reports false whenever the saved layout failed, even
+// if the tiled fallback then succeeded: the saved geometry was still not applied.
 func (r *SessionRestorer) applyLayoutWithFallback(session string, window int, layout string) bool {
 	err := r.Client.SelectLayout(session, window, layout)
 	if err == nil {
@@ -250,9 +241,9 @@ func (r *SessionRestorer) applyZoom(session string, window, pane int) bool {
 	return true
 }
 
-// ApplySkeletonMarkers sets the `@portal-skeleton-<paneKey>` server option on
-// every live pane; a per-pane failure still leaves the rest marked. It only ever
-// writes markers — the hydrate helper unsets them after a successful dump.
+// ApplySkeletonMarkers sets `@portal-skeleton-<paneKey>` on every live pane; a
+// per-pane failure still leaves the rest marked. It only ever writes markers —
+// the hydrate helper unsets them after a successful dump.
 func (r *SessionRestorer) ApplySkeletonMarkers(sess state.Session, livePanes []tmux.PaneCoord) {
 	savedCount := countSavedPanes(sess)
 	r.warnOnPaneCountMismatch(sess.Name, len(livePanes), savedCount)
@@ -284,8 +275,7 @@ func (r *SessionRestorer) setSkeletonMarker(sessionName, liveKey string) {
 	}
 }
 
-// applyEnvironment applies the saved variables in sorted-key order so the call
-// sequence is deterministic. A single failure is logged and skipped.
+// applyEnvironment sorts by key so the call sequence is deterministic.
 func (r *SessionRestorer) applyEnvironment(sess state.Session) {
 	if len(sess.Environment) == 0 {
 		return
@@ -302,10 +292,9 @@ func (r *SessionRestorer) applyEnvironment(sess state.Session) {
 	}
 }
 
-// buildHydrateCommand takes no `exec` prefix: respawn already replaces the pane's
-// process rather than stacking one, so the helper leaves no parked shell parent
-// for the life of the pane. Every interpolated value is single-quoted so any
-// bytes reach the helper's flag parser as one token.
+// buildHydrateCommand takes no `exec` prefix: respawn already replaces the
+// pane's process rather than stacking one. Every interpolated value is
+// single-quoted so any bytes reach the helper's flag parser as one token.
 func buildHydrateCommand(fifo, file, hookKey string) string {
 	return fmt.Sprintf(
 		"portal state hydrate --fifo %s --file %s --hook-key %s",

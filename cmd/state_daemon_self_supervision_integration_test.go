@@ -672,7 +672,7 @@ func TestSelfEject_LegitimateColdStartDoesNotFalsePositive(t *testing.T) {
 	}
 
 	// Degrades to a trivial pass if PORTAL_LOG_LEVEL propagation ever
-	// breaks; the checks above prove the invariant independently.
+	// breaks; the checks above stand independently of it.
 	if strings.Contains(logBlob, selfEjectLogMarker) {
 		t.Errorf("portal.log contains self-eject marker %q during legitimate cold-start "+
 			"observation window — the daemon self-ejected when it should not have "+

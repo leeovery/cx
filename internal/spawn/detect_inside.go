@@ -6,8 +6,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// ClientActivity is one tmux client's detection-relevant data. It mirrors
-// tmux.ClientInfo so inside-tmux resolution carries no tmux dependency.
+// ClientActivity mirrors tmux.ClientInfo so inside-tmux resolution carries no
+// tmux dependency.
 type ClientActivity struct {
 	PID      int
 	Activity int64
@@ -39,7 +39,7 @@ func (l tmuxClientLister) ListClients(session string) ([]ClientActivity, error) 
 // gated on the client that triggered the burst — the most-active one, since
 // client_activity tracks sent input. Selecting the winner before checking
 // locality is load-bearing: filtering to local clients first drives windows onto
-// the wrong machine when a remote trigger shares a session with a local bystander.
+// the wrong machine when a remote trigger shares a session with a local one.
 func detectInsideTmux(session string, lister clientLister, walker ProcessWalker, reader BundleReader) (Identity, error) {
 	clients, err := lister.ListClients(session)
 	if err != nil {

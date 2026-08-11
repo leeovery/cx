@@ -1,4 +1,3 @@
-// Package cmd defines the CLI commands for Portal.
 package cmd
 
 import (

@@ -25,10 +25,9 @@ func renderThemePanel(p themePanel, height int, th theme.Theme, colourless bool)
 	return themePanelBlock(rows, header.borderFrom(), height, p.width, th, colourless)
 }
 
-// The rule deliberately spans the border column and sits above the label so it
-// shares the page's rule lane — do not reorder or notch it: a full-height
-// border would cut the page's header band and make the panel read as a second
-// column rather than a layer.
+// The rule spans the border column and sits above the label so it shares the
+// page's rule lane — do not reorder or notch it: a full-height border makes the
+// panel read as a second column rather than a layer.
 func themePanelHeaderBlock(shape themePanelHeaderShape, width int, th theme.Theme, colourless bool) []string {
 	rows := make([]string, shape.rows)
 	rows[shape.ruleRow] = headerStyle(th.Border, th, colourless).
@@ -87,10 +86,9 @@ func themePanelPadRow(row string, w int, th theme.Theme, colourless bool) string
 	return headerPadRight(row, lipgloss.Width(row), w, th, colourless)
 }
 
-// The outer full-terminal fill runs before the panel is composited, so it can
-// never reach a panel cell; `bubbles/list` pads with unstyled spaces that would
-// be terminal-bg islands and get dropped as trailing whitespace by the
-// compositor. Under NO_COLOR the zero value backfills nothing.
+// The outer full-terminal fill runs before the panel is composited, so it never
+// reaches a panel cell; `bubbles/list` pads with unstyled spaces that would be
+// terminal-bg islands. Under NO_COLOR the zero value backfills nothing.
 type themePanelPainter struct {
 	canvasBg string
 	parser   *ansi.Parser
@@ -111,8 +109,7 @@ func (p themePanelPainter) paint(row string) string {
 }
 
 // Composite, never re-lay-out: the base stays at the unreduced width so the
-// previewed surface does not reflow. The overlay cutting a label mid-word is
-// accepted.
+// previewed surface does not reflow. A label cut mid-word is accepted.
 func overlayThemePanel(base, panel string, contentW int) string {
 	background := lipgloss.NewLayer(base).X(0).Y(0).Z(0)
 	foreground := lipgloss.NewLayer(panel).X(max(contentW-lipgloss.Width(panel), 0)).Y(0).Z(1)
@@ -129,9 +126,8 @@ func appendBlock(rows []string, block string) []string {
 }
 
 // `bubbles/list` renders a hard minimum of three rows however few it is given;
-// uncut, the overshoot comes off the bottom of the assembled block — the
-// footer, `esc close` first. Do not raise themePanelMinBodyRows to the list's
-// minimum: that silently redefines the render floor.
+// uncut, the overshoot comes off the footer. Do not raise themePanelMinBodyRows
+// to the list's minimum: that silently redefines the render floor.
 func clampBlockHeight(block string, rows int) string {
 	if blockHeight(block) <= rows {
 		return block

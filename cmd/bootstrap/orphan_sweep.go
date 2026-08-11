@@ -16,25 +16,22 @@ func defaultKill(pid int) error {
 	return syscall.Kill(pid, syscall.SIGKILL)
 }
 
-// OrphanSweeper is the orchestrator step seam that kills leftover `portal state
-// daemon` processes. Best-effort: SweepOrphanDaemons never returns a non-nil
-// error — every failure path is logged and swallowed.
+// OrphanSweeper kills leftover `portal state daemon` processes. Best-effort:
+// SweepOrphanDaemons logs and swallows every failure and always returns nil.
 type OrphanSweeper interface {
 	SweepOrphanDaemons() error
 }
 
-// OrphanSweepCore enumerates the live `portal state daemon` processes, treats
-// the `_portal-saver` pane's PID as the only legitimate one, and SIGKILLs the
-// rest after an identity check. Pgrep and SaverPanePID must be supplied;
-// Identify and Kill fall back to production defaults; Logger is nil-tolerant.
+// OrphanSweepCore SIGKILLs every identity-checked `portal state daemon` other
+// than the `_portal-saver` pane's process. Pgrep and SaverPanePID must be
+// supplied; Identify and Kill fall back to production defaults.
 type OrphanSweepCore struct {
 	// No default: shelling out would pull os/exec into this pure-orchestration
 	// package, so production wiring must supply it.
 	Pgrep func() ([]int, error)
 
 	// Absence rides the present bool rather than pid == 0, so a defensive zero
-	// PID on a non-error path cannot become a legitimate PID. Both the absent
-	// and the error shape leave the legitimate set empty.
+	// PID on a non-error path cannot become a legitimate PID.
 	SaverPanePID func() (pid int, present bool, err error)
 
 	Identify func(pid int) (state.IdentifyResult, error)
@@ -44,9 +41,6 @@ type OrphanSweepCore struct {
 
 var _ OrphanSweeper = (*OrphanSweepCore)(nil)
 
-// SweepOrphanDaemons SIGKILLs every identity-checked `portal state daemon` that
-// is not the `_portal-saver` pane's process. Best-effort: every failure path is
-// logged and swallowed, and the return value is always nil.
 func (c *OrphanSweepCore) SweepOrphanDaemons() error {
 	logger := log.OrDiscard(c.Logger)
 	identify := c.Identify

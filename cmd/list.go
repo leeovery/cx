@@ -10,12 +10,10 @@ import (
 
 var listDeps *ListDeps
 
-// SessionLister queries tmux for running sessions.
 type SessionLister interface {
 	ListSessions() ([]tmux.Session, error)
 }
 
-// ListDeps allows injecting dependencies for testing.
 type ListDeps struct {
 	Lister SessionLister
 	IsTTY  func() bool

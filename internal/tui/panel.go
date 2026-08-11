@@ -9,9 +9,8 @@ import (
 
 const (
 	panelRuleGlyph = "─"
-	// The per-row L/R inset the header text and body rows carry. The divider
-	// does not take it — it runs the full inner width so its `├`/`┤` junctions
-	// meet both side borders.
+	// The per-row L/R inset for content rows. The divider does not take it — it
+	// runs the full inner width so its `├`/`┤` junctions meet both side borders.
 	panelRowInset = 2
 
 	panelFrameTopLeft     = "╭"
@@ -23,15 +22,9 @@ const (
 	panelFrameTeeRight    = "┤"
 )
 
-// renderJoinedPanel draws the shared hand-drawn panel: a rounded box whose
-// every glyph renders in borderToken, with joined ├/┤ dividers between
-// adjacent compartments. Input is a list of compartments, each a slice of
-// already-styled rows at their natural width; every assembled line comes out
-// innerWidth+2 cells so the frame columns align.
-//
-// Spacing is flush — no blank frame rows are added. A caller wanting a blank
-// row inside a compartment passes an empty content row, so it is inset and
-// bordered like any other row rather than left bare.
+// Each compartment is a slice of already-styled rows at their natural width;
+// dividers are drawn between adjacent compartments. Spacing is flush — a caller
+// wanting a blank row passes an empty content row, which is inset and bordered.
 func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th theme.Theme, colourless bool) string {
 	contentWidth := 0
 	totalRows := 0
@@ -60,8 +53,7 @@ func renderJoinedPanel(compartments [][]string, borderToken theme.Token, th them
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// No background is set — the frame glyphs sit on whatever the placed canvas
-// supplies.
+// No background — the frame glyphs sit on whatever the placed canvas supplies.
 func panelFrameStyle(borderToken theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -89,8 +81,7 @@ func panelFrameContentLine(row string, borderToken theme.Token, th theme.Theme, 
 	return lipgloss.JoinHorizontal(lipgloss.Top, side, row, side)
 }
 
-// The inset and pad are canvas-painted so the row carries the owned canvas
-// with no terminal-bg island.
+// Inset and pad are canvas-painted so the row leaves no terminal-bg island.
 func panelInsetRow(row string, contentWidth int, th theme.Theme, colourless bool) string {
 	inset := headerCanvasBg(th, colourless).Render(strings.Repeat(" ", panelRowInset))
 	padded := headerPadRight(row, lipgloss.Width(row), contentWidth, th, colourless)

@@ -8,21 +8,19 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// SpawnIsolatedDaemon starts a `portal state daemon` subprocess under envSlice
-// plus a fresh per-call PORTAL_STATE_DIR and TMUX pinned to tmuxSocketPath,
-// returning the started command and that state dir. tmuxSocketPath is required:
-// a daemon inheriting the ambient TMUX attaches to the developer's real server
-// and capture-panes their live sessions. Exit is reaped via
-// RegisterSubprocessCleanup.
+// SpawnIsolatedDaemon starts a `portal state daemon` under envSlice plus a fresh
+// per-call PORTAL_STATE_DIR and TMUX pinned to tmuxSocketPath, and reaps it via
+// RegisterSubprocessCleanup. tmuxSocketPath is required: a daemon inheriting the
+// ambient TMUX attaches to the developer's real server and capture-panes their
+// live sessions.
 //
 // The unqualified "portal" argv[0] is load-bearing: darwin's ps reports argv[0]
-// as comm, and the daemon identity check requires comm == "portal" exactly, so
-// spawning by absolute path would make the daemon unidentifiable. The binary is
-// found through the PATH carried in envSlice.
+// as comm and the daemon identity check requires comm == "portal" exactly, so
+// spawning by absolute path would make the daemon unidentifiable.
 //
-// Each call gets its own state dir, so several orphans can coexist without
-// colliding on daemon.lock. Callers that need daemons sharing one state dir must
-// spawn directly and wrap the command in RegisterSubprocessCleanup.
+// Each call gets its own state dir so several orphans can coexist without
+// colliding on daemon.lock; daemons sharing one dir must be spawned directly and
+// wrapped in RegisterSubprocessCleanup.
 func SpawnIsolatedDaemon(t *testing.T, envSlice []string, tmuxSocketPath string) (*exec.Cmd, string) {
 	t.Helper()
 	if tmuxSocketPath == "" {
@@ -69,13 +67,11 @@ func appendSandboxRegistryDir(t *testing.T, dir string) {
 }
 
 // RegisterSubprocessCleanup arranges a guaranteed SIGKILL and reap for cmd on
-// test exit, returning a channel that closes once the process has been reaped so
-// a caller can time its death.
-//
-// The reaper goroutine and the cleanup hook coordinate through that channel
-// rather than both calling Wait, which would be two concurrent Waits on one
-// Process. An unreaped child stays kernel-resident after SIGKILL — kill(pid, 0)
-// keeps returning 0 — which would hang any ESRCH poll.
+// test exit, returning a channel that closes once it has been reaped so a caller
+// can time its death. The reaper goroutine and the cleanup hook coordinate
+// through that channel rather than both calling Wait, which would be two
+// concurrent Waits on one Process. An unreaped child stays kernel-resident after
+// SIGKILL — kill(pid, 0) keeps returning 0 — which would hang any ESRCH poll.
 func RegisterSubprocessCleanup(t *testing.T, cmd *exec.Cmd) <-chan struct{} {
 	t.Helper()
 	reaped := make(chan struct{})

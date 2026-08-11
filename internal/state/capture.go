@@ -13,9 +13,8 @@ import (
 	"github.com/leeovery/portal/internal/tmuxerr"
 )
 
-// CaptureClient is the narrow tmux surface CaptureStructure needs. It is
-// declared here, over primitive types only, so internal/state need not import
-// internal/tmux — which already imports internal/state and would close a cycle.
+// CaptureClient is declared here, over primitive types only, so internal/state
+// need not import internal/tmux — which imports it back and would cycle.
 type CaptureClient interface {
 	ListSessionNames() ([]string, error)
 	ListAllPanesWithFormat(format string) (string, error)
@@ -33,13 +32,12 @@ const internalSessionPrefix = "_"
 // CaptureStructure builds a canonical Index of every non-internal tmux
 // session's structural topology; it captures no scrollback bytes.
 //
-// Panes whose paneKey is in skipSet keep their prev state rather than the
-// fresh reading, but only where session, window and pane are all still live —
-// a stale marker must not resurrect a killed pane. A tmux enumeration failure
-// yields an empty Index and a wrapped error, never a partial one. A
-// per-session failure is logged and skipped, unless every session failed and
-// at least one failure was not a vanished session, which is returned as an
-// error so the caller refuses to commit over a broken read.
+// Panes whose paneKey is in skipSet keep their prev state, but only where
+// session, window and pane are all still live — a stale marker must not
+// resurrect a killed pane. A tmux enumeration failure yields an empty Index and
+// a wrapped error, never a partial one. A per-session failure is logged and
+// skipped, unless every session failed on something other than vanishing, which
+// errors so the caller refuses to commit over a broken read.
 func CaptureStructure(c CaptureClient, skipSet map[string]struct{}, prev *Index, logger *slog.Logger) (Index, error) {
 	logger = loggerOrDiscard(logger)
 	savedAt := time.Now().UTC()

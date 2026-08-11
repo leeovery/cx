@@ -55,8 +55,8 @@ func TestMaybeRunProjectCleanup_PrunesGoneDirOnceIntervalElapsed(t *testing.T) {
 }
 
 func TestMaybeRunProjectCleanup_RetainsLiveDirProject(t *testing.T) {
-	// EACCES is hard to simulate portably, so the retention path is proven by
-	// the live-dir survivor.
+	// EACCES is hard to simulate portably, so the live-dir survivor stands in for
+	// the retention path.
 	live := t.TempDir()
 	store, _ := seedProjectsJSON(t, live)
 	deps := projectCleanupDeps(store, discardDaemonLogger())

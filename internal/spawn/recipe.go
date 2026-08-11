@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// RecipeKind classifies a validated recipe's execution form. The zero value is
-// an explicit invalid sentinel, never a valid form.
+// RecipeKind's zero value is an explicit invalid sentinel, never a valid form.
 type RecipeKind int
 
 const (
@@ -64,8 +63,7 @@ func validRecipeForEntry(key string, e TerminalEntry) (Recipe, RecipeKind, bool)
 }
 
 // POSIX single quotes so an element survives as one word when a shell later
-// word-splits the rendered {command} string; an embedded single quote uses the
-// close-escape-reopen sequence. Without this a spaced session name is shredded.
+// word-splits the rendered {command}; an embedded quote uses close-escape-reopen.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

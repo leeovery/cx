@@ -10,8 +10,7 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// IdentifyResult is the three-way classification returned by IdentifyDaemon.
-// It is meaningful only when the accompanying error is nil.
+// IdentifyResult is meaningful only when the accompanying error is nil.
 type IdentifyResult int
 
 const (
@@ -27,9 +26,8 @@ const (
 	IdentifyDead
 )
 
-// PortalDaemonArgvPattern is the anchored argv match for a live
-// `portal state daemon`. The trailing "( |$)" accepts an exact match or
-// trailing flags while rejecting a suffix such as "portal state daemon-foo".
+// PortalDaemonArgvPattern's trailing "( |$)" accepts an exact match or trailing
+// flags while rejecting a suffix such as "portal state daemon-foo".
 const PortalDaemonArgvPattern = `^portal state daemon( |$)`
 
 var daemonArgvPattern = regexp.MustCompile(PortalDaemonArgvPattern)
@@ -44,10 +42,8 @@ func defaultIdentifyPS(pid int) (string, error) {
 	return string(out), err
 }
 
-// IdentifyDaemon classifies whether the process at pid is a live
-// `portal state daemon`. A non-nil error means the check itself failed and the
-// result is meaningless — callers decide their own policy for a pid they
-// cannot identify.
+// IdentifyDaemon's non-nil error means the check itself failed and the result is
+// meaningless — callers decide their own policy for an unidentifiable pid.
 func IdentifyDaemon(pid int) (IdentifyResult, error) {
 	if pid <= 0 {
 		return IdentifyDead, nil

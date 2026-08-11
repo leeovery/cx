@@ -45,9 +45,8 @@ func inputBoxBorderToken(state inputBoxState, th theme.Theme) theme.Token {
 	}
 }
 
-// No fill, by design: a border glyph owns a full cell with one background, so
-// a fill either leaves a half-cell gap or bleeds past the border — state is
-// carried by the border colour instead.
+// No fill, by design: a border glyph owns a full cell with one background, so a
+// fill either leaves a half-cell gap or bleeds past it — state rides the border.
 func renderInputBox(content string, state inputBoxState, rounded bool, innerWidth int, th theme.Theme, colourless bool) []string {
 	border := lipgloss.NormalBorder()
 	if rounded {
@@ -65,8 +64,6 @@ func renderInputBox(content string, state inputBoxState, rounded bool, innerWidt
 	return strings.Split(style.Render(content), "\n")
 }
 
-// An edit-mode chip may render one cell wider than its navigate form; the
-// panel width is anchored by wider elements, so it never resizes the panel.
 func editChipContent(value string, editing bool, cursor int, th theme.Theme, colourless bool) string {
 	if editing {
 		return renderEditableValue(value, cursor, th, colourless)
@@ -74,10 +71,9 @@ func editChipContent(value string, editing bool, cursor int, th theme.Theme, col
 	return headerStyle(th.TextPrimary, th, colourless).Render(value)
 }
 
-// Rendered width is always len(value)+1: an end cursor paints a trailing
-// block, a mid cursor overlays a rune and appends a trailing blank — the box
-// width is constant wherever the cursor sits. The reverse-video block survives
-// NO_COLOR as the editing signal.
+// Rendered width is always len(value)+1 — a mid cursor overlays a rune and
+// appends a trailing blank — so the box never resizes as the cursor moves. The
+// reverse-video block survives NO_COLOR as the editing signal.
 func renderEditableValue(value string, cursor int, th theme.Theme, colourless bool) string {
 	runes := []rune(value)
 	if cursor < 0 {
@@ -157,8 +153,7 @@ func (m Model) editModalHeaderRow(th theme.Theme, colourless bool) string {
 	return renderHeaderWithBadge(left, m.editPanelContentWidth(), m.editMode == editModeEdit, th, colourless)
 }
 
-// A hidden badge's slot renders as a same-width blank so toggling the badge
-// never resizes the panel.
+// A hidden badge renders as a same-width blank so toggling never resizes the panel.
 func renderHeaderWithBadge(left string, contentWidth int, showBadge bool, th theme.Theme, colourless bool) string {
 	leftWidth := lipgloss.Width(left)
 	badgeWidth := lipgloss.Width(editModeIndicator)

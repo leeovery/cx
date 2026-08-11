@@ -7,10 +7,10 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The slugs are deliberately unresolvable (a table of resolvable slugs would
-// agree on the empty set everywhere). Expectations are sorted and both sides
-// sort: the panel's rows arrive alphabetically, doctor's lines in slot order,
-// and each order is pinned by the surface that owns it.
+// The slugs are deliberately unresolvable: a table of resolvable slugs would
+// agree on the empty set everywhere. Expectations are sorted and both sides
+// sort, because the panel's rows arrive alphabetically and doctor's lines in
+// slot order.
 var inForceKeyShapes = []struct {
 	name string
 	keys theme.RawKeys
@@ -96,8 +96,6 @@ func prefsJSONForKeys(t *testing.T, keys theme.RawKeys) string {
 	return prefsJSONWith(t, fields)
 }
 
-// Two silent surfaces agree on everything, so the parity above is only an
-// assertion while the table expects reports.
 func TestThemeKeysInForce_TableIsNotVacuous(t *testing.T) {
 	var reported, illegal []string
 	for _, shape := range inForceKeyShapes {

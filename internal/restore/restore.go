@@ -12,18 +12,15 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Orchestrator is the bootstrap-time entry point for skeleton-only session
-// restoration, running the create + geometry + skeleton-marker sequence for
-// every saved session not already live. Per-session failures are logged and
-// isolated, and nothing is written to stderr.
+// Orchestrator restores every saved session not already live. Per-session
+// failures are logged and isolated, and nothing is written to stderr.
 type Orchestrator struct {
 	Client   *tmux.Client
 	StateDir string
 	Logger   *slog.Logger
 
-	// Progress is an optional (n, m) callback with m fixed at the saved-session
-	// count. It fires on every loop iteration, skips included, so a caller's
-	// counter always reaches m/m.
+	// Progress is optional; m is the saved-session count, and it fires on every
+	// loop iteration, skips included, so a caller's counter always reaches m/m.
 	Progress func(n, m int)
 }
 
@@ -104,7 +101,6 @@ func (o *Orchestrator) snapshotLiveSessions() (map[string]struct{}, bool) {
 }
 
 // restoreOne reports true only when the session was actually skeleton-restored.
-// Every skip, and a failed restore, return false.
 func (o *Orchestrator) restoreOne(sr *SessionRestorer, sess state.Session, liveSet map[string]struct{}) bool {
 	if strings.HasPrefix(sess.Name, "_") {
 		o.logger().Warn("skipping underscore-prefixed session", "session", sess.Name)

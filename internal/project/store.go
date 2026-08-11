@@ -1,4 +1,3 @@
-// Package project provides persistence for remembered project directories.
 package project
 
 import (
@@ -18,7 +17,6 @@ import (
 // `projects: <verb>` grep idiom and `grep op=set` filtering both work.
 var logger = log.For("projects")
 
-// Project represents a remembered project directory.
 type Project struct {
 	Path     string    `json:"path"`
 	Name     string    `json:"name"`
@@ -30,7 +28,6 @@ type projectsFile struct {
 	Projects []Project `json:"projects"`
 }
 
-// Store manages persistence of project data to a JSON file.
 type Store struct {
 	path string
 }
@@ -71,9 +68,9 @@ func (s *Store) Save(projects []Project) error {
 }
 
 // Upsert adds a new project or updates the one matched by path, always bumping
-// LastUsed to now — List orders on that timestamp, so the bump is load-bearing
-// and must not be skipped for an unchanged name. via records the mutation
-// origin for the audit breadcrumb: cli, internal or migrate.
+// LastUsed to now — List orders on that timestamp, so the bump must not be
+// skipped for an unchanged name. via records the mutation origin for the audit
+// breadcrumb: cli, internal or migrate.
 func (s *Store) Upsert(path, name, via string) error {
 	projects, err := s.Load()
 	if err != nil {
@@ -115,7 +112,7 @@ func (s *Store) Upsert(path, name, via string) error {
 	return nil
 }
 
-// List returns all projects sorted by LastUsed in descending order (most recent first).
+// List returns all projects sorted by LastUsed, most recent first.
 func (s *Store) List() ([]Project, error) {
 	projects, err := s.Load()
 	if err != nil {
@@ -130,8 +127,7 @@ func (s *Store) List() ([]Project, error) {
 }
 
 // StaleEntries returns the records whose directory no longer exists on disk. It
-// is read-only, and shares its predicate with CleanStale so a report and a prune
-// cannot drift; a stat error other than ErrNotExist retains the entry.
+// is read-only, and a stat error other than ErrNotExist retains the entry.
 func (s *Store) StaleEntries() ([]Project, error) {
 	projects, err := s.Load()
 	if err != nil {
@@ -150,8 +146,7 @@ func partitionByExistence(projects []Project) (kept, removed []Project) {
 		case errors.Is(statErr, os.ErrNotExist):
 			removed = append(removed, p)
 		default:
-			// An unreadable directory (permission denied) is not evidence of
-			// staleness: retain it.
+			// An unreadable directory (permission denied) is not evidence of staleness.
 			kept = append(kept, p)
 		}
 	}
@@ -191,7 +186,6 @@ func (s *Store) CleanStale() ([]Project, error) {
 
 // Rename updates the display name of the project matched by path, leaving
 // LastUsed untouched. An absent path is a silent no-op: no write, no breadcrumb.
-// via records the mutation origin for the audit breadcrumb.
 func (s *Store) Rename(path, newName, via string) error {
 	projects, err := s.Load()
 	if err != nil {
@@ -215,8 +209,7 @@ func (s *Store) Rename(path, newName, via string) error {
 }
 
 // Remove deletes the project with the given path. It rewrites the file even when
-// the path is absent, so the breadcrumb is emitted either way. via records the
-// mutation origin for the audit breadcrumb.
+// the path is absent, so the breadcrumb is emitted either way.
 func (s *Store) Remove(path, via string) error {
 	projects, err := s.Load()
 	if err != nil {

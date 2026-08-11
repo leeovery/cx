@@ -54,14 +54,12 @@ func (e *CommandError) renderWithArgs(trimmedStderr string) string {
 	return b.String()
 }
 
-// Unwrap returns the underlying error.
 func (e *CommandError) Unwrap() error {
 	return e.Err
 }
 
-// WrapCommandError converts an error from exec.Cmd.Output() into a
-// *CommandError carrying the child argv, returning nil for a nil error so it
-// can be applied unconditionally to an exec result.
+// WrapCommandError returns nil for a nil error, so it can be applied
+// unconditionally to an exec result.
 //
 // Precondition: the *exec.Cmd must have left cmd.Stderr == nil. exec populates
 // (*exec.ExitError).Stderr only under that condition, so assigning cmd.Stderr

@@ -5,9 +5,8 @@ import (
 	"strconv"
 )
 
-// The literal "swept" occupies the date slot, so pastDayLogDate's strict
-// date-parse rejects the sentinel: it is never sealed, and never deleted by the
-// retention cutoff walk. Only the not-today prune reclaims it.
+// "swept" occupies the date slot, so pastDayLogDate's strict parse rejects the
+// sentinel — it is never sealed, and only the not-today prune reclaims it.
 const sweptPrefix = portalLogName + ".swept."
 
 func sweptSentinelFile(stateDir, date string) string {

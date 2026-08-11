@@ -18,8 +18,7 @@ const (
 const footerEllipsis = "…"
 
 // Entries are a parameter, not a sessionsKeymap() call: the footer must be
-// filtered in lockstep with `?` help through the one call-site filter, which
-// drops a blocked `t` or `m`.
+// filtered in lockstep with `?` help, which drops a blocked `t` or `m`.
 func renderSessionsFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return renderCondensedFooter(entries, width, th, colourless)
 }
@@ -83,7 +82,6 @@ func renderMultiSelectFooter(width int, th theme.Theme, colourless bool) string 
 	return lipgloss.JoinVertical(lipgloss.Left, rule, row)
 }
 
-// With no right anchor the full width is the budget.
 func fitFilterCluster(entries []filterFooterEntry, w int, th theme.Theme, colourless bool) (string, int) {
 	sep := renderFooterDetail(footerEntrySeparator, th, colourless)
 	ellipsis := renderFooterDetail(footerEllipsis, th, colourless)
@@ -94,10 +92,8 @@ func fitFilterCluster(entries []filterFooterEntry, w int, th theme.Theme, colour
 	return fitClusterToWidth(len(entries), w, renderCluster, sep, ellipsis)
 }
 
-// Narrow degrade: try the full cluster, else the widest leading prefix that
-// fits with a trailing ` · …`, else the bare ellipsis, else empty. renderCluster
-// renders the first n entries and returns the cluster with its rendered width;
-// the result is always ≤ budget so the row never wraps to a second line.
+// renderCluster must render the first n entries and return it with its rendered
+// width. The result is always ≤ budget, so the row never wraps to a second line.
 func fitClusterToWidth(count, budget int, renderCluster func(n int) (string, int), sep, ellipsis string) (string, int) {
 	if full, fullWidth := renderCluster(count); fullWidth <= budget {
 		return full, fullWidth
@@ -127,8 +123,8 @@ func fitClusterToWidth(count, budget int, renderCluster func(n int) (string, int
 	return "", 0
 }
 
-// Single render entry point so a page's render and its height-budget
-// computation resolve the footer identically and agree on its height.
+// A page's render and its height-budget computation must resolve the footer
+// through here, or they disagree on its height.
 func renderCondensedFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	rule := footerTopRule(w, th, colourless)
@@ -144,8 +140,7 @@ func footerTopRule(w int, th theme.Theme, colourless bool) string {
 func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool) string {
 	core, right := splitFooterEntries(entries)
 
-	// The anchor is rendered first so the left cluster fits around the space it
-	// reserves.
+	// The anchor renders first so the left cluster fits around the space it reserves.
 	rightSeg := ""
 	rightWidth := 0
 	if right != nil {
@@ -158,11 +153,8 @@ func footerKeyRow(entries []keymapEntry, w int, th theme.Theme, colourless bool)
 	return assembleRightAnchoredRow(left, leftWidth, rightSeg, rightWidth, w, th, colourless)
 }
 
-// The anchor survives; the left cluster gives way beneath it. `? help` is the
-// escape hatch that makes every dropped entry recoverable, so it is never
-// dropped while it fits. Rungs, widest first: no anchor → pad the cluster;
-// both fit → cluster, spacer, anchor; anchor only → right-aligned alone;
-// neither → an empty canvas row.
+// `? help` is the escape hatch that makes every dropped entry recoverable, so
+// the anchor survives while it fits and the left cluster gives way beneath it.
 func assembleRightAnchoredRow(left string, leftWidth int, rightSeg string, rightWidth, w int, th theme.Theme, colourless bool) string {
 	if rightSeg == "" {
 		return headerPadRight(left, leftWidth, w, th, colourless)

@@ -9,18 +9,16 @@ import (
 const hexValueLength = len("#RRGGBB")
 
 // User-facing copy only: a consumer needing the tokens themselves reads
-// Rejection.Tokens, so editing these moves nothing but what a human reads.
+// Rejection.Tokens.
 const (
 	detailBadColourPair       = "%s = %s"
 	detailMissingTokensLeadIn = "missing "
 	detailMissingTokens       = detailMissingTokensLeadIn + "%s"
 )
 
-// themeFromPairs turns the pairs a file declared into the Theme it describes,
-// or into one `bad colour` or `missing tokens` rejection; on rejection the
-// Theme is the zero value. Unknown keys are ignored entirely, key and value,
-// so a removed token's stale line cannot reject an otherwise-good file.
-// Validity is syntactic only — no contrast or readability judgement.
+// Unknown keys are ignored entirely, key and value, so the stale line of a
+// removed token cannot reject an otherwise-good file. Validity is syntactic
+// only — no contrast or readability judgement.
 func themeFromPairs(pairs []Pair) (Theme, *Rejection) {
 	var built Theme
 	refs := built.fields()
@@ -35,11 +33,11 @@ func themeFromPairs(pairs []Pair) (Theme, *Rejection) {
 	return built, nil
 }
 
-// Offenders are collected and reported together, so a file with three typos
+// Offenders are collected and reported together, so a file with several typos
 // is one message. The stored value is upper-cased because downstream hex
 // comparisons (the retained startup canvas hex, background diffing) depend on
-// it; the offender detail is deliberately not canonicalised, echoing back
-// what the user wrote.
+// it; the offender detail is deliberately not canonicalised, echoing back what
+// the user wrote.
 func applyPairs(refs []fieldRef, pairs []Pair) *Rejection {
 	index := indexByName(refs)
 
@@ -67,8 +65,8 @@ func applyPairs(refs []fieldRef, pairs []Pair) *Rejection {
 }
 
 // A theme file must declare the whole palette — no partial file, no
-// merge-over-a-base: the canvas is itself a token, so a partial theme would
-// produce a foreground measured against a background it was never tuned for.
+// merge-over-a-base: the canvas is itself a token, so a partial theme would put
+// a foreground against a background it was never tuned for.
 func requireEveryToken(refs []fieldRef) *Rejection {
 	missing := []string{}
 	for _, ref := range refs {
@@ -97,10 +95,9 @@ func indexByName(refs []fieldRef) map[string]fieldRef {
 	return index
 }
 
-// Portal owns this check because lipgloss.Color never errors and accepts a
-// far wider domain: `212` is an ANSI-256 index, `-5` is silently abs'd,
-// `16777215` is packed RGB, and every failure is the silent noColor
-// sentinel.
+// Portal owns this check because lipgloss.Color never errors and accepts a far
+// wider domain — ANSI-256 indices, packed RGB — with every failure resolving to
+// the silent noColor sentinel.
 func wellFormedHex(value string) bool {
 	if len(value) != hexValueLength || value[0] != '#' {
 		return false

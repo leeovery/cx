@@ -10,7 +10,6 @@ import (
 // build's -X target.
 var version = "dev"
 
-// Version returns the build-time version string.
 func Version() string { return version }
 
 var versionCmd = &cobra.Command{

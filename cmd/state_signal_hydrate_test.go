@@ -434,7 +434,7 @@ func TestStateSignalHydrate_AcceptsLeadingDashSessionViaCobraExecute(t *testing.
 	})
 
 	t.Run("without -- separator, leading-dash session is misparsed as short-flag cluster", func(t *testing.T) {
-		// The seam stays installed so an accidental successful parse is caught.
+		// The seam stays installed so an accidental successful parse surfaces here.
 		var captured string
 		prev := signalHydrateRunFunc
 		signalHydrateRunFunc = func(cfg signalHydrateConfig) error {

@@ -42,8 +42,7 @@ func (m *Model) commitConstant(slug string) error {
 }
 
 // The message lasts until the next keypress, the state until a later commit
-// succeeds (see themeState.commitFailed). No logging: the persister owns the
-// `theme: commit failed` emission.
+// succeeds. No logging: the persister owns the `theme: commit failed` emission.
 func (m *Model) applyCommitResult(err error) {
 	if err != nil {
 		m.reportCommitFailure()
@@ -101,17 +100,14 @@ func (m *Model) commitSlot(slug string, member theme.Member) error {
 // Landed writes only: badges and nomination derive from the raw keys, so
 // recomputing after a failed write would move the `●` off what is persisted.
 // Inputs are the retained enumeration and this instance's keys — not the
-// persister's merged bytes (other instances' writes) and not a fresh read (a
-// third parse could disagree with the rows shown). The previewed identity is
-// captured before the union moves; the cursor re-anchors last, by identity.
+// persister's merged bytes and not a fresh read. The cursor re-anchors last.
 func (m *Model) recomputeThemePanel() {
 	previewed := previewedThemeIdentity(m.themePanel.list)
 
 	m.themePanel.union = m.themeState.source.Reassemble(m.themePanel.enumeration, m.themeState.keys)
 	m.applyCommittedSetting()
 
-	// Always nil: filtering is disabled, the only case SetItems schedules
-	// anything.
+	// Always nil: SetItems schedules work only when filtering is enabled.
 	_ = m.themePanel.list.SetItems(m.themePanel.rowItems())
 
 	m.anchorThemePanelCursor(previewed)

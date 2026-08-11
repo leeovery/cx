@@ -98,8 +98,7 @@ func TestSnapshotStateDir_RecordsSymlinkViaLstat(t *testing.T) {
 	if fp.SymlinkTarget != target {
 		t.Errorf("symlinkTarget = %q, want %q", fp.SymlinkTarget, target)
 	}
-	// Hashing a symlink would read through to the target, defeating lstat
-	// semantics.
+	// Hashing a symlink would read through to the target, defeating lstat semantics.
 	if fp.Hashed {
 		t.Errorf("symlink should not be hashed")
 	}
@@ -395,7 +394,6 @@ func TestReportStateDirDelta_WalksOnlyRoot_NotSiblings(t *testing.T) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatalf("mkdir root: %v", err)
 	}
-	// Sibling outside root: must stay invisible to the snapshot.
 	writeFile(t, filepath.Join(parent, "projects.json"), "p")
 
 	pre, _ := SnapshotStateDir(root)

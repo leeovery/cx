@@ -5,17 +5,14 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Vertical because a horizontal keymap is ~50 cells and cannot fit a
-// ~30-column panel.
+// Vertical because a horizontal keymap cannot fit the panel's column budget.
 
-// Fixed rather than derived from the widest glyph handed in: the confirm
-// footer substitutes `y`/`n` into the same position, and a per-slice column
+// Fixed rather than derived from the widest glyph handed in: a per-slice column
 // would step labels sideways as the confirm raises and resolves.
 const themePanelFooterKeyColumnWidth = 3
 
-// Entries are a parameter because the confirm scope substitutes a shorter
-// footer. Over-wide rows are returned unpadded, never truncated — below the
-// render floor the panel refuses to open.
+// Entries are a parameter because the confirm scope substitutes a shorter footer.
+// Over-wide rows are returned unpadded, never truncated.
 func renderThemePanelFooter(entries []keymapEntry, width int, th theme.Theme, colourless bool) string {
 	return lipgloss.JoinVertical(lipgloss.Left, themePanelFooterRows(entries, width, th, colourless)...)
 }
@@ -26,8 +23,7 @@ func themePanelFooterHeight(entries []keymapEntry) int {
 	return lipgloss.Height(renderThemePanelFooter(entries, 0, theme.Theme{}, true))
 }
 
-// Non-core entries ride the descriptor for dispatch parity only, so they are
-// dropped here.
+// Non-core entries ride the descriptor for dispatch parity only.
 func themePanelFooterRows(entries []keymapEntry, width int, th theme.Theme, colourless bool) []string {
 	rows := make([]string, 0, len(entries))
 	for _, e := range entries {

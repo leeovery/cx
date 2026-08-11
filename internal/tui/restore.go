@@ -7,24 +7,16 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// RestoreTerminalBackground restores the terminal's original background by
-// explicitly setting the captured original back via OSC 11. It is best-effort:
-// with no captured original it writes nothing and lets Bubble Tea's OSC 111
-// reset stand, and write errors are ignored.
+// Set-back rather than reset: some terminals (mosh/Blink) ignore OSC 111, leaving
+// the owned canvas stuck after Portal quits. Under NO_COLOR it writes nothing —
+// no canvas was painted, and setting a reported RGB back would make a transparent
+// background opaque.
 //
-// Set-back rather than reset, because some terminals (mosh/Blink) ignore
-// OSC 111, leaving the owned canvas stuck after Portal quits; those same
-// terminals do honour the set. Under NO_COLOR it writes nothing at all: no
-// canvas was painted, and setting a reported RGB back is not free — it would
-// make a transparent or blurred background opaque.
-//
-// Canvas-echo guard — do not drop. The OSC 11 query is async and races the
-// canvas set, so a terminal can report our own canvas back as the "original";
-// setting that after Bubble Tea's reset re-sticks the canvas. The comparison
-// must stay anchored to the retained startup canvas hex and never be
-// re-derived from the active theme: a theme committed mid-session, or a quit
-// with an uncommitted preview, would then skip or emit the wrong set-back and
-// strand a colour the user never chose.
+// Canvas-echo guard — do not drop. The OSC 11 query races the canvas set, so a
+// terminal can report our own canvas back as the "original"; setting that after
+// Bubble Tea's reset re-sticks it. The comparison must stay anchored to the
+// retained startup canvas hex, never re-derived from the active theme — a
+// mid-session commit would otherwise strand a colour the user never chose.
 func RestoreTerminalBackground(w io.Writer, m Model) {
 	if m.colourless {
 		return
@@ -39,9 +31,8 @@ func RestoreTerminalBackground(w io.Writer, m Model) {
 	_, _ = io.WriteString(w, ansi.SetBackgroundColor(original))
 }
 
-// Tolerant of case, a leading '#', surrounding space, and a trailing alpha
-// pair. A non-hex value (e.g. an `rgb:` reply) returns false, so the caller
-// emits the set-back unchanged.
+// Tolerant of case, a leading '#', space, and a trailing alpha pair. A non-hex
+// value (e.g. an `rgb:` reply) returns false, so the caller emits the set-back.
 func sameHexColour(a, b string) bool {
 	na, oka := normaliseHex6(a)
 	nb, okb := normaliseHex6(b)

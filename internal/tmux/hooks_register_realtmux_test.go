@@ -150,8 +150,8 @@ func hasPortalEntry(entries []tmux.HookEntry, fingerprint string) bool {
 	return false
 }
 
-// K=5 traverses the same depth-N collapse path as the 139-deep live incident
-// at bounded wall-clock — each seeded entry is a real set-hook round-trip.
+// A small depth traverses the same depth-N collapse path at bounded wall-clock:
+// each seeded entry is a real set-hook round-trip.
 const stackDepth = 5
 
 const userHookFingerprint = "echo user pane-focus-out hook"

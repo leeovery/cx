@@ -42,8 +42,8 @@ func TestDeps_HasNoAppearanceField(t *testing.T) {
 	}
 }
 
-// An empty Theme resolves through lipgloss.Color("")'s no-colour sentinel — a
-// silent colourless render — so the render half is asserted too.
+// An empty Theme renders silently through lipgloss.Color("")'s no-colour
+// sentinel, so the render half is asserted too.
 func TestNew_SeedsTheDarkBuiltinWhenNoNominationIsGiven(t *testing.T) {
 	m := New(fakeLister{})
 
@@ -60,8 +60,6 @@ func TestNomination_ConstantSkipsDetectionAndWait(t *testing.T) {
 	if !m.modeResolved() {
 		t.Fatalf("a constant nomination left the first-paint gate open; want resolved at construction (no detection, no wait)")
 	}
-	// Build already called arm(); a second arm must stay a no-op or a later arm
-	// site would re-open a window the constant has no answer for.
 	m.armAppearanceDetection()
 	if !m.modeResolved() {
 		t.Errorf("arming re-opened a constant's gate; want it unarmable")
@@ -145,7 +143,6 @@ func TestGate_ConstantRetainsReplyWithoutClassifying(t *testing.T) {
 	dark := testDarkTheme(t)
 	m := detectModel(t, theme.ConstantNomination(dark))
 
-	// A light terminal is the one case where a derived answer would be visible.
 	updated, _ := m.Update(lightBg)
 	after := updated.(Model)
 
@@ -175,7 +172,6 @@ func TestNoColor_LoadsBothAndSelectsDark(t *testing.T) {
 	}
 }
 
-// A source guard: "did not read" has no observable behavioural trace.
 func TestConstruction_ReadsNoThemesDirectory(t *testing.T) {
 	banned := map[string]string{
 		"os.ReadDir":       "a directory read",
@@ -202,8 +198,8 @@ func TestConstruction_ReadsNoThemesDirectory(t *testing.T) {
 	}
 }
 
-// The cmd emits an unexported internal request marker, so the match is by type
-// against a reference taken from tea.RequestBackgroundColor itself.
+// The request marker type is unexported, so the match is by type against a
+// reference taken from tea.RequestBackgroundColor itself.
 func assertBackgroundQueryIssued(t *testing.T, m Model) {
 	t.Helper()
 	wantType := reflect.TypeOf(tea.Cmd(tea.RequestBackgroundColor)())

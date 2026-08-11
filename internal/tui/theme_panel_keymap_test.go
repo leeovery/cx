@@ -5,10 +5,6 @@ import (
 	"testing"
 )
 
-// Completeness is the point: descriptor↔dispatch parity means a scope authored as
-// just the four visible keys breaks the dispatch guard. The scope carries no
-// RightAligned entry (a vertical footer has no right anchor) and no `?` entry
-// (there is no panel help modal).
 func TestThemePanelKeymap_CarriesAllSixKeys(t *testing.T) {
 	entries := themePanelKeymap()
 
@@ -43,9 +39,6 @@ func TestThemePanelKeymap_CarriesAllSixKeys(t *testing.T) {
 	})
 }
 
-// Marking a fifth entry Core would silently grow the four-row footer and the
-// panel's height floor with it; un-marking one would drop a commit the user has no
-// other affordance for, since there is no panel help modal to recover it from.
 func TestThemePanelKeymap_CoreIsTheFourCommits(t *testing.T) {
 	core := map[string]bool{}
 	for _, e := range themePanelKeymap() {
@@ -66,8 +59,6 @@ func TestThemePanelKeymap_CoreIsTheFourCommits(t *testing.T) {
 	})
 }
 
-// The panel is a scope beside the page descriptors, not an addition to them, so
-// containment is asserted in the RENDERED direction across the four page surfaces.
 func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	th := testDarkTheme(t)
 	panelCore := coreEntriesOf(themePanelKeymap())
@@ -96,8 +87,6 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	})
 
 	t.Run("no panel copy reaches either footer or either help body", func(t *testing.T) {
-		// The three commit strings verbatim, plus each Core entry's help phrase and its
-		// rendered row — the forms the copy could arrive in.
 		needles := []string{"set theme", "set as dark", "set as light"}
 		for _, e := range panelCore {
 			needles = append(needles, e.HelpAction, helpKeyGlyph(e)+" "+e.Action)
@@ -113,8 +102,6 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	})
 
 	t.Run("the panel footer is the scope's only consumer", func(t *testing.T) {
-		// The copy the page surfaces must NOT carry is exactly what the panel's own
-		// footer DOES carry, so the assertions above guard something that renders.
 		panelFooter := footerVisible(renderThemePanelFooter(themePanelKeymap(), themePanelFooterTestWidth, th, false))
 		for _, e := range panelCore {
 			if !strings.Contains(panelFooter, e.Action) {
@@ -124,9 +111,6 @@ func TestThemePanelKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	})
 }
 
-// The confirm scope is a second scope beneath the panel's, not a longer first one,
-// so it must also stay off the panel's STANDING footer — the surface its rows
-// temporarily replace rather than join.
 func TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	th := testDarkTheme(t)
 	confirm := themePanelConfirmKeymap()
@@ -158,8 +142,6 @@ func TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 			needles = append(needles, e.HelpAction, helpKeyGlyph(e)+" "+e.Action)
 		}
 		for name, surface := range surfaces {
-			// The vertical footer's fixed key column is collapsed, so a leak into a
-			// padded row cannot hide behind whitespace.
 			visible := themePanelFooterCopy(footerVisible(surface))
 			for _, needle := range needles {
 				if strings.Contains(visible, needle) {
@@ -170,8 +152,6 @@ func TestThemeConfirmKeymap_DoesNotLeakIntoPageSurfaces(t *testing.T) {
 	})
 
 	t.Run("the substituted footer is the scope's only consumer", func(t *testing.T) {
-		// The copy every surface above must NOT carry is exactly what the panel's
-		// footer DOES carry once the scope is substituted into it.
 		substituted := themePanelFooterCopy(footerVisible(renderThemePanelFooter(confirm, themePanelFooterTestWidth, th, false)))
 		for _, e := range confirm {
 			if want := helpKeyGlyph(e) + " " + e.Action; !strings.Contains(substituted, want) {

@@ -1,6 +1,6 @@
 package cmd
 
-// UsageError represents an invalid usage error that should exit with code 2.
+// UsageError maps to process exit code 2.
 type UsageError struct {
 	msg string
 }

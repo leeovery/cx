@@ -7,10 +7,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The `?` help modal renders from the per-page keymap descriptor. The
-// descriptor governs display only — key dispatch is the live per-page Update
-// switch.
-
 const (
 	helpTitleGlyph  = "?"
 	helpTitle       = "Keybindings"

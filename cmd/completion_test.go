@@ -12,8 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// The seam is the completer's only tmux touch-point, so overriding it keeps
-// these tests hermetic.
 func withCompletionSessionNames(t *testing.T, fn func() []string) {
 	t.Helper()
 	prev := completionSessionNames
@@ -62,7 +60,6 @@ func TestCompleteSessionNames(t *testing.T) {
 	})
 }
 
-// The seam is the alias completer's only config-file touch-point.
 func withCompletionAliasKeys(t *testing.T, fn func() []string) {
 	t.Helper()
 	prev := completionAliasKeys
@@ -263,9 +260,8 @@ func TestCompletionExcludesInternalSessions(t *testing.T) {
 	}
 }
 
-// Drives cobra's hidden __complete verb through the real root command and
-// returns the candidate tokens, so a flag or command cobra itself filters is
-// provably absent from the result.
+// Goes through the real root command, so cobra's own filtering applies to the
+// returned candidates.
 func completionCandidates(t *testing.T, args ...string) []string {
 	t.Helper()
 	resetRootCmd()

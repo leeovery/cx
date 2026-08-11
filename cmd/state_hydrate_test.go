@@ -120,8 +120,8 @@ func TestHydrate_ReadsSingleByteFromFIFOOnSignal(t *testing.T) {
 		t.Fatalf("seed scrollback: %v", err)
 	}
 
-	// Inline rather than signalFIFOAsync: the multi-byte payload is what proves
-	// only one byte is consumed.
+	// Inline rather than signalFIFOAsync: the multi-byte payload is what makes a
+	// second consumed byte visible.
 	go func() {
 		f, err := os.OpenFile(fifo, os.O_WRONLY, 0)
 		if err != nil {
@@ -949,7 +949,7 @@ func TestHydrate_TimeoutWritesNoScrollbackOrPostamble(t *testing.T) {
 	dir := t.TempDir()
 	fifo := makeFIFO(t, dir, "hydrate-tn__0.0.fifo")
 	scrollback := filepath.Join(dir, "sb")
-	// Seeded so the assertion can prove the timeout path never reads it.
+	// Seeded so a timeout path that read it would surface the content.
 	_ = os.WriteFile(scrollback, []byte("SHOULD-NOT-APPEAR"), 0o600)
 
 	stdout := new(bytes.Buffer)
@@ -1680,8 +1680,8 @@ func TestHydrate_NilHookStoreDegradesToBareShellOnSignalArrived(t *testing.T) {
 }
 
 // The fs.* cases use a wrapped *os.PathError — the shape runHydrate passes
-// through verbatim — and the generic case a bare error, so classification is
-// proven to key off the unwrapped sentinel rather than the error's string form.
+// through verbatim — and the generic case a bare error, so classification must
+// key off the unwrapped sentinel rather than the error's string form.
 func TestHydrate_FileMissing_ClassifiesCauseFromRawChain(t *testing.T) {
 	cases := []struct {
 		name   string

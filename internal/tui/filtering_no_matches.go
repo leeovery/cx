@@ -11,14 +11,12 @@ const noMatchesGlyph = "∅"
 
 const noMatchesHint = "⌫ to widen the search · esc to clear the filter"
 
-// Literal quote bytes, never %q, so the query renders byte-exact regardless of
-// its content.
+// Literal quote bytes, never %q, so the query renders byte-exact.
 func formatNoMatchesMessage(query string) string {
 	return fmt.Sprintf(`No sessions match "%s"`, query)
 }
 
-// The active-non-empty-query requirement keeps this distinct from the
-// empty-sessions state.
+// The active non-empty query keeps this distinct from the empty-sessions state.
 func (m Model) sessionListNoMatches() bool {
 	st := m.sessionList.FilterState()
 	if st != list.Filtering && st != list.FilterApplied {

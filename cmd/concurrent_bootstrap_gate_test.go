@@ -13,8 +13,6 @@ func openProbeCmd() *cobra.Command {
 	return &cobra.Command{Use: "open"}
 }
 
-// Carries the same flag surface production registers, so isTUIPath and
-// anyOpenDomainPin can be probed with specific flags marked Changed.
 func openProbeCmdWithFlags() *cobra.Command {
 	c := &cobra.Command{Use: "open"}
 	c.Flags().StringP("exec", "e", "", "")

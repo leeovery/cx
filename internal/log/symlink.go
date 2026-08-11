@@ -9,8 +9,7 @@ import (
 
 var symlinkFunc = os.Symlink
 
-// The temp name is pid-scoped so two portal processes swinging concurrently
-// cannot collide on it.
+// Pid-scoped so two portal processes swinging concurrently cannot collide.
 func pidSymlinkTmp(stateDir string, pid int) string {
 	return filepath.Join(stateDir, portalLogName+"."+strconv.Itoa(pid)+".symlink.tmp")
 }
@@ -18,12 +17,9 @@ func pidSymlinkTmp(stateDir string, pid int) string {
 const legacyOldName = portalLogName + ".old"
 
 // migrationGuard frees the portal.log name so the next swing can claim it as a
-// symlink. It must run before swingSymlink, and is best-effort throughout: a
-// removal failure never aborts the reopen.
-//
-// The lstat must not follow the link. Once the first swing has run, portal.log is
-// a symlink and the guard no-ops forever after — the symlink is the migration
-// marker, so no separate flag is needed.
+// symlink. It must run before swingSymlink, never aborts the reopen, and must
+// Lstat rather than Stat. After the first swing portal.log is itself the
+// migration marker, so the guard no-ops forever and no separate flag is needed.
 func migrationGuard(stateDir string) error {
 	link := symlinkPath(stateDir)
 
@@ -44,9 +40,8 @@ func migrationGuard(stateDir string) error {
 	return nil
 }
 
-// swingSymlink atomically re-points ${stateDir}/portal.log at target, which must
-// be a bare day-file basename. Storing it relative keeps the link valid if the
-// state dir is moved.
+// swingSymlink atomically re-points portal.log at target, which must be a bare
+// day-file basename: storing it relative keeps the link valid across a move.
 func swingSymlink(stateDir, target string) error {
 	return swingSymlinkAs(stateDir, target, os.Getpid())
 }

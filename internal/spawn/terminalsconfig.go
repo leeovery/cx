@@ -6,17 +6,15 @@ import (
 	"os"
 )
 
-// Recipe is a single command capability's execution template; exactly one of
-// Argv / Script is expected.
+// Recipe expects exactly one of Argv / Script.
 type Recipe struct {
 	Argv   []string `json:"argv"`
 	Script string   `json:"script"`
 }
 
-// Capabilities is the set of command capabilities a terminal entry declares.
-// Open is a pointer so an absent `open` sub-key decodes to nil, distinguishable
-// from a present-but-empty recipe. Unmodeled keys are dropped by encoding/json,
-// which is the forward-compat story for future capabilities.
+// Capabilities.Open is a pointer so an absent `open` sub-key decodes to nil,
+// distinguishable from a present-but-empty recipe. Unmodeled keys are dropped by
+// encoding/json, which is the forward-compat story for future capabilities.
 type Capabilities struct {
 	Open *Recipe `json:"open"`
 }
@@ -29,9 +27,8 @@ type TerminalEntry struct {
 // alias, .app name, raw bundle id or *-glob — to its entry.
 type TerminalsConfig map[string]TerminalEntry
 
-// TerminalsStore is a read-only store over the user-authored terminals.json
-// escape hatch. It holds a path — resolving it is the cmd layer's job — and
-// never writes.
+// TerminalsStore never writes, and never resolves its path — that is the cmd
+// layer's job.
 type TerminalsStore struct {
 	path string
 }
@@ -40,9 +37,8 @@ func NewTerminalsStore(path string) *TerminalsStore {
 	return &TerminalsStore{path: path}
 }
 
-// Load reads and decodes terminals.json tolerantly: every failure degrades to an
-// empty non-nil config rather than an error, and a missing file — the normal
-// unconfigured case — does not even warn.
+// Load degrades every failure to an empty non-nil config rather than an error; a
+// missing file — the normal unconfigured case — does not even warn.
 func (s *TerminalsStore) Load() TerminalsConfig {
 	data, err := os.ReadFile(s.path)
 	if err != nil {

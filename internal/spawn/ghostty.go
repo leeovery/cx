@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// Passing a record to `new window with configuration` is the only form
-// Ghostty's scripting dictionary defines — there is no `make` command and no
-// `with properties` terminology. `wait after command` is deliberately unset: the
-// shell-fallback wrapper, not that flag, keeps the window alive and usable.
+// `new window with configuration {record}` is the only form Ghostty's scripting
+// dictionary defines — there is no `make` command and no `with properties`.
+// `wait after command` is deliberately unset: the shell-fallback wrapper, not
+// that flag, keeps the window alive and usable.
 const ghosttyScriptTemplate = `tell application "Ghostty"
 	new window with configuration {command:"%s"}
 end tell`
@@ -23,9 +23,8 @@ func wrapWithShellFallback(command []string) []string {
 	return []string{"bash", "-lc", payload}
 }
 
-// Escape order is load-bearing: backslash must run before quote. Escaping the
-// quote first would double the backslash the quote-escape introduced and corrupt
-// the AppleScript literal.
+// Escape order is load-bearing: backslash before quote. Escaping the quote first
+// would double the backslash the quote-escape introduced.
 func ghosttyEmbed(command []string) string {
 	embedded := renderCommandString(wrapWithShellFallback(command))
 	embedded = strings.ReplaceAll(embedded, `\`, `\\`)
@@ -70,7 +69,7 @@ func (g *ghosttyAdapter) OpenWindow(command []string) Result {
 
 // -1743 (not permitted) and -1712 (timeout) are the AppleEvent permission
 // signals. Recognising them is quarantined here in the driver: general code
-// switches on the generic Outcome and never sees an AppleEvent number.
+// switches on Outcome and never sees an AppleEvent number.
 func mapGhosttyResult(out string, exitCode int, err error) Result {
 	if err == nil && exitCode == 0 {
 		return Success(successDetail(out))

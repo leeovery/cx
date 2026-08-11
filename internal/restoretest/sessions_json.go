@@ -9,10 +9,9 @@ import (
 	"github.com/leeovery/portal/internal/state"
 )
 
-// SeedSessionsJSON writes a minimal sessions.json holding one
-// single-window/single-pane session per supplied name, with a zero SavedAt. The
-// pane's ScrollbackFile is a placeholder path that need not exist: Restore reads
-// only the index, and the in-pane hydrate helper reads the file.
+// SeedSessionsJSON writes one single-window/single-pane session per name, with
+// a zero SavedAt. The pane's ScrollbackFile is a placeholder that need not
+// exist: Restore reads only the index, and the hydrate helper reads the file.
 func SeedSessionsJSON(t *testing.T, stateDir string, names ...string) {
 	t.Helper()
 	SeedSessionsJSONWithSavedAt(t, stateDir, time.Time{}, names...)

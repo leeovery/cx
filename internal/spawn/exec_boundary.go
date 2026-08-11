@@ -9,9 +9,6 @@ import (
 	"github.com/leeovery/portal/internal/log"
 )
 
-// A non-zero or signal exit returns the combined output and exit code with a nil
-// err — it ran but failed. Only a non-exit failure (binary missing on PATH, no
-// exit status) surfaces as err.
 func runArgvCombined(argv []string) (out string, exitCode int, err error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	combined, runErr := log.CombinedOutputWithContext(cmd)
@@ -26,9 +23,8 @@ func runArgvCombined(argv []string) (out string, exitCode int, err error) {
 	return string(combined), 0, runErr
 }
 
-// CombinedOutputWithContext keeps stderr inside the wrapped error rather than
-// merging it into stdout, so the runner seam's out = stdout+stderr contract
-// needs both folded together here.
+// CombinedOutputWithContext keeps stderr inside the wrapped error, so the runner
+// seam's out = stdout+stderr contract needs both folded together here.
 func combineOutput(stdout []byte, wrapErr error) string {
 	parts := make([]string, 0, 2)
 	if s := strings.TrimSpace(string(stdout)); s != "" {

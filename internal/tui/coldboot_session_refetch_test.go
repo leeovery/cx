@@ -421,8 +421,7 @@ func TestColdBoot_InterimPage_IsValidSessions(t *testing.T) {
 }
 
 // SessionsMsg is injected directly rather than through drainBatchToModel: the
-// drain would resolve the refetch before the late ProjectsLoadedMsg lands,
-// defeating the interleave.
+// drain would resolve the refetch before the late ProjectsLoadedMsg lands.
 func TestColdBoot_LateProjectsLoadedMsg_StillLandsOnSessions(t *testing.T) {
 	stale := []tmux.Session{}
 	restored := twoRestoredSessions()

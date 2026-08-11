@@ -21,8 +21,6 @@ func runVersionCheck() error {
 	return versionCheckErr
 }
 
-// resetVersionCheckForTest re-arms the gate so successive tests can exercise
-// the check independently. Never referenced from production paths.
 func resetVersionCheckForTest() {
 	versionCheckOnce = sync.Once{}
 	versionCheckErr = nil

@@ -11,8 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Large enough that a rebuild's dir-resolution pass is unmistakable in the read
-// counter rather than a single ambiguous call.
 const swapProbeSessions = 12
 
 func newSwapProbeModel(t *testing.T, before theme.Theme, mode prefs.SessionListMode, reader *fakeStamper) Model {
@@ -46,8 +44,8 @@ func newSwapProbeModel(t *testing.T, before theme.Theme, mode prefs.SessionListM
 	_ = m.viewProjectList()
 	m.activePage = PageSessions
 
-	// Re-arm the lazy pass: applySessions cached each derived dir onto m.sessions,
-	// and a warm cache would make "zero reads" true for the wrong reason.
+	// Re-arm the lazy pass: applySessions cached each derived dir, and a warm
+	// cache would make "zero reads" true for the wrong reason.
 	for i := range m.sessions {
 		m.sessions[i].Dir = ""
 	}
@@ -60,7 +58,6 @@ type swapProbeMode struct {
 	rebuildReads bool
 }
 
-// Flat pays no pane reads even on a rebuild, so it runs no positive control.
 func swapProbeGroupingModes() []swapProbeMode {
 	return []swapProbeMode{
 		{"flat", prefs.ModeFlat, false},
@@ -95,7 +92,6 @@ func TestApplyTheme_RestylesWithoutRebuild(t *testing.T) {
 			if !tc.rebuildReads {
 				return
 			}
-			// Positive control: without it the zero above could be a dead seam.
 			m.rebuildSessionList()
 			if len(reader.reads) == 0 {
 				t.Fatal("positive control: rebuildSessionList performed no pane reads, so the counting DirReader proves nothing about ApplyTheme")
@@ -129,8 +125,6 @@ func (c countingStores) reset() {
 	c.lister.calls = 0
 }
 
-// The counters' own positive control: one that never increments would make a
-// zero-calls assertion pass for the wrong reason.
 func (c countingStores) exercise() {
 	_, _ = c.projectStore.List()
 	_ = c.projectEditor.AddTag("/x", "y")
@@ -216,8 +210,6 @@ func TestApplyTheme_PerformsNoFileRead(t *testing.T) {
 	t.Run("no seam reaches disk across fifty swaps", func(t *testing.T) {
 		stores := newCountingStores()
 
-		// Positive control first, so the zero below is an absence of calls
-		// rather than an absence of counting.
 		stores.exercise()
 		if stores.calls() != 7 {
 			t.Fatalf("positive control: exercising the seven seams recorded %d calls, want 7 — the counters do not count", stores.calls())
@@ -295,8 +287,6 @@ func newSwapFrameModel(t *testing.T, before theme.Theme, colourless bool) Model 
 	m.applyProjectListSize(m.contentWidth(), m.contentHeight())
 	m.applySessions(sessions)
 
-	// Not set-up: the caches under test are assigned once, so a frame taken
-	// only after the swap would pass trivially.
 	frame := m.View().Content
 	if !strings.Contains(frame, nameN(0)) {
 		t.Fatalf("probe setup: the pre-swap frame does not render the session rows, so a frame comparison would compare nothing: %q", escSeq(frame))
@@ -372,8 +362,6 @@ func TestApplyTheme_ColourlessStaysColourless(t *testing.T) {
 		t.Errorf("post-swap colourless frame carries a %q background sequence — NO_COLOR paints no canvas, and a swap may not reintroduce one: %q", bgTruecolor, escSeq(frame))
 	}
 
-	// Positive control: the negatives above must be absences rather than a
-	// frame that never had colour.
 	coloured := newSwapFrameModel(t, before, false)
 	coloured.ApplyTheme(after)
 	control := coloured.View().Content

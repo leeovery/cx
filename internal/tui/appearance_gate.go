@@ -7,20 +7,16 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// 50ms: answering terminals reply to OSC 11 in single-digit ms, and it stays
-// under the ~100ms perception threshold so a silent terminal's blank wait
-// never reads as a flash.
+// Answering terminals reply to OSC 11 in single-digit ms; staying under the
+// ~100ms perception threshold keeps a silent terminal's wait from reading as a flash.
 const appearanceDetectTimeout = 50 * time.Millisecond
 
 type appearanceTimeoutMsg struct{}
 
-// appearanceGate is single-resolution: the first of the OSC 11 reply or the
-// timeout wins, and every later signal is ignored, so the painted canvas never
-// flips.
 type appearanceGate struct {
 	appearance theme.Member
-	// Stored negatively on purpose: the zero value means resolved, so a
-	// zero-value gate (a struct-literal test model) paints immediately.
+	// Negative on purpose: the zero value means resolved, so a zero-value
+	// gate paints immediately.
 	pending    bool
 	pinned     bool
 	colourless bool

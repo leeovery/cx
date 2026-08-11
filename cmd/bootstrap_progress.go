@@ -11,8 +11,7 @@ import (
 
 const bootstrapProgressBufferSize = 64
 
-// bootstrapProgress is the event shape carried on the progress channel. Exactly
-// one terminal event (Done) is sent, last, before the channel closes.
+// Exactly one terminal event (Done) is sent, last, before the channel closes.
 type bootstrapProgress struct {
 	Step bootstrap.StepEvent
 
@@ -51,9 +50,8 @@ func newBootstrapProgressPipe() *bootstrapProgressPipe {
 	}
 }
 
-// start launches the orchestrator goroutine, sends exactly one terminal Done
-// event, and closes the channel on success or fatal alike, so the receiver
-// always observes a close and never leaks a blocked receive.
+// start closes the channel on success and fatal alike, so the receiver always
+// observes a close and never leaks a blocked receive.
 func (p *bootstrapProgressPipe) start(ctx context.Context, runner bootstrap.Runner) {
 	// Written and read only on the orchestrator goroutine — the emitter runs
 	// synchronously inside Run — so it needs no synchronisation.
@@ -91,8 +89,8 @@ func (p *bootstrapProgressPipe) start(ctx context.Context, runner bootstrap.Runn
 
 // send abandons the event if ctx is cancelled. Without the guard, a restore
 // burst larger than the buffer against a TUI that stopped draining (early Quit)
-// would wedge the orchestrator goroutine on a full channel forever; the drop is
-// benign because nothing is consuming.
+// wedges the goroutine on a full channel forever; the drop is benign, because
+// nothing is consuming.
 func (p *bootstrapProgressPipe) send(ctx context.Context, ev bootstrapProgress) {
 	select {
 	case p.ch <- ev:
@@ -100,9 +98,8 @@ func (p *bootstrapProgressPipe) send(ctx context.Context, ev bootstrapProgress) 
 	}
 }
 
-// receiver returns the tea.Cmd the loading-page model blocks on: a single
-// blocking receive, re-issued per event, which preserves exact event order even
-// under command batching.
+// One blocking receive, re-issued per event: that is what preserves exact event
+// order even under Bubble Tea's command batching.
 func (p *bootstrapProgressPipe) receiver() tea.Cmd {
 	return func() tea.Msg {
 		ev, ok := <-p.ch
@@ -118,7 +115,7 @@ func (p *bootstrapProgressPipe) receiver() tea.Cmd {
 			return tui.BootstrapCompleteMsg{Warnings: ev.Warnings}
 		}
 		// Only the step index rides the wire; the friendly label is derived
-		// consumer-side, which is the sole authority for that mapping.
+		// consumer-side, which owns that mapping.
 		return tui.BootstrapProgressMsg{
 			Index:    ev.Step.Index,
 			RestoreN: ev.RestoreN,
@@ -143,14 +140,8 @@ func fatalMsgFromEvent(ev bootstrapProgress) tui.BootstrapFatalMsg {
 	}
 }
 
-// ServerStarted reports the orchestrator's serverStarted return. Read after the
-// program exits.
 func (p *bootstrapProgressPipe) ServerStarted() bool { return p.serverStarted }
 
-// Warnings reports the soft warnings the orchestrator accumulated. Read after
-// the program exits.
 func (p *bootstrapProgressPipe) Warnings() []bootstrap.Warning { return p.warnings }
 
-// Err reports the orchestrator's fatal error, if any. Read after the program
-// exits.
 func (p *bootstrapProgressPipe) Err() error { return p.err }

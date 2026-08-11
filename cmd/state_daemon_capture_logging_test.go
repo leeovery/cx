@@ -183,7 +183,7 @@ func TestDaemonTick_LogsPerSessionWarnAndCommitsEmptyOnAllNaturalChurn(t *testin
 
 	log := sink.Body()
 
-	// Exactly two, one per failing session: the all-natural-churn path returns a
+	// One per failing session and no more: the all-natural-churn path returns a
 	// nil error, so tick must add no "tick failed" wrapper of its own.
 	warnCount := strings.Count(log, "WARN")
 	if warnCount != 2 {

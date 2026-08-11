@@ -15,9 +15,8 @@ func runRetentionSweep(stateDir, today string, gated bool) {
 	runRetentionSweepWithDays(stateDir, today, gated, nil)
 }
 
-// runRetentionSweepWithDays is best-effort: a crash part-way through leaves the
-// day claimed with deletions partial, and the next day's winner catches up.
-// Retention is a disk-space bound, not a correctness boundary.
+// Best-effort: a partial sweep is made good by the next day's winner — retention
+// is a disk-space bound, not a correctness boundary.
 func runRetentionSweepWithDays(stateDir, today string, gated bool, forcedDays *int) {
 	if gated && !claimSweepGate(stateDir, today) {
 		return
@@ -46,10 +45,9 @@ func resolveSweepRetentionDays(forcedDays *int) int {
 	return retentionDays
 }
 
-// SweepLogsForClean runs the explicit user-invoked retention sweep: ungated, with
-// a cutoff of today, so every prior-day rotated file and every
-// portal.log.swept.* sentinel is removed. It always returns nil — per-file
-// failures warn and the sweep continues.
+// SweepLogsForClean is the user-invoked sweep: ungated, cutoff today, so every
+// prior-day rotated file and swept sentinel goes. It always returns nil —
+// per-file failures warn and the sweep continues.
 func SweepLogsForClean(stateDir string) error {
 	today := nowFunc().Format(dateLayout)
 	cleanCutoffDays := 0
@@ -58,8 +56,7 @@ func SweepLogsForClean(stateDir string) error {
 }
 
 // claimSweepGate reports whether this process won today's sweep. Any open error,
-// not just EEXIST, loses: a sweep that cannot be gated is skipped rather than run
-// un-deduped.
+// not just EEXIST, loses: an ungatable sweep is skipped, not run un-deduped.
 func claimSweepGate(stateDir, today string) bool {
 	f, err := os.OpenFile(sweptSentinelFile(stateDir, today), os.O_CREATE|os.O_EXCL|os.O_WRONLY, sweptSentinelMode)
 	if err != nil {

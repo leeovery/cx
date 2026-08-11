@@ -22,9 +22,8 @@ const reentrancyHookBudget = 1500 * time.Millisecond
 
 const reentrancyPollInterval = 25 * time.Millisecond
 
-// reentrancyConsecutiveReads guards the poll loop against the hook
-// subprocess's atomic rename: one read can land on the pre-rename file,
-// two spaced reads prove the rename settled.
+// Guards the poll loop against the hook subprocess's atomic rename: one read
+// can land on the pre-rename file, two spaced reads mean it settled.
 const reentrancyConsecutiveReads = 2
 
 func TestCommitNowFromSessionClosedHook_NoDeadlockUnderRealTmux(t *testing.T) {

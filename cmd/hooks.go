@@ -9,8 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// HookKeyResolver resolves a tmux pane ID such as "%3" to its rename-immune
-// hook key.
+// HookKeyResolver maps a tmux pane ID ("%3") to its rename-immune hook key.
 type HookKeyResolver interface {
 	ResolveHookKey(paneID string) (string, error)
 }
@@ -19,7 +18,6 @@ var _ HookKeyResolver = (*tmux.Client)(nil)
 
 var hooksDeps *HooksDeps
 
-// HooksDeps injects dependencies for testing.
 type HooksDeps struct {
 	KeyResolver HookKeyResolver
 }

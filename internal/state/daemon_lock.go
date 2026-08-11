@@ -9,9 +9,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ErrDaemonLockHeld reports that another process already holds the advisory
-// lock on <stateDir>/daemon.lock. Callers match it with errors.Is to separate
-// expected contention from genuine open(2)/flock failures, which are fatal.
+// ErrDaemonLockHeld separates expected contention on <stateDir>/daemon.lock
+// from genuine open(2)/flock failures, which are fatal.
 var ErrDaemonLockHeld = errors.New("daemon.lock held by another process")
 
 var lockAcquire = unix.Flock
@@ -31,10 +30,9 @@ const lockAcquireInodeRetrySleep = 10 * time.Millisecond
 // AcquireDaemonLock takes an exclusive, non-blocking advisory lock on
 // <stateDir>/daemon.lock, enforcing at most one daemon per state directory.
 //
-// The caller must retain the returned *os.File for the daemon's whole
-// lifetime — letting it be finalized closes the fd, releasing the kernel lock
-// and reopening the race. Contention returns ErrDaemonLockHeld; every other
-// failure is a wrapped error. stateDir is never created.
+// The caller must retain the returned *os.File for the daemon's whole lifetime —
+// letting it be finalized closes the fd, releasing the kernel lock and reopening
+// the race. Contention returns ErrDaemonLockHeld; stateDir is never created.
 func AcquireDaemonLock(stateDir string) (*os.File, error) {
 	path := DaemonLock(stateDir)
 

@@ -11,35 +11,29 @@ type serverOptionLister interface {
 	ShowAllServerOptions() (string, error)
 }
 
-// AckCollector yields the confirmed token set for a batch.
 type AckCollector interface {
 	Collect(batch string) (map[string]struct{}, error)
 }
 
-// AckCleaner unsets a batch's markers. Callers treat it as best-effort: a
-// leaked marker self-expires with the tmux server.
+// AckCleaner is best-effort: a leaked marker self-expires with the tmux server.
 type AckCleaner interface {
 	Clean(batch string) error
 }
 
-// AckWriter writes a spawned window's own token marker just before it execs
-// into tmux.
+// AckWriter writes a spawned window's own token marker just before it execs.
 type AckWriter interface {
 	Write(batch, token string) error
 }
 
-// AckChannelFull is the combined Collect+Clean seam the burst orchestrators
-// depend on. It omits Write deliberately: the burster never writes markers, the
-// spawned windows do.
+// AckChannelFull omits Write deliberately: the burster never writes markers,
+// the spawned windows do.
 type AckChannelFull interface {
 	AckCollector
 	AckCleaner
 }
 
-// ServerOptionAckChannel implements the @portal-spawn- token-ack contract over
-// tmux server options. Markers are presence-only; the @portal-spawn- prefix
-// keeps the namespace invisible to state.ListSkeletonMarkers so sweeps in
-// either direction cannot collide.
+// ServerOptionAckChannel implements the token-ack contract over tmux server
+// options. Markers are presence-only — the value is never read.
 type ServerOptionAckChannel struct {
 	w serverOptionWriter
 	l serverOptionLister
@@ -56,16 +50,14 @@ var (
 	_ AckChannelFull = (*ServerOptionAckChannel)(nil)
 )
 
-// Write sets the @portal-spawn-<batch>-<token> server option. The value is
-// opaque — presence is the signal — so a repeat write is harmless.
+// Write is idempotent: presence is the signal, the value opaque.
 func (c *ServerOptionAckChannel) Write(batch, token string) error {
 	return c.w.SetServerOption(SpawnMarkerName(batch, token), "1")
 }
 
-// Collect returns the set of tokens whose @portal-spawn-<batch>-<token> marker
-// belongs to batch; options outside that batch are skipped. A listing failure
-// returns (nil, err) rather than an empty-as-success set, which would
-// mis-classify every window as failed. On success the map is non-nil.
+// Collect returns the tokens marked for batch. A listing failure returns
+// (nil, err) rather than an empty-as-success set, which would mis-classify every
+// window as failed; on success the map is non-nil.
 func (c *ServerOptionAckChannel) Collect(batch string) (map[string]struct{}, error) {
 	out, err := c.l.ShowAllServerOptions()
 	if err != nil {
@@ -78,9 +70,8 @@ func (c *ServerOptionAckChannel) Collect(batch string) (map[string]struct{}, err
 	return tokens, nil
 }
 
-// Clean unsets every marker belonging to batch. It is idempotent and tolerates
-// a concurrent unset. A per-marker failure does not abort the sweep; the first
-// unset error (or the enumeration error) is returned.
+// Clean is idempotent and tolerates a concurrent unset. A per-marker failure
+// does not abort the sweep; the first error encountered is returned.
 func (c *ServerOptionAckChannel) Clean(batch string) error {
 	out, err := c.l.ShowAllServerOptions()
 	if err != nil {

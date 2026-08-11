@@ -1,8 +1,7 @@
 // Package theme is the closed colour-token vocabulary Portal renders against,
-// plus the machinery that turns a .theme file into one. The 19 token names are
-// a public contract — renaming one breaks every drop-in theme file. A Theme is
-// one palette, not a light/dark pair (light and dark are two different
-// themes), and is the parse result of a file, carrying no identity field.
+// plus the machinery that turns a .theme file into one. The token names are a
+// public contract — renaming one breaks every existing drop-in file. A Theme is
+// one palette and is itself light or dark; light and dark are two themes.
 package theme
 
 import (
@@ -11,32 +10,29 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Token is one semantic role in the closed vocabulary: the name a theme file
-// keys against, and the #RRGGBB value that file gave it.
+// Token is one semantic role: the name a theme file keys against, and the
+// #RRGGBB value that file gave it.
 type Token struct {
 	Name, Value string
 }
 
-// Color resolves the token's value to a colour. A zero-value Token yields the
-// lipgloss no-colour sentinel rather than erroring, so a partly-populated
-// hand-built Theme is safe to render.
+// Color resolves the token's value. A zero-value Token yields the lipgloss
+// no-colour sentinel rather than erroring, so a partly-populated hand-built
+// Theme is safe to render.
 func (t Token) Color() color.Color {
 	return lipgloss.Color(t.Value)
 }
 
-// Theme is one palette: the 19 tokens of the closed vocabulary.
 type Theme struct {
-	// Text ramp, brightest to faintest. TextFaint is decorative only —
-	// never content a user must read.
+	// TextFaint is decorative only — never content a user must read.
 	TextPrimary     Token
 	TextSecondary   Token
 	TextTertiary    Token
 	TextMuted       Token
 	TextSubtle      Token
 	TextFaint       Token
-	TextOnSelection Token // pairs against BgSelection
+	TextOnSelection Token
 
-	// Accents and states.
 	AccentPrimary    Token
 	AccentKey        Token
 	AccentMode       Token
@@ -44,13 +40,12 @@ type Theme struct {
 	StatePositive    Token
 	StateDestructive Token
 
-	// Surfaces.
-	Canvas          Token // the owned canvas, painted on every cell
+	Canvas          Token // painted on every cell, so every other token is read against it
 	BgSelection     Token
 	BgAttention     Token
 	BgSubtle        Token
 	Border          Token
-	TextOnAttention Token // pairs against BgAttention
+	TextOnAttention Token
 }
 
 type fieldRef struct {
@@ -58,9 +53,8 @@ type fieldRef struct {
 	Field *Token
 }
 
-// fields is the canonical name↔field table — the single source All(),
-// TokenNames() and the parser derive from, so count, names and order cannot
-// drift.
+// Names, order and count all derive from this table rather than from the struct,
+// so a token added as a field but not as a row here is never parsed.
 func (t *Theme) fields() []fieldRef {
 	return []fieldRef{
 		{Name: "text.primary", Field: &t.TextPrimary},
@@ -85,9 +79,9 @@ func (t *Theme) fields() []fieldRef {
 	}
 }
 
-// All returns every token in canonical table order. Names come from the
-// table, not the stored fields, so a hand-built Theme with only values set
-// still enumerates under the right names.
+// All returns every token in table order. Names come from the table, not the
+// stored fields, so a hand-built Theme with only values set still enumerates
+// under the right names.
 func (t Theme) All() []Token {
 	refs := t.fields()
 	tokens := make([]Token, 0, len(refs))
@@ -97,8 +91,8 @@ func (t Theme) All() []Token {
 	return tokens
 }
 
-// TokenNames returns the 19 token names in canonical table order — the keys a
-// .theme file is written against; renaming one breaks every existing file.
+// TokenNames returns the token names in table order — the keys a .theme file is
+// written against.
 func TokenNames() []string {
 	var t Theme
 	refs := t.fields()

@@ -14,9 +14,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// Dimensions are assigned directly rather than driven through a
-// tea.WindowSizeMsg: a fixture that resized on its way in could not tell the
-// geometry ladder running at open from the ladder running on the resize.
+// Dimensions are assigned directly, not through a tea.WindowSizeMsg: a fixture
+// that resized on its way in could not tell the open ladder from the resize one.
 func openPanelForTest(t *testing.T, m Model, contentW, contentH int) Model {
 	t.Helper()
 	return openPanelForTestWithSessions(t, m, contentW, contentH, closePanelSessions())
@@ -51,9 +50,8 @@ func newDirBackedPanelModel(t *testing.T, dir string, keys theme.RawKeys, mode t
 	return newDirBackedPanelModelOver(t, dir, keys, mode, theme.NewSilentLoader())
 }
 
-// Construction always resolves through a loader of its own, so a caller passing
-// a sink-backed loader gets the panel's emissions alone rather than a delta
-// against construction's.
+// Construction resolves through a loader of its own, so a caller passing a
+// sink-backed loader gets the panel's emissions alone, not a delta.
 func newDirBackedPanelModelOver(t *testing.T, dir string, keys theme.RawKeys, mode theme.Member, panelLoader theme.Loader) (Model, *countingThemeSource) {
 	t.Helper()
 
@@ -89,8 +87,6 @@ func requireCommitDoesNoOtherIO(
 	writeThemeFileForTest(t, dir, "sunset.theme", "#101010")
 
 	stores := newCountingStores()
-	// The recording fake rather than the counted one: this is the single write
-	// the keypress may make, so what it wrote is what matters.
 	persister := &fakeThemePersister{}
 	loader := theme.NewSilentLoader()
 	enumerator := countingEnumeratorOver(loader, dir)
@@ -118,8 +114,6 @@ func requireCommitDoesNoOtherIO(
 	if !m.themePanel.open {
 		t.Fatal("fixture: the panel did not open")
 	}
-	// The open's own read is not what this measures; the question is what the
-	// commit adds to it.
 	stores.reset()
 	opens := enumerator.opens
 
@@ -149,16 +143,13 @@ func requireCommitDoesNoOtherIO(
 	}
 }
 
-// The subtest name is carried rather than composed, so the string a failure is
-// grepped by stays a literal at the call site.
 type panelReadOnlyPath struct {
 	verb          string
 	absentSubtest string
 }
 
 // act stages nothing of its own: it receives the staged themes directory and
-// the keys naming the theme in it, so the paths differ by their model and their
-// keypresses alone.
+// the keys naming the theme in it, and differs only in model and keypresses.
 func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(t *testing.T, dir string, keys theme.RawKeys)) {
 	t.Helper()
 
@@ -172,8 +163,8 @@ func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(
 		}
 		t.Setenv("PORTAL_PREFS_FILE", prefsFile)
 		dir := t.TempDir()
-		// Deliberately invalid, so the path runs over the rejection fallback —
-		// the case where a write would overwrite the name the user set.
+		// Deliberately invalid, so the path runs over the rejection fallback — the
+		// case where a write would overwrite the name the user set.
 		writeThemeFileForTest(t, dir, "sunset.theme", "not-a-colour")
 
 		act(t, dir, keys)
@@ -209,8 +200,7 @@ func requireNoPrefsOrThemesWrite(t *testing.T, path panelReadOnlyPath, act func(
 }
 
 // Requested and Resolved come from one argument deliberately: badges key on the
-// former and the cursor anchors on the latter, so a shape free to transpose
-// them could be wrong while every reader of it still resolves.
+// former and the cursor on the latter, so a transposed shape still resolves.
 func constantResolution(slug string, th theme.Theme) theme.Resolution {
 	return theme.Resolution{
 		Nomination: theme.ConstantNomination(th),
@@ -286,9 +276,9 @@ func TestPairResolution_IsTheAdaptiveStubShape(t *testing.T) {
 	}
 }
 
-// Returns the bare parameter run rather than the whole `ESC[…m`: a style
-// carrying foreground, background and attributes emits them as one sequence, so
-// only the `38;2;…` / `48;2;…` core lands in composed output.
+// Returns the bare parameter run, not the whole `ESC[…m`: a style carrying
+// foreground, background and attributes emits them as one sequence, so only the
+// `38;2;…` / `48;2;…` core lands in composed output.
 func sgrParams(t *testing.T, style lipgloss.Style) string {
 	t.Helper()
 	probe := style.Render("x")
@@ -310,9 +300,8 @@ func tokenBgSeq(t *testing.T, tok theme.Token) string {
 	return sgrParams(t, lipgloss.NewStyle().Background(tok.Color()))
 }
 
-// Functions, not package-level vars: package-level mutable theme state on the
-// render path is forbidden, and the test side must not grow the shape the
-// production guard exists to prevent.
+// Functions, not package-level vars: the test side must not grow the shape the
+// production guard against package-level theme state exists to prevent.
 func testDarkTheme(t *testing.T) theme.Theme {
 	t.Helper()
 	return themetest.DefaultDark(t)
@@ -360,8 +349,8 @@ func forEachCanvasMode(t *testing.T, fn func(t *testing.T, m theme.Member)) {
 	}
 }
 
-// Names a theme for a failure message without printing its whole palette,
-// identifying by canvas — the one token the built-ins can never share.
+// Identifies a theme by canvas — the token the built-ins can never share —
+// without printing its whole palette into a failure message.
 func themeLabel(th theme.Theme) string {
 	switch v := th.Canvas.Value; v {
 	case "":
@@ -376,8 +365,7 @@ func themeLabel(th theme.Theme) string {
 }
 
 // Takes no *testing.T: themeLabel is evaluated inside an argument list, so a
-// broken embedded file degrades to "" — which themeLabel rules out before it
-// asks.
+// broken embedded file degrades to "", which themeLabel rules out before asking.
 func builtinCanvasValue(slug string) string {
 	loaded, rejection, found := theme.NewSilentLoader().LoadBuiltin(slug)
 	if !found || rejection != nil {
@@ -399,7 +387,6 @@ func tokenNamed(t *testing.T, th theme.Theme, name string) theme.Token {
 	return theme.Token{}
 }
 
-// A constant skips the gate entirely, so the frame is un-gated from paint one.
 func testConstantFor(t *testing.T, appearance theme.Member) theme.Nomination {
 	t.Helper()
 	return theme.ConstantNomination(themeForAppearance(t, appearance))

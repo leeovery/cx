@@ -26,9 +26,8 @@ var (
 	otherBackgroundReply = tea.BackgroundColorMsg{Color: color.RGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}}
 )
 
-// The one built-in that is neither shipped default: asserting against a default
-// would pass identically if the nomination were ignored and the fallback
-// rendered.
+// A built-in that is neither shipped default: asserting against a default would
+// pass identically if the nomination were ignored and the fallback rendered.
 const nordSlug = "nord"
 
 func themeNominationForTest(t *testing.T) theme.Nomination {
@@ -73,8 +72,7 @@ func TestConstruction_PersistedConstantSkipsTheGate(t *testing.T) {
 }
 
 // `theme_dark` alone is deliberate: an unset `theme_light` is not a partial pair
-// but a slot holding the shipped default, and the light reply proves it resolved
-// to a real palette.
+// but a slot holding the shipped default, which resolves to a real palette.
 func TestConstruction_PersistedPairSelectsByGate(t *testing.T) {
 	setPrefsFile(t, `{"theme_dark":"`+nordSlug+`"}`)
 	nord := themetest.Builtin(t, nordSlug)
@@ -347,11 +345,6 @@ func TestConstruction_StartupCanvasHexFromSelectedMember(t *testing.T) {
 	})
 }
 
-// "Constructs no TUI" is bracketed on both sides of the construction statement,
-// because either half alone is satisfiable by a fatal that returns too late: the
-// unused commander proves execution never reached the current-session read that
-// precedes construction, and the still-full warning sink proves it never reached
-// the staging call that follows it.
 func TestOpenTUI_FatalBeforeModelConstruction(t *testing.T) {
 	setPrefsFile(t, `{"theme":"no-such-theme"}`)
 
@@ -507,8 +500,6 @@ func writeThemeFile(t *testing.T, dir, slug, canvas string) {
 	themetest.Write(t, dir, slug+".theme", themetest.WithValue(themetest.Lines(), "canvas", canvas))
 }
 
-// Removes every input themesDirPath resolves from. The vacuity guard is
-// load-bearing: with any one of the three still set the path resolves fine.
 func unresolvableThemesDir(t *testing.T) {
 	t.Helper()
 

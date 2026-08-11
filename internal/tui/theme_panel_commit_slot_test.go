@@ -25,8 +25,6 @@ func pressSlotKey(t *testing.T, m Model, press tea.KeyPressMsg) (Model, tea.Cmd)
 	return updated.(Model), cmd
 }
 
-// Slug and slot are asserted together: `d` writing the light slot, or `l` writing
-// the cursor's neighbour, both pass a slug-only or slot-only recording.
 func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit) {
 	t.Helper()
 
@@ -43,8 +41,6 @@ func requireSlotCommits(t *testing.T, p *fakeThemePersister, want ...slotCommit)
 	}
 }
 
-// The seam-level statement that the load happens on the constant → adaptive
-// transition and nowhere else: over a pair both members are already in hand.
 func requireNoSlotLoad(t *testing.T, m Model) {
 	t.Helper()
 
@@ -73,8 +69,6 @@ func newSlotPairPanelModel(t *testing.T, dir, lightSlug, darkSlug string) (Model
 	return m, persister
 }
 
-// The two different unions make the recompute's own effect observable, which a
-// real loader cannot: a recompute over untouched keys derives the identical union.
 func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Model, *fakeThemeSource, *fakeThemePersister) {
 	t.Helper()
 
@@ -92,8 +86,6 @@ func newSlotSplitPanelModel(t *testing.T, opened, reassembled []theme.Row) (Mode
 	return openCommitPanel(t, deps, PageSessions, dark.Slug), enumerator, persister
 }
 
-// A residual `● light` or `● dark` anywhere would mean the collapse happened in
-// the derived map but not in the render, or the reverse.
 func requireBothBadge(t *testing.T, m Model, label string) {
 	t.Helper()
 
@@ -107,8 +99,6 @@ func requireBothBadge(t *testing.T, m Model, label string) {
 	}
 }
 
-// The fixture arrows away from the row the panel opened on — the only shape in
-// which the cursor's slug and the persisted slug are distinguishable strings.
 func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	light, target := rows[0].Slug, rows[2].Slug
@@ -128,8 +118,8 @@ func TestPanelSlotCommit_DarkWritesTheDarkSlot(t *testing.T) {
 	}
 }
 
-// Asserted separately rather than as a table row: the two keys are the one place a
-// transposed slot argument would be invisible in either direction.
+// Asserted separately from `d`: a transposed slot argument is invisible from
+// either key alone.
 func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	dark, target := rows[1].Slug, rows[2].Slug
@@ -149,9 +139,8 @@ func TestPanelSlotCommit_LightWritesTheLightSlot(t *testing.T) {
 	}
 }
 
-// The other slot names a slug that resolves to nothing, which is the strongest
-// form: a commit that re-derived the pair — or "helpfully" dropped an unresolvable
-// slug — shows up here and nowhere else.
+// The other slot names a slug that resolves to nothing on purpose: a commit
+// that re-derived the pair, or dropped the unresolvable slug, shows up here.
 func TestPanelSlotCommit_OtherSlotSurvives(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -170,9 +159,6 @@ func TestPanelSlotCommit_OtherSlotSurvives(t *testing.T) {
 	requireBadge(t, m, "aurora", theme.BadgeNone)
 }
 
-// An unset slot holding the shipped default is a READ rule: writing that default
-// out would freeze today's default into the user's prefs, silently declining every
-// later change to it.
 func TestPanelSlotCommit_EmptyOtherSlotStaysEmpty(t *testing.T) {
 	dir := t.TempDir()
 	// Sorted last so `↓` reaches it, and neither shipped default so the committed
@@ -193,8 +179,6 @@ func TestPanelSlotCommit_EmptyOtherSlotStaysEmpty(t *testing.T) {
 	requireBadge(t, m, theme.DefaultDarkSlug, theme.BadgeNone)
 }
 
-// The collapse falls out of the untouched-other-slot rule plus the post-commit
-// recompute rather than out of any badge derivation on the commit path.
 func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -223,10 +207,8 @@ func TestPanelSlotCommit_DThenLYieldsBoth(t *testing.T) {
 	}
 }
 
-// The store performs both halves in one atomic write, so the panel must ask once —
-// no second call to clear the constant, no merge re-implemented here. The memory
-// half is driven through commitSlot directly, because the key is inert over a
-// constant until the confirm resolves.
+// The memory half is driven through commitSlot directly: the key is inert over
+// a constant until the confirm resolves.
 func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 	t.Run("one call, not two", func(t *testing.T) {
 		rows := arrowValidRows(t, 4)
@@ -246,8 +228,8 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 	t.Run("the constant is cleared in memory", func(t *testing.T) {
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
-		// The three-key shape resolves as a constant — the one state in which there is
-		// a constant to clear and the untouched slot is invisible until it is cleared.
+		// All three keys resolve as a constant: the shape in which there is a
+		// constant to clear and the untouched slot is invisible until it is.
 		keys := theme.RawKeys{Theme: "aurora", Light: "ghost", Dark: "aurora"}
 		m, _, persister := newRecomputePanelModel(t, dir, keys)
 		requireRowLabels(t, m, "aurora", "nord", theme.DefaultDarkSlug, theme.DefaultLightSlug)
@@ -267,7 +249,6 @@ func TestPanelSlotCommit_ClearsTheConstantAtomically(t *testing.T) {
 	})
 }
 
-// Over a constant the keypress asks rather than writes: the write happens on `y`.
 func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -314,8 +295,6 @@ func TestPanelSlotCommit_InertOverAConstant(t *testing.T) {
 }
 
 func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
-	// The dark slot is in force, so every subtest previews a light theme in a dark
-	// terminal and commits the light slot.
 	newModel := func(t *testing.T) (Model, *fakeThemePersister) {
 		t.Helper()
 		dir := t.TempDir()
@@ -345,8 +324,8 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 		}
 	})
 
-	// The panel legitimately re-renders here, so the palette is compared as a set of
-	// SGR sequences rather than byte for byte.
+	// The panel legitimately re-renders here, so the palette is compared as a
+	// set of SGR sequences rather than byte for byte.
 	t.Run("a badge-moving commit leaves the palette alone", func(t *testing.T) {
 		m, persister := newModel(t)
 
@@ -387,8 +366,8 @@ func TestPanelSlotCommit_NonActiveSlotIsVisuallyInert(t *testing.T) {
 	})
 }
 
-// Driven on the row already carrying that slot's badge — the case where a "don't
-// write what is already set" shortcut would be tempting.
+// Driven on the row already carrying that slot's badge, where a "don't write
+// what is already set" shortcut would be tempting.
 func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -428,10 +407,6 @@ func TestPanelSlotCommit_RepeatIsIdempotent(t *testing.T) {
 	}
 }
 
-// theme.Member is not a string, so the type does most of the work; the two shapes
-// it leaves open are a conversion minting a value from an integer and the
-// persistence type leaking back into this layer, where a second translation is
-// free to invert against the seam's.
 func TestPanelSlotCommit_TypedSlotOnly(t *testing.T) {
 	members, conversions, prefsSlots := themeSlotUsagesInPackage(t)
 
@@ -497,17 +472,14 @@ func isPackageSelector(expr ast.Expr, pkg, sel string) bool {
 	return ok && ident.Name == pkg && (sel == "" || selector.Sel.Name == sel)
 }
 
-// Both subtests commit a slug the target slot does not already hold, which makes
-// the mirror a non-identity on these keys: committing the slug the slot already
-// holds leaves them byte-identical either way and would assert nothing.
+// Both subtests commit a slug the target slot does not already hold: committing
+// one it holds leaves the keys byte-identical either way and asserts nothing.
 func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 	opened := arrowValidRows(t, 4)
 	reassembled := arrowValidRows(t, 2)
 
 	t.Run("the keypress mutates nothing", func(t *testing.T) {
 		m, enumerator, persister := newSlotSplitPanelModel(t, opened, reassembled)
-		// The fixture opens on the slug the dark slot already holds, so the cursor is
-		// arrowed off it first.
 		m = arrowToThemeRow(t, m, opened[2].Slug)
 		keys := m.themeState.keys
 		badges := maps.Clone(m.themePanel.badges)
@@ -541,8 +513,6 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 		}
 	})
 
-	// The key cannot reach here over a constant (the confirm gates it), so the
-	// helper is called directly, exactly as the successful clear is.
 	t.Run("the helper returns the error and leaves the constant set", func(t *testing.T) {
 		dir := t.TempDir()
 		writeThemeFileForTest(t, dir, "aurora.theme", "#101010")
@@ -579,8 +549,6 @@ func TestPanelSlotCommit_FailedWriteLeavesKeysAlone(t *testing.T) {
 	})
 }
 
-// The absence of a writer, not a failed write: nothing is on disk for the
-// in-memory keys to mirror, and `Esc` would resolve to a slot nothing persisted.
 func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	target := rows[2].Slug
@@ -617,7 +585,6 @@ func TestPanelSlotCommit_NilPersisterIsInert(t *testing.T) {
 	requirePairKeys(t, wired, rows[0].Slug, target)
 }
 
-// The reverse direction needs no confirm: `Enter` visibly does what it says.
 func TestPanelSlotCommit_EnterAfterSlotNeedsNoConfirm(t *testing.T) {
 	dir := t.TempDir()
 	writeThemeFileForTest(t, dir, "aurora.theme", "#101010")

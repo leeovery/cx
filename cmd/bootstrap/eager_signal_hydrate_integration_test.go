@@ -24,9 +24,8 @@ func TestPhase1Integration_EagerSignalHydrate_MultiSessionMarkersClearedWithin2s
 	}
 	tmuxtest.SkipIfNoTmux(t)
 
-	// The portal binary must be on PATH: restored panes respawn into
-	// `portal state hydrate`, and without it the helper never reaches the
-	// marker unset this test polls for.
+	// Restored panes respawn into `portal state hydrate`, so the binary must be
+	// on PATH or the helper never reaches the marker unset polled for below.
 	binDir := restoretest.BuildPortalBinaryDir(t)
 
 	cases := []struct {
@@ -149,9 +148,9 @@ func TestPhase1Integration_DaemonResumesCaptureAfterEagerSignal_AC4(t *testing.T
 	defer dumpPortalLogOnFailure(t, stateDir)
 	restoretest.WaitForSkeletonMarkersCleared(t, client, 2*time.Second, 50*time.Millisecond)
 
-	// Force one newline-terminated record into the pane: a freshly-exec'd shell
+	// Force a newline-terminated record into the pane: a freshly-exec'd shell
 	// can leave only a partial prompt line, and TailScrollback then returns
-	// nothing — a tooling flake masquerading as a failure.
+	// nothing.
 	betaPaneKey := state.SanitizePaneKey("beta", 0, 0)
 	betaTarget := tmux.PaneTarget("beta", 0, 0)
 	if err := client.SendKeys(betaTarget, "echo ac4-marker"); err != nil {

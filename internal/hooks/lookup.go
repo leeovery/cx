@@ -2,10 +2,9 @@ package hooks
 
 import "fmt"
 
-// LookupOnResume returns the on-resume command registered for hookKey, if any.
-// A missing or malformed hooks.json degrades silently to "no hook"; only a
-// genuine I/O error is returned. An empty command counts as no hook, so the
-// caller never execs an empty shell command.
+// LookupOnResume returns the on-resume command registered for hookKey. A missing
+// or malformed hooks.json degrades silently to "no hook", as does an empty
+// command; only a genuine I/O error is returned.
 //
 // hookKey is the raw saved identifier, un-sanitised, so colons in a session name
 // round-trip verbatim.

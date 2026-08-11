@@ -2,9 +2,8 @@ package cmd
 
 import "github.com/leeovery/portal/internal/log"
 
-// Component-bound loggers for the cmd package. Unlike a single-component
-// package, cmd spans several taxonomy components, so it binds one logger per
-// component it emits under rather than a single package-scope logger.
+// cmd spans several taxonomy components, so it binds one logger per component it
+// emits under rather than the usual single package-scope logger.
 var (
 	daemonLogger    = log.For("daemon")
 	hydrateLogger   = log.For("hydrate")

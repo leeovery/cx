@@ -12,8 +12,8 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Written out verbatim rather than read from the production constants — a test
-// that asserts a constant against itself pins nothing.
+// Verbatim, not the production constants: a test asserting a constant against
+// itself pins nothing.
 const (
 	wantNoColorEntryFlash = "theme picker needs colour — NO_COLOR is set"
 	wantNarrowEntryFlash  = "terminal too narrow for the theme picker"
@@ -30,8 +30,8 @@ func entryRows(t *testing.T) []theme.Row {
 	return arrowValidRows(t, 4)
 }
 
-// The recorded open count discriminates the two refusal shapes: a proactive block
-// reads nothing, the post-read re-evaluation has already enumerated.
+// The recorded open count discriminates the two refusal shapes: a proactive
+// block reads nothing, the post-read re-evaluation has already enumerated.
 func newEntryEnumerator(t *testing.T, dirUnusable bool) *fakeThemeSource {
 	t.Helper()
 	rows := entryRows(t)
@@ -49,9 +49,8 @@ type entryModelOpts struct {
 	contentH   int
 }
 
-// Every page-action seam is wired because the routing table needs each key's own
-// effect as a control. The dimensions are assigned directly rather than through a
-// tea.WindowSizeMsg, so the gate is asked about the region the fixture declares.
+// The dimensions are assigned directly rather than through a tea.WindowSizeMsg,
+// so the gate is asked about the region the fixture declares.
 func newEntryModel(t *testing.T, e ThemeSource, o entryModelOpts) (Model, *fakeThemeSource) {
 	t.Helper()
 
@@ -104,8 +103,6 @@ func newUnblockedEntryModel(t *testing.T, p page) (Model, *fakeThemeSource) {
 	})
 }
 
-// Theme is a global setting, so every entry rule is a statement about both pages —
-// one gate, two dispatch sites.
 var entryPages = []struct {
 	name string
 	page page
@@ -128,7 +125,7 @@ func requireBlocked(t *testing.T, m Model, cmd tea.Cmd, wantFlash string) {
 }
 
 // Only valid where the content region holds the message on one line: the band
-// wraps below that by design.
+// wraps below that.
 func requireFlashBandVisible(t *testing.T, m Model, wantFlash string) {
 	t.Helper()
 	if got := ansi.Strip(m.View().Content); !strings.Contains(got, wantFlash) {
@@ -155,9 +152,8 @@ func requireSilentRefusal(t *testing.T, m Model, rec *fakeThemeSource, where str
 	}
 }
 
-// A colourless panel is unreachable through the production keypress by decision,
-// but the colourless render path is real. The smallest possible bypass: the same
-// enumeration installed by the same armThemePanel, with only the gate skipped.
+// The entry gate blocks `t` under NO_COLOR, but the colourless render path is
+// real: the same armThemePanel, with only the gate skipped.
 func armPanelUnderNoColorForTest(t *testing.T, m Model) Model {
 	t.Helper()
 	if !m.colourless {
@@ -194,9 +190,6 @@ func TestPanelEntry_OpensOnSessionsAndProjects(t *testing.T) {
 	}
 }
 
-// A capability absence, blocked proactively: the panel would preview nothing and a
-// commit would persist a choice with zero visible feedback. The directory is not
-// read, which is what distinguishes this refusal from the post-read one below.
 func TestPanelEntry_NoColorBlocked(t *testing.T) {
 	for _, tc := range entryPages {
 		t.Run(tc.name, func(t *testing.T) {
@@ -218,9 +211,6 @@ func TestPanelEntry_NoColorBlocked(t *testing.T) {
 	}
 }
 
-// Width is checked first, so a terminal failing both reports narrow — the
-// dimension the user can act on with the same gesture that broke it, and the order
-// is what keeps the entry copy and the forced-close copy identical.
 func TestPanelEntry_FloorBlocked(t *testing.T) {
 	floor := themePanelMinHeight(themePanelKeymap(), false)
 
@@ -251,9 +241,8 @@ func TestPanelEntry_FloorBlocked(t *testing.T) {
 	}
 }
 
-// The floor is conditional on DirUnusable, which does not exist until the
-// enumeration runs, so the pre-read evaluation passes false. The height is exactly
-// the non-directory floor — the only height at which the two assumptions differ.
+// The height is exactly the non-directory floor — where the pre-read assumption
+// (DirUnusable false, since the enumeration has not run) and the real one differ.
 func TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor(t *testing.T) {
 	entries := themePanelKeymap()
 	floor := themePanelMinHeight(entries, false)
@@ -281,10 +270,6 @@ func TestPanelEntry_UsableDirectoryOpensAtTheNonDirFloor(t *testing.T) {
 	}
 }
 
-// One predicate evaluated twice: once before the read with the flag assumed false,
-// once as soon as Open returns with the real one. The blocked open has already
-// read the directory and emitted its line; splitting the read from its emission
-// would fork the seam for one edge, so that cost is asserted rather than hidden.
 func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 	entries := themePanelKeymap()
 	floor := themePanelMinHeight(entries, false)
@@ -335,9 +320,6 @@ func TestPanelEntry_UnusableDirectoryBlocksOnTheReEvaluation(t *testing.T) {
 	})
 }
 
-// The entry condition and the resize condition are the same question: two
-// independent derivations produce a panel refused where it would have fitted, or a
-// broken frame opened where a resize would have closed it.
 func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 	floor := themePanelMinHeight(themePanelKeymap(), false)
 
@@ -379,8 +361,6 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 			if got, want := entered.flashText, wantEntryFlash(dim); got != want {
 				t.Errorf("the blocked entry raised %q, want the %v copy %q", got, dim, want)
 			}
-			// Reads production's own selector, so what is asserted here is that the two
-			// callers agree on the DIMENSION, not what that dimension's words are.
 			if got, want := resized.flashText, themePanelForcedCloseFlash(dim); got != want {
 				t.Errorf("the forced close raised %q, want the %v copy %q", got, dim, want)
 			}
@@ -388,8 +368,6 @@ func TestPanelEntry_SameFloorAsResize(t *testing.T) {
 	}
 }
 
-// Stated here rather than taken from production's own selector: an expectation
-// derived from the code under test asserts nothing about which copy is right.
 func wantEntryFlash(dim themePanelDim) string {
 	if dim == dimHeight {
 		return wantShortEntryFlash
@@ -407,9 +385,6 @@ func mustEntryModel(t *testing.T, contentW, contentH int) Model {
 	return m
 }
 
-// A flash is for a key that IS bound where the user could expect it to work; on
-// these two pages it is not bound, so the refusal is silent. Loading also renders
-// no notice band to flash into.
 func TestPanelEntry_SilentOnPreviewAndLoading(t *testing.T) {
 	t.Run("preview", func(t *testing.T) {
 		m, rec := newUnblockedEntryModel(t, PageSessions)
@@ -444,9 +419,6 @@ func TestPanelEntry_SilentOnPreviewAndLoading(t *testing.T) {
 	})
 }
 
-// The burst input-lock returns before any rune dispatch, so this is asserted
-// rather than branched on: a `t` arm that knew about the burst would be the second
-// place the lock is decided.
 func TestPanelEntry_SwallowedWhileBurstPending(t *testing.T) {
 	m, rec := newUnblockedEntryModel(t, PageSessions)
 	m.burstPending = true
@@ -462,7 +434,6 @@ func TestPanelEntry_SwallowedWhileBurstPending(t *testing.T) {
 	}
 }
 
-// Modals are key-exclusive by design, so `t` never reaches the gate at all.
 func TestPanelEntry_ModalKeepsTheKey(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -494,8 +465,8 @@ func TestPanelEntry_ModalKeepsTheKey(t *testing.T) {
 	}
 }
 
-// The tick is dispatched as a message rather than by invoking the returned
-// command, which would sleep for the real auto-clear duration.
+// The tick is dispatched as a message; invoking the returned command would
+// sleep for the real auto-clear duration.
 func TestPanelEntry_BlockedFlashLifecycle(t *testing.T) {
 	for _, tc := range entryPages {
 		blocked := func(t *testing.T) Model {
@@ -557,9 +528,6 @@ func openEntryPanel(t *testing.T, p page) Model {
 	return m
 }
 
-// Each key is driven twice: once with the panel closed as a control, once with it
-// open. Without the control a key that silently stopped working outside the panel
-// would pass the swallow assertion for the wrong reason.
 func TestPanelRouting_KeyExclusive(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -662,8 +630,6 @@ func TestPanelRouting_KeyExclusive(t *testing.T) {
 	}
 }
 
-// `d` and `l` are panel-owned rather than swallowed, so the assertion is an
-// absence of the PAGE's effect rather than "the model is unchanged".
 func TestPanelRouting_PanelOwnedKeysNeverReachThePage(t *testing.T) {
 	t.Run("d opens no delete modal on Projects", func(t *testing.T) {
 		press := tea.KeyPressMsg{Code: 'd', Text: "d"}
@@ -716,7 +682,6 @@ func TestPanelRouting_PanelOwnedKeysNeverReachThePage(t *testing.T) {
 	})
 }
 
-// Swallowing `Ctrl-C` would take away the user's exit key inside a settings surface.
 func TestPanelRouting_CtrlCQuits(t *testing.T) {
 	for _, tc := range entryPages {
 		t.Run(tc.name, func(t *testing.T) {
@@ -729,8 +694,6 @@ func TestPanelRouting_CtrlCQuits(t *testing.T) {
 	}
 }
 
-// The banner sits in the notice band on the left and the panel covers the
-// right-hand column, so it stays visible behind an open panel.
 func TestPanelRouting_NestsOverMultiSelect(t *testing.T) {
 	m, _ := newUnblockedEntryModel(t, PageSessions)
 	m = pressPanelKey(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})

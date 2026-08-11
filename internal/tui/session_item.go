@@ -13,24 +13,21 @@ import (
 )
 
 var (
-	// Non-colour attributes only; the delegate layers the mode-matched
-	// colour pair via tokenStyle/rowToken.
+	// Non-colour attributes only — tokenStyle/rowToken layer the mode-matched pair.
 	nameBase = lipgloss.NewStyle().Bold(true)
 )
 
 const (
-	selectorBar = "▌"
-	// Takes precedence over the ▌ selector on a selected+marked row.
+	selectorBar       = "▌"
 	multiSelectMarker = "●"
 	// Fixed 2-cell column (glyph + trailing cell); unselected rows render two
 	// blank cells, so the name always starts at the same left edge.
 	leftBarColumnWidth = 2
 	nameGap            = 2
-	// Fixed so counts and the attached bullets stay column-aligned; 11 fits
+	// Fixed so counts and attached bullets stay column-aligned; sized to fit
 	// "999 windows" without bleeding into the next slot.
 	countSlotWidth = 11
-	// Mirrors the 2-cell left inset; a wider right margin reads as oversized
-	// in the terminal.
+	// Mirrors the left inset; a wider right margin reads as oversized.
 	rowRightMargin = leftBarColumnWidth
 )
 
@@ -38,9 +35,8 @@ const (
 // renders an empty slot of the same width, keeping the bullets column-aligned.
 const attachedMarker = "● attached"
 
-// goneBadge must stay exactly attachedSlotWidth + rowRightMargin cells wide:
-// it fills the whole trailing region with no padding, keeping the row width
-// unchanged.
+// goneBadge must not exceed attachedSlotWidth + rowRightMargin cells: it fills
+// the trailing region, keeping the row width unchanged.
 const goneBadge = "session gone"
 
 var attachedSlotWidth = lipgloss.Width(attachedMarker)
@@ -62,10 +58,9 @@ func windowLabel(count int) string {
 	return fmt.Sprintf("%d windows", count)
 }
 
-// SessionItem wraps a tmux.Session and implements list.Item. Two SessionItems
-// sharing a Session but differing in GroupKey are independently selectable
-// views of one session, not distinct attach targets — selection and attach
-// key on Session.Name.
+// Two SessionItems sharing a Session but differing in GroupKey are independently
+// selectable views of one session, not distinct attach targets — selection and
+// attach key on Session.Name.
 type SessionItem struct {
 	Session tmux.Session
 
@@ -81,26 +76,19 @@ type SessionItem struct {
 	CatchAll bool
 }
 
-// FilterValue returns the session name for filtering.
 func (i SessionItem) FilterValue() string {
 	return i.Session.Name
 }
 
-// HeaderItem is a group heading rendered as a real, non-selectable list row.
-// Making it a genuine height-1 list.Item is load-bearing: pagination counts
-// every rendered line exactly, so a page can never overflow the viewport.
-// Its empty FilterValue makes headers vanish the moment a filter query is
-// typed, giving flatten-on-filter for free.
+// A genuine height-1 list.Item is load-bearing: pagination counts every rendered
+// line exactly, so a page can never overflow the viewport. Its empty FilterValue
+// makes headers vanish the moment a filter query is typed.
 type HeaderItem struct {
 	Heading string
-	// Count is the number of session rows in this header's group.
-	Count int
-	// Key is the group's canonical key (canonical path / tag / catch-all
-	// label).
-	Key string
+	Count   int
+	Key     string
 }
 
-// FilterValue returns "" so the built-in filter never matches a header.
 func (HeaderItem) FilterValue() string { return "" }
 
 func (h HeaderItem) headingText() string {
@@ -111,25 +99,18 @@ func (h HeaderItem) countText() string {
 	return fmt.Sprintf("%s %d", groupSeparator, h.Count)
 }
 
-// SessionDelegate implements list.ItemDelegate for session rows. Theme is
-// the active palette, re-pointed by the model on every restyle; a zero-value
-// Theme renders silently colourless rather than failing, so a hand-built
-// delegate that renders must carry one.
+// Theme is re-pointed by the model on every restyle; a zero value renders
+// silently colourless, so a hand-built delegate must carry one.
 type SessionDelegate struct {
 	Theme theme.Theme
-	// Colourless is the NO_COLOR carve-out: no canvas background and no hue,
-	// with structure unchanged so state stays glyph-distinct. Suppressing the
-	// background here is the real work — hue is stripped by the writer layer
-	// anyway.
-	Colourless bool
-	// MultiSelect gates the ● marker; mirrors the model's multiSelectMode.
+	// Colourless is the NO_COLOR carve-out; structure stays glyph-distinct.
+	// Suppressing the background is the real work — hue is stripped downstream.
+	Colourless  bool
 	MultiSelect bool
-	// Selected is the marked set, keyed on Session.Name — the same identity
-	// the attach path uses, so a multi-tag By-Tag session marked once shows
-	// the ● on every one of its rows. Nil marks nothing.
+	// Selected is keyed on Session.Name, so a multi-tag By-Tag session marked
+	// once shows the ● on every one of its rows. Nil marks nothing.
 	Selected map[string]struct{}
-	// GoneFlagged is the transient pre-flight abort set, keyed on
-	// Session.Name; a flagged row's ⚠ and badge take precedence over the ●.
+	// GoneFlagged is the transient pre-flight abort set, keyed on Session.Name.
 	GoneFlagged map[string]struct{}
 }
 
@@ -146,17 +127,13 @@ func (d SessionDelegate) tokenStyle(base lipgloss.Style, fg theme.Token) lipglos
 	return headerStyle(fg, d.Theme, d.Colourless).Inherit(base)
 }
 
-// Height returns 1; both item types render one line, keeping pagination exact.
+// Both item types render one line, keeping pagination exact.
 func (d SessionDelegate) Height() int { return 1 }
 
-// Spacing returns 0.
 func (d SessionDelegate) Spacing() int { return 0 }
 
-// Update returns nil; no item-level keybinding handling is needed.
 func (d SessionDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
-// Render renders one list row: a HeaderItem as the dimmed "Heading ··· N"
-// separator, a SessionItem as the session row.
 func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	bg := d.canvasBg()
 	var row string
@@ -171,9 +148,8 @@ func (d SessionDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		return
 	}
 
-	// bubbles/list may block-pad this row with raw, background-less trailing
-	// spaces; the outer canvas fill strips those and re-pads to the terminal
-	// width, so the delegate emits only the row's own content.
+	// bubbles/list may block-pad with raw, background-less trailing spaces; the
+	// outer canvas fill strips those, so the delegate emits only its own content.
 	_, _ = fmt.Fprint(w, row)
 }
 
@@ -241,9 +217,8 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	}
 	indentCell := bg.Render(indent)
 
-	// Precedence: gone ⚠ over marked ● over the ▌ selector. The ●/⚠ styles
-	// take `selected` (not the bar's literal true) so they carry the
-	// selection tint only on the cursor row.
+	// Precedence: gone ⚠ over marked ● over the ▌ selector. The ●/⚠ styles take
+	// `selected`, not the bar's literal true, so they tint only on the cursor row.
 	goneRow := isSelected(d.GoneFlagged, it.Session.Name)
 	marked := d.MultiSelect && isSelected(d.Selected, it.Session.Name)
 	var bar string
@@ -287,8 +262,8 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	count := d.rowToken(lipgloss.Style{}, countTok, selected).Render(countText) +
 		bg.Render(padTo("", countSlotWidth-lipgloss.Width(countText)))
 
-	// On a gone row the badge replaces the attached slot and the right
-	// margin exactly (it is that width), keeping the row width unchanged.
+	// On a gone row the badge replaces the attached slot and the right margin,
+	// keeping the row width unchanged.
 	var trailing string
 	if goneRow {
 		badge := d.rowToken(lipgloss.Style{}, d.Theme.StateDestructive, selected).Render(goneBadge)
@@ -304,9 +279,8 @@ func (d SessionDelegate) renderSessionRow(m list.Model, index int, it SessionIte
 	}
 	row := indentCell + bar + name + namePad + gap + count + trailing
 
-	// The fixed columns total ~25 cells and the flex name floors at 1, so at
-	// pathological narrow widths the assembled row would overflow the list
-	// width; truncate as a final guard — a no-op on the happy path.
+	// The flex name floors at 1, so at pathological narrow widths the assembled
+	// row would overflow; a final guard, and a no-op on the happy path.
 	if total > 0 {
 		row = ansi.Truncate(row, total, "…")
 	}
@@ -332,7 +306,6 @@ func spaces(n int) string {
 	return string(b)
 }
 
-// ToListItems converts a slice of tmux sessions to a slice of list.Item.
 func ToListItems(sessions []tmux.Session) []list.Item {
 	items := make([]list.Item, len(sessions))
 	for i, s := range sessions {

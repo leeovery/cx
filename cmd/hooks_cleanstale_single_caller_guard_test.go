@@ -42,7 +42,7 @@ func TestHooksCleanStale_NoBootstrapStepIsAnAutomaticCaller(t *testing.T) {
 	}
 
 	// The directory must actually contain production source, else a layout
-	// change would make this guard silently vacuous.
+	// change would leave this guard scanning nothing.
 	if scanned == 0 {
 		t.Fatalf("no production .go files scanned under %q; guard is vacuous", bootstrapDir)
 	}

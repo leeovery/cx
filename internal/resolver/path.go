@@ -7,9 +7,6 @@ import (
 	"strings"
 )
 
-// IsPathArgument reports whether the argument looks like a filesystem path
-// rather than a query string. An argument is treated as a path if it contains
-// '/', or starts with '.' or '~'.
 func IsPathArgument(arg string) bool {
 	if arg == "" {
 		return false
@@ -17,8 +14,8 @@ func IsPathArgument(arg string) bool {
 	return strings.Contains(arg, "/") || arg[0] == '.' || arg[0] == '~'
 }
 
-// ResolvePath expands a tilde, resolves a relative path to absolute, and returns
-// it after verifying it exists and is a directory.
+// ResolvePath expands a tilde and returns the absolute path, erroring unless it
+// exists and is a directory.
 func ResolvePath(arg string) (string, error) {
 	expanded := ExpandTilde(arg)
 
@@ -39,8 +36,8 @@ func ResolvePath(arg string) (string, error) {
 	return abs, nil
 }
 
-// NormalisePath expands tilde and resolves relative paths to absolute.
-// Unlike ResolvePath, it does not validate that the path exists on disk.
+// NormalisePath expands a tilde and resolves to absolute. Unlike ResolvePath it
+// does not check that the path exists.
 func NormalisePath(path string) string {
 	expanded := ExpandTilde(path)
 
@@ -52,7 +49,6 @@ func NormalisePath(path string) string {
 	return abs
 }
 
-// ExpandTilde replaces a leading ~ with the user's home directory.
 func ExpandTilde(path string) string {
 	if path == "~" {
 		home, err := os.UserHomeDir()

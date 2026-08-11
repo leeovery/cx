@@ -131,8 +131,6 @@ type concurrentBootResult struct {
 	serverStarted bool
 }
 
-// driveConcurrentColdBoot runs the orchestrator through the production progress
-// pipe, replacing only the Bubble Tea runtime with a synchronous drain.
 func driveConcurrentColdBoot(t *testing.T, orch *bootstrap.Orchestrator, stateDir string) (*bootstrapProgressPipe, concurrentBootResult) {
 	t.Helper()
 	pipe := newBootstrapProgressPipe()
@@ -211,7 +209,7 @@ func assertNoExtraDaemons(t *testing.T, legitPID int) {
 	pids, err := portaltest.PgrepPortalDaemons()
 	if err != nil {
 		// No pgrep (minimal container): the saver-pane cross-check above already
-		// proved the legitimate daemon is up.
+		// covers the legitimate daemon.
 		t.Logf("pgrep unavailable (%v); skipping system-wide singleton check — "+
 			"saver-pane PID %d cross-check stands", err, legitPID)
 		return
@@ -250,7 +248,6 @@ func assertRestoringCleared(t *testing.T, client *tmux.Client) {
 func TestConcurrentColdBoot_StepOrderingAndDaemonSingleton(t *testing.T) {
 	ts, client, stateDir, _ := setupConcurrentColdBootEnv(t)
 
-	// Seeded so step 6 actually skeleton-restores and the per-session loop runs.
 	restoretest.SeedSessionsJSON(t, stateDir, "cc-ghost-alpha", "cc-ghost-bravo")
 
 	orch := buildConcurrentColdBootOrchestrator(t, client, stateDir)
@@ -347,8 +344,8 @@ func TestConcurrentColdBoot_RestoringWindowSetBeforeRestore(t *testing.T) {
 	assertRestoringCleared(t, client)
 }
 
-// restoreWindowProbe observes @portal-restoring at the instant Restore() runs,
-// then delegates. It forwards SetProgress so per-session progress still streams.
+// Forwards SetProgress so per-session progress still streams while it observes
+// @portal-restoring at the instant Restore() runs.
 type restoreWindowProbe struct {
 	inner   bootstrap.Restorer
 	client  *tmux.Client

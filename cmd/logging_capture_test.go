@@ -10,9 +10,9 @@ import (
 	"github.com/leeovery/portal/internal/logtest"
 )
 
-// Wires the production log handler so records from the package-level
-// component loggers land in <dir>/portal.log with the baseline attrs, for
-// tests that drive a command body without going through main.
+// For tests that drive a command body without going through main: records from
+// the package-level component loggers land in <dir>/portal.log with the
+// baseline attrs.
 func initTestLogToStateDir(t *testing.T, dir, version string) {
 	t.Helper()
 	initTestLogToStateDirAs(t, dir, version, "daemon")
@@ -32,8 +32,6 @@ func initTestLogToStateDirAs(t *testing.T, dir, version, processRole string) {
 	}
 }
 
-// Binds the component so it renders on every line, matching production text
-// output.
 func newCaptureLoggerForComponent(t *testing.T, component string) (*slog.Logger, *logtest.Sink) {
 	t.Helper()
 	sink := &logtest.Sink{}

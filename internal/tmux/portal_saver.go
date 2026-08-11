@@ -13,20 +13,20 @@ import (
 
 var saverLogger = log.For("saver")
 
-// PortalSaverName is the tmux session name hosting the long-running save
-// daemon. Its leading underscore marks it Portal-internal, which is what keeps
-// it out of every user-facing listing and out of sessions.json capture.
+// PortalSaverName hosts the long-running save daemon. Its leading underscore
+// marks it Portal-internal, which is what keeps it out of every user-facing
+// listing and out of sessions.json capture.
 const PortalSaverName = "_portal-saver"
 
-// PortalBootstrapName is the tmux session name Client.StartServer creates to
-// keep a freshly-started server alive. Its leading underscore marks it
-// Portal-internal; no other code may create or re-use a session with this name.
+// PortalBootstrapName keeps a freshly-started server alive. Its leading
+// underscore marks it Portal-internal, and no other code may create or re-use a
+// session with this name.
 const PortalBootstrapName = "_portal-bootstrap"
 
 // Deliberately inert: the placeholder cannot write to the state directory or
 // contend for the daemon lock, so destroy-unattached=off can be applied to a
-// guaranteed-live session before the real daemon is swapped in. `sleep
-// infinity` is not a substitute — macOS's BSD sleep(1) rejects "infinity".
+// guaranteed-live session before the real daemon is swapped in. `sleep infinity`
+// is no substitute — macOS's BSD sleep(1) rejects "infinity".
 const portalSaverPlaceholderCommand = "sh -c 'exec tail -f /dev/null'"
 
 // Installed by respawn-pane only after destroy-unattached=off is in force:
@@ -34,23 +34,18 @@ const portalSaverPlaceholderCommand = "sh -c 'exec tail -f /dev/null'"
 // tmux's destroy-unattached default.
 const portalSaverDaemonCommand = "portal state daemon"
 
-// BootstrapAliveCheck reports whether a daemon is alive for a state directory.
 var BootstrapAliveCheck = state.DaemonAlive
 
-// PortalSaverRetryDelay is the sleep between new-session retry attempts.
 var PortalSaverRetryDelay = 100 * time.Millisecond
 
 const portalSaverMaxAttempts = 3
 
-// KillBarrierTimeoutCeiling bounds the kill barrier's wait for the prior daemon
-// to exit after kill-session is issued.
 const KillBarrierTimeoutCeiling = 5 * time.Second
 
-// SaverBarrierSeams holds the kill barrier's probe and signal seams, plus the
-// WARN sink it shares with the readiness barrier. SIGKILL is the only signal
-// ever sent through SendSIGKILL. Timeout is sized above the daemon's cold-sweep
-// ceiling so the WARN path stays reserved for genuinely stuck daemons, and
-// Logger is never nil — it defaults to a discard sink.
+// SaverBarrierSeams holds the kill barrier's seams and the WARN sink it shares
+// with the readiness barrier. No signal but SIGKILL is ever sent through
+// SendSIGKILL, Timeout sits above the daemon's cold-sweep ceiling so the WARN
+// path stays reserved for genuinely stuck daemons, and Logger is never nil.
 type SaverBarrierSeams struct {
 	IsAlive           func(int) bool
 	SendSIGKILL       func(int) error
@@ -60,33 +55,30 @@ type SaverBarrierSeams struct {
 	Logger            *slog.Logger
 }
 
-// SaverReadinessSeams paces the readiness barrier's poll loop. Timeout is sized
-// to cover normal daemon startup — fork, exec, flock, PID-file write — while
-// keeping the bootstrap step bounded.
+// SaverReadinessSeams paces the readiness barrier's poll loop. Timeout covers
+// normal daemon startup — fork, exec, flock, PID-file write — while keeping the
+// bootstrap step bounded.
 type SaverReadinessSeams struct {
 	PollInterval time.Duration
 	Timeout      time.Duration
 }
 
-// SaverVersionSeams holds the daemon.version read/write seams and the sink for
-// the write's DEBUG breadcrumb, which is never nil — it defaults to discard, so
-// a write made before the real sink is installed simply logs nothing.
 type SaverVersionSeams struct {
 	ReadVersionFile  func(string) (string, error)
 	WriteVersionFile func(dir, version string) error
-	WriterLogger     *slog.Logger
+
+	// Never nil: it defaults to discard, so a write made before the real sink
+	// is installed simply logs nothing.
+	WriterLogger *slog.Logger
 }
 
-// SaverOperationSeams substitutes whole flows — the kill-and-wait and
-// readiness-wait barriers — rather than the primitives inside them.
+// SaverOperationSeams substitutes whole flows rather than the primitives inside
+// them.
 type SaverOperationSeams struct {
 	WaitForReady func(string) error
 	KillAndWait  func(*Client, string) error
 }
 
-// SaverSeams is every saver-side mutable seam in one struct: the primitives
-// both barriers share at the top level, the rest grouped by the flow that owns
-// them.
 type SaverSeams struct {
 	ReadPID        func(string) (int, error)
 	IdentifyDaemon func(int) (state.IdentifyResult, error)
@@ -125,9 +117,8 @@ var saver = SaverSeams{
 
 func init() {
 	// Wired here, not in the literal above: the WriteVersionFile closure
-	// captures saver itself (an initialisation cycle) and must read the
-	// current WriterLogger at call time, and the Ops defaults are functions
-	// declared later in the file.
+	// captures saver itself (an initialisation cycle) and must read the current
+	// WriterLogger at call time, and the Ops defaults are declared below.
 	saver.Version.WriteVersionFile = func(dir, version string) error {
 		return state.WriteVersionFile(dir, version, saver.Version.WriterLogger)
 	}
@@ -200,10 +191,10 @@ func waitForPriorPIDExit(pid int, budget time.Duration) bool {
 	return false
 }
 
-// Never signal a PID that does not positively identify as a portal state
-// daemon, and let nothing but the two non-mutating log lines sit between that
-// check and SendSIGKILL — a wider window lets the PID recycle. SIGKILL rather
-// than SIGTERM is deliberate: the orphan must not run one last capture.
+// Never signal a PID that does not positively identify as a portal state daemon,
+// and let nothing but non-mutating log lines sit between that check and
+// SendSIGKILL — a wider window lets the PID recycle. SIGKILL rather than SIGTERM
+// is deliberate: the orphan must not run one last capture.
 func escalateKillToSIGKILL(priorPID int) error {
 	result, err := saver.IdentifyDaemon(priorPID)
 	if err != nil || result != state.IdentifyIsPortalDaemon {
@@ -329,11 +320,10 @@ func saverPanePIDBestEffort(c *Client) int {
 
 // EnsurePortalSaverVersion bootstraps _portal-saver, recycling a live daemon
 // first when the recorded version disagrees with currentVersion. Only the kill
-// decision is version-aware; the new daemon writes daemon.version itself.
-//
-// A missing daemon.version is repaired in place rather than recycled: a
-// lock-loser daemon exits before writing the file, so an alive daemon with no
-// version file is an expected shape, not a mismatch worth a kill-respawn.
+// decision is version-aware; the new daemon writes daemon.version itself. A
+// missing daemon.version is repaired in place rather than recycled: a lock-loser
+// daemon exits before writing the file, so an alive daemon with no version file
+// is an expected shape, not a mismatch worth a kill-respawn.
 func EnsurePortalSaverVersion(c *Client, stateDir, currentVersion string) error {
 	stored, readErr := saver.Version.ReadVersionFile(stateDir)
 	alive := BootstrapAliveCheck(stateDir)

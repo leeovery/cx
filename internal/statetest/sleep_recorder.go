@@ -5,13 +5,12 @@ package statetest
 
 import "time"
 
-// RecordingSleep records every duration handed to its Fn seam, so a test can
-// assert a retry ladder's shape without waiting on real time.
+// RecordingSleep lets a test assert a retry ladder's shape without waiting on
+// real time.
 type RecordingSleep struct {
 	Durations []time.Duration
 }
 
-// Fn returns a closure appending each invocation's duration to r.Durations.
 func (r *RecordingSleep) Fn() func(time.Duration) {
 	return func(d time.Duration) { r.Durations = append(r.Durations, d) }
 }

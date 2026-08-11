@@ -12,9 +12,8 @@ const (
 	headerCompactWordmark = "PORTAL"
 	headerCaret           = "▌"
 	headerSubtitle        = "session manager"
-	// Lower one-eighth block: it sits at the bottom edge of its cell (unlike
-	// `─`) and draws as one continuous bar with no inter-cell dashing (unlike
-	// the underscore).
+	// Lower one-eighth block: sits at the bottom edge of its cell (unlike `─`)
+	// and draws as one continuous bar with no inter-cell dashing (unlike `_`).
 	headerRuleGlyph = "▁"
 )
 
@@ -22,16 +21,15 @@ const headerFallbackWidth = 80
 
 const minTerminalWidth = 40
 
-// Wordmark+caret is 13 cells and the subtitle 15, so the band needs
-// 13 + 2 + 15 = 30 before the subtitle crowds the wordmark; below 13 the
-// wordmark collapses to the compact form.
+// Sized to the rendered wordmark+caret and subtitle widths plus a gap; below
+// headerWordmarkMinWidth the wordmark collapses to the compact form.
 const (
 	headerSubtitleMinWidth = 30
 	headerWordmarkMinWidth = 13
 )
 
-// Single width source so the budget computation and the render agree exactly
-// on the header's height.
+// The budget computation and the render must resolve width through here, or
+// they disagree on the header's height.
 func headerWidthOrFallback(width int) int {
 	if width <= 0 {
 		return headerFallbackWidth
@@ -39,8 +37,6 @@ func headerWidthOrFallback(width int) int {
 	return width
 }
 
-// headerStyle is the leaf paint: the role token's foreground over the theme's
-// canvas, or a bare style under NO_COLOR.
 func headerStyle(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -50,8 +46,7 @@ func headerStyle(fg theme.Token, th theme.Theme, colourless bool) lipgloss.Style
 		Background(th.Canvas.Color())
 }
 
-// headerCanvasBg paints structural spacers so gaps are canvas, not terminal-bg
-// islands.
+// Structural spacers must be painted so gaps are canvas, not terminal-bg islands.
 func headerCanvasBg(th theme.Theme, colourless bool) lipgloss.Style {
 	if colourless {
 		return lipgloss.NewStyle()
@@ -80,12 +75,9 @@ func blankCanvasRow(w int, th theme.Theme, colourless bool) string {
 	return headerCanvasBg(th, colourless).Render(strings.Repeat(" ", w))
 }
 
-// The wordmark→rule gap is deliberately flush — do not insert a blank row: a
-// blank row between two glyph rows reads taller than the one-row gutter above
-// the band, so it unbalances rather than balances the wordmark. The trailing
-// blank belongs to this block, not to the section header: it is then covered
-// by the single headerHeight measurement, and applySectionHeader's line-0
-// string surgery assumes the title sits on line 0.
+// Do not insert a blank row between band and rule: it reads taller than the
+// one-row gutter above the band and unbalances the wordmark. The trailing blank
+// belongs here — applySectionHeader's surgery assumes the title sits on line 0.
 func renderHeaderBlock(width int, th theme.Theme, colourless bool) string {
 	w := headerWidthOrFallback(width)
 	band := headerBand(w, th, colourless)
@@ -110,7 +102,6 @@ func headerBand(w int, th theme.Theme, colourless bool) string {
 	subtitle := headerStyle(th.TextMuted, th, colourless).Render(headerSubtitle)
 	subWidth := lipgloss.Width(subtitle)
 
-	// Drop the subtitle rather than overflow.
 	if leftWidth+1+subWidth > w {
 		return headerPadRight(left, leftWidth, w, th, colourless)
 	}
@@ -132,8 +123,6 @@ func headerPadRight(seg string, segWidth, w int, th theme.Theme, colourless bool
 	return padRightWithStyle(seg, segWidth, w, headerCanvasBg(th, colourless))
 }
 
-// Mirror of headerPadRight, for the footer's bottom degrade rung where the
-// `? help` anchor survives alone with no cluster to flex a spacer against.
 func headerPadLeft(seg string, segWidth, w int, th theme.Theme, colourless bool) string {
 	if segWidth >= w {
 		return seg

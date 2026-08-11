@@ -12,9 +12,8 @@ import (
 const themeCommitFailedEvent = "commit failed"
 
 // themePersister lives in cmd because prefs is a deliberate no-logging leaf and
-// the write needs prefs path resolution. It logs and returns: a persister that
-// only logged would leave the panel unable to hold the failure outstanding —
-// silently "applied but not persisted".
+// the write needs prefs path resolution. It logs *and* returns: one that only
+// logged would leave the panel silently "applied but not persisted".
 type themePersister struct {
 	store  *prefs.Store
 	logger *slog.Logger
@@ -56,7 +55,7 @@ func themeSlotAttr(member theme.Member) string {
 }
 
 // The two slot vocabularies stay separate types because prefs must not import
-// internal/theme; this is the single conversion between them.
+// internal/theme; this is where they convert.
 func prefsSlotFor(member theme.Member) prefs.ThemeSlot {
 	if member == theme.MemberLight {
 		return prefs.SlotLight

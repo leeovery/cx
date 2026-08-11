@@ -9,15 +9,12 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The panel's message slot: a single-slot arbiter whose two contenders — the
-// slot-from-constant confirm and the failed-commit line — are exclusive by
-// construction: the confirm gates the write, so by the time a write can fail it
-// has resolved.
+// The slot's two contenders are exclusive by construction: the confirm gates the
+// write, so by the time a write can fail it has resolved.
 
 const (
-	// The two spaces before `y` are deliberate. One format string, so the
-	// frame's width derives from the copy (themePanelConfirmFixedWidth) rather
-	// than a restated literal.
+	// The two spaces before `y` are deliberate. One format string, so the width
+	// derives from the copy rather than a restated literal.
 	themePanelConfirmFormat = "clear constant %s?  y / n"
 
 	// The `⚠` is part of the string so the report survives NO_COLOR.
@@ -37,7 +34,7 @@ const (
 // failed-commit line as residue.
 type themePanelMessage struct {
 	Kind themePanelMessageKind
-	// The raw persisted key, not the resolved slug — see raiseThemePanelConfirm.
+	// The raw persisted key, not the resolved slug.
 	Slug string
 }
 
@@ -57,26 +54,23 @@ func (m *Model) clearThemePanelMessage() {
 }
 
 // The kind check is the point: this runs ahead of every key, and the confirm's
-// answers are keys — an unconditional clear would take the question down as the
-// user answers it.
+// answers are keys — an unconditional clear would take the question down.
 func (m *Model) clearThemePanelCommitFailed() {
 	if m.themePanel.message.Kind == themeMessageCommitFailed {
 		m.clearThemePanelMessage()
 	}
 }
 
-// The re-size is not cosmetic: the slot moves the vertical budget both ways,
-// and a stale budget keeps a PerPage the drawn frame does not have — page keys
-// then move a different distance than the screen scrolls, invisibly. Assumes
-// the panel is open (every writer is); left unguarded rather than defended
-// speculatively.
+// The re-size is not cosmetic: the slot moves the vertical budget both ways, and
+// a stale budget keeps a PerPage the drawn frame does not have. Assumes the panel
+// is open — left unguarded rather than defended speculatively.
 func (m *Model) setThemePanelMessage(message themePanelMessage) {
 	m.themePanel.message = message
 	m.applyThemePanelListStyles()
 }
 
-// The confirm cannot advertise the standing footer — four keys, none of which
-// would act. It substitutes a scope, not a renderer.
+// The confirm cannot advertise the standing footer — none of those keys would
+// act. It substitutes a scope, not a renderer.
 func themePanelFooterScope(message themePanelMessage) []keymapEntry {
 	if message.Kind == themeMessageConfirm {
 		return themePanelConfirmKeymap()
@@ -89,9 +83,8 @@ func themePanelFooterScope(message themePanelMessage) []keymapEntry {
 const themePanelMessageWrapRows = 2
 
 // Width and height degrade differently on purpose: at minimum width the slot
-// wraps (costs pagination nothing); at the height floor it truncates — the
-// floor counts one message row. wrap comes from the caller so budget and block
-// resolve it identically.
+// wraps; at the height floor it truncates. wrap comes from the caller so budget
+// and block resolve it identically.
 func renderThemePanelMessage(message themePanelMessage, inner int, wrap bool, th theme.Theme, colourless bool) string {
 	text, token := themePanelMessageContent(message, inner, th)
 	if text == "" {
@@ -122,8 +115,7 @@ func themePanelConfirmSlugBudget(inner int) int {
 	return max(inner-themePanelConfirmFixedWidth(), themeRowLabelFloor)
 }
 
-// Derived from the copy itself so a reworded confirm cannot leave a stale
-// literal.
+// Derived from the copy so a reworded confirm cannot leave a stale literal.
 func themePanelConfirmFixedWidth() int {
 	return lipgloss.Width(fmt.Sprintf(themePanelConfirmFormat, ""))
 }
@@ -149,8 +141,7 @@ func themePanelMessageHeight(message themePanelMessage, inner int, wrap bool) in
 
 // "At or below" truncates because a fixture can hand a sub-floor height. The
 // floor is the one for the header shape being drawn: at the page-aligned
-// threshold the extra header rows leave the slot as tight as the compact floor
-// does. The footer scope is the standing one (see themePanelMinHeight).
+// threshold the extra header rows leave the slot as tight as the compact floor.
 func themePanelMessageWraps(p themePanel, height int) bool {
 	return height > themePanelFloorFor(
 		themePanelHeaderShapeFor(height, p.union.DirUnusable).rows,

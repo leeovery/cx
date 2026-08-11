@@ -13,9 +13,8 @@ import (
 	"github.com/leeovery/portal/internal/tmux"
 )
 
-// slugs is every commit whatever its shape; constants and slots separate the
-// two commit keys, and slotCommits pairs a slot's slug with its half — which
-// the flat slices cannot express once a fixture drives both shapes.
+// slugs records every commit whatever its shape; the rest separate the two
+// commit keys, and slotCommits pairs a slot's slug with its half.
 type fakeThemePersister struct {
 	slugs       []string
 	constants   []string
@@ -103,7 +102,6 @@ func TestPrefsStore_DoesNotSatisfyThemePersister(t *testing.T) {
 	}
 }
 
-// A source guard: "emitted nothing" has no observable trace here.
 func TestCommitFailed_SingleEmissionSite(t *testing.T) {
 	for name, file := range parsePackageFilesByName(t) {
 		ast.Inspect(file, func(n ast.Node) bool {

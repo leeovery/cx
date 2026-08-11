@@ -22,8 +22,6 @@ func (m Model) handlePreflightAbort(msg spawnAbortMsg) Model {
 	return m
 }
 
-// WithInitialGoneFlagged seeds the pre-flight abort state at construction —
-// the capture-harness entry point. A nil/empty slice is a no-op.
 func WithInitialGoneFlagged(names []string) Option {
 	return func(m *Model) {
 		if len(names) == 0 {

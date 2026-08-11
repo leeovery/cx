@@ -14,8 +14,8 @@ const tailChunkSize = 64 * 1024
 
 var openFileForTail = os.Open
 
-// SetOpenFileForTest swaps the file-open seam used by TailScrollback and
-// returns a func restoring the previous one. Test-only.
+// SetOpenFileForTest swaps TailScrollback's file-open seam and returns a func
+// restoring the previous one. Test-only.
 func SetOpenFileForTest(open func(name string) (*os.File, error)) (restore func()) {
 	prev := openFileForTail
 	openFileForTail = open
@@ -24,12 +24,11 @@ func SetOpenFileForTest(open func(name string) (*os.File, error)) (restore func(
 
 // TailScrollback returns the bytes of at most the last n newline-terminated
 // records of the .bin scrollback file at path. The result always ends on '\n';
-// any partial record after the final newline is excluded, and a file holding
-// fewer than n terminated records yields all of them.
+// a partial record after the final newline is excluded.
 //
 // Every "no content" outcome converges on (nil, nil): a missing file, an empty
 // file, and a file containing no newline at all. Any other open, seek or read
-// failure returns (nil, err) wrapped with "tail scrollback <path>: " and %w.
+// failure returns (nil, err).
 func TailScrollback(path string, n int) ([]byte, error) {
 	f, err := openFileForTail(path)
 	if err != nil {

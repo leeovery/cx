@@ -35,8 +35,8 @@ func (f fixtureThemeSource) ResolveSlot(_ theme.Enumeration, slot theme.Slot, ke
 }
 
 func TestThemeSourceIsSatisfiedByAFixtureFakeAndByTheExportedAdapter(t *testing.T) {
-	// Compile-time assertions: a signature drift stops compiling here rather
-	// than at the wiring site.
+	// Compile-time assertions: a signature drift stops compiling here rather than
+	// at the wiring site.
 	var _ tui.ThemeSource = fixtureThemeSource{}
 	var _ tui.ThemeSource = theme.DirThemeSource{}
 }
@@ -73,8 +73,7 @@ func TestThemeSourceReturnsTheFinishedUnion(t *testing.T) {
 	}
 }
 
-// All three keys at once, which a hand-edited prefs.json may legally carry: the
-// tiebreak is the seam's, not the caller's.
+// All three keys at once, which a hand-edited prefs.json may legally carry.
 func TestThemeSourceResolvesFromTheRawKeys(t *testing.T) {
 	var source tui.ThemeSource = theme.DirThemeSource{
 		Loader: theme.NewSilentLoader(),

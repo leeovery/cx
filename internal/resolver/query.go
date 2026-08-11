@@ -13,29 +13,23 @@ type SessionLister interface {
 	ListSessionNames() ([]string, error)
 }
 
-// AliasLookup retrieves the path for an alias key and enumerates the finite
-// alias-key namespace that glob expansion runs against.
 type AliasLookup interface {
 	Get(name string) (string, bool)
 	Keys() []string
 }
 
-// ZoxideQuerier queries zoxide for a directory matching the given terms.
 type ZoxideQuerier interface {
 	Query(terms string) (string, error)
 }
 
-// DirValidator checks whether a directory exists on disk.
 type DirValidator interface {
 	Exists(path string) bool
 }
 
-// QueryResult is the interface for resolution outcomes.
 type QueryResult interface {
 	queryResult()
 }
 
-// PathResult is a directory-domain hit: a resolved path that mints a session.
 type PathResult struct {
 	Path   string
 	Domain Domain
@@ -43,8 +37,6 @@ type PathResult struct {
 
 func (*PathResult) queryResult() {}
 
-// SessionResult is a session-domain hit: an existing session to attach. Domain
-// is DomainSession for an exact-name hit, DomainGlob for a glob match.
 type SessionResult struct {
 	Name   string
 	Domain Domain
@@ -52,15 +44,14 @@ type SessionResult struct {
 
 func (*SessionResult) queryResult() {}
 
-// MissResult is a total miss across every domain. The caller hard-fails on it;
-// there is no implicit picker fallback.
+// MissResult is a total miss: the caller hard-fails on it, with no implicit
+// picker fallback.
 type MissResult struct {
 	Target string
 }
 
 func (*MissResult) queryResult() {}
 
-// DirNotFoundError reports that a resolved directory does not exist on disk.
 type DirNotFoundError struct {
 	Path string
 }
@@ -69,7 +60,6 @@ func (e *DirNotFoundError) Error() string {
 	return fmt.Sprintf("Directory not found: %s", e.Path)
 }
 
-// OSDirValidator checks directory existence using the real filesystem.
 type OSDirValidator struct{}
 
 func (v *OSDirValidator) Exists(path string) bool {
@@ -80,8 +70,6 @@ func (v *OSDirValidator) Exists(path string) bool {
 	return info.IsDir()
 }
 
-// QueryResolver applies the resolution chain: exact session-name match, path
-// detection, alias lookup, zoxide query, then a total miss.
 type QueryResolver struct {
 	sessions     SessionLister
 	aliases      AliasLookup
@@ -106,10 +94,9 @@ func (qr *QueryResolver) isExactSession(query string) bool {
 	return slices.Contains(names, query)
 }
 
-// Resolve applies the single-target resolution chain in precedence order: exact
-// session name → path → alias → zoxide → total miss (the caller hard-fails, with
-// no picker fallback). It does not expand globs: a glob matches nothing in the
-// chain and falls through to a miss rather than silently taking a first match.
+// Resolve applies the single-target chain: exact session name → path → alias →
+// zoxide → miss. It does not expand globs — a glob matches nothing in the chain
+// and falls through to a miss rather than silently taking a first match.
 func (qr *QueryResolver) Resolve(query string) (QueryResult, error) {
 	if qr.isExactSession(query) {
 		return &SessionResult{Name: query, Domain: DomainSession}, nil
@@ -148,9 +135,9 @@ func expandSessionGlobAll(pattern string, names []string) []QueryResult {
 	return results
 }
 
-// ResolveBareAll is the multi-target form of Resolve: a glob expands to one
-// result per matching session, and every failure is collected as a *MissResult
-// so pre-flight reports all of them at once. The returned error is always nil.
+// ResolveBareAll is the multi-target Resolve: a glob expands to one result per
+// matching session and every failure is collected as a *MissResult so pre-flight
+// reports all of them at once. The returned error is always nil.
 func (qr *QueryResolver) ResolveBareAll(query string) ([]QueryResult, error) {
 	if HasGlobMeta(query) {
 		names, _ := qr.sessions.ListSessionNames()
@@ -164,9 +151,9 @@ func (qr *QueryResolver) ResolveBareAll(query string) ([]QueryResult, error) {
 	return []QueryResult{r}, nil
 }
 
-// ResolveSessionPinAll is the multi-target form of ResolveSessionPin: a glob
-// expands over the session set and a miss is collected as a *MissResult instead
-// of erroring. The returned error is always nil.
+// ResolveSessionPinAll is the multi-target ResolveSessionPin: a glob expands over
+// the session set and a miss is collected as a *MissResult instead of erroring.
+// The returned error is always nil.
 func (qr *QueryResolver) ResolveSessionPinAll(query string) ([]QueryResult, error) {
 	if HasGlobMeta(query) {
 		names, _ := qr.sessions.ListSessionNames()
@@ -179,10 +166,9 @@ func (qr *QueryResolver) ResolveSessionPinAll(query string) ([]QueryResult, erro
 	return []QueryResult{&MissResult{Target: query}}, nil
 }
 
-// ResolveAliasPinAll is the multi-target form of ResolveAliasPin: a glob expands
-// over the alias-key namespace, and a failure is collected as a *MissResult —
-// for a glob, under the matched key, so surviving keys still resolve. The
-// returned error is always nil.
+// ResolveAliasPinAll is the multi-target ResolveAliasPin: a glob expands over the
+// alias-key namespace, and a failure is collected as a *MissResult under the
+// matched key so surviving keys still resolve. The returned error is always nil.
 func (qr *QueryResolver) ResolveAliasPinAll(value string) ([]QueryResult, error) {
 	if HasGlobMeta(value) {
 		matches := MatchGlob(value, qr.aliases.Keys())
@@ -214,10 +200,9 @@ func (qr *QueryResolver) ResolveAliasPinAll(value string) ([]QueryResult, error)
 	return []QueryResult{r}, nil
 }
 
-// ResolveSessionPin resolves query in the session domain only, by exact name:
-// no aliases, no zoxide, no filesystem, no minting, no picker fallback. It does
-// not expand globs — a glob is never a literal name, so it hard-fails rather
-// than taking a first match.
+// ResolveSessionPin resolves query by exact session name only — no other domain,
+// no minting, no picker fallback. It does not expand globs, so a glob hard-fails
+// rather than taking a first match.
 func (qr *QueryResolver) ResolveSessionPin(query string) (QueryResult, error) {
 	if qr.isExactSession(query) {
 		return &SessionResult{Name: query, Domain: DomainSession}, nil

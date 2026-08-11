@@ -1,8 +1,5 @@
 //go:build integration
 
-// Shared scaffolding for the transient-listpanes integration test covering the
-// `doctor --fix` stale-hook prune.
-
 package cmd
 
 import (
@@ -38,8 +35,6 @@ func isolateCleanStaleTestEnv(t *testing.T) (env []string, stateDir string) {
 	return env, stateDir
 }
 
-// invoke owns wiring the callsite's HookLister seam before firing the entry
-// point; everything else the driver bakes in.
 type transientModeSpec struct {
 	name        string
 	mode        transienttest.FailureMode

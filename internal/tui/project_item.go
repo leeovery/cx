@@ -12,23 +12,19 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// Non-colour attributes only; the delegate layers the mode-matched colour
-// pair via rowToken.
+// Non-colour attributes only — rowToken layers the mode-matched colour pair.
 var projectNameBase = lipgloss.NewStyle().Bold(true)
 
-// ProjectItem wraps a project.Project and implements list.Item.
 type ProjectItem struct {
 	Project project.Project
 }
 
-// FilterValue returns the project name for filtering.
 func (i ProjectItem) FilterValue() string {
 	return i.Project.Name
 }
 
-// ProjectDelegate implements list.ItemDelegate for project items. Theme is
-// the active palette, re-pointed by the model on every restyle; a zero-value
-// Theme renders silently colourless.
+// Theme is re-pointed by the model on every restyle; a zero value renders
+// silently colourless.
 type ProjectDelegate struct {
 	Theme theme.Theme
 	// Colourless is the NO_COLOR carve-out: no backgrounds and no hue, with
@@ -36,13 +32,11 @@ type ProjectDelegate struct {
 	Colourless bool
 }
 
-// Height returns 2; the uniform height keeps bubbles/list pagination exact.
+// A uniform height keeps bubbles/list pagination exact.
 func (d ProjectDelegate) Height() int { return 2 }
 
-// Spacing returns 0.
 func (d ProjectDelegate) Spacing() int { return 0 }
 
-// Update returns nil; no item-level keybinding handling is needed.
 func (d ProjectDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d ProjectDelegate) rowBg(selected bool) lipgloss.Style {
@@ -53,8 +47,6 @@ func (d ProjectDelegate) rowToken(base lipgloss.Style, fg theme.Token, selected 
 	return rowTokenStyle(base, fg, d.Theme, selected, d.Colourless)
 }
 
-// Render draws a project item as two lines — name then path — padded to
-// exactly the list width.
 func (d ProjectDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	pi, ok := item.(ProjectItem)
 	if !ok {
@@ -105,7 +97,6 @@ func (d ProjectDelegate) renderRowLine(m list.Model, selected bool, textStyle li
 	return ansi.Truncate(line, total, "…")
 }
 
-// ProjectsToListItems converts a slice of projects to a slice of list.Item.
 func ProjectsToListItems(projects []project.Project) []list.Item {
 	items := make([]list.Item, len(projects))
 	for i, p := range projects {

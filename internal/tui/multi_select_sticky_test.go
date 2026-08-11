@@ -91,8 +91,7 @@ func TestMultiSelectMarksSurvivePaging(t *testing.T) {
 }
 
 // Build, not a raw struct literal: the latter batches a cursor-blink cmd with
-// the FilterMatchesMsg, which the shared drain does not unwrap, so the list
-// would never narrow.
+// the FilterMatchesMsg, which the shared drain does not unwrap.
 func TestMultiSelectFilteredOutSessionStaysMarked(t *testing.T) {
 	m := Build(Deps{Lister: fakeLister{}})
 	m.termWidth = filteringReskinWidth

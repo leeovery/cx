@@ -14,9 +14,9 @@ var cleanLogger = log.For("clean")
 
 // SweepOrphanFIFOs removes hydrate-*.fifo files in dir whose paneKey is absent
 // from liveMarkerKeys, which must hold bare paneKeys without the
-// @portal-skeleton- prefix. Glob matches that are not FIFOs are preserved,
-// per-file errors are logged and skipped rather than aborting the sweep, and a
-// missing dir returns nil so callers may sweep unconditionally.
+// @portal-skeleton- prefix. Non-FIFO glob matches are preserved, per-file errors
+// are logged and skipped, and a missing dir returns nil so callers may sweep
+// unconditionally.
 //
 // The logging split is deliberate — do not consolidate it: per-item warnings go
 // to callerLogger so they carry the calling step's component, while the cycle

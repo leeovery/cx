@@ -39,8 +39,8 @@ func assertBlankFrame(t *testing.T, m Model) {
 	}
 }
 
-// Adaptive-only: a constant derives no answer, so its answer in force stays at
-// the dark zero value whatever palette it paints (use assertActiveTheme there).
+// Adaptive-only: a constant's in-force member stays at the dark zero value
+// whatever palette it paints — use assertActiveTheme there.
 func assertPaintedCanvas(t *testing.T, m Model, appearance theme.Member) {
 	t.Helper()
 	if !m.modeResolved() {

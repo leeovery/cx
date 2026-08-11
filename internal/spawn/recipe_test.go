@@ -176,8 +176,8 @@ func TestRenderCommandString(t *testing.T) {
 	})
 
 	t.Run("it keeps an element containing a space as one quoted word so a shell re-split reproduces the argv", func(t *testing.T) {
-		// A session name can carry a space ("My Project-abc123"); a naive space-join
-		// would let a downstream shell re-split it and shred the attach target.
+		// A session name can carry a space; a naive space-join would let a
+		// downstream shell re-split it and shred the attach target.
 		got := renderCommandString([]string{"/abs/portal", "open", "My Project-abc123"})
 
 		want := "'/abs/portal' 'open' 'My Project-abc123'"

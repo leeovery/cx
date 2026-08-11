@@ -12,8 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Latch reads satisfied and the saver probe reads live, so ensureSaverLiveness
-// is a no-op. Every other tmux call returns empty.
 func satisfiedLatchAliveSaverCommander() *recordingCommander {
 	return &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -28,9 +26,7 @@ func satisfiedLatchAliveSaverCommander() *recordingCommander {
 	}
 }
 
-// Drives the "saver absent, revive fails" scenario until ensureSaverLiveness
-// exhausts its retries and funnels a SaverDownWarning. It carries no latch arm
-// — ensureSaverLiveness never reads the latch.
+// Carries no latch arm: ensureSaverLiveness never reads the latch.
 func saverAbsentReviveFailsCommander() *recordingCommander {
 	return &recordingCommander{
 		RunFunc: func(args ...string) (string, error) {
@@ -231,8 +227,6 @@ func TestPersistentPreRunE_Abridged_OpenSessionTakesAbridgedPath(t *testing.T) {
 	bootstrapDeps = &BootstrapDeps{Orchestrator: runner, Client: client}
 	t.Cleanup(func() { bootstrapDeps = nil })
 
-	// The injected SessionLister carries the target name so the session-domain
-	// pre-check hits and openSessionFunc reaches the connector.
 	connector := &mockSessionConnector{}
 	openDeps = &OpenDeps{SessionLister: &testSessionLister{names: []string{"proj-abc123"}}}
 	t.Cleanup(func() { openDeps = nil })

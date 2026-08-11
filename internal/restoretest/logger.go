@@ -11,19 +11,16 @@ import (
 
 const portalLogName = "portal.log"
 
-// Mirrors internal/log's dateLayout and must stay in lockstep with it: a
-// co-resident real binary has to append to the same dated file, not a divergent
-// one.
+// Must stay in lockstep with internal/log's dateLayout: a co-resident real
+// binary has to append to the same dated file, not a divergent one.
 const portalLogDateLayout = "2006-01-02"
 
-// OpenTestLogger returns a *slog.Logger writing into the production sink's
-// on-disk shape under stateDir: a dated portal.log.<date> file plus a portal.log
-// symlink to it, closed on test cleanup.
-//
-// The symlink shape is load-bearing when the test also spawns the real portal
-// binary against the same stateDir: production's reopen removes a regular-file
-// portal.log but no-ops on a symlink, so both writers append to the same file.
-// To capture output in-process instead, use log.SetTestHandler.
+// OpenTestLogger writes into the production sink's on-disk shape under stateDir:
+// a dated portal.log.<date> plus a portal.log symlink to it, closed on cleanup.
+// The symlink is load-bearing when the test also spawns the real portal binary
+// against that stateDir — production's reopen removes a regular-file portal.log
+// but no-ops on a symlink, so both writers append to the same file. For
+// in-process capture use log.SetTestHandler instead.
 func OpenTestLogger(t *testing.T, stateDir string) *slog.Logger {
 	t.Helper()
 
@@ -43,9 +40,8 @@ func OpenTestLogger(t *testing.T, stateDir string) *slog.Logger {
 	return slog.New(slog.NewTextHandler(f, nil))
 }
 
-// swingPortalLogSymlink mirrors the production sink's swing, so refreshing an
-// existing portal.log always leaves a symlink behind — which is what the
-// production migration guard expects to find.
+// Mirrors the production sink's swing, so refreshing an existing portal.log
+// always leaves behind the symlink the production migration guard expects.
 func swingPortalLogSymlink(stateDir, target string) error {
 	link := filepath.Join(stateDir, portalLogName)
 	tmp := link + ".restoretest.symlink.tmp"

@@ -31,14 +31,13 @@ const (
 )
 
 // Runner abstracts the bootstrap run so PersistentPreRunE need not import the
-// concrete *Orchestrator. Run reports whether Portal started the tmux server,
-// any soft warnings accumulated during the run, and a fatal error.
+// concrete *Orchestrator.
 type Runner interface {
 	Run(ctx context.Context) (bool, []Warning, error)
 }
 
-// ServerBootstrapper starts the tmux server when not already running.
-// EnsureServer reports whether Portal itself was the one that started it.
+// ServerBootstrapper starts the tmux server when not already running; the bool
+// reports whether Portal itself was the one that started it.
 type ServerBootstrapper interface {
 	EnsureServer() (bool, error)
 }
@@ -61,25 +60,23 @@ type SaverBootstrapper interface {
 	EnsureSaver() error
 }
 
-// Restorer performs skeleton-only session restoration. corrupt=true is the only
-// case in which err is non-nil, and that err must wrap state.ErrCorruptIndex;
-// every per-session failure is logged and swallowed inside the implementation
-// rather than travelling up through err.
+// Restorer performs skeleton-only session restoration. err is non-nil only when
+// corrupt is true, and must then wrap state.ErrCorruptIndex; per-session
+// failures are logged and swallowed inside the implementation.
 type Restorer interface {
 	Restore() (corrupt bool, err error)
 }
 
-// RestoreProgressSink is the optional per-session progress seam a Restorer may
-// also satisfy. Step 6 calls SetProgress only when a progress emitter is wired;
-// a Restorer that does not satisfy the seam emits no per-session events.
+// RestoreProgressSink is the optional seam a Restorer may also satisfy. The
+// restore step calls SetProgress only when a progress emitter is wired.
 type RestoreProgressSink interface {
 	SetProgress(fn func(n, m int))
 }
 
 // EagerHydrateSignaler writes the hydrate signal byte to every freshly-armed
 // `@portal-skeleton-*` pane's FIFO, because the client-attached hook fires only
-// for the attached session and the remaining helpers would time out and leak
-// markers. Only marker enumeration failures are returned, and they are soft.
+// for the attached session and the other helpers would time out and leak
+// markers. Every non-nil return is soft.
 type EagerHydrateSignaler interface {
 	EagerSignalHydrate() error
 }
@@ -92,7 +89,7 @@ type MarkerCleaner interface {
 
 // FIFOSweeper removes stale hydrate-*.fifo files whose paneKey is no longer
 // represented by a live `@portal-skeleton-*` marker. Implementations swallow
-// per-file failures and return non-nil only when the enumeration itself fails.
+// per-file failures; a non-nil return means enumeration itself failed.
 type FIFOSweeper interface {
 	Sweep() error
 }
@@ -104,7 +101,7 @@ type LatchWriter interface {
 }
 
 // Orchestrator runs the bootstrap sequence. A nil Logger is tolerated — Run
-// substitutes a discard sink so step sites can dispatch unconditionally.
+// substitutes a discard sink.
 type Orchestrator struct {
 	Server        ServerBootstrapper
 	Hooks         HookRegistrar
@@ -120,10 +117,10 @@ type Orchestrator struct {
 	Logger        *slog.Logger
 }
 
-// Run executes the bootstrap steps in order, returning the serverStarted flag,
-// the soft warnings in step order, and any fatal error. Only EnsureServer,
-// RegisterPortalHooks and the @portal-restoring marker steps are fatal; every
-// other step logs its failure and continues.
+// Run executes the bootstrap steps in order and reports whether Portal started
+// the tmux server, plus the soft warnings in step order. Only EnsureServer,
+// RegisterPortalHooks and the @portal-restoring steps are fatal; every other
+// step logs its failure and continues.
 func (o *Orchestrator) Run(ctx context.Context) (bool, []Warning, error) {
 	emit := progressEmitterFromContext(ctx)
 	emitStep := func(index int, name string) {
@@ -226,9 +223,9 @@ func (o *Orchestrator) Run(ctx context.Context) (bool, []Warning, error) {
 	o.Logger.Info("step complete", "step", stepClearRestoring, log.Took(stepStart))
 	emitStep(8, stepClearRestoring)
 
-	// Must run after the marker is cleared (so it observes post-restore tmux
-	// state) and before the FIFO sweep, so stale markers protecting orphan
-	// FIFOs are unset in time for those FIFOs to be reclaimed this bootstrap.
+	// Must run after the marker is cleared, so it observes post-restore tmux
+	// state, and before the FIFO sweep, which cannot reclaim a FIFO whose
+	// marker is still set.
 	o.Logger.Debug("step entering", "step", stepCleanStaleMarkers)
 	stepStart = time.Now()
 	if err := o.StaleMarkers.CleanStaleMarkers(); err != nil {

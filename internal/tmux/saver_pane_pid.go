@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Unexported deliberately: SaverPanePIDOrAbsent's "any error means absent"
-// collapse must stay the only path out of the package.
+// Unexported deliberately: callers outside the package must come through
+// SaverPanePIDOrAbsent's absence collapse.
 func saverPanePID(c *Client, sessionName string) (int, error) {
 	out, err := c.cmd.Run("list-panes", "-t", exactTarget(sessionName), "-F", "#{pane_pid}")
 	if err != nil {
@@ -31,8 +31,8 @@ func saverPanePID(c *Client, sessionName string) (int, error) {
 	return 0, fmt.Errorf("list-panes -t %s: %w", sessionName, ErrEmptyPaneList)
 }
 
-// SaverPaneID returns the tmux pane id (e.g. "%42") of the first pane in the
-// named session, or ErrEmptyPaneList when the session lists no pane.
+// SaverPaneID returns the tmux pane id of the first pane in the named session,
+// or ErrEmptyPaneList when the session lists no pane.
 func (c *Client) SaverPaneID(sessionName string) (string, error) {
 	out, err := c.cmd.Run("list-panes", "-t", exactTarget(sessionName), "-F", "#{pane_id}")
 	if err != nil {

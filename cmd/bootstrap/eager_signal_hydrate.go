@@ -11,11 +11,9 @@ import (
 // grepped as `signal:`, not as bootstrap's.
 var signalLogger = log.For("signal")
 
-// EagerSignalCore writes the hydrate signal byte to every freshly-armed
-// `@portal-skeleton-*` pane's FIFO, so helpers outside the attached session do
-// not exhaust their timeout and leak markers. Markers and Signaler are
-// mandatory — a nil either panics on first dereference. Logger is nil-tolerant
-// and unread; it is retained so the DI wiring matches the sibling step cores.
+// EagerSignalCore signals every freshly-armed `@portal-skeleton-*` pane's FIFO.
+// Markers and Signaler are mandatory — a nil either panics on first dereference.
+// Logger is unread; it is retained so the DI wiring matches the sibling cores.
 type EagerSignalCore struct {
 	Markers  state.ServerOptionLister
 	StateDir string
@@ -25,10 +23,9 @@ type EagerSignalCore struct {
 
 var _ EagerHydrateSignaler = (*EagerSignalCore)(nil)
 
-// EagerSignalHydrate writes the hydrate signal byte to every marker's FIFO.
-// Per-FIFO write failures are logged and skipped so one stuck FIFO cannot
-// strand the remaining panes; only marker enumeration failures are returned,
-// and every non-nil return is soft — never a *FatalError.
+// EagerSignalHydrate logs and skips per-FIFO write failures so one stuck FIFO
+// cannot strand the remaining panes; only marker enumeration failures are
+// returned, and never as a *FatalError.
 func (c *EagerSignalCore) EagerSignalHydrate() error {
 	markers, err := state.ListSkeletonMarkers(c.Markers)
 	if err != nil {

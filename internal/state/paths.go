@@ -56,16 +56,13 @@ func EnsureDir() (string, error) {
 	return dir, nil
 }
 
-// SessionsJSON returns the path to the structural index file.
 func SessionsJSON(dir string) string { return filepath.Join(dir, sessionsJSONName) }
 
-// SaveRequested returns the path to the dirty-flag file touched by
-// `portal state notify`.
+// SaveRequested is the dirty-flag file `portal state notify` touches.
 func SaveRequested(dir string) string { return filepath.Join(dir, saveRequestedName) }
 
-// TouchSaveRequested creates-or-truncates the save.requested dirty flag under
-// dir and bumps its mtime. The mtime bump is best-effort and its error is
-// swallowed: the daemon's tick only checks the file's presence.
+// TouchSaveRequested's mtime bump is best-effort and its error swallowed: the
+// daemon's tick only checks the file's presence.
 func TouchSaveRequested(dir string) error {
 	path := SaveRequested(dir)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -80,38 +77,27 @@ func TouchSaveRequested(dir string) error {
 	return nil
 }
 
-// DaemonPID returns the path to the daemon's PID file.
 func DaemonPID(dir string) string { return filepath.Join(dir, daemonPIDName) }
 
-// DaemonVersion returns the path to the daemon's version-marker file.
 func DaemonVersion(dir string) string { return filepath.Join(dir, daemonVersionName) }
 
-// DaemonLock returns the path to the daemon's advisory-lock file.
 func DaemonLock(dir string) string { return filepath.Join(dir, daemonLockName) }
 
-// PortalLog returns the path to the current portal log file.
 func PortalLog(dir string) string { return filepath.Join(dir, portalLogName) }
 
-// PortalLogOld returns the path to the previous (rotated) portal log file.
 func PortalLogOld(dir string) string { return filepath.Join(dir, portalLogOldName) }
 
-// ScrollbackDir returns the path to the directory holding per-pane
-// scrollback `.bin` files.
 func ScrollbackDir(dir string) string { return filepath.Join(dir, scrollbackSubdir) }
 
-// ScrollbackFile returns the path to the scrollback `.bin` file for the
-// given canonical paneKey.
 func ScrollbackFile(dir, paneKey string) string {
 	return filepath.Join(dir, scrollbackSubdir, paneKey+".bin")
 }
 
-// FIFOPath returns the hydration FIFO path for the given canonical paneKey.
 func FIFOPath(dir, paneKey string) string {
 	return filepath.Join(dir, "hydrate-"+paneKey+".fifo")
 }
 
-// PaneKeyFromFIFOPath recovers the paneKey from a hydration FIFO path or bare
-// basename. An absent prefix or suffix is simply not trimmed.
+// PaneKeyFromFIFOPath accepts a full FIFO path or a bare basename.
 func PaneKeyFromFIFOPath(path string) string {
 	name := filepath.Base(path)
 	name = strings.TrimSuffix(name, ".fifo")

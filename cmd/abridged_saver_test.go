@@ -22,8 +22,6 @@ func resetBootstrapWarnings(t *testing.T) {
 	t.Cleanup(func() { bootstrapWarnings.Drain() })
 }
 
-// Collapses the inter-attempt sleep so the exhaust-all-retries path runs
-// without real wall-clock delay.
 func shrinkSaverRetryDelay(t *testing.T) {
 	t.Helper()
 	prev := tmux.PortalSaverRetryDelay
@@ -114,8 +112,7 @@ func TestEnsureSaverLiveness_RevivesViaBootstrapPortalSaverWhenAbsent(t *testing
 				return "", nil
 			case "respawn-pane":
 				// Failing here returns before BootstrapPortalSaver's daemon-readiness
-				// barrier, which package cmd has no seam to reach. new-session is already
-				// recorded, proving the create path ran.
+				// barrier, which package cmd has no seam to reach.
 				return "", errors.New("respawn failed")
 			}
 			t.Fatalf("unexpected tmux call: %v", args)

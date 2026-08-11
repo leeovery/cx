@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 )
 
-// PreparedSession is the intermediate result of the shared session-preparation
-// pipeline, from which each caller performs its own final step.
 type PreparedSession struct {
 	ResolvedDir string
 	ProjectName string
@@ -15,7 +13,7 @@ type PreparedSession struct {
 }
 
 // PrepareSession resolves the git root, derives the project and session names,
-// registers the project and builds the shell command.
+// and registers the project.
 func PrepareSession(
 	path string,
 	command []string,

@@ -34,8 +34,8 @@ var openSessionFunc = openSession
 
 var openDeps *OpenDeps
 
-// OpenDeps allows injecting dependencies for testing. A nil field falls back to
-// the production implementation.
+// OpenDeps overrides production dependencies; a nil field falls back to the
+// production implementation.
 type OpenDeps struct {
 	SessionLister resolver.SessionLister
 	AliasLookup   resolver.AliasLookup
@@ -45,37 +45,31 @@ type OpenDeps struct {
 	ThemeLoader   *theme.Loader
 }
 
-// SessionConnector connects the user to a tmux session.
 type SessionConnector interface {
 	Connect(name string) error
 }
 
-// SwitchClienter defines the interface for switching tmux clients.
 type SwitchClienter interface {
 	SwitchClient(name string) error
 }
 
-// SwitchConnector connects to a session by issuing tmux switch-client, for use
-// inside an existing tmux session.
+// SwitchConnector is the connector for use inside an existing tmux session.
 type SwitchConnector struct {
 	client SwitchClienter
 }
 
-// Connect switches the current tmux client to the named session.
 func (sc *SwitchConnector) Connect(name string) error {
 	return sc.client.SwitchClient(name)
 }
 
-// AttachConnector connects to a session by exec-ing tmux attach-session, for
-// use outside tmux (bare shell). A zero execer or tmuxPath falls back to the
-// production default.
+// AttachConnector is the connector for use outside tmux (bare shell); it execs,
+// so Connect never returns on success. A zero execer or tmuxPath falls back to
+// the production default.
 type AttachConnector struct {
 	execer   execer
 	tmuxPath string
 }
 
-// Connect replaces the current process with tmux attach-session.
-//
 // The target is "="-prefixed so tmux resolves it by exact match rather than
 // prefix match.
 func (ac *AttachConnector) Connect(name string) error {
@@ -143,16 +137,16 @@ in host-terminal windows.`,
 			return err
 		}
 
-		// Validated at the top of RunE, ahead of every branch that touches tmux, so
-		// a malformed --ack is a usage error rather than a tmux failure.
+		// Ahead of every branch that touches tmux, so a malformed --ack is a usage
+		// error rather than a tmux failure.
 		if ackVal, _ := cmd.Flags().GetString("ack"); ackVal != "" {
 			if _, _, ok := spawn.ParseSpawnAckFlag(ackVal); !ok {
 				return NewUsageError("open: --ack must be <batch>:<token>")
 			}
 		}
 
-		// Handled ahead of resolution and the pin dispatch, so `open -f x -s y` is
-		// rejected rather than resolving the pin.
+		// Ahead of resolution and the pin dispatch, so a filter combined with a pin
+		// is rejected rather than resolving the pin.
 		if cmd.Flags().Changed("filter") {
 			filterVal, _ := cmd.Flags().GetString("filter")
 			if destination != "" || anyOpenDomainPin(cmd) {
@@ -164,17 +158,17 @@ in host-terminal windows.`,
 			return openTUIFunc(cmd, filterVal, command, serverWasStarted(cmd))
 		}
 
-		// Read from the raw argv because cobra collapses repeated same-flag values
-		// (`open -s a -s b`) and splits positionals from flags, losing the order and
-		// repeats the burst needs. Must precede the single-pin blocks below so a
-		// two-pin set bursts rather than hitting the single -s arm.
+		// Raw argv because cobra collapses repeated same-flag values and splits
+		// positionals from flags, losing the order and repeats the burst needs. Must
+		// precede the single-pin blocks so a two-pin set bursts rather than hitting
+		// the single -s arm.
 		ordered := orderedOpenTargets(openOwnArgs())
 		if isMultiTarget(ordered) {
 			return dispatchOpenBurst(cmd, ordered, command)
 		}
 
-		// Must precede the no-target early-return below, so `open -s <name>` with an
-		// empty positional resolves the pin rather than launching the picker.
+		// Must precede the no-target early-return below, so a pin with an empty
+		// positional resolves the pin rather than launching the picker.
 		for _, flag := range openDomainPinFlags {
 			if cmd.Flags().Changed(flag) {
 				return resolvePinAndOpen(cmd, flag, pinResolvers[flag], command)
@@ -206,8 +200,8 @@ in host-terminal windows.`,
 	},
 }
 
-// openDomainPinFlags lists the domain-pin flag names. Order is load-bearing: it
-// is the precedence the RunE dispatch loop short-circuits in.
+// openDomainPinFlags order is load-bearing: it is the precedence the RunE
+// dispatch loop short-circuits in.
 var openDomainPinFlags = []string{"session", "path", "alias", "zoxide"}
 
 var pinResolvers = map[string]func(*resolver.QueryResolver, string) (resolver.QueryResult, error){
@@ -230,13 +224,10 @@ func resolvePinAndOpen(cmd *cobra.Command, flag string, resolve func(*resolver.Q
 	return openResolved(cmd, result, command)
 }
 
-// openResolved dispatches a resolved query result to its outcome. A MissResult
-// is not handled here — the bare-positional path renders its own message and
-// pins never miss — so any other result type is a defensive error.
-//
-// A command (-e/--) is mint-scoped: an attach target has no safe
-// command-injection channel (send-keys corrupts a busy pane, respawn-pane -k
-// destroys running work).
+// openResolved handles no MissResult — the bare-positional path renders its own
+// message and pins never miss — so any other result type is a defensive error.
+// A command (-e/--) is mint-scoped: an attach target has no safe injection
+// channel (send-keys corrupts a busy pane, respawn-pane -k destroys running work).
 func openResolved(cmd *cobra.Command, result resolver.QueryResult, command []string) error {
 	switch r := result.(type) {
 	case *resolver.SessionResult:
@@ -282,8 +273,8 @@ func buildAckWriter(cmd *cobra.Command) spawn.AckWriter {
 	return spawn.NewServerOptionAckChannel(client, client)
 }
 
-// emitResolveDecision logs a decision line per target resolved through the
-// guessing chain. Globs are deterministic rather than guesses, so they emit none.
+// emitResolveDecision logs one line per target: globs are deterministic rather
+// than guesses, so they emit none.
 func emitResolveDecision(target string, result resolver.QueryResult) {
 	if resolver.HasGlobMeta(target) {
 		return
@@ -305,12 +296,9 @@ func resolveDecision(result resolver.QueryResult) (domain resolver.Domain, resol
 	}
 }
 
-// logExecHandoff writes the process:exec marker from the full argv, stripping
-// argv[0] (the program name).
-//
-// It must be called immediately before syscall.Exec: that call replaces the
-// process image and never returns, so log.Close never fires and this is the
-// terminal log line for the handoff.
+// logExecHandoff must be called immediately before syscall.Exec: that call
+// replaces the process image and never returns, so log.Close never fires and
+// this is the terminal log line for the handoff.
 func logExecHandoff(argv []string) {
 	args := argv
 	if len(args) > 0 {
@@ -386,7 +374,6 @@ func (a *quickStartAdapter) Run(path string, command []string) (*session.QuickSt
 	return a.qs.Run(path, command)
 }
 
-// PathOpener creates a new tmux session from a resolved path and connects to it.
 type PathOpener struct {
 	insideTmux bool
 	creator    sessionCreatorIface
@@ -396,8 +383,6 @@ type PathOpener struct {
 	tmuxPath   string
 }
 
-// Open creates a session at the given path and connects to it, running command
-// in it when non-nil.
 func (po *PathOpener) Open(resolvedPath string, command []string) error {
 	if po.insideTmux {
 		sessionName, err := po.creator.CreateFromDir(resolvedPath, command)
@@ -488,16 +473,15 @@ type tuiConfig struct {
 	noColor          bool
 }
 
-// noColorEnabled follows the no-color.org convention: NO_COLOR must be present
+// noColorEnabled honours the NO_COLOR convention: the variable must be present
 // and non-empty, so a set-but-empty value does not enable it.
 func noColorEnabled() bool {
 	v, ok := os.LookupEnv("NO_COLOR")
 	return ok && v != ""
 }
 
-// newThemeLoader is constructed per call rather than held package-level: a
-// Loader owns the event logger's per-process dedup state, so one loader per TUI
-// construction gives one dedup scope per launch.
+// newThemeLoader is per call rather than package-level: a Loader owns the event
+// logger's per-process dedup state, so one loader per launch is one dedup scope.
 func newThemeLoader() theme.Loader {
 	return theme.NewLoader(theme.NewEventLogger(themeLogger))
 }
@@ -509,11 +493,10 @@ func buildThemeLoader() theme.Loader {
 	return newThemeLoader()
 }
 
-// themeResolution resolves the theme setting from the keys as read — the
-// post-translation in-memory value rather than a second disk read, so a migrated
-// user renders their pin on the launch that translates it. A non-nil error means
-// the fallback theme itself did not load: nothing is honest to paint, so the
-// caller must construct nothing.
+// themeResolution reads the keys as handed in — the post-translation in-memory
+// value rather than a second disk read, so a migrated user renders their pin on
+// the launch that translates it. A non-nil error means even the fallback theme
+// did not load: nothing is honest to paint, so the caller must construct nothing.
 func themeResolution(keys prefs.ThemeKeys, loader theme.Loader) (theme.Resolution, theme.RawKeys, error) {
 	setting, raw := theme.ResolveSetting(theme.NewRawKeys(keys.Theme, keys.Light, keys.Dark))
 
@@ -586,8 +569,8 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	if deferred := deferredBootstrapFromContext(cmd); deferred != nil {
 		pipe = newBootstrapProgressPipe()
 		pipe.start(cmd.Context(), deferred.runner)
-		// Forced because a full bootstrap is in progress, not because the server was
-		// cold — a warm-unlatched server reaches this route too. Its sole effect is
+		// Forced because a bootstrap is in progress, not because the server was cold
+		// — a warm-unlatched server reaches this route too. Its only effect is
 		// parking the model on the loading page.
 		serverStarted = true
 	}
@@ -630,9 +613,8 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		return err
 	}
 
-	// The connect happens only after the TUI program shuts down: switching the
-	// tmux client while portal is still event-looping leaves an orphan process
-	// with no UI.
+	// Built now, connected only after the TUI shuts down: switching the tmux
+	// client while portal is still event-looping leaves an orphan with no UI.
 	connector := buildSessionConnector(client)
 
 	previewAttacher := tui.NewPreviewAttachPipeline(client, previewLogger)
@@ -672,9 +654,9 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 	if pipe != nil {
 		cfg.progressReceiver = pipe.receiver()
 	}
-	// A typed-nil *prefs.Store boxed into the interface would be non-nil, defeating
+	// A typed-nil *prefs.Store boxed into the interface reads as non-nil, defeating
 	// buildTUIModel's nil check, and the theme persister wrapping it would panic on
-	// every write. Wire them only when the store actually loaded.
+	// every write. Wire only when the store actually loaded.
 	if prefsStore != nil {
 		cfg.modePersister = prefsStore
 		cfg.themePersister = newThemePersister(prefsStore)
@@ -704,9 +686,8 @@ func openTUI(cmd *cobra.Command, initialFilter string, command []string, serverS
 		return fmt.Errorf("unexpected model type: %T", finalModel)
 	}
 
-	// Must run before the attach handoff, while the screen is still ours:
-	// terminals that ignore Bubble Tea's OSC 111 reset keep the canvas colour
-	// after Portal quits, so the captured original is set back explicitly.
+	// Before the attach handoff, while the screen is still ours: terminals that
+	// ignore Bubble Tea's OSC 111 reset keep the canvas colour after Portal quits.
 	tui.RestoreTerminalBackground(os.Stdout, model)
 
 	return processTUIResult(model, connector)

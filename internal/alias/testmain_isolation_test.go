@@ -1,9 +1,5 @@
 package alias_test
 
-// Poison the config env vars before any test runs, so a test that forgets to
-// isolate fails loudly against /nonexistent instead of silently mutating the
-// developer's real configuration. A properly isolated test overrides them.
-
 import (
 	"os"
 	"testing"

@@ -13,23 +13,20 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// HashMap holds the daemon's dedup state: the xxhash of the bytes most recently
-// committed for each paneKey. A missing entry means nothing has been persisted
-// for that pane, which a zero hash does not — empty bytes hash non-zero.
+// HashMap holds the xxhash of the bytes most recently committed for each
+// paneKey. A missing entry means nothing was persisted for that pane, which a
+// zero hash does not — empty bytes hash non-zero.
 type HashMap map[string]uint64
 
-// PaneCapturer is the narrow seam CaptureAndHashPane needs, satisfied by
-// *tmux.Client. It is declared here so internal/state need not import
-// internal/tmux.
+// PaneCapturer is declared here so internal/state need not import internal/tmux.
 type PaneCapturer interface {
 	CapturePane(target string) (string, error)
 }
 
-// SeedHashMap rebuilds the dedup map by hashing the on-disk scrollback files,
-// so the first cycle after a daemon restart does not rewrite every pane.
-//
-// It always returns a usable map: a missing scrollback directory is silent
-// first-run state, and an unreadable directory or file is logged and skipped.
+// SeedHashMap rebuilds the dedup map from the on-disk scrollback files, so the
+// first cycle after a daemon restart does not rewrite every pane. It always
+// returns a usable map: a missing directory is silent first-run state, and an
+// unreadable directory or file is logged and skipped.
 func SeedHashMap(dir string, logger *slog.Logger) HashMap {
 	logger = loggerOrDiscard(logger)
 	hm := HashMap{}
@@ -62,8 +59,6 @@ func SeedHashMap(dir string, logger *slog.Logger) HashMap {
 	return hm
 }
 
-// CaptureAndHashPane captures target's scrollback and returns the bytes with
-// their xxhash, ready for WriteScrollbackIfChanged.
 func CaptureAndHashPane(c PaneCapturer, target string) ([]byte, uint64, error) {
 	out, err := c.CapturePane(target)
 	if err != nil {
@@ -72,9 +67,8 @@ func CaptureAndHashPane(c PaneCapturer, target string) ([]byte, uint64, error) {
 	return []byte(out), xxhash.Sum64String(out), nil
 }
 
-// WriteScrollbackIfChanged writes data to scrollback/<paneKey>.bin only when
-// newHash differs from hm's entry, reporting whether it wrote and updating hm
-// on a write. A dedup hit touches no disk and returns (false, nil).
+// WriteScrollbackIfChanged writes only when newHash differs from hm's entry,
+// updating hm on a write. A dedup hit touches no disk and returns (false, nil).
 func WriteScrollbackIfChanged(dir, paneKey string, data []byte, newHash uint64, hm HashMap) (bool, error) {
 	if existing, ok := hm[paneKey]; ok && existing == newHash {
 		return false, nil

@@ -11,9 +11,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// The two stages are the property, not the individual rows: a proportional rule
-// satisfies "never widens as the terminal narrows" and still resizes the panel on
-// every terminal column, which is what the staging exists to stop.
 func TestPanelGeometry_WidthLadder(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -65,8 +62,6 @@ func TestPanelGeometry_WidthLadder(t *testing.T) {
 	})
 }
 
-// The width is still clamped on the refusing path: both callers take the value
-// and ignore `ok`.
 func TestPanelGeometry_WidthFloor(t *testing.T) {
 	for contentW := themePanelMinWidth - 1; contentW >= 0; contentW-- {
 		got, ok := themePanelWidthFor(contentW)
@@ -79,13 +74,12 @@ func TestPanelGeometry_WidthFloor(t *testing.T) {
 	}
 }
 
-// Written out here rather than read from the production arithmetic: a floor
-// asserted against whatever the header happens to measure pins nothing.
+// Written out rather than read from the production arithmetic: a floor asserted
+// against whatever the header measures pins nothing.
 const wantPanelHeaderRows = 2
 
-// The message row is counted although the slot is not reserved when empty, because
-// both of its contenders are non-suppressible: a floor computed without it puts
-// the panel one row short at the moment a message appears.
+// The message row is counted although the slot is unreserved when empty: both of
+// its contenders are non-suppressible, and a floor without it lands one row short.
 func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	entries := themePanelKeymap()
 	footer := themePanelFooterHeight(entries)
@@ -116,8 +110,6 @@ func TestPanelGeometry_HeightFloorArithmetic(t *testing.T) {
 	}
 }
 
-// What is pinned is the SET of chrome components, so one added cannot reach the
-// floor arithmetic and miss the body's.
 func TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics(t *testing.T) {
 	entries := themePanelKeymap()
 
@@ -169,9 +161,6 @@ func TestPanelGeometry_ChromeRowsIsSharedByBothArithmetics(t *testing.T) {
 	})
 }
 
-// Conditionally matters in both directions: counting the directory row always
-// refuses terminals that would have rendered a good panel, and counting it never
-// lets the warning consume the single list row.
 func TestPanelGeometry_DirRowRaisesTheFloor(t *testing.T) {
 	entries := themePanelKeymap()
 	usable := themePanelMinHeight(entries, false)
@@ -188,8 +177,6 @@ func TestPanelGeometry_DirRowRaisesTheFloor(t *testing.T) {
 	}
 }
 
-// Width is checked first, so a terminal failing both reports narrow: it is the
-// dimension the user can act on with the same gesture that broke it.
 func TestPanelGeometry_FloorReportsWidthFirst(t *testing.T) {
 	entries := themePanelKeymap()
 	tallEnough := themePanelMinHeight(entries, false)
@@ -221,8 +208,6 @@ func TestPanelGeometry_FloorReportsWidthFirst(t *testing.T) {
 		})
 	}
 
-	// One predicate, two callers: a terminal that passes one check and fails the
-	// other is what two independent derivations produce.
 	t.Run("the resize path decides by this predicate alone", func(t *testing.T) {
 		for _, region := range [][2]int{
 			{geometryWideW, geometryContentH},
@@ -260,8 +245,8 @@ func TestPanelGeometry_FloorReportsWidthFirst(t *testing.T) {
 	})
 }
 
-// Stated as CONTENT widths (what the ladder is a function of), so a change to the
-// page gutter moves the fixtures rather than silently moving the band they sit in.
+// CONTENT widths, which is what the ladder is a function of: a change to the page
+// gutter must move the fixtures rather than the band they sit in.
 const (
 	geometryWideW         = 96
 	geometryDegradedW     = 52
@@ -270,8 +255,7 @@ const (
 )
 
 // 24 cells: inside a badged row's label budget at the preferred width and beyond
-// it at the stepped-down one, so a delegate still composing against the pre-resize
-// budget is visible as a missing ellipsis rather than an off-by-one.
+// it at the stepped-down one, so a stale delegate shows a missing ellipsis.
 const geometryLabel = "aurora-midnight-drifting"
 
 func geometryTerm(contentW, contentH int) (termW, termH int) {
@@ -300,8 +284,7 @@ func resizeForTest(t *testing.T, m Model, contentW, contentH int) Model {
 }
 
 // A resize is handled in a pre-step of Update, so a command raised there reaches
-// the runtime only by being folded onto whichever arm fires; discarding it cannot
-// tell a propagated command from a swallowed one.
+// the runtime only by being folded onto whichever arm fires — hence the return.
 func resizeForTestCmd(t *testing.T, m Model, contentW, contentH int) (Model, tea.Cmd) {
 	t.Helper()
 	termW, termH := geometryTerm(contentW, contentH)
@@ -340,7 +323,6 @@ func requireRenderedPanelWidth(t *testing.T, m Model, want int) {
 	}
 }
 
-// No tea.WindowSizeMsg is sent, so the very first rendered frame is the one asserted.
 func TestPanelGeometry_OpenUsesTheWidthLadder(t *testing.T) {
 	t.Run("a wide terminal takes the preferred width", func(t *testing.T) {
 		m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
@@ -361,8 +343,6 @@ func TestPanelGeometry_OpenUsesTheWidthLadder(t *testing.T) {
 	})
 }
 
-// The list size is the half a width comparison cannot see: the two panels must
-// paginate identically as well as measure identically.
 func TestPanelGeometry_OpenAndResizeWidthsAgree(t *testing.T) {
 	for _, contentW := range []int{geometryWideW, 60, 59, geometryDegradedW, 48, 40, themePanelMinWidth} {
 		t.Run(fmt.Sprintf("contentW=%d", contentW), func(t *testing.T) {
@@ -391,8 +371,7 @@ func TestPanelGeometry_OpenAndResizeWidthsAgree(t *testing.T) {
 }
 
 // `bubbles/list` derives Paginator.PerPage from the height it is handed, so a
-// model list left at a stale size pages by the old amount while the drawn page is
-// the new one — the one paging failure no rendered frame reveals.
+// stale list pages by the old amount while the drawn page is the new one.
 func requirePanelListMatchesTheRenderCopy(t *testing.T, m Model) {
 	t.Helper()
 	wantW, wantH := themePanelListSize(m.themePanel, m.contentHeight())
@@ -412,9 +391,6 @@ func themePanelDrawnPerPage(m Model) int {
 	return copied.list.Paginator.PerPage
 }
 
-// The height case is the one the width case cannot cover: a taller terminal
-// changes no panel width, so a resize path re-running only the ladder passes the
-// width assertions and leaves the list paging by the pre-resize page.
 func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 	t.Run("narrowing shrinks the panel and keeps it open", func(t *testing.T) {
 		m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
@@ -443,7 +419,6 @@ func TestPanelGeometry_ResizeDegradesInPlace(t *testing.T) {
 	})
 
 	t.Run("a taller terminal re-derives the panel's page", func(t *testing.T) {
-		// Exactly the floor: the shortest content region the panel opens at.
 		shortH := themePanelMinHeight(themePanelKeymap(), false)
 		m := newGeometryPanelModel(t, geometryWideW, shortH)
 		short := m.themePanel.list.Paginator.PerPage
@@ -474,9 +449,8 @@ func themePanelBodyRow(t *testing.T, m Model, offset int) string {
 	return lines[at]
 }
 
-// The delegate is the half SetSize cannot reach: it holds its composition budget
-// as a field. No arrow is pressed between the resize and the assertion — an arrow
-// would re-point the delegate and hide the defect.
+// No arrow is pressed between the resize and the assertion — an arrow would
+// re-point the delegate and hide the defect.
 func TestPanelGeometry_ResizeRepointsTheDelegate(t *testing.T) {
 	m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
 	requireCursorOn(t, m, geometryLabel)
@@ -511,8 +485,6 @@ func TestPanelGeometry_ResizeRepointsTheDelegate(t *testing.T) {
 	}
 }
 
-// Reflowing to the reduced width would produce a cleaner edge and reflow the
-// surface being previewed, which is the opposite of what a preview wants.
 func TestPanelGeometry_ResizeDoesNotReflowTheBase(t *testing.T) {
 	m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
 	m = resizeForTest(t, m, geometryDegradedW, geometryContentH)
@@ -552,8 +524,8 @@ func TestPanelGeometry_ResizeDoesNotReflowTheBase(t *testing.T) {
 	}
 }
 
-// Written out verbatim rather than read from the production constants — a test
-// that asserts a constant against itself pins nothing.
+// Verbatim, not the production constants: a test asserting a constant against
+// itself pins nothing.
 const (
 	wantNarrowClosedFlash = "terminal too narrow — theme picker closed"
 	wantShortClosedFlash  = "terminal too short — theme picker closed"
@@ -595,8 +567,8 @@ func TestPanelGeometry_ResizeBelowWidthFloorClosesWithFlash(t *testing.T) {
 	}
 }
 
-// The terminal is left wide, so the copy is the height dimension's rather than the
-// width-first answer a terminal failing both would get.
+// The terminal is left wide, so the copy is the height dimension's rather than
+// the width-first answer a terminal failing both would get.
 func TestPanelGeometry_ResizeBelowHeightFloorClosesWithFlash(t *testing.T) {
 	m := newGeometryPanelModel(t, geometryWideW, geometryContentH)
 	contentW, contentH := geometryBelowHeightFloor()
@@ -615,9 +587,8 @@ func TestPanelGeometry_ResizeBelowHeightFloorClosesWithFlash(t *testing.T) {
 	}
 }
 
-// `bubbles/list` derives its page at the moment SetSize runs and that derivation
-// is path-dependent, so the band must be driven through the control rather than
-// cleared from the forced model.
+// `bubbles/list` derives its page when SetSize runs and that derivation is
+// path-dependent, so the band is driven through the control, not cleared here.
 func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 	contentW, contentH := geometryBelowHeightFloor()
 	rows := geometryRows(t)
@@ -658,7 +629,6 @@ func TestPanelGeometry_ForcedCloseIsTheEscPath(t *testing.T) {
 	}
 }
 
-// The seams are the routes a write could take: internal/tui resolves no config path.
 func TestPanelGeometry_ForcedCloseWritesNothing(t *testing.T) {
 	mode := &countingModePersister{}
 	committer := &fakeThemePersister{}
@@ -686,24 +656,18 @@ func TestPanelGeometry_ForcedCloseWritesNothing(t *testing.T) {
 	}
 }
 
-// The slug is short enough to survive truncation at the minimum panel width, so
-// the only degradation this suite sees is the slot's own; the composed copy still
-// overflows the minimum inner width, exercising both halves of the slot rule.
+// The slug survives truncation at the minimum panel width while the composed
+// copy still overflows it, so the degradation this suite sees is the slot's own.
 func geometryMessage() themePanelMessage {
 	return themePanelMessage{Kind: themeMessageConfirm, Slug: "nord"}
 }
 
-// Taken from the production composer so the test states the SLOT's rule rather
-// than restating the copy.
+// Deliberately the production composer: the rule under test is the SLOT's, not
+// the copy's.
 func geometryMessageText() string {
 	return themePanelConfirmText(geometryMessage().Slug, themePanelInnerWidth(themePanelMinWidth))
 }
 
-// The two dimensions degrade differently on purpose: the floor counts exactly one
-// message row, so a two-row message at the floor would leave zero list rows or
-// overflow the frame. Truncation degrades the message the user is being asked to
-// answer rather than the row they are answering about. The footer saving is
-// derived from the two scopes rather than written as a literal.
 func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := themePanelTestRows(6)
@@ -765,8 +729,8 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 		if strings.Contains(joined, themeRowEllipsis) {
 			t.Errorf("the wrapped slot %q is truncated; above the floor it wraps", slot)
 		}
-		// Reassembled from the two rows rather than searched for as a substring: the
-		// wrap point may fall anywhere, including mid-phrase.
+		// Reassembled from the two rows rather than matched as a substring: the wrap
+		// point may fall anywhere, including mid-phrase.
 		if got, want := chromeWords(themePanelSlotText(slot)), chromeWords(geometryMessageText()); got != want {
 			t.Errorf("the wrapped slot reads %q, want the whole message %q", got, want)
 		}
@@ -776,9 +740,6 @@ func TestPanelGeometry_MessageTruncatesAtFloorHeight(t *testing.T) {
 	})
 }
 
-// The footer is what goes first when the arithmetic is wrong, and `esc close` is
-// its first entry — so a floor that overflows takes the one key that closes a
-// panel the user can no longer read the way out of.
 func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := themePanelTestRows(12)
@@ -839,8 +800,6 @@ func TestPanelGeometry_RendersAtTheFloor(t *testing.T) {
 	}
 }
 
-// The band with the least room to absorb an arithmetic that disagrees with the
-// assembly, and the footer is what the assembly cuts when the two are out of step.
 func TestPanelGeometry_RendersAcrossTheCompactBand(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := themePanelTestRows(12)
@@ -884,8 +843,6 @@ func TestPanelGeometry_RendersAcrossTheCompactBand(t *testing.T) {
 	}
 }
 
-// Composed from the page's own renderers rather than read from the production
-// predicate, so the boundary is measured off the chrome the panel aligns to.
 func panelPageAlignedAffordance(dirUnusable bool) int {
 	const listRow, messageRow = 1, 1
 	return panelPageHeaderRows() +
@@ -898,9 +855,6 @@ func panelPageHeaderRows() int {
 	return lipgloss.Height(renderHeaderBlock(0, theme.Theme{}, true)) + sectionHeaderBlockRows()
 }
 
-// The page-aligning pad rows are an alignment luxury — nothing is drawn in them —
-// so charging them to the render floor would refuse the panel across a band of
-// terminals where it could still degrade and render.
 func TestPanelGeometry_HeaderShapeFollowsTheHeight(t *testing.T) {
 	th := testDarkTheme(t)
 	rows := themePanelTestRows(12)
@@ -940,10 +894,6 @@ func TestPanelGeometry_HeaderShapeFollowsTheHeight(t *testing.T) {
 		}
 	})
 
-	// The page-aligned header spends three more rows than the compact one, so at
-	// exactly the affordance the taller shape is as tight as the floor is and the
-	// slot must still truncate. A threshold anchored to the panel's own floor wraps
-	// here instead, taking the second row off the list body.
 	t.Run("at the affordance the slot still truncates", func(t *testing.T) {
 		narrow := newThemePanelFixture(themePanelFixtureOpts{
 			th:      th,
@@ -995,8 +945,8 @@ func TestPanelGeometry_HeaderShapeFollowsTheHeight(t *testing.T) {
 	})
 }
 
-// String is test-only: production selects copy through themePanelForcedCloseFlash,
-// never by printing the value.
+// Test-only: production selects copy through themePanelForcedCloseFlash, never
+// by printing the value.
 func (d themePanelDim) String() string {
 	switch d {
 	case dimWidth:

@@ -54,8 +54,6 @@ func execThemeExport(t *testing.T, args ...string) themeExportRun {
 	}
 }
 
-// Vacuity guard: the verbatim contract is that comments and the final newline
-// survive, so the fixture must have some to lose.
 func requireCommentedSource(t *testing.T, source []byte) {
 	t.Helper()
 
@@ -201,7 +199,7 @@ func themeKeyLines(t *testing.T) []string {
 }
 
 // Reversal is deliberate: file ordering carries nothing, so a re-serialising
-// implementation would be free to emit its own order, and this catches it.
+// implementation would be free to emit its own order.
 func scrambledThemeSource(t *testing.T) []byte {
 	t.Helper()
 
@@ -281,7 +279,7 @@ func TestThemeExport_BuiltinNeverReadsThemesDirectory(t *testing.T) {
 	})
 }
 
-// An arity violation is a Cobra usage error, outside the four refusal frames.
+// An arity violation is a Cobra usage error, outside the refusal frames.
 func TestThemeExport_ExactArgsOne(t *testing.T) {
 	t.Run("the declared validator accepts one argument and nothing else", func(t *testing.T) {
 		cases := []struct {
@@ -381,9 +379,6 @@ func assertTreeUnchanged(t *testing.T, root string, before map[string]portaltest
 	}
 }
 
-// Proves the capture harness live by emitting through a real component logger
-// into a fresh sink, so the silence is evidence about the run rather than about
-// a deaf harness.
 func assertNoThemeRecords(t *testing.T, run func()) []logtest.Record {
 	t.Helper()
 
@@ -532,8 +527,8 @@ func badColourLines(t *testing.T, lines []string, overrides ...themeOverride) []
 	return lines
 }
 
-// Verified against the assembled lines, so the `line N: duplicate key` detail a
-// test pins is a fact about the fixture rather than about the built-in.
+// Verified against the assembled lines, so the `line N` in the resulting
+// `duplicate key` detail is a fact about the fixture, not about the built-in.
 func duplicateKeyLines(t *testing.T, lines []string, key string, at int) []string {
 	t.Helper()
 
@@ -594,8 +589,7 @@ func unreadableThemesDir(t *testing.T, slug string) string {
 	return dir
 }
 
-// Fails if the read succeeds: a readable fixture would make every
-// `could not be read` assertion over it evidence about the wrong thing.
+// Fails if the read succeeds.
 func osReadError(t *testing.T, path string) error {
 	t.Helper()
 
@@ -634,7 +628,7 @@ func requireExportRefusal(t *testing.T, run themeExportRun, want string) {
 	}
 }
 
-// classify has exactly four arms, so ruling out three pins the fourth.
+// The ordinary-error arm is what is left once every classified arm is ruled out.
 func requireOrdinaryError(t *testing.T, err error) {
 	t.Helper()
 
@@ -802,8 +796,8 @@ func TestThemeExport_BadNameFrame(t *testing.T) {
 	})
 }
 
-// The expected OS error is obtained by performing the same read from the test,
-// so "verbatim" is pinned without hard-coding a platform's wording.
+// The expected OS error comes from performing the same read here, rather than
+// hard-coding a platform's wording.
 func TestThemeExport_UnreadableFrame(t *testing.T) {
 	t.Run("an unreadable file", func(t *testing.T) {
 		osErr := requireDeniedRead(t, unreadableThemeFile(t, "mine"))
@@ -975,7 +969,7 @@ func TestThemeExport_UsesSharedByNameResolver(t *testing.T) {
 	})
 
 	// Each banned symbol is one step of the ordering that belongs to
-	// internal/theme — the three ways two by-name resolvers diverge.
+	// internal/theme — a way two by-name resolvers could diverge.
 	t.Run("the export command re-implements no step of the ordering", func(t *testing.T) {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, filepath.Join(".", "theme.go"), nil, 0)

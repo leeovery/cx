@@ -8,18 +8,15 @@ import (
 	"github.com/leeovery/portal/internal/fileutil"
 )
 
-// ErrProjectNotFound reports that no project matches the given path. Tags are
-// only mutable on a known project, so an unknown path is an addressing error
-// rather than a no-op, and nothing is written.
+// ErrProjectNotFound reports that no project matches the given path: an unknown
+// path is an addressing error rather than a no-op, and nothing is written.
 var ErrProjectNotFound = errors.New("project not found")
 
 // NormaliseTag trims surrounding whitespace, reporting ok==false for input that
-// is empty or whitespace-only. Case is preserved, so a tag displays exactly as
-// typed and matching is case-sensitive: "Work" and "work" are distinct tags.
-//
-// Every tag comparison must go through this rather than re-implementing the
-// trim, so the stored value, the grouping key and the displayed heading stay
-// identical.
+// is empty or whitespace-only. Case is preserved, so matching is case-sensitive:
+// "Work" and "work" are distinct tags. Every comparison must go through this
+// rather than re-implementing the trim, so the stored value, the grouping key and
+// the displayed heading stay identical.
 func NormaliseTag(raw string) (string, bool) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

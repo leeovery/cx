@@ -16,11 +16,9 @@ import (
 // hashing arbitrarily large files in every test cleanup.
 const hashSizeCap = 1 << 20
 
-// Fingerprint captures everything needed to detect mutation of a single
-// filesystem entry. Stats come from os.Lstat, so a symlink reports its own
-// metadata rather than its target's. Hashed reports whether Sha256 was
-// populated: it is false for non-regular entries and for files over
-// hashSizeCap, which are then compared on size and timestamps alone.
+// Fingerprint detects mutation of a single filesystem entry. Stats come from
+// os.Lstat, so a symlink reports its own metadata rather than its target's;
+// Hashed is false for non-regular entries and for files over hashSizeCap.
 type Fingerprint struct {
 	Exists        bool
 	Size          int64
@@ -34,8 +32,7 @@ type Fingerprint struct {
 
 // SnapshotStateDir walks root and returns a fingerprint per entry, keyed by path
 // relative to root. A non-existent root yields an empty map and a nil error, so
-// anything appearing later counts as created. Symlinks are recorded but not
-// descended into.
+// anything appearing later counts as created. Symlinks are not descended into.
 func SnapshotStateDir(root string) (map[string]Fingerprint, error) {
 	out := make(map[string]Fingerprint)
 
@@ -110,8 +107,7 @@ func hashFile(path string) ([32]byte, error) {
 	return sha256.Sum256(data), nil
 }
 
-// errorReporter narrows the surface to t.Errorf so a recorder can stand in for
-// a real *testing.T.
+// Narrowed to t.Errorf so a recorder can stand in for a real *testing.T.
 type errorReporter func(format string, args ...any)
 
 // FingerprintDelta is a single per-(path, field) change between two snapshots.
@@ -123,7 +119,6 @@ type FingerprintDelta struct {
 	Post  Fingerprint
 }
 
-// Canonical Field values returned by DiffFingerprints.
 const (
 	fieldCreated       = "created"
 	fieldDeleted       = "deleted"
@@ -137,9 +132,8 @@ const (
 )
 
 // DiffFingerprints returns the deltas between pre and post, sorted by (Path,
-// Field) so diagnostics are reproducible. A path present on one side only
-// yields a single created/deleted delta and a type swap a single
-// became-symlink delta, since the other channels are noise there.
+// Field) so diagnostics are reproducible. A path present on one side only yields
+// a single created/deleted delta, a type swap a single became-symlink delta.
 func DiffFingerprints(pre, post map[string]Fingerprint) []FingerprintDelta {
 	paths := unionPaths(pre, post)
 	out := make([]FingerprintDelta, 0, len(paths))
@@ -194,7 +188,6 @@ func fieldDeltas(path string, before, after Fingerprint) []FingerprintDelta {
 	return out
 }
 
-// FormatFingerprint renders fp compactly for error diagnostics.
 func FormatFingerprint(fp Fingerprint) string {
 	if fp.IsSymlink {
 		return fmt.Sprintf("symlink(target=%q, mtime=%d ns, ctime=%d ns)",
@@ -208,7 +201,6 @@ func FormatFingerprint(fp Fingerprint) string {
 		fp.Size, fp.MtimeNanos, fp.CtimeNanos)
 }
 
-// FormatDelta renders d as a single diagnostic line.
 func FormatDelta(d FingerprintDelta) string {
 	switch d.Field {
 	case fieldCreated:

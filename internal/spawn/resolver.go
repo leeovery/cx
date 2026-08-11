@@ -1,8 +1,7 @@
 package spawn
 
-// Resolution classifies how an Identity mapped to an Adapter, or to no adapter.
-// Its values are exactly the `resolution` log-attr vocabulary, so a Resolution
-// is logged directly with no translation.
+// Resolution's values are exactly the `resolution` log-attr vocabulary, so a
+// Resolution is logged directly with no translation.
 type Resolution string
 
 const (
@@ -13,8 +12,6 @@ const (
 	ResolutionUnsupported Resolution = "unsupported"
 )
 
-// AdapterResolver maps a detected host Identity to the Adapter that opens
-// windows for it, plus the Resolution classifying how the mapping was made.
 type AdapterResolver func(Identity) (Adapter, Resolution)
 
 type nativeAdapter struct {
@@ -29,8 +26,6 @@ var nativeAdapters = []nativeAdapter{
 	},
 }
 
-// Resolver maps a host-terminal Identity to an Adapter, applying the precedence
-// config override → native adapter → unsupported.
 type Resolver struct {
 	// Config is the loaded terminals.json escape hatch. An empty or nil config
 	// means the config tier never matches.
@@ -38,17 +33,14 @@ type Resolver struct {
 	runner recipeRunner
 }
 
-// NewResolver returns a config-aware Resolver over cfg, wired to the production
-// recipe runner.
 func NewResolver(cfg TerminalsConfig) *Resolver {
 	return &Resolver{Config: cfg, runner: &execRecipeRunner{}}
 }
 
-// Resolve maps an Identity to its Adapter plus the Resolution describing how,
-// with precedence config override → native → unsupported. A NULL identity
-// resolves to unsupported without consulting the config tier, so a `*` catch-all
-// entry cannot hijack it. A matching but invalid config entry falls through to
-// the native tier, never to a less-specific config entry.
+// Resolve applies the precedence config override → native → unsupported. A NULL
+// identity never consults the config tier, so a `*` catch-all cannot hijack it,
+// and a matching but invalid config entry falls through to native rather than to
+// a less-specific config entry.
 func (r *Resolver) Resolve(id Identity) (Adapter, Resolution) {
 	if id.IsNull() {
 		return nil, ResolutionUnsupported
@@ -88,8 +80,7 @@ func (r *Resolver) resolveConfig(id Identity) (Adapter, bool) {
 	}
 }
 
-// ResolveAdapter resolves id with no config loaded, so behaviour reduces to
-// native → unsupported.
+// ResolveAdapter loads no config, so it reduces to native → unsupported.
 func ResolveAdapter(id Identity) (Adapter, Resolution) {
 	return NewResolver(TerminalsConfig{}).Resolve(id)
 }

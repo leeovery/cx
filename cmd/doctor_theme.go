@@ -34,8 +34,7 @@ type themeAdvisory struct {
 
 // collectThemeAdvisories must be called freshly beside each report render —
 // `doctor --fix` renders two, and reusing one slice would pair a stale advisory
-// block with freshly-read check lines. Read-only; the loader stays silent (the
-// `theme` component records use, never diagnosis).
+// block with freshly-read check lines.
 func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 	assembled := themeAdvisoryUnion(deps)
 
@@ -46,9 +45,9 @@ func collectThemeAdvisories(deps *DoctorDeps) []advisory {
 	return block
 }
 
-// The directory is read once and the retained enumeration drives both
-// producers, so the file line and persisted line about one slug describe one
-// parse of one file.
+// The directory is read once and the retained enumeration drives both producers,
+// so two lines about one slug describe one parse of one file. The loader stays
+// silent: the `theme` log component records use, never diagnosis.
 func themeAdvisoryUnion(deps *DoctorDeps) []themeAdvisory {
 	loader := theme.NewSilentLoader()
 	enumeration := enumerateThemesDir(loader, deps.ThemesDir)
@@ -65,10 +64,9 @@ func enumerateThemesDir(loader theme.Loader, dir string) theme.Enumeration {
 	return theme.Enumeration{Entries: entries, DirUnusable: dirRejection != nil, DirPath: dir}
 }
 
-// Region order is pinned (directory, files, persisted) and nothing here sorts
-// or iterates a map, so two runs over unchanged inputs render byte-identically.
-// The drop is one-slug-one-line: a persisted line wins over the same slug's
-// file line because it carries strictly more (reason and slot).
+// Region order is pinned (directory, files, persisted) and nothing here sorts or
+// iterates a map, so two runs over unchanged inputs render byte-identically. A
+// persisted line drops the same slug's file line: it carries reason and slot too.
 func assembleThemeAdvisories(scanned, persisted []themeAdvisory) []themeAdvisory {
 	covered := persistedSlugs(persisted)
 
@@ -94,11 +92,11 @@ func persistedSlugs(persisted []themeAdvisory) []string {
 	return slugs
 }
 
-// The store read's error is discarded on purpose: every degenerate prefs.json
-// yields zero keys and therefore zero lines — a diagnosis must not fail because
-// one of the files it reads is the broken one. Resolution goes by name and
-// never through ResolveNomination, which substitutes fallbacks (hiding the
-// failure being reported) and can raise the broken-built-in fatal.
+// The store read's error is discarded on purpose: a degenerate prefs.json yields
+// zero keys and so zero lines — a diagnosis must not fail because one of the
+// files it reads is the broken one. Resolution goes by name, never through
+// ResolveNomination, which substitutes fallbacks (hiding the failure being
+// reported) and can raise the broken-built-in fatal.
 func persistedThemeAdvisories(deps *DoctorDeps, loader theme.Loader, enumeration theme.Enumeration) []themeAdvisory {
 	if deps.PrefsStore == nil {
 		return nil
@@ -142,8 +140,8 @@ func persistedThemeSlotLabel(key theme.InForceKey) string {
 	return name
 }
 
-// The slug renders control-stripped but untruncated: truncation stays
-// panel-local, doctor has the full width.
+// The slug renders untruncated: truncation stays panel-local, doctor has the
+// full width.
 func persistedThemeAdvisory(loader theme.Loader, enumeration theme.Enumeration, nomination persistedThemeNomination) (themeAdvisory, bool) {
 	_, rejection := loader.ResolveByNameFrom(enumeration, nomination.slug)
 	if rejection == nil {
@@ -180,10 +178,10 @@ func scanThemesDirectory(enumeration theme.Enumeration) []themeAdvisory {
 	return advisories
 }
 
-// The switch is exhaustive rather than a has-a-slug test so the reason this
-// producer does not own is visibly skipped. A `bad name` row's empty slug is
-// stated here, not copied from the entry: the never-collides-with-a-persisted-
-// slug property must not rest on an upstream field happening to be empty.
+// Exhaustive rather than a has-a-slug test, so the reason this producer does not
+// own is visibly skipped. A `bad name` row's empty slug is stated here, not
+// copied from the entry: never colliding with a persisted slug must not rest on
+// an upstream field happening to be empty.
 func themeFileAdvisory(entry theme.Entry) (themeAdvisory, bool) {
 	if entry.Rejection == nil {
 		return themeAdvisory{}, false
@@ -224,9 +222,8 @@ func badNameAdvisoryLine(entry theme.Entry) string {
 	return fmt.Sprintf(badNameSlugAdvisoryFormat, entry.Filename)
 }
 
-// The Err fallback is for `unreadable` alone — reading the structured error
-// where the rendered one is absent keeps the OS's message the detail without
-// ever rendering it twice.
+// The Err fallback is for `unreadable` alone — reading the structured error only
+// where the rendered one is absent keeps the OS's message from appearing twice.
 func rejectionDetail(rejection *theme.Rejection) string {
 	if rejection.Detail == "" && rejection.Err != nil {
 		return rejection.Err.Error()

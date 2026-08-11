@@ -122,9 +122,8 @@ func TestCommitFailure_BadgeDoesNotMove(t *testing.T) {
 	}
 }
 
-// The stub-backed pair is used because its synthetic palettes carry a distinct
-// value per token; the real-loader fixture's one-colour drop-ins would make the
-// accent.attention comparison below vacuous.
+// The stub-backed pair, whose synthetic palettes carry a distinct value per
+// token: the one-colour drop-ins would make the comparison below vacuous.
 func TestCommitFailure_ThemeStaysApplied(t *testing.T) {
 	rows := arrowValidRows(t, 4)
 	m, persister := newCommitPairPanelModel(t, rows)

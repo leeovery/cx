@@ -1,8 +1,6 @@
 // Command capturetool renders a named, deterministic fixture of Portal's real
-// TUI offline: a separate program from the shipped portal binary, building the
-// production model through the shared tui.Build constructor with every tmux
-// seam faked from internal/capture. It runs no bootstrap — no tmux server, no
-// daemon, no config read.
+// TUI offline, through the production tui.Build constructor with every tmux seam
+// faked. It runs no bootstrap — no tmux server, no daemon, no config read.
 //
 // Usage:
 //
@@ -69,11 +67,10 @@ func run(fixture, themeArg string) error {
 	return nil
 }
 
-// The theme resolves here, before either branch, so a screen capture and the
-// contrast swatch cannot be judged against different palettes; an unusable
-// theme renders nothing on either branch. The loader is the silent one:
-// capturetool renders a theme rather than using or diagnosing one, so it emits
-// no theme events.
+// The theme resolves before either branch, so a screen capture and the contrast
+// swatch cannot be judged against different palettes. The loader is the silent
+// one: capturetool renders a theme rather than using or diagnosing one, so it
+// emits no theme events.
 func resolveProgram(fixture, themeArg string, warnings io.Writer) (tea.Model, error) {
 	pinned, err := resolveTheme(theme.NewSilentLoader(), themeArg, warnings)
 	if err != nil {
@@ -139,10 +136,10 @@ func resolvePathTheme(path string, warnings io.Writer) (theme.Theme, error) {
 	return result.Theme, nil
 }
 
-// Warning rather than blocking: this is a drop-in author's only visual-
-// verification route, and the export workflow produces a reserved slug right
-// up until the user renames the file. The derived candidate slug is never
-// identity — it exists only to decide these two reasons.
+// Warning rather than blocking: this is a drop-in author's visual-verification
+// route, and the export workflow produces a reserved slug right up until the user
+// renames the file. The derived candidate slug is never identity — it decides
+// which of the two reasons to name.
 func warnAboutFilename(w io.Writer, base string) {
 	candidate, rejection := theme.SlugFromFilename(base)
 	switch {

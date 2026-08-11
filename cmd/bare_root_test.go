@@ -8,8 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestBarePortalPrintsHelpAndDoesNotLaunchPicker relies on rootCmd declaring no
-// Run/RunE: cobra's execute() short-circuits a non-Runnable command to
+// rootCmd declares no Run/RunE, so cobra's execute() short-circuits it to
 // flag.ErrHelp before the PersistentPreRunE bootstrap chain, and ExecuteC maps
 // that to help-printed plus a nil error.
 func TestBarePortalPrintsHelpAndDoesNotLaunchPicker(t *testing.T) {

@@ -1,4 +1,3 @@
-// Package fuzzy provides subsequence-based fuzzy matching.
 package fuzzy
 
 import "strings"

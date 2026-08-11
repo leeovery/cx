@@ -19,9 +19,6 @@ import (
 // Placeholder cause — only the UserMessage renders, so it is never classified.
 var errFixtureFatal = errors.New("permission denied")
 
-// Fixture is a named, fully in-memory seam set for the capture harness; Deps
-// assembles the production tui.Model from it via the shared tui.Build
-// constructor.
 type Fixture struct {
 	name string
 
@@ -35,9 +32,7 @@ type Fixture struct {
 	initialCursor      string
 	// Declared independently of the `--theme` palette: the union is what the
 	// panel lists, these keys are what it marks.
-	themeKeys theme.RawKeys
-	// Declaring no union leaves the fixture without a panel seam, so `t` stays
-	// a silent no-op.
+	themeKeys        theme.RawKeys
 	themeUnion       theme.Union
 	themeEnumeration theme.Enumeration
 	themeSlots       []theme.SlotResolution
@@ -54,23 +49,19 @@ type Fixture struct {
 	initialBurstOpening [2]int
 	initialFlash        string
 	command             []string
-	// Seeded content stays generic — the preview mechanism is tool-agnostic.
-	scrollback       string
-	enumeratorGroups []tmux.WindowGroup
-	serverStarted    bool
-	// Streamed via a receiver that blocks after the last event, so the loading
-	// page never dismisses.
-	loadingEvents []tui.BootstrapProgressMsg
-	fatalEvent    tui.BootstrapFatalMsg
+	scrollback          string
+	enumeratorGroups    []tmux.WindowGroup
+	serverStarted       bool
+	loadingEvents       []tui.BootstrapProgressMsg
+	fatalEvent          tui.BootstrapFatalMsg
 	// Tapes are scaffolding and do not live in the repository, so the post-load
 	// key script is declared here.
 	captureKeys []tea.KeyPressMsg
 	noColor     bool
 }
 
-// Deps maps the fixture onto the shared tui.Deps seam set at the palette th.
-// The palette drives two seams that must agree — the constant nomination and
-// the faked ThemeSource — or the panel's open repaints the frame off
+// Deps hands the palette to two seams that must agree — the constant nomination
+// and the faked ThemeSource — or the panel's open repaints the frame off
 // `--theme`.
 func (f *Fixture) Deps(th theme.Theme) tui.Deps {
 	return tui.Deps{
@@ -130,11 +121,8 @@ func loadingReceiverOrNil(events []tui.BootstrapProgressMsg, fatal tui.Bootstrap
 	return loadingProgressReceiver(events)
 }
 
-// Name returns the fixture's registered name.
 func (f *Fixture) Name() string { return f.name }
 
-// FixtureByName resolves a fixture by its registered name; an unknown name
-// errors, listing the available fixtures.
 func FixtureByName(name string) (*Fixture, error) {
 	switch name {
 	case "sessions-flat":
@@ -196,8 +184,8 @@ func FixtureByName(name string) (*Fixture, error) {
 	}
 }
 
-// FixtureNames returns the sorted list of registered fixture names, including
-// the contrast-validation swatch (a standalone tea.Model, not a *Fixture).
+// FixtureNames includes the contrast-validation swatch, which is a standalone
+// tea.Model rather than a *Fixture.
 func FixtureNames() []string {
 	names := []string{"sessions-flat", "sessions-empty", "sessions-by-project", "sessions-by-tag", "sessions-paged", "sessions-inline-flash", "sessions-multi-select-active", "sessions-unsupported-terminal", "sessions-unsupported-null", "sessions-multi-select-preflight-abort", "sessions-burst-opening", "sessions-no-tags-signpost", "theme-panel-adaptive-pair", "theme-panel-constant-previewing", "theme-panel-invalid-row", "theme-panel-dir-unreadable", "theme-panel-narrow", "theme-panel-paginated", "theme-panel-projects", "theme-panel-confirm", "theme-panel-commit-failed", "theme-panel-min-height-message", "projects", "projects-command-pending", "preview-screen", "loading-screen", "loading-error", ContrastValidationFixture}
 	sort.Strings(names)
@@ -507,9 +495,9 @@ func themePanelCommitFailedFixture() *Fixture {
 	return fx
 }
 
-// A fixture cannot resize itself, so the panel's height floor is reachable
-// only by capturing at a terminal that lands on it. Capture at the floor and
-// minimum width with `--theme nord`.
+// A fixture cannot resize itself, so the panel's height floor is reachable only
+// by capturing at a terminal that lands on it: capture at the floor and minimum
+// width with `--theme nord`.
 func themePanelMinHeightMessageFixture() *Fixture {
 	fx := themePanelCommitFailedFixture()
 	fx.name = "theme-panel-min-height-message"
@@ -530,10 +518,10 @@ func themePanelDirEnumeration(entries ...theme.Entry) theme.Enumeration {
 	return theme.Enumeration{Entries: entries, DirPath: themesDirPath}
 }
 
-// Capture with `--theme tokyo-night` — the fallback the broken dark slot
-// resolves to, where the open lands the cursor. The cursor sits on a valid row
-// deliberately: the arrow skip keeps it off invalid ones, so a frame parked on
-// a rejection is a state production cannot reach.
+// Capture with `--theme tokyo-night` — the fallback the broken dark slot resolves
+// to, where the open lands the cursor. That cursor sits on a valid row
+// deliberately: the arrow skip keeps it off invalid ones, so a frame parked on a
+// rejection is a state production cannot reach.
 func themePanelInvalidRowFixture() *Fixture {
 	fx := sessionsFlatFixture()
 	fx.name = "theme-panel-invalid-row"
@@ -647,8 +635,8 @@ func themePanelPaginatedFixture() *Fixture {
 }
 
 // Chosen for margin rather than the exact overflow threshold: the row count at
-// which the list stops paginating moves with the capture size, and a union
-// that fitted on one page would leave the dots uncovered.
+// which the list stops paginating moves with the capture size, and a union that
+// fitted on one page would leave the dots uncovered.
 const themePanelSyntheticDropIns = 30
 
 // Named to sort after every built-in slug, keeping the badged rows on page 1.
@@ -735,8 +723,7 @@ func projectsFixture() *Fixture {
 	}
 }
 
-// The seeded command stays generic — Portal's run-a-command mechanism is
-// tool-agnostic, so no fixture references any specific tool.
+// The seeded command stays generic: no fixture may reference a specific tool.
 func projectsCommandPendingFixture() *Fixture {
 	fx := projectsFixture()
 	fx.name = "projects-command-pending"
@@ -744,8 +731,8 @@ func projectsCommandPendingFixture() *Fixture {
 	return fx
 }
 
-// The scrollback stays generic terminal output — Portal's preview mechanism is
-// tool-agnostic, so no fixture references any specific tool.
+// The scrollback stays generic terminal output: no fixture may reference a
+// specific tool.
 func previewScreenFixture() *Fixture {
 	sessions := []tmux.Session{
 		{Name: "aviva-proxy-qNyfEO", Windows: 1, Attached: false, Dir: "/home/user/code/aviva"},

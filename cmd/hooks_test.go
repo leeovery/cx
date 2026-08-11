@@ -623,7 +623,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		// A resolver that fails loudly if consulted, so an accidental fallback on
-		// the flag-set branch is caught.
+		// the flag-set branch cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })
@@ -686,7 +686,7 @@ func TestHooksRmCommand(t *testing.T) {
 		})
 
 		// A resolver that fails loudly if consulted, so an accidental fallback on
-		// the --pane-key branch is caught.
+		// the --pane-key branch cannot pass silently.
 		resolver := &mockKeyResolver{err: fmt.Errorf("resolver must not be called when --pane-key is set")}
 		hooksDeps = &HooksDeps{KeyResolver: resolver}
 		t.Cleanup(func() { hooksDeps = nil })

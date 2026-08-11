@@ -5,8 +5,6 @@ import (
 	"github.com/leeovery/portal/internal/theme"
 )
 
-// keyGlyph is one coloured run inside a filter-footer entry's key cluster; a
-// key may be several glyphs with differing tokens (e.g. `↵ / ↓`).
 type keyGlyph struct {
 	Text string
 	Tok  theme.Token

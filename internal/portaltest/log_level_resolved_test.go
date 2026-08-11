@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// resolvedLine renders the line in the exact text-mode shape the log handler
-// emits, so the parser is tested against the real on-disk format.
+// Renders the exact text-mode shape the log handler emits, so the parser is
+// exercised against the real on-disk format.
 func resolvedLine(resolved, source, raw string, pid int) string {
 	return fmt.Sprintf(
 		"2026-05-30T14:00:00Z INFO process: log-level resolved resolved=%s source=%s raw=%q pid=%d version=0.5.0 process_role=daemon",

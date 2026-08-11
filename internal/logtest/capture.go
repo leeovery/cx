@@ -1,14 +1,12 @@
-// Package logtest provides a shared in-process log-capturing slog.Handler for
-// portal's logging unit tests. It is a leaf, test-only helper: production code
-// must not import it.
+// Package logtest provides an in-process log-capturing slog.Handler. It is
+// test-only: production code must not import it.
 //
 // Sink renders each record as
 //
 //	<LEVEL> <msg> key=value...
 //
-// with any bound component on every line. That rendering is the contract
-// consumers' substring assertions key on, declared once here so it changes in one
-// place.
+// with any bound component on every line. Consumers' substring assertions key on
+// that rendering, so it is declared here rather than per consumer.
 package logtest
 
 import (
@@ -28,8 +26,8 @@ type TestingT interface {
 }
 
 // Record is a flattened view of one captured slog.Record. Keys holds the attr
-// keys in order, including any bound via WithAttrs; Attrs carries the same key
-// set mapped to values, last-write-wins on a duplicate key.
+// keys in order, including those bound via WithAttrs; Attrs maps the same keys
+// to values, last-write-wins on a duplicate.
 type Record struct {
 	Level slog.Level
 	Msg   string
@@ -37,8 +35,7 @@ type Record struct {
 	Attrs map[string]slog.Value
 }
 
-// AttrString returns the string rendering of the attr named key, failing the test
-// if the record carries no such attr.
+// AttrString fails the test if the record carries no attr named key.
 func (r Record) AttrString(t TestingT, key string) string {
 	t.Helper()
 	v, ok := r.Attrs[key]
@@ -48,8 +45,7 @@ func (r Record) AttrString(t TestingT, key string) string {
 	return v.String()
 }
 
-// IntAttr returns the int64 value of the attr named key, failing the test if it
-// is absent or is not a slog.KindInt64 value.
+// IntAttr fails the test if the attr is absent or is not a slog.KindInt64 value.
 func (r Record) IntAttr(t TestingT, key string) int64 {
 	t.Helper()
 	v, ok := r.Attrs[key]
@@ -62,9 +58,8 @@ func (r Record) IntAttr(t TestingT, key string) int64 {
 	return v.Int64()
 }
 
-// RequireDuration fails the test unless the attr named key is present and is a
-// slog.KindDuration value. The kind must be asserted: a rendered Duration is
-// indistinguishable from a stringified one.
+// RequireDuration asserts the attr's kind, not its rendering: a rendered
+// Duration is indistinguishable from a stringified one.
 func (r Record) RequireDuration(t TestingT, key string) {
 	t.Helper()
 	v, ok := r.Attrs[key]
@@ -76,15 +71,13 @@ func (r Record) RequireDuration(t TestingT, key string) {
 	}
 }
 
-// HasAttr reports whether the record carries an attr named key.
 func (r Record) HasAttr(key string) bool {
 	_, ok := r.Attrs[key]
 	return ok
 }
 
-// Sink is a slog.Handler capturing every record into an in-memory buffer.
-// Handlers derived via WithAttrs/WithGroup record into the same buffer. The zero
-// value is ready to use as a root sink.
+// Sink captures every record into an in-memory buffer, shared with the handlers
+// derived from it via WithAttrs/WithGroup. The zero value is ready to use.
 type Sink struct {
 	mu      sync.Mutex
 	lines   []string
@@ -100,8 +93,8 @@ func (s *Sink) owner() *Sink {
 	return s
 }
 
-// Enabled admits every level: level filtering is internal/log's concern in
-// production, and these tests assert that a line was emitted at a given level.
+// Enabled admits every level: filtering is internal/log's concern, and these
+// tests assert that a line was emitted at a given level.
 func (s *Sink) Enabled(_ context.Context, _ slog.Level) bool { return true }
 
 func (s *Sink) WithAttrs(attrs []slog.Attr) slog.Handler {
@@ -141,7 +134,6 @@ func (s *Sink) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-// Body returns every captured line joined by newlines.
 func (s *Sink) Body() string {
 	owner := s.owner()
 	owner.mu.Lock()
@@ -149,8 +141,7 @@ func (s *Sink) Body() string {
 	return strings.Join(owner.lines, "\n")
 }
 
-// Lines returns a snapshot of the captured lines in emission order; later writes
-// do not mutate it.
+// Lines returns a snapshot: later writes do not mutate it.
 func (s *Sink) Lines() []string {
 	owner := s.owner()
 	owner.mu.Lock()
@@ -158,8 +149,7 @@ func (s *Sink) Lines() []string {
 	return append([]string(nil), owner.lines...)
 }
 
-// Records returns a snapshot of the captured structured records in emission
-// order.
+// Records returns a snapshot: later writes do not mutate it.
 func (s *Sink) Records() []Record {
 	owner := s.owner()
 	owner.mu.Lock()
@@ -167,8 +157,6 @@ func (s *Sink) Records() []Record {
 	return append([]Record(nil), owner.records...)
 }
 
-// OnlyRecord returns the single captured record, failing the test if there is not
-// exactly one.
 func (s *Sink) OnlyRecord(t TestingT) Record {
 	t.Helper()
 	recs := s.Records()
@@ -178,7 +166,6 @@ func (s *Sink) OnlyRecord(t TestingT) Record {
 	return recs[0]
 }
 
-// NewCaptureLogger returns a *slog.Logger routed into a fresh Sink, and the sink.
 func NewCaptureLogger(t *testing.T) (*slog.Logger, *Sink) {
 	t.Helper()
 	sink := &Sink{}
