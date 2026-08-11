@@ -173,7 +173,7 @@ func (l Loader) resolveSlot(slot Slot, slug string, pass resolutionPass) (SlotRe
 		return pass.report(SlotResolution{Slot: slot, Requested: slug, Resolved: result.Slug, Theme: result.Theme}), nil
 	}
 
-	fallbackSlug := fallbackSlugFor(slot)
+	fallbackSlug := defaultSlugFor(slot)
 	fallback, fallbackRejection := pass.load(fallbackSlug)
 	if fallbackRejection != nil {
 		return SlotResolution{}, BrokenBuiltinError(fallbackSlug)
@@ -205,9 +205,10 @@ func (l Loader) reportFallback(r SlotResolution) SlotResolution {
 	return r
 }
 
-// Mode-matched deliberately: one fixed fallback would throw a light-terminal
-// user with a typo in their light slot onto a dark palette.
-func fallbackSlugFor(slot Slot) string {
+// defaultSlugFor is the slot's shipped default, mode-matched deliberately: one
+// fixed default would throw a light-terminal user with a typo in their light
+// slot onto a dark palette.
+func defaultSlugFor(slot Slot) string {
 	if slot == SlotLight {
 		return DefaultLightSlug
 	}

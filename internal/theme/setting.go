@@ -74,8 +74,8 @@ func ResolveSetting(keys RawKeys) (Setting, RawKeys) {
 	}
 
 	return Setting{
-		Light: cmp.Or(raw.Light, DefaultLightSlug),
-		Dark:  cmp.Or(raw.Dark, DefaultDarkSlug),
+		Light: cmp.Or(raw.Light, defaultSlugFor(SlotLight)),
+		Dark:  cmp.Or(raw.Dark, defaultSlugFor(SlotDark)),
 	}, raw
 }
 
@@ -86,9 +86,9 @@ func ResolveSetting(keys RawKeys) (Setting, RawKeys) {
 func (s Setting) Slug(slot Slot) string {
 	switch slot {
 	case SlotLight:
-		return cmp.Or(s.Light, DefaultLightSlug)
+		return cmp.Or(s.Light, defaultSlugFor(SlotLight))
 	case SlotDark:
-		return cmp.Or(s.Dark, DefaultDarkSlug)
+		return cmp.Or(s.Dark, defaultSlugFor(SlotDark))
 	default:
 		return s.Constant
 	}
